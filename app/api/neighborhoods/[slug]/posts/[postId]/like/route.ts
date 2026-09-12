@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { rateLimit } from '@/lib/rateLimit'
 import { REACTION_EMOJIS } from '@/lib/posts'
 import { postMatchesSlug } from '@/lib/neighborhoodsDb'
 
@@ -9,6 +10,11 @@ type Params = { params: Promise<{ slug: string; postId: string }> }
 export async function POST(req: NextRequest, { params }: Params) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Not logged in' }, { status: 401 })
+  // Same budget idea as posts/replies: each toggle is a write plus a re-read
+  // of every like on the post. Generous for real reacting.
+  if (!await rateLimit(`nh-like:${session.id}`, 60, 60_000)) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+  }
 
   const { slug, postId } = await params
   const body = await req.json().catch(() => ({}))

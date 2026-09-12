@@ -47,8 +47,12 @@ async function runSweep() {
   // nothing surfaced it. It is not retried either: the batch has no record
   // of who already received it, so a retry would double-send. Mark it and
   // put it on the email-failures tile for a human.
-  // sentAt defaults to now() at create, i.e. the claim time for every path
-  // (manual, scheduled, auto-digest); scheduledFor is null for two of them.
+  // sentAt defaults to now() at create. For the manual send and the
+  // auto-digest the row is created already 'sending', so that is the claim
+  // time; a SCHEDULED issue keeps its creation time until it finishes (the
+  // scheduled → sending claim below doesn't touch sentAt), so for it this
+  // measures age since it was written, not since it was claimed.
+  // scheduledFor is null for the other two paths.
   const stuck = await prisma.newsletter.findMany({
     where:  { status: 'sending', sentAt: { lt: new Date(Date.now() - STUCK_AFTER_MS) } },
     select: { id: true, subject: true },

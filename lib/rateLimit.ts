@@ -26,6 +26,21 @@ export function claimOnce(key: string, windowMs: number): Promise<boolean> {
   return rateLimit(key, 1, windowMs)
 }
 
+/**
+ * Hand a claimOnce key back, so the next run can take it again. For a sweep
+ * whose send failed AFTER it claimed: claim-first is what stops two runs
+ * double-sending, but a claim kept for a send that never happened silences
+ * that send for the whole window. Never throws — a failed release leaves the
+ * claim in place, which is the pre-release behaviour (logged, not retried).
+ */
+export async function releaseClaim(key: string): Promise<void> {
+  try {
+    await prisma.rateLimit.deleteMany({ where: { key } })
+  } catch (e) {
+    console.error('[releaseClaim] could not release', key, e)
+  }
+}
+
 // Loose but safe: accepts plain IPv4, IPv6 (with or without brackets),
 // and rejects anything with unexpected characters that could poison a
 // rate-limit key or log line (spaces, semicolons, CRLF injections, etc.).

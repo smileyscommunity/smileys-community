@@ -12,7 +12,7 @@ const QRCode = dynamic(() => import('@/components/QRCode'), { ssr: false })
 
 interface JoinedMember {
   id: string; name: string; color: string; profilePhoto: string | null
-  neighborhood: string | null; joinedAt: string | null
+  joinedAt: string | null
 }
 
 interface Stats {
@@ -173,7 +173,6 @@ export default function InvitePage() {
                     )}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-gray-900 truncate">{m.name}</p>
-                      {m.neighborhood && <p className="text-xs text-gray-400 truncate">📍 {m.neighborhood}</p>}
                     </div>
                   </Link>
                 )

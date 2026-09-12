@@ -32,18 +32,25 @@ export default function AdminCampaignsPage() {
   async function create() {
     if (!draft.slug.trim() || !draft.name.trim()) { toast.error('slug + name required'); return }
     setSaving(true)
-    const res = await fetch('/app/api/admin/campaigns', {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...draft, routeSlug: draft.routeSlug || draft.slug, status: 'draft' }),
-    })
-    const d = await res.json()
-    setSaving(false)
-    if (!res.ok) { toast.error(d.error ?? 'Could not create'); return }
-    toast.success(`"${d.campaign.name}" created`)
-    setShowCreate(false)
-    setDraft({ slug: '', name: '', emoji: '', tagline: '', routeSlug: '' })
-    load()
+    // finally + guarded parse: a non-JSON error page (nginx 502) must not
+    // leave the button stuck on saving.
+    try {
+      const res = await fetch('/app/api/admin/campaigns', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...draft, routeSlug: draft.routeSlug || draft.slug, status: 'draft' }),
+      })
+      const d = await res.json().catch(() => null)
+      if (!res.ok || !d?.campaign) { toast.error(d?.error ?? 'Could not create'); return }
+      toast.success(`"${d.campaign.name}" created`)
+      setShowCreate(false)
+      setDraft({ slug: '', name: '', emoji: '', tagline: '', routeSlug: '' })
+      load()
+    } catch {
+      toast.error('Could not create — check your connection')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (

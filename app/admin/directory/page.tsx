@@ -478,6 +478,11 @@ function BusinessRow({ b, onAction, neighborhoods, cities }: { b: Business; onAc
               <label className={labelCls}>Neighborhood</label>
               <select {...field('neighborhood')} className={inputCls}>
                 <option value="">—</option>
+                {/* A saved name outside the list stays selectable, so opening
+                    the editor never silently blanks it on save. */}
+                {b.neighborhood && !neighborhoods.includes(b.neighborhood) && (
+                  <option value={b.neighborhood}>{b.neighborhood}</option>
+                )}
                 {neighborhoods.map(n => <option key={n} value={n}>{n}</option>)}
               </select>
             </div>
@@ -1116,9 +1121,14 @@ function ReportsList() {
 export default function AdminDirectoryPage() {
   const searchParams = useSearchParams()
   const router       = useRouter()
-  // Fetched once here and handed to the rows: a hook inside BusinessRow would
-  // mean one /api/neighborhoods request per listing on screen.
+  // Fetched here and handed to the rows: a hook inside BusinessRow would
+  // mean one /api/neighborhoods request per listing on screen. The viewer's
+  // city list is only the fallback for a row with no city — each row edits
+  // against ITS city's names (one request per distinct city on screen), since
+  // the server validates against the listing's city and a Bodrum listing
+  // offered Istanbul's names had its pick dropped to empty.
   const neighborhoods = useCityNeighborhoods()
+  const [hoodsByCity, setHoodsByCity] = useState<Record<string, string[]>>({})
   const raw          = searchParams.get('status')
   // Tab order is Approved → Pending → Rejected, so the first tab is also
   // the default landing view when no ?status= param is present.
@@ -1133,6 +1143,25 @@ export default function AdminDirectoryPage() {
     { enabled: !isAux },
   )
   const allItems = data ?? []
+  const rowCitySlugs = Array.from(new Set(allItems.map(b => b.city?.slug).filter((x): x is string => !!x))).sort().join(',')
+  useEffect(() => {
+    if (!rowCitySlugs) return
+    let cancelled = false
+    for (const slug of rowCitySlugs.split(',')) {
+      if (hoodsByCity[slug]) continue
+      fetch(`/app/api/neighborhoods?city=${encodeURIComponent(slug)}`, { credentials: 'include' })
+        .then(r => r.json())
+        .then(d => {
+          if (cancelled) return
+          const names = (d.neighborhoods ?? []).map((n: { name: string }) => n.name)
+          setHoodsByCity(prev => ({ ...prev, [slug]: names }))
+        })
+        .catch(() => {})
+    }
+    return () => { cancelled = true }
+  // hoodsByCity excluded — it only skips slugs already fetched.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rowCitySlugs])
   const listCities = useAdminCities()
   const [cityFilter, setCityFilter] = useState('')
   const items = cityFilter ? allItems.filter(b => (b.city?.slug ?? '') === cityFilter) : allItems
@@ -1210,7 +1239,7 @@ export default function AdminDirectoryPage() {
         </div>
       ) : (
         <div className="space-y-2">
-          {items.map(b => <BusinessRow key={b.id} b={b} onAction={retry} neighborhoods={neighborhoods} cities={listCities} />)}
+          {items.map(b => <BusinessRow key={b.id} b={b} onAction={retry} neighborhoods={b.city?.slug ? (hoodsByCity[b.city.slug] ?? []) : neighborhoods} cities={listCities} />)}
         </div>
       )}
     </div>

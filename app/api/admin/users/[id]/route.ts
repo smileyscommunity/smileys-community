@@ -40,7 +40,7 @@ export async function GET(_: NextRequest, { params }: Params) {
         joinedEvents: {
           // Live RSVPs only — a cancelled row would read as a no-show below.
           where:   activeAttendeeWhere,
-          include: { event: { select: { id: true, title: true, emoji: true, date: true, neighborhood: true, price: true } } },
+          include: { event: { select: { id: true, title: true, emoji: true, date: true, neighborhood: true, price: true, city: { select: { timezone: true } } } } },
           orderBy: { joinedAt: 'desc' },
         },
         clubMemberships: {

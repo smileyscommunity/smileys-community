@@ -78,8 +78,12 @@ export async function POST(req: NextRequest, { params }: Params) {
     }
   }
 
-  const { url, caption } = await req.json()
-  if (!url?.trim()) return NextResponse.json({ error: 'URL is required' }, { status: 400 })
+  const { url, caption } = await req.json().catch(() => ({}))
+  // Wrong types used to reach .trim() and 500.
+  if (typeof url !== 'string' || (caption != null && typeof caption !== 'string')) {
+    return NextResponse.json({ error: 'url and caption must be strings' }, { status: 400 })
+  }
+  if (!url.trim()) return NextResponse.json({ error: 'URL is required' }, { status: 400 })
   if (!/^\/app\/api\/files\/[a-zA-Z0-9\-]+\/[a-zA-Z0-9\-]+\.(jpg|jpeg|png|webp|gif)$/.test(url.trim())) {
     return NextResponse.json({ error: 'Invalid photo URL' }, { status: 400 })
   }

@@ -388,7 +388,7 @@ export default function SettingsPage() {
             <Toggle label="New events" description="When new events are published" checked={prefs.newEvents} onChange={v => savePref('newEvents', v)} />
             <Toggle label="Event reminders" description="24-hour reminder before events you've joined" checked={prefs.reminders} onChange={v => savePref('reminders', v)} />
             <Toggle label="Event updates" description="Changes to events you're attending" checked={prefs.eventUpdates} onChange={v => savePref('eventUpdates', v)} />
-            <Toggle label="New attendees" description="When someone joins your event" checked={prefs.joinedEvents} onChange={v => savePref('joinedEvents', v)} />
+            <Toggle label="New attendees" description="When someone joins your event or hangout" checked={prefs.joinedEvents} onChange={v => savePref('joinedEvents', v)} />
             <Toggle label="Club wall posts" description="New posts in clubs you've joined" checked={prefs.wallPosts} onChange={v => savePref('wallPosts', v)} />
             <Toggle label="Wall replies" description="Replies to your club posts" checked={prefs.wallReplies} onChange={v => savePref('wallReplies', v)} />
             <Toggle label="Quiet hours" description={`Mute notifications from ${prefs.quietFrom}:00 to ${prefs.quietTo}:00`} checked={prefs.quietHours} onChange={v => savePref('quietHours', v)} />

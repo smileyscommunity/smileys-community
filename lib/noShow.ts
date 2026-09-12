@@ -22,7 +22,16 @@ import {
 const HOUR = 60 * 60 * 1000
 const DAY  = 24 * HOUR
 
-const fmt = (d: Date) => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: DEFAULT_TZ })
+// Restriction and appeal dates are read on the MEMBER's city clock: a block
+// ending 00:30 on the 15th in Tbilisi is the 14th in Istanbul, and telling a
+// Tbilisi member "paused until 14 Oct" is a promise the gate then breaks.
+const fmt = (d: Date, tz: string = DEFAULT_TZ) => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: tz })
+
+/** The member's home-city timezone, DEFAULT_TZ when it can't be read. */
+async function memberTz(userId: string): Promise<string> {
+  const u = await prisma.user.findUnique({ where: { id: userId }, select: { city: { select: { timezone: true } } } })
+  return u?.city?.timezone ?? DEFAULT_TZ
+}
 
 // ── The gate ────────────────────────────────────────────────────────────────
 
@@ -31,16 +40,26 @@ const gateSelect = {
   appealDeadlineAt: true, restrictionStartsAt: true, restrictionEndsAt: true,
 } as const
 
+/**
+ * A gate result, plus — on a red block only — the member's city timezone,
+ * so gateErrorBody can date the block on their clock without every join
+ * route looking the city up itself.
+ */
+export type MemberGate = GateResult & { tz?: string }
+
 /** May this member RSVP or join a waitlist right now? */
-export async function getRsvpGate(userId: string, now: Date = new Date()): Promise<GateResult> {
+export async function getRsvpGate(userId: string, now: Date = new Date()): Promise<MemberGate> {
   const cards = await prisma.noShowCard.findMany({
     where:  { userId, status: CardStatus.Active },
     select: gateSelect,
   })
-  return evaluateGate(cards, now)
+  const gate = evaluateGate(cards, now)
+  // The lookup only runs for the refusal that prints a date.
+  if (!gate.ok && gate.code === 'red_card_blocked') return { ...gate, tz: await memberTz(userId) }
+  return gate
 }
 
-export type RsvpCheck = GateResult | { ok: true; pendingAck: true }
+export type RsvpCheck = MemberGate | { ok: true; pendingAck: true }
 
 /**
  * The join routes' entry point: the gate, plus the yellow-card confirmation.
@@ -68,11 +87,15 @@ export async function recordYellowAcknowledgement(userId: string, eventId: strin
   })
 }
 
-/** Machine-readable body for a refused join, so the client can say why. */
-export function gateErrorBody(gate: Exclude<GateResult, { ok: true }>) {
+/**
+ * Machine-readable body for a refused join, so the client can say why.
+ * The date is on the member's clock: `tz` when given, else the one
+ * getRsvpGate attached, else DEFAULT_TZ.
+ */
+export function gateErrorBody(gate: Exclude<GateResult, { ok: true }> & { tz?: string }, tz: string = gate.tz ?? DEFAULT_TZ) {
   if (gate.code === 'red_card_blocked') {
     return {
-      error: `RSVPs are paused until ${fmt(gate.restrictionEndsAt)}`,
+      error: `RSVPs are paused until ${fmt(gate.restrictionEndsAt, tz)}`,
       code:  gate.code,
       cardId: gate.cardId,
       restrictionEndsAt: gate.restrictionEndsAt.toISOString(),
@@ -194,7 +217,14 @@ export async function settleEvent(eventId: string, now: Date = new Date()): Prom
   }
 }
 
-/** Events that may be due for settlement: recent, live, not yet stamped. */
+/**
+ * Events that may be due for settlement: recent, live, not yet stamped —
+ * in order of END TIME, earliest first, across every city (ties by id, so
+ * the order is stable run to run). The colour of a card depends on the
+ * cards issued before it, and settleEvent only counts cards that already
+ * exist: A ending 20:00 and B ending 21:00, settled B-then-A, gave the
+ * member two yellows where they had earned a yellow and then a red.
+ */
 async function candidateEvents(now: Date) {
   const cities = await prisma.city.findMany({ select: { id: true, timezone: true } })
   const rows = await Promise.all(cities.map(c => prisma.event.findMany({
@@ -208,17 +238,20 @@ async function candidateEvents(now: Date) {
     select: { id: true, date: true, time: true, endTime: true },
   }).then(evs => evs.map(e => ({ ...e, tz: c.timezone })))))
   const floor = now.getTime() - NO_SHOW_PROCESSING_LOOKBACK_DAYS * DAY
-  return rows.flat().filter(e => {
-    const end = eventEndsAt(e, e.tz).getTime()
-    return end >= floor && end + NO_SHOW_PROCESSING_DELAY_HOURS * HOUR <= now.getTime()
-  })
+  return rows.flat()
+    .map(e => ({ ...e, end: eventEndsAt(e, e.tz).getTime() }))
+    .filter(e => e.end >= floor && e.end + NO_SHOW_PROCESSING_DELAY_HOURS * HOUR <= now.getTime())
+    .sort((a, b) => a.end - b.end || a.id.localeCompare(b.id))
 }
 
 /** Tell members about cards issued since the last run. Stamped per card, after the send. */
 export async function notifyIssuedCards(): Promise<number> {
   const cards = await prisma.noShowCard.findMany({
     where:   { notifiedAt: null, status: { in: [CardStatus.Active, CardStatus.AppealPending] } },
-    include: { user: { select: { id: true, name: true, email: true } }, event: { select: { id: true, title: true, emoji: true, hostId: true } } },
+    include: {
+      user:  { select: { id: true, name: true, email: true, city: { select: { timezone: true } } } },
+      event: { select: { id: true, title: true, emoji: true, hostId: true } },
+    },
   })
   // Hosts are told about the cards that were actually stamped: a DB error
   // on card k used to leave cards 1..k-1 stamped (never re-selected) with
@@ -227,6 +260,7 @@ export async function notifyIssuedCards(): Promise<number> {
   for (const c of cards) {
     try {
     const emoji = c.event.emoji ?? '📅'
+    const tz    = c.user.city?.timezone ?? DEFAULT_TZ
     if (c.kind === CardKind.Yellow) {
       await createNotification(c.userId, 'no_show_yellow',
         `${emoji} We missed you at ${c.event.title}`,
@@ -239,8 +273,8 @@ export async function notifyIssuedCards(): Promise<number> {
         })
     } else if (c.appealDeadlineAt && c.restrictionStartsAt && c.restrictionEndsAt) {
       await createNotification(c.userId, 'no_show_red',
-        `${emoji} Second no-show — RSVPs paused from ${fmt(c.restrictionStartsAt)}`,
-        `Until ${fmt(c.restrictionEndsAt)} you won't be able to RSVP or join waitlists. You can appeal until ${fmt(c.appealDeadlineAt)}; nothing is paused while an appeal is open.`,
+        `${emoji} Second no-show — RSVPs paused from ${fmt(c.restrictionStartsAt, tz)}`,
+        `Until ${fmt(c.restrictionEndsAt, tz)} you won't be able to RSVP or join waitlists. You can appeal until ${fmt(c.appealDeadlineAt, tz)}; nothing is paused while an appeal is open.`,
         '/no-show')
       sendRedCardEmail(c.user.id, c.user.email, c.user.name ?? 'Member', c.event.title, emoji,
         { appealDeadlineAt: c.appealDeadlineAt, restrictionStartsAt: c.restrictionStartsAt, restrictionEndsAt: c.restrictionEndsAt })
@@ -304,7 +338,7 @@ export async function activateRedCards(now: Date = new Date()): Promise<number> 
       kind: CardKind.Red, status: CardStatus.Active, restrictionNotifiedAt: null,
       restrictionStartsAt: { lte: now }, restrictionEndsAt: { gt: now },
     },
-    select: { id: true, userId: true, restrictionEndsAt: true },
+    select: { id: true, userId: true, restrictionEndsAt: true, user: { select: { city: { select: { timezone: true } } } } },
   })
   for (const c of due) {
     const entries = await prisma.waitlistEntry.findMany({ where: { userId: c.userId }, select: { id: true } })
@@ -316,7 +350,7 @@ export async function activateRedCards(now: Date = new Date()): Promise<number> 
         '/no-show')
     }
     await createNotification(c.userId, 'no_show_restriction_active',
-      `RSVPs paused until ${fmt(c.restrictionEndsAt!)}`,
+      `RSVPs paused until ${fmt(c.restrictionEndsAt!, c.user?.city?.timezone ?? DEFAULT_TZ)}`,
       'The appeal window closed. Everything else stays open — events, clubs, messages — and RSVPs come back automatically.',
       '/no-show')
     await prisma.noShowCard.update({ where: { id: c.id }, data: { restrictionNotifiedAt: now } })
@@ -515,7 +549,7 @@ export async function resolveCard(opts: {
 }): Promise<ResolveOutcome> {
   const card = await prisma.noShowCard.findUnique({
     where:   { id: opts.cardId },
-    include: { event: { select: { title: true } } },
+    include: { event: { select: { title: true } }, user: { select: { city: { select: { timezone: true } } } } },
   })
   if (!card) return 'not_found'
   const now = new Date()
@@ -567,7 +601,7 @@ export async function resolveCard(opts: {
   await createNotification(card.userId, 'no_show_appeal_resolved',
     opts.action === 'reject' ? 'Appeal not accepted' : 'No-show card cleared',
     opts.action === 'reject'
-      ? `The red card from "${card.event.title}" stands. RSVPs pause from ${fmt(restrictionAfterRejectedAppeal(card.appealDeadlineAt ?? now, now).restrictionStartsAt)}.${opts.note ? ` Note: ${opts.note}` : ''}`
+      ? `The red card from "${card.event.title}" stands. RSVPs pause from ${fmt(restrictionAfterRejectedAppeal(card.appealDeadlineAt ?? now, now).restrictionStartsAt, card.user?.city?.timezone ?? DEFAULT_TZ)}.${opts.note ? ` Note: ${opts.note}` : ''}`
       : `The card from "${card.event.title}" no longer counts against you.${opts.note ? ` Note: ${opts.note}` : ''}`,
     '/no-show')
   return 'ok'

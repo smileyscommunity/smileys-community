@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator, canActInCity } from '@/lib/access'
+import { canActInCity } from '@/lib/access'
 import { restrictedSetFor } from '@/lib/memberPrivacy'
 import { createNotification } from '@/lib/notify'
 import { rateLimit } from '@/lib/rateLimit'
@@ -32,8 +32,9 @@ export async function GET(req: NextRequest, { params }: Params) {
   }
 
   if (pending) {
-    // Only hosts/admins can see pending requests
-    const isAdmin = isAdminOrModerator(session)
+    // Only hosts and the club's city staff can see pending requests — they
+    // carry applicants' bios, so a moderator from another city doesn't qualify.
+    const isAdmin = canActInCity(session, club.cityId)
     if (!isAdmin) {
       const membership = await prisma.clubMembership.findUnique({
         where: { userId_clubId: { userId: session.id, clubId: club.id } },
@@ -126,9 +127,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 
   const { slug } = await params
-  const { userId, action } = await req.json() as { userId: string; action: 'approve' | 'reject' }
+  const { userId, action } = await req.json().catch(() => ({})) as { userId?: unknown; action?: unknown }
 
-  if (!userId || !['approve', 'reject'].includes(action)) {
+  if (typeof userId !== 'string' || !userId || typeof action !== 'string' || !['approve', 'reject'].includes(action)) {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
   }
 

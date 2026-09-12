@@ -1,9 +1,7 @@
 import { isAdmin } from '@/lib/access'
-import { claimOnce } from '@/lib/rateLimit'
+import { claimOnce, releaseClaim } from '@/lib/rateLimit'
 import { NextRequest, NextResponse } from 'next/server'
 import { timingSafeEqual } from 'crypto'
-import { readdirSync, statSync, unlinkSync } from 'fs'
-import { join } from 'path'
 import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notify'
 import { sendReviewRequestEmail, sendListingExpiryEmail, recordEmailFailure } from '@/lib/email'
@@ -13,7 +11,6 @@ import { recordCronRun } from '@/lib/cronHealth'
 import { citiesByToday, type CityDay } from '@/lib/city'
 import { eventStartsAt } from '@/lib/eventTime'
 import { DEFAULT_TZ } from '@/lib/cityTime'
-import { uploadRoot } from '@/lib/uploadRoot'
 
 // One findMany instead of a findFirst per attendee. The per-row shape ran
 // events × attendees queries every nightly sweep — easily 1–2k round trips;
@@ -141,14 +138,21 @@ async function runSweep() {
     const lastSent = latestExpiryNote.get(`${listing.userId}:${listing.id}`)
     if (lastSent && Date.now() - lastSent < 2 * 24 * 60 * 60 * 1000) continue
     // The claim survives a cleared bell (the row above does not).
-    if (!await claimOnce(`listing-expiry:${listing.userId}:${listing.id}:${daysLeft}`, 3 * 24 * 60 * 60 * 1000)) continue
-    await createNotification(
+    const expiryClaim = `listing-expiry:${listing.userId}:${listing.id}:${daysLeft}`
+    if (!await claimOnce(expiryClaim, 3 * 24 * 60 * 60 * 1000)) continue
+    // Claim first (two overlapping runs can't both send), but a write that
+    // failed hands the claim back so the next hourly tick retries — and skips
+    // the email, which would otherwise go out again on that retry.
+    if (!await createNotification(
       listing.userId,
       'listing_expiry',
       `Listing expiring in ${daysLeft} days ⏳`,
       `"${listing.title}" will be removed from the Community Board soon — renew it to keep it visible.`,
       listingLink,
-    )
+    )) {
+      await releaseClaim(expiryClaim)
+      continue
+    }
     // EM3 fix: log SMTP failures so a silent outage doesn't make
     // every listing-expiry reminder vanish without trace. Cron
     // is automated — there's no admin in the loop to notice.
@@ -182,16 +186,20 @@ async function runSweep() {
 
     for (const userId of attendeeIds) {
       if (connSent.has(`${userId}:/events/${event.id}`)) continue
-      if (!await claimOnce(`connsug:${userId}:${event.id}`, 7 * 24 * 60 * 60 * 1000)) continue
+      const connClaim = `connsug:${userId}:${event.id}`
+      if (!await claimOnce(connClaim, 7 * 24 * 60 * 60 * 1000)) continue
 
       const othersCount = attendeeIds.length - 1
-      await createNotification(
+      if (!await createNotification(
         userId,
         'connection_suggestion',
         'People you met 👋',
         `You attended "${event.title}" with ${othersCount} other member${othersCount !== 1 ? 's' : ''} — connect with someone you met!`,
         `/events/${event.id}`
-      )
+      )) {
+        await releaseClaim(connClaim)
+        continue
+      }
       sentConnections++
     }
   }
@@ -240,7 +248,8 @@ async function runSweep() {
 
     for (const { userId } of event.attendees) {
       if (is24h) {
-        if (!sent24Set.has(`${userId}:/events/${event.id}`) && await claimOnce(`reminder-24h:${userId}:${event.id}`, 3 * 24 * 60 * 60 * 1000)) {
+        const claim24 = `reminder-24h:${userId}:${event.id}`
+        if (!sent24Set.has(`${userId}:/events/${event.id}`) && await claimOnce(claim24, 3 * 24 * 60 * 60 * 1000)) {
           // Events with nothing paid in advance carry the no-show policy; the
           // day-before reminder is the last moment a cancel is still
           // comfortably inside the cutoff.
@@ -251,14 +260,21 @@ async function runSweep() {
           // used to follow doubled every reminder — and for a muted member,
           // whose notification is never written and so never deduped, it
           // fired again on every hourly tick inside the window.
-          await createNotification(userId, 'reminder_24h', 'Event tomorrow ⏰', body, `/events/${event.id}`)
-          sent24h++
+          // The claim is taken before the write so two runs can't both send;
+          // createNotification swallows its own errors, so a failed write
+          // would otherwise keep the claim and lose this reminder for the
+          // whole window (the event is over before it expires). Hand it
+          // back and let the next hourly tick, still inside 23–25h, retry.
+          if (await createNotification(userId, 'reminder_24h', 'Event tomorrow ⏰', body, `/events/${event.id}`)) sent24h++
+          else await releaseClaim(claim24)
         }
       }
       if (is2h) {
-        if (!sent2Set.has(`${userId}:/events/${event.id}`) && await claimOnce(`reminder-2h:${userId}:${event.id}`, 3 * 24 * 60 * 60 * 1000)) {
-          await createNotification(userId, 'reminder_2h', 'Starting soon ⚡', `"${event.title}" starts in ~2 hours at ${event.time}`, `/events/${event.id}`)
-          sent2h++
+        const claim2 = `reminder-2h:${userId}:${event.id}`
+        if (!sent2Set.has(`${userId}:/events/${event.id}`) && await claimOnce(claim2, 3 * 24 * 60 * 60 * 1000)) {
+          // Same release-on-failure as the 24h reminder above.
+          if (await createNotification(userId, 'reminder_2h', 'Starting soon ⚡', `"${event.title}" starts in ~2 hours at ${event.time}`, `/events/${event.id}`)) sent2h++
+          else await releaseClaim(claim2)
         }
       }
     }
@@ -281,17 +297,23 @@ async function runSweep() {
       const userId = attendee.user.id
       if (reviewsMuted.has(userId)) continue
       const key = `${userId}:${reviewLinkFor(event.id)}`
-      if (!reviewSent.has(key) && await claimOnce(`review:${userId}:${event.id}`, 7 * 24 * 60 * 60 * 1000)) {
+      const reviewClaim = `review:${userId}:${event.id}`
+      if (!reviewSent.has(key) && await claimOnce(reviewClaim, 7 * 24 * 60 * 60 * 1000)) {
         // Mark locally too — the DB row from this send isn't in the
         // pre-fetched set, and the loop may see the pair again.
         reviewSent.add(key)
-        await createNotification(
+        // A failed write releases the claim for the next tick and skips the
+        // email with it — sending the mail now would repeat it on that retry.
+        if (!await createNotification(
           userId,
           'review_request',
           'How was it? Leave a review ⭐',
           `You attended "${event.title}" — share your experience so others know what to expect.`,
           reviewLinkFor(event.id)
-        )
+        )) {
+          await releaseClaim(reviewClaim)
+          continue
+        }
         Promise.resolve(
           sendReviewRequestEmail(attendee.user.email, attendee.user.name, event.title, event.emoji)
         ).catch(async e => {
@@ -303,31 +325,10 @@ async function runSweep() {
     }
   }
 
-  // Orphan-photo janitor for /api/apply/upload — that endpoint has no auth and
-  // accepts anonymous uploads at 5/hour/IP, so old files accumulate. Delete any
-  // file >30 days old that no MemberApplication still references.
-  let purgedPhotos = 0
-  try {
-    const dir = join(uploadRoot(), 'applications')
-    const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000
-    const files = readdirSync(dir)
-    const referenced = new Set(
-      (await prisma.memberApplication.findMany({
-        where: { profilePhoto: { startsWith: '/app/api/files/applications/' } },
-        select: { profilePhoto: true },
-      })).map(a => a.profilePhoto!.split('/').pop()!)
-    )
-    for (const name of files) {
-      if (referenced.has(name)) continue
-      const path = join(dir, name)
-      try {
-        if (statSync(path).mtimeMs < cutoff) {
-          unlinkSync(path)
-          purgedPhotos++
-        }
-      } catch {}
-    }
-  } catch {}
+  // The applications/ orphan-photo janitor that ran here moved to its own
+  // nightly sweep, app/api/cron/sweep-orphan-uploads — it only checked
+  // member_applications.profilePhoto, so a file still referenced from any
+  // other column (a legacy member avatar) was deleted after 30 days.
 
-  return { sent24h, sent2h, sentReviews, archivedCount, sentConnections, checkedEvents: upcomingEvents.length + pastEvents.length, expiringListings: expiringListings.length, purgedPhotos }
+  return { sent24h, sent2h, sentReviews, archivedCount, sentConnections, checkedEvents: upcomingEvents.length + pastEvents.length, expiringListings: expiringListings.length }
 }

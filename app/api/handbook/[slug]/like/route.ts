@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { rateLimit } from '@/lib/rateLimit'
 
 // Toggle a like on a handbook article. Same shape as the club /
 // neighborhood like routes: POST toggles, and the response carries
@@ -15,6 +16,12 @@ type Params = { params: Promise<{ slug: string }> }
 export async function POST(_req: NextRequest, { params }: Params) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Not logged in' }, { status: 401 })
+
+  // Every toggle is two writes and a count; a held-down button or a script
+  // shouldn't get to run that unbounded. Generous for real tapping.
+  if (!await rateLimit(`handbook-like:${session.id}`, 60, 60_000)) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+  }
 
   const { slug } = await params
 

@@ -419,8 +419,16 @@ export function firstNameOf(name: string | null | undefined): string {
   return [...kept, rest[first] ?? ''].filter(Boolean).map(n => formatName(n)).join(' ')
 }
 
+// A token's first LETTER, with any combining marks riding on it. `w[0]` was
+// a UTF-16 unit, so '🙂 Nate' gave a lone surrogate (a broken glyph in every
+// avatar); symbols and emoji are skipped so an initial is always a letter.
+const FIRST_LETTER = /\p{L}\p{M}*/u
+
 export function getInitials(name: string): string {
-  return nameTokens(name).map(w => w[0]).join('').toUpperCase().slice(0, 2)
+  const letters = nameTokens(name)
+    .map(w => w.match(FIRST_LETTER)?.[0])
+    .filter((l): l is string => !!l)
+  return letters.slice(0, 2).join('').toUpperCase()
 }
 
 // Event titles often arrive with the emoji typed into the title as well

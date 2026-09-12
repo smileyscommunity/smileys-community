@@ -11,6 +11,9 @@ set -euo pipefail
 
 # One run at a time: a slow sweep (a 1k-recipient blast, a busy DB) must not
 # be overlapped by the next crontab tick.
+# flock(1) is util-linux; without it the non-blocking lock below would fail
+# as "previous run still active" on every tick and the sweep would never run.
+command -v flock >/dev/null || { echo "flock missing" >&2; exit 1; }
 exec 9>"/tmp/sweep-connection-abuse.lock"
 flock -n 9 || { echo "$(date -u +%FT%TZ) skipped: previous run still active"; exit 0; }
 

@@ -15,14 +15,30 @@ export async function POST(_: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
     }
 
-    const user = await prisma.user.findUnique({ where: { id: session.id }, select: { status: true } })
+    const user = await prisma.user.findUnique({ where: { id: session.id }, select: { status: true, cityId: true } })
     if (!user || user.status !== 'approved') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
 
     const { slug } = await params
     const club = await prisma.club.findUnique({ where: { slug } })
-    if (!club) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    // A deactivated club is off every listing (getClubs gates on isActive);
+    // a stale page or a direct POST must not grow its roster.
+    if (!club || !club.isActive) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+    // A city club is for the cities the member belongs to: home, or one they
+    // joined via /api/me/cities. Global clubs (cityId null) are open to all.
+    // Browsing another city (the view-city cookie) is a view change, not
+    // membership — join the city first.
+    if (club.cityId && club.cityId !== user.cityId) {
+      const joined = await prisma.cityRelationship.findFirst({
+        where:  { userId: session.id, cityId: club.cityId, type: 'member' },
+        select: { id: true },
+      })
+      if (!joined) {
+        return NextResponse.json({ error: 'This club belongs to a city you haven\'t joined. Join the city first.' }, { status: 403 })
+      }
+    }
 
     const status = club.isPrivate ? 'pending' : 'approved'
 

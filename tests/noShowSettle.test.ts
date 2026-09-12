@@ -16,7 +16,7 @@ vi.mock('@/lib/prisma', () => ({ prisma: {
   noShowCard:    { findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), count: vi.fn(), create: vi.fn(), createMany: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
   waitlistEntry: { findMany: vi.fn(), deleteMany: vi.fn() },
   eventCoHost:   { findMany: vi.fn().mockResolvedValue([]) },
-  user:          { findMany: vi.fn() },
+  user:          { findMany: vi.fn(), findUnique: vi.fn() },
   city:          { findMany: vi.fn() },
 } }))
 

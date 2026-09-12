@@ -200,12 +200,13 @@ function ApplyForm() {
       const raw = localStorage.getItem(DRAFT_KEY)
       if (raw) {
         const d = JSON.parse(raw)
-        if (d.form)         setForm(f => ({ ...f, ...d.form }))
+        // The uploaded photo is never restored: unsubmitted uploads are deleted
+        // after 48 hours, so a stored link can point at nothing.
+        if (d.form)         setForm(f => ({ ...f, ...d.form, profilePhoto: '' }))
         if (d.interests)    setInterests(d.interests)
         if (d.socialStyles) setSocialStyles(d.socialStyles)
         if (d.languages)    setLanguages(d.languages)
         if (d.lookingFor)   setLookingFor(d.lookingFor)
-        if (typeof d.photoPreview === 'string') setPhotoPreview(d.photoPreview)
         // A draft from the five-step form may sit on a step that no longer
         // exists; land it on the last one rather than off the end.
         if (typeof d.step === 'number' && d.step >= STEPS.length) setStep(STEPS.length - 1)
@@ -221,10 +222,10 @@ function ApplyForm() {
     if (!draftHydrated) return
     try {
       localStorage.setItem(DRAFT_KEY, JSON.stringify({
-        form, interests, socialStyles, languages, lookingFor, step, photoPreview,
+        form: { ...form, profilePhoto: '' }, interests, socialStyles, languages, lookingFor, step,
       }))
     } catch {}
-  }, [draftHydrated, form, interests, socialStyles, languages, lookingFor, step, photoPreview])
+  }, [draftHydrated, form, interests, socialStyles, languages, lookingFor, step])
 
   // Switching the target city invalidates a neighborhood picked from the
   // previous city's list. Clear it only once the new list has actually loaded

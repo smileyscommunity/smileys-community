@@ -67,12 +67,38 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'checkedIn must be a boolean' }, { status: 400 })
     }
 
+    // The door is only open while the event is. A cancelled event has no
+    // door (400). A settled one (noShowProcessedAt) has a closed record:
+    // the no-show pass has already turned the un-scanned rows into
+    // 'no_show' and issued cards on them, so a toggle now would rewrite
+    // `attendance` under a card that still stands — un-checking erased the
+    // no_show mark, a late check-in stamped 'attended' beside an active
+    // card. Both directions are refused (409) rather than half-applied: a
+    // missed scan is corrected by clearing the card from the participants
+    // page (waiveCard), which closes the card and keeps the trail.
+    const event = await prisma.event.findUnique({
+      where:  { id: eventId },
+      select: { status: true, cancelledAt: true, noShowProcessedAt: true },
+    })
+    if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
+    if (event.cancelledAt || event.status === 'cancelled') {
+      return NextResponse.json({ error: 'This event was cancelled — check-in is closed' }, { status: 400 })
+    }
+    if (event.noShowProcessedAt) {
+      return NextResponse.json({
+        error: 'Attendance for this event is already settled. To correct a missed scan, clear the no-show from the participants page.',
+        code:  'attendance_settled',
+      }, { status: 409 })
+    }
+
     // Only a live, approved RSVP can be checked in — a cancelled row is
     // history and a pending one hasn't been let in yet. `attendance`
     // follows the toggle so the settled record and the door agree; the
     // post-event pass is what later turns an un-checked row into no_show.
+    // The event conditions ride in the write too, so a settlement landing
+    // between the read above and this update can't be overwritten.
     const { count } = await prisma.eventAttendee.updateMany({
-      where: { userId, eventId, status: 'approved' },
+      where: { userId, eventId, status: 'approved', event: { noShowProcessedAt: null, cancelledAt: null } },
       data:  { checkedIn, attendance: checkedIn ? Attendance.Attended : Attendance.Unknown },
     })
     if (count === 0) {

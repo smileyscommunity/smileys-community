@@ -206,7 +206,7 @@ function InnerPage() {
     // Open in a new tab so the browser handles the download — saves
     // us a Blob() roundtrip and lets the user keep filtering.
     const qs = buildQs({ format: 'csv' })
-    window.open(`/app/api/admin/surveys?${qs}`, '_blank')
+    window.open(`/app/api/admin/surveys?${qs}`, '_blank', 'noopener,noreferrer')
   }
 
   const refreshLabel = (() => {

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/session', () => ({ getSession: vi.fn() }))
+vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn().mockResolvedValue(true) }))
 vi.mock('@/lib/access',  () => ({ isAdmin: vi.fn(), isClubHost: vi.fn(), canManageEventOps: vi.fn().mockResolvedValue(true) }))
 vi.mock('@/lib/notify',  () => ({ createNotification: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('@/lib/email',   () => ({ sendEventApprovedEmail: vi.fn().mockResolvedValue(undefined), sendEventRejectedEmail: vi.fn().mockResolvedValue(undefined), recordEmailFailure: vi.fn() }))

@@ -45,15 +45,27 @@ export function eventStartsAt(event: EventClock, tz: string = DEFAULT_TZ): Date 
  *     reads EARLIER than the start ("22:00 – 02:00") means it runs past
  *     midnight, so it lands on the next day rather than 20 hours before
  *     the doors open.
+ *   - start unknown ("TBA") but endTime set → there is no start to compare
+ *     against, so the end's own hour decides: before 06:00 it is read as
+ *     past midnight (next day), otherwise as that time on the date. A
+ *     "TBA – 02:00" night out used to end at 02:00 on its own date, before
+ *     the day had begun, and the post-event jobs fired a whole day early.
+ *     Erring later is the safe direction for everything that reads this.
  *   - endTime missing or unparseable → 23:59 on the date, so nothing
  *     post-event fires while a late-evening event is still going.
  */
+const EARLY_MORNING_END_HOUR = 6
+
 export function eventEndsAt(event: EventClock, tz: string = DEFAULT_TZ): Date {
   if (!event.endTime || !HHMM.test(event.endTime)) {
     return wallClock(event.date, '23:59', tz)
   }
   const end = wallClock(event.date, event.endTime, tz)
-  if (event.time && HHMM.test(event.time) && end.getTime() < eventStartsAt(event, tz).getTime()) {
+  const startKnown = !!event.time && HHMM.test(event.time)
+  const pastMidnight = startKnown
+    ? end.getTime() < eventStartsAt(event, tz).getTime()
+    : Number(event.endTime.match(HHMM)![1]) < EARLY_MORNING_END_HOUR
+  if (pastMidnight) {
     return wallClock(nextDay(event.date), event.endTime, tz)
   }
   return end

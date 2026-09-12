@@ -24,7 +24,9 @@ export async function POST(req: NextRequest) {
 
   let userId: string
   try {
-    const { payload } = await jwtVerify(pending, SECRET)
+    // Pinned to the algorithm the login route signs with (HS256): the
+    // verifier must never let the token's own header choose.
+    const { payload } = await jwtVerify(pending, SECRET, { algorithms: ['HS256'] })
     if (!payload.pending2fa || typeof payload.userId !== 'string') throw new Error()
     userId = payload.userId
   } catch {

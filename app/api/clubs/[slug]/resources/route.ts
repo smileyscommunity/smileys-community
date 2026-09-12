@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator } from '@/lib/access'
+import { canActInCity } from '@/lib/access'
 import { rateLimit } from '@/lib/rateLimit'
 
 type Params = { params: Promise<{ slug: string }> }
@@ -35,10 +35,12 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   const { slug } = await params
-  const club = await prisma.club.findUnique({ where: { slug }, select: { id: true } })
+  const club = await prisma.club.findUnique({ where: { slug }, select: { id: true, cityId: true } })
   if (!club) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const isPrivileged = isAdminOrModerator(session)
+  // Staff override is city-scoped like the rules/description/members PATCH
+  // siblings — a moderator from another city is not staff for this club.
+  const isPrivileged = canActInCity(session, club.cityId)
   if (!isPrivileged) {
     const membership = await prisma.clubMembership.findUnique({
       where: { userId_clubId: { userId: session.id, clubId: club.id } },
@@ -49,10 +51,17 @@ export async function POST(req: NextRequest, { params }: Params) {
     }
   }
 
-  const { title, url, emoji } = await req.json()
-  if (!title?.trim()) return NextResponse.json({ error: 'Title is required' }, { status: 400 })
+  const { title, url, emoji } = await req.json().catch(() => ({}))
+  // Non-string input used to reach .trim() and 500.
+  if (typeof title !== 'string' || typeof url !== 'string' || (emoji != null && typeof emoji !== 'string')) {
+    return NextResponse.json({ error: 'title and url must be strings' }, { status: 400 })
+  }
+  // An emoji is a handful of code units (ZWJ sequences run ~11); anything
+  // longer is text smuggled into the icon slot.
+  if (emoji && emoji.trim().length > 16) return NextResponse.json({ error: 'Emoji too long' }, { status: 400 })
+  if (!title.trim()) return NextResponse.json({ error: 'Title is required' }, { status: 400 })
   if (title.trim().length > 200) return NextResponse.json({ error: 'Title too long (max 200 chars)' }, { status: 400 })
-  if (!url?.trim()) return NextResponse.json({ error: 'URL is required' }, { status: 400 })
+  if (!url.trim()) return NextResponse.json({ error: 'URL is required' }, { status: 400 })
   const trimmedUrl = url.trim()
   if (trimmedUrl.length > 1000) return NextResponse.json({ error: 'URL too long (max 1000 chars)' }, { status: 400 })
   if (!trimmedUrl.startsWith('https://')) {

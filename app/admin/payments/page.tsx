@@ -489,7 +489,7 @@ function AdminPaymentsPageInner() {
                     <div className="text-xs text-zinc-400 mt-0.5">{p.event.emoji} {p.event.title} <CityBadge city={p.event.city} cities={cities} /></div>
                   </div>
                   <div className="shrink-0 text-right">
-                    <div className="text-base font-bold text-white">{formatMoney(p.amount, cur)}</div>
+                    <div className="text-base font-bold text-white">{formatMoney(p.amount, p.currency)}</div>
                     <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${statusMeta(p.status).color}`}>
                       {p.status}
                     </span>
@@ -596,7 +596,7 @@ function AdminPaymentsPageInner() {
                         <div className="text-zinc-500 text-xs">{p.user.email}</div>
                       </td>
                       <td className="px-4 py-3 text-zinc-300">{p.event.emoji} {p.event.title} <CityBadge city={p.event.city} cities={cities} /></td>
-                      <td className="px-4 py-3 text-white font-bold">{formatMoney(p.amount, cur)}</td>
+                      <td className="px-4 py-3 text-white font-bold">{formatMoney(p.amount, p.currency)}</td>
                       <td className="px-4 py-3">
                         <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${statusMeta(p.status).color}`}>
                           {p.status}
@@ -704,7 +704,7 @@ function AdminPaymentsPageInner() {
             <div>
               <h3 className="text-white font-bold text-lg">Confirm refund</h3>
               <p className="text-zinc-400 text-sm mt-1">
-                Refund <span className="text-white font-semibold">{formatMoney(refundConfirm.amount, cur)}</span> to{' '}
+                Refund <span className="text-white font-semibold">{formatMoney(refundConfirm.amount, refundConfirm.currency)}</span> to{' '}
                 <span className="text-white font-semibold">{refundConfirm.user.name}</span> for{' '}
                 <span className="text-white">{refundConfirm.event.emoji} {refundConfirm.event.title}</span>?
               </p>

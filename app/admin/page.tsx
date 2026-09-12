@@ -134,14 +134,18 @@ export default function AdminPage() {
   // admin checking on a new city wants every visit to open there until they
   // say otherwise. Read lazily so SSR doesn't touch localStorage.
   const [cities, setCities] = useState<{ id: string; name: string; slug: string; status: string }[]>([])
+  // Guarded: the accessor itself throws where site data is blocked (Safari
+  // private mode, some embedded views), which used to crash the dashboard.
   const [cityId, setCityId] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null
-    return window.localStorage.getItem('admin_dash_city') || null
+    try { return window.localStorage.getItem('admin_dash_city') || null } catch { return null }
   })
   const setCityScope = useCallback((id: string | null) => {
     setCityId(id)
-    if (id) window.localStorage.setItem('admin_dash_city', id)
-    else    window.localStorage.removeItem('admin_dash_city')
+    try {
+      if (id) window.localStorage.setItem('admin_dash_city', id)
+      else    window.localStorage.removeItem('admin_dash_city')
+    } catch {}
   }, [])
 
   // Auto-refresh state — "Updated 12s ago" indicator + 60s background poll.

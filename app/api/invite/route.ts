@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { restrictedSetFor } from '@/lib/memberPrivacy'
 
 function generateCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -54,16 +55,27 @@ export async function GET() {
   const joinedUsers = referredApps.length > 0
     ? await prisma.user.findMany({
         where: { email: { in: referredApps.map(a => a.email) } },
-        select: { id: true, name: true, color: true, profilePhoto: true, neighborhood: true, joinedAt: true },
+        select: { id: true, name: true, color: true, profilePhoto: true, joinedAt: true, profileVisibility: true, hiddenFromMembers: true },
         orderBy: { joinedAt: 'desc' },
       })
     : []
+
+  // Inviting someone doesn't make you their connection. A 'connections
+  // only' member (restrictedSetFor) or one hidden from members gets no
+  // photo here, same as anywhere else a non-connection sees them; the name
+  // stays, since the referrer is the one who sent it. Neighbourhood is not
+  // sent at all — where someone lives is not part of "your invite worked".
+  const restricted = await restrictedSetFor(session, joinedUsers)
+  const joined = joinedUsers.map(u => {
+    const hidden = u.hiddenFromMembers || restricted.has(u.id)
+    return { id: u.id, name: u.name, color: u.color, profilePhoto: hidden ? null : u.profilePhoto, joinedAt: u.joinedAt }
+  })
 
   return NextResponse.json({
     code:          user.referralCode,
     referralCount: user.referralCount,
     pending,
     approved: approvedApps,
-    joined:   joinedUsers,
+    joined,
   })
 }

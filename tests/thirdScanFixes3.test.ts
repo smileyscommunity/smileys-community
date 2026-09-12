@@ -54,7 +54,7 @@ describe('20 busy flags recover', () => {
     ['components/NeighborhoodWall.tsx', /finally \{\s*setPosting\(false\)/],
     ['components/MovingSales.tsx', /err instanceof ImageUploadError \? err\.message/],
     ['components/EventPhotos.tsx', /if \(!res\.ok\) \{ toast\.error\('Could not delete the photo'\); return \}/],
-    ['components/BoardFeed.tsx', /setReplies\(\[\]\)\s*\/\/ not "Loading…" forever/],
+    ['components/BoardFeed.tsx', /\} catch \{\s*setReplies\(\[\]\)/],
     ['components/BoardFeed.tsx', /if \(reacting\.current\) return/],
     ['components/BoardHub.tsx', /if \(!res\?\.ok\) \{ toast\.error\('Could not delete the listing'\); return \}/],
     ['app/(member)/board/new/page.tsx', /setError\('Could not reach the server — your listing is still here, try again'\)/],

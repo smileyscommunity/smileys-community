@@ -180,8 +180,6 @@ model User {
 
   @@index([cityId, status])
   @@index([lastActive])
-  @@index([membershipType])
-  @@index([nationality])
   @@index([neighborhood])
   @@index([neighborhood, status])
   @@index([status])
@@ -211,7 +209,7 @@ model MemberBlock {
   blocker   User     @relation("BlockGiver", fields: [blockerId], references: [id], onDelete: Cascade)
 
   @@unique([blockerId, blockedId])
-  @@index([blockerId])
+  @@index([blockedId])
   @@map("member_blocks")
 }
 
@@ -535,7 +533,6 @@ model CityHost {
 
   @@unique([userId, cityId])
   @@index([cityId])
-  @@index([userId])
   @@map("city_hosts")
 }
 
@@ -685,6 +682,7 @@ model Event {
   @@index([hostId])
   @@index([cityId])
   @@index([cityId, status, date])
+  @@index([seriesId])
   @@map("events")
 }
 
@@ -698,6 +696,8 @@ model EventPhoto {
   event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([eventId])
+  @@index([userId])
   @@map("event_photos")
 }
 
@@ -710,7 +710,6 @@ model EventCoHost {
   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([eventId, userId])
-  @@index([eventId])
   @@index([userId])
   @@map("event_cohosts")
 }
@@ -1077,6 +1076,7 @@ model Review {
   user      User     @relation(fields: [userId], references: [id])
 
   @@unique([userId, eventId])
+  @@index([eventId])
   @@map("reviews")
 }
 
@@ -1182,6 +1182,7 @@ model MemberApplication {
   @@index([fingerprint, createdAt])
   @@index([ipAddress, createdAt])
   @@index([targetCityId])
+  @@index([referredBy])
   @@map("member_applications")
 }
 
@@ -1198,7 +1199,6 @@ model Notification {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-  @@index([isRead])
   @@index([userId, createdAt])
   @@map("notifications")
 }
@@ -1225,6 +1225,7 @@ model EmailVerificationToken {
   expiresAt DateTime
   createdAt DateTime @default(now())
 
+  @@index([userId])
   @@map("email_verification_tokens")
 }
 
@@ -1236,6 +1237,7 @@ model PasswordResetToken {
   used      Boolean  @default(false)
   createdAt DateTime @default(now())
 
+  @@index([userId])
   @@map("password_reset_tokens")
 }
 
@@ -1346,10 +1348,10 @@ model AuditLog {
   // before 2026-09-03. "What happened in Bodrum" is answerable from here on.
   cityId      String?
 
-  @@index([adminId])
   @@index([action])
   @@index([createdAt])
   @@index([cityId, createdAt])
+  @@index([targetId, createdAt])
   @@map("audit_logs")
 }
 
@@ -1374,7 +1376,6 @@ model EmailFailure {
   context   Json?
   createdAt DateTime @default(now())
 
-  @@index([helper])
   @@index([createdAt])
   @@map("email_failures")
 }
@@ -1632,8 +1633,6 @@ model Post {
   @@index([status, publishedAt])
   @@index([kind, status, publishedAt])
   // Drives the review queue ("what is overdue?") and the freshness sort.
-  @@index([kind, status, lastReviewedAt])
-  @@index([cityId])
   // The handbook read paths all filter on this pair (lib/postScope.ts).
   @@index([cityId, country])
   @@map("posts")
@@ -1735,7 +1734,6 @@ model DirectMessageReaction {
   user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([messageId, userId])
-  @@index([messageId])
   @@map("direct_message_reactions")
 }
 
@@ -1817,6 +1815,7 @@ model Listing {
   @@index([neighborhood, status])
   @@index([userId])
   @@index([cityId, status, createdAt])
+  @@index([expiresAt])
   @@map("listings")
 }
 
@@ -1872,7 +1871,6 @@ model HangoutJoin {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([hangoutId, userId])
-  @@index([hangoutId])
   @@index([userId])
   @@map("hangout_joins")
 }
@@ -2187,7 +2185,6 @@ model BusinessClaim {
 
   @@unique([businessId, claimantId])
   @@index([status])
-  @@index([businessId])
   @@map("business_claims")
 }
 

@@ -4,7 +4,9 @@ import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
-import CitySelect from '@/components/admin/CitySelect'
+import CitySelect, { useAdminCities } from '@/components/admin/CitySelect'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
+import { fromWallClockInTz, shiftDay, DEFAULT_TZ } from '@/lib/cityTime'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import { loadFailure } from '@/lib/admin/useAdminLoad'
 
@@ -189,6 +191,11 @@ function AdminAuditPageInner() {
   const [city,        setCity]        = useState(initialCity)
   const { user }     = useAuth()
   const isAdminUser  = user?.role === 'admin'
+  // The day range is read on a city's clock: the filtered city's when one is
+  // picked, else the city being administered. Never the server's (UTC).
+  const auditCities  = useAdminCities()
+  const currentTz    = useCurrentCity()?.timezone ?? DEFAULT_TZ
+  const rangeTz      = auditCities.find(c => c.id === city)?.timezone ?? currentTz
   // Debounced version of `search` — keeps typing from spamming the API.
   const [debouncedSearch, setDebouncedSearch] = useState(initialSearch.trim())
 
@@ -217,15 +224,26 @@ function AdminAuditPageInner() {
 
   // Build the query string for both initial and load-more fetches. The
   // only difference between them is the `before` cursor.
+  function dayStartIso(day: string): string | null {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return null
+    const d = fromWallClockInTz(`${day}T00:00`, rangeTz)
+    return Number.isNaN(d.getTime()) ? null : d.toISOString()
+  }
+
   function buildQs(before?: string) {
     const qs = new URLSearchParams({ take: String(PAGE_SIZE) })
     if (filter)          qs.set('action', filter)
     if (debouncedSearch) qs.set('search', debouncedSearch)
-    if (fromDate)        qs.set('from',   fromDate)
-    // `to` is a yyyy-mm-dd; the server compares to createdAt which is a
-    // datetime, so push it to end-of-day so an entry created at 23:00
-    // still falls inside "today".
-    if (toDate)          qs.set('to',     `${toDate}T23:59:59.999`)
+    // The inputs are yyyy-mm-dd days; the server compares createdAt instants.
+    // Send zone-correct instants: `from` = 00:00 of the from-day in the
+    // range city, `to` = the last millisecond before 00:00 of the day after
+    // the to-day (the server's bound is inclusive). The old bare
+    // `T23:59:59.999` had no zone, so the UTC server cut "today" off at
+    // 02:59 Istanbul and started it at 03:00.
+    const fromIso = dayStartIso(fromDate)
+    const nextIso = toDate ? dayStartIso(shiftDay(toDate, 1)) : null
+    if (fromIso)         qs.set('from',   fromIso)
+    if (nextIso)         qs.set('to',     new Date(new Date(nextIso).getTime() - 1).toISOString())
     if (city)            qs.set('city',   city)
     if (before)          qs.set('before', before)
     return qs.toString()
@@ -248,7 +266,7 @@ function AdminAuditPageInner() {
   // buildQs depends on every filter via closure, so rebuilding it
   // doesn't need to be a dep — listing the fields is enough.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter, debouncedSearch, fromDate, toDate, city, reloadTick])
+  }, [filter, debouncedSearch, fromDate, toDate, city, rangeTz, reloadTick])
 
   async function loadMore() {
     if (!hasMore || loadingMore || logs.length === 0) return

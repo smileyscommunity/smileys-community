@@ -36,6 +36,12 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
   const neighborhoods = useCityNeighborhoods()
 
   const [form,          setForm]          = useState(emptyForm)
+  // The status as LOADED from the server. What the select offers depends on
+  // this, not the live form value: gating "Published" on form.status hid it
+  // the moment a host picked Draft, so they couldn't switch back without a
+  // reload. The PUT route enforces the same rule (a host may only keep an
+  // already-published event published), so nothing is loosened.
+  const [loadedStatus,  setLoadedStatus]  = useState('')
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
   const [clubs,         setClubs]         = useState<{ id: string; name: string; emoji: string }[]>([])
   const { user: viewer } = useAuth()
@@ -166,6 +172,7 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
           endTime:          event.endTime          ?? '',
           approvalRequired: event.approvalRequired ?? false,
         })
+        setLoadedStatus(event.status ?? 'published')
         setPaymentMethod(event.ticketUrl ? 'buyonline' : 'venue')
         if (Array.isArray(event.tags) && event.tags.length) setSelectedTagIds(event.tags)
         if (event.seriesId) setSeriesId(event.seriesId)
@@ -373,14 +380,14 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
             )}
             <div>
               <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Status</label>
-              {form.status === 'pending' ? (
+              {loadedStatus === 'pending' ? (
                 <div className="px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm font-semibold">
                   ⏳ Pending admin approval
                 </div>
               ) : (
                 <select value={form.status} onChange={e => set('status', e.target.value)} className={inputCls}>
                   {/* A host may keep an event published (no-op resubmit) but not move it there. */}
-                  {(form.status === 'published' || isStaff) && <option value="published">Published (live)</option>}
+                  {(loadedStatus === 'published' || isStaff) && <option value="published">Published (live)</option>}
                   <option value="draft">Draft</option>
                   <option value="pending">Submit for review</option>
                   <option value="postponed">Postponed</option>

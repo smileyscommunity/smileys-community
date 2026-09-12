@@ -13,10 +13,19 @@ import { activateAttendee, activeAttendeeWhere, cancelAttendeeOp, isActiveAttend
 import { getRsvpGate, gateErrorBody } from '@/lib/noShow'
 import { CardStatus } from '@/lib/noShowPolicy'
 import { DEFAULT_CURRENCY } from '@/lib/data'
+import { rateLimit } from '@/lib/rateLimit'
 
 // Who is taking the member off the event, for the soft-cancel stamp.
 // Everyone past canManageEventOps who isn't an admin is some kind of host.
 const cancelActor = (session: { role: string }): CancelActor => session.role === 'admin' ? 'admin' : 'host'
+
+// Door work is bursty (a host clearing a queue), so the budget is generous —
+// same 120/min as check-in. It exists so a runaway client can't fan out
+// notifications and emails at script speed.
+const overParticipantOpsLimit = async (sessionId: string) =>
+  !await rateLimit(`participants-ops:${sessionId}`, 120, 60_000)
+
+const PATCH_ACTIONS = ['approve', 'reject', 'toWaitlist', 'markPaid', 'markUnpaid'] as const
 
 // AD2 helper: when an admin removes an attendee, handle their
 // payments the same way the member-cancel flow does. Pending
@@ -214,6 +223,9 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   try {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (await overParticipantOpsLimit(session.id)) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+    }
     const { id: eventId } = await params
     if (!await canManageEventOps(session.id, session.role, eventId)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -280,11 +292,25 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   try {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (await overParticipantOpsLimit(session.id)) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+    }
     const { id: eventId } = await params
     if (!await canManageEventOps(session.id, session.role, eventId)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
-    const { userId, action } = await req.json() // action: 'approve' | 'reject' | 'toWaitlist' | 'markPaid' | 'markUnpaid'
+    const { userId, action } = await req.json().catch(() => ({}))
+    // An unknown action used to fall through every branch and answer 200 —
+    // a typo'd client looked like it worked.
+    if (!PATCH_ACTIONS.includes(action)) {
+      return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
+    }
+    // Same guard as DELETE/PUT/POST. Prisma drops an undefined filter, so a
+    // markPaid with no userId found (and flipped) whichever payment on the
+    // event came back first.
+    if (typeof userId !== 'string' || !userId) {
+      return NextResponse.json({ error: 'userId required' }, { status: 400 })
+    }
 
     // Payment checklist ops — money handling is admin-only. Hosts manage
     // attendance above, but flipping paid states on Smileys-collected
@@ -377,8 +403,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const FEMALE_VARIANTS  = ['female', 'Female', 'FEMALE']
     const TURKEY_VARIANTS  = ['Turkey', 'turkey', 'Türkiye', 'türkiye', 'Turkiye', 'TR']
 
-    if (action === 'approve' && (event?.status === 'cancelled' || event?.status === 'archived')) {
-      return NextResponse.json({ error: 'Cannot approve into a cancelled or archived event' }, { status: 400 })
+    // toWaitlist too: a place in the queue of a closed event is a promise
+    // nothing will keep, and it cancels the seat they held.
+    if ((action === 'approve' || action === 'toWaitlist') && (event?.status === 'cancelled' || event?.status === 'archived')) {
+      return NextResponse.json({ error: action === 'approve' ? 'Cannot approve into a cancelled or archived event' : 'Cannot waitlist for a cancelled or archived event' }, { status: 400 })
     }
 
     if (action === 'approve') {
@@ -563,6 +591,9 @@ export async function PUT(req: NextRequest, { params }: Params) {
   try {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (await overParticipantOpsLimit(session.id)) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+    }
     const { id: eventId } = await params
     if (!await canManageEventOps(session.id, session.role, eventId)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -622,6 +653,9 @@ export async function POST(req: NextRequest, { params }: Params) {
   try {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (await overParticipantOpsLimit(session.id)) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+    }
     const { id: eventId } = await params
     if (!await canManageEventOps(session.id, session.role, eventId)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })

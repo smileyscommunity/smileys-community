@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { DEFAULT_CURRENCY, formatMoney, currencySymbol, firstNameOf} from '@/lib/data'
 import { phonePlaceholder, dialCode } from '@/lib/country'
+import { todayInTz, formatDay, DEFAULT_TZ } from '@/lib/cityTime'
 
 interface AttendedEvent {
   id: string
@@ -18,6 +19,15 @@ interface AttendedEvent {
   neighborhood: string
   price: number
   emoji: string
+  // The event's CITY clock decides whether it has happened yet.
+  city?: { timezone: string } | null
+}
+
+// An event's text date is a day in its own city: it has passed once that
+// city's calendar has moved on, not at UTC midnight (03:00 in Istanbul, which
+// used to label tonight's RSVPs "No Show" all day).
+function isPastEventDay(ev: AttendedEvent): boolean {
+  return ev.date < todayInTz(ev.city?.timezone ?? DEFAULT_TZ)
 }
 
 interface AdminNote {
@@ -353,7 +363,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
 
   const attendedEvents = user.joinedEvents
   const totalSpent     = attendedEvents.reduce((sum, je) => sum + (je.event.price ?? 0), 0)
-  const pastJoined     = attendedEvents.filter(je => je.event.date < new Date().toISOString().split('T')[0])
+  const pastJoined     = attendedEvents.filter(je => isPastEventDay(je.event))
   const checkedInCount = pastJoined.filter(je => je.checkedIn).length
   const noShowCount    = pastJoined.filter(je => !je.checkedIn).length
   const noShowRate     = pastJoined.length > 0 ? Math.round((noShowCount / pastJoined.length) * 100) : 0
@@ -536,7 +546,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                 <button
                   onClick={() => {
                     const text = encodeURIComponent(`Hi ${firstNameOf(user.name)}, this is Smileys Community. We're reaching out regarding your membership.`)
-                    window.open(`https://wa.me/${user.phone!.replace(/\D/g, '')}?text=${text}`, '_blank')
+                    window.open(`https://wa.me/${user.phone!.replace(/\D/g, '')}?text=${text}`, '_blank', 'noopener,noreferrer')
                   }}
                   className="w-full text-left p-2 rounded-lg bg-zinc-800 border border-zinc-700 hover:border-zinc-500 transition-colors text-xs text-zinc-300"
                 >
@@ -546,7 +556,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                 <button
                   onClick={() => {
                     const text = encodeURIComponent(`Hi ${firstNameOf(user.name)}, we noticed you missed the event today. Is everything okay? We hope to see you next time!`)
-                    window.open(`https://wa.me/${user.phone!.replace(/\D/g, '')}?text=${text}`, '_blank')
+                    window.open(`https://wa.me/${user.phone!.replace(/\D/g, '')}?text=${text}`, '_blank', 'noopener,noreferrer')
                   }}
                   className="w-full text-left p-2 rounded-lg bg-zinc-800 border border-zinc-700 hover:border-zinc-500 transition-colors text-xs text-zinc-300"
                 >
@@ -759,14 +769,14 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                         <p className="text-sm font-bold text-white truncate">{je.event.title}</p>
                         {je.status !== 'approved' && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-500 uppercase">{je.status}</span>}
                       </div>
-                      <p className="text-[10px] text-zinc-500 font-bold uppercase">{new Date(je.event.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} · {je.event.neighborhood}</p>
+                      <p className="text-[10px] text-zinc-500 font-bold uppercase">{formatDay(je.event.date, { day: 'numeric', month: 'short', year: 'numeric' })} · {je.event.neighborhood}</p>
                     </div>
                     <div className="text-right shrink-0">
                       {je.checkedIn ? (
                         <span className="text-[10px] font-black text-green-500 uppercase tracking-tight">Checked In ✓</span>
                       ) : (
-                        <span className={`text-[10px] font-black uppercase tracking-tight ${new Date(je.event.date) < new Date() ? 'text-red-500' : 'text-zinc-600'}`}>
-                          {new Date(je.event.date) < new Date() ? 'No Show' : 'Upcoming'}
+                        <span className={`text-[10px] font-black uppercase tracking-tight ${isPastEventDay(je.event) ? 'text-red-500' : 'text-zinc-600'}`}>
+                          {isPastEventDay(je.event) ? 'No Show' : 'Upcoming'}
                         </span>
                       )}
                       <p className="text-[10px] font-bold text-zinc-600 uppercase mt-0.5">{formatMoney(je.event.price ?? 0, cur)}</p>
@@ -880,7 +890,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
               <button
                 onClick={() => {
                   const text = encodeURIComponent(waMessage)
-                  window.open(`https://wa.me/${user.phone!.replace(/\D/g, '')}?text=${text}`, '_blank')
+                  window.open(`https://wa.me/${user.phone!.replace(/\D/g, '')}?text=${text}`, '_blank', 'noopener,noreferrer')
                   setWaModal(false)
                 }}
                 disabled={!waMessage.trim()}

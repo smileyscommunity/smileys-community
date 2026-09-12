@@ -67,6 +67,7 @@ export const SWEEPER_INTERVAL_MIN: Record<string, number> = {
   'sweep-availability-pulses': 24 * 60,
   'sweep-login-nudge':      24 * 60,
   'sweep-name-hygiene':     24 * 60,
+  'sweep-orphan-uploads':   24 * 60,
   'sweep-review-nudges':    7 * 24 * 60,
   'sweep-first-rsvp-nudge': 7 * 24 * 60,
 }

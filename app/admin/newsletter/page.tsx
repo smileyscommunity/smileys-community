@@ -202,6 +202,9 @@ export default function NewsletterPage() {
   const [insertingMembers, setInsertingMembers] = useState(false)
   const [testing,          setTesting]          = useState(false)
   const composerRef = useRef<HTMLDivElement>(null)
+  // The scheduled newsletter being edited. Its row stays scheduled until the
+  // edited copy is successfully scheduled or sent — only then is it removed.
+  const [editingId,        setEditingId]        = useState<string | null>(null)
 
   const [autoWeekly,     setAutoWeekly]     = useState(false)
   const [autoSaving,     setAutoSaving]     = useState(false)
@@ -264,6 +267,7 @@ export default function NewsletterPage() {
     setScheduleMode(false)
     setScheduledFor('')
     setConfirm(false)
+    setEditingId(null)
     composerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     toast.success('Template loaded — edit and send when ready')
   }
@@ -277,6 +281,8 @@ export default function NewsletterPage() {
     })
     if (res.ok) {
       setHistory(prev => prev.filter(n => n.id !== id))
+      // Cancelling the row being edited leaves the composer as a new draft.
+      if (editingId === id) setEditingId(null)
       toast.success('Scheduled newsletter cancelled')
     } else {
       const d = await res.json().catch(() => ({}))
@@ -284,24 +290,42 @@ export default function NewsletterPage() {
     }
   }
 
-  // Edit = load the scheduled newsletter back into the composer AND remove the
-  // original scheduled row. The admin edits and re-schedules (or sends now),
-  // which creates a fresh send — no partial in-place mutation to reason about.
-  async function editScheduled(n: SentNewsletter) {
+  // Edit = load the scheduled newsletter back into the composer. The original
+  // row is NOT deleted here: it used to be, on click, so abandoning the edit
+  // (or a failed re-schedule) silently cancelled a send nobody meant to cancel.
+  // send() removes the original only after the edited copy is scheduled or
+  // sent — no partial in-place mutation to reason about.
+  function editScheduled(n: SentNewsletter) {
     setSubject(n.subject)
     setBodyHtml(n.bodyHtml)
     setSegment((n.segment as Segment) in SEGMENT_LABELS ? n.segment as Segment : 'all')
     setScheduleMode(true)
     setScheduledFor(n.scheduledFor ? toLocalInput(n.scheduledFor) : '')
     setConfirm(false)
+    setEditingId(n.id)
     composerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    const res = await fetch('/app/api/admin/newsletter', {
-      method: 'DELETE', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: n.id }),
-    })
-    if (res.ok) setHistory(prev => prev.filter(x => x.id !== n.id))
-    toast('Editing scheduled newsletter — update it, then re-schedule or send')
+    toast('Editing scheduled newsletter — the original stays scheduled until you re-schedule or send this one')
+  }
+
+  // Retire the original of an edit once its replacement exists. A failure
+  // here leaves two scheduled rows, which the admin can see and cancel —
+  // unlike the old order, where a failure left none.
+  async function retireEditedOriginal(originalId: string) {
+    try {
+      const res = await fetch('/app/api/admin/newsletter', {
+        method: 'DELETE', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: originalId }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        toast.error(`${d.error ?? 'Could not cancel the original'} — both copies are still scheduled; cancel the old one below`)
+        return
+      }
+      setHistory(prev => prev.filter(x => x.id !== originalId))
+    } catch {
+      toast.error('Could not cancel the original — both copies are still scheduled; cancel the old one below')
+    }
   }
 
   // One-click weekly digest: pull the next 7 days of published events and drop
@@ -492,6 +516,12 @@ export default function NewsletterPage() {
       })
       const d = await res.json().catch(() => ({}))
       if (!res.ok) { toast.error(d?.error ?? 'Send failed'); return }
+      // The edited copy exists now; only now does the original go.
+      if (editingId) {
+        const originalId = editingId
+        setEditingId(null)
+        await retireEditedOriginal(originalId)
+      }
 
       if (d.scheduled) {
         toast.success(`Scheduled for ${formatScheduled(d.scheduledFor)}`)

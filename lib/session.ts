@@ -115,7 +115,7 @@ export async function getSession(): Promise<SessionUser | null> {
     const cookieStore = await cookies()
     const token = cookieStore.get(COOKIE)?.value
     if (!token) return null
-    const { payload } = await jwtVerify(token, SECRET)
+    const { payload } = await jwtVerify(token, SECRET, { algorithms: ['HS256'] })
     const user = payload.user as SessionUser
     const jti = typeof payload.jti === 'string' ? payload.jti : undefined
 
@@ -264,7 +264,7 @@ export async function deleteSession(reason?: SignoutReason) {
   // a missing row doesn't matter functionally.
   if (token) {
     try {
-      const { payload } = await jwtVerify(token, SECRET)
+      const { payload } = await jwtVerify(token, SECRET, { algorithms: ['HS256'] })
       const jti = typeof payload.jti === 'string' ? payload.jti : null
       if (jti) {
         await prisma.session.deleteMany({ where: { id: jti } })

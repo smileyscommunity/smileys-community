@@ -70,7 +70,6 @@ function cityInputToISO(local: string, tz: string) {
 }
 
 export default function AdminHangoutsPage() {
-  const neighborhoods = useCityNeighborhoods()
   const [hangouts, setHangouts] = useState<Hangout[]>([])
   const [total, setTotal]       = useState(0)
   const [hasMore, setHasMore]   = useState(false)
@@ -86,6 +85,10 @@ export default function AdminHangoutsPage() {
   const tzFor = (h: Hangout) => cities.find(c => c.slug === h.city?.slug)?.timezone ?? currentTz
   const [query, setQuery]       = useState('')
   const [editing, setEditing]   = useState<Hangout | null>(null)
+  // The dropdown offers the EDITED hangout's city's neighborhoods, not the
+  // admin's: a Bodrum hangout edited from Istanbul used to be offered
+  // Istanbul's names, and the server's city check dropped the pick to empty.
+  const neighborhoods = useCityNeighborhoods(editing?.city?.slug)
   const [editForm, setEditForm] = useState({ title: '', location: '', neighborhood: '', description: '', startsAt: '', endsAt: '' })
   // Photo is its own state: null = no photo / cleared, a URL = keep/add.
   const [photo, setPhoto]       = useState<string | null>(null)
@@ -237,6 +240,9 @@ export default function AdminHangoutsPage() {
               <select value={editForm.neighborhood} onChange={e => setEditForm(f => ({ ...f, neighborhood: e.target.value }))}
                 className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
                 <option value="">— none —</option>
+                {editing?.neighborhood && !neighborhoods.includes(editing.neighborhood) && (
+                  <option value={editing.neighborhood}>{editing.neighborhood}</option>
+                )}
                 {neighborhoods.map(n => <option key={n} value={n}>{n}</option>)}
               </select>
             </div>

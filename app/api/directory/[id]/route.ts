@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { rateLimit } from '@/lib/rateLimit'
 import { canActInCity } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
 import { validateFieldUpdate, dropUnchanged } from '@/app/api/admin/directory/_lib'
@@ -23,6 +24,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   try {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    // Each accepted edit writes an audit row — bound the rate so a looping
+    // client can't flood the audit log. Generous for a real edit session.
+    if (!await rateLimit(`directory-owner-patch:${session.id}`, 30, 60_000)) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+    }
 
     const { id } = await params
     // Fetch every column that the validator might touch so dropUnchanged

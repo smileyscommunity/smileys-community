@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { readFileSync } from 'fs'
 
 vi.mock('@/lib/session', () => ({ getSession: vi.fn() }))
+vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn().mockResolvedValue(true) }))
 vi.mock('@/lib/access',  () => ({ isAdmin: (s: any) => s?.role === 'admin', isClubHost: vi.fn(), canManageEventOps: vi.fn(async () => true) }))
 vi.mock('@/lib/notify',  () => ({ createNotification: vi.fn(async () => {}) }))
 vi.mock('@/lib/email',   () => ({ sendEventApprovedEmail: vi.fn(), sendEventRejectedEmail: vi.fn(), recordEmailFailure: vi.fn() }))

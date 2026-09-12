@@ -3,6 +3,7 @@
 import { toast } from 'sonner'
 import { useState, useEffect, use } from 'react'
 import { confirmToast } from '@/lib/confirmToast'
+import { toastApiError } from '@/lib/apiError'
 import { countryName } from '@/lib/country'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -234,21 +235,26 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId }),
       })
-      if (res.ok) {
-        const data = await res.json()
-        setCohosts(prev => [...prev.filter(c => c.userId !== userId), data])
-        setCohostSearch('')
-      }
-    } finally { setAddingCohost(false) }
+      if (!res.ok) { await toastApiError(res, 'Could not add co-host'); return }
+      const data = await res.json()
+      setCohosts(prev => [...prev.filter(c => c.userId !== userId), data])
+      setCohostSearch('')
+    } catch { toast.error('Could not add co-host — check your connection') }
+    finally { setAddingCohost(false) }
   }
 
+  // Not optimistic: a refused DELETE (403 step-up, 500) used to drop the chip
+  // anyway, so the co-host looked removed and was still on the event.
   async function removeCohost(userId: string) {
-    await fetch(`/app/api/admin/events/${id}/cohosts`, {
-      method: 'DELETE', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId }),
-    })
-    setCohosts(prev => prev.filter(c => c.userId !== userId))
+    try {
+      const res = await fetch(`/app/api/admin/events/${id}/cohosts`, {
+        method: 'DELETE', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      })
+      if (!res.ok) { await toastApiError(res, 'Could not remove co-host'); return }
+      setCohosts(prev => prev.filter(c => c.userId !== userId))
+    } catch { toast.error('Could not remove co-host — check your connection') }
   }
 
   function buildSavePayload(applyToSeries = false) {
@@ -354,8 +360,11 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
 
   async function handleDelete() {
     if (!(await confirmToast('Delete this event?'))) return
-    const res = await fetch(`/app/api/admin/events/${id}`, { method: 'DELETE', credentials: 'include' })
-    if (res.ok) router.push('/admin/events')
+    try {
+      const res = await fetch(`/app/api/admin/events/${id}`, { method: 'DELETE', credentials: 'include' })
+      if (!res.ok) { await toastApiError(res, 'Could not delete event'); return }
+      router.push('/admin/events')
+    } catch { toast.error('Could not delete event — check your connection') }
   }
 
   function buildSpawnDates(): string[] {

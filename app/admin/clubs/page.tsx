@@ -284,31 +284,38 @@ export default function AdminClubsPage() {
     if (!newForm.name.trim())     { toast.error('Name is required');     return }
     if (!newForm.category.trim()) { toast.error('Category is required'); return }
     setSaving(true)
-    const res = await fetch('/app/api/admin/clubs', {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ...newForm,
-        cityId:       newForm.cityId       || undefined,
-        whatsappUrl:  newForm.whatsappUrl  || null,
-        instagramUrl: newForm.instagramUrl || null,
-        rules:        newForm.rules        || null,
-        coverImage:         newForm.coverImage   || null,
-        coverImagePosition: newForm.coverImagePosition,
-        location:           newForm.location     || null,
-        foundedAt:    newForm.foundedAt    ? new Date(newForm.foundedAt).toISOString() : null,
-      }),
-    })
-    const data = await res.json()
-    setSaving(false)
-    if (res.ok) {
-      setClubList(prev => [...prev, data])
-      setNewForm(emptyForm)
-      setShowCreate(false)
-      toast.success(`"${data.name}" created ✓`)
-    } else {
-      toast.error(data?.error ?? 'Could not create club')
+    // try/finally + a guarded parse: an nginx 502 is HTML, and a throwing
+    // res.json() used to skip setSaving(false) and leave the button stuck.
+    try {
+      const res = await fetch('/app/api/admin/clubs', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...newForm,
+          cityId:       newForm.cityId       || undefined,
+          whatsappUrl:  newForm.whatsappUrl  || null,
+          instagramUrl: newForm.instagramUrl || null,
+          rules:        newForm.rules        || null,
+          coverImage:         newForm.coverImage   || null,
+          coverImagePosition: newForm.coverImagePosition,
+          location:           newForm.location     || null,
+          foundedAt:    newForm.foundedAt    ? new Date(newForm.foundedAt).toISOString() : null,
+        }),
+      })
+      const data = await res.json().catch(() => null)
+      if (res.ok && data) {
+        setClubList(prev => [...prev, data])
+        setNewForm(emptyForm)
+        setShowCreate(false)
+        toast.success(`"${data.name}" created ✓`)
+      } else {
+        toast.error(data?.error ?? 'Could not create club')
+      }
+    } catch {
+      toast.error('Could not create club — check your connection')
+    } finally {
+      setSaving(false)
     }
   }
 

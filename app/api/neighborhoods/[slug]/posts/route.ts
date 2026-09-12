@@ -71,7 +71,11 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (!wall) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   const neighborhood = wall.view.name
 
-  const { content, imageUrl } = await req.json()
+  const { content, imageUrl } = await req.json().catch(() => ({}))
+  // A non-string content used to reach .trim() and 500.
+  if (content != null && typeof content !== 'string') {
+    return NextResponse.json({ error: 'content must be a string' }, { status: 400 })
+  }
   const trimmed = content?.trim() ?? ''
   if (!trimmed && !imageUrl) return NextResponse.json({ error: 'Content required' }, { status: 400 })
   if (trimmed.length > 2000) return NextResponse.json({ error: 'Post too long (max 2000 chars)' }, { status: 400 })

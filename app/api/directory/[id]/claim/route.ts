@@ -68,6 +68,17 @@ export async function POST(req: NextRequest, { params }: Params) {
     }
     const message = raw.trim().slice(0, MESSAGE_MAX)
 
+    // The approved owner re-posting must not reach the upsert below: it would
+    // reset their own claim to 'pending' and wipe the review stamp while
+    // Business.claimedById still names them — an owner with no approved claim.
+    const existingClaim = await prisma.businessClaim.findUnique({
+      where:  { businessId_claimantId: { businessId: id, claimantId: session.id } },
+      select: { status: true },
+    })
+    if (existingClaim?.status === 'approved' || business.claimedById === session.id) {
+      return NextResponse.json({ error: 'You already own this business.' }, { status: 400 })
+    }
+
     // Upsert: a previous rejection should be reset to pending when the
     // claimant updates the message (they may have new proof). New claim
     // and re-claim both end up in `pending` for admin review.

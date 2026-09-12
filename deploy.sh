@@ -352,7 +352,10 @@ echo "→ Health check on the restarted process..."
 HEALTH_OK=0
 HEALTH_CODE=000
 for attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
-  HEALTH_CODE=$(ssh "${SSH_OPTS[@]}" "$SERVER" "curl -s -o /dev/null -m 10 -w '%{http_code}' http://localhost:3000/app/api/health" 2>/dev/null || echo 000)
+  # `|| HEALTH_CODE=000` replaces the capture rather than echoing a fallback
+  # inside it: when the remote curl can't connect it has already printed 000
+  # and exits non-zero, so an echo appended a second 000 ("HTTP 000000").
+  HEALTH_CODE=$(ssh "${SSH_OPTS[@]}" "$SERVER" "curl -s -o /dev/null -m 10 -w '%{http_code}' http://localhost:3000/app/api/health" 2>/dev/null) || HEALTH_CODE=000
   if [ "$HEALTH_CODE" = "200" ]; then
     HEALTH_OK=1
     echo "  ✓ /app/api/health 200 (attempt $attempt)"
@@ -465,6 +468,12 @@ echo "→ Pruning retained chunks from old builds..."
 #
 # Daily DB backup — 02:00 UTC (05:00 Istanbul), low-traffic window. Dumps to
 # /root/db-backups (outside the repo so rsync --delete can't wipe it), keeps 14.
+#
+# Nightly orphan-upload reaper — deletes applicant photos in the uploads
+# applications/ folder that are over 48h old and referenced by no column
+# (the unauthenticated apply upload writes them; nothing else removes them).
+# 04:17 UTC (07:17 Istanbul): after the 02:00 backup and the 03:20/03:35
+# sweeps, and on a minute no */5, */15 or hourly sweeper uses.
 echo "→ Registering sweeper crontabs..."
 ssh "${SSH_OPTS[@]}" "$SERVER" bash -s <<EOF
 set -e
@@ -541,6 +550,10 @@ echo '  ✓ waitlists'
 chmod +x $REMOTE/scripts/sweep-event-spots.sh
 (crontab -l 2>/dev/null | grep -v 'sweep-event-spots' ; echo '35 3 * * * $REMOTE/scripts/sweep-event-spots.sh >> /var/log/sweep-event-spots.log 2>&1') | crontab -
 echo '  ✓ event-spots'
+
+chmod +x $REMOTE/scripts/sweep-orphan-uploads.sh
+(crontab -l 2>/dev/null | grep -v 'sweep-orphan-uploads' ; echo '17 4 * * * $REMOTE/scripts/sweep-orphan-uploads.sh >> /var/log/sweep-orphan-uploads.log 2>&1') | crontab -
+echo '  ✓ orphan-uploads'
 
 chmod +x $REMOTE/scripts/sweep-review-nudges.sh
 (crontab -l 2>/dev/null | grep -v 'sweep-review-nudges' ; echo '40 9 * * 3 $REMOTE/scripts/sweep-review-nudges.sh >> /var/log/sweep-review-nudges.log 2>&1') | crontab -

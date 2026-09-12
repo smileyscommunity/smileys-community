@@ -17,6 +17,9 @@ const disposableDomains: string[] = require('disposable-email-domains')
 // Applicant photos live in the applications/ folder (their own upload
 // route); that folder is admin-gated at serve time and excluded from the
 // shared validator's public default, so it's named explicitly here.
+import { existsSync } from 'fs'
+import { join } from 'path'
+import { uploadRoot } from '@/lib/uploadRoot'
 
 const applySchema = z.object({
   firstName:   z.string().trim().min(1).max(100),
@@ -123,6 +126,15 @@ export async function POST(req: NextRequest) {
     }
 
     if (_hp) return NextResponse.json({ ok: true })
+
+    // The photo link must still point at a file. Unreferenced applications/
+    // uploads are reaped after 48 hours (cron sweep-orphan-uploads), and an
+    // applicant returning to an old browser draft could otherwise submit a link
+    // to a photo that no longer exists — an application reviewers can't judge.
+    const photoFile = profilePhoto.split('/applications/')[1] ?? ''
+    if (!photoFile || photoFile.includes('/') || photoFile.includes('..') || !existsSync(join(uploadRoot(), 'applications', photoFile))) {
+      return NextResponse.json({ error: 'Your photo upload has expired. Please upload your photo again.' }, { status: 400 })
+    }
 
     // Resolve the target city from the slug the form posted (or
     // Istanbul if the client didn't send one — older builds). Reject

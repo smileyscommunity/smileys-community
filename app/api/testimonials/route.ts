@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { rateLimit } from '@/lib/rateLimit'
+import { rateLimit, claimOnce } from '@/lib/rateLimit'
+import { isUploadedImageUrl } from '@/lib/uploadedImageUrl'
 import { createNotification } from '@/lib/notify'
 
 export const dynamic = 'force-dynamic'
@@ -12,8 +13,6 @@ export const dynamic = 'force-dynamic'
 // member: the testimonials wall is a chorus, not anyone's feed.
 const QUOTE_MIN = 20
 const QUOTE_MAX = 300
-// Same allowlist the admin testimonial routes enforce for photo paths.
-const PHOTO_PATH_RE = /^\/app\/api\/files\/[a-zA-Z0-9\-_/]+\.(jpg|jpeg|png|webp|gif)$/i
 
 export async function POST(req: NextRequest) {
   try {
@@ -31,6 +30,11 @@ export async function POST(req: NextRequest) {
 
     const already = await prisma.testimonial.count({ where: { userId: session.id } })
     if (already > 0) return NextResponse.json({ error: 'You already shared a quote — thank you!' }, { status: 409 })
+    // No unique on Testimonial.userId: two concurrent posts both counted zero
+    // and created two quotes. The claim serialises them (as reports does).
+    if (!await claimOnce(`testimonial-once:${session.id}`, 60_000)) {
+      return NextResponse.json({ error: 'You already shared a quote — thank you!' }, { status: 409 })
+    }
 
     const user = await prisma.user.findUnique({
       where:  { id: session.id },
@@ -50,10 +54,10 @@ export async function POST(req: NextRequest) {
         role,
         quote,
         category: 'general',
-        // The member's avatar only if it's a path our file route serves —
-        // anything else (legacy external URLs) is dropped, matching the
-        // admin routes' allowlist.
-        photo:  user.profilePhoto && PHOTO_PATH_RE.test(user.profilePhoto) ? user.profilePhoto : null,
+        // The member's avatar only if it's an uploaded image in the users/
+        // folder — the old regex also admitted applications/ (raw applicant
+        // photos) and legacy external URLs, all dropped here.
+        photo:  isUploadedImageUrl(user.profilePhoto, ['users']) ? user.profilePhoto : null,
         active: false,
         order:  (maxOrder._max.order ?? 0) + 1,
         cityId: user.cityId,

@@ -11,12 +11,10 @@ export async function POST(req: NextRequest, { params }: Params) {
   try {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    if (!isAdmin(session) && !await rateLimit(`broadcast:${session.id}`, 10, 60 * 60_000))
-      return NextResponse.json({ error: 'Rate limit: max 10 broadcasts per hour' }, { status: 429 })
-
     const { id: eventId } = await params
-    const { message } = await req.json()
-    if (!message?.trim()) return NextResponse.json({ error: 'Message is required' }, { status: 400 })
+    const { message } = await req.json().catch(() => ({}))
+    if (typeof message !== 'string') return NextResponse.json({ error: 'Message is required' }, { status: 400 })
+    if (!message.trim()) return NextResponse.json({ error: 'Message is required' }, { status: 400 })
     if (message.trim().length > 500) return NextResponse.json({ error: 'Message too long (max 500 chars)' }, { status: 400 })
 
     const event = await prisma.event.findUnique({
@@ -33,14 +31,20 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
+    // Counted only once the caller is known to run this event: a stranger's
+    // (or a malformed) request used to burn the host's hourly budget.
+    if (!isAdmin(session) && !await rateLimit(`broadcast:${session.id}`, 10, 60 * 60_000))
+      return NextResponse.json({ error: 'Rate limit: max 10 broadcasts per hour' }, { status: 429 })
+
+    // The sender is excluded in the query, so `sent` is the number of people
+    // actually notified rather than one too many when a co-host is attending.
     const attendees = await prisma.eventAttendee.findMany({
-      where: { eventId, status: 'approved' },
+      where: { eventId, status: 'approved', userId: { not: session.id } },
       select: { userId: true },
     })
 
     await Promise.all(
       attendees
-        .filter(a => a.userId !== session.id)
         .map(a =>
           createNotification(
             a.userId,

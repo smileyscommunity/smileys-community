@@ -54,7 +54,12 @@ describe('9 sweeps dedupe on claims a member cannot clear', () => {
   it('claimOnce exists and the six ledgers use it', () => {
     expect(read('lib/rateLimit.ts')).toMatch(/export function claimOnce\(key: string, windowMs: number\)/)
     const rem = read('app/api/admin/cron/reminders/route.ts')
-    for (const k of ['reminder-24h:', 'reminder-2h:', 'connsug:', 'review:', 'listing-expiry:']) expect(rem).toContain(`claimOnce(\`${k}`)
+    // The key is named once so a failed write can release the same claim.
+    for (const k of ['reminder-24h:', 'reminder-2h:', 'connsug:', 'review:', 'listing-expiry:']) {
+      const name = rem.match(new RegExp(`const (\\w+) = \`${k}`))?.[1]
+      expect(name, k).toBeTruthy()
+      expect(rem).toContain(`claimOnce(${name}`)
+    }
     expect(read('app/api/cron/sweep-review-nudges/route.ts')).toMatch(/claimOnce\(`dir-review-nudge:\$\{userId\}`/)
     expect(read('app/api/cron/sweep-nps/route.ts')).toMatch(/claimOnce\(`nps:\$\{uid\}:\$\{period\}`/)
   })

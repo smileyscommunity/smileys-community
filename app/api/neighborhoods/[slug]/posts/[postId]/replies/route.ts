@@ -45,7 +45,11 @@ export async function POST(req: NextRequest, { params }: Params) {
   const post = await prisma.neighborhoodPost.findUnique({ where: { id: postId }, select: { id: true, neighborhood: true, cityId: true } })
   if (!post || !await postMatchesSlug(post, slug)) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const { content } = await req.json()
+  const { content } = await req.json().catch(() => ({}))
+  // A non-string content used to reach .trim() and 500.
+  if (content != null && typeof content !== 'string') {
+    return NextResponse.json({ error: 'content must be a string' }, { status: 400 })
+  }
   const trimmed = content?.trim() ?? ''
   if (!trimmed) return NextResponse.json({ error: 'Content required' }, { status: 400 })
   if (trimmed.length > 1000) return NextResponse.json({ error: 'Reply too long (max 1000 chars)' }, { status: 400 })

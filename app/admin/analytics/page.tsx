@@ -7,6 +7,8 @@ import { resolveImageUrl } from '@/lib/data'
 import CitySelect, { useAdminCities } from '@/components/admin/CitySelect'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { DEFAULT_CURRENCY, formatMoney, currencySymbol } from '@/lib/data'
+import { formatDay } from '@/lib/cityTime'
+import { toast } from 'sonner'
 
 interface Analytics {
   period: string
@@ -284,14 +286,33 @@ function AnalyticsInner() {
   // City scope for every chart. '' = all cities (network-wide). Persisted so a
   // multi-city admin's drill-down stays where they left it, mirroring the
   // dashboard switcher.
-  const [cityId, setCityId] = useState<string>(() =>
-    typeof window === 'undefined' ? '' : (window.localStorage.getItem('admin_analytics_city') || ''))
+  // Storage access is guarded: the accessor throws where site data is blocked.
+  const [cityId, setCityId] = useState<string>(() => {
+    if (typeof window === 'undefined') return ''
+    try { return window.localStorage.getItem('admin_analytics_city') || '' } catch { return '' }
+  })
   const cities = useAdminCities()
   const setCityScope = (id: string) => {
     setCityId(id)
-    if (id) window.localStorage.setItem('admin_analytics_city', id)
-    else    window.localStorage.removeItem('admin_analytics_city')
+    try {
+      if (id) window.localStorage.setItem('admin_analytics_city', id)
+      else    window.localStorage.removeItem('admin_analytics_city')
+    } catch {}
   }
+  // Revenue sums the SCOPED cities' payments, so its currency is theirs, not
+  // the city the admin happens to be viewing: Bodrum's euros scoped from
+  // Istanbul used to print as lira. "All cities" across more than one
+  // currency is a sum of unlike units — show the bare number and say so.
+  // Before the city list loads (or for a viewer who can't list cities), the
+  // current city is the best guess.
+  const scopedCurrencies = Array.from(new Set(
+    (cityId ? cities.filter(c => c.id === cityId) : cities)
+      .map(c => (c as { currency?: string }).currency)
+      .filter((x): x is string => !!x),
+  ))
+  const revCur: string | null = scopedCurrencies.length === 0 ? cur : scopedCurrencies.length === 1 ? scopedCurrencies[0] : null
+  const revMoney    = (n: number) => revCur ? formatMoney(n, revCur) : n.toLocaleString('en-GB')
+  const revCurLabel = revCur ? ` (${currencySymbol(revCur).trim()})` : ' (mixed currencies)'
   const [reengageId,    setReengageId]    = useState<string | null>(null)
   const [reengageMsgs,  setReengageMsgs]  = useState<Record<string, string>>({})
   const [reengageLoad,  setReengageLoad]  = useState<string | null>(null)
@@ -809,18 +830,27 @@ function AnalyticsInner() {
                             </div>
                             <button
                               onClick={async () => {
+                                // Failures toast (as RetentionRow surfaces them)
+                                // instead of the button quietly doing nothing.
                                 setReengageLoad(m.id)
-                                const res = await fetch('/app/api/admin/users/reengage', {
-                                  method: 'POST', credentials: 'include',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ userId: m.id }),
-                                })
-                                if (res.ok) {
-                                  const { message } = await res.json()
-                                  setReengageMsgs(prev => ({ ...prev, [m.id]: message }))
+                                try {
+                                  const res = await fetch('/app/api/admin/users/reengage', {
+                                    method: 'POST', credentials: 'include',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ userId: m.id }),
+                                  })
+                                  const d = await res.json().catch(() => null)
+                                  if (!res.ok || typeof d?.message !== 'string') {
+                                    toast.error(d?.error ?? 'Could not draft')
+                                    return
+                                  }
+                                  setReengageMsgs(prev => ({ ...prev, [m.id]: d.message }))
                                   setReengageId(m.id)
+                                } catch {
+                                  toast.error('Could not draft — check your connection')
+                                } finally {
+                                  setReengageLoad(null)
                                 }
-                                setReengageLoad(null)
                               }}
                               disabled={reengageLoad === m.id}
                               className="text-xs px-2 py-1 rounded-lg bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 border border-violet-500/20 font-semibold transition-colors shrink-0 disabled:opacity-50"
@@ -838,14 +868,23 @@ function AnalyticsInner() {
                               />
                               <button
                                 onClick={async () => {
-                                  const res = await fetch(`/app/api/admin/users/${m.id}`, {
-                                    method: 'PATCH', credentials: 'include',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ _reengage: reengageMsgs[m.id] }),
-                                  })
-                                  if (res.ok) {
+                                  if (!reengageMsgs[m.id]?.trim()) return
+                                  try {
+                                    const res = await fetch(`/app/api/admin/users/${m.id}`, {
+                                      method: 'PATCH', credentials: 'include',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ _reengage: reengageMsgs[m.id] }),
+                                    })
+                                    if (!res.ok) {
+                                      const d = await res.json().catch(() => ({}))
+                                      toast.error(d?.error ?? 'Could not send')
+                                      return
+                                    }
                                     setReengageMsgs(prev => ({ ...prev, [m.id]: '' }))
                                     setReengageId(null)
+                                    toast.success(`Notification sent to ${m.name}`)
+                                  } catch {
+                                    toast.error('Could not send — check your connection')
                                   }
                                 }}
                                 className="w-full py-1.5 text-xs font-semibold bg-violet-500 hover:bg-violet-600 text-white rounded-lg transition-colors"
@@ -1115,7 +1154,7 @@ function AnalyticsInner() {
                       className="flex items-center gap-4 px-5 py-3 hover:bg-zinc-800/40 transition-colors">
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-semibold text-white truncate">{e.title}</div>
-                        <div className="text-xs text-zinc-500">{new Date(e.date).toLocaleDateString()}</div>
+                        <div className="text-xs text-zinc-500">{formatDay(e.date, { day: 'numeric', month: 'short', year: 'numeric' })}</div>
                       </div>
                       <div className="text-right shrink-0">
                         <div className="text-sm font-bold text-white">{e.attending}/{e.totalSpots}</div>
@@ -1346,12 +1385,12 @@ function AnalyticsInner() {
           <section>
             <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3">Revenue</h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
-              <StatCard label="Collected"  value={formatMoney(data.revenue.collected, cur)} subColor="text-green-400" sub="Paid transactions" />
-              <StatCard label="Pending"    value={formatMoney(data.revenue.pending, cur)}   subColor="text-amber-400" sub="Awaiting payment" href="/admin/payments" />
-              <StatCard label="Refunded"   value={formatMoney(data.revenue.refunded, cur)}  subColor="text-zinc-400"  sub="Total refunded" />
+              <StatCard label="Collected"  value={revMoney(data.revenue.collected)} subColor="text-green-400" sub="Paid transactions" />
+              <StatCard label="Pending"    value={revMoney(data.revenue.pending)}   subColor="text-amber-400" sub="Awaiting payment" href="/admin/payments" />
+              <StatCard label="Refunded"   value={revMoney(data.revenue.refunded)}  subColor="text-zinc-400"  sub="Total refunded" />
             </div>
             <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5">
-              <div className="text-xs font-semibold text-zinc-400 mb-3">Revenue collected — last {periodWindowLabel(period)} ({currencySymbol(cur).trim()})</div>
+              <div className="text-xs font-semibold text-zinc-400 mb-3">Revenue collected — last {periodWindowLabel(period)}{revCurLabel}</div>
               <MiniBar values={data.revenue.byMonth} months={data.months} color="#34d399" />
               {data.revenue.byMonth.every(v => v === 0) && (
                 <p className="text-xs text-zinc-600 mt-2">No paid transactions recorded yet.</p>
@@ -1366,7 +1405,7 @@ function AnalyticsInner() {
               {/* Revenue per club */}
               <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5">
                 <div className="text-xs font-semibold text-zinc-400 mb-1">Revenue per club</div>
-                <div className="text-xs text-zinc-600 mb-4">Ranked by total paid transactions ({currencySymbol(cur).trim()})</div>
+                <div className="text-xs text-zinc-600 mb-4">Ranked by total paid transactions{revCurLabel}</div>
                 {data.revenueByClub?.length > 0 ? (
                   <div className="space-y-3">
                     {data.revenueByClub.map((c, i) => {
@@ -1378,7 +1417,7 @@ function AnalyticsInner() {
                               <span className="text-zinc-600 text-xs w-3">{i + 1}</span>
                               {c.emoji} {c.name}
                             </span>
-                            <span className="text-xs text-amber-400 font-bold">{formatMoney(c.revenue, cur)}</span>
+                            <span className="text-xs text-amber-400 font-bold">{revMoney(c.revenue)}</span>
                           </div>
                           <div className="flex items-center gap-2">
                             <div className="flex-1 h-1.5 bg-zinc-800 rounded-full overflow-hidden">

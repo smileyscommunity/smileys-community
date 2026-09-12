@@ -103,7 +103,7 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
     const dayLabel = new Date(date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })
     const cards = evs.map(e =>
       card(
-        `<a href="${APP_URL}/events/${e.id}?${UTM}" style="color:#111827;font-weight:700;font-size:15px;text-decoration:none">${e.emoji ? `${e.emoji} ` : ''}${esc(e.title)}</a>` +
+        `<a href="${APP_URL}/events/${e.id}?${UTM}" style="color:#111827;font-weight:700;font-size:15px;text-decoration:none">${e.emoji ? `${esc(e.emoji)} ` : ''}${esc(e.title)}</a>` +
         `<div style="color:#92400e;font-size:13px;margin-top:3px">🕖 ${formatTime(e.time)}${e.neighborhood ? ` · 📍 ${esc(e.neighborhood)}` : ''}</div>` +
         // Urgency nudge — only when scarcity is real (≤3 seats, or ≥80% full).
         (e.spotsLeft > 0 && (e.spotsLeft <= 3 || (e.totalSpots > 0 && e.spotsLeft / e.totalSpots <= 0.2))
@@ -154,7 +154,7 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
     body += `<div align="center" style="margin:0 0 20px;text-align:center">` +
       `<a href="${APP_URL}/events/${bestPhoto.event.id}?${UTM}">` +
       `<img src="${photoUrl}" alt="Photo from ${esc(bestPhoto.event.title)}" width="100%" style="width:100%;max-width:100%;border-radius:12px;display:inline-block;margin:0 auto"/></a>` +
-      `<p style="color:#6b7280;font-size:12px;margin:6px 0 0;text-align:center">📸 Last week at ${bestPhoto.event.emoji ? `${bestPhoto.event.emoji} ` : ''}${esc(bestPhoto.event.title)}</p>` +
+      `<p style="color:#6b7280;font-size:12px;margin:6px 0 0;text-align:center">📸 Last week at ${bestPhoto.event.emoji ? `${esc(bestPhoto.event.emoji)} ` : ''}${esc(bestPhoto.event.title)}</p>` +
       `</div>`
   }
 

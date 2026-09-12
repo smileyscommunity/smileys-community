@@ -109,13 +109,18 @@ async function inQuietWindow(userId: string, from: number, to: number): Promise<
   return from > to ? (h >= from || h < to) : (h >= from && h < to)
 }
 
+// Resolves true when the notification was handled — the row written, folded
+// into a bundle, or deliberately skipped because the member muted the type —
+// and false only when the write failed. It still never throws: callers that
+// ignore the result (or `.catch(() => {})` it) behave exactly as before. The
+// once-only sweeps read it to hand back a claim whose write was lost.
 export async function createNotification(
   userId: string,
   type: string,
   title: string,
   body: string,
   link?: string,
-) {
+): Promise<boolean> {
   try {
     const prefKey = PREF_KEY[type]
 
@@ -127,7 +132,7 @@ export async function createNotification(
     if (prefKey !== undefined && prefKey !== null) {
       const prefs = await prisma.notificationPreference.findUnique({ where: { userId } })
       if (prefs) {
-        if (!prefs[prefKey]) return
+        if (!prefs[prefKey]) return true
         if (prefs.quietHours && await inQuietWindow(userId, prefs.quietFrom, prefs.quietTo)) suppressPush = true
       }
     }
@@ -151,7 +156,7 @@ export async function createNotification(
           where: { id: existing.id },
           data: { title: `${count} people joined your event`, body: `${count} people have joined "${eventName}"` },
         })
-        return
+        return true
       }
     }
 
@@ -173,7 +178,7 @@ export async function createNotification(
           where: { id: existing.id },
           data: { title: `📸 ${count} new photos`, body: `${count} photos were added to "${eventName}"` },
         })
-        return
+        return true
       }
     }
 
@@ -182,8 +187,10 @@ export async function createNotification(
     // Fire push notification (non-blocking, best-effort). Skipped during the
     // member's quiet hours — the bell entry above was still recorded.
     if (!suppressPush) sendPushToUser(userId, { title, body, link }).catch(() => {})
+    return true
   } catch (e) {
     console.error('Failed to create notification:', e)
+    return false
   }
 }
 

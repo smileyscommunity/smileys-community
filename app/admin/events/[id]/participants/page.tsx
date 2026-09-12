@@ -14,6 +14,8 @@ import WhatsAppButton from '@/components/WhatsAppButton'
 import { useAdminMemberSearch } from '@/hooks/useAdminMemberSearch'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { DEFAULT_CURRENCY, formatMoney, currencySymbol } from '@/lib/data'
+import { useAdminCities } from '@/components/admin/CitySelect'
+import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
 
 interface NoShowCard { id: string; userId: string; kind: 'yellow' | 'red'; status: string; waivedAt: string | null; notifiedAt: string | null; user: { id: string; name: string } }
 
@@ -45,8 +47,15 @@ function SectionHeader({ title, count, color, badge, children }: {
   )
 }
 
+// Sentinel for the busy slot while a batch runs — never a real user id.
+const BATCH_BUSY = '__batch__'
+
 export default function ParticipantsPage({ params }: { params: Promise<{ id: string }> }) {
   const cur = useCurrentCity()?.currency ?? DEFAULT_CURRENCY
+  // "Past" is decided on the EVENT's city calendar; the admin's current city
+  // is the fallback until the city list loads.
+  const adminCities = useAdminCities()
+  const currentTz   = useCurrentCity()?.timezone ?? DEFAULT_TZ
   const sym = currencySymbol(cur).trim()
   const { id } = use(params)
   const [event,     setEvent]     = useState<Event | null>(null)
@@ -62,6 +71,9 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
   const [loading,   setLoading]   = useState(true)
   const [toggling,  setToggling]  = useState<string | null>(null)
   const [busy,      setBusy]      = useState<string | null>(null)
+  // Bumped after a batch so the event (spotsLeft) and rosters reload from the
+  // server rather than being patched from N partial outcomes.
+  const [reloadTick, setReloadTick] = useState(0)
   const [addSearch, setAddSearch] = useState('')
   // Server-side search — the users endpoint returns at most 1000 rows
   // without a ?search= param, so filtering a one-shot fetch client-side
@@ -103,7 +115,54 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
         setPayments(map)
       }
     }).finally(() => setLoading(false))
-  }, [id])
+  }, [id, reloadTick])
+
+  // Batch actions ("Approve all", "Promote N"): one confirm, one busy flag for
+  // the whole batch, requests one at a time, one summary toast, then a reload.
+  // They used to fire N requests in parallel through the per-row handlers —
+  // N toasts, a single shared busy slot each overwrote, and promotions racing
+  // each other for the same last spots.
+  async function runBatch(userIds: string[], method: 'PATCH' | 'POST', body: (userId: string) => object, verb: string) {
+    setBusy(BATCH_BUSY)
+    let ok = 0
+    let failed = 0
+    let firstError: string | null = null
+    try {
+      for (const userId of userIds) {
+        try {
+          const res = await fetch(`/app/api/admin/events/${id}/participants`, {
+            method, credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body(userId)),
+          })
+          if (res.ok) { ok++; continue }
+          failed++
+          if (!firstError) {
+            const d = await res.json().catch(() => null)
+            if (typeof d?.error === 'string' && d.error) firstError = d.error
+          }
+        } catch { failed++ }
+      }
+    } finally {
+      setBusy(null)
+      setReloadTick(t => t + 1)
+    }
+    if (failed === 0) toast.success(`${verb} ${ok} ✓`)
+    else if (ok === 0) toast.error(`${verb} none — ${failed} failed${firstError ? `: ${firstError}` : ''}`)
+    else toast.warning(`${verb} ${ok} · ${failed} failed${firstError ? `: ${firstError}` : ''}`)
+  }
+
+  async function approveAll(list: Attendee[]) {
+    if (list.length === 0) return
+    if (!(await confirmToast(`Approve all ${list.length} pending request${list.length !== 1 ? 's' : ''}?`))) return
+    await runBatch(list.map(a => a.userId), 'PATCH', userId => ({ userId, action: 'approve' }), 'Approved')
+  }
+
+  async function promoteBatch(list: WaitlistEntry[]) {
+    if (list.length === 0) return
+    if (!(await confirmToast(`Promote the first ${list.length} from the waitlist into open spots?`))) return
+    await runBatch(list.map(w => w.userId), 'POST', userId => ({ userId }), 'Promoted')
+  }
 
   async function approveAttendee(userId: string) {
     setBusy(userId)
@@ -314,7 +373,8 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
   if (!event)  return <div className="p-8 text-center text-zinc-500 text-sm">Event not found</div>
 
   const approved         = attendees.filter(a => a.status === 'approved')
-  const isPastEvent      = event.date < new Date().toISOString().slice(0, 10)
+  const eventTz          = adminCities.find(c => c.id === event.cityId)?.timezone ?? currentTz
+  const isPastEvent      = event.date < todayInTz(eventTz)
   const pending          = attendees.filter(a => a.status === 'pending')
   const checkedInCount   = approved.filter(a => a.checkedIn).length
   const nonStaff         = approved.filter(a => !a.isStaff)
@@ -523,8 +583,8 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
         <div ref={pendingRef} className="bg-zinc-900 rounded-2xl border border-amber-500/30 overflow-hidden">
           <SectionHeader title="Pending approval" count={pending.length} color="bg-amber-500/20 text-amber-400">
             {pending.length > 0 && (
-              <button onClick={() => pending.forEach(a => approveAttendee(a.userId))}
-                className="text-xs px-3 py-2 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 font-semibold transition-colors">
+              <button onClick={() => approveAll(pending)} disabled={busy !== null}
+                className="text-xs px-3 py-2 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 font-semibold transition-colors disabled:opacity-40">
                 Approve all
               </button>
             )}
@@ -745,8 +805,8 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
       <div ref={waitlistRef} className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
         <SectionHeader title="Waitlist" count={waitlist.length} color="bg-violet-500/20 text-violet-400">
           {waitlist.length > 0 && event.spotsLeft > 0 && (
-            <button onClick={() => waitlist.slice(0, event.spotsLeft).forEach(promote)}
-              className="text-xs px-3 py-2 rounded-lg bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 font-semibold transition-colors">
+            <button onClick={() => promoteBatch(waitlist.slice(0, event.spotsLeft))} disabled={busy !== null}
+              className="text-xs px-3 py-2 rounded-lg bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 font-semibold transition-colors disabled:opacity-40">
               Promote {Math.min(waitlist.length, event.spotsLeft)}
             </button>
           )}

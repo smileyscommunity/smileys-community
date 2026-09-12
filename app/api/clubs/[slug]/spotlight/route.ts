@@ -58,7 +58,11 @@ export async function PUT(req: NextRequest, { params }: Params) {
     }
   }
 
-  const { userId, name, note } = await req.json()
+  const { userId, name, note } = await req.json().catch(() => ({}))
+  // Wrong types used to reach .trim() (or a Prisma filter) and 500.
+  if ((userId != null && typeof userId !== 'string') || (name != null && typeof name !== 'string') || (note != null && typeof note !== 'string')) {
+    return NextResponse.json({ error: 'userId, name and note must be strings' }, { status: 400 })
+  }
   if (!userId && !name?.trim()) return NextResponse.json({ error: 'Member required' }, { status: 400 })
   if (note && note.trim().length > 500) return NextResponse.json({ error: 'Note too long (max 500 chars)' }, { status: 400 })
 
