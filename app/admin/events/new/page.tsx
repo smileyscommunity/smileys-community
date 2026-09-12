@@ -75,7 +75,17 @@ export default function NewEventPage() {
                    .map((m: any) => ({ id: m.userId, name: m.user.name }))
           : []
         setHosts(clubHosts)
-        if (clubHosts.length > 0) setForm(f => ({ ...f, hostId: clubHosts[0].id }))
+        // Default to the club's first host only when the current host is not
+        // one of that club's hosts — and keep the label in step. The id used
+        // to swap while the form still read "✓ <previous name>", so the
+        // event was created under someone the admin never chose.
+        if (clubHosts.length > 0) {
+          setForm(f => {
+            if (clubHosts.some(h => h.id === f.hostId)) return f
+            setHostSearch(clubHosts[0].name ?? '')
+            return { ...f, hostId: clubHosts[0].id }
+          })
+        }
       })
   }, [form.clubId])
 

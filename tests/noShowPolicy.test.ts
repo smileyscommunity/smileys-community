@@ -155,3 +155,12 @@ describe('evaluateGate', () => {
     expect(needsAcknowledgement(yellow({ status: 'waived' }), now)).toBe(false)
   })
 })
+
+describe('isNoShow — a withdrawn request', () => {
+  it('is never a no-show: the seat was never held', () => {
+    const start = new Date('2026-09-12T16:00:00Z')
+    const late  = new Date('2026-09-12T13:00:00Z')   // well inside the cutoff
+    expect(isNoShow({ status: 'cancelled', checkedIn: false, cancelledAt: late, cancelledBy: 'withdrawn' }, start)).toBe(false)
+    expect(isNoShow({ status: 'cancelled', checkedIn: false, cancelledAt: late, cancelledBy: 'member' }, start)).toBe(true)
+  })
+})

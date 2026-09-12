@@ -198,7 +198,10 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     if (!await canManageEventOps(session.id, session.role, eventId)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
-    const { userId, type } = await req.json()
+    const { userId, type } = await req.json().catch(() => ({}))
+    if (typeof userId !== 'string' || !userId) {
+      return NextResponse.json({ error: 'userId required' }, { status: 400 })
+    }
 
     if (type === 'waitlist') {
       await prisma.waitlistEntry.deleteMany({ where: { eventId, userId } })
@@ -596,7 +599,12 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (!await canManageEventOps(session.id, session.role, eventId)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
-    const { userId } = await req.json()
+    const { userId } = await req.json().catch(() => ({}))
+    // Prisma drops an undefined filter: without this, an empty body deleted
+    // the whole waitlist and revived every cancelled row on the event.
+    if (typeof userId !== 'string' || !userId) {
+      return NextResponse.json({ error: 'userId required' }, { status: 400 })
+    }
 
     const eventMeta = await prisma.event.findUnique({
       where: { id: eventId },

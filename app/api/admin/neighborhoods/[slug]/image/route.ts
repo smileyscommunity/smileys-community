@@ -10,6 +10,12 @@ import { join } from 'path'
 import sharp from 'sharp'
 import { uploadRoot } from '@/lib/uploadRoot'
 
+// A solid-colour 16000×16000 PNG is well under the byte cap yet decodes to
+// ~1 GB RGBA (PNG/WebP have no shrink-on-load); sharp's default ceiling is
+// 268 megapixels. 50 MP is ~7000×7000 — above any phone camera, and the
+// client already downsizes before upload.
+const MAX_INPUT_PIXELS = 50_000_000
+
 export const runtime = 'nodejs'
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
@@ -38,7 +44,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
   const raw = Buffer.from(await file.arrayBuffer())
   let buffer: Buffer
   try {
-    buffer = await sharp(raw)
+    buffer = await sharp(raw, { limitInputPixels: MAX_INPUT_PIXELS })
       .rotate()
       .resize(1600, 560, { fit: 'cover', position: 'centre' })
       .jpeg({ quality: 85 })

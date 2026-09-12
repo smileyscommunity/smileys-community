@@ -58,10 +58,16 @@ describe('DELETE /events/[id]/rsvp — soft-cancel', () => {
     const res = await DELETE(req(), params)
     expect(res.status).toBe(200)
     expect(p.eventAttendee.delete).not.toHaveBeenCalled()
-    const call = p.eventAttendee.updateMany.mock.calls[0][0]
-    expect(call.where).toEqual({ userId: 'u1', eventId: 'e1', status: { in: ['approved', 'pending'] } })
-    expect(call.data).toMatchObject({ status: 'cancelled', cancelledBy: 'member' })
-    expect(call.data.cancelledAt).toBeInstanceOf(Date)
+    const calls = p.eventAttendee.updateMany.mock.calls.map((c: any) => c[0])
+    // A held seat is a member cancel; a pending request is a withdrawal —
+    // stamped differently so the no-show pass never cards someone for a
+    // seat they never had.
+    const cancel   = calls.find((c: any) => c.where.status === 'approved')
+    const withdraw = calls.find((c: any) => c.where.status === 'pending')
+    expect(cancel.where).toEqual({ userId: 'u1', eventId: 'e1', status: 'approved' })
+    expect(cancel.data).toMatchObject({ status: 'cancelled', cancelledBy: 'member' })
+    expect(cancel.data.cancelledAt).toBeInstanceOf(Date)
+    expect(withdraw.data).toMatchObject({ status: 'cancelled', cancelledBy: 'withdrawn' })
   })
 
   it('refuses to cancel a row that is already cancelled', async () => {

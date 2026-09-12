@@ -78,8 +78,13 @@ describe('cancelAttendeeOp', () => {
 
   it('only touches an active row, so a second cancel keeps the first timestamp', () => {
     const d = db()
+    // A member's own cancel is scoped to the seat they held; a pending
+    // request goes through withdrawPendingOp (fourth scan, item 2).
     cancelAttendeeOp(d, { userId: 'u1', eventId: 'e1', by: 'member' })
     expect(d.eventAttendee.updateMany.mock.calls[0][0].where)
+      .toEqual({ userId: 'u1', eventId: 'e1', status: 'approved' })
+    cancelAttendeeOp(d, { userId: 'u1', eventId: 'e1', by: 'host' })
+    expect(d.eventAttendee.updateMany.mock.calls[1][0].where)
       .toEqual({ userId: 'u1', eventId: 'e1', status: { in: ['approved', 'pending'] } })
   })
 })

@@ -7,6 +7,12 @@ import { rateLimit, getIp } from '@/lib/rateLimit'
 import { detectImageFormat } from '@/lib/imageMagic'
 import { uploadRoot } from '@/lib/uploadRoot'
 
+// A solid-colour 16000×16000 PNG is well under the byte cap yet decodes to
+// ~1 GB RGBA (PNG/WebP have no shrink-on-load); sharp's default ceiling is
+// 268 megapixels. 50 MP is ~7000×7000 — above any phone camera, and the
+// client already downsizes before upload.
+const MAX_INPUT_PIXELS = 50_000_000
+
 export const runtime = 'nodejs'
 
 const ALLOWED  = ['.jpg', '.jpeg', '.png', '.webp']
@@ -65,7 +71,7 @@ export async function POST(req: NextRequest) {
     try {
       // .rotate() reads EXIF Orientation from the original buffer to fix camera
       // rotation, then removes it. .jpeg() strips all remaining EXIF (GPS etc).
-      buffer = await sharp(raw).rotate().resize(1200, 1200, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 82 }).toBuffer()
+      buffer = await sharp(raw, { limitInputPixels: MAX_INPUT_PIXELS }).rotate().resize(1200, 1200, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 82 }).toBuffer()
     } catch {
       return NextResponse.json({ error: 'Could not process image' }, { status: 400 })
     }

@@ -9,6 +9,12 @@ import { prisma } from '@/lib/prisma'
 import { detectImageFormat } from '@/lib/imageMagic'
 import { uploadRoot } from '@/lib/uploadRoot'
 
+// A solid-colour 16000×16000 PNG is well under the byte cap yet decodes to
+// ~1 GB RGBA (PNG/WebP have no shrink-on-load); sharp's default ceiling is
+// 268 megapixels. 50 MP is ~7000×7000 — above any phone camera, and the
+// client already downsizes before upload.
+const MAX_INPUT_PIXELS = 50_000_000
+
 export const runtime = 'nodejs'
 
 const ALLOWED = ['.jpg', '.jpeg', '.png', '.webp', '.gif']
@@ -98,7 +104,7 @@ export async function POST(req: NextRequest) {
       // from the original buffer to auto-correct camera rotation, then removes
       // the tag from output. .jpeg() strips all remaining EXIF (incl. GPS).
       // Never call .withMetadata() here or GPS coords leak to the public URL.
-      buffer = await sharp(raw).rotate().resize(1200, 1200, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 82 }).toBuffer()
+      buffer = await sharp(raw, { limitInputPixels: MAX_INPUT_PIXELS }).rotate().resize(1200, 1200, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 82 }).toBuffer()
     } catch {
       return NextResponse.json({ error: 'Could not process image. Please upload a valid JPG, PNG, WebP, or GIF.' }, { status: 400 })
     }

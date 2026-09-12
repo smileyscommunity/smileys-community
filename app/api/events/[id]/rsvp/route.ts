@@ -9,7 +9,7 @@ import { autoJoinClub } from '@/lib/autoJoinClub'
 import { stampFirstEventRsvp } from '@/lib/firstEvent'
 import { announceSpotOpened } from '@/lib/spotOpened'
 import { trackServer } from '@/lib/posthog-server'
-import { activateAttendee, cancelAttendeeOp, isActiveAttendee } from '@/lib/attendance'
+import { activateAttendee, cancelAttendeeOp, withdrawPendingOp, isActiveAttendee } from '@/lib/attendance'
 import { checkRsvpAllowed, gateErrorBody, getRsvpGate, recordYellowAcknowledgement } from '@/lib/noShow'
 import { noShowPolicyApplies } from '@/lib/noShowPolicy'
 import { DEFAULT_CURRENCY, formatMoney } from '@/lib/data'
@@ -481,6 +481,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       // spot back. "Cancelled in time" vs "didn't come" is a question the
       // post-event no-show pass needs answered from this timestamp.
       cancelAttendeeOp(prisma, { userId: session.id, eventId, by: 'member' }),
+      withdrawPendingOp(prisma, { userId: session.id, eventId }),
       // Void any pending payment so no orphaned records remain
       prisma.payment.updateMany({
         where: { userId: session.id, eventId, status: 'pending' },

@@ -123,7 +123,8 @@ export interface NoShowCandidate {
  *
  *   - approved and never checked in                → yes
  *   - cancelled BY THE MEMBER after the cutoff     → yes (the spot was not
- *     really given back; a host/admin removal is never held against them)
+ *     really given back; a host/admin removal is never held against them;
+ *     a withdrawn PENDING request — cancelledBy 'withdrawn' — held no seat)
  *   - checked in, pending, removed, or cancelled in time → no
  */
 export function isNoShow(a: NoShowCandidate, startsAt: Date): boolean {

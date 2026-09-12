@@ -26,6 +26,9 @@ export function isActiveAttendee(row: { status: string } | null | undefined): ro
 }
 
 export type CancelActor = 'member' | 'host' | 'admin' | 'system'   // system: reconfirmation release
+// 'withdrawn': the member pulled a PENDING request — no seat was ever held,
+// so the no-show pass must not read it as a late cancel (lib/noShowPolicy).
+export type CancelledBy = CancelActor | 'withdrawn'
 
 /**
  * Put a member on an event: a fresh row, or the revival of one that was
@@ -77,8 +80,23 @@ export function cancelAttendeeOp(
   args: { userId: string; eventId: string; by: CancelActor },
 ) {
   const status = args.by === 'member' ? AttendeeStatus.Cancelled : AttendeeStatus.Removed
+  // A member's own cancel stamps only a row that held a seat. A pending
+  // request they withdraw goes through withdrawPendingOp: stamping it
+  // 'cancelled by member' made the no-show pass card them for a seat they
+  // never had. Host/admin/system removals still cover both statuses.
+  const where = args.by === 'member'
+    ? { userId: args.userId, eventId: args.eventId, status: AttendeeStatus.Approved }
+    : { userId: args.userId, eventId: args.eventId, ...activeAttendeeWhere }
   return db.eventAttendee.updateMany({
-    where: { userId: args.userId, eventId: args.eventId, ...activeAttendeeWhere },
+    where,
     data:  { status, cancelledAt: new Date(), cancelledBy: args.by },
+  })
+}
+
+/** The member pulls a request the host never acted on. Pairs with cancelAttendeeOp in the same transaction. */
+export function withdrawPendingOp(db: Db, args: { userId: string; eventId: string }) {
+  return db.eventAttendee.updateMany({
+    where: { userId: args.userId, eventId: args.eventId, status: AttendeeStatus.Pending },
+    data:  { status: AttendeeStatus.Cancelled, cancelledAt: new Date(), cancelledBy: 'withdrawn' satisfies CancelledBy },
   })
 }
