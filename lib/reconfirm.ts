@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { expectedSpotsLeft } from '@/lib/spotsLeft'
 import type { Prisma } from '@prisma/client'
 import { createNotification } from '@/lib/notify'
 import { sendReconfirmEmail, sendSpotReleasedEmail, recordEmailFailure } from '@/lib/email'
@@ -112,6 +113,14 @@ export async function releaseEvent(event: {
 }, now: Date = new Date()): Promise<number> {
   const waiting = await prisma.waitlistEntry.count({ where: { eventId: event.id } })
   if (waiting === 0) return 0
+  // Waitlist rows outlive a spot opening (only a claim removes one), so
+  // "someone is waiting" is not "no seat is free". Seats already open
+  // cover that many of the waiting; only the rest justify releasing a
+  // silent member — who used to be evicted while a seat sat empty.
+  const row  = await prisma.event.findUnique({ where: { id: event.id }, select: { totalSpots: true } })
+  const free = row ? Math.max(0, await expectedSpotsLeft(event.id, row.totalSpots)) : 0
+  const needed = waiting - free
+  if (needed <= 0) return 0
   const staff = await staffIds(event.id, event.hostId)
   const rows = await prisma.eventAttendee.findMany({
     where:   { eventId: event.id, status: 'approved', reconfirmAskedAt: { not: null }, reconfirmedAt: null },
@@ -120,7 +129,7 @@ export async function releaseEvent(event: {
   })
   let released = 0
   for (const a of rows) {
-    if (released >= waiting) break
+    if (released >= needed) break
     if (staff.has(a.userId)) continue
     // The answer is re-checked in the write itself: a member who tapped
     // "yes" between the read above and this line keeps the seat.

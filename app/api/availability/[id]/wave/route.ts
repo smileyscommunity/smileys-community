@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
+import { isBlockedEitherWay } from '@/lib/memberPrivacy'
 
 // "✋ I'm free too" — one-tap response to an availability pulse. Cheaper
 // than composing a DM to a stranger, and it gives the poster the feedback
@@ -29,6 +30,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
     if (pulse.userId === session.id) {
       return NextResponse.json({ error: 'That one is yours' }, { status: 400 })
+    }
+    // Same answer as an expired pulse: a wave across a block would push the
+    // blocker a deep link into a DM with the person they blocked.
+    if (await isBlockedEitherWay(session.id, pulse.userId)) {
+      return NextResponse.json({ error: 'Pulse expired' }, { status: 404 })
     }
 
     // Upsert with empty update = idempotent; repeat taps don't re-notify.

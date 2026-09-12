@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { createNotification } from '@/lib/notify'
+import { rateLimit, claimOnce } from '@/lib/rateLimit'
 import { eventEndsAt } from '@/lib/eventTime'
 import { DEFAULT_TZ } from '@/lib/cityTime'
 
@@ -91,6 +92,9 @@ export async function GET(_: NextRequest, { params }: Params) {
 export async function POST(req: NextRequest, { params }: Params) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!await rateLimit(`feedback:${session.id}`, 10, 60_000)) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+  }
 
   const { id } = await params
   const body = await req.json().catch(() => ({}))
@@ -215,7 +219,11 @@ export async function POST(req: NextRequest, { params }: Params) {
   // the actual offender if named, etc.). reporterId stays the
   // responder; the surface that renders Reports never exposes the
   // reporter to the host.
-  if (body.anomaly && event.hostId && event.hostId !== session.id) {
+  // One report per survey: the survey upserts, so every resubmit with the
+  // flag set used to file another report and push every admin and
+  // moderator again. The claim outlives the 7-day feedback window.
+  if (body.anomaly && event.hostId && event.hostId !== session.id
+      && await claimOnce(`survey-anomaly:${session.id}:${event.id}`, 30 * 24 * 60 * 60 * 1000)) {
     await prisma.report.create({
       data: {
         reporterId: session.id,

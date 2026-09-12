@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/notify',     () => ({ createNotification: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('@/lib/spotOpened', () => ({ announceSpotOpened: vi.fn().mockResolvedValue(1) }))
+// No seat free unless a test says otherwise.
+vi.mock('@/lib/spotsLeft',  () => ({ expectedSpotsLeft: vi.fn().mockResolvedValue(0) }))
 vi.mock('@/lib/email',      () => ({
   sendReconfirmEmail:    vi.fn().mockResolvedValue(undefined),
   sendSpotReleasedEmail: vi.fn().mockResolvedValue(undefined),
@@ -9,7 +11,7 @@ vi.mock('@/lib/email',      () => ({
 }))
 vi.mock('@/lib/prisma', () => ({ prisma: {
   city:          { findMany: vi.fn() },
-  event:         { findMany: vi.fn() },
+  event:         { findMany: vi.fn(), findUnique: vi.fn().mockResolvedValue({ totalSpots: 10 }) },
   eventAttendee: { findMany: vi.fn(), update: vi.fn(), updateMany: vi.fn(), findUnique: vi.fn() },
   eventCoHost:   { findMany: vi.fn().mockResolvedValue([]) },
   waitlistEntry: { count: vi.fn() },
@@ -19,6 +21,7 @@ import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notify'
 import { sendReconfirmEmail, sendSpotReleasedEmail } from '@/lib/email'
 import { announceSpotOpened } from '@/lib/spotOpened'
+import { expectedSpotsLeft } from '@/lib/spotsLeft'
 import { needsReconfirmation, reconfirmPhase, askEvent, releaseEvent, sweepReconfirm, confirmAttendance } from '@/lib/reconfirm'
 import { reconfirmToken, verifyReconfirmToken } from '@/lib/reconfirmToken'
 import { RECONFIRM_ASK_HOURS_BEFORE, RECONFIRM_RELEASE_HOURS_BEFORE, RECONFIRM_MIN_LEAD_HOURS } from '@/lib/noShowPolicy'
@@ -214,5 +217,27 @@ describe('reconfirm token', () => {
     expect(verifyReconfirmToken('u1', 'e2', t)).toBe(false)
     expect(verifyReconfirmToken('u1', 'e1', t + 'x')).toBe(false)
     expect(verifyReconfirmToken('u1', 'e1', 'ü'.repeat(16))).toBe(false)   // byte length ≠ char length
+  })
+})
+
+describe('releaseEvent when seats are already free', () => {
+  it('releases only what the waitlist needs beyond the open seats', async () => {
+    // Two waiting, one seat already open (a cancel no one claimed): release one, not two.
+    ;(prisma as any).waitlistEntry.count.mockResolvedValue(2)
+    ;(expectedSpotsLeft as any).mockResolvedValueOnce(1)
+    ;(prisma as any).eventAttendee.findMany.mockResolvedValue([
+      { id: 'a', userId: 'a', status: 'approved', reconfirmAskedAt: new Date(), reconfirmedAt: null, user: { id: 'a', name: 'a', email: 'a@x' } },
+      { id: 'b', userId: 'b', status: 'approved', reconfirmAskedAt: new Date(), reconfirmedAt: null, user: { id: 'b', name: 'b', email: 'b@x' } },
+    ])
+    ;(prisma as any).eventAttendee.updateMany.mockResolvedValue({ count: 1 })
+    const n = await releaseEvent({ id: 'e1', title: 'T', emoji: null, hostId: 'host' })
+    expect(n).toBe(1)
+  })
+  it('releases nobody when the open seats already cover everyone waiting', async () => {
+    ;(prisma as any).waitlistEntry.count.mockResolvedValue(1)
+    ;(expectedSpotsLeft as any).mockResolvedValueOnce(3)
+    const n = await releaseEvent({ id: 'e1', title: 'T', emoji: null, hostId: 'host' })
+    expect(n).toBe(0)
+    expect((prisma as any).eventAttendee.updateMany).not.toHaveBeenCalled()
   })
 })

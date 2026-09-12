@@ -6,6 +6,17 @@ import { rateLimit } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
 import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
 
+// Everyone the member has blocked or been blocked by. A pulse is a live
+// location and a free-text note — the same class of data hangouts already
+// hide across a block.
+async function blockedWith(userId: string): Promise<string[]> {
+  const rows = await prisma.memberBlock.findMany({
+    where:  { OR: [{ blockerId: userId }, { blockedId: userId }] },
+    select: { blockerId: true, blockedId: true },
+  })
+  return rows.map(r => (r.blockerId === userId ? r.blockedId : r.blockerId))
+}
+
 // Lightweight "I'm around" pulses — the bridge between "I want to meet
 // someone" and "I committed to a venue at a time." Surfaces in the
 // hangouts feed as a different card type so quiet windows still feel
@@ -21,10 +32,12 @@ export async function GET(req: NextRequest) {
   const neighborhood = searchParams.get('neighborhood') || undefined
   const now          = new Date()
 
+  const blocked = await blockedWith(session.id)
   const pulses = await prisma.availabilityPulse.findMany({
     where: {
       until: { gte: now },
       cityId: await resolveCityId(session),
+      ...(blocked.length ? { userId: { notIn: blocked } } : {}),
       ...(neighborhood ? { neighborhood } : {}),
     },
     orderBy: { createdAt: 'desc' },
@@ -123,8 +136,10 @@ export async function POST(req: NextRequest) {
       try {
         let audience: string[]
         if (safeNeighborhood) {
+          // The poster's city: neighborhood names repeat across cities, and a
+          // bare name pinged same-named neighborhoods everywhere.
           const locals = await prisma.user.findMany({
-            where:  { status: 'approved', neighborhood: safeNeighborhood, id: { not: session.id } },
+            where:  { status: 'approved', neighborhood: safeNeighborhood, cityId: created.cityId, id: { not: session.id } },
             select: { id: true },
           })
           audience = locals.map(u => u.id)
@@ -136,6 +151,8 @@ export async function POST(req: NextRequest) {
           audience = [...new Set(conns.map(c => c.requesterId === session.id ? c.receiverId : c.requesterId))]
             .filter(uid => uid !== session.id)
         }
+        const blockedIds = new Set(await blockedWith(session.id))
+        audience = audience.filter(uid => !blockedIds.has(uid))
         if (audience.length === 0) return
 
         const title = safeNeighborhood ? '🟢 A neighbor is free to meet' : '🟢 A connection is free to meet'

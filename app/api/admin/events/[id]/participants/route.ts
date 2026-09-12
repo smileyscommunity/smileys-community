@@ -102,6 +102,15 @@ async function auditAttendeeRemoval(opts: {
 
 type Params = { params: Promise<{ id: string }> }
 
+// Balance quotas for a manual seat (PUT add, POST promote): 409 with the
+// reason when the member's side is full, null when there is room.
+async function quotaBlockFor(eventId: string, event: Parameters<typeof hasQuotaRoomFor>[1], userId: string) {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { gender: true, nationality: true } })
+  const room = await hasQuotaRoomFor(eventId, event, { gender: user?.gender ?? null, nationality: user?.nationality ?? null })
+  if (room.ok) return null
+  return NextResponse.json({ error: 'That seat is reserved for balance on this event', reason: room.reason }, { status: 409 })
+}
+
 const userSelect = { id: true, name: true, color: true, email: true, profilePhoto: true, gender: true, nationality: true, phone: true }
 
 // Shared predicate — see lib/access.canManageEventOps (adds co-hosts, one home).
@@ -182,7 +191,18 @@ export async function GET(_: NextRequest, { params }: Params) {
     const userMap = Object.fromEntries(waitlistUsers.map(u => [u.id, u]))
     const waitlist = waitlistRaw.map(w => ({ ...w, user: userMap[w.userId] }))
 
-    return NextResponse.json({ attendees, waitlist, payments, noShowCards })
+    // Contact details follow the check-in route's rule: admins and the
+    // primary host only. Co-hosts and club hosts run the door by name and
+    // photo; gender and nationality stay, since balance quotas are theirs to
+    // manage.
+    const canSeeContact = session.role === 'admin' || eventRow?.hostId === session.id
+    const stripContact = <T extends { user?: { email?: unknown; phone?: unknown } | null }>(row: T): T => {
+      if (canSeeContact || !row.user) return row
+      const { email: _e, phone: _p, ...user } = row.user
+      return { ...row, user } as T
+    }
+
+    return NextResponse.json({ attendees: attendees.map(stripContact), waitlist: waitlist.map(stripContact), payments, noShowCards })
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
@@ -547,15 +567,18 @@ export async function PUT(req: NextRequest, { params }: Params) {
     if (!await canManageEventOps(session.id, session.role, eventId)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
-    const { userId } = await req.json()
-    if (!userId) return NextResponse.json({ error: 'userId required' }, { status: 400 })
+    const { userId } = await req.json().catch(() => ({}))
+    if (typeof userId !== 'string' || !userId) return NextResponse.json({ error: 'userId required' }, { status: 400 })
 
     const event = await prisma.event.findUnique({
       where: { id: eventId },
-      select: { title: true, spotsLeft: true, approvalRequired: true, totalSpots: true, hostId: true },
+      select: { title: true, spotsLeft: true, approvalRequired: true, hostId: true, status: true, ...quotaEventSelect },
     })
     if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
     if (event.hostId === userId) return NextResponse.json({ error: 'Hosts are automatically attending their own events' }, { status: 400 })
+    if (event.status === 'cancelled' || event.status === 'archived') {
+      return NextResponse.json({ error: 'Cannot add to a cancelled or archived event' }, { status: 400 })
+    }
 
     const existing = await prisma.eventAttendee.findUnique({
       where: { userId_eventId: { userId, eventId } },
@@ -569,6 +592,10 @@ export async function PUT(req: NextRequest, { params }: Params) {
     if (!gate.ok && gate.code === 'red_card_blocked') {
       return NextResponse.json(gateErrorBody(gate), { status: 409 })
     }
+    // A seat added by hand is still a seat: the balance rule that approve,
+    // the member's own RSVP and the waitlist promotion apply holds here too.
+    const quotaBlock = await quotaBlockFor(eventId, event, userId)
+    if (quotaBlock) return quotaBlock
 
     await prisma.$transaction(async (tx) => {
       await tx.waitlistEntry.deleteMany({ where: { eventId, userId } })
@@ -608,21 +635,38 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     const eventMeta = await prisma.event.findUnique({
       where: { id: eventId },
-      select: { approvalRequired: true, totalSpots: true },
+      select: { approvalRequired: true, hostId: true, status: true, ...quotaEventSelect },
     })
+    if (!eventMeta) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
+    if (eventMeta.hostId === userId) return NextResponse.json({ error: 'Hosts are automatically attending their own events' }, { status: 400 })
+    if (eventMeta.status === 'cancelled' || eventMeta.status === 'archived') {
+      return NextResponse.json({ error: 'Cannot promote into a cancelled or archived event' }, { status: 400 })
+    }
+    // Promote means "off the waitlist". It skipped every check the add path
+    // makes; a member with a live pending row hit the unique key and 500'd.
+    const [onWaitlist, existing] = await Promise.all([
+      prisma.waitlistEntry.findUnique({ where: { userId_eventId: { userId, eventId } }, select: { id: true } }),
+      prisma.eventAttendee.findUnique({ where: { userId_eventId: { userId, eventId } }, select: { status: true } }),
+    ])
+    if (!onWaitlist) return NextResponse.json({ error: 'Not on the waitlist' }, { status: 404 })
+    if (isActiveAttendee(existing)) {
+      return NextResponse.json({ error: existing?.status === 'pending' ? 'They already have a pending request — approve it instead' : 'Already attending' }, { status: 409 })
+    }
 
     // Same rule as the PUT add-member path above.
     const gate = await getRsvpGate(userId)
     if (!gate.ok && gate.code === 'red_card_blocked') {
       return NextResponse.json(gateErrorBody(gate), { status: 409 })
     }
+    const quotaBlock = await quotaBlockFor(eventId, eventMeta, userId)
+    if (quotaBlock) return quotaBlock
 
     await prisma.$transaction(async (tx) => {
       await tx.waitlistEntry.deleteMany({ where: { eventId, userId } })
       await activateAttendee(tx, { userId, eventId, status: 'approved' })
     })
     // Recompute, never a blind decrement — see the PUT add-attendee path.
-    if (eventMeta) await recomputeSpotsLeft(eventId, eventMeta.totalSpots)
+    await recomputeSpotsLeft(eventId, eventMeta.totalSpots)
     autoJoinClub(userId, eventId).catch(() => {})
 
     return NextResponse.json({ ok: true })

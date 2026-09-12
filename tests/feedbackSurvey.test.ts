@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/session', () => ({ getSession: vi.fn() }))
+vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn(async () => true), claimOnce: vi.fn(async () => true) }))
 vi.mock('@/lib/prisma', () => ({ prisma: {
   event:         { findUnique: vi.fn() },
   eventAttendee: { findUnique: vi.fn() },
