@@ -344,6 +344,28 @@ elif [ "$RESTART_RC" != "0" ]; then
   exit "$RESTART_RC"
 fi
 
+# The local smoke test ran BEFORE the sync, against the local env. Nothing
+# verified the process that pm2 just restarted — a server-only failure (env
+# var, prisma client mismatch, a route that only breaks on the real DB)
+# still printed "✓ Done" while the site 502'd.
+echo "→ Health check on the restarted process..."
+HEALTH_OK=0
+HEALTH_CODE=000
+for attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
+  HEALTH_CODE=$(ssh "${SSH_OPTS[@]}" "$SERVER" "curl -s -o /dev/null -m 10 -w '%{http_code}' http://localhost:3000/app/api/health" 2>/dev/null || echo 000)
+  if [ "$HEALTH_CODE" = "200" ]; then
+    HEALTH_OK=1
+    echo "  ✓ /app/api/health 200 (attempt $attempt)"
+    break
+  fi
+  sleep 5
+done
+if [ "$HEALTH_OK" != "1" ]; then
+  echo "✗ Health check FAILED (last HTTP $HEALTH_CODE) — the restarted process is not serving."
+  echo "  Inspect: ssh $SERVER 'pm2 logs smileys --lines 100'"
+  exit 1
+fi
+
 echo "→ Pruning retained chunks from old builds..."
 # The additive static sync above lets old builds' chunks accumulate. Trim
 # ones that are BOTH >14 days old AND absent from the build just shipped —

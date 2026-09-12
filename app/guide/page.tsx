@@ -8,6 +8,7 @@
 export const revalidate = 300
 
 import { readFileSync } from 'fs'
+import { todayInTz } from '@/lib/cityTime'
 import { join } from 'path'
 import { Fragment } from 'react'
 import Link from 'next/link'
@@ -67,7 +68,6 @@ export async function generateMetadata({ searchParams }: { searchParams?: Promis
 }
 
 export default async function GuidePage({ searchParams }: { searchParams?: Promise<{ for?: string } & CitySearch> }) {
-  const today = new Date().toISOString().split('T')[0]
 
   // The Guide is per city. Both counts below were unscoped, so Bodrum's guide
   // ranked ISTANBUL's neighborhoods by Istanbul's events and members — and the
@@ -77,6 +77,7 @@ export default async function GuidePage({ searchParams }: { searchParams?: Promi
   // one below — a share has to carry its city, because the crawler that
   // fetches it has no cookie to read.
   const { city, cityId, pinned } = await resolveCityForPage(searchParams)
+  const today = todayInTz(city.timezone)   // the city's day, not UTC's
   if (!pinned && city.slug !== DEFAULT_CITY_SLUG) redirect(`/guide?city=${city.slug}`)
   const moods       = moodsFor(city.slug)
   const collections = collectionsFor(city.slug)

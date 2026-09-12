@@ -20,6 +20,8 @@ export function isSafeHref(url: string | null | undefined): boolean {
   // them but they enable scheme-spoofing tricks like "\tjavascript:".
   // eslint-disable-next-line no-control-regex
   if (/[\x00-\x1f\x7f\s]/.test(url)) return false
+  // Browsers read `\` as `/`: new URL('/\\evil.com', origin) is https://evil.com/.
+  if (url.includes('\\')) return false
   // Relative paths (in-app links). Reject `//` which is protocol-relative.
   if (url.startsWith('/') && !url.startsWith('//')) return true
   // Absolute URLs — restrict scheme allowlist.
@@ -42,6 +44,7 @@ export function safeReturnPath(v: string | null | undefined): string | null {
   if (!v || typeof v !== 'string') return null
   // eslint-disable-next-line no-control-regex
   if (/[\x00-\x1f\x7f\s]/.test(v)) return null
+  if (v.includes('\\')) return null
   if (!v.startsWith('/') || v.startsWith('//')) return null
   if (v === '/login' || v.startsWith('/login?') || v.startsWith('/login/')) return null
   return v

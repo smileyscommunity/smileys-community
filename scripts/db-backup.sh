@@ -25,16 +25,25 @@ if [ -z "$PGPASSWORD" ]; then
 fi
 export PGPASSWORD
 
-pg_dump -U smileys -h localhost smileys_db | gzip > "$FILE"
+# Dump to a .part name and only rename once it passes the size check. With
+# `set -e` a failing pg_dump used to abort the script BEFORE the check, leaving
+# a ~20-byte .sql.gz that counted toward the 14 kept and evicted a real one.
+PART="$FILE.part"
+if ! pg_dump -U smileys -h localhost smileys_db | gzip > "$PART"; then
+  echo "✗ pg_dump failed — nothing written, keeping prior backups" >&2
+  rm -f "$PART"
+  exit 1
+fi
 
 # Sanity: a real dump gzips to well over 100KB; anything tiny = pg_dump
 # silently failed (bad creds, server down), so don't let it evict a good one.
-SIZE=$(stat -c%s "$FILE" 2>/dev/null || echo 0)
+SIZE=$(stat -c%s "$PART" 2>/dev/null || echo 0)
 if [ "$SIZE" -lt 100000 ]; then
   echo "✗ Backup too small (${SIZE} bytes) — removing, keeping prior backups" >&2
-  rm -f "$FILE"
+  rm -f "$PART"
   exit 1
 fi
+mv "$PART" "$FILE"
 
 # Retention: keep the 14 most recent.
 ls -t "$BACKUP_DIR"/smileys_*.sql.gz 2>/dev/null | tail -n +15 | xargs -r rm -f

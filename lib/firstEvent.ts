@@ -1,4 +1,5 @@
-import { dayInTz, DEFAULT_TZ } from './cityTime'
+import { dayInTz, DEFAULT_TZ, shiftDay } from './cityTime'
+import { todayInCity } from '@/lib/city'
 import { prisma } from '@/lib/prisma'
 import { activeAttendeeWhere } from '@/lib/attendance'
 
@@ -140,8 +141,9 @@ export async function getFirstEventRecommendations(userId: string, limit = 3): P
     : []
   const wantedTagIds = new Set(wanted.map(w => w.tagId))
 
-  const todayStr = istanbulDateStr(0)
-  const soonCutoffStr = istanbulDateStr(SOON_WINDOW_DAYS)
+  // The member's own city day (the matcher already scopes events to it).
+  const todayStr = await todayInCity(user.cityId)
+  const soonCutoffStr = shiftDay(todayStr, SOON_WINDOW_DAYS)
 
   const candidates = await prisma.event.findMany({
     where: {

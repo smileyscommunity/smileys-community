@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { formatDay, fromWallClockInTz } from '@/lib/cityTime'
+import { formatDay, fromWallClockInTz, todayInTz, shiftDay } from '@/lib/cityTime'
 import Image from 'next/image'
 import { APP_URL } from '@/lib/env'
 import { unstable_cache } from 'next/cache'
@@ -96,8 +96,10 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
     qs.set('city', city.slug)
     redirect(`/visiting?${qs}`)
   }
-  const today         = new Date().toISOString().split('T')[0]
-  const sixtyDaysOut  = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  // The city's calendar: UTC kept expired visits and yesterday's events on
+  // the page for hours after the city's midnight.
+  const today         = todayInTz(city.timezone)
+  const sixtyDaysOut  = shiftDay(today, 60)
 
   // Session resolves first because the announcement query's visibility
   // filter depends on it; the rest still run in parallel.

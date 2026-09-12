@@ -1,17 +1,21 @@
 'use client'
 
+import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
+
 interface Props {
   eventDates: string[] // 'YYYY-MM-DD'
+  // The city's zone: "today" was the UTC date and the grid the browser's
+  // month, while the dots are the city's days.
+  tz?: string
 }
 
 const DAYS   = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 
-export default function MiniCalendar({ eventDates }: Props) {
-  const now      = new Date()
-  const year     = now.getFullYear()
-  const month    = now.getMonth()
-  const todayStr = now.toISOString().split('T')[0]
+export default function MiniCalendar({ eventDates, tz = DEFAULT_TZ }: Props) {
+  const todayStr = todayInTz(tz)
+  const year     = Number(todayStr.slice(0, 4))
+  const month    = Number(todayStr.slice(5, 7)) - 1
 
   const firstDay  = new Date(year, month, 1).getDay()
   const daysInMonth = new Date(year, month + 1, 0).getDate()

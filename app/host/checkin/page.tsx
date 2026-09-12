@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, Suspense, useMemo } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import {resolveImageUrl, avatarUrl, getInitials} from '@/lib/data'
 import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
@@ -25,26 +25,31 @@ function EventList() {
   // "Today" is the CITY's calendar day — a member abroad, or a city in
   // another zone, must not get a different Tuesday than the community means.
   const tz = useCurrentCity()?.timezone ?? DEFAULT_TZ
-  const [events,  setEvents]  = useState<HostEvent[]>([])
+  const [all,     setAll]     = useState<HostEvent[]>([])
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
   useEffect(() => {
     fetch('/app/api/host/events', { credentials: 'include' })
       .then(r => r.json())
-      .then(d => {
-        // Today's events, plus any that have already ended without a check-in
-        // and can still be settled. Without the second half, a host following
-        // the dashboard prompt the morning after lands on "No events today".
-        const today = todayInTz(tz)
-        const all: HostEvent[] = Array.isArray(d) ? d : []
-        const todays  = all.filter(e => e.date === today)
-        const pending = awaitingCheckIn(all, tz).map(p => p.event)
-        const seen    = new Set(todays.map(e => e.id))
-        setEvents([...todays, ...pending.filter(e => !seen.has(e.id))])
-      })
+      .then(d => setAll(Array.isArray(d) ? d : []))
+      .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
+
+  // Derived, not captured: the zone is DEFAULT_TZ on a cold load until the
+  // city resolves, and a filter computed inside the fetch effect kept that
+  // first answer — "No events today" for a host in another zone.
+  const events = useMemo(() => {
+    // Today's events, plus any that have already ended without a check-in
+    // and can still be settled. Without the second half, a host following
+    // the dashboard prompt the morning after lands on "No events today".
+    const today = todayInTz(tz)
+    const todays  = all.filter(e => e.date === today)
+    const pending = awaitingCheckIn(all, tz).map(p => p.event)
+    const seen    = new Set(todays.map(e => e.id))
+    return [...todays, ...pending.filter(e => !seen.has(e.id))]
+  }, [all, tz])
 
   if (loading) return <div className="text-zinc-500 text-sm">Loading…</div>
 

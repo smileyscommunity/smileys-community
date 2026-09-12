@@ -79,12 +79,6 @@ function eventCap(ev: Candidate): number {
   return ev.limitedSpots ? Math.max(1, Math.min(ev.spotsLeft, SOFT_CAP)) : SOFT_CAP
 }
 
-function istanbulDateStr(offsetDays = 0): string {
-  // Shared implementation (also drops the old toLocaleString→Date round-trip,
-  // which re-parsed a locale string and leaned on toISOString's UTC clock).
-  return todayInTz(DEFAULT_TZ, offsetDays)
-}
-
 // ── Randomised holdout ────────────────────────────────────────────────────
 // Half of every matched batch is stamped but NOT emailed, so the control arm
 // is drawn from the same pool the nudge actually selects — members who had a
@@ -139,11 +133,17 @@ export async function runFirstRsvpNudge(opts: { dryRun?: boolean; limit?: number
   const dryRun = opts.dryRun ?? false
   const limit  = opts.limit ?? Infinity
 
-  const from = istanbulDateStr(1)
-  const to   = istanbulDateStr(21)
+  // The candidate window on every live city's own calendar: "tomorrow" in
+  // the earliest zone through "three weeks out" in the latest. One default-
+  // city window cut a member's candidates on a day boundary that was not
+  // theirs once a city sat outside it.
+  const cities = await prisma.city.findMany({ select: { id: true, name: true, timezone: true } })
+  const zones  = cities.length ? cities.map(c => c.timezone ?? DEFAULT_TZ) : [DEFAULT_TZ]
+  const from = zones.map(tz => todayInTz(tz, 1)).sort()[0]
+  const to   = zones.map(tz => todayInTz(tz, 21)).sort().at(-1)!
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000)
 
-  const [members, rawEvents, cities] = await Promise.all([
+  const [members, rawEvents] = await Promise.all([
     prisma.user.findMany({
       where: {
         status: 'approved',
@@ -162,7 +162,6 @@ export async function runFirstRsvpNudge(opts: { dryRun?: boolean; limit?: number
         _count: { select: { attendees: { where: { status: 'approved' } } } },
       },
     }),
-    prisma.city.findMany({ select: { id: true, name: true } }),
   ])
   const cityName = new Map(cities.map(c => [c.id, c.name]))
 

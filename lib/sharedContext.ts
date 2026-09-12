@@ -7,6 +7,8 @@
 // overlapping facts and let the reader judge. Ordering uses a weight so
 // discovery can rank, but the weight is never displayed.
 import { prisma } from './prisma'
+import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
+import { todayInCity } from '@/lib/city'
 
 export interface SharedContext {
   clubs:        { id: string; name: string; emoji: string; slug: string }[]
@@ -30,11 +32,15 @@ interface ViewerFacts {
   clubIds: Set<string>
   eventIds: Set<string>
   hangoutIds: Set<string>
+  // The viewer's city day — Event.date is a city day, and UTC counted
+  // yesterday's events as "both going" until 03:00 Istanbul.
+  today: string
 }
 
 // The viewer's own memberships/plans — fetched once per request.
 export async function loadViewerFacts(userId: string): Promise<ViewerFacts> {
-  const today = new Date().toISOString().split('T')[0]
+  const viewer = await prisma.user.findUnique({ where: { id: userId }, select: { cityId: true } })
+  const today = viewer?.cityId ? await todayInCity(viewer.cityId) : todayInTz(DEFAULT_TZ)
   const [me, clubs, events, hangouts] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId }, select: { neighborhood: true, interests: true } }),
     prisma.clubMembership.findMany({ where: { userId, status: 'approved' }, select: { clubId: true } }),
@@ -48,6 +54,7 @@ export async function loadViewerFacts(userId: string): Promise<ViewerFacts> {
     }),
   ])
   return {
+    today,
     id: userId,
     neighborhood: me?.neighborhood ?? null,
     interests: me?.interests ?? [],
@@ -65,7 +72,7 @@ export async function sharedContextFor(
 ): Promise<Map<string, SharedContext>> {
   const out = new Map<string, SharedContext>()
   if (memberIds.length === 0) return out
-  const today = new Date().toISOString().split('T')[0]
+  const today = viewer.today
 
   const [members, clubRows, eventRows, hangoutRows] = await Promise.all([
     prisma.user.findMany({

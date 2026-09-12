@@ -227,7 +227,7 @@ export default function ClubManagementTabs({
         <ClubSpotlight slug={slug} initialSpotlight={initialSpotlight} canEdit={true} dark />
       )}
       {tab === 'rules' && (
-        <ClubRulesEditor slug={slug} initialRules={initialRules} canEdit={true} dark />
+        <ClubRulesEditor slug={slug} initialRules={initialRules} canEdit={isAdmin} dark />
       )}
       {tab === 'resources' && (
         <ClubResources slug={slug} initialResources={initialResources} canEdit={true} dark />

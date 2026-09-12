@@ -38,11 +38,12 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
   const [form,          setForm]          = useState(emptyForm)
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
   const [clubs,         setClubs]         = useState<{ id: string; name: string; emoji: string }[]>([])
-  // Hosting at least one club is what unlocks the club picker; the API's
-  // host restrictions (no reassign, no featured, no approvalRequired,
-  // no publish) apply to club and city hosts alike.
-  const isClubHost = clubs.length > 0
   const { user: viewer } = useAuth()
+  // /api/auth/me says whether the viewer hosts a club. /api/host/clubs is
+  // not the signal: it also lists every club in a city host's cities (so
+  // their create form has something to file under), and a city host who
+  // picked one here got a 403 at save.
+  const isClubHost = (viewer as { isClubHost?: boolean } | null)?.isClubHost === true
   const isStaff = viewer?.role === 'admin' || viewer?.role === 'moderator'
   const [loading,       setLoading]       = useState(true)
   const [saving,        setSaving]        = useState(false)
@@ -378,7 +379,8 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
                 </div>
               ) : (
                 <select value={form.status} onChange={e => set('status', e.target.value)} className={inputCls}>
-                  <option value="published">Published (live)</option>
+                  {/* A host may keep an event published (no-op resubmit) but not move it there. */}
+                  {(form.status === 'published' || isStaff) && <option value="published">Published (live)</option>}
                   <option value="draft">Draft</option>
                   <option value="pending">Submit for review</option>
                   <option value="postponed">Postponed</option>

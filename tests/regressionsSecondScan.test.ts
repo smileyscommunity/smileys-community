@@ -41,7 +41,9 @@ describe('application approval retry', () => {
 describe('host edit form', () => {
   const src = read('app/host/events/[id]/edit/page.tsx')
   it('offers the club picker only to club hosts', () => {
-    expect(src).toMatch(/const isClubHost = clubs\.length > 0/)
+    // Superseded (third scan, item 14): /api/host/clubs also lists a city
+    // host's city clubs, so the picker now keys on /api/auth/me's isClubHost.
+    expect(src).toMatch(/const isClubHost = \(viewer as \{ isClubHost\?: boolean \} \| null\)\?\.isClubHost === true/)
     expect(src).toMatch(/\{isClubHost && \(\s*<div>\s*<label[^>]*>Club<\/label>/)
   })
   it('offers the approval-required toggle only to staff', () => {

@@ -2026,7 +2026,7 @@ export default async function DashboardPage() {
 
             {/* Mini calendar */}
             <div className="bg-white rounded-2xl shadow-card p-5">
-              <MiniCalendar eventDates={upcomingDates} />
+              <MiniCalendar eventDates={upcomingDates} tz={tz} />
             </div>
 
             {/* Featured event widget */}

@@ -1,4 +1,6 @@
 import { notFound } from 'next/navigation'
+import { todayInTz, DEFAULT_TZ, formatDay } from '@/lib/cityTime'
+import { todayInCity } from '@/lib/city'
 import { classifyClubs } from '@/lib/clubHealth'
 import { CLUB_FILTER_GROUPS, HEALTH_RANK } from '@/lib/clubDiscovery'
 import Link from 'next/link'
@@ -101,7 +103,9 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
 
   const clubEvents = await getEventsByClub(club.id)
 
-  const today = new Date().toISOString().split('T')[0]
+  // The club's city day — UTC put "Last event" and the next-event label on
+  // the server's clock.
+  const today = club.cityId ? await todayInCity(club.cityId) : todayInTz(DEFAULT_TZ)
   const [totalEventCount, lastEvent, reviewStats] = await Promise.all([
     prisma.event.count({ where: { clubId: club.id, status: { not: 'draft' } } }),
     prisma.event.findFirst({
@@ -338,15 +342,13 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
             {(() => {
               const next = clubEvents[0] as { id: string; title: string; date: string; time: string; location: string; neighborhood: string; price: number; currency?: string } | undefined
               if (!next) return null
-              const when = new Date(next.date + 'T00:00:00')
-              const today = new Date()
-              today.setHours(0, 0, 0, 0)
-              const dayDelta = Math.round((when.getTime() - today.getTime()) / (24 * 60 * 60_000))
+              // Calendar arithmetic on the two day strings — no process zone involved.
+              const dayDelta = Math.round((Date.parse(next.date + 'T00:00:00Z') - Date.parse(today + 'T00:00:00Z')) / 86_400_000)
               const relative =
                 dayDelta === 0 ? 'Today'
                 : dayDelta === 1 ? 'Tomorrow'
-                : dayDelta < 7 ? when.toLocaleDateString('en-GB', { weekday: 'long' })
-                : when.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+                : dayDelta < 7 ? formatDay(next.date, { weekday: 'long' })
+                : formatDay(next.date, { day: 'numeric', month: 'short' })
               return (
                 <Link
                   href={`/events/${next.id}`}
