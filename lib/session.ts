@@ -108,6 +108,8 @@ export async function createSession(user: SessionUser, opts: CreateOptions = {})
   })
 }
 
+const LAST_USED_EVERY_MS = 5 * 60_000
+
 export async function getSession(): Promise<SessionUser | null> {
   try {
     const cookieStore = await cookies()
@@ -132,7 +134,7 @@ export async function getSession(): Promise<SessionUser | null> {
       jti
         ? prisma.session.findUnique({
             where:  { id: jti },
-            select: { id: true, expiresAt: true, revokedAt: true, totpVerified: true },
+            select: { id: true, expiresAt: true, revokedAt: true, totpVerified: true, lastUsedAt: true },
           })
         : Promise.resolve(null),
     ])
@@ -161,10 +163,15 @@ export async function getSession(): Promise<SessionUser | null> {
       // Best-effort: stamp lastUsedAt so the device list in /settings is
       // accurate. Fire-and-forget — we don't want a Prisma hiccup here
       // to slow down every authenticated request.
-      prisma.session.update({
-        where: { id: jti },
-        data:  { lastUsedAt: new Date() },
-      }).catch(() => {})
+      // Throttled to one write per five minutes per device: stamping it on
+      // every request rewrote the row for each API call a page made, for
+      // a device list that shows "last active" to the minute at best.
+      if (!sessionRow.lastUsedAt || Date.now() - sessionRow.lastUsedAt.getTime() > LAST_USED_EVERY_MS) {
+        prisma.session.update({
+          where: { id: jti },
+          data:  { lastUsedAt: new Date() },
+        }).catch(() => {})
+      }
     }
 
     // Inject the live cityId + email + neighborhood from the DB so

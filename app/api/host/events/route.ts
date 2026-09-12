@@ -29,14 +29,25 @@ export async function GET() {
         // whether the sweeper has already settled it.
         endTime: true, price: true, memberPrice: true, payTo: true, ticketUrl: true, paymentContact: true, noShowProcessedAt: true,
         _count: { select: { attendees: { where: { status: 'approved' } } } },
-        attendees: { where: { status: 'approved', checkedIn: true }, select: { userId: true } },
+        attendees: { where: { status: 'approved' }, select: { userId: true, checkedIn: true } },
+        cohosts:   { select: { userId: true } },
       },
     })
 
-    return NextResponse.json(events.map(({ attendees: checkedInList, hostId: _hostId, ...e }) => ({
-      ...e,
-      checkedInCount: checkedInList.length,
-    })))
+    return NextResponse.json(events.map(({ attendees, cohosts, hostId, ...e }) => {
+      // The no-show sweeper judges check-in on the room WITHOUT the host and
+      // co-hosts (lib/noShow settleEvent). Counting them here, host + one guest
+      // scanned out of four approved read 2/4 "credible" on the prompt and 1/3
+      // "low" in the sweeper: never prompted, never settled.
+      const staff = new Set([hostId, ...cohosts.map(c => c.userId)])
+      const room  = attendees.filter(a => !staff.has(a.userId))
+      return {
+        ...e,
+        checkedInCount: attendees.filter(a => a.checkedIn).length,
+        roomApproved:   room.length,
+        roomCheckedIn:  room.filter(a => a.checkedIn).length,
+      }
+    }))
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

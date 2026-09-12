@@ -3,6 +3,14 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { trackServer } from '@/lib/posthog-server'
 import { todayInCity } from '@/lib/city'
+import { rateLimit } from '@/lib/rateLimit'
+import { Attendance } from '@/lib/constants'
+
+// Bodies are untyped JSON: rating "3" or 4.5 reached Prisma's Int column and
+// 500'd, text: 123 threw on .trim, and PATCH rating "abc" slipped past a
+// numeric comparison. Validated here, once, for both writes.
+const validRating = (r: unknown): r is number => Number.isInteger(r) && (r as number) >= 1 && (r as number) <= 5
+const REVIEW_WRITES_PER_HOUR = 20
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -33,11 +41,18 @@ export async function POST(req: NextRequest, { params }: Params) {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'Not logged in' }, { status: 401 })
 
-    const { id: eventId } = await params
-    const { rating, text } = await req.json()
+    if (!await rateLimit(`review-write:${session.id}`, REVIEW_WRITES_PER_HOUR, 60 * 60_000)) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+    }
 
-    if (!rating || rating < 1 || rating > 5) {
+    const { id: eventId } = await params
+    const { rating, text } = await req.json().catch(() => ({}))
+
+    if (!validRating(rating)) {
       return NextResponse.json({ error: 'Rating must be 1–5' }, { status: 400 })
+    }
+    if (text != null && typeof text !== 'string') {
+      return NextResponse.json({ error: 'Review text must be text' }, { status: 400 })
     }
     if (text && text.trim().length > 1000) {
       return NextResponse.json({ error: 'Review text too long (max 1000 chars)' }, { status: 400 })
@@ -56,7 +71,9 @@ export async function POST(req: NextRequest, { params }: Params) {
     const attended = await prisma.eventAttendee.findUnique({
       where: { userId_eventId: { userId: session.id, eventId } },
     })
-    if (!attended || attended.status !== 'approved') {
+    // A settled no-show keeps status 'approved' (lib/attendance), so status
+    // alone let someone who never came review the night.
+    if (!attended || attended.status !== 'approved' || attended.attendance === Attendance.NoShow) {
       return NextResponse.json({ error: 'You must have attended this event to review it' }, { status: 403 })
     }
 
@@ -88,11 +105,18 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'Not logged in' }, { status: 401 })
 
-    const { id: eventId } = await params
-    const { rating, text } = await req.json()
+    if (!await rateLimit(`review-write:${session.id}`, REVIEW_WRITES_PER_HOUR, 60 * 60_000)) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+    }
 
-    if (rating !== undefined && (rating < 1 || rating > 5)) {
+    const { id: eventId } = await params
+    const { rating, text } = await req.json().catch(() => ({}))
+
+    if (rating !== undefined && !validRating(rating)) {
       return NextResponse.json({ error: 'Rating must be 1–5' }, { status: 400 })
+    }
+    if (text !== undefined && typeof text !== 'string') {
+      return NextResponse.json({ error: 'Review text must be text' }, { status: 400 })
     }
     if (text && text.trim().length > 1000) {
       return NextResponse.json({ error: 'Review text too long (max 1000 chars)' }, { status: 400 })
@@ -122,6 +146,10 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   try {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'Not logged in' }, { status: 401 })
+
+    if (!await rateLimit(`review-write:${session.id}`, REVIEW_WRITES_PER_HOUR, 60 * 60_000)) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+    }
 
     const { id: eventId } = await params
 

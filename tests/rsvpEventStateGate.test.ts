@@ -78,7 +78,7 @@ describe('POST /events/[id]/rsvp — event must actually be open', () => {
     // below any ISO day. The write routes now reject the format, the gate
     // still tolerates what is already stored.
     p.event.findUnique.mockResolvedValue({ ...openEvent, registrationDeadline: '09/07/2026' })
-    p.$transaction.mockRejectedValue(new Error('reached-transaction'))
+    p.$transaction.mockRejectedValueOnce(new Error('reached-transaction'))
     const res = await POST(req(), params)
     expect(res.status).toBe(500)
     expect(p.$transaction).toHaveBeenCalled()
@@ -93,7 +93,7 @@ describe('POST /events/[id]/rsvp — event must actually be open', () => {
     p.event.findUnique.mockResolvedValue({ ...openEvent, date: '2026-09-10', registrationDeadline: '2026-09-10' })
     // Past the gate the route locks the row inside $transaction; a throw here
     // proves we got that far without reproducing the whole join.
-    p.$transaction.mockRejectedValue(new Error('reached-transaction'))
+    p.$transaction.mockRejectedValueOnce(new Error('reached-transaction'))
     const res = await POST(req(), params)
     expect(res.status).toBe(500)
     expect(p.$transaction).toHaveBeenCalled()

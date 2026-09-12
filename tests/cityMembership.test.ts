@@ -29,6 +29,9 @@ describe('getMemberCities', () => {
     ;(prisma.user.findUnique as any).mockResolvedValue({ city: ISTANBUL, cityRelationships: [] })
     const cities = await getMemberCities('u1')
     expect(cities).toEqual([{ ...ISTANBUL, home: true }])
+    // Joined cities are 'member' rows only — a pre-launch 'interested' row is
+    // a waiting list, not a membership.
+    expect((prisma.user.findUnique as any).mock.calls[0][0].select.cityRelationships.where).toEqual({ type: 'member' })
   })
 
   it('lists home first, then joined cities', async () => {

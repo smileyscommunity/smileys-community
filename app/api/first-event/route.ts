@@ -19,8 +19,17 @@ export async function GET(req: NextRequest) {
 
   if (events.length) {
     // Attribution only — never let a logging failure break the member surface.
-    await prisma.eventRecommendation.createMany({
-      data: events.map(e => ({
+    // One row per member per event per day: the block re-fetches on every
+    // dashboard load, and logging each view grew the table past 21,000 rows
+    // of the same three cards. The funnel only needs the first showing.
+    const since  = new Date(Date.now() - 86_400_000)
+    const logged = new Set((await prisma.eventRecommendation.findMany({
+      where:  { userId: session.id, eventId: { in: events.map(e => e.id) }, createdAt: { gte: since } },
+      select: { eventId: true },
+    }).catch(() => [])).map(r => r.eventId))
+    const fresh = events.filter(e => !logged.has(e.id))
+    if (fresh.length) await prisma.eventRecommendation.createMany({
+      data: fresh.map(e => ({
         userId:  session.id,
         eventId: e.id,
         score:   e.score,

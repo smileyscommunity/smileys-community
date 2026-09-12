@@ -14,7 +14,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('@/lib/session', () => ({ getSession: vi.fn() }))
 vi.mock('@/lib/audit',   () => ({ writeAudit: vi.fn(async () => {}) }))
 vi.mock('@/lib/notify',  () => ({ createNotification: vi.fn(async () => {}) }))
-vi.mock('openai', () => ({ default: class { chat = { completions: { create: vi.fn() } } } }))
+vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn(async () => true), claimOnce: vi.fn(async () => true), getIp: () => '1.1.1.1' }))
+vi.mock('@/lib/city',    () => ({ todayInCity: vi.fn(async () => '2026-09-13'), resolveCityId: vi.fn(async () => 'c-bodrum') }))
+// One shared completion stub, so a test can prove the gate refused before any
+// applicant data was sent off-platform.
+const { create } = vi.hoisted(() => ({ create: vi.fn() }))
+vi.mock('openai', () => ({ default: class { chat = { completions: { create } } } }))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     memberApplication: { findUnique: vi.fn() },
@@ -46,6 +51,7 @@ describe('moderator cannot act on another city through [id] routes', () => {
     ;(prisma.memberApplication.findUnique as any).mockResolvedValue({ fullName: 'X', targetCityId: IST })
     const { POST } = await import('@/app/api/admin/applications/screen/route')
     expect((await POST(req({ id: 'row1' }))).status).toBe(403)
+    expect(create).not.toHaveBeenCalled()
   })
 
   it('applications/welcome — same gate', async () => {

@@ -128,10 +128,12 @@ describe('a free event more than a week out', () => {
   it('still goes to review for a club host', async () => {
     ;(getSession as any).mockResolvedValue(host)
     ;(isClubHost as any).mockResolvedValue(true)
-    const res = await post(payload({ description: 'x', coverImage: null, address: 'A' }))
+    // A complete club-host body (description + cover + address), so the
+    // create actually reaches needsReview instead of 400ing on validation.
+    const res = await post(payload({ description: 'x', coverImage: '/app/api/files/general/x.jpg', address: 'Kaleiçi 1' }))
     // Club hosts are caught by needsReview regardless of the date — pinned so
     // exempting admins above can't be widened into exempting everyone.
-    const created = (prisma.event.create as any).mock.calls[0]?.[0]?.data
-    expect(res.status === 200 ? created.status : 'blocked').not.toBe('published')
+    expect(res.status).toBe(200)
+    expect((prisma.event.create as any).mock.calls[0][0].data.status).toBe('pending')
   })
 })

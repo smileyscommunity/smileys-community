@@ -71,7 +71,7 @@ describe('hangout time maths follow the viewed city', () => {
 describe('hangout sweepers', () => {
   it('only sweep-hangouts expires hangouts (it sends the recap)', () => {
     expect(read('app/api/admin/cron/reminders/route.ts')).not.toMatch(/prisma\.hangout\.updateMany\(\{\s*where: \{ endsAt: \{ lt: now \}, status: 'active' \}/)
-    expect(read('app/api/cron/sweep-hangouts/route.ts')).toMatch(/'expired'/)
+    expect(read('app/api/cron/sweep-hangouts/route.ts')).toMatch(/data:\s*\{ status: 'expired' \}/)
   })
   it('hangout edit and cancel scope the staff override to the city', () => {
     const src = read('app/api/hangouts/[id]/route.ts')

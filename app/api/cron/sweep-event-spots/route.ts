@@ -90,7 +90,32 @@ async function runSweep() {
     where: { resetAt: { lt: new Date(Date.now() - 86_400_000) } },
   })
 
-  return { scanned: events.length, fixed: fixes.length, fixes, clubsScanned: clubs.length, clubsFixed: clubFixes.length, clubFixes, staleRateLimitsPruned: staleLimits.count }
+  // Session rows: one per login, removed only by logging out on that device
+  // or changing the password, so the table grew with every sign-in. A row
+  // past its expiry or revoked is dead to every reader (getSession refuses
+  // it; the device list and the security count filter it out), so a day
+  // later it goes.
+  const dayAgo = new Date(Date.now() - 86_400_000)
+  const staleSessions = await prisma.session.deleteMany({
+    where: { OR: [{ expiresAt: { lt: dayAgo } }, { revokedAt: { lt: dayAgo } }] },
+  })
+
+  // First-event recommendations: the block logged a row per card on every
+  // dashboard load. The funnel (admin analytics) reads distinct members, the
+  // click and RSVP stamps, the (member, event) pair for attendance, and each
+  // member's first showing — all carried by the earliest row per pair plus
+  // every stamped row. Unstamped repeats older than a week go.
+  const recommendationsPruned = await prisma.$executeRaw`
+    DELETE FROM event_recommendations r
+    WHERE r."clickedAt" IS NULL AND r."rsvpedAt" IS NULL
+      AND r."createdAt" < now() - interval '7 days'
+      AND EXISTS (
+        SELECT 1 FROM event_recommendations e
+        WHERE e."userId" = r."userId" AND e."eventId" = r."eventId"
+          AND (e."createdAt" < r."createdAt" OR (e."createdAt" = r."createdAt" AND e.id < r.id))
+      )`
+
+  return { scanned: events.length, fixed: fixes.length, fixes, clubsScanned: clubs.length, clubsFixed: clubFixes.length, clubFixes, staleRateLimitsPruned: staleLimits.count, staleSessionsPruned: staleSessions.count, recommendationsPruned }
 }
 
 export async function POST(req: NextRequest) {

@@ -62,6 +62,11 @@ function existing(status: string) {
 beforeEach(() => {
   vi.clearAllMocks()
   ;(getSession as any).mockResolvedValue(host)
+  // clearAllMocks keeps implementations: the city-host block below flips these,
+  // so restore the club-host defaults for every test.
+  ;(isClubHost as any).mockResolvedValue(true)
+  ;(isClubHostFor as any).mockResolvedValue(true)
+  ;(hostCityIds as any).mockResolvedValue([])
 })
 
 describe('club host cannot publish past the review queue', () => {

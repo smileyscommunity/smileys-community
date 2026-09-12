@@ -17,10 +17,12 @@ describe('event discussion lock', () => {
 })
 
 describe('doors-open broadcast', () => {
-  it('is stamped by the notification it already sends', () => {
+  it('is stamped once per event by a claim, not by counting notifications', () => {
+    // Superseded 2026-09-13: the notification count raced (host + co-host) and
+    // re-armed when a bell was cleared. tests/fourthScanFixes5 pins the claim.
     const src = read('app/api/events/[id]/checkin/route.ts')
-    expect(src).toMatch(/type: 'checkin_started', link: `\/admin\/checkin\?event=\$\{eventId\}`/)
-    expect(src).toMatch(/if \(checkedInCount === 1 && !announced\)/)
+    expect(src).toMatch(/claimOnce\(`checkin-started:\$\{eventId\}`/)
+    expect(src).not.toMatch(/prisma\.notification\.count/)
   })
 })
 

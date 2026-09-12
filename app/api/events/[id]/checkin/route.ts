@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin, canManageEventOps } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
-import { rateLimit } from '@/lib/rateLimit'
+import { rateLimit, claimOnce } from '@/lib/rateLimit'
 import { Attendance } from '@/lib/constants'
 
 type Params = { params: Promise<{ id: string }> }
@@ -119,10 +119,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         // time the count came back to 1 (un-check the first person, check
         // anyone; re-check the same person) — the sent notification is the
         // once-per-event stamp.
-        const announced = checkedInCount === 1 && await prisma.notification.count({
-          where: { type: 'checkin_started', link: `/admin/checkin?event=${eventId}` },
-        })
-        if (checkedInCount === 1 && !announced) {
+        //
+        // The stamp is a claim in rate_limits, not a count of notifications:
+        // a host and a co-host scanning the first two people at once both
+        // counted zero sent and pushed every attendee twice, and clearing a
+        // bell re-armed it. `<= 2` keeps that race covered when both
+        // requests count each other's write.
+        if (checkedInCount <= 2 && await claimOnce(`checkin-started:${eventId}`, 3 * 86_400_000)) {
           const [admins, otherAttendees] = await Promise.all([
             prisma.user.findMany({
               where:  { role: 'admin', status: 'approved' },

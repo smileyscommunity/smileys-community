@@ -64,7 +64,7 @@ describe('writeAudit — city from the target', () => {
   it('a city-less or unknown target audits as null, and a failed lookup never blocks the write', async () => {
     await writeAudit('a', 'Admin', 'setting.update', 'announcement', 'setting')
     expect(created().cityId).toBeNull()
-    p.club.findUnique.mockRejectedValue(new Error('db down'))
+    p.club.findUnique.mockRejectedValueOnce(new Error('db down'))
     await writeAudit('a', 'Admin', 'club.archive', 'k1', 'club')
     expect(created()).toMatchObject({ action: 'club.archive', cityId: null })
   })

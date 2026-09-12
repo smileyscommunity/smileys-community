@@ -33,7 +33,12 @@ const req = (body: object, url = 'http://localhost/app/api/x') =>
 const past   = new Date(Date.now() - 24 * 3600 * 1000)
 const future = new Date(Date.now() + 24 * 3600 * 1000)
 
-beforeEach(() => { vi.clearAllMocks(); sent.length = 0 })
+beforeEach(() => {
+  vi.clearAllMocks(); sent.length = 0
+  // clearAllMocks keeps implementations; the rate-limit tests below install
+  // a per-key refusal that must not leak into later tests.
+  ;(rateLimit as any).mockImplementation(async () => true)
+})
 
 describe('GET /api/auth/activate', () => {
   it('tells the page an expired-but-real token is expired, so it can offer a new one', async () => {
@@ -117,6 +122,8 @@ describe('POST /api/auth/forgot-password', () => {
     const res = await forgot(req({ email: 'j@x.com', _cf: 't' }))
     expect(await res.json()).toEqual({ ok: true })
     expect(sent).toHaveLength(0)
+    const keys = (rateLimit as any).mock.calls.map((c: any[]) => c[0])
+    expect(keys.some((k: string) => k.startsWith('activate-resend-user:'))).toBe(false)
   })
 
   it('still sends the ordinary reset email to an activated member', async () => {

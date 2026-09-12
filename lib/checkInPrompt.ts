@@ -40,6 +40,10 @@ export interface CheckInPromptEvent {
   noShowProcessedAt?: string | null
   checkedInCount?:    number
   _count?:            { attendees: number }
+  // The room without host and co-hosts — what the sweeper counts
+  // (/api/host/events). Preferred over the raw counts above when present.
+  roomApproved?:      number
+  roomCheckedIn?:     number
 }
 
 export interface PendingCheckIn {
@@ -65,8 +69,8 @@ export function awaitingCheckIn(
     // Only events under the no-show policy ever produce cards, so only those
     // are worth chasing a host about.
     if (!noShowPolicyApplies(e)) return []
-    const approved = e._count?.attendees ?? 0
-    const checked  = e.checkedInCount ?? 0
+    const approved = e.roomApproved  ?? e._count?.attendees ?? 0
+    const checked  = e.roomCheckedIn ?? e.checkedInCount    ?? 0
     if (approved < 1 || checkInIsCredible(checked, approved)) return []
     const endsAt = eventEndsAt(e, tz).getTime()
     if (endsAt > now.getTime()) return []                       // still running

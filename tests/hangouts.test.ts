@@ -3,7 +3,8 @@ import { POST } from '@/app/api/hangouts/route'
 import { PATCH } from '@/app/api/hangouts/[id]/route'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
-import { isAdminOrModerator } from '@/lib/access'
+import { canActInCity } from '@/lib/access'
+import { createNotification } from '@/lib/notify'
 
 vi.mock('@/lib/session', () => ({ getSession: vi.fn() }))
 vi.mock('@/lib/prisma', () => ({ prisma: {
@@ -18,10 +19,21 @@ vi.mock('@/lib/prisma', () => ({ prisma: {
   city: {
     findUnique: vi.fn(),
   },
+  // The POST fan-out (fire-and-forget after the 201): host connections,
+  // neighborhood locals, past joiners, then blocks drop pairs out.
+  memberConnection: { findMany: vi.fn() },
+  user:             { findMany: vi.fn() },
+  hangoutJoin:      { findMany: vi.fn() },
+  memberBlock:      { findMany: vi.fn() },
 } }))
 vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn(() => true) }))
-vi.mock('@/lib/notify', () => ({ createNotification: vi.fn() }))
-vi.mock('@/lib/access', () => ({ isAdminOrModerator: vi.fn(), canActInCity: vi.fn() }))
+// The route chains .catch() on it, so it must return a promise.
+vi.mock('@/lib/notify', () => ({ createNotification: vi.fn(async () => {}) }))
+vi.mock('@/lib/access', () => ({ canActInCity: vi.fn() }))
+// Registry stand-in: any non-empty name is a real neighborhood of the city.
+vi.mock('@/lib/neighborhoodsDb', () => ({
+  safeNeighborhoodFor: vi.fn(async (_cityId: string, name: unknown) => (typeof name === 'string' && name ? name : null)),
+}))
 
 const req = (body: any) => ({ json: async () => body }) as any
 
@@ -29,6 +41,10 @@ beforeEach(() => {
   vi.clearAllMocks()
   ;(getSession as any).mockResolvedValue({ id: 'u1', name: 'User 1' })
   ;(prisma.city.findUnique as any).mockResolvedValue({ id: 'city-istanbul' })
+  ;(prisma.memberConnection.findMany as any).mockResolvedValue([])
+  ;(prisma.user.findMany as any).mockResolvedValue([])
+  ;(prisma.hangoutJoin.findMany as any).mockResolvedValue([])
+  ;(prisma.memberBlock.findMany as any).mockResolvedValue([])
 })
 
 describe('Hangouts POST — Max duration 24h', () => {
@@ -98,6 +114,35 @@ describe('Hangouts POST — city scoping', () => {
   })
 })
 
+describe('Hangouts POST — notification fan-out', () => {
+  it('pings connections, locals and past joiners, but never a blocked member', async () => {
+    const now = new Date()
+    ;(getSession as any).mockResolvedValue({ id: 'u1', name: 'User 1', cityId: 'city-istanbul' })
+    ;(prisma.hangout.create as any).mockResolvedValue({ id: 'h1', cityId: 'city-istanbul', title: 'Coffee', location: 'Moda Pier' })
+    ;(prisma.memberConnection.findMany as any).mockResolvedValue([{ requesterId: 'u1', receiverId: 'friend' }])
+    ;(prisma.user.findMany as any).mockResolvedValue([{ id: 'local' }, { id: 'blocked' }])
+    ;(prisma.hangoutJoin.findMany as any).mockResolvedValue([{ userId: 'joiner' }])
+    // The host blocked this local — they must not learn where the host will be.
+    ;(prisma.memberBlock.findMany as any).mockResolvedValue([{ blockerId: 'u1', blockedId: 'blocked' }])
+
+    const res = await POST(req({
+      title: 'Coffee', location: 'Moda Pier', neighborhood: 'Kadıköy',
+      startsAt: now.toISOString(), endsAt: new Date(now.getTime() + 60 * 60 * 1000).toISOString(),
+    }))
+    expect(res.status).toBe(201)
+
+    // The fan-out runs after the response; wait for it to finish sending.
+    await vi.waitFor(() => expect(createNotification).toHaveBeenCalledTimes(3))
+    const recipients = (createNotification as any).mock.calls.map((c: any[]) => c[0])
+    expect(recipients.sort()).toEqual(['friend', 'joiner', 'local'])
+    expect(recipients).not.toContain('blocked')
+    expect(recipients).not.toContain('u1')
+    expect(createNotification).toHaveBeenCalledWith('friend', 'new_hangout', '☕ Hangout in Kadıköy', 'Coffee — Moda Pier', '/hangouts')
+    // Locals are scoped to the hangout's city, not just the neighborhood name.
+    expect((prisma.user.findMany as any).mock.calls[0][0].where).toMatchObject({ neighborhood: 'Kadıköy', cityId: 'city-istanbul' })
+  })
+})
+
 describe('Hangouts PATCH', () => {
   const params = { params: Promise.resolve({ id: 'h1' }) }
 
@@ -107,10 +152,11 @@ describe('Hangouts PATCH', () => {
       userId: 'u2', // someone else
       status: 'active'
     })
-    ;(isAdminOrModerator as any).mockReturnValue(false)
+    ;(canActInCity as any).mockReturnValue(false)
 
     const res = await PATCH(req({ title: 'New Title' }), params)
     expect(res.status).toBe(403)
+    expect(prisma.hangout.update).not.toHaveBeenCalled()
   })
 
   it('400 when duration > 24h on update', async () => {

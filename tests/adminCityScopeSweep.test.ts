@@ -15,7 +15,7 @@ vi.mock('@/lib/notify',  () => ({ createNotification: vi.fn(async () => {}), not
 vi.mock('@/lib/email',   () => ({ sendBroadcastEmail: vi.fn(), sendLoginNudgeEmail: vi.fn(), recordEmailFailure: vi.fn() }))
 vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn(async () => true), getIp: () => '127.0.0.1' }))
 vi.mock('@/lib/survey',  () => ({ computeEventSurveyRollup: vi.fn(async () => new Map()), aggregateRollup: vi.fn(() => null) }))
-vi.mock('fs', async () => ({ ...(await vi.importActual<any>('fs')), writeFileSync: vi.fn() }))
+vi.mock('fs', async () => ({ ...(await vi.importActual<any>('fs')), writeFileSync: vi.fn(), renameSync: vi.fn() }))
 vi.mock('@/lib/prisma', () => {
   const calls: Record<string, any[]> = {}
   const results: Record<string, any> = {}

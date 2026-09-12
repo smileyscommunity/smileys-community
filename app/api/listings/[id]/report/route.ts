@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { rateLimit } from '@/lib/rateLimit'
+import { rateLimit, claimOnce } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
 
 // Mirrors /api/reports POST but derives reportedId from the listing's owner so
@@ -43,6 +43,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       where: { reporterId: session.id, listingId, status: 'pending' },
     })
     if (existing) {
+      return NextResponse.json({ error: 'You already have a pending report on this listing' }, { status: 400 })
+    }
+    // Report has no unique on (reporter, listing): a double-submit passed the
+    // check above twice and filed two reports and two rounds of staff pushes.
+    if (!await claimOnce(`report-listing:${session.id}:${listingId}`, 60_000)) {
       return NextResponse.json({ error: 'You already have a pending report on this listing' }, { status: 400 })
     }
 

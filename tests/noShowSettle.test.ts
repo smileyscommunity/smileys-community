@@ -44,7 +44,15 @@ const row = (id: string, o: any = {}) =>
   ({ id, userId: id, status: 'approved', checkedIn: false, cancelledAt: null, cancelledBy: null, ...o })
 
 beforeEach(() => {
-  vi.clearAllMocks()
+  // Reset, not just clear: tests install values and implementations (a
+  // throwing event.findUnique, a host's co-hosts) that would otherwise leak
+  // into whichever test runs next. Re-apply the factory defaults after.
+  vi.resetAllMocks()
+  ;(createNotification as any).mockResolvedValue(undefined)
+  for (const send of [sendYellowCardEmail, sendRedCardEmail, sendHostNoShowCardsEmail, sendAdminNoShowAppealEmail]) {
+    ;(send as any).mockResolvedValue(undefined)
+  }
+  p.eventCoHost.findMany.mockResolvedValue([])
   p.$transaction.mockImplementation(async (fn: any) => fn(p))
   p.noShowCard.findUnique.mockResolvedValue(null)
   p.noShowCard.count.mockResolvedValue(0)

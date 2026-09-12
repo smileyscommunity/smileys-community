@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!
 
@@ -13,8 +14,13 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return bytes
 }
 
-async function subscribe(): Promise<boolean> {
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return false
+// 'refused' is a 400: the server won't accept this browser's push endpoint
+// (its host isn't on the allowlist), and asking again tomorrow gets the same
+// answer. Anything else that isn't ok is worth another try.
+type SubscribeResult = 'ok' | 'refused' | 'failed'
+
+async function subscribe(): Promise<SubscribeResult> {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return 'failed'
 
   const reg = await navigator.serviceWorker.ready
   const existing = await reg.pushManager.getSubscription()
@@ -29,7 +35,7 @@ async function subscribe(): Promise<boolean> {
     body: JSON.stringify(sub.toJSON()),
   })
 
-  return res.ok
+  return res.ok ? 'ok' : res.status === 400 ? 'refused' : 'failed'
 }
 
 // "Not now" used to live in component state only, so every cold start of
@@ -40,6 +46,8 @@ const DISMISS_KEY   = 'smileys_push_prompt_dismissed_at'
 const SYNCED_KEY    = 'smileys_push_synced_at'
 const DISMISS_FOR   = 30 * 24 * 60 * 60_000
 const RESYNC_AFTER  = 24 * 60 * 60_000
+const REFUSED_KEY   = 'smileys_push_refused_at'
+const REFUSED_FOR   = 30 * 24 * 60 * 60_000
 
 // localStorage can throw (private mode, blocked site data) — a prompt must
 // never take the page down with it.
@@ -59,8 +67,12 @@ export default function PushPermission() {
       return
     }
     if (Notification.permission === 'granted') {
-      if (Date.now() - readStamp(SYNCED_KEY) > RESYNC_AFTER) {
-        subscribe().then(ok => { if (ok) writeStamp(SYNCED_KEY) }).catch(() => {})
+      // A refused endpoint used to be re-POSTed (and re-refused) every day.
+      if (Date.now() - readStamp(SYNCED_KEY) > RESYNC_AFTER && Date.now() - readStamp(REFUSED_KEY) > REFUSED_FOR) {
+        subscribe().then(r => {
+          if (r === 'ok') writeStamp(SYNCED_KEY)
+          else if (r === 'refused') writeStamp(REFUSED_KEY)
+        }).catch(() => {})
       }
       setState('subscribed')
     } else if (Notification.permission === 'denied') {
@@ -77,9 +89,19 @@ export default function PushPermission() {
   async function handleAllow() {
     const permission = await Notification.requestPermission()
     if (permission === 'granted') {
-      const ok = await subscribe().catch(() => false)
-      if (ok) writeStamp(SYNCED_KEY)
-      setState('subscribed')
+      const result: SubscribeResult = await subscribe().catch(() => 'failed' as const)
+      if (result === 'ok') {
+        writeStamp(SYNCED_KEY)
+        setState('subscribed')
+        return
+      }
+      // The card used to vanish as if notifications were on when the server
+      // had refused the subscription. Say so, then get out of the way.
+      if (result === 'refused') writeStamp(REFUSED_KEY)
+      toast.error(result === 'refused'
+        ? "This browser's push service isn't supported, so notifications stay off."
+        : "Couldn't turn on notifications. You can try again from Settings.")
+      setState('denied')
     } else {
       setState('denied')
     }

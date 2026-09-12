@@ -41,7 +41,16 @@ const row = (id: string, o: any = {}) =>
   ({ id, userId: id, status: 'approved', reconfirmAskedAt: null, reconfirmedAt: null, user: { id, name: id, email: `${id}@x` }, ...o })
 
 beforeEach(() => {
-  vi.clearAllMocks()
+  // Reset, not just clear: a test's throwing eventAttendee.findMany (or an
+  // unconsumed …Once) would otherwise leak into the next. Re-apply the
+  // factory defaults after.
+  vi.resetAllMocks()
+  ;(createNotification as any).mockResolvedValue(undefined)
+  ;(announceSpotOpened as any).mockResolvedValue(1)
+  ;(expectedSpotsLeft as any).mockResolvedValue(0)
+  ;(sendReconfirmEmail as any).mockResolvedValue(undefined)
+  ;(sendSpotReleasedEmail as any).mockResolvedValue(undefined)
+  p.event.findUnique.mockResolvedValue({ totalSpots: 10 })
   p.eventAttendee.update.mockResolvedValue({})
   p.eventAttendee.updateMany.mockResolvedValue({ count: 1 })
   p.eventCoHost.findMany.mockResolvedValue([{ userId: 'cohost' }])

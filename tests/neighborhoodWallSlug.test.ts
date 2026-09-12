@@ -20,7 +20,7 @@ import { GET as listReplies, POST as reply } from '@/app/api/neighborhoods/[slug
 import { GET as listPosts, POST as createPost } from '@/app/api/neighborhoods/[slug]/posts/route'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
-import { resolveNeighborhoodBySlug } from '@/lib/neighborhoodsDb'
+import { resolveNeighborhoodBySlug, postMatchesSlug } from '@/lib/neighborhoodsDb'
 
 // The wall stores a neighborhood by display name ("Kadıköy") and the client
 // addresses it by URL slug ("kadikoy"). The IDOR guard on likes and replies
@@ -46,7 +46,8 @@ beforeEach(() => {
 describe('likes and replies resolve the slug through the city registry', () => {
   it('likes a post whose name slugifies to the URL slug', async () => {
     const res = await like(req({ emoji: '❤️' }), postParams)
-    expect(res.status).not.toBe(404)
+    expect(res.status).toBe(200)
+    expect(postMatchesSlug).toHaveBeenCalledWith({ id: 'p1', neighborhood: 'Kadıköy', cityId: 'istanbul' }, 'kadikoy')
     expect(p.neighborhoodPostLike.create).toHaveBeenCalled()
   })
   it('lists and posts replies on it', async () => {

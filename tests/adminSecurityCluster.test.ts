@@ -17,14 +17,8 @@ vi.mock('@/lib/prisma', () => ({
       { id: 'a1', action: 'account.self_delete', adminName: 'X', description: 'd', targetId: 't',
         createdAt: new Date(), meta: { name: 'Deleted Person', email: 'ghost@x.com', phone: '+900000' } },
     ]) },
-    $queryRaw: vi.fn(async () => []),
   },
 }))
-vi.mock('./_lib', () => ({
-  validateBusinessCreate: vi.fn(() => ({ data: {} })),
-  validateFieldUpdate:    vi.fn(() => ({ data: {} })),
-  dropUnchanged:          vi.fn((d: any) => d),
-}), { virtual: true } as never)
 
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'

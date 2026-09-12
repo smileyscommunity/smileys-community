@@ -47,9 +47,11 @@ export function dayInTz(d: Date, tz: string = DEFAULT_TZ): string {
  * Callers get "a week out" without doing UTC arithmetic themselves.
  */
 export function todayInTz(tz: string = DEFAULT_TZ, offsetDays = 0): string {
-  const d = new Date()
-  if (offsetDays) d.setDate(d.getDate() + offsetDays)
-  return dayInTz(d, tz)
+  // Shift the city's calendar day, not the instant. "Now + 24h" read back in
+  // a DST zone repeats a date (or skips one) in the hour beside the change:
+  // 00:30 on Berlin's fall-back morning gave "tomorrow" as today.
+  const today = dayInTz(new Date(), tz)
+  return offsetDays ? shiftDay(today, offsetDays) : today
 }
 
 export interface TzNow {
@@ -190,19 +192,30 @@ export function weekendRangeOf(today: string): { start: string; end: string } {
   return { start: shiftDay(mon, 5), end: shiftDay(mon, 6) }
 }
 
+const WALL_DAY_MS = 86_400_000
+
 export function fromWallClockInTz(value: string, tz: string = DEFAULT_TZ): Date {
   const asIfUtc = new Date(`${value}:00Z`).getTime()
-  // What the city's clock reads at that instant, read back as if it were UTC:
+  if (!Number.isFinite(asIfUtc)) return new Date(NaN)
+  // What the city's clock reads at an instant, read back as if it were UTC:
   // the gap between the two IS the city's offset at that moment.
-  const shown  = new Date(`${wallClockInTz(new Date(asIfUtc), tz)}:00Z`).getTime()
-  const offset = shown - asIfUtc
-  const guess  = new Date(asIfUtc - offset)
-  // The offset was measured an offset away from the answer, so on a DST
-  // changeover it can be the wrong side's. Read the guess back: if the city's
-  // clock doesn't show what was asked for, the asked-for time sits in the
-  // spring-forward gap, and the difference moves it forward across the jump
-  // (03:30 on the day 03:00 becomes 04:00 lands on 04:30). Never fires for a
-  // zone without DST, and never for a time that exists.
-  const check = new Date(`${wallClockInTz(guess, tz)}:00Z`).getTime()
-  return check === asIfUtc ? guess : new Date(guess.getTime() + (asIfUtc - check))
+  const readAt   = (t: number) => new Date(`${wallClockInTz(new Date(t), tz)}:00Z`).getTime()
+  const offsetAt = (t: number) => readAt(t) - t
+  // The offsets a day either side bracket any single DST change (changes are
+  // months apart), giving the two instants the answer can be. Measuring at the
+  // asked-for time itself, as this used to, reads the wrong side of the jump
+  // west of UTC: 02:30 on New York's spring-forward morning came back as
+  // 01:30 EST, and Santiago's midnight change put a day's 00:00 on the day
+  // before.
+  const before = asIfUtc - offsetAt(asIfUtc - WALL_DAY_MS)
+  const after  = asIfUtc - offsetAt(asIfUtc + WALL_DAY_MS)
+  const okBefore = readAt(before) === asIfUtc
+  const okAfter  = readAt(after)  === asIfUtc
+  // A time that happens twice (the fall-back hour) takes the first. A time
+  // inside a spring-forward gap reads back on neither; the pre-change offset
+  // carries it just past the jump (03:30 on the day 03:00 becomes 04:00 lands
+  // on 04:30). Without DST both candidates are the same instant.
+  if (okBefore && okAfter) return new Date(Math.min(before, after))
+  if (okAfter)             return new Date(after)
+  return new Date(before)
 }

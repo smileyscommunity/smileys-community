@@ -6,7 +6,10 @@ vi.mock('@/lib/city',      () => ({ getCityTz: vi.fn().mockResolvedValue('Europe
 vi.mock('@/lib/prisma', () => ({ prisma: {
   club:           { findUnique: vi.fn().mockResolvedValue({ name: 'Runners' }) },
   clubMembership: { findMany: vi.fn().mockResolvedValue([{ userId: 'm1' }, { userId: 'm2' }]) },
-  notification:   { count: vi.fn(), create: vi.fn().mockResolvedValue({ id: 'n' }) },
+  // createNotification (real lib/notify) reads the member's preferences first;
+  // without these every create threw inside its own try and nothing was sent.
+  notificationPreference: { findUnique: vi.fn().mockResolvedValue(null) },
+  notification:   { count: vi.fn(), findFirst: vi.fn().mockResolvedValue(null), create: vi.fn().mockResolvedValue({ id: 'n' }) },
   user:           { findUnique: vi.fn().mockResolvedValue({ notificationPrefs: null, quietHours: null, cityId: 'c1' }) },
 } }))
 
@@ -30,6 +33,9 @@ describe('notifyNewEvent', () => {
     expect(rateLimit).toHaveBeenCalledWith('new-event-announce:e1', 1, expect.any(Number))
     expect(p.notification.count).not.toHaveBeenCalled()
     expect(p.clubMembership.findMany).toHaveBeenCalled()
+    const recipients = p.notification.create.mock.calls.map((c: any[]) => c[0].data)
+    expect(recipients.map((d: any) => d.userId)).toEqual(['m1', 'm2'])
+    for (const d of recipients) expect(d).toMatchObject({ type: 'new_event', link: '/events/e1' })
   })
 
   it('a second caller that loses the claim sends nothing', async () => {

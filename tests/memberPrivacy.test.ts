@@ -58,5 +58,10 @@ describe('restrictedSetFor (connections-only privacy gating)', () => {
       m('pub', 'everyone'),         // public → visible
     ])
     expect([...r]).toEqual(['stranger'])
+    // Only ACCEPTED connections unlock a private card — a pending request must not.
+    expect((prisma.memberConnection.findMany as any).mock.calls[0][0].where).toEqual({
+      status: 'accepted',
+      OR: [{ requesterId: 'me' }, { receiverId: 'me' }],
+    })
   })
 })

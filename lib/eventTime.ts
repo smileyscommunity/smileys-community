@@ -72,6 +72,10 @@ export type EventPhase = 'soon' | 'live' | null
 export const EVENT_SOON_LEAD_MS = 2 * 60 * 60_000
 
 export function eventPhase(event: EventClock, tz: string = DEFAULT_TZ, now: Date = new Date()): EventPhase {
+  // "TBA" (or any time that doesn't parse) has no start to be near. Read as
+  // midnight, it was "Live Now" all day and "Starting soon" from 22:00 the
+  // evening before.
+  if (!event.time || !HHMM.test(event.time)) return null
   const start = eventStartsAt(event, tz).getTime()
   const end   = eventEndsAt(event, tz).getTime()
   const t     = now.getTime()
