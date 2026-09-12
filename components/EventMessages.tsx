@@ -7,6 +7,15 @@ import { useAuth } from '@/contexts/AuthContext'
 
 import { getInitials } from '@/lib/data'
 import RichText from '@/components/RichText'
+import { toast } from 'sonner'
+
+// The server's cap, in app/api/events/[id]/messages/route.ts. Kept here so the
+// composer can say what the limit is before a member hits it: a paste longer
+// than this was rejected with a 400 that nothing surfaced — the text sat in the
+// box, Send appeared to do nothing, and no message arrived. Deliberately NOT a
+// maxLength on the textarea, which would silently swallow the overflow instead
+// of telling anyone it had.
+const MESSAGE_MAX = 2000
 
 interface Message {
   id:        string
@@ -60,20 +69,34 @@ export default function EventMessages({ eventId, eventDate, eventTz }: { eventId
 
   async function handleSend() {
     if (!text.trim() || sending) return
+    // Say so here rather than spending a round-trip on a 400.
+    if (text.trim().length > MESSAGE_MAX) {
+      toast.error(`Message is ${text.trim().length - MESSAGE_MAX} characters over the ${MESSAGE_MAX} limit`)
+      return
+    }
     setSending(true)
-    const res  = await fetch(`/app/api/events/${eventId}/messages`, {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text.trim() }),
-    })
-    if (res.ok) {
+    try {
+      const res  = await fetch(`/app/api/events/${eventId}/messages`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text.trim() }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => null)
+        toast.error(d?.error ?? 'Could not send')
+        return
+      }
       const msg = await res.json()
       setMessages(prev => [...prev, msg])
       setText('')
       // Back to one line, or the box keeps the height of what was just sent.
       if (composerRef.current) composerRef.current.style.height = 'auto'
+    } catch {
+      // Without this the throw left sending=true and the composer dead.
+      toast.error('Network error — try again')
+    } finally {
+      setSending(false)
     }
-    setSending(false)
   }
 
   async function handleDelete(messageId: string) {
@@ -97,19 +120,34 @@ export default function EventMessages({ eventId, eventDate, eventTz }: { eventId
 
   async function handleSaveEdit(messageId: string) {
     if (!editDraft.trim() || savingEdit) return
+    if (editDraft.trim().length > MESSAGE_MAX) {
+      toast.error(`Message is ${editDraft.trim().length - MESSAGE_MAX} characters over the ${MESSAGE_MAX} limit`)
+      return
+    }
     setSavingEdit(true)
-    const res = await fetch(`/app/api/events/${eventId}/messages`, {
-      method: 'PATCH', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messageId, message: editDraft.trim() }),
-    })
-    if (res.ok) {
+    try {
+      const res = await fetch(`/app/api/events/${eventId}/messages`, {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messageId, message: editDraft.trim() }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => null)
+        toast.error(d?.error ?? 'Could not save')
+        return
+      }
       const updated = await res.json()
       setMessages(prev => prev.map(m => (m.id === messageId ? updated : m)))
       cancelEdit()
+    } catch {
+      toast.error('Network error — try again')
+    } finally {
+      setSavingEdit(false)
     }
-    setSavingEdit(false)
   }
+
+  const left    = MESSAGE_MAX - text.trim().length
+  const tooLong = left < 0
 
   return (
     <div className="bg-white rounded-2xl shadow-card overflow-hidden">
@@ -215,20 +253,31 @@ export default function EventMessages({ eventId, eventDate, eventTz }: { eventId
               edited into paragraphs but never written as them.
               Enter still sends; Shift+Enter makes a new line, which is what the
               old !e.shiftKey check was always reaching for. */}
-          <textarea
-            ref={composerRef}
-            rows={1}
-            value={text}
-            onChange={e => { setText(e.target.value); autoGrow() }}
-            onKeyDown={e => {
-              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
-            }}
-            placeholder="Write a message…"
-            className="flex-1 text-sm px-3 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 text-gray-900 resize-none leading-relaxed"
-          />
+          <div className="flex-1">
+            <textarea
+              ref={composerRef}
+              rows={1}
+              value={text}
+              onChange={e => { setText(e.target.value); autoGrow() }}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
+              }}
+              placeholder="Write a message…"
+              className={`w-full text-sm px-3 py-2.5 border rounded-xl focus:outline-none focus:ring-2 text-gray-900 resize-none leading-relaxed ${
+                tooLong ? 'border-red-300 focus:ring-red-400' : 'border-gray-200 focus:ring-amber-400'
+              }`}
+            />
+            {/* Silent until it is nearly relevant, so a one-line message is not
+                nagged at — then it counts down, then it turns red. */}
+            {left <= 200 && (
+              <p className={`text-xs mt-1 ${tooLong ? 'text-red-500 font-semibold' : 'text-gray-400'}`}>
+                {tooLong ? `${-left} characters over the limit` : `${left} characters left`}
+              </p>
+            )}
+          </div>
           <button
             onClick={handleSend}
-            disabled={!text.trim() || sending}
+            disabled={!text.trim() || sending || tooLong}
             className="px-4 py-2.5 shrink-0 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl disabled:opacity-40 transition-colors"
           >
             {sending ? '…' : 'Send'}
