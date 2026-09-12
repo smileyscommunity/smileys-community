@@ -1,0 +1,12 @@
+Also contains the event-discussion paste fix (components/EventMessages.tsx), which this
+message does not mention.
+
+The composer was an <input type="text">, which cannot hold a newline, so a pasted
+multi-line message arrived with every paragraph break flattened. It became an
+auto-growing <textarea> (Enter sends, Shift+Enter makes a new line). Storage and
+rendering were never lossy — the API only trims, and messages render with
+whitespace-pre-wrap — so the composer was the single lossy step.
+
+The change was uncommitted in the working tree when this commit was made with
+'git add -A' from a parallel session, so it was swept in here. The matching fix for
+the hangout discussion is 5f1df44, and the too-long-message handling is fd5d8db.
