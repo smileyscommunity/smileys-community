@@ -446,6 +446,17 @@ echo "→ Pruning retained chunks from old builds..."
 echo "→ Registering sweeper crontabs..."
 ssh "${SSH_OPTS[@]}" "$SERVER" bash -s <<EOF
 set -e
+# The sweep logs grew without bound; weekly rotation, eight kept.
+cat > /etc/logrotate.d/smileys-sweeps <<'LR'
+/var/log/sweep-*.log {
+  weekly
+  rotate 8
+  compress
+  missingok
+  notifempty
+  copytruncate
+}
+LR
 chmod +x $REMOTE/scripts/sweep-hangouts.sh
 (crontab -l 2>/dev/null | grep -v 'sweep-hangouts' ; echo '*/15 * * * * $REMOTE/scripts/sweep-hangouts.sh >> /var/log/sweep-hangouts.log 2>&1') | crontab -
 echo '  ✓ hangouts'

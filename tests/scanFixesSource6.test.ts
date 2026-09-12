@@ -83,7 +83,9 @@ describe('hangout sweepers', () => {
 describe('scheduled newsletter sweep', () => {
   const src = read('app/api/cron/sweep-newsletters/route.ts')
   it('marks a failed or stuck issue instead of stranding it in sending', () => {
-    expect(src).toMatch(/status: 'sending', scheduledFor: \{ lt: new Date\(Date\.now\(\) - STUCK_AFTER_MS\) \}/)
+    // Keyed on sentAt (the claim time every path sets) — scheduledFor is null
+    // for manual sends and the auto-digest.
+    expect(src).toMatch(/status: 'sending', sentAt: \{ lt: new Date\(Date\.now\(\) - STUCK_AFTER_MS\) \}/)
     expect(src).toMatch(/catch \(err\) \{[\s\S]*?data: \{ status: 'failed' \}/)
     expect(src).toMatch(/status: sent > 0 \? 'sent' : 'failed'/)
   })

@@ -15,6 +15,17 @@ export async function rateLimit(key: string, limit: number, windowMs: number): P
   return Number(result[0].count) <= limit
 }
 
+/**
+ * A once-per-key claim with a memory: true for the first caller inside the
+ * window, false for everyone after. The sweeps used Notification rows as
+ * their "already sent" ledger, and a member clearing their bell wiped it —
+ * reminders, nudges and suggestions came back on the next run. This row
+ * lives in rate_limits, which members cannot touch.
+ */
+export function claimOnce(key: string, windowMs: number): Promise<boolean> {
+  return rateLimit(key, 1, windowMs)
+}
+
 // Loose but safe: accepts plain IPv4, IPv6 (with or without brackets),
 // and rejects anything with unexpected characters that could poison a
 // rate-limit key or log line (spaces, semicolons, CRLF injections, etc.).

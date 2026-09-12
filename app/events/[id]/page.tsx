@@ -411,6 +411,9 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
     attendees.map(a => ({ id: a.user.id, profileVisibility: a.user.profileVisibility })),
   )
   const restrictedWaitlist = await restrictedSetFor(session, waitlisted.users)
+  // Same gate as GET /api/events/[id]/photos: uploaders are attendees, so the
+  // gallery is a roster — and it named stealth attendees to any member.
+  const canSeeInside = isAdmin || session.role === 'moderator' || isHost || cohostIds.includes(session.id) || myAttendance?.status === 'approved'
 
   const hasCoords    = event.lat != null && event.lng != null
   // Directions link — always resolvable so every event gets one (the map still
@@ -1047,7 +1050,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
           {/* Photos */}
           <EventPhotos
             eventId={event.id}
-            photos={eventPhotos}
+            photos={canSeeInside ? eventPhotos : []}
             canUpload={isPast && !!(session && (isAdmin || isHost || (myAttendance?.status === 'approved')))}
             currentUserId={session?.id}
           />

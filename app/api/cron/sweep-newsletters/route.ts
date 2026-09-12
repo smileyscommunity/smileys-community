@@ -47,8 +47,10 @@ async function runSweep() {
   // nothing surfaced it. It is not retried either: the batch has no record
   // of who already received it, so a retry would double-send. Mark it and
   // put it on the email-failures tile for a human.
+  // sentAt defaults to now() at create, i.e. the claim time for every path
+  // (manual, scheduled, auto-digest); scheduledFor is null for two of them.
   const stuck = await prisma.newsletter.findMany({
-    where:  { status: 'sending', scheduledFor: { lt: new Date(Date.now() - STUCK_AFTER_MS) } },
+    where:  { status: 'sending', sentAt: { lt: new Date(Date.now() - STUCK_AFTER_MS) } },
     select: { id: true, subject: true },
   })
   for (const nl of stuck) {
@@ -166,17 +168,24 @@ async function runAutoDigest(): Promise<string> {
     },
   })
 
-  const { sent, resendLogs, failed } = await sendNewsletterBatch(recipients, digest.subject, digest.bodyHtml, nl.id, digest.preheader)
-  for (const f of failed) {
-    recordEmailFailure({ helper: 'sendNewsletterEmail (auto-weekly)', recipient: f.email, error: f.error }).catch(() => {})
+  try {
+    const { sent, resendLogs, failed } = await sendNewsletterBatch(recipients, digest.subject, digest.bodyHtml, nl.id, digest.preheader)
+    for (const f of failed) {
+      recordEmailFailure({ helper: 'sendNewsletterEmail (auto-weekly)', recipient: f.email, error: f.error }).catch(() => {})
+    }
+    if (resendLogs.length > 0) {
+      await prisma.newsletterEmailLog.createMany({ data: resendLogs, skipDuplicates: true })
+    }
+    await prisma.newsletter.update({
+      where: { id: nl.id },
+      data:  { status: sent > 0 ? 'sent' : 'failed', recipientCount: sent, sentAt: new Date() },
+    })
+    console.log(`[sweep-newsletters] auto-weekly issue sent to ${sent} members (${failed.length} failed)`)
+    return `sent-${sent}`
+  } catch (err) {
+    await prisma.newsletter.updateMany({ where: { id: nl.id, status: 'sending' }, data: { status: 'failed' } }).catch(() => {})
+    recordEmailFailure({ helper: 'sendNewsletterBatch (auto-weekly)', recipient: 'newsletter', error: err, context: { newsletterId: nl.id } }).catch(() => {})
+    console.error('[sweep-newsletters] auto-weekly send failed', { id: nl.id, err: String(err) })
+    return 'failed'
   }
-  if (resendLogs.length > 0) {
-    await prisma.newsletterEmailLog.createMany({ data: resendLogs, skipDuplicates: true })
-  }
-  await prisma.newsletter.update({
-    where: { id: nl.id },
-    data:  { status: 'sent', recipientCount: sent, sentAt: new Date() },
-  })
-  console.log(`[sweep-newsletters] auto-weekly issue sent to ${sent} members (${failed.length} failed)`)
-  return `sent-${sent}`
 }

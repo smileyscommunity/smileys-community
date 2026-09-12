@@ -47,7 +47,9 @@ export async function GET(_: NextRequest, { params }: Params) {
       caption:   p.caption ?? null,
       createdAt: p.createdAt,
       source:    'event' as const,
-      author:    { id: p.user.id, name: p.user.name, color: p.user.color, photo: p.user.profilePhoto },
+      // An event photo's uploader is an attendee — possibly a stealth one —
+      // so the club gallery credits the event, not the person.
+      author:    { id: '', name: p.event.title, color: '#d1d5db', photo: null },
     })),
   ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 

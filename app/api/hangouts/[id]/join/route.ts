@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { getSession } from '@/lib/session'
 import { createNotification } from '@/lib/notify'
+import { rateLimit } from '@/lib/rateLimit'
 
 // Toggle "I'm in" for a hangout. Single endpoint, idempotent: present →
 // remove, absent → create. Host doesn't need to join their own hangout
@@ -10,6 +11,10 @@ import { createNotification } from '@/lib/notify'
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // Join/unjoin was a push cannon at the host: no budget, no preference.
+  if (!await rateLimit(`hangout-join:${session.id}`, 10, 60_000)) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+  }
 
   const { id: hangoutId } = await params
   const hangout = await prisma.hangout.findUnique({

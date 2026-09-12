@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { claimOnce } from '@/lib/rateLimit'
 import { prisma } from '@/lib/prisma'
 import { citiesByToday } from '@/lib/city'
 import { createNotification } from '@/lib/notify'
@@ -104,6 +105,9 @@ async function runSweep() {
     if (alreadySent.has(userId)) continue
     const user = approvedUser.get(userId)
     if (!user) continue
+    // "Once ever" must survive a cleared bell: the Notification row is the
+    // member's to delete, this claim is not.
+    if (!await claimOnce(`dir-review-nudge:${userId}`, 365 * 24 * 60 * 60 * 1000)) continue
     // Most-visited business this member hasn't reviewed yet.
     const candidates = [...m.entries()]
       .filter(([businessId]) => !reviewed.has(`${userId}:${businessId}`))

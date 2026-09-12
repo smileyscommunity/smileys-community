@@ -1,4 +1,5 @@
 import { isAdmin } from '@/lib/access'
+import { claimOnce } from '@/lib/rateLimit'
 import { NextRequest, NextResponse } from 'next/server'
 import { timingSafeEqual } from 'crypto'
 import { readdirSync, statSync, unlinkSync } from 'fs'
@@ -139,6 +140,8 @@ async function runSweep() {
     const listingLink = `/board/${listing.id}`
     const lastSent = latestExpiryNote.get(`${listing.userId}:${listing.id}`)
     if (lastSent && Date.now() - lastSent < 2 * 24 * 60 * 60 * 1000) continue
+    // The claim survives a cleared bell (the row above does not).
+    if (!await claimOnce(`listing-expiry:${listing.userId}:${listing.id}:${daysLeft}`, 3 * 24 * 60 * 60 * 1000)) continue
     await createNotification(
       listing.userId,
       'listing_expiry',
@@ -179,6 +182,7 @@ async function runSweep() {
 
     for (const userId of attendeeIds) {
       if (connSent.has(`${userId}:/events/${event.id}`)) continue
+      if (!await claimOnce(`connsug:${userId}:${event.id}`, 7 * 24 * 60 * 60 * 1000)) continue
 
       const othersCount = attendeeIds.length - 1
       await createNotification(
@@ -236,7 +240,7 @@ async function runSweep() {
 
     for (const { userId } of event.attendees) {
       if (is24h) {
-        if (!sent24Set.has(`${userId}:/events/${event.id}`)) {
+        if (!sent24Set.has(`${userId}:/events/${event.id}`) && await claimOnce(`reminder-24h:${userId}:${event.id}`, 3 * 24 * 60 * 60 * 1000)) {
           // Events with nothing paid in advance carry the no-show policy; the
           // day-before reminder is the last moment a cancel is still
           // comfortably inside the cutoff.
@@ -252,7 +256,7 @@ async function runSweep() {
         }
       }
       if (is2h) {
-        if (!sent2Set.has(`${userId}:/events/${event.id}`)) {
+        if (!sent2Set.has(`${userId}:/events/${event.id}`) && await claimOnce(`reminder-2h:${userId}:${event.id}`, 3 * 24 * 60 * 60 * 1000)) {
           await createNotification(userId, 'reminder_2h', 'Starting soon ⚡', `"${event.title}" starts in ~2 hours at ${event.time}`, `/events/${event.id}`)
           sent2h++
         }
@@ -277,7 +281,7 @@ async function runSweep() {
       const userId = attendee.user.id
       if (reviewsMuted.has(userId)) continue
       const key = `${userId}:${reviewLinkFor(event.id)}`
-      if (!reviewSent.has(key)) {
+      if (!reviewSent.has(key) && await claimOnce(`review:${userId}:${event.id}`, 7 * 24 * 60 * 60 * 1000)) {
         // Mark locally too — the DB row from this send isn't in the
         // pre-fetched set, and the loop may see the pair again.
         reviewSent.add(key)

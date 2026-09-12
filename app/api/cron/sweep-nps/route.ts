@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { claimOnce } from '@/lib/rateLimit'
 import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notify'
 import { periodFor, periodStartDate, eligibilityCutoff } from '@/lib/nps'
@@ -94,9 +95,14 @@ async function runSweep() {
   const respondedSet = new Set(responded.map(r => r.userId))
   const nudgedSet    = new Set(nudged.map(n    => n.userId))
 
-  const targets = candidateIds
-    .filter(uid => !respondedSet.has(uid) && !nudgedSet.has(uid))
-    .slice(0, BATCH_SIZE)
+  const eligible = candidateIds.filter(uid => !respondedSet.has(uid) && !nudgedSet.has(uid))
+  // One nudge per member per quarter, kept in a claim the member cannot
+  // clear (the Notification row above is theirs to delete).
+  const targets: string[] = []
+  for (const uid of eligible) {
+    if (targets.length >= BATCH_SIZE) break
+    if (await claimOnce(`nps:${uid}:${period}`, 120 * 24 * 60 * 60 * 1000)) targets.push(uid)
+  }
 
   let dispatched = 0
   for (const userId of targets) {

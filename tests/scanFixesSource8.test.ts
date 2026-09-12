@@ -28,7 +28,8 @@ describe('34 partner images', () => {
 describe('35 push subscribe', () => {
   it('requires an https endpoint and key-shaped keys', () => {
     const src = read('app/api/push/subscribe/route.ts')
-    expect(src).toMatch(/typeof endpoint !== 'string' \|\| !\/\^https:\\\/\\\/\[\^\\s\/\]\+\\\/\.\+\/\.test\(endpoint\)/)
+    // Superseded by the push-service allowlist (third scan, item 4).
+    expect(src).toMatch(/!isPushServiceEndpoint\(endpoint\)/)
     expect(src).toMatch(/const isKey = \(v: unknown\) => typeof v === 'string' && \/\^\[A-Za-z0-9_-\]\{16,512\}\$\/\.test\(v\)/)
   })
 })

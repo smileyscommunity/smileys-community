@@ -9,6 +9,11 @@
 
 set -euo pipefail
 
+# One run at a time: a slow sweep (a 1k-recipient blast, a busy DB) must not
+# be overlapped by the next crontab tick.
+exec 9>"/tmp/sweep-connection-abuse.lock"
+flock -n 9 || { echo "$(date -u +%FT%TZ) skipped: previous run still active"; exit 0; }
+
 APP_DIR="${SMILEYS_APP_DIR:-/root/smileys-community}"
 cd "$APP_DIR"
 

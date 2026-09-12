@@ -1,4 +1,5 @@
 import { notFound, redirect } from 'next/navigation'
+import { todayInCity } from '@/lib/city'
 import Link from 'next/link'
 import Image from 'next/image'
 import { prisma } from '@/lib/prisma'
@@ -18,14 +19,26 @@ export default async function EventRecapPage({ params }: { params: Promise<{ id:
     where: { id },
     select: {
       id: true, title: true, emoji: true, date: true, time: true,
-      location: true, neighborhood: true, status: true,
+      location: true, neighborhood: true, status: true, cityId: true, hostId: true,
       coverImage: true, coverImagePosition: true,
     },
   })
   if (!event) notFound()
 
-  const today = new Date().toISOString().split('T')[0]
-  if (event.date >= today) {
+  // The event's own calendar (UTC put an Istanbul recap three hours late),
+  // and a cancelled event has no recap.
+  const today = await todayInCity(event.cityId)
+  if (event.date >= today || event.status === 'cancelled') {
+    redirect(`/events/${id}`)
+  }
+  // Attendees, host, co-hosts and staff only — the recap lists who came and
+  // who uploaded, which is the roster the event page withholds from others.
+  const [myRow, cohost] = await Promise.all([
+    prisma.eventAttendee.findUnique({ where: { userId_eventId: { userId: session.id, eventId: id } }, select: { status: true } }),
+    prisma.eventCoHost.findFirst({ where: { eventId: id, userId: session.id }, select: { id: true } }),
+  ])
+  const staff = session.role === 'admin' || session.role === 'moderator'
+  if (!staff && event.hostId !== session.id && !cohost && myRow?.status !== 'approved') {
     redirect(`/events/${id}`)
   }
 

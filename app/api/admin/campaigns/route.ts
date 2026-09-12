@@ -162,9 +162,16 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: 'Cannot delete the live cup campaign — set status=archived instead' }, { status: 400 })
   }
 
+  // Sponsors, prizes and donations (donor names, estimated values) cascade
+  // with the campaign — the ledger is kept in the audit row.
+  const [sponsors, prizes, donations] = await Promise.all([
+    prisma.cupSponsor.findMany({ where: { campaignId: id }, take: 200 }),
+    prisma.cupPrize.findMany({ where: { campaignId: id }, take: 200 }),
+    prisma.cupPrizeDonation.findMany({ where: { campaignId: id }, take: 500 }),
+  ])
   await prisma.campaign.delete({ where: { id } })
   writeAudit(session.id, session.name, 'campaign.delete', id, 'campaign',
-    { name: campaign.name },
+    { name: campaign.name, retained: { sponsors, prizes, donations } },
     `Deleted campaign "${campaign.name}"`,
   )
   return NextResponse.json({ ok: true })

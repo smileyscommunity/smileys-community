@@ -1,4 +1,5 @@
 import { canManageUsers, canViewUserList, canSuspendUsers, canActInCity } from '@/lib/access'
+import { snapshotUserHistory } from '@/lib/admin/userHistory'
 import { requireStepUp } from '@/lib/stepUp'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
@@ -535,6 +536,8 @@ export async function DELETE(_: NextRequest, { params }: Params) {
     // log entries pointing at payments that are actually still
     // present. Spread conditionally so the array stays empty when
     // there are no payments to record.
+    // Reports, no-show cards and admin notes cascade with the row; keep them.
+    const retained = await snapshotUserHistory(id)
     await prisma.$transaction([
       ...(payments.length > 0 ? [
         prisma.paymentLog.createMany({
@@ -595,7 +598,7 @@ export async function DELETE(_: NextRequest, { params }: Params) {
       ids:         payments.map(p => p.id),
     }
     writeAudit(session.id, session.name, 'user.remove', id, 'user',
-      { name: target?.name, email: target?.email, payments: paymentSummary },
+      { name: target?.name, email: target?.email, payments: paymentSummary, retained },
       `User ${target?.name ?? id} (${target?.email ?? ''}) permanently removed${
         paymentSummary ? ` — ${paymentSummary.count} payment${paymentSummary.count === 1 ? '' : 's'} destroyed (${formatMoney(paymentSummary.totalAmount, payments[0]?.currency)} across ${Object.entries(paymentSummary.byStatus).map(([s, n]) => `${n} ${s}`).join(', ')})` : ''
       }`,

@@ -337,8 +337,13 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Cross-city moderation is admin-only' }, { status: 403 })
     }
 
+    // Reports and claims on the entry cascade with it — keep them in the audit row.
+    const [reports, claims] = await Promise.all([
+      prisma.businessReport.findMany({ where: { businessId: id }, select: { id: true, reporterId: true, reason: true, status: true, createdAt: true }, take: 200 }),
+      prisma.businessClaim.findMany({ where: { businessId: id }, select: { id: true, claimantId: true, status: true, createdAt: true }, take: 200 }),
+    ])
     await prisma.business.delete({ where: { id } })
-    await writeAudit(session.id, session.name, 'directory.delete', id, 'business', { name: existing.name })
+    await writeAudit(session.id, session.name, 'directory.delete', id, 'business', { name: existing.name, retained: { reports, claims } })
     return NextResponse.json({ ok: true })
   } catch (e) {
     console.error('Admin directory DELETE error:', e)

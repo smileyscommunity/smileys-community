@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { snapshotUserHistory } from '@/lib/admin/userHistory'
 import { prisma } from '@/lib/prisma'
 import { getSession, deleteSession } from '@/lib/session'
 import bcrypt from 'bcryptjs'
@@ -78,6 +79,9 @@ export async function POST(req: NextRequest) {
   // Single transaction so a mid-cleanup failure doesn't leave the
   // account partially scrubbed. Prisma's interactive transaction
   // automatically rolls back on any throw.
+  // Moderation history (reports, no-show cards, admin notes) cascades with
+  // the row; it is kept in the admin-only audit row below.
+  const retained = await snapshotUserHistory(id)
   await prisma.$transaction(async tx => {
     // ── 0. Decrement club memberCount for each approved membership ─────────
     // Must run before the membership rows are deleted below, or the cached
@@ -259,7 +263,7 @@ export async function POST(req: NextRequest) {
   // arises. This is the one deliberate exception to the erasure above; it lives
   // only in the admin audit trail, never in a member-facing surface.
   await writeAudit(id, user.name ?? 'Member', 'account.self_delete', id, 'user',
-    { name: user.name, email: user.email, phone: user.phone, fingerprint: user.lastFingerprint },
+    { name: user.name, email: user.email, phone: user.phone, fingerprint: user.lastFingerprint, retained },
     `${user.name ?? id} deleted their own account`,
   )
 
