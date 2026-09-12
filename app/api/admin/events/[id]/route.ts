@@ -344,6 +344,13 @@ export async function PUT(req: NextRequest, { params }: Params) {
       }
     }
 
+    // The RSVP gate, the reconfirm sweep and the no-show pass all read
+    // cancelledAt; nothing wrote it. Stamp it on the way in, clear it if
+    // staff restore the event.
+    const cancelling = body.status === 'cancelled' && before.status !== 'cancelled'
+    if (cancelling) data.cancelledAt = new Date()
+    else if (data.status !== undefined && data.status !== 'cancelled' && before.status === 'cancelled') data.cancelledAt = null
+
     const event = await prisma.event.update({ where: { id }, data })
 
     // If totalSpots changed, recompute spotsLeft so it reflects the new capacity
@@ -415,12 +422,30 @@ export async function PUT(req: NextRequest, { params }: Params) {
     }
 
     // Email all approved attendees if event was just cancelled
-    if (body.status === 'cancelled' && before.status !== 'cancelled') {
+    if (cancelling) {
+      // Read who was going BEFORE their seats are released — the emails and
+      // the bell go to exactly these people.
+      const attendees = await prisma.eventAttendee.findMany({
+        where: { eventId: id, status: 'approved' },
+        include: { user: { select: { email: true, name: true } } },
+      })
+      // A cancelled event keeps no one "going": it used to leave every seat
+      // approved, so members still saw it on their plans. Seats and pending
+      // requests are released as removed by the actor (a removal is never a
+      // no-show), the waitlist is cleared, and the counter is re-derived.
+      try {
+        await prisma.$transaction([
+          prisma.eventAttendee.updateMany({
+            where: { eventId: id, ...activeAttendeeWhere },
+            data:  { status: 'removed', cancelledAt: new Date(), cancelledBy: session.role === 'admin' ? 'admin' : 'host' },
+          }),
+          prisma.waitlistEntry.deleteMany({ where: { eventId: id } }),
+        ])
+        await recomputeSpotsLeft(id, event.totalSpots)
+      } catch (err) {
+        console.error('[event PUT cancel] releasing seats failed', { eventId: id, err: String(err) })
+      }
       ;(async () => {
-        const attendees = await prisma.eventAttendee.findMany({
-          where: { eventId: id, status: 'approved' },
-          include: { user: { select: { email: true, name: true } } },
-        })
         // EM2 fix: collect failure count instead of silently
         // swallowing each per-attendee email. Mass-send means a
         // misconfigured SMTP could leave dozens of members

@@ -1055,8 +1055,10 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
             currentUserId={session?.id}
           />
 
-          {/* Recap link — past events only */}
-          {isPast && (
+          {/* Recap link — past events, for the people the recap admits
+              (attendees, host, co-hosts, staff); anyone else was bounced
+              straight back here. */}
+          {isPast && canSeeInside && (
             <Link href={`/events/${event.id}/recap`}
               className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-2xl p-4 hover:bg-amber-100 transition-colors group">
               <span className="text-2xl">🎉</span>

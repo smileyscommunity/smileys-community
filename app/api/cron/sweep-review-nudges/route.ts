@@ -105,14 +105,15 @@ async function runSweep() {
     if (alreadySent.has(userId)) continue
     const user = approvedUser.get(userId)
     if (!user) continue
-    // "Once ever" must survive a cleared bell: the Notification row is the
-    // member's to delete, this claim is not.
-    if (!await claimOnce(`dir-review-nudge:${userId}`, 365 * 24 * 60 * 60 * 1000)) continue
     // Most-visited business this member hasn't reviewed yet.
     const candidates = [...m.entries()]
       .filter(([businessId]) => !reviewed.has(`${userId}:${businessId}`))
       .sort((a, b) => b[1] - a[1])
     if (!candidates.length) continue
+    // "Once ever" must survive a cleared bell: the Notification row is the
+    // member's to delete, this claim is not. Taken only now — claiming before
+    // the candidate check burned a member's year on a run with nothing to send.
+    if (!await claimOnce(`dir-review-nudge:${userId}`, 365 * 24 * 60 * 60 * 1000)) continue
     const [businessId, count] = candidates[0]
     const biz = bizId.get(businessId)!
 

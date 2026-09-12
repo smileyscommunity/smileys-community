@@ -23,8 +23,10 @@ vi.mock('@/lib/email',  () => ({ sendEventCancelledEmail: vi.fn(), recordEmailFa
 vi.mock('@/lib/spotsLeft', () => ({ recomputeSpotsLeft: vi.fn(async () => {}) }))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
+    $transaction: vi.fn(async (ops: any) => Promise.all(ops)),
     event: { findUnique: vi.fn(), update: vi.fn(async ({ data }: any) => ({ id: 'e1', ...data })), updateMany: vi.fn() },
-    eventAttendee: { findMany: vi.fn(async () => []) },
+    eventAttendee: { findMany: vi.fn(async () => []), updateMany: vi.fn(async () => ({ count: 0 })) },
+    waitlistEntry: { deleteMany: vi.fn(async () => ({ count: 0 })) },
   },
 }))
 
@@ -136,5 +138,27 @@ describe('city host cannot publish past the review queue either', () => {
     ;(prisma.event.findUnique as any).mockResolvedValue(existing('published'))
     const res = await put({ status: 'cancelled' })
     expect(res.status).toBe(200)
+  })
+})
+
+// Nothing wrote Event.cancelledAt, and a cancelled event kept every seat
+// approved — members still saw it on their plans.
+describe('cancelling an event', () => {
+  it('stamps cancelledAt and releases every active seat as a removal, clearing the waitlist', async () => {
+    ;(prisma.event.findUnique as any).mockResolvedValue(existing('published'))
+    const res = await put({ status: 'cancelled' })
+    expect(res.status).toBe(200)
+    expect((prisma.event.update as any).mock.calls.at(-1)[0].data.cancelledAt).toBeInstanceOf(Date)
+    const release = (prisma.eventAttendee.updateMany as any).mock.calls.at(-1)[0]
+    expect(release.where).toEqual({ eventId: 'e1', status: { in: ['approved', 'pending'] } })
+    expect(release.data).toMatchObject({ status: 'removed', cancelledBy: 'host' })
+    expect((prisma as any).waitlistEntry.deleteMany).toHaveBeenCalledWith({ where: { eventId: 'e1' } })
+  })
+  it('clears cancelledAt when staff restore a cancelled event', async () => {
+    ;(getSession as any).mockResolvedValue({ id: 'a1', name: 'A', role: 'admin', cityId: 'c1' })
+    ;(prisma.event.findUnique as any).mockResolvedValue(existing('cancelled'))
+    const res = await put({ status: 'published' })
+    expect(res.status).toBe(200)
+    expect((prisma.event.update as any).mock.calls.at(-1)[0].data.cancelledAt).toBeNull()
   })
 })
