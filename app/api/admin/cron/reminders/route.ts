@@ -7,7 +7,6 @@ import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notify'
 import { sendReviewRequestEmail, sendListingExpiryEmail, recordEmailFailure } from '@/lib/email'
 import { noShowPolicyApplies, NO_SHOW_CANCELLATION_CUTOFF_HOURS } from '@/lib/noShowPolicy'
-import { sendPushToUser } from '@/lib/push'
 import { getSession } from '@/lib/session'
 import { recordCronRun } from '@/lib/cronHealth'
 import { citiesByToday, type CityDay } from '@/lib/city'
@@ -243,38 +242,51 @@ async function runSweep() {
           // comfortably inside the cutoff.
           const body = `"${event.title}" is tomorrow at ${event.time}` + (noShowPolicyApplies(event)
             ? `. Can't make it? Cancel at least ${NO_SHOW_CANCELLATION_CUTOFF_HOURS}h before so your spot goes to the waitlist.` : '')
+          // createNotification sends the push itself (and honours the
+          // member's "reminders" mute + quiet hours). The explicit push that
+          // used to follow doubled every reminder — and for a muted member,
+          // whose notification is never written and so never deduped, it
+          // fired again on every hourly tick inside the window.
           await createNotification(userId, 'reminder_24h', 'Event tomorrow ⏰', body, `/events/${event.id}`)
-          sendPushToUser(userId, { title: 'Event tomorrow ⏰', body, link: `/events/${event.id}` }).catch(() => {})
           sent24h++
         }
       }
       if (is2h) {
         if (!sent2Set.has(`${userId}:/events/${event.id}`)) {
           await createNotification(userId, 'reminder_2h', 'Starting soon ⚡', `"${event.title}" starts in ~2 hours at ${event.time}`, `/events/${event.id}`)
-          sendPushToUser(userId, { title: 'Starting soon ⚡', body: `"${event.title}" starts in ~2 hours at ${event.time}`, link: `/events/${event.id}` }).catch(() => {})
           sent2h++
         }
       }
     }
   }
 
-  // Review requests — yesterday's events
-  const reviewSent = await sentKeys('review_request',
-    pastEvents.flatMap(e => e.attendees.map(a => a.user.id)), ['/reviews'])
+  // Review requests — yesterday's events. Keyed per EVENT: the old key was
+  // the member alone with a fixed link, so a member was asked exactly once in their life
+  // and every later event was skipped. And the email went out regardless
+  // of the notification: a member who muted "reminders" never gets a row
+  // written, so nothing deduped them and the mail repeated every hour.
+  const reviewLinkFor = (eventId: string) => `/reviews?event=${eventId}`
+  const pastAttendeeIds = [...new Set(pastEvents.flatMap(e => e.attendees.map(a => a.user.id)))]
+  const reviewSent = await sentKeys('review_request', pastAttendeeIds, pastEvents.map(e => reviewLinkFor(e.id)))
+  const reviewsMuted = new Set((await prisma.notificationPreference.findMany({
+    where:  { userId: { in: pastAttendeeIds }, reminders: false },
+    select: { userId: true },
+  })).map(p => p.userId))
   for (const event of pastEvents) {
     for (const attendee of event.attendees) {
       const userId = attendee.user.id
-      if (!reviewSent.has(`${userId}:/reviews`)) {
-        // Mark locally too — two of yesterday's events sharing an attendee
-        // must not send twice within this run (the DB row from the first
-        // send isn't in the pre-fetched set).
-        reviewSent.add(`${userId}:/reviews`)
+      if (reviewsMuted.has(userId)) continue
+      const key = `${userId}:${reviewLinkFor(event.id)}`
+      if (!reviewSent.has(key)) {
+        // Mark locally too — the DB row from this send isn't in the
+        // pre-fetched set, and the loop may see the pair again.
+        reviewSent.add(key)
         await createNotification(
           userId,
           'review_request',
           'How was it? Leave a review ⭐',
           `You attended "${event.title}" — share your experience so others know what to expect.`,
-          `/reviews`
+          reviewLinkFor(event.id)
         )
         Promise.resolve(
           sendReviewRequestEmail(attendee.user.email, attendee.user.name, event.title, event.emoji)

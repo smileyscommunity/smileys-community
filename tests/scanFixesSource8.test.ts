@@ -19,7 +19,9 @@ describe('33 search and discovery', () => {
 describe('34 partner images', () => {
   it('must be uploads (an external URL is a tracking pixel on /perks)', () => {
     const src = read('app/api/partner/route.ts')
-    expect(src).toMatch(/v && !isUploadedImageUrl\(v\)\)\) return NextResponse\.json\(\{ error: `\$\{key\} must be an image uploaded through Smileys`/)
+    expect(src).toMatch(/if \(v && !isUploadedImageUrl\(v\)\) return NextResponse\.json\(\{ error: `\$\{key\} must be an image uploaded through Smileys`/)
+    // …but a value the settings page merely echoed back is not re-validated.
+    expect(src).toMatch(/if \(\(v \|\| null\) === \(current\?\.\[key\] \|\| null\)\) continue/)
   })
 })
 

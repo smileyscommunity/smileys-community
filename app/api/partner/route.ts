@@ -53,13 +53,17 @@ export async function PATCH(req: NextRequest) {
     if (v && !handle) return NextResponse.json({ error: 'Invalid Instagram handle' }, { status: 400 })
     data.instagram = handle
   }
+  // The settings page PATCHes the whole record it loaded, so an admin-set
+  // external logo comes back on every save. Only a CHANGED value is held to
+  // the uploads-only rule (/perks renders these as <img> to every member and
+  // CSP allows any https image, so a new external URL is a tracking pixel).
+  const current = await prisma.partner.findUnique({ where: { id: session.partnerId }, select: { logo: true, coverImage: true } })
   for (const key of ['logo', 'coverImage'] as const) {
     if (!(key in body)) continue
     const v = str(body[key], 300)
-    // Uploads only: /perks renders these as <img> to every member and CSP
-    // allows any https image, so an external URL is a per-member tracking
-    // pixel. An admin-set external logo is left alone when not resent.
-    if (v === undefined || (v && !isUploadedImageUrl(v))) return NextResponse.json({ error: `${key} must be an image uploaded through Smileys` }, { status: 400 })
+    if (v === undefined) return NextResponse.json({ error: `${key} must be text` }, { status: 400 })
+    if ((v || null) === (current?.[key] || null)) continue
+    if (v && !isUploadedImageUrl(v)) return NextResponse.json({ error: `${key} must be an image uploaded through Smileys` }, { status: 400 })
     data[key] = v || null
   }
 

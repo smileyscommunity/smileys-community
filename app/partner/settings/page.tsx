@@ -43,7 +43,8 @@ export default function PartnerSettings() {
       if (res.ok) {
         toast.success('Business information updated')
       } else {
-        toast.error('Failed to update information')
+        const d = await res.json().catch(() => ({}))
+        toast.error(d?.error ?? 'Failed to update information')
       }
     } catch {
       toast.error('Network error')

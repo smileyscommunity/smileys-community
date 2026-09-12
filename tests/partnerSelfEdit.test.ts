@@ -1,7 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/session', () => ({ getSession: vi.fn() }))
-vi.mock('@/lib/prisma', () => ({ prisma: { partner: { update: vi.fn(async ({ data }: any) => ({ id: 'p1', ...data })) } } }))
+vi.mock('@/lib/prisma', () => ({ prisma: { partner: {
+  update: vi.fn(async ({ data }: any) => ({ id: 'p1', ...data })),
+  // The stored row: an admin-set external logo, no cover.
+  findUnique: vi.fn(async () => ({ logo: 'https://cdn.example/logo.png', coverImage: null })),
+} } }))
 
 import { PATCH } from '@/app/api/partner/route'
 import { getSession } from '@/lib/session'
@@ -27,8 +31,15 @@ describe('PATCH /api/partner', () => {
   })
   it('accepts only images uploaded through Smileys (an external URL is a tracking pixel on /perks)', async () => {
     expect((await PATCH(req({ logo: 'data:text/html,x' }))).status).toBe(400)
-    expect((await PATCH(req({ logo: 'https://cdn.example/logo.png' }))).status).toBe(400)
+    expect((await PATCH(req({ logo: 'https://other.example/new.png' }))).status).toBe(400)
     expect((await PATCH(req({ coverImage: '/app/api/files/general/abc.jpg' }))).status).toBe(200)
+  })
+  it('does not re-validate an image the settings page merely echoed back unchanged', async () => {
+    // The page PATCHes the whole record it loaded; an admin-set external
+    // logo came back on every save and every save failed.
+    const res = await PATCH(req({ logo: 'https://cdn.example/logo.png', discount: '15%' }))
+    expect(res.status).toBe(200)
+    expect(p.partner.update.mock.calls[0][0].data).toEqual({ discount: '15%' })
   })
   it('rejects non-string fields instead of throwing', async () => {
     const res = await PATCH(req({ name: { $set: 'x' } }))
