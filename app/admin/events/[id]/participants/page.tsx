@@ -711,8 +711,13 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
             {approved.length > 0 && (
               <button
                 onClick={() => {
-                  const headers = ['Name', 'Email', 'Status', 'Checked In', ...(trackPayments ? ['Paid'] : [])]
-                  const rows = approved.map(a => [a.user.name, a.user.email, a.status, a.checkedIn ? 'Yes' : 'No',
+                  // Contact details only reach admins and the primary host (the
+                  // participants GET strips them for co-hosts, club hosts and
+                  // moderators); the column goes with them instead of filling
+                  // with "undefined".
+                  const withEmail = approved.some(a => !!a.user.email)
+                  const headers = ['Name', ...(withEmail ? ['Email'] : []), 'Status', 'Checked In', ...(trackPayments ? ['Paid'] : [])]
+                  const rows = approved.map(a => [a.user.name, ...(withEmail ? [a.user.email ?? ''] : []), a.status, a.checkedIn ? 'Yes' : 'No',
                     ...(trackPayments ? [payments[a.userId]?.status === 'paid' ? 'Yes' : 'No'] : [])])
                   const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
                   const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([csv], { type: 'text/csv' })), download: `${event?.title ?? 'event'}-attendees.csv` })

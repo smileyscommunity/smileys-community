@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getClubBySlug, getEventsByClub, redactEventForGuest } from '@/lib/db'
+import { getClubBySlug, getEventsByClub, redactEventForGuest, projectEventsForMember } from '@/lib/db'
 import { getSession } from '@/lib/session'
 
 export async function GET(_: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
@@ -11,7 +11,7 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ slug: 
   // no street address/GPS, no chat/meeting links, no attendee identities —
   // and the club's own WhatsApp invite link is withheld with them.
   const session = await getSession()
-  if (session) return NextResponse.json({ club, events })
+  if (session) return NextResponse.json({ club, events: await projectEventsForMember(events, session) })
   return NextResponse.json({
     club: { ...club, whatsappUrl: null },
     events: events.map(redactEventForGuest),

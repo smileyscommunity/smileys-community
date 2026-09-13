@@ -6,6 +6,7 @@ import { sendReconfirmEmail, sendSpotReleasedEmail, recordEmailFailure } from '@
 import { eventStartsAt } from '@/lib/eventTime'
 import { dayInTz, DEFAULT_TZ } from '@/lib/cityTime'
 import { announceSpotOpened } from '@/lib/spotOpened'
+import { countSeatableFromWaitlist, quotaEventSelect } from '@/lib/eventQuota'
 import { reconfirmUrl } from '@/lib/reconfirmToken'
 import {
   noShowPolicyApplies, RECONFIRM_ASK_HOURS_BEFORE, RECONFIRM_RELEASE_HOURS_BEFORE, RECONFIRM_MIN_LEAD_HOURS,
@@ -117,9 +118,13 @@ export async function releaseEvent(event: {
   // "someone is waiting" is not "no seat is free". Seats already open
   // cover that many of the waiting; only the rest justify releasing a
   // silent member — who used to be evicted while a seat sat empty.
-  const row  = await prisma.event.findUnique({ where: { id: event.id }, select: { totalSpots: true } })
+  const row  = await prisma.event.findUnique({ where: { id: event.id }, select: quotaEventSelect })
   const free = row ? Math.max(0, await expectedSpotsLeft(event.id, row.totalSpots)) : 0
-  const needed = waiting - free
+  // On a gender-balanced event an open seat only covers a waiter who could
+  // take it: a free women's seat doesn't get a waiting man in, so it must not
+  // spare the silent seat he needs (lib/eventQuota countSeatableFromWaitlist).
+  const covered = row?.genderBalance ? await countSeatableFromWaitlist(event.id, row, free) : Math.min(free, waiting)
+  const needed = waiting - covered
   if (needed <= 0) return 0
   const staff = await staffIds(event.id, event.hostId)
   const rows = await prisma.eventAttendee.findMany({

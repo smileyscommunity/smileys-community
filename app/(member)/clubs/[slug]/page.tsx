@@ -6,7 +6,7 @@ import { CLUB_FILTER_GROUPS, HEALTH_RANK } from '@/lib/clubDiscovery'
 import Link from 'next/link'
 import Image from 'next/image'
 import type { Metadata } from 'next'
-import { getClubBySlug, getEventsByClub, redactEventForGuest } from '@/lib/db'
+import { getClubBySlug, getEventsByClub, redactEventForGuest, projectEventsForMember } from '@/lib/db'
 import RichText from '@/components/RichText'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
@@ -146,6 +146,8 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
   const communityWa = communityWhatsappUrl(communitySettings.whatsapp)
 
   const session = await getSession()
+  // Private event details only for events the viewer is on (lib/db projectEventsForMember).
+  const visibleClubEvents = session ? await projectEventsForMember(clubEvents, session) : clubEvents.map(redactEventForGuest)
   let membershipStatus: 'approved' | 'pending' | null = null
   let isClubHost = false
   if (session) {
@@ -445,7 +447,7 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
 
             <ClubTabs
               slug={club.slug}
-              clubEvents={session ? clubEvents : clubEvents.map(redactEventForGuest)}
+              clubEvents={visibleClubEvents}
               canPost={canPost}
               currentUserId={session?.id}
               isAdmin={isPrivileged}

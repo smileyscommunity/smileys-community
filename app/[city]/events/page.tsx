@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { getSession } from '@/lib/session'
-import { redactEventForGuest } from '@/lib/db'
+import { redactEventForGuest, projectEventsForMember } from '@/lib/db'
 import { getPublicCity } from '@/lib/cities'
 import { CITY_STATUS } from '@/lib/cityStatus'
 import { APP_URL, SITE_URL } from '@/lib/env'
@@ -53,7 +53,7 @@ export default async function CityEventsPage({ params }: Params) {
   // Guest redaction is per-request, outside the shared cache — same rule as
   // the city page and GET /api/events.
   const session = await getSession()
-  const events  = arrangeEvents(session ? cached : cached.map(redactEventForGuest))
+  const events  = arrangeEvents(session ? await projectEventsForMember(cached, session) : cached.map(redactEventForGuest))
   const enter   = enterLinkFor(city.slug)
   const isDefault = isDefaultCitySlug(city.slug)
 

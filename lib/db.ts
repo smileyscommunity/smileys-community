@@ -211,6 +211,35 @@ export function redactEventForGuest(event: Event): Event {
   }
 }
 
+/**
+ * What a signed-in member gets in an event list. The venue address and GPS,
+ * the chat and meeting links and the payment contact are the payoff of being
+ * on the event, so only admins and moderators, the host, a co-host or an
+ * approved attendee get them — the rule GET /api/events/[id] already applied
+ * to one event. The list endpoints and pages handed every member the full
+ * object, so one bulk fetch revealed what the single-event API withholds.
+ * Attendee previews stay: members see who's going everywhere else too.
+ */
+export async function projectEventsForMember<T extends Event>(events: T[], viewer: { id: string; role?: string | null }): Promise<T[]> {
+  // Admins and moderators see everything, as in GET /api/events/[id].
+  if (events.length === 0 || viewer.role === 'admin' || viewer.role === 'moderator') return events
+  const ids = events.map(e => e.id)
+  const [seats, cohosts] = await Promise.all([
+    prisma.eventAttendee.findMany({ where: { userId: viewer.id, eventId: { in: ids }, status: 'approved' }, select: { eventId: true } }),
+    prisma.eventCoHost.findMany({ where: { userId: viewer.id, eventId: { in: ids } }, select: { eventId: true } }),
+  ])
+  const inside = new Set([...seats, ...cohosts].map(r => r.eventId))
+  return events.map(e => (e.hostId === viewer.id || inside.has(e.id)) ? e : {
+    ...e,
+    address:        undefined,
+    lat:            null,
+    lng:            null,
+    meetingUrl:     undefined,
+    whatsappUrl:    undefined,
+    paymentContact: undefined,
+  })
+}
+
 export async function getEvents(options?: {
   limit?: number
   offset?: number

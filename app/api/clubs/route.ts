@@ -67,6 +67,9 @@ const getDiscoveryClubs = unstable_cache(
           FROM club_memberships cm
           JOIN users u ON u.id = cm."userId"
           WHERE cm.status = 'approved' AND u.status = 'approved' AND u."cityId" = ${cityId}
+            -- One cached grid serves members and guests alike, so a face is
+            -- only ever drawn from members who show their profile to everyone.
+            AND u."hiddenFromMembers" = false AND u."profileVisibility" <> 'connections'
         ) x
         WHERE x.rn <= 4
       `,
@@ -114,5 +117,11 @@ export async function GET(req: NextRequest) {
   // projection is applied after retrieval: the club's WhatsApp invite
   // link is the payoff of joining — withheld from logged-out viewers,
   // matching /api/clubs/[slug].
-  return NextResponse.json(session ? clubs : clubs.map(c => ({ ...c, whatsappUrl: null })))
+  // Guests get the faces as coloured initials: that a club has people in it
+  // is public, who they are is for members.
+  return NextResponse.json(session ? clubs : clubs.map(c => ({
+    ...c,
+    whatsappUrl: null,
+    faces: c.faces.map(f => ({ name: f.name.trim().charAt(0), color: f.color, profilePhoto: null })),
+  })))
 }

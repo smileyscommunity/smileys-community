@@ -155,3 +155,65 @@ export async function findPromotableFromWaitlist(
   }
   return null
 }
+
+/**
+ * How many of the waiting could take `free` open seats right now, first come,
+ * each seat counted against the side of the split it uses up.
+ *
+ * The reconfirm sweep used to treat every open seat as covering one waiter.
+ * On a gender-balanced event that is wrong whenever the open seat is on the
+ * other side: one free women's seat and one man waiting read as "covered", so
+ * a silent man kept the seat the waiting man needed and he never got in.
+ * Unlike hasQuotaRoomFor this is cumulative — two women waiting for the last
+ * women's seat cover one seat, not two. A member whose RSVPs are paused can't
+ * claim a seat, so they cover none (same rule as findPromotableFromWaitlist).
+ */
+export async function countSeatableFromWaitlist(eventId: string, event: QuotaEvent, free: number): Promise<number> {
+  if (free <= 0) return 0
+  const queue = await prisma.waitlistEntry.findMany({
+    where:   { eventId },
+    orderBy: { createdAt: 'asc' },
+    select:  { userId: true },
+  })
+  if (queue.length === 0) return 0
+  const users = await prisma.user.findMany({
+    where:  { id: { in: queue.map(q => q.userId) } },
+    select: { id: true, gender: true, nationality: true },
+  })
+  const byId = new Map(users.map(u => [u.id, u]))
+
+  let maleRoom = Infinity, femaleRoom = Infinity, turkishMaleRoom = Infinity
+  if (event.genderBalance) {
+    const [males, females, turkishMales] = await Promise.all([
+      prisma.eventAttendee.count({ where: { eventId, status: 'approved', user: { gender: { in: MALE_VARIANTS } } } }),
+      prisma.eventAttendee.count({ where: { eventId, status: 'approved', user: { gender: { in: FEMALE_VARIANTS } } } }),
+      event.turkishMaleQuota != null
+        ? prisma.eventAttendee.count({ where: { eventId, status: 'approved', user: { gender: { in: MALE_VARIANTS }, nationality: { in: TURKEY_VARIANTS } } } })
+        : Promise.resolve(0),
+    ])
+    maleRoom        = (event.maleQuota   ?? Math.floor(event.totalSpots / 2)) - males
+    femaleRoom      = (event.femaleQuota ?? Math.floor(event.totalSpots / 2)) - females
+    turkishMaleRoom = event.turkishMaleQuota != null ? event.turkishMaleQuota - turkishMales : Infinity
+  }
+
+  let seated = 0
+  for (const entry of queue) {
+    if (seated >= free) break
+    const user = byId.get(entry.userId)
+    if (!user) continue
+    const gate = await getRsvpGate(entry.userId)
+    if (!gate.ok && gate.code === 'red_card_blocked') continue
+    const gender    = (user.gender ?? '').trim().toLowerCase()
+    const trNational = TURKEY_VARIANTS.some(v => v.toLowerCase() === (user.nationality ?? '').trim().toLowerCase())
+    if (gender === 'male') {
+      if (maleRoom <= 0 || (trNational && turkishMaleRoom <= 0)) continue
+      maleRoom--
+      if (trNational) turkishMaleRoom--
+    } else if (gender === 'female') {
+      if (femaleRoom <= 0) continue
+      femaleRoom--
+    }
+    seated++
+  }
+  return seated
+}

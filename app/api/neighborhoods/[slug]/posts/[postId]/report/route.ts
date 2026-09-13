@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { rateLimit, claimOnce } from '@/lib/rateLimit'
+import { rateLimit, claimOnce, releaseClaim } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
 
 // Mirrors the board post report route: same Report table, same reasons,
@@ -57,6 +57,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
         details: typeof details === 'string' ? details.trim() || null : null,
       },
     })
+      // The claim was taken before this write; hand it back if the write fails,
+      // or a retry is refused as a duplicate of a report that doesn't exist.
+      .catch(async (e: unknown) => { await releaseClaim(`report-wall:${session.id}:${postId}`); throw e })
 
     const staff = await prisma.user.findMany({
       where:  { role: { in: ['admin', 'moderator'] } },

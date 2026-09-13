@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getEvents, redactEventForGuest } from '@/lib/db'
+import { getEvents, redactEventForGuest, projectEventsForMember } from '@/lib/db'
 import { getSession } from '@/lib/session'
 import { resolveCityId, describeCity, type ResolvedCityInfo } from '@/lib/city'
 import { rateLimit, getIp } from '@/lib/rateLimit'
@@ -51,7 +51,8 @@ export async function GET(req: NextRequest) {
   const { events, total } = await getEvents({ limit, offset, upcoming, cityId })
   // Logged-out viewers get the public teaser: no exact address/GPS, no
   // chat/meeting links, no attendee identities (the "X going" count stays).
-  const projected = session ? events : events.map(redactEventForGuest)
+  // Members get private details only for events they're on (lib/db projectEventsForMember).
+  const projected = session ? await projectEventsForMember(events, session) : events.map(redactEventForGuest)
 
   // The resolved city rides along so the page header can name the city this
   // calendar belongs to — the view-city cookie makes it vary per viewer —

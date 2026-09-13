@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { rateLimit, getIp, claimOnce } from '@/lib/rateLimit'
+import { rateLimit, getIp, claimOnce, releaseClaim } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
 
 export async function POST(req: NextRequest) {
@@ -69,6 +69,9 @@ export async function POST(req: NextRequest) {
     const report = await prisma.report.create({
       data: { reporterId: session.id, reportedId, reason, details: details || null, screenshot: safeScreenshot, eventId: eventId || null },
     })
+      // The claim was taken before this write; hand it back if the write fails,
+      // or a retry is refused as a duplicate of a report that doesn't exist.
+      .catch(async (e: unknown) => { await releaseClaim(`report:${session.id}:${reportedId}`); throw e })
 
     const reasonLabel = reason.replace(/_/g, ' ')
     const staff = await prisma.user.findMany({ where: { role: { in: ['admin', 'moderator'] } }, select: { id: true } })

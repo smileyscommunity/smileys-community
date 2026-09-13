@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { getSession } from '@/lib/session'
-import { redactEventForGuest } from '@/lib/db'
+import { redactEventForGuest, projectEventsForMember } from '@/lib/db'
 import CityPageTracker from '@/components/CityPageTracker'
 import { eventWindowFor } from '@/lib/data'
 import { getPublicCity, DEFAULT_CITY_SLUG } from '@/lib/cities'
@@ -56,7 +56,7 @@ export default async function CityPage({ params }: Params) {
   // a session-dependent branch must never write into unstable_cache. Same
   // projection as GET /api/events.
   const session = await getSession()
-  const events  = session ? cachedEvents : cachedEvents.map(redactEventForGuest)
+  const events  = session ? await projectEventsForMember(cachedEvents, session) : cachedEvents.map(redactEventForGuest)
 
   const [{ visitors, visitorTotal }, { topNeighborhoods, neighborhoodsHaveEvents }] = await Promise.all([
     getVisitors(city, !!session),

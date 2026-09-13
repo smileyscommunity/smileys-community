@@ -428,7 +428,12 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
       : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([event.location, event.neighborhood, cityName].filter(Boolean).join(', '))}`)
 
   const fillPercent = event.totalSpots > 0 ? (totalAttendeeCount / event.totalSpots) * 100 : 0
-  const canSeeLocation = true
+  // The venue address and map, the chat and meeting links and the payment
+  // contact are what being on the event unlocks — the same people
+  // GET /api/events/[id] hands the full event to. This was hardcoded to true,
+  // so a pending or rejected requester, or a non-member of a private club,
+  // got every one of them.
+  const canSeeLocation = canSeeInside
   // Club chat fallback: when the event has no WhatsApp link of its own, offer
   // the club's group link — but only to viewers the club page would already
   // give it to (approved club members), or approved attendees of a public
@@ -498,7 +503,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
 
   // Build JSON-LD Event schema
   const eventUrl = `${APP_URL}/events/${id}`
-  const jsonLd = buildEventJsonLd(event, eventUrl, eventTz, cityName, cityCountry)
+  const jsonLd = buildEventJsonLd(canSeeLocation ? event : redactEventForGuest(event), eventUrl, eventTz, cityName, cityCountry, !!event.meetingUrl)
 
   return (
     <div className="min-h-screen bg-warm pb-36 md:pb-28 lg:pb-10">
@@ -579,7 +584,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
 
           {/* Title + Meta */}
           <div>
-            <EventBadges event={event} variant="outline" layout="row" className="mb-3" />
+            <EventBadges event={canSeeLocation ? event : redactEventForGuest(event)} variant="outline" layout="row" className="mb-3" />
             <div className="flex items-center gap-3 flex-wrap mb-4">
               <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">
                 {event.title}
@@ -610,7 +615,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                     {/* Advance payment is arranged over WhatsApp — a direct
                         contact when the event has one, else the group link
                         already shown to members further down the page. */}
-                    {event.payTo === 'smileys' && (event.paymentContact || event.whatsappUrl) && (
+                    {canSeeLocation && event.payTo === 'smileys' && (event.paymentContact || event.whatsappUrl) && (
                       <a
                         href={event.paymentContact
                           ? `${event.paymentContact}?text=${encodeURIComponent(`Hi! I'd like to arrange payment for "${event.title}" (${formatDate(event.date)}) 😊`)}`

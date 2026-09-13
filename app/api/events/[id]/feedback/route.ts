@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { createNotification } from '@/lib/notify'
-import { rateLimit, claimOnce } from '@/lib/rateLimit'
+import { rateLimit, claimOnce, releaseClaim } from '@/lib/rateLimit'
 import { eventEndsAt } from '@/lib/eventTime'
 import { DEFAULT_TZ } from '@/lib/cityTime'
 
@@ -224,7 +224,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   // moderator again. The claim outlives the 7-day feedback window.
   if (body.anomaly && event.hostId && event.hostId !== session.id
       && await claimOnce(`survey-anomaly:${session.id}:${event.id}`, 30 * 24 * 60 * 60 * 1000)) {
-    await prisma.report.create({
+    const filed = await prisma.report.create({
       data: {
         reporterId: session.id,
         reportedId: event.hostId,
@@ -237,12 +237,19 @@ export async function POST(req: NextRequest, { params }: Params) {
         // honest after moderation).
         surveyId:   survey.id,
       },
+    }).then(() => true, async (e: unknown) => {
+      // The survey answer is already saved. Hand the claim back so the next
+      // submit files the report — it used to be silenced for 30 days — and
+      // don't push moderators about a report that doesn't exist.
+      await releaseClaim(`survey-anomaly:${session.id}:${event.id}`)
+      console.error('[feedback] anomaly report failed', { eventId: event.id, err: String(e) })
+      return false
     })
 
     // Push the moderators so a serious anomaly doesn't sit in a queue
     // unnoticed. Best-effort — failure must not block the survey
     // response from being recorded.
-    prisma.user.findMany({
+    if (filed) prisma.user.findMany({
       where:  { role: { in: ['admin', 'moderator'] } },
       select: { id: true },
     }).then(mods => Promise.all(mods.map(m =>
