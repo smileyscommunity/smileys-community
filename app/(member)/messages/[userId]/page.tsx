@@ -12,8 +12,11 @@ interface Reaction { userId: string; emoji: string }
 
 interface ReplySnippet {
   id: string
-  text: string
+  // Null (with deleted: true) when the quoted message was deleted — the API
+  // withholds its content, so the chip must not fall back to "📷 Photo".
+  text: string | null
   imageUrl: string | null
+  deleted?: boolean
   from: { id: string; name: string }
 }
 
@@ -341,9 +344,13 @@ export default function ThreadPage({ params }: { params: Promise<{ userId: strin
                           <p className={`font-semibold mb-0.5 ${isMe ? 'text-amber-50' : 'text-amber-700'}`}>
                             {msg.replyTo.from.id === me?.id ? 'You' : msg.replyTo.from.name}
                           </p>
-                          <p className="truncate">
-                            {msg.replyTo.imageUrl && !msg.replyTo.text ? '📷 Photo' : (msg.replyTo.text || '📷 Photo')}
-                          </p>
+                          {msg.replyTo.deleted ? (
+                            <p className="truncate italic opacity-80">Message deleted</p>
+                          ) : (
+                            <p className="truncate">
+                              {msg.replyTo.imageUrl && !msg.replyTo.text ? '📷 Photo' : (msg.replyTo.text || '📷 Photo')}
+                            </p>
+                          )}
                         </div>
                       )}
 

@@ -23,6 +23,7 @@ interface Post {
 }
 interface Reply { id: string; body: string; parentId: string | null; createdAt: string; user: PostUser }
 interface Visitor { id: string; name: string; fromCity: string | null; startsOn: string; neighborhood: string | null }
+interface ShownCity { name: string; slug: string; timezone: string }
 interface FeedHangout { id: string; title: string; neighborhood: string | null; location: string; startsAt: string; joinCount: number; host: string }
 
 const TYPE_META = Object.fromEntries(BOARD_POST_TYPES.map(t => [t.value, t]))
@@ -53,9 +54,9 @@ function fmtHangoutTime(iso: string, tz: string) {
 // Active hangouts rendered as the feed's "plan" cards. Hangouts are the
 // system of record for informal plans (times, joins, group chat) — the
 // Board surfaces them instead of running a competing plan type.
-function HangoutsModule({ hangouts }: { hangouts: FeedHangout[] }) {
-  // Hangout times belong to the city the plan is in, not the reader's laptop.
-  const tz = useCurrentCity()?.timezone ?? DEFAULT_TZ
+function HangoutsModule({ hangouts, tz }: { hangouts: FeedHangout[]; tz: string }) {
+  // Hangout times belong to the city the plan is in, not the reader's laptop —
+  // passed in as the city on screen (a ?city= pin, not the cookie city).
   if (hangouts.length === 0) return null
   return (
     <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5">
@@ -83,10 +84,11 @@ function HangoutsModule({ hangouts }: { hangouts: FeedHangout[] }) {
   )
 }
 
-function VisitorsModule({ visitors }: { visitors: Visitor[] }) {
+function VisitorsModule({ visitors, cityName }: { visitors: Visitor[]; cityName: string }) {
   // Visitors are announced for the city being viewed, so the heading has to
-  // name that city — it read "Coming to Istanbul" on every city's board.
-  const cityName = useCurrentCity()?.name ?? ''
+  // name that city — it read "Coming to Istanbul" on every city's board. The
+  // name comes from the feed (the ?city= pin when there is one): the cookie
+  // city's name headed another city's visitors.
   if (visitors.length === 0) return null
   return (
     <div className="bg-sky-50 border border-sky-100 rounded-2xl p-5">
@@ -109,11 +111,15 @@ function VisitorsModule({ visitors }: { visitors: Visitor[] }) {
 }
 
 // ── Composer ────────────────────────────────────────────────────────────────
-function Composer({ onPosted, prefillNeighborhood }: { onPosted: () => void; prefillNeighborhood?: string | null }) {
+function Composer({ onPosted, prefillNeighborhood, shownCity }: { onPosted: () => void; prefillNeighborhood?: string | null; shownCity: ShownCity | null }) {
   const { user, isLoggedIn } = useAuth()
-  const neighborhoods = useCityNeighborhoods()
-  // The city this post will file to — empty until /api/city/current answers.
-  const cityName = useCurrentCity()?.name ?? ''
+  // The city this post will file to — the POSTING city (api/board POST uses
+  // resolvePostingCityId: the browsed city only if you belong to it), not the
+  // city on screen. Absent until /api/city/current answers. The neighborhood
+  // list follows it too: the server validates against the posting city, so a
+  // list from the browsed city offered names that were silently dropped.
+  const postingCity = useCurrentCity()?.posting
+  const neighborhoods = useCityNeighborhoods(postingCity?.slug)
   const [open,         setOpen]         = useState(false)
   // "Post to a club" (Clubs brief §30) — joined clubs, fetched lazily on
   // first open; the post stays canonical here and also surfaces in the club.
@@ -193,7 +199,14 @@ function Composer({ onPosted, prefillNeighborhood }: { onPosted: () => void; pre
         hasClub: !!postClub,
         fromPrefill: !!prefillNeighborhood,
       })
-      toast.success('Posted!')
+      // A post filed somewhere other than the board on screen won't appear in
+      // the reload below — say where it went rather than let it vanish. Club
+      // posts file to the club's city, so they're left out.
+      if (!postClub && postingCity && shownCity && postingCity.slug !== shownCity.slug) {
+        toast.success(`Posted to ${postingCity.name}'s board — you're viewing ${shownCity.name}, so it won't show here`)
+      } else {
+        toast.success('Posted!')
+      }
       setTitle(''); setBody(''); setTag(''); setPostClub(''); setOpen(false)
       onPosted()
     } finally {
@@ -267,15 +280,14 @@ function Composer({ onPosted, prefillNeighborhood }: { onPosted: () => void; pre
               </select>
             )}
             <div className="ml-auto flex items-center gap-2">
-              {/* Which board this lands on. A board post files to the city
-                  you're VIEWING (api/board POST resolves the view city), which
-                  is not the same rule listings use — those follow membership.
-                  Either way the composer named no city at all, so someone who
-                  had switched cities was posting somewhere they couldn't see.
+              {/* Which board this lands on: the POSTING city, which follows
+                  membership like listings do, so browsing a city you haven't
+                  joined files the post back home. Visible on phones too — it
+                  was sm:-only, so phone users never saw where a post went.
                   Empty until /api/city/current answers, never a guessed name. */}
-              {cityName && !postClub && (
-                <span className="hidden sm:inline text-xs text-gray-500 mr-1">
-                  Posting to <span className="font-semibold text-gray-700">{cityName}</span>
+              {postingCity && !postClub && (
+                <span className="text-xs text-gray-500 mr-1">
+                  Posting to <span className="font-semibold text-gray-700">{postingCity.name}</span>
                 </span>
               )}
               <button onClick={() => setOpen(false)}
@@ -561,29 +573,60 @@ export default function BoardFeed() {
   const [visitors, setVisitors] = useState<Visitor[]>([])
   const [hangouts, setHangouts] = useState<FeedHangout[]>([])
 
+  const searchParams = useSearchParams()
+  // ?city=<slug>: the /board server page pins the city in the URL so the
+  // address bar is a shareable link (lib/cityPageParam); the feed has to ask
+  // for that city's posts or the page would name one city and list another.
+  // EVERY read below carries it — the plans and visitors modules used to
+  // fetch the cookie city, mixing two cities on one board.
+  const pinnedCity = searchParams.get('city') ?? ''
+  const cityQs = pinnedCity ? `?city=${encodeURIComponent(pinnedCity)}` : ''
+
+  // The city on screen, for module headings, plan times and "where did my
+  // post go". The cookie city unless ?city= pins another; /api/city/current
+  // honours the same pin (and falls back the same way on an unknown slug).
+  const currentCity = useCurrentCity()
+  const [pinnedInfo, setPinnedInfo] = useState<ShownCity | null>(null)
+  useEffect(() => {
+    if (!pinnedCity) { setPinnedInfo(null); return }
+    let cancelled = false
+    fetch(`/app/api/city/current${cityQs}`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (!cancelled && d?.name) setPinnedInfo({ name: d.name, slug: d.slug, timezone: d.timezone || DEFAULT_TZ }) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [pinnedCity, cityQs])
+  const shownCity: ShownCity | null = pinnedCity
+    ? (pinnedInfo ?? (currentCity?.slug === pinnedCity ? currentCity : null))
+    : currentCity
+
   // Members only — /api/hangouts is member-gated, so guests skip the fetch
   // rather than collecting a 401 in the console.
   useEffect(() => {
     if (!viewerIsMember) return
-    fetch('/app/api/hangouts', { credentials: 'include' })
+    let cancelled = false
+    fetch(`/app/api/hangouts${cityQs}`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : { hangouts: [] })
-      .then(d => setHangouts((d.hangouts ?? []).slice(0, 3).map((h: { id: string; title: string; neighborhood: string | null; location: string; startsAt: string; joins?: unknown[]; user?: { name?: string } }) => ({
+      .then(d => { if (!cancelled) setHangouts((d.hangouts ?? []).slice(0, 3).map((h: { id: string; title: string; neighborhood: string | null; location: string; startsAt: string; joins?: unknown[]; user?: { name?: string } }) => ({
         id: h.id, title: h.title, neighborhood: h.neighborhood, location: h.location,
         startsAt: h.startsAt, joinCount: h.joins?.length ?? 0, host: firstNameOf(h.user?.name) || 'A Smiley',
-      }))))
+      }))) })
       .catch(() => {})
-  }, [viewerIsMember])
+    return () => { cancelled = true }
+  }, [viewerIsMember, cityQs])
 
-  // Visiting Istanbul module — same records as /visiting (the API already
-  // handles member-only visibility and contact redaction). Fetched once;
-  // the module renders only when there are real upcoming visitors.
+  // Visiting module — same records as /visiting (the API already handles
+  // member-only visibility and contact redaction), for the city on screen.
+  // The module renders only when there are real upcoming visitors.
   useEffect(() => {
-    fetch('/app/api/visitors', { credentials: 'include' })
+    let cancelled = false
+    fetch(`/app/api/visitors${cityQs}`, { credentials: 'include' })
       .then(r => r.json())
-      .then(d => setVisitors((d.announcements ?? []).slice(0, 3).map((a: { id: string; name: string; fromCity: string | null; startsOn: string; neighborhood: string | null }) =>
-        ({ id: a.id, name: a.name, fromCity: a.fromCity, startsOn: a.startsOn, neighborhood: a.neighborhood }))))
+      .then(d => { if (!cancelled) setVisitors((d.announcements ?? []).slice(0, 3).map((a: { id: string; name: string; fromCity: string | null; startsOn: string; neighborhood: string | null }) =>
+        ({ id: a.id, name: a.name, fromCity: a.fromCity, startsOn: a.startsOn, neighborhood: a.neighborhood }))) })
       .catch(() => {})
-  }, [])
+    return () => { cancelled = true }
+  }, [cityQs])
 
   // Deep-link intake — /board?post=<id> (reply notifications, neighborhood
   // pages) opens that post; ?neighborhood=<name> pre-filters the feed the
@@ -593,11 +636,6 @@ export default function BoardFeed() {
   // clicking a reply notification while already on /board. Params are only
   // ever *applied*, never cleared, so BoardHub's own URL-sync stripping
   // the query moments later is harmless.
-  const searchParams = useSearchParams()
-  // ?city=<slug>: the /board server page pins the city in the URL so the
-  // address bar is a shareable link (lib/cityPageParam); the feed has to ask
-  // for that city's posts or the page would name one city and list another.
-  const pinnedCity = searchParams.get('city') ?? ''
   useEffect(() => {
     const post = searchParams.get('post')
     if (post) setDeepPost(post)
@@ -607,30 +645,63 @@ export default function BoardFeed() {
     if (searchParams.get('compose') === '1') setComposeHood(n ?? '')
   }, [searchParams])
 
-  const load = useCallback(async (type: string, offset: number, append: boolean) => {
+  // Offset of the next server page, counting only real page items. posts
+  // .length was wrong twice over: a deep-linked post prepended to page 1 made
+  // it 16 (skipping a real post on "Load more"), and a later page that
+  // carried that same post again is deduped out of posts.
+  const nextOffset = useRef(0)
+  // The post the API prepended, if any — not part of any page's count.
+  const prependedId = useRef<string | null>(null)
+  // Overlapping fetches (a filter tap while the first load is in flight, a
+  // neighborhood cleared mid-load): a slower earlier response landed last
+  // and replaced the newer list. Same loadSeq pattern as BoardHub — a fresh
+  // load bumps it, an append captures it, and stale results are dropped.
+  const loadSeq = useRef(0)
+
+  const load = useCallback(async (type: string, append: boolean) => {
+    const seq = append ? loadSeq.current : ++loadSeq.current
+    const isCurrent = () => seq === loadSeq.current
+    const offset = append ? nextOffset.current : 0
     setLoading(true)
     try {
       const params = new URLSearchParams()
       if (type) params.set('type', type)
       if (offset) params.set('offset', String(offset))
       if (hood) params.set('neighborhood', hood)
-      if (deepPost && !offset) params.set('post', deepPost)
+      if (deepPost && !append) params.set('post', deepPost)
       if (pinnedCity) params.set('city', pinnedCity)
       const res = await fetch(`/app/api/board?${params}`, { credentials: 'include' })
       const data = await res.json().catch(() => ({ posts: [] }))
+      if (!isCurrent()) return
       const next: Post[] = data.posts ?? []
-      setPosts(prev => append ? [...prev, ...next] : next)
-      setHasMore(next.length === 15)
+      const prepended = !append && typeof data.prependedPostId === 'string' ? data.prependedPostId : null
+      if (!append) prependedId.current = prepended
+      const pageLength = next.length - (prepended ? 1 : 0)
+      nextOffset.current = offset + pageLength
+      setPosts(prev => {
+        if (!append) return next
+        // Never render the deep-linked post twice when its real page arrives.
+        const seen = new Set(prev.map(p => p.id))
+        return [...prev, ...next.filter(p => !seen.has(p.id))]
+      })
+      setHasMore(pageLength >= 15)
     } finally {
-      setLoading(false)
+      if (isCurrent()) setLoading(false)
     }
   }, [hood, deepPost, pinnedCity])
 
-  useEffect(() => { load(filter, 0, false) }, [filter, load])
+  useEffect(() => { load(filter, false) }, [filter, load])
+
+  // A deleted post is gone server-side too, so the next page starts one
+  // earlier — unless it was the prepended post, which no page counted.
+  const removePost = useCallback((id: string) => {
+    setPosts(prev => prev.filter(x => x.id !== id))
+    if (id !== prependedId.current) nextOffset.current = Math.max(0, nextOffset.current - 1)
+  }, [])
 
   return (
     <div className="max-w-2xl">
-      <Composer onPosted={() => load(filter, 0, false)} prefillNeighborhood={composeHood} />
+      <Composer onPosted={() => load(filter, false)} prefillNeighborhood={composeHood} shownCity={shownCity} />
 
       <div className="flex flex-wrap gap-1.5 pb-3">
         {FEED_CHIPS.map(c => (
@@ -673,22 +744,22 @@ export default function BoardFeed() {
             </p>
           </div>
           <div className="mt-4 space-y-4">
-            <HangoutsModule hangouts={hangouts} />
-            <VisitorsModule visitors={visitors} />
+            <HangoutsModule hangouts={hangouts} tz={shownCity?.timezone ?? DEFAULT_TZ} />
+            <VisitorsModule visitors={visitors} cityName={shownCity?.name ?? ''} />
           </div>
         </div>
       ) : (
         <div className="space-y-4 mt-3">
-          <HangoutsModule hangouts={hangouts} />
+          <HangoutsModule hangouts={hangouts} tz={shownCity?.timezone ?? DEFAULT_TZ} />
           {posts.slice(0, 3).map(p => (
-            <PostCard key={p.id} p={p} defaultOpen={p.id === deepPost} onRemoved={id => setPosts(prev => prev.filter(x => x.id !== id))} />
+            <PostCard key={p.id} p={p} defaultOpen={p.id === deepPost} onRemoved={removePost} />
           ))}
-          <VisitorsModule visitors={visitors} />
+          <VisitorsModule visitors={visitors} cityName={shownCity?.name ?? ''} />
           {posts.slice(3).map(p => (
-            <PostCard key={p.id} p={p} defaultOpen={p.id === deepPost} onRemoved={id => setPosts(prev => prev.filter(x => x.id !== id))} />
+            <PostCard key={p.id} p={p} defaultOpen={p.id === deepPost} onRemoved={removePost} />
           ))}
           {hasMore && (
-            <button onClick={() => load(filter, posts.length, true)} disabled={loading}
+            <button onClick={() => load(filter, true)} disabled={loading}
               className="w-full py-3 border border-gray-200 rounded-2xl text-sm font-bold text-gray-700 hover:border-amber-300 hover:text-amber-700 bg-white transition-colors">
               {loading ? 'Loading…' : 'Load more'}
             </button>

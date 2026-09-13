@@ -3,12 +3,12 @@
 // Leaflet map view for /directory. Renders one pin per visible
 // business; pins land on:
 //   1. The business's own (lat, lon) when set, otherwise
-//   2. The centroid of its neighborhood (from NEIGHBORHOOD_META)
-//      offset by a deterministic per-id jitter so multiple
-//      businesses in the same neighborhood don't all stack on the
-//      same pixel.
+//   2. For default-city (Istanbul) businesses only, the centroid of
+//      its neighborhood (from NEIGHBORHOOD_META) offset by a
+//      deterministic per-id jitter so multiple businesses in the same
+//      neighborhood don't all stack on the same pixel.
 //
-// Businesses with no neighborhood AND no coords are skipped (the
+// Businesses with no coords and no usable fallback are skipped (the
 // pre-list filter in the parent should already exclude them). The
 // caller controls visibility — when the parent's filter list
 // shrinks, this component animates the visible pins.
@@ -27,7 +27,14 @@ export interface MapBusiness {
   longitude: number | null
   avgRating:   number | null
   reviewCount: number
+  // Slug of the city the business is listed in. Gates the neighborhood
+  // fallback below; absent means "unknown", which gets no fallback pin.
+  citySlug?: string | null
 }
+
+// Mirrors DEFAULT_CITY_SLUG in lib/city — not imported because that module
+// pulls in prisma, which can't ship in this client bundle.
+const DEFAULT_CITY_SLUG = 'istanbul'
 
 interface Props {
   businesses:   MapBusiness[]
@@ -57,7 +64,11 @@ function jitterFromId(id: string): [number, number] {
 
 function resolvePosition(b: MapBusiness): [number, number] | null {
   if (b.latitude != null && b.longitude != null) return [b.latitude, b.longitude]
-  if (b.neighborhood) {
+  // NEIGHBORHOOD_META is Istanbul-only and keyed by bare name, and other
+  // cities reuse those names (Ankara's Bahçelievler/Ulus, İzmir's Göztepe) —
+  // the fallback pinned them in Istanbul and fitBounds spanned both cities.
+  // Only the default city's businesses may use it; unknown city → no pin.
+  if (b.neighborhood && b.citySlug === DEFAULT_CITY_SLUG) {
     const meta = NEIGHBORHOOD_META[b.neighborhood]
     if (meta) {
       const [dLat, dLon] = jitterFromId(b.id)

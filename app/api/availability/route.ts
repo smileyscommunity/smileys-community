@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { resolveCityId } from '@/lib/city'
+import { resolvePostingCityId } from '@/lib/cityMembership'
 import { rateLimit } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
 import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
@@ -97,7 +98,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Note too long' }, { status: 400 })
     }
 
-    const safeNeighborhood = await safeNeighborhoodFor(await resolveCityId(session), neighborhood)
+    // A pulse belongs to the member's own city, not the one they're browsing —
+    // otherwise an Istanbul member looking at İzmir announced themselves to
+    // İzmir's locals. Browsed city counts only if they've joined it
+    // (resolvePostingCityId). Validation and the fan-out (created.cityId) use
+    // the same city.
+    const postingCityId = await resolvePostingCityId(session)
+    const safeNeighborhood = await safeNeighborhoodFor(postingCityId, neighborhood)
 
     const until = new Date(Date.now() + mins * 60_000)
 
@@ -111,7 +118,7 @@ export async function POST(req: NextRequest) {
     const created = await prisma.availabilityPulse.create({
       data: {
         userId:       session.id,
-        cityId:       await resolveCityId(session),
+        cityId:       postingCityId,
         neighborhood: safeNeighborhood,
         note:         typeof note === 'string' ? note.trim().slice(0, 200) || null : null,
         until,

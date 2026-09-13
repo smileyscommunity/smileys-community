@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { authorProjector } from '@/lib/authorProjection'
 import { resolveCityId } from '@/lib/city'
+import { resolvePostingCityId } from '@/lib/cityMembership'
 import { getPublicCity } from '@/lib/cities'
 import { rateLimit } from '@/lib/rateLimit'
 import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
@@ -104,6 +105,10 @@ export async function GET(req: NextRequest) {
   // the banned-author and private-club gates must hold here too, or a
   // shared/forwarded link would read a private club's conversation (or a
   // banned member's post) straight off this public endpoint.
+  // Said out loud in the response: the prepended post makes page 1 sixteen
+  // items, and a client that counted those as the page thought there was no
+  // next page (16 !== 15) and offset its "Load more" by one, skipping a post.
+  let prependedPostId: string | null = null
   if (postId && !posts.some(p => p.id === postId)) {
     const single = await prisma.boardPost.findFirst({
       where: {
@@ -117,7 +122,7 @@ export async function GET(req: NextRequest) {
       },
       select,
     })
-    if (single) posts = [single, ...posts]
+    if (single) { posts = [single, ...posts]; prependedPostId = single.id }
   }
 
   // Authors: a first name for guests, and for members viewing a
@@ -136,6 +141,7 @@ export async function GET(req: NextRequest) {
       viewerSaved:      session ? (p as { saves?: unknown[] }).saves!.length > 0 : false,
     })),
     isMember: !!session,
+    prependedPostId,
   })
 }
 
@@ -168,8 +174,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'One link per post, please' }, { status: 400 })
   }
 
-  const neighborhood = await safeNeighborhoodFor(await resolveCityId(session), body.neighborhood)
-
   const tag = typeof body.tag === 'string' && TAG_VALUES.has(body.tag) ? body.tag : null
 
   // Optional club tag (Clubs brief §19/§30) — posting into a club
@@ -177,7 +181,9 @@ export async function POST(req: NextRequest) {
   // stays canonical on the Board and also surfaces in the club.
   let clubId: string | null = null
   // A club post lives in the CLUB's city (matches the GET, which lets club
-  // feeds cross city lines); a plain post lives in the author's.
+  // feeds cross city lines); a plain post lives in the author's — their
+  // POSTING city (lib/cityMembership), not whichever board they're browsing,
+  // which is what resolveCityId used to file it to.
   let postCityId: string | null = null
   if (typeof body.club === 'string' && body.club) {
     const club = await prisma.club.findUnique({ where: { slug: body.club }, select: { id: true, isActive: true, cityId: true } })
@@ -192,7 +198,7 @@ export async function POST(req: NextRequest) {
     clubId = club.id
     // Global clubs (cityId null) have no city of their own — the post
     // lives in the author's city instead. BoardPost.cityId stays required.
-    postCityId = club.cityId ?? await resolveCityId(session)
+    postCityId = club.cityId ?? await resolvePostingCityId(session)
   }
 
   // Optional event tie (§31) — the post stays canonical on the Board and
@@ -203,8 +209,14 @@ export async function POST(req: NextRequest) {
     if (ev && ev.status === 'published') eventTie = ev.id
   }
 
+  const cityId = postCityId ?? await resolvePostingCityId(session)
+  // Validated against the city the post actually files to — neighborhood
+  // names are per city, and checking the browsed city's registry dropped a
+  // real home neighborhood (or kept a name the post's city doesn't have).
+  const neighborhood = await safeNeighborhoodFor(cityId, body.neighborhood)
+
   const created = await prisma.boardPost.create({
-    data: { userId: session.id, cityId: postCityId ?? await resolveCityId(session), type, title, body: text, neighborhood, tag, clubId, eventId: eventTie },
+    data: { userId: session.id, cityId, type, title, body: text, neighborhood, tag, clubId, eventId: eventTie },
     select: { id: true },
   })
 

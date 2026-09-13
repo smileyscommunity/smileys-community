@@ -128,10 +128,11 @@ function ListingModal({ listing, currentUserId, isLoggedIn, isStaff, isSaved, on
   // sentinels; consumers now pass `isLoggedIn ? user.id : null`.
   currentUserId: string | null
   isLoggedIn: boolean
-  // Admin/moderator — can edit any listing (e.g. adding contact info a
+  // Admin/moderator — can edit a listing (e.g. adding contact info a
   // member forgot), same reasoning as the admin phone-number edit on
   // /admin/users/[id]. Scoped to Edit only; renew/delete/mark-filled stay
-  // owner-only lifecycle actions.
+  // owner-only lifecycle actions. The PATCH limits moderators to their own
+  // city; a moderator elsewhere sees its 403 message via handleEditListing.
   isStaff: boolean
   isSaved: boolean
   onToggleSave: (id: string) => void
@@ -732,12 +733,14 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
     items: { name: string }[]
     user: { name: string; color: string; profilePhoto: string | null }
   }[]>([])
+  // Carries the pinned city like the listings fetch does — otherwise a shared
+  // ?city= link previewed the viewer's cookie city's sales.
   useEffect(() => {
-    fetch('/app/api/moving-sales', { credentials: 'include' })
+    fetch(`/app/api/moving-sales${pinnedCity ? `?city=${encodeURIComponent(pinnedCity)}` : ''}`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
       .then(data => setMovingPreview((data?.sales ?? []).slice(0, 3)))
       .catch(() => {})
-  }, [])
+  }, [pinnedCity])
 
   // Debounce search
   useEffect(() => {
@@ -1280,7 +1283,7 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
         )}
 
         {category === 'MOVING' ? (
-          <MovingSales cityName={cityName} />
+          <MovingSales cityName={cityName} city={pinnedCity} />
         ) : (<>
         {/* Active filter label */}
         {!loading && listings.length > 0 && (

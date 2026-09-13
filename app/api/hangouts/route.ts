@@ -3,6 +3,8 @@ import { isUploadedImageUrl } from '@/lib/uploadedImageUrl'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { resolveCityId, getCityTz } from '@/lib/city'
+import { resolvePostingCityId } from '@/lib/cityMembership'
+import { getPublicCity } from '@/lib/cities'
 import { todayInTz } from '@/lib/cityTime'
 import { rateLimit } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
@@ -19,6 +21,13 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const neighborhood = searchParams.get('neighborhood') || undefined
   const now = new Date()
+  // ?city=<slug>: the board pins its city in the URL, and its "Plans
+  // happening" module has to list that city's plans — not the cookie city's
+  // beside another city's posts. Same resolution as GET /api/board: an
+  // unknown slug falls back to the viewer's city. Reads only; POST files by
+  // membership below.
+  const citySlug = searchParams.get('city')?.trim()
+  const cityId   = (citySlug ? (await getPublicCity(citySlug))?.id : undefined) ?? await resolveCityId(session)
 
   // Blocks hide the whole card, both directions — a blocked member must not
   // see the blocker's live location/time (the fan-out already skips them;
@@ -32,7 +41,7 @@ export async function GET(req: NextRequest) {
   const hangouts = await prisma.hangout.findMany({
     where: {
       status: 'active',
-      cityId: await resolveCityId(session),
+      cityId,
       endsAt: { gte: now },
       ...(neighborhood ? { neighborhood } : {}),
       ...(blockedHostIds.length ? { userId: { notIn: blockedHostIds } } : {}),
@@ -96,7 +105,7 @@ export async function GET(req: NextRequest) {
   // for the whole feed, not per row.
   // The visited city's calendar decides whether a visit "ends today" —
   // UTC flipped the badge off 3h early on Istanbul's clock.
-  const today = todayInTz(await getCityTz(await resolveCityId(session)))
+  const today = todayInTz(await getCityTz(cityId))
   const visitorHosts = new Set((await prisma.visitorAnnouncement.findMany({
     where:  { userId: { in: [...new Set(hangouts.map(h => h.userId))], not: null }, status: 'active', endsOn: { gte: today } },
     select: { userId: true },
@@ -169,7 +178,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'End is in the past' }, { status: 400 })
     }
 
-    const safeNeighborhood = await safeNeighborhoodFor(await resolveCityId(session), neighborhood)
+    // The member's own city, not the one they're browsing: an Istanbul member
+    // looking at İzmir filed their hangout into İzmir and pinged İzmir's
+    // locals. resolvePostingCityId honours the browsed city only when they
+    // belong to it. Neighborhood validation and the fan-out (created.cityId)
+    // follow the same city, or a valid home neighborhood was silently dropped.
+    const postingCityId = await resolvePostingCityId(session)
+    const safeNeighborhood = await safeNeighborhoodFor(postingCityId, neighborhood)
 
     // meetMode: tighten to the two allowed values. Anything else falls back
     // to 'group' so a misbehaving client can't poison the DB with arbitrary
@@ -207,7 +222,7 @@ export async function POST(req: NextRequest) {
     const created = await prisma.hangout.create({
       data: {
         userId:       session.id,
-        cityId:       await resolveCityId(session),
+        cityId:       postingCityId,
         clubId:       safeClubId,
         title:        title.trim().slice(0, 120),
         description:  typeof description === 'string' ? description.trim().slice(0, 500) || null : null,

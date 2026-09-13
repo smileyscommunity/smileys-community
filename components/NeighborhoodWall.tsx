@@ -153,6 +153,9 @@ function PostRow({
       if (res.ok) {
         const r = await res.json()
         onReply(post.id, r)
+        // Once "Show all" has loaded, the list renders allReplies, not
+        // post.replies — without this the new reply never appeared.
+        setAllReplies(prev => prev ? [...prev, r] : prev)
         setReplyText(''); setReplyOpen(false); setShowReplies(true)
       } else {
         toast.error((await res.json().catch(() => ({})))?.error ?? 'Could not post the reply')
@@ -168,7 +171,27 @@ function PostRow({
     const res = await fetch(`/app/api/neighborhoods/${slug}/posts/${post.id}/replies/${replyId}`, {
       method: 'DELETE', credentials: 'include',
     })
-    if (res.ok) onDeleteReply(post.id, replyId)
+    if (res.ok) {
+      onDeleteReply(post.id, replyId)
+      // Same for the expanded list: a deleted reply stayed on screen and a
+      // second ✕ on it failed with a 404.
+      setAllReplies(prev => prev ? prev.filter(r => r.id !== replyId) : prev)
+    }
+  }
+
+  async function loadAllReplies() {
+    setLoadingReplies(true)
+    try {
+      const res = await fetch(`/app/api/neighborhoods/${slug}/posts/${post.id}/replies`, { credentials: 'include' })
+      if (!res.ok) throw new Error(String(res.status))
+      setAllReplies(await res.json())
+    } catch {
+      // A throw here used to leave the button on "Loading…" forever; it now
+      // resets so the button offers a retry.
+      toast.error('Could not load replies — try again')
+    } finally {
+      setLoadingReplies(false)
+    }
   }
 
   const myReaction  = post.reactions.find(r => r.reactedByMe)?.emoji ?? null
@@ -339,12 +362,8 @@ function PostRow({
               ))}
               {!allReplies && post.replyCount > post.replies.length && (
                 <button
-                  onClick={async () => {
-                    setLoadingReplies(true)
-                    const res = await fetch(`/app/api/neighborhoods/${slug}/posts/${post.id}/replies`, { credentials: 'include' })
-                    if (res.ok) setAllReplies(await res.json())
-                    setLoadingReplies(false)
-                  }}
+                  onClick={loadAllReplies}
+                  disabled={loadingReplies}
                   className="text-[11px] text-amber-500 hover:text-amber-600 font-medium transition-colors">
                   {loadingReplies ? 'Loading…' : `Show all ${post.replyCount} replies`}
                 </button>

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdmin } from '@/lib/access'
+import { isAdmin, canActInCity } from '@/lib/access'
 import { redactListingForGuest } from '@/lib/listingsPublic'
 import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
 
@@ -30,8 +30,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const listing = await prisma.listing.findUnique({ where: { id } })
   if (!listing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  if (listing.userId !== session.id && !isAdmin(session)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  // Moderators get "Edit (staff)" on a listing (BoardHub) but this used to
+  // allow only owner or admin, so every moderator save failed. They may edit
+  // listings in their own city (canActInCity) — edit fields only; renew and
+  // status stay owner/admin actions. A moderator elsewhere is told why.
+  const isCityModerator = listing.userId !== session.id && !isAdmin(session) && canActInCity(session, listing.cityId)
+  if (listing.userId !== session.id && !isAdmin(session) && !isCityModerator) {
+    return NextResponse.json({ error: session.role === 'moderator' ? 'You can only edit listings in your own city' : 'Forbidden' }, { status: 403 })
   }
 
   // A deleted listing is terminal for the owner. Self-delete and moderator
@@ -44,6 +49,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const body = await req.json()
   const { status, renew, title, description, price, neighborhood, contact, contactEmail } = body
+
+  if (isCityModerator && (renew || status !== undefined)) {
+    return NextResponse.json({ error: 'Moderators can edit a listing, not renew it or change its status' }, { status: 403 })
+  }
 
   if (renew) {
     const expiresAt = new Date()

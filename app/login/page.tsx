@@ -75,7 +75,10 @@ function LoginPageInner() {
   // their own gate use (board/new). Both were read for the *message* only, so
   // every deep link into a member page ended on the dashboard instead — which
   // silently broke the one-click renew link the listing-expiry email sends.
-  const returnTo = safeReturnPath(searchParams.get('next') ?? searchParams.get('from'))
+  // `return` is what the board, directory and moving-sale sign-in links send;
+  // it was never read, so those all ended on the dashboard too. Same
+  // safeReturnPath check as the other two — never an off-site redirect.
+  const returnTo = safeReturnPath(searchParams.get('next') ?? searchParams.get('return') ?? searchParams.get('from'))
 
   const [email,         setEmail]         = useState('')
   const [password,      setPassword]      = useState('')

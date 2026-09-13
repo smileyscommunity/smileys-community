@@ -44,10 +44,20 @@ async function copyShare(id: string): Promise<boolean> {
 // cityName comes from BoardHub's useCurrentCity — empty until it resolves,
 // so both strings below fall back to city-neutral copy, never the default
 // city's name.
-export default function MovingSales({ cityName = '' }: { cityName?: string }) {
-  const cur = useCurrentCity()?.currency ?? DEFAULT_CURRENCY
+// city is the page's pinned slug (BoardHub's ?city=), empty on /board.
+export default function MovingSales({ cityName = '', city = '' }: { cityName?: string; city?: string }) {
+  const current = useCurrentCity()
+  const cur = current?.currency ?? DEFAULT_CURRENCY
   const { user, isLoggedIn } = useAuth()
-  const neighborhoods = useCityNeighborhoods()
+  // A new sale lands where the POST files it (resolvePostingCityId: home city
+  // unless you've joined the one on screen), not the city being viewed. The
+  // dropdown used to offer the viewed city's neighborhoods, which the server
+  // then silently dropped, and the sale never showed in the list it was
+  // posted from. Neighborhoods follow the posting city; the form says so.
+  const postingCity = current?.posting
+  const viewedSlug = city || current?.slug || ''
+  const postingElsewhere = !!postingCity && !!viewedSlug && postingCity.slug !== viewedSlug
+  const neighborhoods = useCityNeighborhoods(postingCity?.slug || city || undefined)
   const [sales,   setSales]   = useState<Sale[] | null>(null)
   const [showForm, setShowForm] = useState(false)
 
@@ -73,29 +83,40 @@ export default function MovingSales({ cityName = '' }: { cityName?: string }) {
     if (ok) { setCopiedId(id); toast.success('Link copied!'); setTimeout(() => setCopiedId(null), 2000) }
   }
 
+  // Same ?city= as the listings grid, so a shared city link lists that city's sales.
   const load = useCallback(async () => {
-    const res = await fetch('/app/api/moving-sales', { credentials: 'include' })
+    const res = await fetch(`/app/api/moving-sales${city ? `?city=${encodeURIComponent(city)}` : ''}`, { credentials: 'include' })
     const data = await res.json().catch(() => ({ sales: [] }))
     setSales(data.sales ?? [])
-  }, [])
+  }, [city])
   useEffect(() => { load() }, [load])
 
   async function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    e.target.value = ''
+    const input = e.target
+    const file = input.files?.[0]
     if (!file) return
     setUploading(true)
     try {
       const upload = await downscaleImage(file)
       const form = new FormData()
       form.append('file', upload)
+      // Without a folder the upload route refuses every non-staff member
+      // ("You can only upload profile photos"). listings/ is member-allowed
+      // and passes the POST's isUploadedImageUrl check.
+      form.append('folder', 'listings')
       const res  = await fetch('/app/api/upload', { method: 'POST', body: form, credentials: 'include' })
       const data = await res.json().catch(() => ({}))
       if (data.url) setPhoto(data.url)
-      else toast.error('Could not upload photo')
+      // The server's reason (too large, HEIC, iCloud placeholder) is the
+      // actionable part — a generic "could not upload" hid it.
+      else toast.error(data.error ?? 'Could not upload photo')
     } catch (err) {
       toast.error(err instanceof ImageUploadError ? err.message : 'Could not upload photo')
-    } finally { setUploading(false) }
+    } finally {
+      setUploading(false)
+      // Cleared after every attempt so re-picking the same file fires onChange again.
+      input.value = ''
+    }
   }
 
   async function submit() {
@@ -110,7 +131,10 @@ export default function MovingSales({ cityName = '' }: { cityName?: string }) {
       const data = await res.json().catch(() => ({}))
       if (!res.ok) { toast.error(data.error ?? 'Could not post'); return }
       posthog.capture('moving_sale_created', { items: items.filter(i => i.name.trim()).length })
-      toast.success('Moving sale posted')
+      // Posted to another city than the one on screen: it won't appear in this
+      // list, so say where it went instead of letting it look lost.
+      if (postingElsewhere && postingCity) toast.success(`Moving sale posted in ${postingCity.name}`, { description: `It shows on ${postingCity.name}'s marketplace, not this one.` })
+      else toast.success('Moving sale posted')
       // Rooms bridge (phase 3): someone selling their stuff before leaving
       // very likely has a room opening up — the single highest-value listing
       // this community can have. Capture the moment, prefilled.
@@ -188,6 +212,11 @@ export default function MovingSales({ cityName = '' }: { cityName?: string }) {
 
       {showForm && (
         <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm space-y-4">
+          {postingElsewhere && postingCity && (
+            <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+              Your sale will be posted in <strong>{postingCity.name}</strong>, the city you belong to, not the one you&apos;re browsing.
+            </p>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="block">
               <span className="block text-sm font-semibold text-gray-700 mb-1.5">Leaving on</span>

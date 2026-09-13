@@ -3,6 +3,7 @@ import { isUploadedImageUrl } from '@/lib/uploadedImageUrl'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { resolveCityId } from '@/lib/city'
+import { getPublicCity } from '@/lib/cities'
 import { resolvePostingCityId } from '@/lib/cityMembership'
 import { rateLimit } from '@/lib/rateLimit'
 import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
@@ -16,11 +17,17 @@ import { authorProjector } from '@/lib/authorProjection'
 // see the seller per lib/authorProjection. No contact data exists on the
 // model; the contact route handles reaching them. Expired sales (leavingOn
 // past) drop out of the list automatically.
-export async function GET() {
+export async function GET(req: NextRequest) {
   const today = new Date().toISOString().slice(0, 10)
   const session = await getSession()
+  // ?city=<slug>: the marketplace pins its city in the URL, and the listings
+  // grid beside this list already honours it — without this the sales under a
+  // shared İzmir link were the viewer's cookie city. Unknown slug falls back
+  // to the viewer's city, same as app/api/listings.
+  const citySlug = new URL(req.url).searchParams.get('city')?.trim()
+  const cityId   = (citySlug ? (await getPublicCity(citySlug))?.id : undefined) ?? await resolveCityId(session)
   const sales = await prisma.movingSale.findMany({
-    where:   { status: 'active', leavingOn: { gte: today }, cityId: await resolveCityId(session), user: { status: 'approved', hiddenFromMembers: false } },
+    where:   { status: 'active', leavingOn: { gte: today }, cityId, user: { status: 'approved', hiddenFromMembers: false } },
     orderBy: { leavingOn: 'asc' },
     take:    30,
     select: {

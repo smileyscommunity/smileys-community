@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { toast } from 'sonner'
 
 // Like button for a handbook article. Sits with the share row at the
@@ -23,6 +23,7 @@ interface Props {
 
 export default function ArticleLike({ slug, initialCount, initialLiked, isLoggedIn }: Props) {
   const router = useRouter()
+  const pathname = usePathname()
   const [liked, setLiked] = useState(initialLiked)
   const [count, setCount] = useState(initialCount)
   const [busy,  setBusy]  = useState(false)
@@ -30,8 +31,10 @@ export default function ArticleLike({ slug, initialCount, initialLiked, isLogged
   async function toggle() {
     if (!isLoggedIn) {
       // Guests: send them to sign in rather than 401ing. The handbook is
-      // a top-of-funnel surface, so this doubles as a join nudge.
-      router.push('/login')
+      // a top-of-funnel surface, so this doubles as a join nudge. `next`
+      // brings them back to this article — a bare /login ended on the
+      // dashboard, and the like they came to make was lost.
+      router.push(`/login?next=${encodeURIComponent(pathname + window.location.search)}`)
       return
     }
     if (busy) return

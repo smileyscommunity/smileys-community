@@ -583,6 +583,10 @@ function DirectoryPageInner() {
               neighborhood: b.neighborhood,
               latitude: b.latitude, longitude: b.longitude,
               avgRating: b.avgRating, reviewCount: b.reviewCount,
+              // The list is fetched for the same city viewCity resolves
+              // (pinned slug or cookie), so it tells the map whether the
+              // Istanbul-only neighborhood fallback applies.
+              citySlug: viewCity?.slug ?? null,
             }))}
             onPinClick={onPinClick}
             defaultCenter={viewCity?.lat != null && viewCity?.lng != null ? [viewCity.lat, viewCity.lng] : null}

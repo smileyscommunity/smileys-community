@@ -8,6 +8,18 @@ import { rateLimit } from '@/lib/rateLimit'
 
 type Params = { params: Promise<{ userId: string }> }
 
+type QuoteRow = { id: string; text: string; imageUrl: string | null; deletedAt: Date | null; from: { id: string; name: string } }
+
+// Deleted messages are filtered out of the thread, but a reply's quote chip
+// embeds its parent — which carried the deleted text and photo straight back
+// to both parties. Keep the chip (so the reply still reads as a reply) and
+// withhold the content behind a deleted flag.
+function redactDeletedQuote(q: QuoteRow | null) {
+  if (!q) return null
+  const { deletedAt, ...rest } = q
+  return deletedAt ? { ...rest, text: null, imageUrl: null, deleted: true } : rest
+}
+
 export async function GET(req: NextRequest, { params }: Params) {
   try {
     const session = await getSession()
@@ -62,6 +74,7 @@ export async function GET(req: NextRequest, { params }: Params) {
             id: true,
             text: true,
             imageUrl: true,
+            deletedAt: true,
             from: { select: { id: true, name: true } },
           },
         },
@@ -75,7 +88,8 @@ export async function GET(req: NextRequest, { params }: Params) {
     })
 
     // Initial load was fetched desc — reverse to chronological order for the client.
-    return NextResponse.json(since ? messages : [...messages].reverse())
+    const ordered = since ? messages : [...messages].reverse()
+    return NextResponse.json(ordered.map(m => ({ ...m, replyTo: redactDeletedQuote(m.replyTo) })))
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
@@ -116,13 +130,16 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (typeof replyToId === 'string' && replyToId.length > 0) {
       const parent = await prisma.directMessage.findUnique({
         where:  { id: replyToId },
-        select: { fromId: true, toId: true },
+        select: { fromId: true, toId: true, deletedAt: true },
       })
       const inThread = parent && (
         (parent.fromId === session.id && parent.toId === toId) ||
         (parent.fromId === toId       && parent.toId === session.id)
       )
       if (!inThread) return NextResponse.json({ error: 'Invalid reply target' }, { status: 400 })
+      // A deleted message can't be quoted — the new reply would carry the
+      // deleted text back into the thread through its quote.
+      if (parent.deletedAt) return NextResponse.json({ error: 'That message was deleted' }, { status: 400 })
       safeReplyToId = replyToId
     }
 
@@ -179,9 +196,12 @@ export async function POST(req: NextRequest, { params }: Params) {
       include: {
         from:      { select: { id: true, name: true, color: true, profilePhoto: true } },
         reactions: { select: { userId: true, emoji: true } },
-        replyTo:   { select: { id: true, text: true, imageUrl: true, from: { select: { id: true, name: true } } } },
+        replyTo:   { select: { id: true, text: true, imageUrl: true, deletedAt: true, from: { select: { id: true, name: true } } } },
       },
     })
+    // Same quote shape as GET (the parent could be deleted between the check
+    // above and this create).
+    const shaped = { ...message, replyTo: redactDeletedQuote(message.replyTo) }
 
     // Notify recipient — only if no recent unread notification from this sender
     const recentNotif = await prisma.notification.findFirst({
@@ -193,7 +213,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         .catch(() => {})
     }
 
-    return NextResponse.json(message)
+    return NextResponse.json(shaped)
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
