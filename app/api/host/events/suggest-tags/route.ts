@@ -3,16 +3,37 @@ import OpenAI from 'openai'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
+import { isAdmin, isModerator, isClubHost, hostCityIds } from '@/lib/access'
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+
+// Bounds on what one call can put into a paid prompt.
+const MAX_TITLE = 200
+const MAX_DESCRIPTION = 2000
 
 export async function POST(req: NextRequest) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // Same people who may create an event (the create route's canCreate) — this
+  // was open to every member, each call spending OpenAI credit.
+  const canHost = isAdmin(session) || isModerator(session) || await isClubHost(session.id) || (await hostCityIds(session.id)).length > 0
+  if (!canHost) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   if (!await rateLimit(`ai:${session.id}`, 20, 60 * 60_000)) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
 
-  const { title, description } = await req.json()
+  // Malformed JSON threw before any handler — a 500 for a client mistake.
+  const body = await req.json().catch(() => null)
+  if (!body || typeof body !== 'object') return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+  const { title: rawTitle, description: rawDescription } = body as Record<string, unknown>
+
+  if (rawTitle !== undefined && rawTitle !== null && typeof rawTitle !== 'string') return NextResponse.json({ error: 'Title must be text' }, { status: 400 })
+  if (rawDescription !== undefined && rawDescription !== null && typeof rawDescription !== 'string') return NextResponse.json({ error: 'Description must be text' }, { status: 400 })
+  const title = rawTitle ?? ''
+  // The event forms send the rich-text editor's HTML; tags only need the words,
+  // so the cap is on the text a reader would see, not on markup.
+  const description = (rawDescription ?? '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
   if (!title && !description) return NextResponse.json({ error: 'Need title or description' }, { status: 400 })
+  if (title.length > MAX_TITLE) return NextResponse.json({ error: `Title must be at most ${MAX_TITLE} characters` }, { status: 400 })
+  if (description.length > MAX_DESCRIPTION) return NextResponse.json({ error: `Description must be at most ${MAX_DESCRIPTION} characters` }, { status: 400 })
 
   const tagGroups = await prisma.tagGroup.findMany({
     include: { tags: { select: { id: true, name: true, emoji: true } } },

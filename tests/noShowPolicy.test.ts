@@ -80,6 +80,10 @@ describe('isNoShow', () => {
     const at = new Date(start.getTime() - NO_SHOW_CANCELLATION_CUTOFF_HOURS * H)
     expect(isNoShow(row({ status: 'cancelled', cancelledBy: 'member', cancelledAt: at }), start)).toBe(false)
   })
+  it('checked in and then cancelled → never (the scan proves they came)', () => {
+    const at = new Date(start.getTime() + H)   // cancelled mid-event, well past the cutoff
+    expect(isNoShow(row({ status: 'cancelled', cancelledBy: 'member', cancelledAt: at, checkedIn: true }), start)).toBe(false)
+  })
 })
 
 describe('rolling window and card colour', () => {

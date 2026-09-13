@@ -31,6 +31,15 @@ const STATUS_COLORS: Record<string, string> = {
   archived:  'bg-zinc-700/50 text-zinc-500',
 }
 
+// Asked before a host parks a published event. Draft/Postponed used to read
+// like a harmless toggle; it takes the event off the public feed.
+function parkLiveEventMessage(status: string) {
+  const back = 'You can publish it again yourself if staff published it before — otherwise a moderator has to.'
+  return status === 'draft'
+    ? `Move this live event to Draft? It leaves the public feed and members can't RSVP. ${back}`
+    : `Postpone this live event? It leaves the public feed and everyone going is notified. ${back}`
+}
+
 type Tab = 'upcoming' | 'pending' | 'past'
 
 function StatusMenu({ e, saving, onStatusChange }: { e: Event; saving: boolean; onStatusChange: (id: string, status: string) => void }) {
@@ -174,6 +183,12 @@ export default function HostEventsPage() {
 
   async function handleStatusChange(id: string, status: string) {
     if (status === 'cancelled' && !(await confirmToast('Cancel this event? Attendees will be notified.'))) return
+    // Parking a LIVE event pulls it off the public feed — say so before it
+    // happens, and say how it comes back (the PUT route lets a host republish
+    // only an event staff published before).
+    const current = events.find(e => e.id === id)
+    if (current?.status === 'published' && (status === 'draft' || status === 'postponed') &&
+        !(await confirmToast(parkLiveEventMessage(status), { confirmLabel: status === 'draft' ? 'Move to draft' : 'Postpone', cancelLabel: 'Keep it live' }))) return
     setSavingId(id)
     const res = await fetch(`/app/api/admin/events/${id}`, {
       method: 'PUT', credentials: 'include',

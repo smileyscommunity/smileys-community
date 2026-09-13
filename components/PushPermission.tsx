@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import { useAuth } from '@/contexts/AuthContext'
+import { PUSH_SYNCED_KEY, PUSH_SYNCED_USER_KEY } from '@/lib/pushDevice'
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!
 
@@ -43,7 +45,7 @@ async function subscribe(): Promise<SubscribeResult> {
 // card after 8s. The dismissal is remembered per browser for a month; the
 // subscription re-sync runs at most daily instead of on every mount.
 const DISMISS_KEY   = 'smileys_push_prompt_dismissed_at'
-const SYNCED_KEY    = 'smileys_push_synced_at'
+const SYNCED_KEY    = PUSH_SYNCED_KEY
 const DISMISS_FOR   = 30 * 24 * 60 * 60_000
 const RESYNC_AFTER  = 24 * 60 * 60_000
 const REFUSED_KEY   = 'smileys_push_refused_at'
@@ -57,9 +59,17 @@ function readStamp(key: string): number {
 function writeStamp(key: string): void {
   try { localStorage.setItem(key, String(Date.now())) } catch {}
 }
+function syncedUser(): string | null {
+  try { return localStorage.getItem(PUSH_SYNCED_USER_KEY) } catch { return null }
+}
+function rememberSyncedUser(userId: string): void {
+  try { localStorage.setItem(PUSH_SYNCED_USER_KEY, userId) } catch {}
+}
 
 export default function PushPermission() {
   const [state, setState] = useState<'idle' | 'prompt' | 'subscribed' | 'denied' | 'unsupported'>('idle')
+  const { user } = useAuth()
+  const userId = user.id
 
   useEffect(() => {
     if (!('Notification' in window) || !('PushManager' in window)) {
@@ -67,10 +77,15 @@ export default function PushPermission() {
       return
     }
     if (Notification.permission === 'granted') {
+      // The daily gate is per member, not per browser. subscribe() reuses the
+      // browser's existing endpoint, and on a shared phone a once-a-day stamp
+      // left it tied to whoever synced last — so a different member re-syncs
+      // (and the server moves the endpoint to them) straight away.
       // A refused endpoint used to be re-POSTed (and re-refused) every day.
-      if (Date.now() - readStamp(SYNCED_KEY) > RESYNC_AFTER && Date.now() - readStamp(REFUSED_KEY) > REFUSED_FOR) {
+      const due = syncedUser() !== userId || Date.now() - readStamp(SYNCED_KEY) > RESYNC_AFTER
+      if (due && Date.now() - readStamp(REFUSED_KEY) > REFUSED_FOR) {
         subscribe().then(r => {
-          if (r === 'ok') writeStamp(SYNCED_KEY)
+          if (r === 'ok') { rememberSyncedUser(userId); writeStamp(SYNCED_KEY) }
           else if (r === 'refused') writeStamp(REFUSED_KEY)
         }).catch(() => {})
       }
@@ -84,7 +99,7 @@ export default function PushPermission() {
       const t = setTimeout(() => setState('prompt'), 8000)
       return () => clearTimeout(t)
     }
-  }, [])
+  }, [userId])
 
   async function handleAllow() {
     const permission = await Notification.requestPermission()
@@ -93,6 +108,7 @@ export default function PushPermission() {
       if (result === 'ok') {
         writeStamp(SYNCED_KEY)
         setState('subscribed')
+        rememberSyncedUser(userId)
         return
       }
       // The card used to vanish as if notifications were on when the server

@@ -5,8 +5,15 @@ import { isAdmin, canManageEventOps } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
 import { rateLimit, claimOnce } from '@/lib/rateLimit'
 import { Attendance } from '@/lib/constants'
+import { eventStartsAt } from '@/lib/eventTime'
+import { getCityTz } from '@/lib/city'
 
 type Params = { params: Promise<{ id: string }> }
+
+// How long before the doors the scanner wakes up. Twelve hours: the same
+// line after which giving a spot back stops counting as giving it back, so
+// the two halves of the no-show policy open and close together.
+const CHECKIN_OPENS_HOURS_BEFORE = 12
 
 // Shared predicate — see lib/access.canManageEventOps (adds co-hosts, one home).
 
@@ -78,7 +85,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // page (waiveCard), which closes the card and keeps the trail.
     const event = await prisma.event.findUnique({
       where:  { id: eventId },
-      select: { status: true, cancelledAt: true, noShowProcessedAt: true },
+      select: { status: true, cancelledAt: true, noShowProcessedAt: true, cityId: true, date: true, time: true },
     })
     if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
     if (event.cancelledAt || event.status === 'cancelled') {
@@ -89,6 +96,23 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         error: 'Attendance for this event is already settled. To correct a missed scan, clear the no-show from the participants page.',
         code:  'attendance_settled',
       }, { status: 409 })
+    }
+
+    // The door had no clock: a host could check the whole room in days
+    // ahead, and the no-show sweep reads "half the room was scanned" as
+    // proof check-in was really run — so everyone left unticked got a card.
+    // Checking IN waits until CHECKIN_OPENS_HOURS_BEFORE the start, on the
+    // event city's clock (a TBA time reads as midnight, so noon the day
+    // before). Un-checking is a correction and stays open.
+    if (checkedIn) {
+      const startsAt = eventStartsAt(event, await getCityTz(event.cityId)).getTime()
+      const opensAt  = startsAt - CHECKIN_OPENS_HOURS_BEFORE * 60 * 60_000
+      if (Number.isFinite(opensAt) && Date.now() < opensAt) {
+        return NextResponse.json({
+          error: `Check-in isn't open yet — it opens ${CHECKIN_OPENS_HOURS_BEFORE} hours before the event starts.`,
+          code:  'checkin_not_open',
+        }, { status: 409 })
+      }
     }
 
     // Only a live, approved RSVP can be checked in — a cancelled row is

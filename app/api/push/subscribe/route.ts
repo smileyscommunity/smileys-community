@@ -41,15 +41,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid subscription' }, { status: 400 })
   }
 
-  const existing = await prisma.pushSubscription.findUnique({ where: { endpoint } })
-  if (existing && existing.userId !== session.id) {
-    return NextResponse.json({ ok: true })
-  }
-
+  // An endpoint addresses a DEVICE, not an account, so on a shared phone it
+  // outlives the member who first registered it. This used to answer {ok:true}
+  // and change nothing when the row belonged to someone else — which left the
+  // endpoint tied to whoever logged in first, so the phone kept receiving the
+  // previous member's pushes (message previews included) and the current one
+  // got none. Whoever holds the session now — and the endpoint plus its keys,
+  // which only this device's browser can produce — owns the row.
+  // createdAt is bumped too: the cap below and lib/push's per-send take both
+  // keep the NEWEST rows, and a moved row carrying its original date could be
+  // evicted (or skipped) the moment it joins a member with other devices.
   await prisma.pushSubscription.upsert({
     where:  { endpoint },
     create: { userId: session.id, endpoint, p256dh: keys.p256dh, auth: keys.auth },
-    update: { p256dh: keys.p256dh, auth: keys.auth },
+    update: { userId: session.id, p256dh: keys.p256dh, auth: keys.auth, createdAt: new Date() },
   })
 
   // A member has a handful of devices, not hundreds of rows: keep the newest.

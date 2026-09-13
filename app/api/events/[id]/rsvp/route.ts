@@ -8,14 +8,26 @@ import { sendRsvpConfirmationEmail, recordEmailFailure } from '@/lib/email'
 import { autoJoinClub } from '@/lib/autoJoinClub'
 import { stampFirstEventRsvp } from '@/lib/firstEvent'
 import { announceSpotOpened } from '@/lib/spotOpened'
+import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 import { trackServer } from '@/lib/posthog-server'
 import { activateAttendee, cancelAttendeeOp, withdrawPendingOp, isActiveAttendee } from '@/lib/attendance'
 import { checkRsvpAllowed, gateErrorBody, getRsvpGate, recordYellowAcknowledgement } from '@/lib/noShow'
 import { noShowPolicyApplies } from '@/lib/noShowPolicy'
 import { DEFAULT_CURRENCY, formatMoney } from '@/lib/data'
-import { todayInCity } from '@/lib/city'
+import { todayInCity, getCityTz } from '@/lib/city'
+import { eventStartsAt, eventEndsAt, type EventClock } from '@/lib/eventTime'
 
 type Params = { params: Promise<{ id: string }> }
+
+// Has the event begun, on its city's clock? A TBA time has no start to pass
+// (read as midnight it would close the door at 00:00), so it counts as
+// started only once its day is over. A row whose date doesn't parse is
+// never "started" — this gate must not lock anyone out on bad data.
+function eventHasStarted(event: EventClock, tz: string, now: number = Date.now()): boolean {
+  const timeKnown = !!event.time && /^\d{1,2}:\d{2}/.test(event.time)
+  const at = (timeKnown ? eventStartsAt(event, tz) : eventEndsAt(event, tz)).getTime()
+  return Number.isFinite(at) && now >= at
+}
 
 export async function POST(req: NextRequest, { params }: Params) {
   try {
@@ -58,6 +70,14 @@ export async function POST(req: NextRequest, { params }: Params) {
     // enforced, and a bare string compare would read those as long past.
     if (event.registrationDeadline && /^\d{4}-\d{2}-\d{2}$/.test(event.registrationDeadline) && event.registrationDeadline < eventToday) {
       return NextResponse.json({ error: 'Registration for this event has closed' }, { status: 400 })
+    }
+    // The day check above let a member join tonight's 19:00 event at 23:00,
+    // and a waitlister claim a seat that opened mid-event — a seat nobody can
+    // use, later settled as a no-show. Placed before the co-host shortcut so
+    // every door below (co-host join, waitlist claim, pending request,
+    // straight RSVP, waitlist fallback) is shut by this one check.
+    if (eventHasStarted(event, await getCityTz(event.cityId))) {
+      return NextResponse.json({ error: 'This event has already started — RSVPs and the waitlist are closed' }, { status: 400 })
     }
     if (event.hostId === session.id) {
       return NextResponse.json({ error: 'Hosts cannot join their own event' }, { status: 400 })
@@ -210,11 +230,6 @@ export async function POST(req: NextRequest, { params }: Params) {
     // 21 goes to waitlist with a "male spots are full" message so they
     // have honest signal.
     if (event.approvalRequired) {
-      const [approvedCount, pendingCount] = await Promise.all([
-        prisma.eventAttendee.count({ where: { eventId, status: 'approved' } }),
-        prisma.eventAttendee.count({ where: { eventId, status: 'pending' } }),
-      ])
-
       // Helper that pushes the caller onto the waitlist with the right
       // reason text and returns the response. Used by both the over-capacity
       // and the quota-pool blocks below so the wording stays consistent.
@@ -243,8 +258,22 @@ export async function POST(req: NextRequest, { params }: Params) {
         return waitlistWithReason(`"${event.title}" is sold out`)
       }
 
-      if (approvedCount + pendingCount >= event.totalSpots) {
-        return waitlistWithReason(`"${event.title}" has no open request slots right now`)
+      // The request cap only exists where seats do. An unlimited event still
+      // stores a nominal totalSpots (20), and counting against it put the
+      // 21st requester on the waitlist of an event with no limit. The host
+      // and co-hosts take no seat (lib/spotsLeft excludes them), so they
+      // don't use up request slots either.
+      if (event.limitedSpots) {
+        const coHosts  = await prisma.eventCoHost.findMany({ where: { eventId }, select: { userId: true } })
+        const staffIds = [...new Set([...(event.hostId ? [event.hostId] : []), ...coHosts.map(c => c.userId)])]
+        const notStaff = staffIds.length ? { NOT: { userId: { in: staffIds } } } : {}
+        const [approvedCount, pendingCount] = await Promise.all([
+          prisma.eventAttendee.count({ where: { eventId, status: 'approved', ...notStaff } }),
+          prisma.eventAttendee.count({ where: { eventId, status: 'pending',  ...notStaff } }),
+        ])
+        if (approvedCount + pendingCount >= event.totalSpots) {
+          return waitlistWithReason(`"${event.title}" has no open request slots right now`)
+        }
       }
 
       // Gender-pool caps at 2× hard quota for approval-required events.
@@ -463,6 +492,21 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     })
     if (!isActiveAttendee(existing)) return NextResponse.json({ error: 'Not attending' }, { status: 400 })
 
+    // Checked in means you came. Cancelling afterwards stamped the row a late
+    // member cancel, which the no-show pass read as "didn't really give the
+    // spot back" and carded someone who was standing in the room.
+    if (existing.checkedIn) {
+      return NextResponse.json({
+        error: "You're already checked in at this event, so there's no RSVP to cancel. Ask the host if the check-in was a mistake.",
+        code:  'checked_in',
+      }, { status: 409 })
+    }
+
+    const event = await prisma.event.findUnique({
+      where:  { id: eventId },
+      select: { title: true, cityId: true, date: true, time: true, endTime: true, totalSpots: true },
+    })
+
     const wasApproved = existing.status === 'approved'
 
     // P2 fix: capture which pending payments will get cancelled so we
@@ -519,11 +563,8 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       select: { id: true, amount: true, currency: true },
     })
     if (paidPayments.length > 0) {
-      const [admins, evForNotify] = await Promise.all([
-        prisma.user.findMany({ where: { role: 'admin' }, select: { id: true } }),
-        prisma.event.findUnique({ where: { id: eventId }, select: { title: true } }),
-      ])
-      const eventTitle = evForNotify?.title ?? 'an event'
+      const admins = await prisma.user.findMany({ where: { role: 'admin' }, select: { id: true } })
+      const eventTitle = event?.title ?? 'an event'
       const totalPaid  = paidPayments.reduce((s, p) => s + p.amount, 0)
       await prisma.paymentLog.createMany({
         data: paidPayments.map(p => ({
@@ -551,7 +592,14 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     // When an approved attendee cancels, the seat goes to the waitlist as a
     // "spot opened — claim it" fanout (lib/spotOpened for the why), which
     // also re-derives spotsLeft.
-    if (wasApproved) await announceSpotOpened(eventId)
+    //
+    // Not once the event has started: a mid-event cancel sent "claim it!" to
+    // the waitlist, the claimer got a seat they couldn't reach in time and a
+    // no-show card for it. Joining is closed then anyway, so only the counter
+    // is re-derived (the card's "X going") — no announcement, no promotion.
+    const started = !!event && eventHasStarted(event, await getCityTz(event.cityId))
+    if (wasApproved && started) await recomputeSpotsLeft(eventId, event.totalSpots)
+    else if (wasApproved) await announceSpotOpened(eventId)
 
     return NextResponse.json({ ok: true })
   } catch (e) {

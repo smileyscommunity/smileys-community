@@ -172,28 +172,37 @@ export async function POST(req: NextRequest) {
 
     // Push members in the relevant neighborhood — high-intent, low-volume signal.
     // Skip if no neighborhood (avoid spamming everyone).
-    if (safeNeighborhood) {
-      prisma.user.findMany({
+    if (safeNeighborhood) (async () => {
+      // A blocked pair sees nothing of each other — hangouts, availability
+      // pulses, listings and mentions all drop them, and this "come meet me"
+      // ping went to every local regardless. Both directions, as in the pulse
+      // route. Anonymous visitors have no account for anyone to block.
+      const blocked = new Set(session
+        ? (await prisma.memberBlock.findMany({
+            where:  { OR: [{ blockerId: session.id }, { blockedId: session.id }] },
+            select: { blockerId: true, blockedId: true },
+          })).map(b => (b.blockerId === session.id ? b.blockedId : b.blockerId))
+        : [])
+      const locals = await prisma.user.findMany({
         // Destination city's locals — neighborhood names are only unique
         // per city, and an Istanbul 'Moda' ping about an Izmir visit would
         // be noise even if the names collide.
         where:  { neighborhood: safeNeighborhood, status: 'approved', cityId: destCityId },
         select: { id: true },
-      }).then(locals => {
-        for (const u of locals) {
-          if (u.id === session?.id) continue
-          createNotification(
-            u.id,
-            'visitor_announced',
-            `👋 Visitor coming to ${safeNeighborhood}`,
-            `${firstNameOf(created.name)} from ${created.fromCity ?? 'abroad'} — ${created.startsOn} to ${created.endsOn}`,
-            // City-aware link: the default city's visitors live on /visiting,
-            // any other city's on its own landing page.
-            dest.slug === 'istanbul' ? '/visiting' : `/${dest.slug}`,
-          ).catch(() => {})
-        }
-      }).catch(() => {})
-    }
+      })
+      for (const u of locals) {
+        if (u.id === session?.id || blocked.has(u.id)) continue
+        createNotification(
+          u.id,
+          'visitor_announced',
+          `👋 Visitor coming to ${safeNeighborhood}`,
+          `${firstNameOf(created.name)} from ${created.fromCity ?? 'abroad'} — ${created.startsOn} to ${created.endsOn}`,
+          // City-aware link: the default city's visitors live on /visiting,
+          // any other city's on its own landing page.
+          dest.slug === 'istanbul' ? '/visiting' : `/${dest.slug}`,
+        ).catch(() => {})
+      }
+    })().catch(() => {})
 
     return NextResponse.json({ id: created.id }, { status: 201 })
   } catch (e) {

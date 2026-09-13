@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 vi.mock('@/lib/session',   () => ({ getSession: vi.fn() }))
 vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn().mockResolvedValue(true) }))
@@ -12,7 +12,7 @@ vi.mock('@/lib/firstEvent',     () => ({ stampFirstEventRsvp: vi.fn().mockResolv
 vi.mock('@/lib/posthog-server', () => ({ trackServer: vi.fn() }))
 vi.mock('@/lib/eventQuota',     () => ({ hasQuotaRoomFor: vi.fn() }))
 vi.mock('@/lib/noShow', () => ({ checkRsvpAllowed: vi.fn().mockResolvedValue({ ok: true }), getRsvpGate: vi.fn().mockResolvedValue({ ok: true }), gateErrorBody: vi.fn() }))
-vi.mock('@/lib/city',   () => ({ todayInCity: vi.fn().mockResolvedValue('2026-09-10') }))
+vi.mock('@/lib/city',   () => ({ todayInCity: vi.fn().mockResolvedValue('2026-09-10'), getCityTz: vi.fn().mockResolvedValue('Europe/Istanbul') }))
 vi.mock('@/lib/prisma', () => ({ prisma: {
   $transaction:  vi.fn(),
   $queryRaw:     vi.fn().mockResolvedValue([]),
@@ -50,8 +50,14 @@ const event = {
   maleQuota: null, femaleQuota: null, turkishMaleQuota: null,
 }
 
+// The route refuses joins once the event has started (real clock), so pin "now"
+// to the morning the mocked todayInCity reports, before these fixtures' events.
+afterEach(() => vi.useRealTimers())
+
 beforeEach(() => {
   vi.clearAllMocks()
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2026-09-10T09:00:00+03:00'))
   ;(getSession as any).mockResolvedValue({ id: 'u1', name: 'U', email: 'u@x', role: 'member' })
   p.$transaction.mockImplementation(async (ops: any) => Array.isArray(ops) ? Promise.all(ops) : ops(p))
   p.user.findUnique.mockResolvedValue({ status: 'approved', gender: 'female', nationality: 'Germany', email: 'u@x', name: 'U' })

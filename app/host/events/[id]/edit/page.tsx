@@ -261,6 +261,13 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
     // same move, so the edit form must too.
     if (form.status === 'cancelled' && loadedStatus !== 'cancelled' &&
         !(await confirmToast('Cancel this event? Every attendee will be emailed and their spots released.', { confirmLabel: 'Cancel event', cancelLabel: 'Keep it' }))) return
+    // Parking a live event takes it off the public feed — the list page asks
+    // before the same move. Coming back needs a staff publish in its history.
+    if (loadedStatus === 'published' && (form.status === 'draft' || form.status === 'postponed') &&
+        !(await confirmToast(
+          `${form.status === 'draft' ? 'Move this live event to Draft? It leaves the public feed and members can\'t RSVP.' : 'Postpone this live event? It leaves the public feed and everyone going is notified.'} You can publish it again yourself if staff published it before — otherwise a moderator has to.`,
+          { confirmLabel: form.status === 'draft' ? 'Move to draft' : 'Postpone', cancelLabel: 'Keep it live' },
+        ))) return
     setError(''); setSaving(true)
     try {
       const res = await fetch(`/app/api/admin/events/${id}`, {
@@ -399,6 +406,9 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
                 <select value={form.status} onChange={e => set('status', e.target.value)} className={inputCls}>
                   {/* A host may keep an event published (no-op resubmit) but not move it there. */}
                   {(loadedStatus === 'published' || isStaff) && <option value="published">Published (live)</option>}
+                  {/* A parked (draft/postponed) event can go back live if staff published it
+                      before — the PUT route checks the audit trail and its refusal shows inline. */}
+                  {!isStaff && (loadedStatus === 'draft' || loadedStatus === 'postponed') && <option value="published">Publish again (live)</option>}
                   <option value="draft">Draft</option>
                   <option value="pending">Submit for review</option>
                   <option value="postponed">Postponed</option>

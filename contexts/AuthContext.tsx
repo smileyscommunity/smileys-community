@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import posthog from 'posthog-js'
 import { resetCurrentCity } from '@/hooks/useCurrentCity'
+import { forgetPushDevice } from '@/lib/pushDevice'
 import type { ReactNode } from 'react'
 import type { AppUser } from '@/lib/auth'
 
@@ -62,6 +63,11 @@ export function AuthProvider({ children, initialUser = null }: { children: React
   }, [])
 
   async function logout() {
+    // Shared devices: the push row addressing this phone still belongs to the
+    // member signing out, so the next one to sign in here would get their
+    // pushes. Removed first, while the session cookie can still authorize the
+    // DELETE. Never throws and never waits on a missing service worker.
+    await forgetPushDevice()
     await fetch('/app/api/auth/logout', { method: 'POST' })
     resetCurrentCity()
     // Drop the auth-scoped SW cache (/app/api/events/attending) so on a

@@ -43,8 +43,10 @@ describe('announceSpotOpened', () => {
   it('recomputes first, then tells everyone who could claim', async () => {
     expect(await announceSpotOpened('e1')).toBe(2)
     expect(recomputeSpotsLeft).toHaveBeenCalledWith('e1', 20)
+    // One push per waitlister, and it is the notification's own: createNotification
+    // pushes 'spot_opened' itself, so a direct sendPushToUser was the second buzz.
     expect(createNotification).toHaveBeenCalledTimes(2)
-    expect(sendPushToUser).toHaveBeenCalledTimes(2)
+    expect(sendPushToUser).not.toHaveBeenCalled()
   })
 
   it('stays silent on a manually sold-out event', async () => {

@@ -128,7 +128,11 @@ export interface NoShowCandidate {
  *   - checked in, pending, removed, or cancelled in time → no
  */
 export function isNoShow(a: NoShowCandidate, startsAt: Date): boolean {
-  if (a.status === 'approved') return !a.checkedIn
+  // A scan is proof they came, whatever the row says now: a member checked
+  // in at the door who then tapped Cancel was stamped a late cancel below
+  // and carded for an evening they were standing in.
+  if (a.checkedIn) return false
+  if (a.status === 'approved') return true
   if (a.status === 'cancelled' && a.cancelledBy === 'member' && a.cancelledAt) {
     return a.cancelledAt.getTime() > cancellationCutoff(startsAt).getTime()
   }

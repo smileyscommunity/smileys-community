@@ -13,6 +13,7 @@ import { sendEventCancelledEmail, recordEmailFailure } from '@/lib/email'
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 import { todayInCity } from '@/lib/city'
 import { checkSeriesId, seriesScopeFor } from '@/lib/seriesOwnership'
+import { wasStaffPublished } from '@/lib/eventPublishHistory'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -254,10 +255,18 @@ export async function PUT(req: NextRequest, { params }: Params) {
       // resubmit of the current status. Hosts keep every de-escalating move
       // (draft, postponed, cancelled, archived) on their own events.
       if (rest.status === 'published' && before.status !== 'published') {
-        return NextResponse.json(
-          { error: 'Publishing an event is staff-only — it stays pending until a moderator approves it.' },
-          { status: 403 },
-        )
+        // Draft/Postponed was a one-way door: a host who parked their own live
+        // event couldn't bring it back without staff. Reopening is allowed only
+        // from those two parked states AND only when staff demonstrably put it
+        // live before (audit trail, lib/eventPublishHistory) — pending,
+        // cancelled and archived still go through a moderator.
+        const reopening = (before.status === 'draft' || before.status === 'postponed') && await wasStaffPublished(id)
+        if (!reopening) {
+          return NextResponse.json(
+            { error: 'Publishing an event is staff-only — it stays pending until a moderator approves it.' },
+            { status: 403 },
+          )
+        }
       }
       // approvalRequired gates who may join; flipping it off is a moderation
       // decision, not a host one. Leave a host's existing value untouched.
@@ -473,6 +482,17 @@ export async function PUT(req: NextRequest, { params }: Params) {
         const attendees = await prisma.eventAttendee.findMany({ where: { eventId: id, status: 'approved' }, select: { userId: true } })
         await Promise.all(attendees.map(a =>
           createNotification(a.userId, 'event_updated', 'Event details changed 📅', `"${before.title}" has been updated — check the new time or location`, `/events/${id}`)
+        ))
+      })().catch(() => {})
+    }
+
+    // Postponing a live event pulls it off the feed; the people going were
+    // never told, so they'd find out at the door. One bell entry each.
+    if (before.status === 'published' && event.status === 'postponed') {
+      ;(async () => {
+        const attendees = await prisma.eventAttendee.findMany({ where: { eventId: id, status: 'approved' }, select: { userId: true } })
+        await Promise.all(attendees.map(a =>
+          createNotification(a.userId, 'event_updated', 'Event postponed ⏸️', `"${before.title}" has been postponed — keep an eye out for the new date.`, `/events/${id}`)
         ))
       })().catch(() => {})
     }

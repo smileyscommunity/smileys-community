@@ -1,6 +1,5 @@
 import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notify'
-import { sendPushToUser } from '@/lib/push'
 import { sendSpotOpenedEmail, recordEmailFailure } from '@/lib/email'
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 import { hasQuotaRoomFor, quotaEventSelect } from '@/lib/eventQuota'
@@ -55,6 +54,9 @@ export async function announceSpotOpened(eventId: string): Promise<number> {
   }
 
   for (const u of users) {
+    // One push, from the notification itself: createNotification pushes
+    // every type it doesn't gate ('spot_opened' has no preference key), and
+    // a second sendPushToUser here buzzed each waitlister twice per seat.
     createNotification(
       u.id,
       'spot_opened',
@@ -62,11 +64,6 @@ export async function announceSpotOpened(eventId: string): Promise<number> {
       `A spot just opened for "${event.title}". First come, first served.`,
       `/events/${eventId}`,
     ).catch(() => {})
-    sendPushToUser(u.id, {
-      title: 'Spot opened! 🚪',
-      body:  `Quick — a spot opened for "${event.title}". First come first served.`,
-      link:  `/app/events/${eventId}`,
-    }).catch(() => {})
     // Fire-and-forget so a single SMTP failure doesn't block other
     // members' notifications or the caller's response.
     sendSpotOpenedEmail(u.email, u.name ?? 'Member', event.title, event.date ?? '', eventId)
