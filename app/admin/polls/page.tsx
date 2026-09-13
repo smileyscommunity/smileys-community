@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react'
 import { toast } from 'sonner'
 import { useAdminLoad } from '@/lib/admin/useAdminLoad'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
+import { useAuth } from '@/contexts/AuthContext'
 
 // Server caps mirrored here for inline UI validation.
 const QUESTION_MAX = 300
@@ -47,6 +48,10 @@ interface Poll {
 }
 
 export default function PollsPage() {
+  const { user } = useAuth()
+  // There's one live poll network-wide; creating, ending, reactivating and
+  // deleting are admin-only on the API, so moderators see results only.
+  const isAdmin = user.role === 'admin'
   const { data, loading, error: loadError, retry: load, setData } = useAdminLoad<Poll[]>(
     '/app/api/admin/community-poll',
     (v): v is Poll[] => Array.isArray(v),
@@ -192,6 +197,9 @@ export default function PollsPage() {
         <p className="text-sm text-zinc-500 mt-0.5">
           Member-facing polls — collect feedback on what to program next.
         </p>
+        {!isAdmin && (
+          <p className="text-xs text-amber-400/80 mt-2">Network-wide content is admin-only — you can view poll results, but only an admin can create or change polls.</p>
+        )}
       </div>
 
       <LoadErrorBanner message={loadError} onRetry={load} title="Couldn't load polls" className="mb-6" />
@@ -199,6 +207,7 @@ export default function PollsPage() {
       <div className="space-y-6 max-w-2xl">
 
         {/* Create new poll */}
+        {isAdmin && (
         <div className="bg-zinc-800/50 border border-zinc-700 rounded-2xl p-5 space-y-4">
           <h3 className="text-sm font-bold text-white">Create new poll</h3>
 
@@ -259,6 +268,7 @@ export default function PollsPage() {
             </button>
           </div>
         </div>
+        )}
 
         {/* Existing polls */}
         {loading ? (
@@ -295,6 +305,7 @@ export default function PollsPage() {
                       <span className={`text-xs font-bold px-2 py-1 rounded-lg uppercase tracking-wide ${poll.active ? 'bg-amber-500/20 text-amber-400' : 'bg-zinc-800 text-zinc-500'}`}>
                         {poll.active ? 'Live' : 'Ended'}
                       </span>
+                      {isAdmin && (<>
                       <button
                         onClick={() => toggleActive(poll.id, !poll.active)}
                         disabled={busyPollId === poll.id}
@@ -327,6 +338,7 @@ export default function PollsPage() {
                           ✕
                         </button>
                       )}
+                      </>)}
                     </div>
                   </div>
 

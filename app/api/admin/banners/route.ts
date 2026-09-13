@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator } from '@/lib/access'
+import { isAdmin, isAdminOrModerator } from '@/lib/access'
 import { isSafeHref } from '@/lib/safeUrl'
 import { writeAudit } from '@/lib/audit'
 import { readFileSync, writeFileSync, mkdirSync, renameSync } from 'fs'
@@ -89,13 +89,22 @@ export async function GET() {
 
 const VALID_TYPES: BannerType[] = ['sponsored', 'promo', 'strip']
 
+// Fingerprint of one page's stored list. Every write restamps updatedAt, so
+// any change since the editor loaded — another tab, another admin, or a load
+// that never happened — changes this. Mirrored in app/admin/banners/page.tsx.
+function versionOf(list: Banner[]): string {
+  return list.map(b => `${b.id}@${b.updatedAt}`).join('|')
+}
+
 export async function POST(req: NextRequest) {
   const session = await getSession()
-  if (!session || !isAdminOrModerator(session)) {
+  // Admin-only: banners (paid sponsor placements included) render in every
+  // city, so a city-scoped moderator can't be the one to change them.
+  if (!session || !isAdmin(session)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { page, banners } = await req.json()
+  const { page, banners, baseVersion } = await req.json()
 
   // Page allowlist — previously `page` was used as a JSON key without
   // validation, so an admin could write `page: "__proto__"` (or any
@@ -105,6 +114,13 @@ export async function POST(req: NextRequest) {
   }
   if (!Array.isArray(banners)) {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
+  }
+  // The body replaces the page's whole list, so the client must say which
+  // list it edited. Without this, an editor whose load failed (empty state)
+  // or that raced a second click posted a stale array and silently deleted
+  // or reverted live banners.
+  if (typeof baseVersion !== 'string') {
+    return NextResponse.json({ error: 'baseVersion required' }, { status: 400 })
   }
   if (banners.length > BANNERS_PER_PAGE_MAX) {
     return NextResponse.json({ error: `Maximum ${BANNERS_PER_PAGE_MAX} banners per page` }, { status: 400 })
@@ -144,6 +160,14 @@ export async function POST(req: NextRequest) {
   }
 
   const all = read()
+  // Refuse a write built on anything but the list stored right now, and hand
+  // back the current list so the editor can resync instead of guessing.
+  if (versionOf(all[page as BannerPage]) !== baseVersion) {
+    return NextResponse.json({
+      error: 'These banners changed since the editor loaded them — refreshed, please re-apply your change',
+      banners: all[page as BannerPage],
+    }, { status: 409 })
+  }
   all[page as BannerPage] = sanitized
 
   const serialized = JSON.stringify(all, null, 2)

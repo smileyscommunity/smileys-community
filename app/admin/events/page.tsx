@@ -447,12 +447,20 @@ function AdminEventsPageInner() {
 
   async function bulkDelete() {
     if (!(await confirmToast(`Delete ${selected.size} events?`))) return
+    // An event with attendees or paid payments is refused (409) with the
+    // reason — show one, or "N failed" gives no hint to cancel instead.
+    const refusals: string[] = []
     await bulkRun('Delete', async (id) => {
       const res = await fetch(`/app/api/admin/events/${id}`, { method: 'DELETE', credentials: 'include' })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        if (typeof d?.error === 'string') refusals.push(d.error)
+      }
       return res.ok
     }, (ok) => {
       setEvents(prev => prev.filter(e => !ok.has(e.id)))
     })
+    if (refusals.length) toast.error(refusals[0])
   }
 
   function toggleSelect(id: string) {

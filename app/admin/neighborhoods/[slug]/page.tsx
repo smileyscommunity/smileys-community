@@ -175,7 +175,9 @@ function EditNeighborhoodPageInner({ params }: { params: Promise<{ slug: string 
       const data = await res.json()
       if (!res.ok) { toast.error(data.error ?? 'Upload failed'); return }
       setGuide(g => ({ ...g, image: data.url }))
-      toast.success('Banner uploaded ✓')
+      // The upload isn't live until Save — the public page keeps the saved
+      // banner until then, so say so rather than implying it's published.
+      toast.success('Banner uploaded — Save to publish it')
     } catch { toast.error('Upload failed') }
     finally { setUploading(false) }
   }

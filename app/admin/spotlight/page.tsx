@@ -7,6 +7,7 @@ import { resolveImageUrl } from '@/lib/data'
 import { toast } from 'sonner'
 import { useAdminLoad } from '@/lib/admin/useAdminLoad'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
+import { useAuth } from '@/contexts/AuthContext'
 
 // This page used to host editors for the announcement banner and
 // the community poll as well. Both moved to /admin/announcements
@@ -46,6 +47,10 @@ function Avatar({ user }: { user: Pick<User, 'name' | 'color' | 'profilePhoto'> 
 }
 
 export default function SpotlightPage() {
+  const { user } = useAuth()
+  // One spotlight renders on every city's dashboard, so setting and clearing
+  // it are admin-only on the API; moderators see the current pick only.
+  const isAdmin = user.role === 'admin'
   // Shared admin-load hook gives us r.ok + shape-validation +
   // a Retry button via LoadErrorBanner. The escape hatch
   // setData lets the clear/save flows mutate the cached value.
@@ -152,6 +157,9 @@ export default function SpotlightPage() {
         <div>
           <h1 className="text-2xl font-extrabold text-white">Spotlight</h1>
           <p className="text-sm text-zinc-500 mt-0.5">Pick the member featured on the dashboard.</p>
+          {!isAdmin && (
+            <p className="text-xs text-amber-400/80 mt-2">Network-wide content is admin-only — you can view the spotlight, but only an admin can change it.</p>
+          )}
         </div>
         {/* Pointer to where the announcement + poll editors moved.
             Same data lived in two places before — this nudge sends
@@ -169,6 +177,7 @@ export default function SpotlightPage() {
         <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5">
           <div className="flex items-center justify-between mb-4 gap-3">
             <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Current spotlight</h2>
+            {isAdmin && (
             <div className="flex items-center gap-3 text-xs">
               <button onClick={prefillFromCurrent} className="text-amber-400 font-semibold hover:text-amber-300">Edit →</button>
               <button onClick={clearSpotlight} disabled={saving}
@@ -177,6 +186,7 @@ export default function SpotlightPage() {
                 Clear
               </button>
             </div>
+            )}
           </div>
           <div className="flex items-center gap-4 mb-4">
             <Avatar user={current.user} />
@@ -203,6 +213,7 @@ export default function SpotlightPage() {
       )}
 
       {/* Set new spotlight */}
+      {isAdmin && (
       <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5 space-y-5">
         <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest">
           {current ? 'Change spotlight member' : 'Set spotlight member'}
@@ -277,6 +288,7 @@ export default function SpotlightPage() {
           {saving ? 'Saving…' : current ? 'Update spotlight' : 'Set spotlight'}
         </button>
       </div>
+      )}
     </div>
   )
 }

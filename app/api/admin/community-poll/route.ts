@@ -21,7 +21,9 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const session = await getSession()
-  if (!session || !isAdminOrModerator(session)) {
+  // Admin-only: there's one live poll network-wide, and publishing one ends
+  // whatever every other city was voting on.
+  if (!session || !isAdmin(session)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -107,7 +109,9 @@ export async function DELETE(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   const session = await getSession()
-  if (!session || !isAdminOrModerator(session)) {
+  // Admin-only, like POST: ending or reactivating the poll changes it for
+  // every city at once.
+  if (!session || !isAdmin(session)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   const { pollId, active } = await req.json()

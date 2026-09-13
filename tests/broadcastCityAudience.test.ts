@@ -23,7 +23,10 @@ vi.mock('@/lib/totpPolicy', () => ({ ADMIN_2FA_REQUIRED: true }))
 
 vi.mock('@/lib/session', () => ({ getSession: vi.fn() }))
 vi.mock('@/lib/notify',  () => ({ createNotification: vi.fn(async () => {}) }))
-vi.mock('@/lib/email',   () => ({ sendBroadcastEmail: vi.fn(async () => {}) }))
+vi.mock('@/lib/email',   () => ({ sendBroadcastEmail: vi.fn(async () => {}), recordEmailFailure: vi.fn(async () => {}) }))
+// Every POST now claims its requestId (scan 5 item 45); a fresh id per call
+// always wins the claim, so these cases test audience scoping alone.
+vi.mock('@/lib/rateLimit', () => ({ claimOnce: vi.fn(async () => true), releaseClaim: vi.fn(async () => {}) }))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     city:      { findUnique: vi.fn() },
@@ -44,10 +47,11 @@ const admin = { id: 'a1', name: 'A', role: 'admin',     cityId: 'c-ist', totpVer
 const stale = { id: 'a1', name: 'A', role: 'admin',     cityId: 'c-ist' }
 const mod   = { id: 'm1', name: 'M', role: 'moderator', cityId: 'c-ist' }
 
+let seq = 0
 function post(body: Record<string, unknown>) {
   return POST(new Request('https://x/app/api/admin/notifications/broadcast', {
     method: 'POST',
-    body: JSON.stringify({ title: 'T', message: 'M', channel: 'in-app', ...body }),
+    body: JSON.stringify({ title: 'T', message: 'M', channel: 'in-app', requestId: `req-${String(++seq).padStart(6, '0')}`, ...body }),
   }) as never)
 }
 

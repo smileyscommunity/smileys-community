@@ -3,7 +3,7 @@ import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
 import { slugToNeighborhood } from '@/lib/neighborhoods'
 import { getNeighborhoodView } from '@/lib/neighborhoodsDb'
-import { guideFileFor, resolveAdminCity, type AdminGuideCity } from '@/lib/neighborhoodGuideFiles'
+import { guideFileFor, pruneSupersededBanners, resolveAdminCity, type AdminGuideCity } from '@/lib/neighborhoodGuideFiles'
 import { canActInCity } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
 import { readFileSync, writeFileSync, mkdirSync, renameSync } from 'fs'
@@ -231,6 +231,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ slug
   const tmp    = `${target}.tmp`
   writeFileSync(tmp, serialized)
   renameSync(tmp, target)
+
+  // Only now, with the guide on disk, is the previous banner superseded —
+  // delete this slug's other banner files, keeping the one just saved. A
+  // write that throws above never gets here, so it deletes nothing.
+  pruneSupersededBanners(city, slug, stamped.image)
 
   writeAudit(session.id, session.name, 'neighborhood.update', slug, 'neighborhood',
     { slug, categoryCount: stamped.places?.length ?? 0, tipCount: stamped.tips?.length ?? 0 },

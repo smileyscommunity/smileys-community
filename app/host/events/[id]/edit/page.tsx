@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { confirmToast } from '@/lib/confirmToast'
+import { toastApiError } from '@/lib/apiError'
 import {} from '@/lib/data'
 import { todayInTz, DEFAULT_TZ, formatDay } from '@/lib/cityTime'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
@@ -255,6 +256,11 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
     if (Number(form.price) > 0 && paymentMethod === 'buyonline' && !form.ticketUrl.trim()) {
       setError('Ticket link is required for "Buy online"'); return
     }
+    // Saving into 'Cancelled' releases every seat, clears the waitlist and
+    // emails all attendees (the PUT route) — the events list asks before the
+    // same move, so the edit form must too.
+    if (form.status === 'cancelled' && loadedStatus !== 'cancelled' &&
+        !(await confirmToast('Cancel this event? Every attendee will be emailed and their spots released.', { confirmLabel: 'Cancel event', cancelLabel: 'Keep it' }))) return
     setError(''); setSaving(true)
     try {
       const res = await fetch(`/app/api/admin/events/${id}`, {
@@ -281,8 +287,13 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
 
   async function handleDelete() {
     if (!(await confirmToast('Delete this event?'))) return
-    const res = await fetch(`/app/api/admin/events/${id}`, { method: 'DELETE', credentials: 'include' })
-    if (res.ok) router.push('/host/events')
+    // The route refuses (409) an event with attendees or paid payments and
+    // says to cancel instead — a silent no-op looked like a broken button.
+    try {
+      const res = await fetch(`/app/api/admin/events/${id}`, { method: 'DELETE', credentials: 'include' })
+      if (!res.ok) { await toastApiError(res, 'Could not delete event'); return }
+      router.push('/host/events')
+    } catch { toast.error('Could not delete event — check your connection') }
   }
 
   function buildSpawnDates(): string[] {

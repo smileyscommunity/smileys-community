@@ -93,9 +93,16 @@ describe('lists a moderator can reach are pinned to their city', () => {
     asModerator(); await partnersGET()
     expect(last('partner.findMany').where).toEqual({ cityId: BODRUM })
   })
-  it('broadcast history — own city plus network-wide', async () => {
+  // Narrowed in scan 5 item 42: cityId-null rows are network-wide sends and
+  // club/event sends from every city, so a moderator's scan takes only the
+  // club/event ones, which the route then filters by the club/event's city.
+  it('broadcast history — own city, plus club/event sends resolved to it', async () => {
     asModerator(); await broadcastGET()
-    expect(last('broadcast.findMany').where).toEqual({ OR: [{ cityId: BODRUM }, { cityId: null }] })
+    expect(last('broadcast.findMany').where).toEqual({ OR: [
+      { cityId: BODRUM },
+      { cityId: null, audience: 'club',  clubId:  { not: null } },
+      { cityId: null, audience: 'event', eventId: { not: null } },
+    ] })
   })
   it('clubs — own city plus global, whatever ?city= says', async () => {
     asModerator(); await clubsGET(req('http://x/a?city=c-istanbul'))

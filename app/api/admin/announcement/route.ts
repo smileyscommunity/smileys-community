@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { writeAudit } from '@/lib/audit'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator } from '@/lib/access'
+import { isAdmin, isAdminOrModerator } from '@/lib/access'
 import { isSafeHref } from '@/lib/safeUrl'
 import { readFileSync, writeFileSync, renameSync } from 'fs'
 import { join } from 'path'
@@ -54,7 +54,9 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const session = await getSession()
-  if (!session || !isAdminOrModerator(session)) {
+  // Admin-only: there is one announcement and every city's dashboard shows
+  // it, so a city-scoped moderator writing it would speak for the network.
+  if (!session || !isAdmin(session)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   const { text, link, active } = await req.json()

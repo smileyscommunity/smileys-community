@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
 import { useAdminLoad } from '@/lib/admin/useAdminLoad'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
+import { useAuth } from '@/contexts/AuthContext'
 
 // Just the announcement banner editor. The polls editor lives at
 // /admin/polls — the two used to share this route behind a ?tab=
@@ -57,6 +58,10 @@ function clientLinkLooksValid(link: string): boolean {
 }
 
 export default function AnnouncementsPage() {
+  const { user } = useAuth()
+  // One announcement shows in every city, so the API takes writes from
+  // admins only; moderators get a read-only form.
+  const isAdmin = user.role === 'admin'
   // Shared admin-load hook handles the GET + r.ok + retry. We
   // hydrate the form's editable copy from `loaded` once it lands.
   const { data: loaded, loading, error, retry } = useAdminLoad<Announcement>(
@@ -127,6 +132,9 @@ export default function AnnouncementsPage() {
             sidebar (app/(member)/dashboard/page.tsx). Don't overstate
             reach — moderators will write copy for the wrong audience. */}
         <p className="text-sm text-zinc-500 mt-0.5">Banner shown on the member dashboard.</p>
+        {!isAdmin && (
+          <p className="text-xs text-amber-400/80 mt-2">Network-wide content is admin-only — you can view the announcement, but only an admin can change it.</p>
+        )}
       </div>
 
       <LoadErrorBanner message={error} onRetry={retry} title="Couldn't load announcement" className="mb-6" />
@@ -149,7 +157,8 @@ export default function AnnouncementsPage() {
           </div>
         </div>
       ) : (
-        <div className="max-w-xl space-y-5">
+        // fieldset disables every field and the Save button for moderators.
+        <fieldset disabled={!isAdmin} className="max-w-xl space-y-5 min-w-0">
           {/* Preview */}
           {data.text && (
             <div className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium ${data.active ? 'bg-amber-500/15 border border-amber-500/25 text-amber-300' : 'bg-zinc-800 border border-zinc-700 text-zinc-400'}`}>
@@ -233,7 +242,7 @@ export default function AnnouncementsPage() {
               {data.updatedBy ? ` by ${data.updatedBy}` : ''}.
             </p>
           )}
-        </div>
+        </fieldset>
       )}
     </div>
   )

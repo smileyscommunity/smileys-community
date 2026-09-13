@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { downscaleImage } from '@/lib/image-resize'
 import { resolveImageUrl } from '@/lib/data'
 import { toast } from 'sonner'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface WeekDay  { day: string; short: string; emoji: string; event: string; desc: string }
 interface FaqItem  { q: string; a: string }
@@ -83,6 +84,10 @@ function METRIC_FOR(label: string): keyof LiveStats {
 }
 
 export default function ContentPage() {
+  const { user } = useAuth()
+  // This copy is the network's (landing, About, FAQ), not a city's, so the
+  // API takes saves from admins only; moderators get a read-only editor.
+  const isAdmin = user.role === 'admin'
   const [content,   setContent]   = useState<Content | null>(null)
   // What the database actually says, for comparison against the editorial
   // figures below. Never saved back — it's a reference reading, not content.
@@ -198,6 +203,9 @@ export default function ContentPage() {
       <div>
         <h1 className="text-2xl font-extrabold text-white">Content Editor</h1>
         <p className="text-sm text-zinc-500 mt-0.5">Edit page text directly — no code changes needed.</p>
+        {!isAdmin && (
+          <p className="text-xs text-amber-400/80 mt-2">Network-wide content is admin-only — you can view this copy, but only an admin can change it.</p>
+        )}
       </div>
 
       {/* Tabs */}
@@ -212,6 +220,9 @@ export default function ContentPage() {
         ))}
       </div>
 
+      {/* Every section sits in one fieldset so a moderator's inputs, upload
+          and Save buttons are disabled together; the tabs above stay live. */}
+      <fieldset disabled={!isAdmin} className="min-w-0">
       {/* ── Stats ── */}
       {tab === 'stats' && (
         <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5 space-y-4">
@@ -556,6 +567,7 @@ export default function ContentPage() {
           <SaveButton onClick={() => save('neighborhoods', content.neighborhoods)} saving={saving} />
         </div>
       )}
+      </fieldset>
     </div>
   )
 }

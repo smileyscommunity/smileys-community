@@ -1,4 +1,17 @@
 import { prisma } from '@/lib/prisma'
+import type { SessionUser } from '@/lib/session'
+import { isAdmin, canActInCity } from '@/lib/access'
+
+/**
+ * Whether this session may create, edit, hide, reorder, move or delete a quote
+ * whose city is `cityId` (or move one there). Admins: any. Moderators: only
+ * their own city — never `null`, because an "across Smileys" quote shows on
+ * every city's page, and canActInCity reads "no city" as admin/mod parity.
+ */
+export function canActOnQuoteCity(session: SessionUser, cityId: string | null): boolean {
+  if (isAdmin(session)) return true
+  return !!cityId && canActInCity(session, cityId)
+}
 
 /**
  * A city id that doesn't exist. Distinct from `null`, which is the legitimate

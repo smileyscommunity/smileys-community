@@ -4,17 +4,68 @@ import { getSession } from '@/lib/session'
 import { canSendBroadcasts, isAdmin, failClosedCityId } from '@/lib/access'
 import { requireStepUp } from '@/lib/stepUp'
 import { createNotification } from '@/lib/notify'
-import { sendBroadcastEmail } from '@/lib/email'
+import { sendBroadcastEmail, recordEmailFailure } from '@/lib/email'
+import { claimOnce, releaseClaim } from '@/lib/rateLimit'
+
+// Sends go out in sequential chunks. One Resend call per member all at once
+// trips Resend's rate limit on any real audience, and a burst of that size
+// also drains the DB pool the in-app fan-out shares.
+const SEND_CHUNK = 50
+
+// How far back a moderator's history scan reaches before it filters club and
+// event sends down to their city. Bounded so the lookup below stays two small
+// queries; the page only ever shows 50.
+const MOD_HISTORY_SCAN = 300
+
+// The client's per-compose idempotency key. Short and plain so it can't bloat
+// or poison the rate_limits key it becomes.
+const REQUEST_ID = /^[A-Za-z0-9-]{8,64}$/
+
+async function inChunks<T, R>(items: T[], fn: (item: T) => Promise<R>): Promise<PromiseSettledResult<R>[]> {
+  const out: PromiseSettledResult<R>[] = []
+  for (let i = 0; i < items.length; i += SEND_CHUNK) {
+    out.push(...await Promise.allSettled(items.slice(i, i + SEND_CHUNK).map(fn)))
+  }
+  return out
+}
 
 export async function GET() {
   const session = await getSession()
   if (!session || !canSendBroadcasts(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  const history = await prisma.broadcast.findMany({
-    // Moderators: their own city's sends plus the network-wide ones.
-    where:   isAdmin(session) ? {} : { OR: [{ cityId: failClosedCityId(session) }, { cityId: null }] },
+  if (isAdmin(session)) {
+    const history = await prisma.broadcast.findMany({ orderBy: { createdAt: 'desc' }, take: 50 })
+    return NextResponse.json(history)
+  }
+
+  // Moderators see only sends they could have made themselves: their city's
+  // city-wide sends, plus club and event sends whose club or event is in
+  // their city. Broadcast.cityId is set only for audience 'city', so a
+  // cityId-null row is either network-wide (never theirs) or a club/event
+  // send from ANY city — resolved through the club/event's own city below.
+  const own = failClosedCityId(session)
+  const candidates = await prisma.broadcast.findMany({
+    where: { OR: [
+      { cityId: own },
+      { cityId: null, audience: 'club',  clubId:  { not: null } },
+      { cityId: null, audience: 'event', eventId: { not: null } },
+    ] },
     orderBy: { createdAt: 'desc' },
-    take: 50,
+    take: MOD_HISTORY_SCAN,
   })
+  const clubIds  = [...new Set(candidates.flatMap(b => !b.cityId && b.audience === 'club'  && b.clubId  ? [b.clubId]  : []))]
+  const eventIds = [...new Set(candidates.flatMap(b => !b.cityId && b.audience === 'event' && b.eventId ? [b.eventId] : []))]
+  const [clubs, events] = await Promise.all([
+    clubIds.length  ? prisma.club.findMany({  where: { id: { in: clubIds } },  select: { id: true, cityId: true } }) : [],
+    eventIds.length ? prisma.event.findMany({ where: { id: { in: eventIds } }, select: { id: true, cityId: true } }) : [],
+  ])
+  const clubCity  = new Map(clubs.map(c => [c.id, c.cityId]))
+  const eventCity = new Map(events.map(e => [e.id, e.cityId]))
+  // A deleted club/event resolves to undefined and drops out — fail closed.
+  const history = candidates.filter(b =>
+    b.cityId === own
+    || (b.audience === 'club'  && !!b.clubId  && clubCity.get(b.clubId)   === own)
+    || (b.audience === 'event' && !!b.eventId && eventCity.get(b.eventId) === own),
+  ).slice(0, 50)
   return NextResponse.json(history)
 }
 
@@ -54,8 +105,14 @@ export async function POST(req: NextRequest) {
   const session = await getSession()
   if (!session || !canSendBroadcasts(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { title, message, type, channel, audience, clubId, eventId, cityId } = await req.json()
+  const { title, message, type, channel, audience, clubId, eventId, cityId, requestId } = await req.json()
   if (!title?.trim() || !message?.trim()) return NextResponse.json({ error: 'Title and message required' }, { status: 400 })
+  // Required, not optional: a send that outlives nginx's timeout shows the
+  // admin an error page while it keeps going, and without a key the retry
+  // they naturally press sends the whole thing twice.
+  if (typeof requestId !== 'string' || !REQUEST_ID.test(requestId)) {
+    return NextResponse.json({ error: 'requestId required' }, { status: 400 })
+  }
 
   const notifType = type === 'alert' ? 'system_alert' : 'announcement'
   const link      = eventId ? `/events/${eventId}` : clubId ? `/clubs/${clubId}` : undefined
@@ -91,7 +148,10 @@ export async function POST(req: NextRequest) {
       }
     } else if (audience === 'club' && clubId) {
       const cl = await prisma.club.findUnique({ where: { id: clubId }, select: { cityId: true } })
-      if (!cl || !canSendBroadcasts(session, cl.cityId)) {
+      // A global club (cityId null) has members in every city, and
+      // canActInCity treats "no city" as admin/mod parity — so the null
+      // check has to be explicit or any moderator emails the whole network.
+      if (!cl || !cl.cityId || !canSendBroadcasts(session, cl.cityId)) {
         return NextResponse.json({ error: 'Cross-city broadcast is admin-only' }, { status: 403 })
       }
     } else {
@@ -110,66 +170,92 @@ export async function POST(req: NextRequest) {
     if (stepUp) return stepUp
   }
 
+  // Claimed only once every refusal above has had its say, so a rejected
+  // attempt never burns the key the corrected retry needs. Scoped to the
+  // sender so one admin's id can't block another's.
+  const claimKey = `broadcast:${session.id}:${requestId}`
+  if (!(await claimOnce(claimKey, 60 * 60_000))) {
+    return NextResponse.json({ error: 'This broadcast was already sent' }, { status: 409 })
+  }
+
   // Fetch users with email + unsubscribe preference
   let users: { id: string; name: string; email: string; emailMarketing: boolean }[] = []
 
-  if (audience === 'event' && eventId) {
-    const attendees = await prisma.eventAttendee.findMany({
-      where: { eventId, status: 'approved' },
-      include: { user: { select: { id: true, name: true, email: true, emailMarketing: true } } },
-    })
-    users = attendees.map(a => a.user)
-  } else if (audience === 'club' && clubId) {
-    const members = await prisma.clubMembership.findMany({
-      where: { clubId, status: 'approved' },
-      include: { user: { select: { id: true, name: true, email: true, emailMarketing: true } } },
-    })
-    users = members.map(m => m.user)
-  } else if (audience === 'city' && cityId) {
-    users = await prisma.user.findMany({
-      where: { status: 'approved', cityId },
-      select: { id: true, name: true, email: true, emailMarketing: true },
-    })
-  } else {
-    users = await prisma.user.findMany({
-      where: { status: 'approved' },
-      select: { id: true, name: true, email: true, emailMarketing: true },
-    })
+  try {
+    if (audience === 'event' && eventId) {
+      const attendees = await prisma.eventAttendee.findMany({
+        where: { eventId, status: 'approved' },
+        include: { user: { select: { id: true, name: true, email: true, emailMarketing: true } } },
+      })
+      users = attendees.map(a => a.user)
+    } else if (audience === 'club' && clubId) {
+      const members = await prisma.clubMembership.findMany({
+        where: { clubId, status: 'approved' },
+        include: { user: { select: { id: true, name: true, email: true, emailMarketing: true } } },
+      })
+      users = members.map(m => m.user)
+    } else if (audience === 'city' && cityId) {
+      users = await prisma.user.findMany({
+        where: { status: 'approved', cityId },
+        select: { id: true, name: true, email: true, emailMarketing: true },
+      })
+    } else {
+      users = await prisma.user.findMany({
+        where: { status: 'approved' },
+        select: { id: true, name: true, email: true, emailMarketing: true },
+      })
+    }
+  } catch (e) {
+    // Nothing has gone out yet — hand the key back so the retry isn't told
+    // "already sent" about a send that never happened.
+    await releaseClaim(claimKey)
+    throw e
   }
 
   // Deduplicate by userId
   const seen  = new Set<string>()
   const dedup = users.filter(u => { if (seen.has(u.id)) return false; seen.add(u.id); return true })
 
+  // Only email users who haven't unsubscribed
+  const eligible = isEmail ? dedup.filter(u => u.emailMarketing) : []
+  let emailed = 0
   if (isEmail) {
-    // Only email users who haven't unsubscribed
-    const eligible = dedup.filter(u => u.emailMarketing)
-    await Promise.allSettled(
-      eligible.map(u => sendBroadcastEmail(u.id, u.email, u.name, title.trim(), message.trim()))
-    )
-    // Also send in-app notification
-    await Promise.allSettled(
-      dedup.map(u => createNotification(u.id, notifType, title.trim(), message.trim(), link))
-    )
-    await prisma.broadcast.create({
-      data: { title: title.trim(), message: message.trim(), type: type ?? 'announcement',
-              audience: audience ?? 'all', channel: 'email',
-              clubId: clubId || null, eventId: eventId || null,
-              cityId: audience === 'city' ? cityId : null,
-              sentBy: session.name, sentCount: eligible.length },
+    const results = await inChunks(eligible, u => sendBroadcastEmail(u.id, u.email, u.name, title.trim(), message.trim()))
+    // Every rejection lands in EmailFailure — allSettled alone swallowed them,
+    // and the toast then reported the whole list as sent.
+    const failures: Promise<void>[] = []
+    results.forEach((r, i) => {
+      if (r.status === 'fulfilled') { emailed++; return }
+      failures.push(recordEmailFailure({
+        helper: 'sendBroadcastEmail', recipient: eligible[i].email, error: r.reason,
+        context: { userId: eligible[i].id, audience: audience ?? 'all', requestId },
+      }))
     })
-    return NextResponse.json({ ok: true, sent: eligible.length, skipped: dedup.length - eligible.length })
-  } else {
-    await Promise.allSettled(
-      dedup.map(u => createNotification(u.id, notifType, title.trim(), message.trim(), link))
-    )
-    await prisma.broadcast.create({
-      data: { title: title.trim(), message: message.trim(), type: type ?? 'announcement',
-              audience: audience ?? 'all', channel: 'in-app',
-              clubId: clubId || null, eventId: eventId || null,
-              cityId: audience === 'city' ? cityId : null,
-              sentBy: session.name, sentCount: dedup.length },
-    })
-    return NextResponse.json({ ok: true, sent: dedup.length })
+    await Promise.all(failures)
   }
+
+  // In-app notification for the whole audience (email channel included).
+  // createNotification resolves false on a failed write rather than throwing,
+  // so a success is a fulfilled `true`, not merely a settled promise.
+  const notifyResults = await inChunks(dedup, u => createNotification(u.id, notifType, title.trim(), message.trim(), link))
+  const notified = notifyResults.filter(r => r.status === 'fulfilled' && r.value === true).length
+
+  await prisma.broadcast.create({
+    data: { title: title.trim(), message: message.trim(), type: type ?? 'announcement',
+            audience: audience ?? 'all', channel: isEmail ? 'email' : 'in-app',
+            clubId: clubId || null, eventId: eventId || null,
+            cityId: audience === 'city' ? cityId : null,
+            // What actually went out, not the size of the list we tried.
+            sentBy: session.name, sentCount: isEmail ? emailed : notified },
+  })
+
+  return NextResponse.json({
+    ok:           true,
+    recipients:   dedup.length,
+    notified,
+    notifyFailed: dedup.length - notified,
+    emailed,
+    emailFailed:  eligible.length - emailed,
+    skipped:      isEmail ? dedup.length - eligible.length : 0,
+  })
 }

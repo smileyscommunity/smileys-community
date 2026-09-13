@@ -48,6 +48,26 @@ const audienceLabel: Record<string, string> = {
   event: 'Event',
 }
 
+// One id per composed broadcast, sent with every attempt at it. The server
+// claims it before sending, so a retry after a timeout answers 409 instead of
+// emailing everyone a second time. randomUUID is missing outside secure
+// contexts, hence the fallback (still matches the server's id pattern).
+function newRequestId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`
+}
+
+// A slow send can come back as nginx's HTML 504 page; parsing that threw and
+// read as "Network error — please try again", which invited a double send.
+async function readJsonBody(res: Response): Promise<Record<string, any> | null> {
+  try {
+    const d = JSON.parse(await res.text())
+    return d && typeof d === 'object' && !Array.isArray(d) ? d : null
+  } catch { return null }
+}
+
+const MAYBE_SENT = 'No clear answer from the server — the broadcast may still be sending. Check Broadcast History before retrying.'
+
 export default function AdminNotificationsPage() {
   const { user } = useAuth()
   const isModerator = user.role === 'moderator'
@@ -73,6 +93,9 @@ export default function AdminNotificationsPage() {
   // A failed history load used to read "No broadcasts sent yet."
   const [historyError,   setHistoryError]   = useState<string | null>(null)
   const [confirmSend,    setConfirmSend]    = useState(false)
+  // Kept across retries of the same compose; replaced only once the server
+  // confirms the send (200, or 409 "already sent").
+  const [requestId,      setRequestId]      = useState(newRequestId)
   // Post-send editing (admins only) — rewrites the in-app notification
   // for every recipient. Keyed by broadcast id; null = nothing open.
   const [editing,    setEditing]    = useState<{ id: string; title: string; message: string } | null>(null)
@@ -157,26 +180,61 @@ export default function AdminNotificationsPage() {
       const res = await fetch('/app/api/admin/notifications/broadcast', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, message, type, channel, audience, cityId: cityId || null, clubId: clubId || null, eventId: eventId || null }),
+        body: JSON.stringify({ title, message, type, channel, audience, cityId: cityId || null, clubId: clubId || null, eventId: eventId || null, requestId }),
       })
-      const data = await res.json()
-      if (res.ok) {
-        // For the email channel: the server emails users with
-        // emailMarketing=true and ALSO fires an in-app notification to
-        // every audience member. `sent` is the email count; `skipped`
-        // is users who got the in-app but not the email. The previous
-        // toast made it sound like those users got nothing.
-        const note = channel === 'email' && data.skipped
-          ? ` (${data.skipped} got the in-app only — opted out of email)`
-          : ''
-        toast.success(`Sent to ${data.sent} members ✓${note}`)
-        setTitle(''); setMessage('')
-        await loadHistory()
-      } else {
+      // res.ok first, then a defensive parse: a non-JSON answer (gateway
+      // timeout, proxy error) means we don't know whether it went out, so
+      // the id is kept and the admin is pointed at history, not at Retry.
+      if (!res.ok) {
+        const data = await readJsonBody(res)
+        if (!data) {
+          toast.warning(MAYBE_SENT, { duration: 15_000 })
+          await loadHistory()
+          return
+        }
+        if (res.status === 409) {
+          // The earlier attempt did go out — this compose is finished.
+          toast.info(data.error ?? 'This broadcast was already sent')
+          setTitle(''); setMessage(''); setRequestId(newRequestId())
+          await loadHistory()
+          return
+        }
         toast.error(data.error ?? 'Failed to send notification')
+        return
       }
+      const data = await readJsonBody(res)
+      if (!data) {
+        toast.warning(MAYBE_SENT, { duration: 15_000 })
+        await loadHistory()
+        return
+      }
+      // Real counts from the server: in-app writes that landed, emails Resend
+      // accepted, and what failed. For the email channel every audience
+      // member also gets the in-app; `skipped` opted out of email.
+      const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`
+      const notified     = Number(data.notified)     || 0
+      const emailed      = Number(data.emailed)      || 0
+      const emailFailed  = Number(data.emailFailed)  || 0
+      const notifyFailed = Number(data.notifyFailed) || 0
+      const skipped      = Number(data.skipped)      || 0
+      const parts = [`${notified} notified in-app`]
+      if (channel === 'email') parts.push(`${emailed} emailed`)
+      if (skipped) parts.push(`${skipped} opted out of email`)
+      const failed = [
+        emailFailed  ? `${plural(emailFailed, 'email')} failed` : '',
+        notifyFailed ? `${plural(notifyFailed, 'in-app notification')} failed` : '',
+      ].filter(Boolean)
+      if (failed.length) {
+        toast.warning(`Sent with failures — ${parts.join(' · ')} · ${failed.join(' · ')}. Failed emails are logged; don't resend to everyone.`, { duration: 15_000 })
+      } else {
+        toast.success(`Sent ✓ — ${parts.join(' · ')}`)
+      }
+      setTitle(''); setMessage(''); setRequestId(newRequestId())
+      await loadHistory()
     } catch {
-      toast.error('Network error — please try again')
+      // A dropped connection can't tell us whether the server finished.
+      toast.warning(MAYBE_SENT, { duration: 15_000 })
+      await loadHistory()
     } finally { setSending(false) }
   }
 

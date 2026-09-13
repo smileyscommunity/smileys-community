@@ -5,7 +5,7 @@ import { slugToNeighborhood } from '@/lib/neighborhoods'
 import { getNeighborhoodView } from '@/lib/neighborhoodsDb'
 import { resolveAdminCity } from '@/lib/neighborhoodGuideFiles'
 import { canActInCity } from '@/lib/access'
-import { writeFileSync, mkdirSync, unlinkSync, readdirSync } from 'fs'
+import { writeFileSync, mkdirSync } from 'fs'
 import { join } from 'path'
 import sharp from 'sharp'
 import { uploadRoot } from '@/lib/uploadRoot'
@@ -61,13 +61,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
   // whose files keep their legacy unprefixed names.
   const prefix = city.isDefault ? `${slug}-` : `${city.slug}--${slug}-`
 
-  // Delete old files for this slug to avoid stale cache and accumulation
-  try {
-    readdirSync(dir)
-      .filter(f => city.isDefault ? (f.startsWith(prefix) || f === `${slug}.jpg`) : f.startsWith(prefix))
-      .forEach(f => unlinkSync(join(dir, f)))
-  } catch { /* ignore */ }
-
+  // No cleanup here: the new URL lives only in the editor until Save, so
+  // deleting the old files now would break the live banner for an admin who
+  // never saves. The guide PUT prunes superseded files after it has written.
+  // The timestamp keeps each upload a fresh URL, so caches never go stale.
   const filename = `${prefix}${Date.now()}.jpg`
   writeFileSync(join(dir, filename), buffer)
 

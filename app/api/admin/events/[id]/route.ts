@@ -41,18 +41,34 @@ export async function DELETE(_: NextRequest, { params }: Params) {
     }
     // Moderators are pinned to their home city; city hosts to their grants —
     // a consul living in Istanbul can manage the İzmir they were appointed to.
-    if (!isAdmin(session)) {
+    // A club host already owns this event (checked above): their club can sit
+    // outside their home city, and creating the event there worked, so the
+    // home-city check 403'd every later delete of their own event.
+    if (!isAdmin(session) && !clubHost) {
       const cityOk = cityHostOf.length > 0
         ? cityHostOf.includes(eventScope.cityId)
         : session.cityId === eventScope.cityId
       if (!cityOk) return NextResponse.json({ error: 'Cross-city moderation is admin-only' }, { status: 403 })
     }
 
-    // Count what the cascade will erase, for the audit snapshot — a hard
-    // delete takes the attendees/waitlist/reviews with it, so the record of
-    // "who deleted an event with 40 RSVPs" has to be captured before the row
-    // is gone (PUT was audited; DELETE wasn't).
-    const attendeeCount = await prisma.eventAttendee.count({ where: { eventId: id, ...activeAttendeeWhere } })
+    // Deleting is for empty events (duplicates, tests). A hard delete told no
+    // attendee anything and erased paid Payment rows — cancelling emails
+    // everyone and keeps the ledger, so an event with people or money on it
+    // must be cancelled instead. Admins included.
+    const [attendeeCount, paidCount] = await Promise.all([
+      prisma.eventAttendee.count({ where: { eventId: id, ...activeAttendeeWhere } }),
+      prisma.payment.count({ where: { eventId: id, status: 'paid' } }),
+    ])
+    if (attendeeCount > 0 || paidCount > 0) {
+      const held = [
+        attendeeCount > 0 && `${attendeeCount} attendee${attendeeCount === 1 ? '' : 's'} going or pending`,
+        paidCount > 0 && `${paidCount} paid payment${paidCount === 1 ? '' : 's'}`,
+      ].filter(Boolean).join(' and ')
+      return NextResponse.json(
+        { error: `This event has ${held}. Cancel it instead so attendees are told and payments stay on record — delete is only for empty events.` },
+        { status: 409 },
+      )
+    }
     // No-show cards cascade with the event. Close the open ones properly
     // first — audited, member told, a dependent red card downgraded — so a
     // deleted event never silently erases (or silently keeps) a consequence.
@@ -132,7 +148,10 @@ export async function PUT(req: NextRequest, { params }: Params) {
     // City-scope check for non-admins. Previously a moderator could edit
     // events in any city — including emailing cancellation notices to
     // every attendee. Admins act globally; city hosts follow their grants.
-    if (!isAdmin(session)) {
+    // A club host owning the event (checked above) passes: their club can be
+    // outside their home city, and every edit/cancel of an event they could
+    // create there answered 403.
+    if (!isAdmin(session) && !clubHost) {
       const cityOk = cityHostOf.length > 0
         ? cityHostOf.includes(before.cityId)
         : session.cityId === before.cityId

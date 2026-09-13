@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator, isAdmin, canActInCity, failClosedCityId } from '@/lib/access'
+import { isAdminOrModerator, isAdmin, failClosedCityId } from '@/lib/access'
 
 import { ALLOWED_CATEGORIES } from './constants'
-import { INVALID, resolveCityIdInput } from './cityInput'
+import { INVALID, resolveCityIdInput, canActOnQuoteCity } from './cityInput'
 
 export async function GET() {
   const session = await getSession()
@@ -49,8 +49,12 @@ export async function POST(req: NextRequest) {
   // rejected rather than quietly coerced to null: silently turning "Izmir"
   // into "everywhere" is how these ended up unscoped in the first place.
   const cleanCityId = await resolveCityIdInput(cityId)
-  if (cleanCityId !== INVALID && !canActInCity(session, cleanCityId)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  // A moderator's quote belongs to their city. "Across Smileys" (null) is
+  // every city's page, so it's admin-only even though it names no city.
+  if (cleanCityId !== INVALID && !canActOnQuoteCity(session, cleanCityId)) {
+    return NextResponse.json({
+      error: cleanCityId === null ? 'Quotes shown in every city are admin-only' : 'Forbidden',
+    }, { status: 403 })
   }
   if (cleanCityId === INVALID) {
     return NextResponse.json({ error: 'Unknown city' }, { status: 400 })
@@ -79,10 +83,11 @@ export async function PATCH(req: NextRequest) {
   const { ids } = await req.json() // reorder: array of ids in new order
   if (!Array.isArray(ids)) return NextResponse.json({ error: 'ids required' }, { status: 400 })
   // A moderator reorders only quotes they may touch — any other id in the
-  // list refuses the whole request rather than silently skipping it.
+  // list refuses the whole request rather than silently skipping it. That
+  // includes across-Smileys quotes: their order is every city's order.
   if (!isAdmin(session)) {
     const rows = await prisma.testimonial.findMany({ where: { id: { in: ids } }, select: { cityId: true } })
-    if (rows.length !== ids.length || rows.some(r => !canActInCity(session, r.cityId))) {
+    if (rows.length !== ids.length || rows.some(r => !canActOnQuoteCity(session, r.cityId))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
   }

@@ -43,6 +43,8 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
   const router  = useRouter()
 
   const [form,          setForm]          = useState(emptyForm)
+  // Status as loaded, so save can tell a move INTO cancelled from a resave.
+  const [loadedStatus,  setLoadedStatus]  = useState('')
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
   const [clubs,         setClubs]         = useState<{ id: string; name: string; emoji: string; city?: { name: string; slug: string; country: string } }[]>([])
   const [hostSearch,    setHostSearch]    = useState('')
@@ -156,6 +158,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
           lat:              event.lat  != null ? String(event.lat)  : '',
           lng:              event.lng  != null ? String(event.lng)  : '',
         })
+        setLoadedStatus(event.status ?? 'published')
         if (Array.isArray(event.tags) && event.tags.length) setSelectedTagIds(event.tags)
         if (event.seriesId) setSeriesId(event.seriesId)
       }
@@ -320,6 +323,11 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
       setError('Set a guest price for a paid event (or choose Free)')
       return
     }
+    // Saving into 'Cancelled' releases every seat, clears the waitlist and
+    // emails all attendees (the PUT route) — the events list asks before the
+    // same move, so the edit form must too.
+    if (form.status === 'cancelled' && loadedStatus !== 'cancelled' &&
+        !(await confirmToast('Cancel this event? Every attendee will be emailed and their spots released.', { confirmLabel: 'Cancel event', cancelLabel: 'Keep it' }))) return
     setError('')
     const payload = buildSavePayload()
     // If part of a series, ask whether to apply to all future events

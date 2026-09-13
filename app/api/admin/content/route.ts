@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { getCommunityStats } from '@/lib/communityStats'
-import { isAdminOrModerator } from '@/lib/access'
+import { isAdmin, isAdminOrModerator } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
 import fs from 'fs'
 import path from 'path'
@@ -191,7 +191,9 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const session = await getSession()
-  if (!session || !isAdminOrModerator(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  // Admin-only: content.json is the network's landing, About and FAQ copy —
+  // not any one city's — so a city-scoped moderator can read it, not write it.
+  if (!session || !isAdmin(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await req.json().catch(() => null)
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
