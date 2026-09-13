@@ -10,6 +10,12 @@ interface ClubCardProps {
 }
 
 export default function ClubCard({ club, hideEmptyNextEvent = false }: ClubCardProps) {
+  const peopleIcon = (
+    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+  )
+
   return (
     <Link href={`/clubs/${club.slug}`} className="group block">
       <div className="card group-hover:-translate-y-1 transition-transform duration-300 h-full">
@@ -47,12 +53,26 @@ export default function ClubCard({ club, hideEmptyNextEvent = false }: ClubCardP
           )}
 
           <div className="mt-3 flex items-center justify-between">
-            <div className="flex items-center gap-1.5 text-xs text-gray-600">
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              <span>{club.memberCount} {club.memberCount === 1 ? 'member' : 'members'}</span>
-            </div>
+            {/* memberCount is scoped to the city being viewed, so a global club
+                seen from a city nobody has joined from reads 0 — and a list of
+                cards all saying "0 members" makes a new city look dead when the
+                club itself is not. globalMemberCount is the network-wide figure
+                lib/db.ts keeps for exactly this, so say the true thing instead:
+                nobody here yet, this many across Smileys. Only a club genuinely
+                empty everywhere drops the line, keeping the row's spacing. */}
+            {club.memberCount > 0 ? (
+              <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                {peopleIcon}
+                <span>{club.memberCount} {club.memberCount === 1 ? 'member' : 'members'}</span>
+              </div>
+            ) : club.globalMemberCount ? (
+              <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                {peopleIcon}
+                <span>{club.globalMemberCount} across Smileys</span>
+              </div>
+            ) : (
+              <span />
+            )}
 
             <span className="text-xs text-amber-600 font-semibold group-hover:underline">
               View club →

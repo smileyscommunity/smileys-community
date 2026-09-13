@@ -22,6 +22,11 @@ interface Club {
   bgColor: string
   color: string
   memberCount: number
+  // Network-wide total. memberCount is scoped to the city being viewed, so a
+  // global club seen from a city nobody has joined from reads 0; the API has
+  // carried this alongside it all along (lib/db.ts) and the footer uses it
+  // rather than printing a 0 that describes the city, not the club.
+  globalMemberCount?: number
   isPrivate: boolean
   coverImage?: string | null
   // Discovery enrichment (phase 3) — computed server-side, cached 120s.
@@ -137,7 +142,11 @@ function ClubCard({ club, membership, toggling, onToggle }: {
                 ))}
               </span>
             )}
-            {club.memberCount} member{club.memberCount !== 1 ? 's' : ''}
+            {club.memberCount > 0
+              ? `${club.memberCount} member${club.memberCount !== 1 ? 's' : ''}`
+              : club.globalMemberCount
+                ? `${club.globalMemberCount} across Smileys`
+                : null}
           </span>
           <div className="flex items-center gap-2">
             {/* Leave is now shown on every tab (was previously gated by a
