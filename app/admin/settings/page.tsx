@@ -43,7 +43,17 @@ export default function AdminSettingsPage() {
       .then(data => {
         if (!data) return
         const { communityRules, ...rest } = data
-        setCommunity(prev => ({ ...prev, ...rest }))
+        // Only the community fields go into this form. Spreading every stored
+        // setting in meant Save posted them all back — a stale applicationsOpen
+        // reopened intake the admin had just closed, and defaultClubId or the
+        // listing settings changed in another tab were quietly reverted.
+        setCommunity(prev => {
+          const next = { ...prev }
+          for (const k of Object.keys(prev) as (keyof typeof prev)[]) {
+            if (typeof rest[k] === 'string') next[k] = rest[k]
+          }
+          return next
+        })
         // Coerce: array → use as-is, anything else (legacy string /
         // undefined / null) → empty.
         setRules(Array.isArray(communityRules) ? communityRules : [])

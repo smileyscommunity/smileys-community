@@ -357,8 +357,11 @@ export async function POST(req: NextRequest) {
         // be null (when memberPrice was omitted) but never NaN.
         price:                parsedPrice as number,
         memberPrice:          parsedMemberPrice as number | null,
-        payTo:                payTo || 'venue',
-        paymentContact:       contact,
+        // Payment through Smileys is a staff arrangement: a host's new event
+        // is paid at the venue with no payment contact, whatever the body
+        // says (the host forms never send either). Staff set it on review.
+        payTo:                needsReview ? 'venue' : (payTo || 'venue'),
+        paymentContact:       needsReview ? null : contact,
         ticketUrl:            ticketUrl?.trim() || null,
         emoji:                finalEmoji,
         isPremium:            isPremium ?? false,

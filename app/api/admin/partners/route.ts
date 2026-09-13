@@ -4,6 +4,7 @@ import { getSession } from '@/lib/session'
 import { resolveTargetCityId } from '@/lib/city'
 import { canManagePartners, isAdmin, failClosedCityId } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
+import { requireStepUp } from '@/lib/stepUp'
 
 export async function GET() {
   const session = await getSession()
@@ -61,14 +62,15 @@ export async function DELETE(req: NextRequest) {
   const session = await getSession()
   if (!session || !isAdmin(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { id } = await req.json()
-  if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 })
+  // A destructive account change, like deleting a club: step-up where 2FA applies.
+  const stepUp = requireStepUp(session)
+  if (stepUp) return stepUp
 
-  // Snapshot the partner + linked users before delete so the audit
-  // row records both the business record and any role demotions
-  // that cascaded (partner-linked users won't auto-revert their
-  // role on this hard delete — flagging the count helps follow-up
-  // cleanup if needed).
+  const { id } = await req.json().catch(() => ({}))
+  if (!id || typeof id !== 'string') return NextResponse.json({ error: 'ID required' }, { status: 400 })
+
+  // Snapshot the partner + linked users before delete so the audit row
+  // records the business record and how many accounts were demoted.
   const snapshot = await prisma.partner.findUnique({
     where: { id },
     select: { id: true, name: true, category: true, discount: true, isActive: true,
@@ -76,13 +78,25 @@ export async function DELETE(req: NextRequest) {
   })
   if (!snapshot) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  await prisma.partner.delete({ where: { id } })
+  // The confirm promised "assigned users will revert to member role"; the
+  // delete only removed the partner row. The foreign key nulled partnerId and
+  // left role 'partner', and nothing bumped tokenVersion, so those accounts
+  // kept a partner session with no partner behind it. Demote, unlink, end the
+  // sessions and delete in one transaction.
+  const [demoted] = await prisma.$transaction([
+    prisma.user.updateMany({
+      where: { partnerId: id, role: 'partner' },
+      data:  { role: 'member', partnerId: null, tokenVersion: { increment: 1 } },
+    }),
+    prisma.user.updateMany({ where: { partnerId: id }, data: { partnerId: null } }),
+    prisma.partner.delete({ where: { id } }),
+  ])
 
   writeAudit(session.id, session.name, 'partner.delete', id, 'partner',
     { name: snapshot.name, category: snapshot.category, discount: snapshot.discount,
       isActive: snapshot.isActive, createdAt: snapshot.createdAt.toISOString(),
-      linkedUserCount: snapshot._count.users },
-    `Deleted partner "${snapshot.name}" (${snapshot.category}${snapshot._count.users ? ` — ${snapshot._count.users} linked user${snapshot._count.users === 1 ? '' : 's'} now orphaned`: ''})`,
+      linkedUserCount: snapshot._count.users, demotedToMember: demoted.count },
+    `Deleted partner "${snapshot.name}" (${snapshot.category}${demoted.count ? ` — ${demoted.count} account${demoted.count === 1 ? '' : 's'} moved back to member`: ''})`,
   )
 
   return NextResponse.json({ ok: true })

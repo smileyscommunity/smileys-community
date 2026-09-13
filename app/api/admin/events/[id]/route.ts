@@ -218,6 +218,13 @@ export async function PUT(req: NextRequest, { params }: Params) {
     if (host) {
       delete rest.hostId
       delete rest.featured
+      // Collecting payment through Smileys is arranged by staff (the host edit
+      // page says so, and never sends these). A host could still PUT
+      // {payTo:'smileys', paymentContact:<their own link>} on a live event:
+      // every RSVP then opened a Smileys payment and pointed members at the
+      // host's contact, with no review. Hosts keep whatever staff set.
+      delete rest.payTo
+      delete rest.paymentContact
       // Publication is a staff decision. A club host's own new events are
       // forced to 'pending' at creation (needsReview in ../route.ts) so staff
       // review them before they hit the public feed and fan out to members.
