@@ -1,13 +1,15 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { restrictedSetFor } from '@/lib/memberPrivacy'
+import { firstNameOf } from '@/lib/data'
 
 // GET /api/cup/leaderboard
 //
 // Returns the top N players ranked by total score plus the
-// caller's own row when logged in. Public read — drives the
-// "look who's playing" social proof on /cup, including the
-// logged-out apply CTA.
+// caller's own row. Members only: the only readers are the member
+// /cup page and the admin newsletter composer, and a public read
+// handed every player's name and photo to anyone.
 //
 // Score = sum(CupPrediction.pointsAwarded) + CupBracketPick
 // .pointsAwarded. Both columns are written by the admin result-
@@ -19,7 +21,9 @@ import { getSession } from '@/lib/session'
 // Ranks are dense (1, 2, 2, 4 for ties to allow inspection of
 // "you and N others tied at this rank" semantics).
 //
-// Anonymity: we expose name + first initial of last name + color + profile photo.
+// Anonymity: first name + last-name initial + color + photo. Banned and hidden
+// accounts leave the board; a connections-only player shows members they aren't
+// connected to a first name and no photo (lib/memberPrivacy restrictedSetFor).
 
 export const dynamic = 'force-dynamic'
 
@@ -27,6 +31,7 @@ const DEFAULT_TAKE = 50
 
 export async function GET(req: Request) {
   const session = await getSession()
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const url     = new URL(req.url)
   const take    = Math.min(Math.max(parseInt(url.searchParams.get('take') ?? `${DEFAULT_TAKE}`, 10) || DEFAULT_TAKE, 1), 200)
 
@@ -91,8 +96,18 @@ export async function GET(req: Request) {
     rows.set(b.userId, row)
   }
 
+  // Banned and hidden accounts leave the board before ranking, so nobody's
+  // rank counts a player who isn't shown. The viewer's own row always stays.
+  const players = rows.size === 0 ? [] : await prisma.user.findMany({
+    where:  { id: { in: Array.from(rows.keys()) } },
+    select: { id: true, status: true, hiddenFromMembers: true },
+  })
+  const listed = new Set(players.filter(u => u.status === 'approved' && !u.hiddenFromMembers).map(u => u.id))
+  listed.add(session.id)
+
   // Sort: total score DESC, earlier bracket submission ASC.
   const sorted = Array.from(rows.values())
+    .filter(r => listed.has(r.userId))
     .map(r => ({ ...r, score: r.matchScore + r.bracketScore }))
     .sort((a, b) => {
       if (a.score !== b.score) return b.score - a.score
@@ -118,9 +133,10 @@ export async function GET(req: Request) {
   if (youRow) needIds.add(youRow.userId)
   const users    = needIds.size === 0 ? [] : await prisma.user.findMany({
     where:  { id: { in: Array.from(needIds) } },
-    select: { id: true, name: true, color: true, profilePhoto: true },
+    select: { id: true, name: true, color: true, profilePhoto: true, profileVisibility: true },
   })
   const userMap = new Map(users.map(u => [u.id, u]))
+  const restricted = await restrictedSetFor(session, users)
 
   const displayName = (full: string): string => {
     // First name + last-name initial — keeps the leaderboard
@@ -135,9 +151,9 @@ export async function GET(req: Request) {
       const u = userMap.get(r.userId)
       return {
         rank:         r.rank,
-        name:         u ? displayName(u.name) : '—',
+        name:         u ? (restricted.has(u.id) ? firstNameOf(u.name) : displayName(u.name)) : '—',
         color:        u?.color ?? '#f59e0b',
-        profilePhoto: u?.profilePhoto ?? null,
+        profilePhoto: u && !restricted.has(u.id) ? u.profilePhoto : null,
         score:        r.score,
         matchScore:   r.matchScore,
         bracketScore: r.bracketScore,
