@@ -7,6 +7,7 @@ import { resolveImageUrl, getInitials, formatDate, firstNameOf} from '@/lib/data
 import { countryFlag } from '@/lib/countries'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from 'sonner'
+import { notifyConnectionsChanged } from '@/lib/pendingConnections'
 import { SkeletonCard, SkeletonCircle, SkeletonLine } from '@/components/Skeleton'
 import MembershipBadge from '@/components/MembershipBadge'
 import ReportButton from '@/components/ReportButton'
@@ -240,6 +241,9 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
           setConnStatus(data.connection.status)
           setConnIsReq(true)
           if (data.connection.status === 'accepted') {
+            // Connecting back to someone who'd already asked accepts their
+            // pending request — the nav badge has one fewer to show.
+            notifyConnectionsChanged()
             toast.success(`Connected with ${firstNameOf(member!.name)}!`)
           } else {
             toast.success('Connection request sent!')
@@ -278,6 +282,8 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
         toast.error(data.error || 'Could not update request')
         return
       }
+      // Either way the request left the inbox — refresh the nav's pending badge.
+      notifyConnectionsChanged()
       if (action === 'accept') {
         setConnStatus('accepted')
         toast.success(`Connected with ${firstNameOf(member!.name)}!`)

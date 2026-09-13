@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/session', () => ({ getSession: vi.fn() }))
-vi.mock('@/lib/prisma', () => ({ prisma: { partner: {
+vi.mock('@/lib/prisma', () => ({ prisma: {
+  // The route re-reads the account's current role (a demoted partner keeps a partner JWT).
+  user: { findUnique: vi.fn(async () => ({ role: 'partner', partnerId: 'p1' })) },
+  partner: {
   update: vi.fn(async ({ data }: any) => ({ id: 'p1', ...data })),
   // The stored row: an admin-set external logo, no cover.
   findUnique: vi.fn(async () => ({ logo: 'https://cdn.example/logo.png', coverImage: null })),

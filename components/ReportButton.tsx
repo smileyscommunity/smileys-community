@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { toast } from 'sonner'
 import { downscaleImage, ImageUploadError } from '@/lib/image-resize'
 
 // Values MUST match VALID_REASONS in app/api/reports/route.ts.
@@ -28,6 +29,8 @@ export default function ReportButton({ reportedId, reportedName, eventId }: Prop
   const [reason,     setReason]     = useState('')
   const [details,    setDetails]    = useState('')
   const [screenshot, setScreenshot] = useState('')
+  const [preview,    setPreview]    = useState('')
+  const [uploadError, setUploadError] = useState('')
   const [uploading,  setUploading]  = useState(false)
   const [loading,    setLoading]    = useState(false)
   const [done,       setDone]       = useState(false)
@@ -40,24 +43,45 @@ export default function ReportButton({ reportedId, reportedName, eventId }: Prop
   // become the containing block for `position: fixed` and trap the overlay.
   useEffect(() => { setMounted(true) }, [])
 
+  // The reporter previews their own pick from memory: reports/ is served to
+  // staff only, so the uploaded URL would 403 in the reporter's own <img>.
+  function clearScreenshot() {
+    if (preview) URL.revokeObjectURL(preview)
+    setScreenshot(''); setPreview('')
+  }
+
   function reset() {
     setOpen(false); setStep(1); setReason(''); setDetails('')
-    setScreenshot(''); setDone(false); setError('')
+    clearScreenshot(); setUploadError(''); setDone(false); setError('')
+  }
+
+  // A failed upload used to land in `error`, which step 3 never renders — the
+  // member moved on believing the screenshot was attached. Now it's a toast
+  // plus a blocking choice on step 3: try again, or continue without it.
+  function failUpload(message: string) {
+    toast.error(message)
+    setUploadError(message)
   }
 
   async function handleScreenshot(file: File) {
     setUploading(true)
+    setUploadError('')
     try {
       const upload = await downscaleImage(file)
       const fd = new FormData()
       fd.append('file', upload)
-      fd.append('folder', 'general')
+      // 'reports', not 'general': members can't upload into general/, so this
+      // 403'd for everyone but staff. See app/api/upload/route.ts.
+      fd.append('folder', 'reports')
       const res  = await fetch('/app/api/upload', { method: 'POST', credentials: 'include', body: fd })
-      const data = await res.json()
-      if (data.url) setScreenshot(data.url)
-      else setError(data.error ?? 'Screenshot upload failed')
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.url) {
+        clearScreenshot()
+        setScreenshot(data.url)
+        setPreview(URL.createObjectURL(upload))
+      } else failUpload(data.error ?? 'Screenshot upload failed — try again')
     } catch (err) {
-      setError(err instanceof ImageUploadError ? err.message : 'Screenshot upload failed — try again')
+      failUpload(err instanceof ImageUploadError ? err.message : 'Screenshot upload failed — try again')
     } finally {
       setUploading(false)
     }
@@ -213,18 +237,22 @@ export default function ReportButton({ reportedId, reportedName, eventId }: Prop
                     <p className="text-sm font-semibold text-gray-700 mb-1">Add a screenshot</p>
                     <p className="text-xs text-gray-400 mb-4">Optional — screenshots help us act faster.</p>
                     <input ref={fileRef} type="file" accept="image/*" className="hidden"
-                      onChange={e => e.target.files?.[0] && handleScreenshot(e.target.files[0])} />
+                      onChange={e => {
+                        // Clear the input so re-picking the same file after a failure fires again.
+                        const f = e.target.files?.[0]; e.target.value = ''
+                        if (f) handleScreenshot(f)
+                      }} />
                     {screenshot ? (
                       <div className="relative rounded-xl overflow-hidden mb-4 border border-gray-200">
-                        <img src={screenshot} alt="Screenshot" className="w-full object-cover max-h-40" />
-                        <button onClick={() => setScreenshot('')}
+                        <img src={preview} alt="Screenshot" className="w-full object-cover max-h-40" />
+                        <button onClick={clearScreenshot}
                           className="absolute top-2 right-2 p-1 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors">
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                           </svg>
                         </button>
                       </div>
-                    ) : (
+                    ) : !uploadError ? (
                       <button onClick={() => fileRef.current?.click()} disabled={uploading}
                         className="w-full border-2 border-dashed border-gray-200 rounded-xl py-8 flex flex-col items-center gap-2 hover:border-gray-400 transition-colors mb-4 disabled:opacity-50">
                         {uploading ? (
@@ -238,12 +266,29 @@ export default function ReportButton({ reportedId, reportedName, eventId }: Prop
                           </>
                         )}
                       </button>
+                    ) : null}
+                    {uploadError && (
+                      <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 mb-4">
+                        <p className="text-xs font-semibold text-red-700">Your screenshot wasn't attached</p>
+                        <p className="text-xs text-red-600 mt-0.5 mb-3">{uploadError}</p>
+                        <div className="flex gap-2">
+                          <button onClick={() => fileRef.current?.click()} disabled={uploading}
+                            className="flex-1 py-2 text-xs font-semibold bg-gray-900 hover:bg-gray-800 text-white rounded-lg transition-colors disabled:opacity-50">
+                            {uploading ? 'Uploading…' : 'Try again'}
+                          </button>
+                          <button onClick={() => { setUploadError(''); setStep(4) }} disabled={uploading}
+                            className="flex-1 py-2 text-xs font-medium border border-red-200 text-red-700 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-50">
+                            Continue without it
+                          </button>
+                        </div>
+                      </div>
                     )}
                     <div className="flex gap-3">
                       <button onClick={() => setStep(2)} className="flex-1 py-2.5 text-sm font-medium border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
                         Back
                       </button>
-                      <button onClick={() => setStep(4)} className="flex-1 py-2.5 text-sm font-semibold bg-gray-900 hover:bg-gray-800 text-white rounded-xl transition-colors">
+                      <button onClick={() => setStep(4)} disabled={uploading || !!uploadError}
+                        className="flex-1 py-2.5 text-sm font-semibold bg-gray-900 hover:bg-gray-800 text-white rounded-xl transition-colors disabled:opacity-50">
                         Continue
                       </button>
                     </div>
@@ -267,7 +312,7 @@ export default function ReportButton({ reportedId, reportedName, eventId }: Prop
                       {screenshot && (
                         <div>
                           <p className="text-xs font-bold text-gray-600 uppercase tracking-wide">Screenshot</p>
-                          <img src={screenshot} alt="" className="mt-1 w-20 h-14 object-cover rounded-lg" />
+                          <img src={preview} alt="" className="mt-1 w-20 h-14 object-cover rounded-lg" />
                         </div>
                       )}
                     </div>
@@ -282,7 +327,7 @@ export default function ReportButton({ reportedId, reportedName, eventId }: Prop
                       <button onClick={() => setStep(3)} className="flex-1 py-2.5 text-sm font-medium border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
                         Back
                       </button>
-                      <button onClick={submit} disabled={loading}
+                      <button onClick={submit} disabled={loading || uploading}
                         className="flex-1 py-2.5 text-sm font-semibold bg-red-500 hover:bg-red-600 text-white rounded-xl transition-colors disabled:opacity-50">
                         {loading ? 'Submitting…' : 'Submit Report'}
                       </button>

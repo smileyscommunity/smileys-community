@@ -10,6 +10,7 @@ import VibePicker from '@/components/VibePicker'
 import { useAdminMemberSearch } from '@/hooks/useAdminMemberSearch'
 import { EVENT_EMOJIS as EMOJIS } from '@/lib/eventEmojis'
 import { countryName } from '@/lib/country'
+import { geocodeFailureMessage } from '@/lib/geocodeError'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import CitySelect, { useAdminCities } from '@/components/admin/CitySelect'
 import { phonePlaceholder, dialCode } from '@/lib/country'
@@ -104,6 +105,9 @@ export default function NewEventPage() {
   const selectedClubCity = selectedClub?.city?.slug
     ?? (isGlobalClub ? cities.find(c => c.id === form.cityId)?.slug : undefined)
   const neighborhoods = useCityNeighborhoods(selectedClubCity)
+  // Location lookup searches the same city's country (it used to search one
+  // country for every city); the route falls back to the viewer's city.
+  const geocodeCityParam = selectedClubCity ? `&city=${encodeURIComponent(selectedClubCity)}` : ''
 
   function set(key: string, value: string | boolean | number) {
     setForm(f => ({ ...f, [key]: value }))
@@ -153,9 +157,12 @@ export default function NewEventPage() {
     const query = [form.location, form.address, form.neighborhood, cityHint].filter(Boolean).join(', ')
     setGeocoding(true)
     try {
-      const res = await fetch(`/app/api/admin/geocode?q=${encodeURIComponent(query)}`, { credentials: 'include' })
+      const res = await fetch(`/app/api/admin/geocode?q=${encodeURIComponent(query)}${geocodeCityParam}`, { credentials: 'include' })
+      // A refusal (403, 429) is not "no location found" — say what happened.
+      const failure = geocodeFailureMessage(res.status)
+      if (failure) { toast.error(failure); return }
       const data = await res.json()
-      if (data[0]) {
+      if (Array.isArray(data) && data[0]) {
         setForm(f => ({ ...f, lat: parseFloat(data[0].lat).toFixed(6), lng: parseFloat(data[0].lon).toFixed(6) }))
       } else {
         toast.error('No location found — try a more specific address')
@@ -181,7 +188,9 @@ export default function NewEventPage() {
     }
     setGeocoding(true)
     try {
-      const res = await fetch(`/app/api/admin/geocode?url=${encodeURIComponent(url)}`, { credentials: 'include' })
+      const res = await fetch(`/app/api/admin/geocode?url=${encodeURIComponent(url)}${geocodeCityParam}`, { credentials: 'include' })
+      const failure = geocodeFailureMessage(res.status)
+      if (failure) { toast.error(failure); return }
       const data = await res.json()
       if (Array.isArray(data) && data[0]) {
         setForm(f => ({ ...f, lat: parseFloat(data[0].lat).toFixed(6), lng: parseFloat(data[0].lon).toFixed(6) }))

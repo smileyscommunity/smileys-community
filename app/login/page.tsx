@@ -87,6 +87,7 @@ function LoginPageInner() {
   const [show,          setShow]          = useState(false)
   const [resendSent,     setResendSent]     = useState(false)
   const [resendLoading,  setResendLoading]  = useState(false)
+  const [resendError,    setResendError]    = useState('')
   const [turnstileToken, setTurnstileToken] = useState('')
   // Bumped on every failed login — Turnstile tokens are single-use, so the
   // widget must mint a fresh one or every retry fails "human verification".
@@ -108,12 +109,21 @@ function LoginPageInner() {
 
   async function handleResend() {
     setResendLoading(true)
-    await fetch('/app/api/auth/resend-verification', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
-    })
-    setResendSent(true)
-    setResendLoading(false)
+    setResendError('')
+    try {
+      const res = await fetch('/app/api/auth/resend-verification', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+      const data = await res.json().catch(() => ({}))
+      // Only a 2xx is "sent" — this claimed success whatever the server said.
+      if (res.ok) setResendSent(true)
+      else setResendError(data.error ?? "Couldn't send the email — please try again")
+    } catch {
+      setResendError("Couldn't reach the server — please try again")
+    } finally {
+      setResendLoading(false)
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -259,10 +269,14 @@ function LoginPageInner() {
                       {resendSent ? (
                         <span className="text-green-700 text-xs font-medium">✓ Verification email sent — check your inbox</span>
                       ) : (
-                        <button onClick={handleResend} disabled={resendLoading}
-                          className="text-xs font-semibold text-amber-700 hover:underline disabled:opacity-50">
-                          {resendLoading ? 'Sending…' : 'Resend verification email →'}
-                        </button>
+                        <>
+                          {/* type="button": inside the sign-in <form>, a bare button also submitted the login. */}
+                          <button type="button" onClick={handleResend} disabled={resendLoading}
+                            className="text-xs font-semibold text-amber-700 hover:underline disabled:opacity-50">
+                            {resendLoading ? 'Sending…' : 'Resend verification email →'}
+                          </button>
+                          {resendError && <p className="text-xs text-red-700 mt-1">{resendError}</p>}
+                        </>
                       )}
                     </div>
                   )}

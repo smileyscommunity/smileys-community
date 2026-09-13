@@ -16,6 +16,7 @@ import VibePicker from '@/components/VibePicker'
 import RichTextEditor from '@/components/RichTextEditor'
 import { EVENT_EMOJIS as EMOJIS } from '@/lib/eventEmojis'
 import { countryName } from '@/lib/country'
+import { geocodeFailureMessage } from '@/lib/geocodeError'
 const inputCls = 'w-full px-4 py-2.5 rounded-xl border border-zinc-700 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500 bg-zinc-800 placeholder-zinc-500'
 
 const emptyForm = {
@@ -71,6 +72,11 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
   const [cohostSearch,  setCohostSearch]  = useState('')
   const [cohostResults, setCohostResults] = useState<{ id: string; name: string }[]>([])
   const city = useCurrentCity()
+  // The lookup searches the EVENT's city's country (it used to search one
+  // country for every city); the host's current city until the event loads.
+  const [eventCityId,   setEventCityId]   = useState('')
+  const geocodeCityParam = eventCityId ? `&cityId=${encodeURIComponent(eventCityId)}`
+    : city?.slug ? `&city=${encodeURIComponent(city.slug)}` : ''
   const [addingCohost,  setAddingCohost]  = useState(false)
   const [seriesId,      setSeriesId]      = useState<string | null>(null)
 
@@ -80,7 +86,10 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
     const query = [form.location, form.address, form.neighborhood, cityHint].filter(Boolean).join(', ')
     setGeocoding(true)
     try {
-      const res  = await fetch(`/app/api/admin/geocode?q=${encodeURIComponent(query)}`, { credentials: 'include' })
+      const res  = await fetch(`/app/api/admin/geocode?q=${encodeURIComponent(query)}${geocodeCityParam}`, { credentials: 'include' })
+      // A refusal (403, 429) is not "no location found" — say what happened.
+      const failure = geocodeFailureMessage(res.status)
+      if (failure) { toast.error(failure); return }
       const data = await res.json()
       if (Array.isArray(data) && data[0]) {
         setForm(f => ({ ...f, lat: parseFloat(data[0].lat).toFixed(6), lng: parseFloat(data[0].lon).toFixed(6) }))
@@ -114,7 +123,9 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
     // Istanbul; the other three event forms had already moved to ?url=.
     setGeocoding(true)
     try {
-      const res = await fetch(`/app/api/admin/geocode?url=${encodeURIComponent(url)}`, { credentials: 'include' })
+      const res = await fetch(`/app/api/admin/geocode?url=${encodeURIComponent(url)}${geocodeCityParam}`, { credentials: 'include' })
+      const failure = geocodeFailureMessage(res.status)
+      if (failure) { toast.error(failure); return }
       const data = await res.json()
       if (Array.isArray(data) && data[0]) {
         setForm(f => ({ ...f, lat: parseFloat(data[0].lat).toFixed(6), lng: parseFloat(data[0].lon).toFixed(6) }))
@@ -174,6 +185,7 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
           approvalRequired: event.approvalRequired ?? false,
         })
         setLoadedStatus(event.status ?? 'published')
+        if (typeof event.cityId === 'string') setEventCityId(event.cityId)
         setPaymentMethod(event.ticketUrl ? 'buyonline' : 'venue')
         if (Array.isArray(event.tags) && event.tags.length) setSelectedTagIds(event.tags)
         if (event.seriesId) setSeriesId(event.seriesId)

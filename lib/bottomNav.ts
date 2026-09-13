@@ -10,7 +10,19 @@ export const BOTTOM_NAV_ROUTES = [
   '/cities',
 ]
 
-export function isBottomNavRoute(pathname: string): boolean {
+// A city switch lands on `/<slug>` (CitiesMenu does a full load to the city's
+// page), and its hubs live at `/<slug>/events|clubs|directory|board`. None of
+// those start with a fixed route, so the nav unmounted right after a switch
+// and a phone user had no Me sheet — no Sign out — until they found the logo.
+// Slugs come from the caller (the layout's server-rendered city list), since
+// a bare `/<segment>` can't be told apart from `/login` or `/apply` by shape.
+export function isCityRoute(pathname: string, citySlugs: readonly string[]): boolean {
+  const first = pathname.split('/')[1]
+  return !!first && citySlugs.includes(first)
+}
+
+export function isBottomNavRoute(pathname: string, citySlugs: readonly string[] = []): boolean {
   return pathname.startsWith('/admin') || pathname.startsWith('/host') || pathname.startsWith('/partner') ||
-    BOTTOM_NAV_ROUTES.some(r => pathname === r || pathname.startsWith(r + '/'))
+    BOTTOM_NAV_ROUTES.some(r => pathname === r || pathname.startsWith(r + '/')) ||
+    isCityRoute(pathname, citySlugs)
 }

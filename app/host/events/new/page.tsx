@@ -14,6 +14,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { EVENT_EMOJIS as EMOJIS } from '@/lib/eventEmojis'
 import { currencySymbol } from '@/lib/data'
 import { countryName } from '@/lib/country'
+import { geocodeFailureMessage } from '@/lib/geocodeError'
 
 const inputCls = 'w-full px-4 py-3 rounded-xl border border-zinc-700 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500 bg-zinc-800 placeholder-zinc-500'
 
@@ -114,7 +115,10 @@ function HostNewEventForm() {
     const query = [form.location, form.address, form.neighborhood, cityHint].filter(Boolean).join(', ')
     setGeocoding(true)
     try {
-      const res  = await fetch(`/app/api/admin/geocode?q=${encodeURIComponent(query)}`, { credentials: 'include' })
+      const res  = await fetch(`/app/api/admin/geocode?q=${encodeURIComponent(query)}${geocodeCityParam}`, { credentials: 'include' })
+      // A refusal (403, 429) is not "no location found" — say what happened.
+      const failure = geocodeFailureMessage(res.status)
+      if (failure) { toast.error(failure); return }
       const data = await res.json()
       if (Array.isArray(data) && data[0]) {
         setForm(f => ({ ...f, lat: parseFloat(data[0].lat).toFixed(6), lng: parseFloat(data[0].lon).toFixed(6) }))
@@ -124,6 +128,10 @@ function HostNewEventForm() {
     } catch { toast.error('Geocoding failed — paste a Google Maps link below instead') }
     finally { setGeocoding(false) }
   }
+
+  // The lookup searches this city's country — it used to search one country
+  // for every city. Hosts create in the city they're working in.
+  const geocodeCityParam = city?.slug ? `&city=${encodeURIComponent(city.slug)}` : ''
 
   async function parseMapsUrl(url: string) {
     const patterns = [
@@ -143,7 +151,9 @@ function HostNewEventForm() {
     // Send to server for redirect resolution (handles maps.app.goo.gl and place names)
     setGeocoding(true)
     try {
-      const res = await fetch(`/app/api/admin/geocode?url=${encodeURIComponent(url)}`, { credentials: 'include' })
+      const res = await fetch(`/app/api/admin/geocode?url=${encodeURIComponent(url)}${geocodeCityParam}`, { credentials: 'include' })
+      const failure = geocodeFailureMessage(res.status)
+      if (failure) { toast.error(failure); return }
       const data = await res.json()
       if (Array.isArray(data) && data[0]) {
         setForm(f => ({ ...f, lat: parseFloat(data[0].lat).toFixed(6), lng: parseFloat(data[0].lon).toFixed(6) }))

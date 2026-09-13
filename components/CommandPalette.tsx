@@ -7,19 +7,10 @@ import { Command } from 'cmdk'
 import { useAuth } from '@/contexts/AuthContext'
 import { resolveImageUrl } from '@/lib/data'
 import { hasHostAuthority } from '@/lib/auth'
+import { parseSearchResponse, GUEST_PALETTE_IDS, type SearchResults } from '@/lib/searchResults'
 
 interface Cmd {
   id: string; label: string; hint?: string; icon: string; action: () => void; group: string
-}
-
-interface SearchResults {
-  events:   { id: string; title: string; date: string; emoji: string; neighborhood: string }[]
-  members:  { id: string; name: string; color: string; profilePhoto: string | null; neighborhood: string | null; restricted?: boolean }[]
-  clubs:    { id: string; name: string; emoji: string; slug: string; memberCount: number }[]
-  listings: { id: string; title: string; category: string; price: string | null; neighborhood: string | null }[]
-  // Optional so a client bundle deployed ahead of (or behind) the API can't
-  // crash on a payload without the field.
-  handbook?: { slug: string; title: string; excerpt: string | null; category: string; emoji: string }[]
 }
 
 const LISTING_CAT_EMOJI: Record<string, string> = {
@@ -32,6 +23,9 @@ export default function CommandPalette() {
   const [query, setQuery]         = useState('')
   const [results, setResults]     = useState<SearchResults | null>(null)
   const [searching, setSearching] = useState(false)
+  // Live search needs a session. True for a guest, or once /api/search 401s
+  // (session expired mid-visit) — the palette then offers sign-in instead.
+  const [needsSignIn, setNeedsSignIn] = useState(false)
   const debounceRef               = useRef<ReturnType<typeof setTimeout> | null>(null)
   const router  = useRouter()
   const { user, isLoggedIn, logout } = useAuth()
@@ -67,30 +61,36 @@ export default function CommandPalette() {
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     if (!query || query.length < 2) { setResults(null); return }
+    // Guests can't search (the route 401s) — don't spend the request.
+    if (!isLoggedIn) { setResults(null); setNeedsSignIn(true); return }
     const ctrl = new AbortController()
     debounceRef.current = setTimeout(async () => {
       setSearching(true)
       try {
         const res  = await fetch(`/app/api/search?q=${encodeURIComponent(query)}`, { credentials: 'include', signal: ctrl.signal })
-        const data = await res.json()
-        setResults(data)
+        const body = await res.json().catch(() => null)
+        // Never store a raw body: a 401 `{ error }` stored as results made the
+        // render read `results.events.length` off it and crashed the page.
+        const outcome = parseSearchResponse(res.status, body)
+        setResults(outcome.kind === 'ok' ? outcome.results : null)
+        setNeedsSignIn(outcome.kind === 'auth')
         setSearching(false)
       } catch (e) {
         // On abort the next effect run owns the spinner — leave it alone.
-        if ((e as Error)?.name !== 'AbortError') setSearching(false)
+        if ((e as Error)?.name !== 'AbortError') { setResults(null); setSearching(false) }
       }
     }, 250)
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
       ctrl.abort()
     }
-  }, [query])
+  }, [query, isLoggedIn])
 
   const isAdmin = user?.role === 'admin'
   const isMod   = user?.role === 'moderator'
   const isHost  = !!user && hasHostAuthority(user)
 
-  const staticCommands: Cmd[] = [
+  const allCommands: Cmd[] = [
     // Two visible clusters: "Navigate" is discovery (browse the
     // community), "You" is personal (your own stuff, hub first).
     { id: 'events',        label: 'Events',        hint: 'Browse upcoming events',     icon: '📅', group: 'Navigate', action: () => go('/events')        },
@@ -141,6 +141,12 @@ export default function CommandPalette() {
       { id: 'sign-in',  label: 'Sign in',  hint: '', icon: '→', group: 'Account', action: () => go('/login') },
     ]),
   ]
+
+  // A guest sees only what opens without a session — the "You" group and the
+  // member-only pages would each just bounce them to /login.
+  const staticCommands = isLoggedIn
+    ? allCommands
+    : allCommands.filter(c => c.group === 'Account' || GUEST_PALETTE_IDS.has(c.id))
 
   const showStatic = !query || query.length < 2
 
@@ -211,6 +217,24 @@ export default function CommandPalette() {
                     </div>
                   </Command.Item>
                 ))}
+              </Command.Group>
+            )}
+
+            {/* No session (guest, or expired mid-visit): say why there are no
+                live results rather than a bare "No results found." */}
+            {!showStatic && needsSignIn && !searching && (
+              <Command.Group className="px-2">
+                <Command.Item
+                  value="sign-in-to-search"
+                  onSelect={() => go('/login')}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer text-sm text-gray-700 data-[selected=true]:bg-amber-50 data-[selected=true]:text-amber-700 transition-colors mb-0.5"
+                >
+                  <span className="w-6 h-6 flex items-center justify-center text-base shrink-0">→</span>
+                  <div className="flex-1 min-w-0">
+                    <span className="font-medium">Sign in to search</span>
+                    <span className="ml-2 text-xs text-gray-400">Members, events, clubs and posts</span>
+                  </div>
+                </Command.Item>
               </Command.Group>
             )}
 

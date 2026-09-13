@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
 import { prisma } from '@/lib/prisma'
+import { getSession } from '@/lib/session'
+import { isAdminOrModerator } from '@/lib/access'
 import { sendFinishRegistrationEmail, recordEmailFailure } from '@/lib/email'
 import { rateLimit, getIp } from '@/lib/rateLimit'
 import { hashToken } from '@/lib/tokenHash'
@@ -11,10 +13,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Too many requests. Try again later.' }, { status: 429 })
     }
 
-    const { email } = await req.json()
+    // The signed-in "Resend email" banner POSTs with no body, and a bare
+    // `await req.json()` threw on it — every banner click was a 500 in the log
+    // (while the banner said "Email sent ✓"). No email in the body now means
+    // the caller's own address, from the session.
+    const body     = await req.json().catch(() => null) as { email?: unknown } | null
+    const session  = await getSession()
+    const rawEmail = body?.email
+    const email    = (typeof rawEmail === 'string' && rawEmail.trim() ? rawEmail : (session?.email ?? '')).toLowerCase().trim()
     if (!email) return NextResponse.json({ error: 'Email required' }, { status: 400 })
 
-    const user = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } })
+    const user = await prisma.user.findUnique({ where: { email } })
     // Always return ok to prevent email enumeration. password==null means a
     // never-activated applicant row — their pending ACTIVATION link is a
     // passwordResetToken too, and the deleteMany below would kill it while
@@ -37,6 +46,21 @@ export async function POST(req: NextRequest) {
       prisma.passwordResetToken.deleteMany({ where: { userId: user.id } }),
       prisma.passwordResetToken.create({ data: { userId: user.id, token: hashToken(token), expiresAt } }),
     ])
+
+    // A caller who already knows this account exists — the member asking for
+    // their own inbox, or staff on the admin user page — waits for the send
+    // and is told when it failed. Anyone else keeps the uniform fire-and-forget
+    // ok: a slower reply or a 502 for real accounts only would tell a stranger
+    // which addresses are registered.
+    if (session && (session.id === user.id || isAdminOrModerator(session))) {
+      try {
+        await sendFinishRegistrationEmail(user.email, user.name, token)
+      } catch (err) {
+        await recordEmailFailure({ helper: 'sendFinishRegistrationEmail', recipient: user.email, error: err, context: { userId: user.id } })
+        return NextResponse.json({ error: "We couldn't send the email just now. Please try again in a few minutes." }, { status: 502 })
+      }
+      return NextResponse.json({ ok: true })
+    }
 
     sendFinishRegistrationEmail(user.email, user.name, token)
       .catch(err => recordEmailFailure({ helper: 'sendFinishRegistrationEmail', recipient: user.email, error: err, context: { userId: user.id } }))

@@ -213,7 +213,10 @@ export async function sendEmailChangedNotice(oldEmail: string, name: string, new
 // have activated the squatter's password).
 export async function sendFinishRegistrationEmail(email: string, name: string, token: string) {
   const url = `${APP_URL}/reset-password?token=${token}`
-  await getResend().emails.send({
+  // emails.send RESOLVES with { error } on an API refusal (bad key, quota,
+  // sender) rather than throwing, so every caller's .catch saw a success and
+  // resend-verification told members the email was on its way.
+  const { error } = await getResend().emails.send({
     from: FROM, to: email,
     subject: 'Finish setting up your Smileys account',
     html: `
@@ -232,6 +235,7 @@ export async function sendFinishRegistrationEmail(email: string, name: string, t
       </div>
     `,
   })
+  if (error) throw error
 }
 
 export async function sendPasswordResetEmail(email: string, name: string, token: string) {

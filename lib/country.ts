@@ -65,3 +65,16 @@ export function toCountryCode(input: unknown): string | null {
     return v   // no ICU data — accept the shape and move on
   }
 }
+
+/**
+ * The ISO code for a City.country value, for handing to an outside service
+ * (a geocoder's country filter) — or null when the value isn't one.
+ *
+ * Why: location lookup was pinned to the founding country, so no venue in a
+ * city anywhere else could be found. The filter now follows the city, and an
+ * unknown value (blank, a legacy full-name row) yields null so the caller
+ * searches unrestricted rather than guessing someone else's country.
+ */
+export function countryCodeFor(value: string | null | undefined): string | null {
+  return toCountryCode(value ?? '')
+}

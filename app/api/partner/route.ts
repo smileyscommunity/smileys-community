@@ -5,14 +5,28 @@ import { isSafeHref } from '@/lib/safeUrl'
 import { normalizeInstagramHandle } from '@/lib/directory-constants'
 import { isUploadedImageUrl } from '@/lib/uploadedImageUrl'
 
-export async function GET() {
+// Partner access follows the account's CURRENT standing, read from the DB.
+// getSession never refreshes role or partnerId from the row, and this route
+// checked only the token's partnerId — which a demotion to member through the
+// admin user page leaves set (and a re-login re-issues) — so a demoted partner
+// kept editing their /perks listing. Only the partner capability goes: a member
+// who owns a CLAIMED directory business still edits it via /api/directory/[id],
+// which gates on Business.claimedById, not on role.
+async function currentPartnerId(): Promise<string | null> {
   const session = await getSession()
-  if (!session || !session.partnerId) {
+  if (!session) return null
+  const user = await prisma.user.findUnique({ where: { id: session.id }, select: { role: true, partnerId: true } })
+  return user?.role === 'partner' && user.partnerId ? user.partnerId : null
+}
+
+export async function GET() {
+  const partnerId = await currentPartnerId()
+  if (!partnerId) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const partner = await prisma.partner.findUnique({
-    where: { id: session.partnerId },
+    where: { id: partnerId },
   })
 
   if (!partner) return NextResponse.json({ error: 'Partner not found' }, { status: 404 })
@@ -21,8 +35,8 @@ export async function GET() {
 }
 
 export async function PATCH(req: NextRequest) {
-  const session = await getSession()
-  if (!session || !session.partnerId) {
+  const partnerId = await currentPartnerId()
+  if (!partnerId) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -57,7 +71,7 @@ export async function PATCH(req: NextRequest) {
   // external logo comes back on every save. Only a CHANGED value is held to
   // the uploads-only rule (/perks renders these as <img> to every member and
   // CSP allows any https image, so a new external URL is a tracking pixel).
-  const current = await prisma.partner.findUnique({ where: { id: session.partnerId }, select: { logo: true, coverImage: true } })
+  const current = await prisma.partner.findUnique({ where: { id: partnerId }, select: { logo: true, coverImage: true } })
   for (const key of ['logo', 'coverImage'] as const) {
     if (!(key in body)) continue
     const v = str(body[key], 300)
@@ -68,7 +82,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   const updated = await prisma.partner.update({
-    where: { id: session.partnerId },
+    where: { id: partnerId },
     data,
   })
 

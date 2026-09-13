@@ -1,4 +1,8 @@
+'use client'
+
 import Link from 'next/link'
+import { useAuth } from '@/contexts/AuthContext'
+import { foundingHostHref } from '@/lib/foundingHostHref'
 
 // Shown to a member whose city is still SEEDING (see lib/cityMaturity) — the
 // handful of people in a just-launched city. An Istanbul-shaped dashboard
@@ -28,8 +32,13 @@ export default function FoundingMemberPanel({
     rank <= 10 ? `member #${rank}` :
                  `one of the first ${total}`
 
+  // Client component only for this: /host is a host-authority panel that
+  // bounces everyone else to /login, so a plain founding member needs a
+  // different destination than a host does (see lib/foundingHostHref).
+  const { user, isLoggedIn } = useAuth()
+
   const asks = [
-    { href: '/host',    emoji: '🎤', title: 'Host the first thing',
+    { href: foundingHostHref(user, isLoggedIn), emoji: '🎤', title: 'Host the first thing',
       body: `A walk, a dinner, a coffee — ${cityName} starts with one gathering. It doesn't have to be big.` },
     { href: '/invite',  emoji: '👋', title: 'Bring people you know',
       body: `The founders bring the founders. Someone you'd want at that first dinner is the right person to invite.` },

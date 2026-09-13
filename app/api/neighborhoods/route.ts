@@ -25,8 +25,14 @@ export async function GET(req: NextRequest) {
     cityId = await resolveCityId(session)
   }
   const neighborhoods = await getNeighborhoodsForCity(cityId)
-  // 60s edge cache mirrors the helper's in-memory TTL.
+  // Only the ?city= form may be cached publicly — its URL names the city, so
+  // the 60s cache (mirroring the helper's in-memory TTL) is keyed correctly.
+  // The bare form answers from the view-city cookie / session behind one URL,
+  // and caching it publicly served the previous city's names for minutes
+  // after a city switch (and could hand one viewer's list to another).
   return NextResponse.json({ neighborhoods }, {
-    headers: { 'Cache-Control': 'public, max-age=60, stale-while-revalidate=300' },
+    headers: citySlug
+      ? { 'Cache-Control': 'public, max-age=60, stale-while-revalidate=300' }
+      : { 'Cache-Control': 'private, no-store', Vary: 'Cookie' },
   })
 }

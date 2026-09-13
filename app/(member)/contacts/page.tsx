@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { confirmToast } from '@/lib/confirmToast'
 import Link from 'next/link'
 import { resolveImageUrl } from '@/lib/data'
+import { notifyConnectionsChanged } from '@/lib/pendingConnections'
 
 interface ConnectedUser {
   id: string; name: string; color: string
@@ -64,6 +65,8 @@ export default function ContactsPage() {
     })
     if (res.ok) {
       setReceived(prev => prev.map(c => c.id === id ? { ...c, status: 'accepted' } : c))
+      // The nav's pending badge holds its own count — tell it this one's done.
+      notifyConnectionsChanged()
     }
   }
 
@@ -73,7 +76,7 @@ export default function ContactsPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'decline' }),
     })
-    if (res.ok) setReceived(prev => prev.filter(c => c.id !== id))
+    if (res.ok) { setReceived(prev => prev.filter(c => c.id !== id)); notifyConnectionsChanged() }
   }
 
   async function remove(id: string) {

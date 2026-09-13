@@ -30,7 +30,7 @@ const MIME: Record<string, string> = {
 // precisely so Next can't serve them statically around this gate. See
 // lib/uploadRoot.
 const UPLOAD_ROOT = uploadRoot()
-const VALID_FOLDERS = ['events', 'clubs', 'users', 'general', 'applications', 'posts', 'neighborhoods', 'directory', 'listings', 'hangouts', 'guide']
+const VALID_FOLDERS = ['events', 'clubs', 'users', 'general', 'applications', 'posts', 'neighborhoods', 'directory', 'listings', 'hangouts', 'guide', 'reports']
 const VALID_FILE = /^[\w\-]+\.(jpg|jpeg|png|webp|gif)$/i
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
@@ -49,7 +49,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
   // exception from the user-writable profilePhoto column, which let any
   // approved member unlock an arbitrary applicant photo by pointing their own
   // profilePhoto at it.
-  if (folder === 'applications') {
+  //
+  // reports/ is screenshot evidence attached to a member report — it can show
+  // private DMs and names the reporter never meant to publish, and the reporter
+  // was promised confidentiality. Same staff-only gate; the reporter previews
+  // their own pick locally, so they never need to fetch it back.
+  if (folder === 'applications' || folder === 'reports') {
     const session = await getSession()
     if (!session || !isAdminOrModerator(session)) {
       return new NextResponse('Forbidden', { status: 403 })
@@ -113,7 +118,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
   // `public` would let any shared cache (nginx proxy_cache, corporate
   // proxy, shared-machine browser) store the body and re-serve it to
   // viewers the route itself would 403.
-  const cacheControl = folder === 'applications'
+  const cacheControl = folder === 'applications' || folder === 'reports'
     ? 'private, no-store'
     : `public, max-age=${86400 * 7}, immutable`
 

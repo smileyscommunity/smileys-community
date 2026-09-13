@@ -17,6 +17,7 @@ import { SkeletonCard } from '@/components/Skeleton'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { cityBadge } from '@/lib/cityBadge'
 import { LOOKING_FOR_OPTIONS } from '@/lib/profileOptions'
+import { notifyConnectionsChanged } from '@/lib/pendingConnections'
 
 interface ConnectionUser {
   id: string; name: string; color: string
@@ -990,6 +991,9 @@ function MembersPageInner() {
   const [hero, setHero] = useState({ badge: 'Members', headline: 'Meet the community.', subtitle: 'Discover people through the neighborhoods, interests and experiences you share.' })
 
   const handleConnectionChange = useCallback((updated: ConnectionRecord | null, removed?: string) => {
+    // Every accept / decline / withdraw on this page funnels through here —
+    // the nav's pending badge keeps its own count and needs telling.
+    notifyConnectionsChanged()
     if (removed) {
       setConnections(prev => prev.filter(c => c.id !== removed))
     } else if (updated) {

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { resolveImageUrl, getInitials } from '@/lib/data'
+import { notifyConnectionsChanged } from '@/lib/pendingConnections'
 
 interface Requester {
   id: string
@@ -46,12 +47,13 @@ export default function PendingConnectionsWidget() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'accept' }),
         })
-        if (res.ok) setPending(prev => prev.filter(c => c.id !== connId))
+        if (res.ok) { setPending(prev => prev.filter(c => c.id !== connId)); notifyConnectionsChanged() }
       } else {
         const res = await fetch(`/app/api/connections/${connId}`, {
           method: 'DELETE', credentials: 'include',
         })
-        if (res.ok) setPending(prev => prev.filter(c => c.id !== connId))
+        // Nav badges hold their own count — tell them it moved.
+        if (res.ok) { setPending(prev => prev.filter(c => c.id !== connId)); notifyConnectionsChanged() }
       }
     } finally { setActing(null) }
   }

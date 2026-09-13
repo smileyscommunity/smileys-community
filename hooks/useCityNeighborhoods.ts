@@ -27,7 +27,11 @@ export function useCityNeighborhoods(city?: string): string[] {
     const url = city
       ? `/app/api/neighborhoods?city=${encodeURIComponent(city)}`
       : '/app/api/neighborhoods'
-    fetch(url, { credentials: 'include' })
+    // The bare URL answers from the view-city cookie, so it must never come
+    // from the HTTP cache: it was served public, max-age=60 + 300s stale, and
+    // a city switch kept showing the old city's names for minutes. ?city= is
+    // keyed by its URL and may use the cache.
+    fetch(url, { credentials: 'include', cache: city ? 'default' : 'no-store' })
       .then(r => r.json())
       .then(d => { if (!cancelled) setNeighborhoods((d.neighborhoods ?? []).map((n: { name: string }) => n.name)) })
       .catch(() => { if (!cancelled) setNeighborhoods([]) })

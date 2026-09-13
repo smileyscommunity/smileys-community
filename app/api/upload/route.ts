@@ -52,7 +52,12 @@ export async function POST(req: NextRequest) {
     // upload into posts/, guide/, general/, anywhere. Its stated purpose
     // ("event images") was already covered by the member set below, so it
     // was pure privilege widening; removed rather than folder-scoped.
-    const isMemberUpload = folder === 'events' || folder === 'clubs' || folder === 'hangouts' || folder === 'listings' || folder === 'directory'
+    //
+    // 'reports' is screenshot evidence from ReportButton, which used to post to
+    // 'general' — staff-only here — so every member's screenshot 403'd and the
+    // report went in without it. Its own folder rather than opening 'general':
+    // the files route serves reports/ to staff only.
+    const isMemberUpload = folder === 'events' || folder === 'clubs' || folder === 'hangouts' || folder === 'listings' || folder === 'directory' || folder === 'reports'
 
     if (!isPrivileged && !isMemberUpload && folder !== 'users') {
       return NextResponse.json({ error: 'You can only upload profile photos.' }, { status: 403 })
@@ -67,7 +72,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Only JPG, PNG, WebP, GIF allowed' }, { status: 400 })
     }
 
-    const validFolders = ['events', 'clubs', 'users', 'general', 'posts', 'hangouts', 'directory', 'listings', 'guide']
+    const validFolders = ['events', 'clubs', 'users', 'general', 'posts', 'hangouts', 'directory', 'listings', 'guide', 'reports']
     const subfolder  = validFolders.includes(folder ?? '') ? folder! : 'general'
     const filename   = `${Date.now()}-${randomBytes(6).toString('hex')}.jpg`
     const uploadDir  = join(uploadRoot(), subfolder)

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { useAuth } from '@/contexts/AuthContext'
 
 export default function VerifyEmailBanner() {
@@ -13,8 +14,14 @@ export default function VerifyEmailBanner() {
   async function resend() {
     setLoading(true)
     try {
-      await fetch('/app/api/auth/resend-verification', { method: 'POST' })
-      setSent(true)
+      // Only a 2xx means it went out. This used to show "Email sent ✓" whatever
+      // came back — and what came back was a 500 on every click.
+      const res  = await fetch('/app/api/auth/resend-verification', { method: 'POST', credentials: 'include' })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) setSent(true)
+      else toast.error(data.error ?? "Couldn't send the email — please try again")
+    } catch {
+      toast.error("Couldn't reach the server — please try again")
     } finally {
       setLoading(false)
     }
