@@ -184,14 +184,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, scheduled: true, newsletterId: newsletter.id, scheduledFor })
   }
 
-  // Sending an edited copy now: retire the original first, so the sweeper
-  // can't also send it. On a failed send the composer keeps the content.
-  if (replacesId) {
-    const gone = await prisma.newsletter.deleteMany({ where: { id: replacesId, status: 'scheduled' } })
-    if (gone.count === 0) return NextResponse.json(REPLACED_GONE, { status: 409 })
-    await auditReplaced()
-  }
-
+  // Recipients are checked BEFORE the original is retired: a send-now edit to
+  // an empty segment used to delete the scheduled original and then 400, and
+  // every retry 409'd because there was no original left to replace.
   const recipients = await prisma.user.findMany({
     where:  recipientWhere(segment, sendCityId ?? undefined),
     select: { id: true, email: true, name: true },
@@ -199,6 +194,17 @@ export async function POST(req: NextRequest) {
   if (recipients.length === 0) {
     return NextResponse.json({ error: 'No recipients match that segment/city' }, { status: 400 })
   }
+
+  // Sending an edited copy now: retire the original first, so the sweeper
+  // can't also send it. Every failure after this point says so
+  // (originalRetired), so the page stops treating the draft as a replacement
+  // and a retry sends it as a new newsletter instead of 409ing forever.
+  if (replacesId) {
+    const gone = await prisma.newsletter.deleteMany({ where: { id: replacesId, status: 'scheduled' } })
+    if (gone.count === 0) return NextResponse.json(REPLACED_GONE, { status: 409 })
+    await auditReplaced()
+  }
+  const originalRetired = !!replacesId
 
   // 'sending' until the batch returns: the row and the audit used to claim
   // "sent to N" before a single email left, so a dead API key produced a
@@ -209,7 +215,18 @@ export async function POST(req: NextRequest) {
 
   // Batch API send (≤100 per request) — stays under Resend's rate limit,
   // unlike the old 50-concurrent-per-second loop that 429'd ~80% of a 1k blast.
-  const { sent, resendLogs, failed } = await sendNewsletterBatch(recipients, subject, safeBodyHtml, newsletter.id)
+  let batch: Awaited<ReturnType<typeof sendNewsletterBatch>>
+  try {
+    batch = await sendNewsletterBatch(recipients, subject, safeBodyHtml, newsletter.id)
+  } catch (err) {
+    // A throw here used to leave a non-JSON 500 and a row stuck in 'sending'.
+    // Some emails may have left before it threw, so the message says to look
+    // at the history before sending again.
+    await prisma.newsletter.update({ where: { id: newsletter.id }, data: { status: 'failed', sentAt: new Date() } }).catch(() => {})
+    recordEmailFailure({ helper: 'sendNewsletterBatch', recipient: 'newsletter', error: err, context: { newsletterId: newsletter.id } }).catch(() => {})
+    return NextResponse.json({ error: 'The send failed partway or entirely — check the history before sending again.', newsletterId: newsletter.id, originalRetired }, { status: 502 })
+  }
+  const { sent, resendLogs, failed } = batch
 
   for (const f of failed) {
     recordEmailFailure({ helper: 'sendNewsletterEmail', recipient: f.email, error: f.error }).catch(() => {})
@@ -229,7 +246,7 @@ export async function POST(req: NextRequest) {
   )
 
   if (sent === 0) {
-    return NextResponse.json({ error: `Nothing was sent (${failed[0]?.error ?? 'delivery failed'}) — check the email provider and try again.`, sent, failed: failed.length, newsletterId: newsletter.id }, { status: 502 })
+    return NextResponse.json({ error: `Nothing was sent (${failed[0]?.error ?? 'delivery failed'}) — check the email provider and try again.`, sent, failed: failed.length, newsletterId: newsletter.id, originalRetired }, { status: 502 })
   }
   return NextResponse.json({ ok: true, sent, failed: failed.length, newsletterId: newsletter.id })
 }

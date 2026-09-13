@@ -120,17 +120,30 @@ function CheckInScanner() {
     setToggleError(null)
     const next = !current
     setAttendees(prev => prev.map(a => a.userId === userId ? { ...a, checkedIn: next } : a))
-    const res = await fetch(`/app/api/events/${eventId}/checkin`, {
-      method: 'PATCH', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, checkedIn: next }),
-    })
-    if (res.ok) {
-      if (next) vibrate.success()
-    } else {
+    // The server's reason is shown as it is: "attendance settled — clear the
+    // card instead" can't be fixed by retrying, and a generic "try again" sent
+    // hosts round in circles. A dropped connection rolls back too, instead of
+    // leaving a check-in on screen that was never saved.
+    let failure: string | null = null
+    try {
+      const res = await fetch(`/app/api/events/${eventId}/checkin`, {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, checkedIn: next }),
+      })
+      if (res.ok) {
+        if (next) vibrate.success()
+      } else {
+        const d = await res.json().catch(() => null)
+        failure = typeof d?.error === 'string' ? d.error : 'Check-in update failed. Please try again.'
+      }
+    } catch {
+      failure = 'No connection — the check-in was not saved. Please try again.'
+    }
+    if (failure) {
       setAttendees(prev => prev.map(a => a.userId === userId ? { ...a, checkedIn: current } : a))
       vibrate.error()
-      setToggleError('Check-in update failed. Please try again.')
+      setToggleError(failure)
     }
     setToggling(null)
   }

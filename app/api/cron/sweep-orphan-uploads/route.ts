@@ -118,6 +118,21 @@ async function loadReferences(): Promise<Set<string>> {
   return referencedNames(values)
 }
 
+// The last look before a delete. The reference scan in runSweep is a snapshot
+// taken before up to MAX_DELETIONS_PER_RUN unlinks, and an application
+// submitted in between must keep its photo. Only the two columns written with
+// an applications/ path today need the second look. ILIKE, and `_` matching
+// any character, can only ever keep a file, never delete one.
+async function stillReferenced(name: string): Promise<boolean> {
+  const pattern = `%applications/${name}%`
+  const rows = await prisma.$queryRaw<{ hit: number }[]>`
+    SELECT 1 AS hit FROM member_applications WHERE "profilePhoto" ILIKE ${pattern}
+    UNION ALL
+    SELECT 1 AS hit FROM users WHERE "profilePhoto" ILIKE ${pattern}
+    LIMIT 1`
+  return Array.isArray(rows) && rows.length > 0
+}
+
 async function runSweep(dryRun: boolean) {
   const dir = join(uploadRoot(), 'applications')
   let entries: import('fs').Dirent[]
@@ -154,9 +169,15 @@ async function runSweep(dryRun: boolean) {
 
   let deleted = 0
   let failed = 0
+  let rescued = 0
   if (!dryRun) {
     for (const name of batch) {
       try {
+        // References first, then the age, then the delete at once. The apply
+        // route refreshes a photo's mtime as it claims it, so an application
+        // being submitted right now shows up in one check or the other.
+        if (await stillReferenced(name)) { rescued++; continue }
+        if ((await stat(join(dir, name))).mtimeMs >= cutoff) { rescued++; continue }
         await unlink(join(dir, name))
         deleted++
       } catch (e) {
@@ -167,7 +188,7 @@ async function runSweep(dryRun: boolean) {
     }
   }
 
-  const counts = { dryRun, scanned: entries.length, skippedUnrecognised, tooNew, referenced, eligible: orphans.length, deleted, failed, deferred }
+  const counts = { dryRun, scanned: entries.length, skippedUnrecognised, tooNew, referenced, eligible: orphans.length, deleted, failed, deferred, rescued }
   console.log('[cron sweep-orphan-uploads]', JSON.stringify(counts))
   return { ...counts, wouldDelete: dryRun ? batch : [] }
 }

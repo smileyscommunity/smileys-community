@@ -5,6 +5,7 @@ import { trackServer } from '@/lib/posthog-server'
 import { todayInCity } from '@/lib/city'
 import { rateLimit } from '@/lib/rateLimit'
 import { Attendance } from '@/lib/constants'
+import { CardStatus } from '@/lib/noShowPolicy'
 
 // Bodies are untyped JSON: rating "3" or 4.5 reached Prisma's Int column and
 // 500'd, text: 123 threw on .trim, and PATCH rating "abc" slipped past a
@@ -72,8 +73,19 @@ export async function POST(req: NextRequest, { params }: Params) {
       where: { userId_eventId: { userId: session.id, eventId } },
     })
     // A settled no-show keeps status 'approved' (lib/attendance), so status
-    // alone let someone who never came review the night.
-    if (!attended || attended.status !== 'approved' || attended.attendance === Attendance.NoShow) {
+    // alone let someone who never came review the night. A no-show whose card
+    // was later cleared did come — the host waived it ("was there, the scanner
+    // missed them") or an admin overturned it. The attendee row keeps its
+    // no_show mark as the trail (lib/noShow waiveCard), so the card decides.
+    let noShow = attended?.attendance === Attendance.NoShow
+    if (attended && noShow) {
+      const cleared = await prisma.noShowCard.findFirst({
+        where:  { attendeeId: attended.id, status: { in: [CardStatus.Waived, CardStatus.Overturned] } },
+        select: { id: true },
+      })
+      if (cleared) noShow = false
+    }
+    if (!attended || attended.status !== 'approved' || noShow) {
       return NextResponse.json({ error: 'You must have attended this event to review it' }, { status: 403 })
     }
 

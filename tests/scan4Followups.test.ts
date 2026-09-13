@@ -7,7 +7,8 @@ const read = (p: string) => readFileSync(p, 'utf8')
 describe('the 48h orphan-upload reaper cannot strand an application', () => {
   it('the apply API refuses a photo link whose file is gone', () => {
     const src = read('app/api/apply/route.ts')
-    expect(src).toMatch(/existsSync\(join\(uploadRoot\(\), 'applications', photoFile\)\)/)
+    // Updated 2026-09-13 (scan 5 #4): refreshing the mtime is the existence check and the claim.
+    expect(src).toMatch(/utimesSync\(join\(uploadRoot\(\), 'applications', photoFile\), now, now\)/)
     expect(src).toMatch(/photoFile\.includes\('\.\.'\)/)
     expect(src).toContain('Your photo upload has expired')
   })

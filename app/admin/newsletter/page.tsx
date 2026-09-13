@@ -495,7 +495,21 @@ export default function NewsletterPage() {
         }),
       })
       const d = await res.json().catch(() => ({}))
-      if (!res.ok) { toast.error(d?.error ?? 'Send failed'); return }
+      if (!res.ok) {
+        // The original is gone either way here: already sent or cancelled
+        // (409), or retired before a send-now that then failed. Stop editing
+        // it, so a retry sends this draft as a new newsletter instead of
+        // 409ing on every attempt — and say so, since it could go out twice.
+        if (editingId && (res.status === 409 || d?.originalRetired)) {
+          const originalId = editingId
+          setEditingId(null)
+          setHistory(prev => prev.filter(x => x.id !== originalId))
+          toast.error(`${d?.error ?? 'Send failed'} The original is no longer scheduled — sending again sends this draft as a new newsletter.`)
+          return
+        }
+        toast.error(d?.error ?? 'Send failed')
+        return
+      }
       // The API retired the original in the same request (replacesId).
       if (editingId) {
         const originalId = editingId

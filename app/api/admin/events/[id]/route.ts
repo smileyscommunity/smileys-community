@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { activeAttendeeWhere } from '@/lib/attendance'
+import { restoreSeatsReleasedByCancel } from '@/lib/eventRestore'
 import { waiveCard } from '@/lib/noShow'
 import { getSession } from '@/lib/session'
 import { isAdmin, isAdminOrModerator, isClubHost, isClubHostFor, hostCityIds } from '@/lib/access'
@@ -119,7 +120,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
         hostId: true, clubId: true, cityId: true, date: true, time: true, location: true, title: true,
         neighborhood: true, price: true, memberPrice: true, totalSpots: true,
         emoji: true, isPremium: true, membersOnly: true, limitedSpots: true, isFirstTimerFriendly: true, status: true,
-        seriesId: true,
+        seriesId: true, cancelledAt: true, approvalRequired: true,
       }
     })
     if (!before) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -347,15 +348,34 @@ export async function PUT(req: NextRequest, { params }: Params) {
     // The RSVP gate, the reconfirm sweep and the no-show pass all read
     // cancelledAt; nothing wrote it. Stamp it on the way in, clear it if
     // staff restore the event.
-    const cancelling = body.status === 'cancelled' && before.status !== 'cancelled'
-    if (cancelling) data.cancelledAt = new Date()
-    else if (data.status !== undefined && data.status !== 'cancelled' && before.status === 'cancelled') data.cancelledAt = null
+    // One instant for the event and every seat it releases, so a restore can
+    // find exactly those seats again (lib/eventRestore).
+    const cancelling  = body.status === 'cancelled' && before.status !== 'cancelled'
+    const restoring   = !cancelling && data.status !== undefined && data.status !== 'cancelled' && before.status === 'cancelled'
+    const cancelStamp = new Date()
+    if (cancelling) data.cancelledAt = cancelStamp
+    else if (restoring) data.cancelledAt = null
 
     const event = await prisma.event.update({ where: { id }, data })
 
     // If totalSpots changed, recompute spotsLeft so it reflects the new capacity
     if (data.totalSpots !== undefined) {
       await recomputeSpotsLeft(id, event.totalSpots)
+    }
+
+    // Un-cancelling brings back the members the cancel released.
+    if (restoring) {
+      try {
+        const r = await restoreSeatsReleasedByCancel({
+          id, title: before.title, totalSpots: event.totalSpots,
+          approvalRequired: before.approvalRequired, cancelledAt: before.cancelledAt,
+        })
+        writeAudit(session.id, session.name, 'event.restore', id, 'event',
+          { restoredSeats: r.restored, restoredAs: r.status },
+          `Restored cancelled event "${before.title}" (${r.restored} seat${r.restored === 1 ? '' : 's'} back)`)
+      } catch (err) {
+        console.error('[event PUT restore] restoring seats failed', { eventId: id, err: String(err) })
+      }
     }
 
     // Propagate changes to all future events in the same series. `date` and
@@ -437,7 +457,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
         await prisma.$transaction([
           prisma.eventAttendee.updateMany({
             where: { eventId: id, ...activeAttendeeWhere },
-            data:  { status: 'removed', cancelledAt: new Date(), cancelledBy: session.role === 'admin' ? 'admin' : 'host' },
+            data:  { status: 'removed', cancelledAt: cancelStamp, cancelledBy: session.role === 'admin' ? 'admin' : 'host' },
           }),
           prisma.waitlistEntry.deleteMany({ where: { eventId: id } }),
         ])
@@ -503,7 +523,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     const before = await prisma.event.findUnique({
       where: { id },
-      select: { title: true, hostId: true, clubId: true, status: true, cityId: true },
+      select: { title: true, hostId: true, clubId: true, status: true, cityId: true, cancelledAt: true, approvalRequired: true, totalSpots: true },
     })
     if (!before) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
@@ -513,10 +533,26 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Cross-city moderation is admin-only' }, { status: 403 })
     }
 
-    const event = await prisma.event.update({ where: { id }, data: { status } })
+    // Leaving 'cancelled' through a status change is a restore: clear the
+    // stamp the RSVP gate and the sweeps read, and put back the seats the
+    // cancel released (lib/eventRestore). Publishing a cancelled event from
+    // the events list used to bring it back live with nobody on it.
+    const restoring = before.status === 'cancelled'
+    const event = await prisma.event.update({ where: { id }, data: restoring ? { status, cancelledAt: null } : { status } })
+    let restoredSeats = 0
+    if (restoring) {
+      try {
+        restoredSeats = (await restoreSeatsReleasedByCancel({
+          id, title: before.title, totalSpots: before.totalSpots,
+          approvalRequired: before.approvalRequired, cancelledAt: before.cancelledAt,
+        })).restored
+      } catch (err) {
+        console.error('[event PATCH restore] restoring seats failed', { eventId: id, err: String(err) })
+      }
+    }
 
     writeAudit(session.id, session.name, `event.${status}`, id, 'event',
-      { status },
+      restoring ? { status, restoredFromCancelled: true, restoredSeats } : { status },
       `Event status set to ${status}`,
     )
 

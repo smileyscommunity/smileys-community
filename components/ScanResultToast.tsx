@@ -18,6 +18,7 @@ function copy(r: ScanResult): string {
   if (r.type === 'already')  return `${r.name} already checked in`
   if (r.type === 'notfound') return 'Not registered for this event'
   if (r.type === 'invalid')  return 'Invalid QR code'
+  if (r.message) return r.name ? `${r.name}: ${r.message}` : r.message
   return r.name ? `Check-in failed for ${r.name}` : 'Check-in failed'
 }
 

@@ -17,7 +17,7 @@ const disposableDomains: string[] = require('disposable-email-domains')
 // Applicant photos live in the applications/ folder (their own upload
 // route); that folder is admin-gated at serve time and excluded from the
 // shared validator's public default, so it's named explicitly here.
-import { existsSync } from 'fs'
+import { utimesSync } from 'fs'
 import { join } from 'path'
 import { uploadRoot } from '@/lib/uploadRoot'
 
@@ -131,8 +131,20 @@ export async function POST(req: NextRequest) {
     // uploads are reaped after 48 hours (cron sweep-orphan-uploads), and an
     // applicant returning to an old browser draft could otherwise submit a link
     // to a photo that no longer exists — an application reviewers can't judge.
+    // Refreshing its mtime doubles as the existence check (it throws on a
+    // missing file) and claims the photo: the reaper re-checks a file's age
+    // immediately before deleting it, so a photo being submitted right now is
+    // skipped even if this application's row isn't written yet.
     const photoFile = profilePhoto.split('/applications/')[1] ?? ''
-    if (!photoFile || photoFile.includes('/') || photoFile.includes('..') || !existsSync(join(uploadRoot(), 'applications', photoFile))) {
+    let photoPresent = false
+    if (photoFile && !photoFile.includes('/') && !photoFile.includes('..')) {
+      try {
+        const now = new Date()
+        utimesSync(join(uploadRoot(), 'applications', photoFile), now, now)
+        photoPresent = true
+      } catch { photoPresent = false }
+    }
+    if (!photoPresent) {
       return NextResponse.json({ error: 'Your photo upload has expired. Please upload your photo again.' }, { status: 400 })
     }
 

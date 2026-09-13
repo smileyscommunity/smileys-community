@@ -9,6 +9,7 @@ const read = (p: string) => readFileSync(p, 'utf8')
 const p = vi.hoisted(() => ({
   event:         { findUnique: vi.fn() },
   eventAttendee: { findUnique: vi.fn() },
+  noShowCard:    { findFirst: vi.fn(async () => null) },
   review:        { findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
 }))
 const session = vi.hoisted(() => ({ current: { id: 'u1', name: 'Ada' } as { id: string; name: string } | null }))

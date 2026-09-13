@@ -61,7 +61,7 @@ export type ScanResult =
   | { type: 'already';   name: string }
   | { type: 'notfound' }
   | { type: 'invalid'  }
-  | { type: 'error';     name?: string }
+  | { type: 'error';     name?: string; message?: string }
 
 /** Minimal shape the hook needs from an attendee row. */
 type ScanAttendee = { userId: string; checkedIn: boolean; user: { name: string } }
@@ -132,20 +132,26 @@ export function useScanCheckin<A extends ScanAttendee>(params: {
     // request, claim success in the toast, and leave the row visually
     // checked-in even if the server rejected.
     setAttendees(prev => prev.map(a => a.userId === userId ? { ...a, checkedIn: true } : a))
+    // The server's reason (e.g. attendance already settled) rides on the toast.
+    let reason = ''
     try {
       const res = await fetch(`/app/api/events/${eventId}/checkin`, {
         method: 'PATCH', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, checkedIn: true }),
       })
-      if (!res.ok) throw new Error()
+      if (!res.ok) {
+        const d = await res.json().catch(() => null)
+        if (typeof d?.error === 'string') reason = d.error
+        throw new Error('checkin refused')
+      }
       vibrate.success()
       flash({ type: 'success', name: attendee.user.name })
       onCheckinSuccess?.(userId)
     } catch {
       setAttendees(prev => prev.map(a => a.userId === userId ? { ...a, checkedIn: false } : a))
       vibrate.error()
-      flash({ type: 'error', name: attendee.user.name })
+      flash({ type: 'error', name: attendee.user.name, ...(reason ? { message: reason } : {}) })
     }
   }, [eventId, attendees, setAttendees, onCheckinSuccess, flash])
 

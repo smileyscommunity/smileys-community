@@ -47,7 +47,7 @@ describe('newsletter: editing a scheduled send does not delete it up front (3)',
   it('the original leaves the list only after the POST (which retired it server-side) succeeded', () => {
     // Updated 2026-09-13: the API retires the original with replacesId in the
     // same request; tests/scan4Followups2 pins the server side.
-    expect(src).toMatch(/if \(!res\.ok\) \{ toast\.error\(d\?\.error \?\? 'Send failed'\); return \}\s*\n[\s\S]{0,120}if \(editingId\) \{[\s\S]*?setHistory\(prev => prev\.filter\(x => x\.id !== originalId\)\)/)
+    expect(src).toMatch(/\/\/ The API retired the original in the same request \(replacesId\)\.\s*\n\s*if \(editingId\) \{[\s\S]*?setHistory\(prev => prev\.filter\(x => x\.id !== originalId\)\)/)
   })
 })
 

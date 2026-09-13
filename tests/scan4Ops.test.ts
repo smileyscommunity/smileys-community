@@ -392,6 +392,27 @@ describe('7 sweep-orphan-uploads', () => {
     expect(existsSync(join(dir, '100-orphan.jpg'))).toBe(true)
   })
 
+  it('a file referenced after the scan but before its delete is kept (scan 5 #4)', async () => {
+    seed()
+    h.prisma.$queryRaw.mockImplementationOnce(async (_s: unknown, pattern: unknown) =>
+      String(pattern).includes('100-orphan.jpg') ? [{ hit: 1 }] : [])
+    const { json } = await post()
+    expect(json).toMatchObject({ deleted: 0, eligible: 1, rescued: 1 })
+    expect(existsSync(join(dir, '100-orphan.jpg'))).toBe(true)
+  })
+
+  it('a photo an application claims mid-run (mtime refreshed) is kept (scan 5 #4)', async () => {
+    seed()
+    h.prisma.$queryRaw.mockImplementationOnce(async () => {
+      const now = Date.now() / 1000
+      utimesSync(join(dir, '100-orphan.jpg'), now, now)
+      return []
+    })
+    const { json } = await post()
+    expect(json).toMatchObject({ deleted: 0, rescued: 1 })
+    expect(existsSync(join(dir, '100-orphan.jpg'))).toBe(true)
+  })
+
   it('a failed reference query deletes nothing', async () => {
     seed()
     vi.spyOn(console, 'error').mockImplementation(() => {})

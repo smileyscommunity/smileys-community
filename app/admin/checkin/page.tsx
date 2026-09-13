@@ -194,6 +194,8 @@ function CheckInPageInner() {
     setAttendees(prev => prev.map(x => x.id === a.id ? { ...x, checkedIn: next } : x))
     setToggling(prev => { const s = new Set(prev); s.add(a.id); return s })
     flashLastChecked(a.userId)
+    // The server's reason (e.g. attendance already settled) goes in the toast.
+    let reason = ''
     try {
       const res = await fetch(`/app/api/events/${selectedId}/checkin`, {
         method: 'PATCH',
@@ -201,13 +203,17 @@ function CheckInPageInner() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: a.userId, checkedIn: next }),
       })
-      if (!res.ok) throw new Error()
+      if (!res.ok) {
+        const d = await res.json().catch(() => null)
+        if (typeof d?.error === 'string') reason = d.error
+        throw new Error('checkin refused')
+      }
     } catch {
       // Roll back the optimistic flip and tell the operator. Vibrate so
       // a kiosk operator scanning rapidly notices without looking.
       setAttendees(prev => prev.map(x => x.id === a.id ? { ...x, checkedIn: a.checkedIn } : x))
       vibrate.error()
-      toast.error(`Failed to ${next ? 'check in' : 'undo'} ${a.user.name}`)
+      toast.error(`Failed to ${next ? 'check in' : 'undo'} ${a.user.name}${reason ? ` — ${reason}` : ''}`)
     } finally {
       setToggling(prev => { const s = new Set(prev); s.delete(a.id); return s })
     }

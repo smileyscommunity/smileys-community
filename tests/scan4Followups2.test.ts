@@ -85,10 +85,14 @@ describe('5. editing a scheduled newsletter retires the original in one request'
     expect(api).toMatch(/prisma\.\$transaction\(async tx => \{\s*if \(replacesId\) \{\s*const gone = await tx\.newsletter\.deleteMany\(\{ where: \{ id: replacesId, status: 'scheduled' \} \}\)\s*if \(gone\.count === 0\) return null/)
     expect(api).toContain('if (!newsletter) return NextResponse.json(REPLACED_GONE, { status: 409 })')
   })
-  it('a send-now copy retires the original before fanning out', () => {
-    const retire = api.indexOf("const gone = await prisma.newsletter.deleteMany({ where: { id: replacesId, status: 'scheduled' } })")
-    const fanout = api.indexOf('const recipients = await prisma.user.findMany(')
-    expect(retire).toBeGreaterThan(-1)
+  it('a send-now copy checks recipients, then retires the original, then fans out', () => {
+    // Updated 2026-09-13 (scan 5 #1): retiring before the recipient check
+    // stranded the edit on an empty segment.
+    const recipients = api.indexOf('const recipients = await prisma.user.findMany(')
+    const retire     = api.indexOf("const gone = await prisma.newsletter.deleteMany({ where: { id: replacesId, status: 'scheduled' } })")
+    const fanout     = api.indexOf('batch = await sendNewsletterBatch(')
+    expect(recipients).toBeGreaterThan(-1)
+    expect(recipients).toBeLessThan(retire)
     expect(retire).toBeLessThan(fanout)
   })
   it('the page sends replacesId and no longer deletes in a second call', () => {
