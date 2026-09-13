@@ -6,6 +6,7 @@ import Image from 'next/image'
 import { readFileSync } from 'fs'
 import { join } from 'path'
 import { getNeighborhoodViews, resolveNeighborhoodBySlug, type NeighborhoodView } from '@/lib/neighborhoodsDb'
+import { neighborhoodImage } from '@/lib/neighborhoods'
 import { resolveCityId, getCityConfig, DEFAULT_CITY_SLUG } from '@/lib/city'
 import { countryName } from '@/lib/countries'
 import { APP_URL } from '@/lib/env'
@@ -226,6 +227,7 @@ export default async function NeighborhoodPage({ params }: { params: Promise<{ s
 
   const name  = meta.name
   const guide = loadNeighborhoodGuide(city.slug, slug)
+  const heroImage = guide?.image ?? neighborhoodImage(name)
 
   const isYourNeighborhood = session?.neighborhood === name
   const hasNoNeighborhood  = session && !session.neighborhood
@@ -303,10 +305,17 @@ export default async function NeighborhoodPage({ params }: { params: Promise<{ s
       />
       {/* ── Hero — renders immediately, no DB ── */}
       <section className="relative overflow-hidden">
-        {guide?.image ? (
+        {/* The guide file is the place a photo belongs, but the card grid has
+            its own map of the same pictures (lib/neighborhoods), and for a
+            long time only the cards read from it: every guide file lacked an
+            `image`, so Kadıköy's page showed a gradient while its photo sat
+            one click earlier on the card. Falling back to that map means the
+            two surfaces cannot disagree about a neighbourhood we do have a
+            photo of. */}
+        {heroImage ? (
           <div className="absolute inset-0">
-            <Image src={guide.image} alt={name} fill className="object-cover" sizes="100vw" priority
-              style={{ objectPosition: `center ${guide.imagePosition ?? 50}%` }} />
+            <Image src={heroImage} alt={name} fill className="object-cover" sizes="100vw" priority
+              style={{ objectPosition: `center ${guide?.imagePosition ?? 50}%` }} />
             <div className="absolute inset-0 bg-black/50" />
           </div>
         ) : (
