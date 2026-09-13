@@ -133,7 +133,7 @@ export default async function DashboardPage() {
     }),
     prisma.user.findUnique({
       where: { id: session.id },
-      select: { referralCode: true, profilePhoto: true, bio: true, neighborhood: true, joinedAt: true, color: true, membershipType: true, interests: true, instagram: true, gender: true, socialStyles: true },
+      select: { referralCode: true, profilePhoto: true, bio: true, neighborhood: true, joinedAt: true, color: true, membershipType: true, interests: true, instagram: true, gender: true, socialStyles: true, languages: true },
     }),
     prisma.notification.count({ where: { userId: session.id, isRead: false } }),
     prisma.eventAttendee.findMany({
@@ -808,6 +808,9 @@ export default async function DashboardPage() {
     ? await recommendedClubsFor({
         cityId,
         interests:      userProfile.interests ?? [],
+        // The Language clubs are most of what a global-club city adds, and
+        // this is the only signal that reaches them.
+        languages:      userProfile.languages ?? [],
         newInTown:      userProfile.socialStyles?.includes('new_in_town') ?? false,
         excludeClubIds: clubIds,
       })
