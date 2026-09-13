@@ -167,7 +167,11 @@ export default async function HandbookArticlePage({ params }: Params) {
   // Null unless this category is listed as a real sequence in lib/postSeries.
   // Handbook categories are parallel by nature — "Getting Around" is six city
   // transit cards — so this is off here until a category earns it.
-  const nextUp = await getNextInSeries(post.kind, post.category, post.publishedAt?.toISOString() ?? null)
+  // publishedAt arrives as a Date on a cache miss and as an ISO STRING on a
+  // hit — unstable_cache serialises its value to JSON, and Prisma's types
+  // still claim Date, so typecheck cannot see it. new Date() accepts both.
+  const nextUp = await getNextInSeries(post.kind, post.category,
+    post.publishedAt ? new Date(post.publishedAt).toISOString() : null)
 
   // Freshness + sources are computed server-side so the client component gets
   // settled strings (see EditableArticle's props comment).

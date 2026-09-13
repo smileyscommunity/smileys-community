@@ -201,7 +201,11 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
 
   const related = await getRelatedPosts(post.category, slug)
   // Null unless this category is a real sequence — see lib/postSeries.
-  const nextUp = await getNextInSeries(post.kind, post.category, post.publishedAt?.toISOString() ?? null)
+  // publishedAt arrives as a Date on a cache miss and as an ISO STRING on a
+  // hit — unstable_cache serialises its value to JSON, and Prisma's types
+  // still claim Date, so typecheck cannot see it. new Date() accepts both.
+  const nextUp = await getNextInSeries(post.kind, post.category,
+    post.publishedAt ? new Date(post.publishedAt).toISOString() : null)
 
   return (
     <main className="min-h-screen bg-warm">
