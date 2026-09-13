@@ -90,7 +90,7 @@ export default function HangoutDiscussion({ hangoutId, initialMessages, canPost,
       <p className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-3">Discussion</p>
 
       {messages.length === 0 ? (
-        <p className="text-sm text-gray-400 py-1">No messages yet{canPost ? ' — start the conversation.' : '.'}</p>
+        <p className="text-sm text-gray-400 py-1">{canPost ? 'No messages yet — start the conversation.' : 'The chat is for people who are in.'}</p>
       ) : (
         <div className="space-y-3">
           {messages.map(m => {

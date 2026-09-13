@@ -182,6 +182,9 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
       // client components below is serialized into the flight payload
       // whether or not it renders. Don't even fetch attendee identities.
       if (!session) return {}
+      // A private club's roster is for its members: which of them are going
+      // is no less private than who they are.
+      if (club.isPrivate && !canSeeMemberContent) return {}
       const eventIds = clubEvents.map(e => e.id)
       if (!eventIds.length) return {}
       const memberIds = (await prisma.clubMembership.findMany({
@@ -190,7 +193,8 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
       })).map(m => m.userId)
       if (!memberIds.length) return {}
       const attendees = await prisma.eventAttendee.findMany({
-        where: { eventId: { in: eventIds }, status: 'approved', userId: { in: memberIds } },
+        // Stealth RSVPs and hidden accounts stay out, as on every other roster.
+        where: { eventId: { in: eventIds }, status: 'approved', stealth: false, user: { hiddenFromMembers: false }, userId: { in: memberIds } },
         select: { eventId: true, user: { select: { id: true, name: true, color: true, profilePhoto: true } } },
       })
       const map: Record<string, any[]> = {}
@@ -492,7 +496,9 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
 
             <ClubResources
               slug={club.slug}
-              initialResources={session ? resources : []}
+              // Hosts keep the group-chat invite here; members and staff only,
+              // the same people the WhatsApp block below is shown to.
+              initialResources={canSeeMemberContent ? resources : []}
               canEdit={canPin}
             />
 

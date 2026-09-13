@@ -16,6 +16,17 @@ export async function GET(_: NextRequest, { params }: Params) {
   const club = await prisma.club.findUnique({ where: { slug }, select: { id: true } })
   if (!club) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
+  // Having a session was the whole gate, so any member — including someone
+  // whose request to a private club is still pending — could read the invite
+  // link. Same rule as the club page: approved members, admins, moderators.
+  if (session.role !== 'admin' && session.role !== 'moderator') {
+    const membership = await prisma.clubMembership.findUnique({
+      where:  { userId_clubId: { userId: session.id, clubId: club.id } },
+      select: { status: true },
+    })
+    if (membership?.status !== 'approved') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
   const resources = await prisma.clubResource.findMany({
     where: { clubId: club.id },
     orderBy: { order: 'asc' },

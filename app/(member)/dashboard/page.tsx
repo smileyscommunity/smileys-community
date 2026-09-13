@@ -649,10 +649,15 @@ export default async function DashboardPage() {
       },
     }),
     // Recent RSVPs to events — feeds ClubActivityTimeline so members see
-    // when others sign up for events they might also care about.
+    // when others sign up for events they might also care about. A stealth
+    // RSVP or a hidden account is never announced: every other roster
+    // (lib/db attendee previews, the event page) already leaves them out,
+    // and this feed named them to the whole city.
     prisma.eventAttendee.findMany({
       where: {
         status:    'approved',
+        stealth:   false,
+        user:      { hiddenFromMembers: false },
         userId:    { not: session.id },
         joinedAt:  { gte: weekAgo },
         event:     { cityId, status: 'published', date: { gte: today } },

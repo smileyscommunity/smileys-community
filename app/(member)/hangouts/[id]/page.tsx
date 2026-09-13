@@ -280,11 +280,13 @@ export default async function HangoutPermalinkPage({ params }: PageProps) {
           </div>
         )}
 
-        {/* Discussion — interactive thread. Host + joiners can post (the API
-            gates it); non-members see it read-only with a nudge to join. */}
+        {/* Discussion — the host and everyone who's in. The messages API
+            already refused anyone else; the page handed them the last 50
+            messages anyway ("we're at the back table"), blocked members
+            included. Props are serialised into the page, so the gate is here. */}
         <HangoutDiscussion
           hangoutId={hangout.id}
-          initialMessages={hangout.messages}
+          initialMessages={isOwner || joinedByMe ? hangout.messages : []}
           canPost={isOwner || joinedByMe}
           isJoinable={isJoinable}
         />
