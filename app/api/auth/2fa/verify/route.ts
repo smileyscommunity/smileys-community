@@ -33,6 +33,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Session expired — please log in again' }, { status: 401 })
   }
 
+  // Per account as well as per IP. The pending cookie isn't tied to an
+  // address, so one stolen password could replay it from many IPs at five
+  // guesses each against a six-digit code.
+  if (!await rateLimit(`2fa-user:${userId}`, 10, 15 * 60_000)) {
+    return NextResponse.json({ error: 'Too many attempts. Try again later.' }, { status: 429 })
+  }
+
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { id: true, name: true, email: true, role: true, color: true, bio: true,

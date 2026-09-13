@@ -198,6 +198,24 @@ async function enrichHosts(events: Event[]): Promise<Event[]> {
  * previews). Strips: exact street address + GPS, chat/meeting links, and
  * attendee names/photos.
  */
+// Statuses an event can be seen in by anyone who has its link. Draft, pending,
+// flagged and unpublished events are not public: they were readable by id —
+// title, description, host and cover — by anyone holding a host's preview
+// link or a notification, logged out included.
+export const PUBLIC_EVENT_STATUSES: ReadonlySet<string> = new Set(['published', 'cancelled', 'archived', 'postponed'])
+
+/** Whether this viewer may see this event at all: public statuses for anyone; otherwise admins, moderators, the host and co-hosts. */
+export async function canSeeEvent(
+  event: { id: string; status?: string | null; hostId: string },
+  viewer: { id: string; role?: string | null } | null,
+): Promise<boolean> {
+  // A missing status (the Event type allows it; the column never does) reads as published.
+  if (PUBLIC_EVENT_STATUSES.has(event.status ?? 'published')) return true
+  if (!viewer) return false
+  if (viewer.role === 'admin' || viewer.role === 'moderator' || event.hostId === viewer.id) return true
+  return !!(await prisma.eventCoHost.findFirst({ where: { eventId: event.id, userId: viewer.id }, select: { id: true } }))
+}
+
 export function redactEventForGuest(event: Event): Event {
   return {
     ...event,

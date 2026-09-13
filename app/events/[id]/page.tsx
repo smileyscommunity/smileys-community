@@ -3,7 +3,7 @@ import { jsonLdHtml } from '@/lib/jsonLd'
 import Link from 'next/link'
 import Image from 'next/image'
 import type { Metadata } from 'next'
-import { getEventById, redactEventForGuest } from '@/lib/db'
+import { getEventById, redactEventForGuest, canSeeEvent, PUBLIC_EVENT_STATUSES } from '@/lib/db'
 import { getCityConfig } from '@/lib/city'
 import { DEFAULT_TZ, todayInTz, fromWallClockInTz } from '@/lib/cityTime'
 import { eventPhase } from '@/lib/eventTime'
@@ -109,6 +109,9 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const { id } = await params
   const event = await getEventById(id)
   if (!event) return {}
+  // Link previews carry the title and description to anyone: a draft or
+  // pending event gets none of that, and stays out of search.
+  if (!PUBLIC_EVENT_STATUSES.has(event.status ?? 'published')) return { robots: { index: false, follow: false } }
 
   // Share previews must always carry the date. It leads the description
   // (platforms truncate from the end) and sits in the title too, for
@@ -169,6 +172,10 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
   const saidSoldOut = isManuallySoldOut(event)
 
   const session = await getSession()
+
+  // A draft, pending, flagged or unpublished event is for staff, its host and
+  // co-hosts only (lib/db canSeeEvent); everyone else gets the not-found page.
+  if (!(await canSeeEvent(event, session))) notFound()
 
   if (!session) {
     // Public teaser. /events and individual event pages are public for SEO
@@ -1114,7 +1121,11 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                 <div className="flex items-center gap-2.5 mb-3">
                   <div className="flex -space-x-2 shrink-0">
                     {attendees.slice(0, 4).map(a => {
-                      const photo = avatarUrl(a.user.profilePhoto, 64)
+                      // Non-attendees get coloured blanks. The photos used to be
+                      // real images blurred with CSS: the image URL and the alt
+                      // text (the member's name) were in the page for anyone to read.
+                      const hideWho = !isAdmin && !isHost && myAttendance?.status !== 'approved'
+                      const photo = hideWho ? null : avatarUrl(a.user.profilePhoto, 64)
                       return photo ? (
                         <img key={a.user.id} src={photo} alt={a.user.name} loading="lazy" decoding="async"
                           className={`w-8 h-8 rounded-full object-cover border-2 border-white ${!isAdmin && !isHost && myAttendance?.status !== 'approved' ? 'blur-sm' : ''}`} />

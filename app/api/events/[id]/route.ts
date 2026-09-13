@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getEventById, redactEventForGuest } from '@/lib/db'
+import { getEventById, redactEventForGuest, canSeeEvent } from '@/lib/db'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import { isAdminOrModerator } from '@/lib/access'
@@ -10,6 +10,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!event) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const session = await getSession()
+
+  // Not-yet-public events exist only for staff, the host and co-hosts.
+  if (!(await canSeeEvent(event, session))) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   // Logged-out viewers get the public teaser — also hides GPS + attendee
   // identities, matching the list endpoint's guest projection.

@@ -98,11 +98,12 @@ export async function POST(req: NextRequest) {
       where: { email: normalizedEmail, status: 'approved' },
     })
 
+    // Same answer as every other outcome (A2 above). A 403 here told anyone
+    // with the form which emails belong to an approved applicant and which
+    // don't — the oracle A2 closed for existing accounts. Nothing is created
+    // and nothing is sent.
     if (!application) {
-      return NextResponse.json(
-        { error: 'No approved application found for this email. Please apply first.' },
-        { status: 403 },
-      )
+      return NextResponse.json({ pending: true, checkEmail: true })
     }
 
     const hashed = await bcrypt.hash(password, 10)

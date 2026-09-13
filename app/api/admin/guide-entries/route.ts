@@ -26,24 +26,25 @@ export async function GET(req: NextRequest) {
   if (citySlug && !city) return NextResponse.json({ error: 'Unknown city' }, { status: 404 })
   if (city && !canActInCity(session, city.id)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const [entries, cities] = await Promise.all([
-    prisma.guideEntry.findMany({
-      where:   { kind: 'experience', ...(city ? { cityId: city.id } : {}) },
-      orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
-      include: { city: { select: { slug: true, name: true } } },
-    }),
-    // Only cities the editor may act in — the picker shouldn't offer a city
-    // whose save would 403.
-    prisma.city.findMany({
-      orderBy: { name: 'asc' },
-      select:  { id: true, slug: true, name: true, status: true },
-    }),
-  ])
+  // Only cities the editor may act in — the picker shouldn't offer a city
+  // whose save would 403, and the list shouldn't show one either.
+  const cities = (await prisma.city.findMany({
+    orderBy: { name: 'asc' },
+    select:  { id: true, slug: true, name: true, status: true },
+  })).filter(c => canActInCity(session, c.id))
 
-  return NextResponse.json({
-    entries,
-    cities: cities.filter(c => canActInCity(session, c.id)),
+  // With no ?city= (the page's first load) a moderator was sent every city's
+  // entries, drafts included. Admins still get everything.
+  const entries = await prisma.guideEntry.findMany({
+    where: {
+      kind: 'experience',
+      ...(city ? { cityId: city.id } : session.role === 'admin' ? {} : { cityId: { in: cities.map(c => c.id) } }),
+    },
+    orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
+    include: { city: { select: { slug: true, name: true } } },
   })
+
+  return NextResponse.json({ entries, cities })
 }
 
 export async function POST(req: NextRequest) {

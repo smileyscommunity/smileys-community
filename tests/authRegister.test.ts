@@ -82,10 +82,13 @@ describe('POST /api/auth/register', () => {
     expect(p.user.create).not.toHaveBeenCalled()
   })
 
-  it('403s when there is no approved application for the email', async () => {
+  it('answers exactly like every other outcome when there is no approved application, and creates nothing', async () => {
+    // Updated 2026-09-13 (scan 5 #38): the 403 told anyone which emails had
+    // an approved application — the enumeration A2 closed for existing accounts.
     p.memberApplication.findFirst.mockResolvedValue(null)
     const res = await register(req(body()))
-    expect(res.status).toBe(403)
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ pending: true, checkEmail: true })
     expect(p.user.create).not.toHaveBeenCalled()
   })
 
