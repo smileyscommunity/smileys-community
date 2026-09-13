@@ -597,6 +597,60 @@ EOF
 echo "→ Warming OG image route..."
 ssh "${SSH_OPTS[@]}" "$SERVER" "curl -s -o /dev/null -m 60 -w '  og warm: HTTP %{http_code} in %{time_total}s\n' 'http://localhost:3000/app/api/og?title=warmup' || echo '  (og warmup skipped)'"
 
+# ── Do real pages actually render? ───────────────────────────────────────────
+# The health check above proves the process is up; it does not prove a page
+# renders. On 2026-09-13 every article page returned 500 in production while
+# /app/api/health answered 200 throughout, and the deploy reported success.
+#
+# The pre-deploy smoke test could not have caught it either, and says so in its
+# own header: it deliberately ignores HTTP status because pages that need the
+# database 500 against the local copy, which is expected there. Here the real
+# database exists, so a status code means something.
+#
+# Each path is fetched TWICE on purpose. That bug only appeared on the second
+# request: getPost is wrapped in unstable_cache, so publishedAt came back a
+# Date on the miss and a JSON string on the hit, and only the hit threw. One
+# request per page would have sailed past it exactly as the health check did.
+#
+# Article paths are looked up rather than hardcoded, so this cannot rot when a
+# slug is renamed or unpublished. If the lookup fails the static paths are
+# still checked — advisory, never a reason to fail a deploy on its own.
+echo "→ Checking real pages render (twice each — a cached read is a different code path)..."
+PAGE_PATHS="/app /app/posts /app/events /app/handbook"
+ARTICLE_PATHS=$(ssh "${SSH_OPTS[@]}" "$SERVER" bash -s <<'PICK_ARTICLES' 2>/dev/null || true
+DB=$(grep -m1 '^DATABASE_URL' /root/smileys-community/.env 2>/dev/null | cut -d= -f2- | tr -d '"')
+[ -n "$DB" ] || exit 1
+psql "$DB" -At -c "
+  (SELECT '/app/posts/'    || slug FROM posts WHERE status='published' AND kind='community' ORDER BY \"publishedAt\" DESC LIMIT 1)
+  UNION ALL
+  (SELECT '/app/handbook/' || slug FROM posts WHERE status='published' AND kind='handbook'  ORDER BY \"publishedAt\" DESC LIMIT 1);"
+PICK_ARTICLES
+)
+if [ -z "$ARTICLE_PATHS" ]; then
+  echo "  ⚠ Could not look up article slugs — checking static paths only."
+fi
+
+PAGE_FAILED=""
+for path in $PAGE_PATHS $ARTICLE_PATHS; do
+  [ -n "$path" ] || continue
+  CODES=$(ssh "${SSH_OPTS[@]}" "$SERVER" "for i in 1 2; do curl -s -o /dev/null -m 20 -w '%{http_code} ' 'http://localhost:3000${path}'; done" 2>/dev/null || echo "000 000")
+  # Second code is the cached read — the one that broke last time.
+  case "$CODES" in
+    "200 200 ") echo "  ✓ $path (200, 200)" ;;
+    *)          echo "  ✗ $path → $CODES"; PAGE_FAILED="$PAGE_FAILED$path ($CODES)"$'\n' ;;
+  esac
+done
+
+if [ -n "$PAGE_FAILED" ]; then
+  echo "✗ Deployed (release: $APP_RELEASE) but these pages do NOT render:"
+  printf '%s' "$PAGE_FAILED" | sed 's/^/      /'
+  echo "  The code is already live, so this is a call to act, not a rollback:"
+  echo "    ssh $SERVER 'pm2 logs smileys --err --lines 50'"
+  echo "  A second code of 500 with a 200 first means a cache-hit path — check"
+  echo "  anything read through unstable_cache."
+  exit 1
+fi
+
 if [ "$SCHEMA_PUSH_FAILED" = "1" ]; then
   echo "✗ Deployed (release: $APP_RELEASE) but the DB schema is out of sync — see the prisma db push warning above."
   exit 1
