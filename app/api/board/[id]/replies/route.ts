@@ -5,6 +5,7 @@ import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
 import { firstNameOf } from '@/lib/data'
+import { authorProjector } from '@/lib/authorProjection'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -34,10 +35,12 @@ export async function GET(req: NextRequest, { params }: Params) {
     take:    200,
     select: {
       id: true, body: true, parentId: true, createdAt: true,
-      user: { select: { id: true, name: true, color: true, profilePhoto: true } },
+      user: { select: { id: true, name: true, color: true, profilePhoto: true, profileVisibility: true } },
     },
   })
-  return NextResponse.json({ replies })
+  // Same author rule as the board feed (lib/authorProjection).
+  const project = await authorProjector(session, replies.map(r => r.user))
+  return NextResponse.json({ replies: replies.map(r => ({ ...r, user: project(r.user) })) })
 }
 
 export async function POST(req: NextRequest, { params }: Params) {

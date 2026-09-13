@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
+import { authorProjector } from '@/lib/authorProjection'
+import { firstNameOf } from '@/lib/data'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -30,12 +32,24 @@ export async function GET(_req: NextRequest, { params }: Params) {
         id: true, rating: true, comment: true,
         ownerReply: true, ownerReplyAt: true,
         isHidden: true, createdAt: true,
-        author: { select: { id: true, name: true, color: true, profilePhoto: true } },
+        author: { select: { id: true, name: true, color: true, profilePhoto: true, profileVisibility: true } },
         ownerReplyBy: { select: { id: true, name: true } },
       },
     })
 
-    return NextResponse.json({ reviews })
+    // The business page shows guests and restricted viewers a first name only;
+    // this API (and the reviews drawer reading it) served everyone full names,
+    // member ids and photos. One rule now: lib/authorProjection.
+    const project = await authorProjector(session, reviews.map(r => r.author))
+    return NextResponse.json({
+      reviews: reviews.map(r => ({
+        ...r,
+        author: project(r.author),
+        ownerReplyBy: r.ownerReplyBy && !session
+          ? { id: 'member', name: firstNameOf(r.ownerReplyBy.name) }
+          : r.ownerReplyBy,
+      })),
+    })
   } catch (e) {
     console.error('Reviews GET error:', e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

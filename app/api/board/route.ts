@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { authorProjector } from '@/lib/authorProjection'
 import { resolveCityId } from '@/lib/city'
 import { getPublicCity } from '@/lib/cities'
 import { rateLimit } from '@/lib/rateLimit'
@@ -33,7 +34,7 @@ export async function GET(req: NextRequest) {
   const select = {
     id: true, type: true, title: true, body: true, neighborhood: true,
     tag: true, whenLabel: true, expiresAt: true, pinned: true, createdAt: true,
-    user: { select: { id: true, name: true, color: true, profilePhoto: true } },
+    user: { select: { id: true, name: true, color: true, profilePhoto: true, profileVisibility: true } },
     _count: { select: { replies: true, interests: true, saves: true } },
     // The viewer's own reactions, so buttons render in the right state.
     ...(session ? {
@@ -119,12 +120,15 @@ export async function GET(req: NextRequest) {
     if (single) posts = [single, ...posts]
   }
 
+  // Authors: a first name for guests, and for members viewing a
+  // connections-only author they aren't connected to (lib/authorProjection).
+  const project = await authorProjector(session, posts.map(p => p.user))
   return NextResponse.json({
     posts: posts.map(p => ({
       id: p.id, type: p.type, title: p.title, body: p.body,
       neighborhood: p.neighborhood, tag: p.tag, whenLabel: p.whenLabel,
       pinned: p.pinned, createdAt: p.createdAt,
-      user: p.user,
+      user: project(p.user),
       replyCount:    p._count.replies,
       interestCount: p._count.interests,
       saveCount:     p._count.saves,

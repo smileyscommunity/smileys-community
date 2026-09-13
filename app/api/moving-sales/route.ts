@@ -8,25 +8,31 @@ import { rateLimit } from '@/lib/rateLimit'
 import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
 import { sendListingAlertEmail, recordEmailFailure } from '@/lib/email'
 import { createNotification } from '@/lib/notify'
+import { authorProjector } from '@/lib/authorProjection'
 
-// Moving Sales (plan §13). Publicly readable like listings — seller shown as
-// name + neighborhood only, no contact data exists on the model at all; the
-// contact route handles reaching them. Expired sales (leavingOn past) drop
-// out of the list automatically.
+// Moving Sales (plan §13). Publicly readable like listings. The seller is
+// member content: guests get a first name and no photo, and no neighborhood
+// — with the leaving date it says which home is about to be empty. Members
+// see the seller per lib/authorProjection. No contact data exists on the
+// model; the contact route handles reaching them. Expired sales (leavingOn
+// past) drop out of the list automatically.
 export async function GET() {
   const today = new Date().toISOString().slice(0, 10)
   const session = await getSession()
   const sales = await prisma.movingSale.findMany({
-    where:   { status: 'active', leavingOn: { gte: today }, cityId: await resolveCityId(session) },
+    where:   { status: 'active', leavingOn: { gte: today }, cityId: await resolveCityId(session), user: { status: 'approved', hiddenFromMembers: false } },
     orderBy: { leavingOn: 'asc' },
     take:    30,
     select: {
       id: true, leavingOn: true, neighborhood: true, note: true, photo: true, createdAt: true,
-      user:  { select: { id: true, name: true, color: true, profilePhoto: true } },
+      user:  { select: { id: true, name: true, color: true, profilePhoto: true, profileVisibility: true } },
       items: { select: { id: true, name: true, price: true, claimed: true }, orderBy: { claimed: 'asc' } },
     },
   })
-  return NextResponse.json({ sales })
+  const project = await authorProjector(session, sales.map(s => s.user))
+  return NextResponse.json({
+    sales: sales.map(s => ({ ...s, user: project(s.user), neighborhood: session ? s.neighborhood : null })),
+  })
 }
 
 export async function POST(req: NextRequest) {

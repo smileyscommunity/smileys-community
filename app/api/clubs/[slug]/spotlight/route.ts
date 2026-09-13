@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin } from '@/lib/access'
 import { rateLimit } from '@/lib/rateLimit'
+import { restrictedSetFor } from '@/lib/memberPrivacy'
+import { firstNameOf } from '@/lib/data'
 
 type Params = { params: Promise<{ slug: string }> }
 
@@ -16,21 +18,35 @@ export async function GET(_: NextRequest, { params }: Params) {
   const club = await prisma.club.findUnique({
     where: { slug },
     select: {
+      id: true,
       spotlightUserId: true,
       spotlightNote: true,
       spotlightUpdatedAt: true,
-      spotlightUser: { select: { id: true, name: true, color: true, profilePhoto: true, bio: true } },
+      spotlightUser: { select: { id: true, name: true, color: true, profilePhoto: true, bio: true, status: true, hiddenFromMembers: true, profileVisibility: true } },
     },
   })
   if (!club) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  if (!club.spotlightUser) return NextResponse.json(null)
+
+  // Same audience as the club page: approved members, admins, moderators.
+  // Any signed-in member used to get the spotlighted member's full name and
+  // bio, whatever their own settings said.
+  if (session.role !== 'admin' && session.role !== 'moderator') {
+    const membership = await prisma.clubMembership.findUnique({
+      where:  { userId_clubId: { userId: session.id, clubId: club.id } },
+      select: { status: true },
+    })
+    if (membership?.status !== 'approved') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+  const u = club.spotlightUser
+  if (!u || u.status !== 'approved' || u.hiddenFromMembers) return NextResponse.json(null)
+  const restricted = (await restrictedSetFor(session, [u])).has(u.id)
 
   return NextResponse.json({
-    userId:    club.spotlightUser.id,
-    name:      club.spotlightUser.name,
-    color:     club.spotlightUser.color,
-    photo:     club.spotlightUser.profilePhoto,
-    bio:       club.spotlightUser.bio,
+    userId:    u.id,
+    name:      restricted ? firstNameOf(u.name) : u.name,
+    color:     u.color,
+    photo:     restricted ? null : u.profilePhoto,
+    bio:       restricted ? null : u.bio,
     note:      club.spotlightNote,
     updatedAt: club.spotlightUpdatedAt,
   })

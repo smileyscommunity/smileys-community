@@ -103,6 +103,17 @@ export default async function DashboardPage() {
   const weekEndStr  = shiftDay(today, 7)
   const monthEndStr = shiftDay(today, 30)
 
+  // Everyone the viewer blocked or was blocked by. The activity wall named
+  // them — their hangouts, their "free right now" pings, their reviews and
+  // RSVPs — while every other member surface leaves a blocked pair out
+  // (lib/memberPrivacy). One query, used by every feed below.
+  const blockRows = await prisma.memberBlock.findMany({
+    where:  { OR: [{ blockerId: session.id }, { blockedId: session.id }] },
+    select: { blockerId: true, blockedId: true },
+  })
+  const blockedIds     = blockRows.map(b => b.blockerId === session.id ? b.blockedId : b.blockerId)
+  const notMeOrBlocked = [session.id, ...blockedIds]
+
   const [myAttendances, myMemberships, eventsThisMonth, userProfile, , unreviewedRaw, weeklyVisitors, recentListings, recentMovingSales] = await Promise.all([
     // Lightweight: only ids + dates are needed for the id lists, counts,
     // and month/streak math. Full event objects for the upcoming cards
@@ -138,7 +149,7 @@ export default async function DashboardPage() {
       where: { viewedId: session.id, createdAt: { gte: weekAgo } },
     }),
     prisma.listing.findMany({
-      where: { status: 'active', cityId, userId: { not: session.id } },
+      where: { status: 'active', cityId, userId: { notIn: notMeOrBlocked } },
       orderBy: { createdAt: 'desc' },
       take: 4,
       select: { id: true, title: true, category: true, photo: true, photoPosition: true, price: true, createdAt: true, user: { select: { name: true, color: true, profilePhoto: true } } },
@@ -146,7 +157,7 @@ export default async function DashboardPage() {
     // Moving Sales — separate table from Listing, so it needs its own
     // query; was previously missing from the dashboard entirely.
     prisma.movingSale.findMany({
-      where: { status: 'active', cityId, userId: { not: session.id } },
+      where: { status: 'active', cityId, userId: { notIn: notMeOrBlocked } },
       orderBy: { createdAt: 'desc' },
       take: 3,
       select: {
@@ -306,8 +317,8 @@ export default async function DashboardPage() {
     if (clubIds.length) conditions.push({ clubMemberships: { some: { clubId: { in: clubIds }, status: 'approved' } } })
     if (userProfile?.neighborhood) conditions.push({ neighborhood: userProfile.neighborhood })
     return conditions.length > 0
-      ? { id: { not: session.id }, status: 'approved', cityId, OR: conditions }
-      : { id: { not: session.id }, status: 'approved', cityId }
+      ? { id: { notIn: notMeOrBlocked }, status: 'approved', hiddenFromMembers: false, cityId, OR: conditions }
+      : { id: { notIn: notMeOrBlocked }, status: 'approved', hiddenFromMembers: false, cityId }
   })()
 
   // One big parallel batch instead of two sequential ones with two
@@ -356,7 +367,7 @@ export default async function DashboardPage() {
         ...(clubIds.length
           ? { clubId: { in: clubIds } }
           : { club: { isPrivate: false, isActive: true, OR: [{ cityId }, { cityId: null }] } }),
-        userId: { not: session.id }, status: 'approved', joinedAt: { gte: weekAgo },
+        userId: { notIn: notMeOrBlocked }, status: 'approved', joinedAt: { gte: weekAgo },
       },
       include: { user: { select: { name: true, color: true } }, club: { select: { name: true, emoji: true, slug: true } } },
       orderBy: { joinedAt: 'desc' }, take: 5,
@@ -375,6 +386,7 @@ export default async function DashboardPage() {
           ? { clubId: { in: clubIds } }
           : { club: { isPrivate: false, isActive: true, OR: [{ cityId }, { cityId: null }] } }),
         type: { in: ['post', 'announcement'] },
+        userId: { notIn: blockedIds },
       },
       orderBy: { createdAt: 'desc' }, take: 4,
       include: {
@@ -388,9 +400,10 @@ export default async function DashboardPage() {
       ? prisma.eventAttendee.findMany({
           where: {
             status: 'approved',
-            userId: { not: session.id },
+            userId: { notIn: notMeOrBlocked },
+            stealth: false,
             event: { cityId, date: { gte: today }, status: 'published', id: { notIn: joinedEventIds } },
-            user: { joinedEvents: { some: { eventId: { in: pastEventIds }, status: 'approved' } } },
+            user: { hiddenFromMembers: false, joinedEvents: { some: { eventId: { in: pastEventIds }, status: 'approved' } } },
           },
           include: {
             user:  { select: { id: true, name: true, color: true, profilePhoto: true } },
@@ -485,7 +498,7 @@ export default async function DashboardPage() {
       where: {
         cityId,
         status:   'active',
-        userId:   { not: session.id },
+        userId:   { notIn: notMeOrBlocked },
         endsOn:   { gte: today },
         startsOn: { lte: fourteenDaysOut },
       },
@@ -522,7 +535,9 @@ export default async function DashboardPage() {
       ? prisma.event.count({ where: { cityId, neighborhood: userProfile.neighborhood, date: { gte: today }, status: 'published' } })
       : Promise.resolve(0),
     prisma.user.findMany({
-      where: { cityId, status: 'approved', joinedAt: { gte: weekAgo }, id: { not: session.id } },
+      // "Joined Smileys · <neighborhood>" is only said of members who show
+      // their profile to everyone.
+      where: { cityId, status: 'approved', hiddenFromMembers: false, profileVisibility: { not: 'connections' }, joinedAt: { gte: weekAgo }, id: { notIn: notMeOrBlocked } },
       select: { id: true, name: true, color: true, profilePhoto: true, neighborhood: true, joinedAt: true },
       orderBy: { joinedAt: 'desc' },
       take: 8,
@@ -560,7 +575,7 @@ export default async function DashboardPage() {
     // Members near you: same neighborhood, excluding self
     userProfile?.neighborhood
       ? prisma.user.findMany({
-          where: { neighborhood: userProfile.neighborhood, status: 'approved', cityId, id: { not: session.id } },
+          where: { neighborhood: userProfile.neighborhood, status: 'approved', hiddenFromMembers: false, cityId, id: { notIn: notMeOrBlocked } },
           select: { id: true, name: true, color: true, profilePhoto: true, bio: true },
           orderBy: { joinedAt: 'desc' },
           take: 6,
@@ -592,7 +607,7 @@ export default async function DashboardPage() {
     // Recent hangouts posted — feeds ClubActivityTimeline so the dashboard
     // cross-promotes spontaneous meetups alongside club activity.
     prisma.hangout.findMany({
-      where: { status: 'active', cityId, endsAt: { gt: new Date() }, createdAt: { gte: weekAgo }, userId: { not: session.id } },
+      where: { status: 'active', cityId, endsAt: { gt: new Date() }, createdAt: { gte: weekAgo }, userId: { notIn: notMeOrBlocked } },
       orderBy: { createdAt: 'desc' },
       take: 5,
       select: {
@@ -605,7 +620,7 @@ export default async function DashboardPage() {
     // now" strip (id/photo for avatars) + ClubActivityTimeline. Excludes
     // the viewer's own, last 7 days.
     prisma.availabilityPulse.findMany({
-      where: { until: { gte: new Date() }, cityId, createdAt: { gte: weekAgo }, userId: { not: session.id } },
+      where: { until: { gte: new Date() }, cityId, createdAt: { gte: weekAgo }, userId: { notIn: notMeOrBlocked } },
       orderBy: { createdAt: 'desc' },
       take: 5,
       select: {
@@ -622,6 +637,8 @@ export default async function DashboardPage() {
         requester: { cityId },
         receiver:  { cityId },
         NOT: { OR: [{ requesterId: session.id }, { receiverId: session.id }] },
+        requesterId: { notIn: blockedIds },
+        receiverId:  { notIn: blockedIds },
       },
       orderBy: { updatedAt: 'desc' },
       take: 5,
@@ -637,7 +654,7 @@ export default async function DashboardPage() {
       where: {
         vibe:       'good',
         createdAt:  { gte: weekAgo },
-        fromUserId: { not: session.id },
+        fromUserId: { notIn: notMeOrBlocked },
         hangout:    { cityId },
       },
       orderBy: { createdAt: 'desc' },
@@ -658,7 +675,7 @@ export default async function DashboardPage() {
         status:    'approved',
         stealth:   false,
         user:      { hiddenFromMembers: false },
-        userId:    { not: session.id },
+        userId:    { notIn: notMeOrBlocked },
         joinedAt:  { gte: weekAgo },
         event:     { cityId, status: 'published', date: { gte: today } },
       },
@@ -689,7 +706,7 @@ export default async function DashboardPage() {
     // Event reviews — 4★+ only, mirroring the 'good'-vibes filter on
     // hangout references so the wall stays celebratory, not gripey.
     prisma.review.findMany({
-      where:   { rating: { gte: 4 }, createdAt: { gte: weekAgo }, userId: { not: session.id }, event: { cityId } },
+      where:   { rating: { gte: 4 }, createdAt: { gte: weekAgo }, userId: { notIn: notMeOrBlocked }, event: { cityId } },
       orderBy: { createdAt: 'desc' },
       take: 4,
       select: {
@@ -704,7 +721,7 @@ export default async function DashboardPage() {
         rating:    { gte: 4 },
         isHidden:  false,
         createdAt: { gte: weekAgo },
-        authorId:  { not: session.id },
+        authorId:  { notIn: notMeOrBlocked },
         business:  { isApproved: true, isActive: true, cityId },
       },
       orderBy: { createdAt: 'desc' },
@@ -717,7 +734,7 @@ export default async function DashboardPage() {
     }),
     // Hangout joins — joining is as strong a social signal as posting.
     prisma.hangoutJoin.findMany({
-      where:   { createdAt: { gte: weekAgo }, userId: { not: session.id }, hangout: { status: 'active', cityId } },
+      where:   { createdAt: { gte: weekAgo }, userId: { notIn: notMeOrBlocked }, hangout: { status: 'active', cityId } },
       orderBy: { createdAt: 'desc' },
       take: 4,
       select: {
@@ -728,7 +745,7 @@ export default async function DashboardPage() {
     }),
     // Neighborhood wall posts.
     prisma.neighborhoodPost.findMany({
-      where:   { cityId, createdAt: { gte: weekAgo }, userId: { not: session.id } },
+      where:   { cityId, createdAt: { gte: weekAgo }, userId: { notIn: notMeOrBlocked } },
       orderBy: { createdAt: 'desc' },
       take: 4,
       select: {

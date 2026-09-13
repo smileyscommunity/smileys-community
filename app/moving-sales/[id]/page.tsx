@@ -6,14 +6,15 @@ import { getSession } from '@/lib/session'
 import { resolveImageUrl, avatarUrl, firstNameOf} from '@/lib/data'
 import { APP_URL, SITE_URL } from '@/lib/env'
 import MovingSaleContact from '@/components/MovingSaleContact'
+import { restrictedSetFor } from '@/lib/memberPrivacy'
 
 export const dynamic = 'force-dynamic'
 
 async function getSale(id: string) {
-  return prisma.movingSale.findUnique({
-    where: { id, status: 'active' },
+  return prisma.movingSale.findFirst({
+    where: { id, status: 'active', user: { status: 'approved', hiddenFromMembers: false } },
     include: {
-      user:  { select: { id: true, name: true, color: true, profilePhoto: true } },
+      user:  { select: { id: true, name: true, color: true, profilePhoto: true, profileVisibility: true } },
       items: { select: { id: true, name: true, price: true, claimed: true }, orderBy: { claimed: 'asc' } },
     },
   })
@@ -32,7 +33,9 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const firstName = firstNameOf(sale.user.name)
   const title = `${firstName}'s Moving Sale — Smileys Community`
   const itemsPart = sale.items.map(it => it.name).join(', ')
-  const description = `Leaving ${fmtLeaving(sale.leavingOn)}${sale.neighborhood ? ` from ${sale.neighborhood}` : ''} — ${sale.note || itemsPart}`.slice(0, 160)
+  // Metadata is public (link previews, crawlers): no neighborhood, which with
+  // the leaving date says which home is about to be empty.
+  const description = `Leaving ${fmtLeaving(sale.leavingOn)} — ${sale.note || itemsPart}`.slice(0, 160)
   const pageUrl = `${APP_URL}/moving-sales/${id}`
 
   const photo = sale.photo ? resolveImageUrl(sale.photo) : null
@@ -63,6 +66,11 @@ export default async function MovingSaleDetailPage({ params }: { params: Promise
   const photo  = sale.photo ? resolveImageUrl(sale.photo) : null
   const avatar = avatarUrl(sale.user.profilePhoto, 128)
   const isOwner = session?.id === sale.user.id
+  // Guests see the sale, not the seller: a first name, no photo, no
+  // neighborhood. A connections-only seller shows members they aren't
+  // connected to a first name and no photo, as the member pages do.
+  const sellerRestricted = session ? (await restrictedSetFor(session, [sale.user])).has(sale.user.id) : true
+  const showSeller = !!session && !sellerRestricted
   const unclaimed = sale.items.filter(it => !it.claimed).length
 
   return (
@@ -100,7 +108,7 @@ export default async function MovingSaleDetailPage({ params }: { params: Promise
           <div className="p-6 space-y-5">
 
             <div className="flex items-center gap-2 flex-wrap">
-              {sale.neighborhood && (
+              {session && sale.neighborhood && (
                 <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700">
                   📍 {sale.neighborhood}
                 </span>
@@ -130,7 +138,7 @@ export default async function MovingSaleDetailPage({ params }: { params: Promise
             </ul>
 
             <div className="flex items-center gap-3 pt-4 border-t border-gray-100">
-              {avatar ? (
+              {avatar && showSeller ? (
                 <img src={avatar} alt={sale.user.name} className="w-10 h-10 rounded-full object-cover shrink-0" />
               ) : (
                 <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold shrink-0 text-sm"
@@ -139,7 +147,7 @@ export default async function MovingSaleDetailPage({ params }: { params: Promise
                 </div>
               )}
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-gray-900 text-sm">{sale.user.name}</p>
+                <p className="font-semibold text-gray-900 text-sm">{showSeller ? sale.user.name : firstNameOf(sale.user.name)}</p>
                 <p className="text-xs text-gray-400">Posting their moving sale</p>
               </div>
               {session && (

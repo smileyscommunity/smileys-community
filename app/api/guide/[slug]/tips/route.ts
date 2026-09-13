@@ -4,12 +4,14 @@ import { getSession } from '@/lib/session'
 import { canActInCity } from '@/lib/access'
 import { rateLimit } from '@/lib/rateLimit'
 import { getExperienceAnyCity } from '@/lib/guideContent'
+import { authorProjector } from '@/lib/authorProjection'
 
 type Params = { params: Promise<{ slug: string }> }
 
-// "Tips from Smileys" under Guide experiences. Public read (the pages
-// are public; author name/photo exposure matches what public board and
-// listing cards already show), member-only writes.
+// "Tips from Smileys" under Guide experiences. Public read (the pages are
+// public), member-only writes. Authors follow lib/authorProjection: a first
+// name for guests. This used to justify full names and photos as matching
+// the board and listing cards, which never showed guests either.
 export async function GET(_req: NextRequest, { params }: Params) {
   const { slug } = await params
   // Resolve the slug's OWNING city the same way the detail page does
@@ -28,15 +30,16 @@ export async function GET(_req: NextRequest, { params }: Params) {
     take:    30,
     select: {
       id: true, body: true, createdAt: true,
-      user:   { select: { id: true, name: true, color: true, profilePhoto: true } },
+      user:   { select: { id: true, name: true, color: true, profilePhoto: true, profileVisibility: true } },
       _count: { select: { likes: true } },
       ...(session ? { likes: { where: { userId: session.id }, select: { userId: true } } } : {}),
     },
   })
 
+  const project = await authorProjector(session, tips.map(t => t.user))
   return NextResponse.json({
     tips: tips.map(t => ({
-      id: t.id, body: t.body, createdAt: t.createdAt, user: t.user,
+      id: t.id, body: t.body, createdAt: t.createdAt, user: project(t.user),
       likeCount:  t._count.likes,
       viewerLiked: session ? (t as { likes?: unknown[] }).likes!.length > 0 : false,
       mine: session ? t.user.id === session.id : false,

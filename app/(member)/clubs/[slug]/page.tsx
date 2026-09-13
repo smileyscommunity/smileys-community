@@ -11,7 +11,8 @@ import RichText from '@/components/RichText'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import { SITE_URL, APP_URL } from '@/lib/env'
-import { resolveImageUrl, avatarUrl, formatShortDate, formatPrice } from '@/lib/data'
+import { resolveImageUrl, avatarUrl, formatShortDate, formatPrice, firstNameOf } from '@/lib/data'
+import { restrictedSetFor } from '@/lib/memberPrivacy'
 import { loadCommunitySettings, communityInstagramUrl, communityWhatsappUrl, sameSocialUrl } from '@/lib/communitySettings'
 import ClubJoinWidget from './ClubJoinWidget'
 import ClubTabs from './ClubTabs'
@@ -173,7 +174,7 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
     club.spotlightUserId
       ? prisma.user.findUnique({
           where: { id: club.spotlightUserId },
-          select: { id: true, name: true, color: true, profilePhoto: true, bio: true },
+          select: { id: true, name: true, color: true, profilePhoto: true, bio: true, status: true, hiddenFromMembers: true, profileVisibility: true },
         })
       : Promise.resolve(null),
     (async () => {
@@ -206,13 +207,21 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
     })(),
   ])
 
-  const spotlightUser = spotlightData
+  // The spotlight follows the member's settings at the time it's shown, not
+  // when the host picked them: a banned or hidden account drops out, and a
+  // connections-only member shows members they aren't connected to a first
+  // name, with no photo and no bio.
+  const spotlightVisible = spotlightData && spotlightData.status === 'approved' && !spotlightData.hiddenFromMembers ? spotlightData : null
+  const spotlightRestricted = session && spotlightVisible
+    ? (await restrictedSetFor(session, [spotlightVisible])).has(spotlightVisible.id)
+    : false
+  const spotlightUser = spotlightVisible
     ? {
-        userId:    spotlightData.id,
-        name:      spotlightData.name,
-        color:     spotlightData.color,
-        photo:     spotlightData.profilePhoto,
-        bio:       spotlightData.bio,
+        userId:    spotlightVisible.id,
+        name:      spotlightRestricted ? firstNameOf(spotlightVisible.name) : spotlightVisible.name,
+        color:     spotlightVisible.color,
+        photo:     spotlightRestricted ? null : spotlightVisible.profilePhoto,
+        bio:       spotlightRestricted ? null : spotlightVisible.bio,
         note:      club.spotlightNote ?? null,
         updatedAt: club.spotlightUpdatedAt ?? null,
       }
@@ -483,7 +492,7 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
 
             <ClubSpotlight
               slug={club.slug}
-              initialSpotlight={session ? spotlightUser : null}
+              initialSpotlight={canSeeMemberContent ? spotlightUser : null}
               canEdit={canPin}
             />
 
