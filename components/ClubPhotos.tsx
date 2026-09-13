@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import PhotoLightbox from '@/components/PhotoLightbox'
 import { resolveImageUrl, getInitials } from '@/lib/data'
 import { downscaleImage } from '@/lib/image-resize'
 import { confirmToast } from '@/lib/confirmToast'
@@ -30,6 +31,7 @@ export default function ClubPhotos({ slug, canUpload, isMember, currentUserId, i
   const [photos, setPhotos]       = useState<Photo[]>([])
   const [loading, setLoading]     = useState(true)
   const [caption, setCaption]     = useState('')
+  const [lightbox, setLightbox]   = useState<Photo | null>(null)
   const [uploading, setUploading] = useState(false)
   const [error, setError]         = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
@@ -131,7 +133,10 @@ export default function ClubPhotos({ slug, canUpload, isMember, currentUserId, i
             const canDelete = photo.source !== 'event' && (currentUserId === photo.author.id || isAdmin || canPin)
             const authorPhoto = resolveImageUrl(photo.author.photo)
             return (
-              <div key={photo.id} className={`relative group rounded-xl overflow-hidden ${photoBg} aspect-square`}>
+              <div key={photo.id} className={`relative group rounded-xl overflow-hidden ${photoBg} aspect-square cursor-zoom-in`}
+                role="button" tabIndex={0}
+                onClick={() => setLightbox(photo)}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setLightbox(photo) } }}>
                 <img src={resolveImageUrl(photo.url)} alt={photo.caption ?? 'Club photo'}
                   loading="lazy" className="w-full h-full object-cover" />
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors" />
@@ -151,7 +156,7 @@ export default function ClubPhotos({ slug, canUpload, isMember, currentUserId, i
                   {photo.caption && <p className="text-white text-xs mt-0.5 line-clamp-2">{photo.caption}</p>}
                 </div>
                 {canDelete && (
-                  <button onClick={() => deletePhoto(photo.id)}
+                  <button onClick={e => { e.stopPropagation(); deletePhoto(photo.id) }}
                     className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/50 text-white text-sm leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500">
                     ×
                   </button>
@@ -161,6 +166,11 @@ export default function ClubPhotos({ slug, canUpload, isMember, currentUserId, i
           })}
         </div>
       )}
+
+      <PhotoLightbox
+        photo={lightbox ? { url: lightbox.url, caption: lightbox.caption, by: { name: lightbox.author.name, color: lightbox.author.color, photo: lightbox.author.photo } } : null}
+        onClose={() => setLightbox(null)}
+      />
     </div>
   )
 }

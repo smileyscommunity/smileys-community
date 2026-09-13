@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import PhotoLightbox from '@/components/PhotoLightbox'
 import { toast } from 'sonner'
 import { resolveImageUrl, getInitials } from '@/lib/data'
 import MentionTextarea, { MentionInput } from '@/components/MentionTextarea'
@@ -79,6 +80,7 @@ function PostRow({
   const [reportReason,     setReportReason]     = useState('')
   const [reportDetails,    setReportDetails]    = useState('')
   const [reportSubmitting, setReportSubmitting] = useState(false)
+  const [photoOpen,        setPhotoOpen]        = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const canEdit = post.author.id === myId || isStaff
 
@@ -231,7 +233,23 @@ function PostRow({
             <p className="text-xs text-gray-700 mt-0.5 leading-relaxed whitespace-pre-wrap break-words">{renderContent(post.content)}</p>
           )}
           {post.imageUrl && (
-            <img src={resolveImageUrl(post.imageUrl)} alt="" className="mt-1.5 rounded-lg max-h-48 object-cover w-full" />
+            <>
+              {/* The preview is cropped to keep the wall scannable, so without
+                  a way to open it part of the picture simply could not be
+                  seen. Clicking gives the whole photo back. */}
+              <button
+                type="button"
+                onClick={() => setPhotoOpen(true)}
+                aria-label="View photo full size"
+                className="block w-full mt-1.5 cursor-zoom-in"
+              >
+                <img src={resolveImageUrl(post.imageUrl)} alt="" className="rounded-lg max-h-48 object-cover w-full" />
+              </button>
+              <PhotoLightbox
+                photo={photoOpen ? { url: post.imageUrl, by: { name: post.author.name, color: post.author.color, photo: post.author.photo } } : null}
+                onClose={() => setPhotoOpen(false)}
+              />
+            </>
           )}
 
           {reportOpen && (

@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import PhotoLightbox from '@/components/PhotoLightbox'
 import { toast } from 'sonner'
-import { createPortal } from 'react-dom'
 import { resolveImageUrl, getInitials } from '@/lib/data'
 import { downscaleImage, ImageUploadError } from '@/lib/image-resize'
 
@@ -27,13 +27,7 @@ export default function EventPhotos({ eventId, photos: initial, canUpload, curre
   const [uploading, setUploading] = useState(false)
   const [error,     setError]     = useState<string | null>(null)
   const [lightbox,  setLightbox]  = useState<Photo | null>(null)
-  const [mounted,   setMounted]   = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
-
-  // Portal mount gate — lightbox renders to document.body to escape any
-  // ancestor with backdrop-filter / transform that would otherwise become
-  // the containing block for `position: fixed` and trap the overlay.
-  useEffect(() => { setMounted(true) }, [])
 
   async function handleUpload(file: File) {
     if (!file.type.startsWith('image/')) { setError('Only image files are allowed.'); return }
@@ -145,31 +139,10 @@ export default function EventPhotos({ eventId, photos: initial, canUpload, curre
         </div>
       )}
 
-      {/* Lightbox */}
-      {lightbox && mounted && createPortal(
-        <div className="fixed inset-0 bg-black/90 flex flex-col items-center justify-center p-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
-          style={{ zIndex: 9999 }}
-          onClick={() => setLightbox(null)}>
-          <button aria-label="Close" className="absolute top-4 right-4 w-10 h-10 bg-black/50 hover:bg-black/80 rounded-full flex items-center justify-center text-white text-lg transition-colors">✕</button>
-          <img
-            src={resolveImageUrl(lightbox.url)}
-            alt={lightbox.caption ?? ''}
-            className="max-w-full max-h-[80vh] rounded-xl object-contain"
-            onClick={e => e.stopPropagation()}
-          />
-          <div className="mt-3 flex items-center gap-2" onClick={e => e.stopPropagation()}>
-            <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-              style={{ backgroundColor: lightbox.user.color }}>
-              {lightbox.user.profilePhoto
-                ? <img src={resolveImageUrl(lightbox.user.profilePhoto)} className="w-full h-full rounded-full object-cover" />
-                : getInitials(lightbox.user.name)}
-            </div>
-            <span className="text-white/80 text-sm">{lightbox.user.name}</span>
-            {lightbox.caption && <span className="text-white/50 text-sm">· {lightbox.caption}</span>}
-          </div>
-        </div>,
-        document.body,
-      )}
+      <PhotoLightbox
+        photo={lightbox ? { url: lightbox.url, caption: lightbox.caption, by: { name: lightbox.user.name, color: lightbox.user.color, photo: lightbox.user.profilePhoto } } : null}
+        onClose={() => setLightbox(null)}
+      />
     </div>
   )
 }
