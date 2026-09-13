@@ -9,6 +9,7 @@ import { normalizePaymentContact } from '@/lib/safeUrl'
 import { computeEventSurveyRollup } from '@/lib/survey'
 import { ensurePendingVenueBusiness } from '@/lib/venueDirectory'
 import { todayInCity, resolveTargetCityId, getCityConfig } from '@/lib/city'
+import { checkSeriesId } from '@/lib/seriesOwnership'
 
 export async function GET(req: NextRequest) {
   try {
@@ -127,6 +128,10 @@ export async function POST(req: NextRequest) {
     if (!title || !date || !time || !location || !clubId || !hostId) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
+    // A new copy may only join a series whose other events are the caller's
+    // to edit (lib/seriesOwnership) — the create path accepted any id.
+    const series = await checkSeriesId(seriesId, session)
+    if (!series.ok) return NextResponse.json({ error: series.error }, { status: 403 })
 
     // A leading emoji typed into the title would render doubled everywhere
     // (every surface shows the emoji field next to the title) — move it

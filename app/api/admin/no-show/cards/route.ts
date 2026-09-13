@@ -19,6 +19,8 @@ export async function GET(req: NextRequest) {
     const cards = await prisma.noShowCard.findMany({
       where: {
         ...(status === 'all' ? {} : { status }),
+        // Your own cards aren't yours to judge (see cards/[id]).
+        userId: { not: session.id },
         ...(isAdmin(session) ? {} : { user: { cityId: failClosedCityId(session) } }),
       },
       orderBy: [{ appealedAt: 'desc' }, { issuedAt: 'desc' }],

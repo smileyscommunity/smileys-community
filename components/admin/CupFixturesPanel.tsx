@@ -228,6 +228,19 @@ function FixtureRow({ fixture, onSaved }: { fixture: Fixture; onSaved: () => voi
     !!fixture.suggestedHomeTeam &&
     !!fixture.suggestedAwayTeam
 
+  // Re-read the fixture on every Edit. The fields were seeded once, when the
+  // row first mounted; after Apply or a refresh they kept their old blanks,
+  // and Save sent those as changes — clearing a recorded result and, for a
+  // knockout round, rescoring every bracket.
+  function startEditing() {
+    setHome(fixture.homeTeam ?? '')
+    setAway(fixture.awayTeam ?? '')
+    setWinner(fixture.winnerTeam ?? '')
+    setHomeScore(fixture.homeScore != null ? String(fixture.homeScore) : '')
+    setAwayScore(fixture.awayScore != null ? String(fixture.awayScore) : '')
+    setEditing(true)
+  }
+
   async function applyTeams() {
     if (!hasAppliableTeamSuggestion) return
     setSaving(true)
@@ -391,7 +404,7 @@ function FixtureRow({ fixture, onSaved }: { fixture: Fixture; onSaved: () => voi
                 {saving ? 'Setting…' : 'Apply teams →'}
               </button>
             )}
-            <button onClick={() => setEditing(true)}
+            <button onClick={startEditing}
               className="text-xs px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700">
               {hasResult
                 ? 'Edit'

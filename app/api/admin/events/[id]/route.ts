@@ -12,6 +12,7 @@ import { splitLeadingEmoji, stripDupTrailingEmoji } from '@/lib/data'
 import { sendEventCancelledEmail, recordEmailFailure } from '@/lib/email'
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 import { todayInCity } from '@/lib/city'
+import { checkSeriesId, seriesScopeFor } from '@/lib/seriesOwnership'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -154,6 +155,12 @@ export async function PUT(req: NextRequest, { params }: Params) {
     const rest: Record<string, unknown> = {}
     for (const key of ALLOWED_FIELDS) {
       if (key in body) rest[key] = body[key]
+    }
+    // A series id is only the caller's to take when every other event already
+    // carrying it is one they could edit (lib/seriesOwnership).
+    if ('seriesId' in rest) {
+      const series = await checkSeriesId(rest.seriesId, session, id)
+      if (!series.ok) return NextResponse.json({ error: series.error }, { status: 403 })
     }
 
     // A leading emoji typed into the title renders doubled everywhere
@@ -393,7 +400,10 @@ export async function PUT(req: NextRequest, { params }: Params) {
         // "Future" is measured on the EVENT's city clock, not the founding city's.
         const today = await todayInCity(before.cityId)
         await prisma.event.updateMany({
-          where: { seriesId: before.seriesId, id: { not: id }, date: { gte: today } },
+          // Only events the caller could edit themselves (lib/seriesOwnership):
+          // a mixed series from before the ownership check can't be used to
+          // rewrite someone else's events either.
+          where: { seriesId: before.seriesId, id: { not: id }, date: { gte: today }, ...seriesScopeFor(session, before.cityId) },
           data: seriesData,
         })
       }

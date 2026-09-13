@@ -27,7 +27,10 @@ export async function GET(_: NextRequest, { params }: Params) {
       where: { eventId },
       orderBy: { createdAt: 'desc' },
       include: {
-        user: { select: { name: true, color: true } },
+        // id: the page finds "your review" by it. Without it the review form
+        // came back after every reload, its submit was refused as a duplicate,
+        // and your own review never showed a Delete button.
+        user: { select: { id: true, name: true, color: true } },
       },
     })
     return NextResponse.json(reviews)
