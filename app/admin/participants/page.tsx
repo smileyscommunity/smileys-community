@@ -221,11 +221,19 @@ export default function AdminParticipantsPage() {
       body: JSON.stringify({ userId, action: 'approve' }),
     })
     if (res.ok) {
-      setAttendees(prev => prev.map(a =>
-        a.userId === userId && a.eventId === eventId ? { ...a, status: 'approved' } : a
-      ))
+      const d = await res.json().catch(() => ({}))
+      // A full balance quota answers 200 with status 'waitlisted': the member
+      // went to the waitlist, not into a seat. This used to say "Approved ✓".
+      if (d?.status === 'waitlisted') {
+        setAttendees(prev => prev.filter(a => !(a.userId === userId && a.eventId === eventId)))
+        toast.warning('That quota is full — moved to the waitlist instead')
+      } else {
+        setAttendees(prev => prev.map(a =>
+          a.userId === userId && a.eventId === eventId ? { ...a, status: 'approved' } : a
+        ))
+        toast.success('Approved ✓')
+      }
       dropSelection(userId, eventId)
-      toast.success('Approved ✓')
       load(true)
     } else {
       const d = await res.json().catch(() => ({}))
@@ -350,24 +358,32 @@ export default function AdminParticipantsPage() {
   async function bulkRun(
     label: string,
     confirmMsg: string,
-    work: (a: Attendee) => Promise<boolean>,
+    work: (a: Attendee) => Promise<boolean | 'waitlisted'>,
     onSuccess: (ok: Set<string>) => void,
   ) {
     const targets = pending.filter(a => selected.has(rowKey(a)))
     if (targets.length === 0) return
     if (!(await confirmToast(`${confirmMsg} ${targets.length} request${targets.length > 1 ? 's' : ''}?`))) return
     setBulkSaving(true)
-    const results = await Promise.all(targets.map(async a => ({
-      key: rowKey(a),
-      ok:  await work(a).catch(() => false),
-    })))
-    const ok = new Set(results.filter(r => r.ok).map(r => r.key))
-    const fail = results.length - ok.size
+    // One at a time: the server seats each approval under a lock anyway, and a
+    // sequence gives an honest tally — who got in, who went to the waitlist
+    // because their quota was full, and who failed.
+    const ok = new Set<string>()
+    const handled = new Set<string>()
+    let waitlisted = 0
+    let fail = 0
+    for (const a of targets) {
+      const r = await work(a).catch(() => false as const)
+      if (r === 'waitlisted') { waitlisted++; handled.add(rowKey(a)) }
+      else if (r) { ok.add(rowKey(a)); handled.add(rowKey(a)) }
+      else fail++
+    }
     if (ok.size) onSuccess(ok)
-    setSelected(prev => new Set([...prev].filter(k => !ok.has(k))))
+    setSelected(prev => new Set([...prev].filter(k => !handled.has(k))))
     setBulkSaving(false)
-    if (ok.size) toast.success(`${label}: ${ok.size} done`)
-    if (fail)    toast.error(`${label}: ${fail} failed — still selected, tap to retry`)
+    if (ok.size)    toast.success(`${label}: ${ok.size} done`)
+    if (waitlisted) toast.warning(`${waitlisted} moved to the waitlist — their quota is full`)
+    if (fail)       toast.error(`${label}: ${fail} failed — still selected, tap to retry`)
     load(true)
   }
 
@@ -377,7 +393,9 @@ export default function AdminParticipantsPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId: a.userId, action }),
     })
-    return res.ok
+    if (!res.ok) return false
+    const d = await res.json().catch(() => ({}))
+    return d?.status === 'waitlisted' ? 'waitlisted' as const : true
   }
 
   const bulkApprove = () => bulkRun('Approve', 'Approve', patchAction('approve'), ok => {

@@ -12,7 +12,7 @@ vi.mock('@/lib/audit',   () => ({ writeAudit: vi.fn() }))
 vi.mock('@/lib/email',   () => ({ recordEmailFailure: vi.fn() }))
 vi.mock('@/lib/prisma', () => ({ prisma: {
   $transaction:       vi.fn(async (ops: any) => Promise.all(ops)),
-  report:             { findUnique: vi.fn(), update: vi.fn().mockResolvedValue({}) },
+  report:             { findUnique: vi.fn(), update: vi.fn().mockResolvedValue({}), updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
   user:               { findUnique: vi.fn(), update: vi.fn() },
   clubMembership:     { findMany: vi.fn().mockResolvedValue([]) },
   club:               { update: vi.fn() },

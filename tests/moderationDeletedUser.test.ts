@@ -6,7 +6,7 @@ vi.mock('@/lib/audit',   () => ({ writeAudit: vi.fn() }))
 vi.mock('@/lib/email',   () => ({ recordEmailFailure: vi.fn() }))
 vi.mock('@/lib/prisma', () => ({ prisma: {
   $transaction:       vi.fn(async (ops: any) => Promise.all(ops)),
-  report:             { findUnique: vi.fn(), update: vi.fn().mockResolvedValue({}) },
+  report:             { findUnique: vi.fn(), update: vi.fn().mockResolvedValue({}), updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
   user:               { findUnique: vi.fn(), update: vi.fn() },
   clubMembership:     { findMany: vi.fn().mockResolvedValue([]) },
   club:               { update: vi.fn() },
@@ -37,19 +37,19 @@ describe('PATCH /api/admin/moderation/[id] on a deleted user', () => {
     ;(getSession as any).mockResolvedValue({ id: 'adm', name: 'A', role: 'admin', cityId: 'c1' })
     const res = await PATCH(req({ action: 'warn' }), params)
     expect(res.status).toBe(404)
-    expect(p.report.update).not.toHaveBeenCalled()
+    expect(p.report.updateMany).not.toHaveBeenCalled()
     expect(p.user.update).not.toHaveBeenCalled()
   })
   it('admin can still dismiss it', async () => {
     ;(getSession as any).mockResolvedValue({ id: 'adm', name: 'A', role: 'admin', cityId: 'c1' })
     const res = await PATCH(req({ action: 'dismiss' }), params)
     expect(res.status).toBe(200)
-    expect(p.report.update).toHaveBeenCalled()
+    expect(p.report.updateMany).toHaveBeenCalled()
   })
   it('a moderator fails closed', async () => {
     ;(getSession as any).mockResolvedValue({ id: 'mod', name: 'M', role: 'moderator', cityId: 'c1' })
     const res = await PATCH(req({ action: 'warn' }), params)
     expect(res.status).toBe(403)
-    expect(p.report.update).not.toHaveBeenCalled()
+    expect(p.report.updateMany).not.toHaveBeenCalled()
   })
 })

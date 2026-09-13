@@ -126,7 +126,19 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId, action: 'approve' }),
     })
-    if (res.ok) { setAttendees(prev => prev.map(a => a.userId === userId ? { ...a, status: 'approved' } : a)); toast.success('Approved ✓') }
+    const d = await res.json().catch(() => ({}))
+    // Refusals (a paused member's 409, a vanished request's 404) used to do
+    // nothing visible.
+    if (!res.ok) { toast.error(d?.error ?? 'Could not approve'); return }
+    // A full quota answers 200 with status 'waitlisted': the member went to
+    // the waitlist, not into a seat. This used to say "Approved ✓".
+    if (d?.status === 'waitlisted') {
+      setAttendees(prev => prev.filter(a => a.userId !== userId))
+      toast.warning('That quota is full — moved to the waitlist instead')
+      return
+    }
+    setAttendees(prev => prev.map(a => a.userId === userId ? { ...a, status: 'approved' } : a))
+    toast.success('Approved ✓')
   }
 
   async function reject(userId: string) {

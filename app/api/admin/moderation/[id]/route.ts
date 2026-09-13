@@ -16,7 +16,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     const { id } = await params
     const { action, reviewNote } = await req.json()
-    // action: 'dismiss' | 'warn' | 'ban'
+    // An unknown or missing action used to fall through, mark the report
+    // actioned and answer ok with nothing done.
+    if (action !== 'dismiss' && action !== 'warn' && action !== 'ban') {
+      return NextResponse.json({ error: 'action must be dismiss, warn or ban' }, { status: 400 })
+    }
 
     if (action === 'ban' && !isAdmin(session)) {
       return NextResponse.json({ error: 'Only admins can ban users' }, { status: 403 })
@@ -42,15 +46,16 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'That member no longer exists — dismiss the report instead' }, { status: 404 })
     }
 
-    const updateReport = prisma.report.update({
-      where: { id },
-      data: {
-        status:     action === 'dismiss' ? 'dismissed' : 'actioned',
-        reviewNote: reviewNote || null,
-        reviewedBy: session.id,
-        reviewedAt: new Date(),
-      },
-    })
+    // Claimed, not just updated. Two staff acting on the same report — or one
+    // working from a tab left open — both went through: a double warning, or
+    // a dismissed report flipped to actioned. Only a still-pending report can
+    // be acted on, and only once; the loser gets a 409 and nothing else runs.
+    const reviewed = {
+      status:     action === 'dismiss' ? 'dismissed' : 'actioned',
+      reviewNote: reviewNote || null,
+      reviewedBy: session.id,
+      reviewedAt: new Date(),
+    }
 
     // Dismissing a survey-sourced report means the admin judged the
     // flagged anomaly not real — clear the survey's anomaly flag in the
@@ -58,18 +63,22 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // for the rest of the 30-day window. Reports created before surveyId
     // existed fall back to the survey's eventId+userId unique key (the
     // reporter is the survey responder).
-    if (action === 'dismiss' && report.reason === 'post_event_survey' && (report.surveyId || report.eventId)) {
-      await prisma.$transaction([
-        updateReport,
-        prisma.eventSurvey.updateMany({
-          where: report.surveyId
-            ? { id: report.surveyId }
-            : { eventId: report.eventId!, userId: report.reporterId },
-          data: { anomaly: false },
-        }),
-      ])
-    } else {
-      await updateReport
+    const clearsSurvey = action === 'dismiss' && report.reason === 'post_event_survey' && (report.surveyId || report.eventId)
+    const claimed = clearsSurvey
+      ? await prisma.$transaction(async tx => {
+          const { count } = await tx.report.updateMany({ where: { id, status: 'pending' }, data: reviewed })
+          if (count === 0) return false
+          await tx.eventSurvey.updateMany({
+            where: report.surveyId
+              ? { id: report.surveyId }
+              : { eventId: report.eventId!, userId: report.reporterId },
+            data: { anomaly: false },
+          })
+          return true
+        })
+      : (await prisma.report.updateMany({ where: { id, status: 'pending' }, data: reviewed })).count > 0
+    if (!claimed) {
+      return NextResponse.json({ error: 'This report has already been handled' }, { status: 409 })
     }
 
     if (action === 'dismiss') {

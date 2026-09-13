@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { canModerateEventQueue, isAdmin, failClosedCityId } from '@/lib/access'
 import { rateLimit } from '@/lib/rateLimit'
+import { maskRows } from '@/lib/admin/maskContact'
 
 export async function GET() {
   try {
@@ -21,7 +22,9 @@ export async function GET() {
     const cityFilter = isAdmin(session) ? {} : { cityId: failClosedCityId(session) }
 
     const events = await prisma.event.findMany({
-      where: { approvalRequired: true, ...cityFilter },
+      // A cancelled or archived event isn't waiting for review: offered here,
+      // "Approve" published it again and announced it to the club.
+      where: { approvalRequired: true, status: { notIn: ['cancelled', 'archived'] }, ...cityFilter },
       orderBy: { createdAt: 'desc' },
       take: 100,
       select: {
@@ -47,7 +50,8 @@ export async function GET() {
       host: e.hostId ? (hostMap[e.hostId] ?? null) : null,
     }))
 
-    return NextResponse.json(result)
+    // Host emails masked for moderators, as on every other moderator list.
+    return NextResponse.json(maskRows(session, result, 'host'))
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

@@ -11,6 +11,7 @@ vi.mock('@/lib/audit',        () => ({ writeAudit: vi.fn() }))
 vi.mock('@/lib/eventQuota',   () => ({ findPromotableFromWaitlist: vi.fn(), hasQuotaRoomFor: vi.fn(), quotaEventSelect: {} }))
 vi.mock('@/lib/noShow',       () => ({ getRsvpGate: vi.fn().mockResolvedValue({ ok: true }), gateErrorBody: vi.fn() }))
 vi.mock('@/lib/prisma', () => ({ prisma: {
+  $queryRaw:     vi.fn().mockResolvedValue([]),
   $transaction:  vi.fn(),
   event:         { findUnique: vi.fn() },
   user:          { findUnique: vi.fn() },
@@ -37,6 +38,8 @@ const p = prisma as any
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // Approval now runs as an interactive transaction under a row lock.
+  p.$transaction.mockImplementation(async (ops: any) => Array.isArray(ops) ? Promise.all(ops) : ops(p))
   ;(getSession as any).mockResolvedValue({ id: 'h1', name: 'Host', role: 'host' })
   p.event.findUnique.mockResolvedValue({ title: 'T', status: 'published', totalSpots: 10, genderBalance: false, turkishMaleQuota: null })
   p.user.findUnique.mockResolvedValue({ name: 'M', email: 'm@x', gender: null, nationality: null })

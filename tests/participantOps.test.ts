@@ -11,6 +11,7 @@ vi.mock('@/lib/audit',        () => ({ writeAudit: vi.fn() }))
 vi.mock('@/lib/eventQuota',   () => ({ findPromotableFromWaitlist: vi.fn(), hasQuotaRoomFor: vi.fn(), quotaEventSelect: {} }))
 vi.mock('@/lib/noShow',       () => ({ getRsvpGate: vi.fn(), gateErrorBody: vi.fn() }))
 vi.mock('@/lib/prisma', () => ({ prisma: {
+  $queryRaw:     vi.fn().mockResolvedValue([]),
   $transaction:  vi.fn(),
   event:         { findUnique: vi.fn() },
   user:          { findUnique: vi.fn() },

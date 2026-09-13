@@ -788,13 +788,13 @@ function ModerationPageInner() {
                         className="text-xs border border-zinc-700 px-3 py-2 rounded-lg text-zinc-400 hover:text-white hover:border-zinc-500 transition-colors text-center">
                         Edit
                       </Link>
-                      {e.status !== 'published' && (
+                      {e.status !== 'published' && e.status !== 'cancelled' && e.status !== 'archived' && (
                         <button onClick={() => handleEventStatus(e.id, 'published')}
                           className="text-xs bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/20 px-3 py-2 rounded-lg transition-colors font-medium">
                           Approve
                         </button>
                       )}
-                      {e.status !== 'flagged' && (
+                      {e.status !== 'flagged' && e.status !== 'cancelled' && e.status !== 'archived' && (
                         <button onClick={() => handleEventStatus(e.id, 'flagged')}
                           className="text-xs bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 px-3 py-2 rounded-lg transition-colors font-medium">
                           Flag

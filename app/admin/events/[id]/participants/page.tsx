@@ -126,6 +126,7 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
     setBusy(BATCH_BUSY)
     let ok = 0
     let failed = 0
+    let waitlisted = 0
     let firstError: string | null = null
     try {
       for (const userId of userIds) {
@@ -135,7 +136,13 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body(userId)),
           })
-          if (res.ok) { ok++; continue }
+          if (res.ok) {
+            // A full quota answers 200 with status 'waitlisted' — not a seat.
+            const d = await res.json().catch(() => null)
+            if (d?.status === 'waitlisted') waitlisted++
+            else ok++
+            continue
+          }
           failed++
           if (!firstError) {
             const d = await res.json().catch(() => null)
@@ -150,6 +157,7 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
     if (failed === 0) toast.success(`${verb} ${ok} ✓`)
     else if (ok === 0) toast.error(`${verb} none — ${failed} failed${firstError ? `: ${firstError}` : ''}`)
     else toast.warning(`${verb} ${ok} · ${failed} failed${firstError ? `: ${firstError}` : ''}`)
+    if (waitlisted) toast.warning(`${waitlisted} moved to the waitlist — their quota is full`)
   }
 
   async function approveAll(list: Attendee[]) {
@@ -171,7 +179,17 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId, action: 'approve' }),
     })
-    if (res.ok) { setAttendees(prev => prev.map(a => a.userId === userId ? { ...a, status: 'approved' } : a)); toast.success('Approved ✓') }
+    if (res.ok) {
+      const d = await res.json().catch(() => ({}))
+      // A full quota answers 200 with status 'waitlisted': not a seat.
+      if (d?.status === 'waitlisted') {
+        toast.warning('That quota is full — moved to the waitlist instead')
+        setReloadTick(t => t + 1)
+      } else {
+        setAttendees(prev => prev.map(a => a.userId === userId ? { ...a, status: 'approved' } : a))
+        toast.success('Approved ✓')
+      }
+    }
     else await toastApiError(res, 'Could not approve')
     setBusy(null)
   }

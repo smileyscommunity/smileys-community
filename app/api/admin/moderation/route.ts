@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { canModerateReports, isAdmin, failClosedCityId } from '@/lib/access'
 import { neighborhoodToSlug } from '@/lib/neighborhoods'
+import { maskRows } from '@/lib/admin/maskContact'
 
 export async function GET() {
   try {
@@ -84,14 +85,18 @@ export async function GET() {
       : []
     const blockMap = new Map(blockCounts.map(b => [b.blockedId, b._count.blockedId]))
 
-    return NextResponse.json(reports.map(r => ({
+    // Contact details follow the rule every other moderator list uses
+    // (lib/admin/maskContact): admins see emails, moderators a masked form.
+    // This queue was the one that still sent both parties' emails in full.
+    const rows = reports.map(r => ({
       ...r,
       reportedBlockCount: blockMap.get(r.reportedId) ?? 0,
       event:            r.eventId            ? (eventMap.get(r.eventId)                      ?? null) : null,
       boardPost:        r.boardPostId        ? (boardPostMap.get(r.boardPostId)              ?? null) : null,
       listing:          r.listingId          ? (listingMap.get(r.listingId)                  ?? null) : null,
       neighborhoodPost: r.neighborhoodPostId ? (neighborhoodPostMap.get(r.neighborhoodPostId) ?? null) : null,
-    })))
+    }))
+    return NextResponse.json(maskRows(session, maskRows(session, rows, 'reporter'), 'reported'))
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

@@ -410,87 +410,59 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     if (action === 'approve') {
-      // Turkish male quota check
-      if (event?.turkishMaleQuota && isMale && isTurkish) {
-        const turkishMaleCount = await prisma.eventAttendee.count({
-          where: { eventId, status: 'approved', user: { gender: { in: MALE_VARIANTS }, nationality: { in: TURKEY_VARIANTS } } },
-        })
-        if (turkishMaleCount >= event.turkishMaleQuota) {
-          // Move to waitlist instead
-          // Transactional + upsert, same as the toWaitlist action below: a
-          // plain create throws P2002 when they already sit on the waitlist
-          // from an earlier round — AFTER the delete committed, silently
-          // removing them from the event entirely.
-          await prisma.$transaction([
-            cancelAttendeeOp(prisma, { userId, eventId, by: cancelActor(session) }),
-            prisma.waitlistEntry.upsert({
-              where:  { userId_eventId: { userId, eventId } },
-              create: { userId, eventId },
-              update: {},
-            }),
-          ])
-          createNotification(userId, 'waitlist', 'Added to waitlist 📋',
-            `Turkish male spots for "${event.title}" are full — you're on the waitlist.`, `/events/${eventId}`)
-          return NextResponse.json({ ok: true, status: 'waitlisted', reason: 'turkish_male_quota' })
+      // One approval at a time per event, the way the RSVP route seats people:
+      // the balance counts and the seat are read and written under a row lock
+      // on the event. Bulk approve sent these in parallel, each request counted
+      // the same approved seats, and three men approved at once onto the last
+      // men's spot all got in.
+      const WAITLIST_NOTE = { turkish_male_quota: 'Turkish male spots', male_quota: 'Male spots', female_quota: 'Female spots' } as const
+      const quotaFull = await prisma.$transaction(async tx => {
+        await tx.$queryRaw`SELECT id FROM events WHERE id = ${eventId} FOR UPDATE`
+        let full: keyof typeof WAITLIST_NOTE | null = null
+        if (event?.turkishMaleQuota && isMale && isTurkish) {
+          const n = await tx.eventAttendee.count({
+            where: { eventId, status: 'approved', user: { gender: { in: MALE_VARIANTS }, nationality: { in: TURKEY_VARIANTS } } },
+          })
+          if (n >= event.turkishMaleQuota) full = 'turkish_male_quota'
         }
-      }
-
-      // General male quota check
-      if (event?.genderBalance && isMale) {
-        const maleQuota = event.maleQuota ?? Math.floor(event.totalSpots / 2)
-        const maleCount = await prisma.eventAttendee.count({
-          where: { eventId, status: 'approved', user: { gender: { in: MALE_VARIANTS } } },
-        })
-        if (maleCount >= maleQuota) {
-          // Transactional + upsert, same as the toWaitlist action below: a
-          // plain create throws P2002 when they already sit on the waitlist
-          // from an earlier round — AFTER the delete committed, silently
-          // removing them from the event entirely.
-          await prisma.$transaction([
-            cancelAttendeeOp(prisma, { userId, eventId, by: cancelActor(session) }),
-            prisma.waitlistEntry.upsert({
-              where:  { userId_eventId: { userId, eventId } },
-              create: { userId, eventId },
-              update: {},
-            }),
-          ])
-          createNotification(userId, 'waitlist', 'Added to waitlist 📋',
-            `Male spots for "${event.title}" are full — you're on the waitlist.`, `/events/${eventId}`)
-          return NextResponse.json({ ok: true, status: 'waitlisted', reason: 'male_quota' })
+        if (!full && event?.genderBalance && isMale) {
+          const n = await tx.eventAttendee.count({
+            where: { eventId, status: 'approved', user: { gender: { in: MALE_VARIANTS } } },
+          })
+          if (n >= (event.maleQuota ?? Math.floor(event.totalSpots / 2))) full = 'male_quota'
         }
-      }
-
-      // Female quota check — mirrors the male side, fallback included. A null
-      // femaleQuota used to mean "uncapped", so ticking gender balance capped
-      // the men at half the room and let the women fill the rest.
-      if (event?.genderBalance && isFemale) {
-        const femaleQuota = event.femaleQuota ?? Math.floor(event.totalSpots / 2)
-        const femaleCount = await prisma.eventAttendee.count({
-          where: { eventId, status: 'approved', user: { gender: { in: FEMALE_VARIANTS } } },
-        })
-        if (femaleCount >= femaleQuota) {
-          // Transactional + upsert, same as the toWaitlist action below: a
-          // plain create throws P2002 when they already sit on the waitlist
-          // from an earlier round — AFTER the delete committed, silently
-          // removing them from the event entirely.
-          await prisma.$transaction([
-            cancelAttendeeOp(prisma, { userId, eventId, by: cancelActor(session) }),
-            prisma.waitlistEntry.upsert({
-              where:  { userId_eventId: { userId, eventId } },
-              create: { userId, eventId },
-              update: {},
-            }),
-          ])
-          createNotification(userId, 'waitlist', 'Added to waitlist 📋',
-            `Female spots for "${event.title}" are full — you're on the waitlist.`, `/events/${eventId}`)
-          return NextResponse.json({ ok: true, status: 'waitlisted', reason: 'female_quota' })
+        // Female side mirrors the male side, fallback included: a null
+        // femaleQuota used to mean uncapped.
+        if (!full && event?.genderBalance && isFemale) {
+          const n = await tx.eventAttendee.count({
+            where: { eventId, status: 'approved', user: { gender: { in: FEMALE_VARIANTS } } },
+          })
+          if (n >= (event.femaleQuota ?? Math.floor(event.totalSpots / 2))) full = 'female_quota'
         }
-      }
-
-      await prisma.eventAttendee.update({
-        where: { userId_eventId: { userId, eventId } },
-        data: { status: 'approved' },
+        if (full) {
+          // Onto the waitlist instead, in the same transaction. Upsert: they
+          // may already sit on the waitlist from an earlier round, and a plain
+          // create threw after the seat was already given up.
+          await cancelAttendeeOp(tx, { userId, eventId, by: cancelActor(session) })
+          await tx.waitlistEntry.upsert({
+            where:  { userId_eventId: { userId, eventId } },
+            create: { userId, eventId },
+            update: {},
+          })
+          return full
+        }
+        await tx.eventAttendee.update({
+          where: { userId_eventId: { userId, eventId } },
+          data: { status: 'approved' },
+        })
+        return null
       })
+      if (quotaFull) {
+        createNotification(userId, 'waitlist', 'Added to waitlist 📋',
+          `${WAITLIST_NOTE[quotaFull]} for "${event?.title}" are full — you're on the waitlist.`, `/events/${eventId}`)
+        return NextResponse.json({ ok: true, status: 'waitlisted', reason: quotaFull })
+      }
+
       // Recompute, never a blind decrement — approving into a full event
       // used to push spotsLeft negative until the nightly sweep clamped it.
       if (event) await recomputeSpotsLeft(eventId, event.totalSpots)
