@@ -170,8 +170,10 @@ describe('73. resend verification actually sends, and says so honestly', () => {
   it("the Resend helper throws on a resolved { error } (emails.send doesn't throw)", () => {
     const src = read('lib/email.ts')
     const fn  = src.slice(src.indexOf('export async function sendFinishRegistrationEmail'), src.indexOf('export async function sendPasswordResetEmail'))
-    expect(fn).toMatch(/const \{ error \} = await getResend\(\)\.emails\.send\(/)
-    expect(fn).toMatch(/\}\)\s*if \(error\) throw error\s*\}/)
+    // Batch 43 moved the { error } check into lib/email's send() wrapper,
+    // which records the refusal and rethrows for this helper.
+    expect(fn).toMatch(/await send\('sendFinishRegistrationEmail', \{/)
+    expect(fn).toMatch(/\}, \{ throwOnError: true \}\)\s*\}/)
   })
 
   it('the banner and the login link only say "sent" on a 2xx', () => {

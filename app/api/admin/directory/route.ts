@@ -343,7 +343,8 @@ export async function DELETE(req: NextRequest) {
       prisma.businessClaim.findMany({ where: { businessId: id }, select: { id: true, claimantId: true, status: true, createdAt: true }, take: 200 }),
     ])
     await prisma.business.delete({ where: { id } })
-    await writeAudit(session.id, session.name, 'directory.delete', id, 'business', { name: existing.name, retained: { reports, claims } })
+    // cityId passed: the business row is gone, so the audit lookup can't resolve it.
+    await writeAudit(session.id, session.name, 'directory.delete', id, 'business', { name: existing.name, cityId: existing.cityId, retained: { reports, claims } })
     return NextResponse.json({ ok: true })
   } catch (e) {
     console.error('Admin directory DELETE error:', e)

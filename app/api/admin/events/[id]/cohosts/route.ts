@@ -6,6 +6,7 @@ import { writeAudit } from '@/lib/audit'
 import { rateLimit } from '@/lib/rateLimit'
 import { UserStatus } from '@/lib/constants'
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
+import { lockEventRow, seatState, seatVerdict, overCapacityBody, wantsOverCapacity } from '@/lib/eventCapacity'
 
 async function canManage(session: { id: string; role: string } | null, eventId: string) {
   if (!session) return false
@@ -20,11 +21,12 @@ const COHOST_LIMIT = 30
 const COHOST_WINDOW_MS = 10 * 60_000
 
 // userId went straight into Prisma: a number or object threw a validation
-// error, an unknown id a P2003 — both unhandled 500s.
-async function readUserId(req: NextRequest): Promise<string | null> {
+// error, an unknown id a P2003 — both unhandled 500s. The body comes back too:
+// a remove reads its allowOverCapacity from it.
+async function readBody(req: NextRequest): Promise<{ userId: string | null; body: unknown }> {
   const body = await req.json().catch(() => null)
   const userId = body && typeof body === 'object' ? (body as { userId?: unknown }).userId : undefined
-  return typeof userId === 'string' && userId.trim() ? userId : null
+  return { userId: typeof userId === 'string' && userId.trim() ? userId : null, body }
 }
 
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -54,7 +56,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'Too many co-host changes — try again in a few minutes' }, { status: 429 })
     }
 
-    const userId = await readUserId(req)
+    const { userId } = await readBody(req)
     if (!userId) return NextResponse.json({ error: 'userId required' }, { status: 400 })
 
     const event = await prisma.event.findUnique({ where: { id }, select: { title: true, hostId: true, totalSpots: true } })
@@ -110,17 +112,41 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       return NextResponse.json({ error: 'Too many co-host changes — try again in a few minutes' }, { status: 429 })
     }
 
-    const userId = await readUserId(req)
+    const { userId, body } = await readBody(req)
     if (!userId) return NextResponse.json({ error: 'userId required' }, { status: 400 })
 
     const [user, event] = await Promise.all([
       prisma.user.findUnique({ where: { id: userId }, select: { name: true } }),
-      prisma.event.findUnique({ where: { id }, select: { title: true, totalSpots: true } }),
+      prisma.event.findUnique({ where: { id }, select: { title: true, hostId: true } }),
     ])
-    await prisma.eventCoHost.deleteMany({ where: { eventId: id, userId } })
-    // See POST: their seat counts again now.
-    if (event) await recomputeSpotsLeft(id, event.totalSpots).catch(err =>
-      console.error('[cohosts DELETE] spotsLeft recompute failed', { eventId: id, err: String(err) }))
+    // See POST: a co-host holding an approved seat starts counting the moment
+    // they stop being staff. On a full limited event that seated one past the
+    // cap with nobody asked — so the removal follows every other staff seat
+    // door (lib/eventCapacity): counted, refused unless confirmed, and written
+    // with the counter re-derived under the row lock the RSVP route takes.
+    const outcome = await prisma.$transaction(async tx => {
+      if (!event) {
+        await tx.eventCoHost.deleteMany({ where: { eventId: id, userId } })
+        return { ok: true as const }
+      }
+      await lockEventRow(tx, id)
+      const seats = await seatState(tx, id)
+      const seatStartsCounting = !!seats && seats.limited && userId !== event.hostId && seats.staffIds.includes(userId)
+        && await tx.eventAttendee.count({ where: { eventId: id, userId, status: 'approved' } }) > 0
+      if (seats && seatStartsCounting && !wantsOverCapacity(body)) {
+        const verdict = seatVerdict(seats)
+        if (!verdict.ok) return verdict
+      }
+      await tx.eventCoHost.deleteMany({ where: { eventId: id, userId } })
+      if (seats) await recomputeSpotsLeft(id, seats.totalSpots, tx)
+      return { ok: true as const }
+    })
+    if (!outcome.ok) {
+      return NextResponse.json({
+        ...overCapacityBody(outcome),
+        error: `${user?.name ?? 'This member'} holds a seat, which counts once they're no longer a co-host — and this event is full (${outcome.approved} of ${outcome.totalSpots} seats taken). Confirm to keep their seat over capacity.`,
+      }, { status: 409 })
+    }
     writeAudit(session.id, session.name, 'event.cohost_remove', userId, 'user',
       { eventId: id, eventTitle: event?.title, userName: user?.name },
       `Removed ${user?.name ?? userId} as co-host of "${event?.title ?? id}"`,

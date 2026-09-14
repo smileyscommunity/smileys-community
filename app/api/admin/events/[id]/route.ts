@@ -111,8 +111,10 @@ export async function DELETE(_: NextRequest, { params }: Params) {
       prisma.review.deleteMany({ where: { eventId: id } }),
       prisma.event.delete({ where: { id } }),
     ])
+    // The row is gone, so writeAudit's lookup can't find its city — pass it,
+    // or the delete drops out of the city-scoped audit view.
     writeAudit(session.id, session.name, 'event.delete', id, 'event',
-      { title: eventScope.title, date: eventScope.date, attendeesRemoved: attendeeCount, noShowCardsClosed: openCards.length },
+      { title: eventScope.title, date: eventScope.date, attendeesRemoved: attendeeCount, noShowCardsClosed: openCards.length, cityId: eventScope.cityId },
       `Deleted event "${eventScope.title}" (${eventScope.date}, ${attendeeCount} attendees removed)`,
     )
     return NextResponse.json({ ok: true })
@@ -439,38 +441,61 @@ export async function PUT(req: NextRequest, { params }: Params) {
     }
 
     // "Apply to series" copies the cap to every future occurrence, each with
-    // its own seats — checked here, before anything is written.
+    // its own seats.
     // "Future" is measured on the EVENT's city clock, not the founding city's.
     // Only events the caller could edit themselves (lib/seriesOwnership): a
     // mixed series from before the ownership check can't be used to rewrite
     // someone else's events either.
     const today = applyToSeries && before.seriesId ? await todayInCity(before.cityId) : null
-    const seriesSpots = spotsTouched && today && before.seriesId
-      ? await prisma.event.findMany({
-          where:  { seriesId: before.seriesId, id: { not: id }, date: { gte: today }, ...seriesScopeFor(session, before.cityId) },
-          select: { id: true, title: true, date: true, totalSpots: true, limitedSpots: true },
-        })
+    const seriesSelect = { id: true, title: true, date: true, totalSpots: true, limitedSpots: true } as const
+    const seriesQuery = before.seriesId && today
+      ? { where: { seriesId: before.seriesId, id: { not: id }, date: { gte: today }, ...seriesScopeFor(session, before.cityId) }, select: seriesSelect }
+      : null
+    const seriesIds = spotsTouched && seriesQuery
+      ? (await prisma.event.findMany(seriesQuery)).map(s => s.id)
       : []
-    if (!overCapacityOk) {
-      for (const sib of seriesSpots) {
-        const v = await capVerdict(prisma, sib)
-        if (!v.ok) return NextResponse.json(belowApprovedBody(v, `"${sib.title}" on ${sib.date}`), { status: 400 })
-      }
+    const SERIES_EXCLUDED = new Set(['date', 'registrationDeadline', 'seriesId', 'tags'])
+    const seriesData: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(data)) {
+      if (!SERIES_EXCLUDED.has(k)) seriesData[k] = v
     }
 
     let event: Awaited<ReturnType<typeof prisma.event.update>>
+    let seriesWritten = false
     if (spotsTouched) {
       // Checked, written and re-derived under the row lock the RSVP route
-      // takes, so no join lands between the count and the new counter.
+      // takes, so no join lands between the count and the new counter. Each
+      // occurrence the cap is copied to was checked outside any lock, so an
+      // RSVP could land between its count and the write — every one is locked
+      // in the same transaction now, all in id order so two series edits
+      // can't deadlock taking the same rows the other way round.
       const outcome = await prisma.$transaction(async tx => {
-        await lockEventRow(tx, id)
+        for (const lockId of [id, ...seriesIds].sort()) await lockEventRow(tx, lockId)
+        // Re-read under the lock: an occurrence's cap may have moved since.
+        const siblings = seriesIds.length
+          ? await tx.event.findMany({ where: { id: { in: seriesIds } }, select: seriesSelect, orderBy: { id: 'asc' } })
+          : []
+        if (!overCapacityOk) {
+          for (const sib of siblings) {
+            const v = await capVerdict(tx, sib)
+            if (!v.ok) return { refused: belowApprovedBody(v, `"${sib.title}" on ${sib.date}`), updated: null }
+          }
+        }
         const v = await capVerdict(tx, { id, totalSpots: before.totalSpots, limitedSpots: before.limitedSpots })
-        if (!v.ok && !overCapacityOk) return { refused: v, updated: null }
+        if (!v.ok && !overCapacityOk) return { refused: belowApprovedBody(v), updated: null }
         const updated = await tx.event.update({ where: { id }, data })
         await recomputeSpotsLeft(id, updated.totalSpots, tx)
+        if (applyToSeries && seriesQuery && Object.keys(seriesData).length > 0) {
+          await tx.event.updateMany({ where: seriesQuery.where, data: seriesData })
+          // The copied cap left each occurrence's counter at its old value —
+          // the number the RSVP gate reads. Re-derived from their own seats,
+          // still inside their locks.
+          for (const sib of siblings) await recomputeSpotsLeft(sib.id, capAfterEdit(sib).totalSpots, tx)
+          seriesWritten = true
+        }
         return { refused: null, updated }
       })
-      if (!outcome.updated) return NextResponse.json(belowApprovedBody(outcome.refused!), { status: 400 })
+      if (!outcome.updated) return NextResponse.json(outcome.refused, { status: 400 })
       event = outcome.updated
     } else {
       event = await prisma.event.update({ where: { id }, data })
@@ -508,25 +533,10 @@ export async function PUT(req: NextRequest, { params }: Params) {
     // but `time` DOES propagate — a recurring event keeps the same time each
     // occurrence, so editing the time with "apply to series" should update
     // every future instance (was silently excluded before).
-    if (applyToSeries && before.seriesId && today) {
-      const SERIES_EXCLUDED = new Set(['date', 'registrationDeadline', 'seriesId', 'tags'])
-      const seriesData: Record<string, unknown> = {}
-      for (const [k, v] of Object.entries(data)) {
-        if (!SERIES_EXCLUDED.has(k)) seriesData[k] = v
-      }
-      if (Object.keys(seriesData).length > 0) {
-        await prisma.event.updateMany({
-          // Same scope as the capacity check above (lib/seriesOwnership).
-          where: { seriesId: before.seriesId, id: { not: id }, date: { gte: today }, ...seriesScopeFor(session, before.cityId) },
-          data: seriesData,
-        })
-        // The copied cap left each occurrence's counter at its old value —
-        // the number the RSVP gate reads. Re-derive them from their own seats.
-        for (const sib of seriesSpots) {
-          await recomputeSpotsLeft(sib.id, capAfterEdit(sib).totalSpots).catch(err =>
-            console.error('[event PUT series] spotsLeft recompute failed', { eventId: sib.id, err: String(err) }))
-        }
-      }
+    // A cap change already went out to the series inside the capacity lock.
+    if (applyToSeries && seriesQuery && !seriesWritten && Object.keys(seriesData).length > 0) {
+      // Same scope as the capacity check above (lib/seriesOwnership).
+      await prisma.event.updateMany({ where: seriesQuery.where, data: seriesData })
     }
 
     // Log enriched audit

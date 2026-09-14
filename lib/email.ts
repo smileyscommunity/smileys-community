@@ -130,12 +130,18 @@ export function serializeError(err: unknown): string {
   try { return JSON.stringify(err) } catch { return String(err) }
 }
 
+// Errors send() already recorded before rethrowing them (see below).
+const recordedErrors = new WeakSet<object>()
+
 export async function recordEmailFailure(opts: {
   helper:    string
   recipient: string
   error:     unknown
   context?:  Record<string, unknown>
 }): Promise<void> {
+  // A caller's catch recording a refusal send() already wrote would put two
+  // rows on the dashboard tile for one email.
+  if (typeof opts.error === 'object' && opts.error !== null && recordedErrors.has(opts.error)) return
   try {
     const errMsg = serializeError(opts.error)
     await prisma.emailFailure.create({
@@ -151,9 +157,42 @@ export async function recordEmailFailure(opts: {
   }
 }
 
+// ── Send wrapper ────────────────────────────────────────────────────────────
+//
+// emails.send RESOLVES with { error } on an API refusal (bad key, quota,
+// unverified sender, invalid address) instead of throwing, and most helpers
+// awaited it without reading `error` — a refused email counted as sent and
+// never reached EmailFailure. Every helper sends through here so the refusal
+// is recorded once, centrally. `throwOnError` is for helpers whose callers
+// await inside try/catch and report the failure (a failed count, a released
+// claim, an unstamped row, a "send failed" response); the rest stay
+// record-only so fire-and-forget RSVP/approval flows keep their control flow.
+// A thrown error (missing key, network) still propagates as before.
+type SendResult = { ok: true; id: string | null } | { ok: false; error: unknown }
+
+async function send(
+  helper:  string,
+  payload: CreateEmailOptions,
+  opts:    { policy?: RecipientPolicy; throwOnError?: boolean } = {},
+): Promise<SendResult> {
+  const client = getResend(opts.policy)
+  const res    = await client.emails.send(payload)
+  const error  = res?.error
+  if (!error) return { ok: true, id: res?.data?.id ?? null }
+  const recipient = ([] as string[]).concat(payload.to).join(', ')
+  console.error(`[email] ${helper} refused by Resend`, { err: serializeError(error) })
+  await recordEmailFailure({ helper, recipient, error })
+  if (opts.throwOnError) {
+    const err = new Error(serializeError(error))
+    recordedErrors.add(err)
+    throw err
+  }
+  return { ok: false, error }
+}
+
 export async function sendVerificationEmail(email: string, name: string, token: string) {
   const url = `${APP_URL}/verify-email?token=${token}`
-  await getResend().emails.send({
+  await send('sendVerificationEmail', {
     from: FROM, to: email,
     subject: 'Verify your Smileys account',
     html: `
@@ -182,7 +221,7 @@ export async function sendVerificationEmail(email: string, name: string, token: 
 // regardless of marketing preferences — this IS the thing they signed up for.
 export async function sendCityLaunchEmail(email: string, name: string, cityName: string, citySlug: string) {
   const url = `${APP_URL}/${citySlug}`
-  await getResend().emails.send({
+  await send('sendCityLaunchEmail', {
     from: FROM, to: email,
     subject: `Smileys ${cityName} is open 🎉`,
     html: `
@@ -202,7 +241,7 @@ export async function sendCityLaunchEmail(email: string, name: string, cityName:
         <p style="color:#d1d5db;font-size:11px;text-align:center">You received this because you joined the ${esc(cityName)} interest list.</p>
       </div>
     `,
-  })
+  }, { throwOnError: true })
 }
 
 // Sent when someone tries to re-register an already-verified
@@ -213,7 +252,7 @@ export async function sendCityLaunchEmail(email: string, name: string, cityName:
 export async function sendAlreadyRegisteredEmail(email: string, name: string) {
   const loginUrl  = `${APP_URL}/login`
   const forgotUrl = `${APP_URL}/forgot-password`
-  await getResend().emails.send({
+  await send('sendAlreadyRegisteredEmail', {
     from: FROM, to: email,
     subject: 'Someone tried to register with your Smileys email',
     html: `
@@ -242,7 +281,7 @@ export async function sendAlreadyRegisteredEmail(email: string, name: string) {
 // their only clue was suddenly being logged out.
 export async function sendEmailChangedNotice(oldEmail: string, name: string, newEmail: string) {
   // Security notice: reaches the old address even on a banned account.
-  await getResend('account').emails.send({
+  await send('sendEmailChangedNotice', {
     from: FROM, to: oldEmail,
     subject: 'Your Smileys login email was changed',
     html: `
@@ -260,7 +299,7 @@ export async function sendEmailChangedNotice(oldEmail: string, name: string, new
         </p>
       </div>
     `,
-  })
+  }, { policy: 'account' })
 }
 
 // Sent when someone re-registers an email that has an UNVERIFIED account.
@@ -271,10 +310,10 @@ export async function sendEmailChangedNotice(oldEmail: string, name: string, new
 // have activated the squatter's password).
 export async function sendFinishRegistrationEmail(email: string, name: string, token: string) {
   const url = `${APP_URL}/reset-password?token=${token}`
-  // emails.send RESOLVES with { error } on an API refusal (bad key, quota,
-  // sender) rather than throwing, so every caller's .catch saw a success and
-  // resend-verification told members the email was on its way.
-  const { error } = await getResend().emails.send({
+  // Throws on a refusal: emails.send resolves { error } rather than throwing,
+  // so every caller's .catch saw a success and resend-verification told
+  // members the email was on its way.
+  await send('sendFinishRegistrationEmail', {
     from: FROM, to: email,
     subject: 'Finish setting up your Smileys account',
     html: `
@@ -292,13 +331,12 @@ export async function sendFinishRegistrationEmail(email: string, name: string, t
         </p>
       </div>
     `,
-  })
-  if (error) throw error
+  }, { throwOnError: true })
 }
 
 export async function sendPasswordResetEmail(email: string, name: string, token: string) {
   const url = `${APP_URL}/reset-password?token=${token}`
-  await getResend().emails.send({
+  await send('sendPasswordResetEmail', {
     from: FROM, to: email,
     subject: 'Reset your Smileys password',
     html: `
@@ -320,7 +358,7 @@ export async function sendPasswordResetEmail(email: string, name: string, token:
 }
 
 export async function sendApplicationReceivedEmail(email: string, name: string) {
-  await getResend().emails.send({
+  await send('sendApplicationReceivedEmail', {
     from: FROM, to: email,
     subject: 'We received your application 😊',
     html: `
@@ -346,7 +384,7 @@ export async function sendApplicationReceivedEmail(email: string, name: string) 
 
 export async function sendAdminNewApplicationEmail(applicantName: string, applicantEmail: string) {
   const adminEmail = process.env.ADMIN_EMAIL ?? 'info@smileyscommunity.com'
-  await getResend().emails.send({
+  await send('sendAdminNewApplicationEmail', {
     from: FROM, to: adminEmail,
     subject: safeSubject(`New application: ${applicantName}`),
     html: `
@@ -368,7 +406,7 @@ export async function sendAdminNewApplicationEmail(applicantName: string, applic
 // in lib/notify.ts still fan out to every admin / moderator.
 export async function sendAdminNewDirectorySubmissionEmail(submitterName: string, businessName: string) {
   const adminEmail = process.env.ADMIN_EMAIL ?? 'info@smileyscommunity.com'
-  await getResend().emails.send({
+  await send('sendAdminNewDirectorySubmissionEmail', {
     from: FROM, to: adminEmail,
     subject: safeSubject(`New directory submission: ${businessName}`),
     html: `
@@ -387,7 +425,7 @@ export async function sendAdminNewDirectorySubmissionEmail(submitterName: string
 // Celebratory note when an admin upgrades a member to premium/VIP.
 // Pairs with the in-app 'membership_upgraded' notification.
 export async function sendPremiumUpgradeEmail(email: string, name: string, tier: string) {
-  await getResend().emails.send({
+  await send('sendPremiumUpgradeEmail', {
     from: FROM, to: email,
     subject: `You're now a Smileys ${tier} member 🎉`,
     text: `Hi ${name},
@@ -416,7 +454,7 @@ export async function sendApplicationRejectedEmail(email: string, name: string, 
   const body = message?.trim()
     ? message.trim()
     : 'After careful review, we don\'t think it\'s the right fit at this time. You\'re welcome to reapply in the future.'
-  await getResend().emails.send({
+  await send('sendApplicationRejectedEmail', {
     from: FROM, to: email,
     subject: 'Your Smileys application',
     html: `
@@ -438,7 +476,7 @@ export async function sendApplicationRejectedEmail(email: string, name: string, 
 }
 
 export async function sendRequestMoreInfoEmail(email: string, name: string, message: string) {
-  await getResend().emails.send({
+  await send('sendRequestMoreInfoEmail', {
     from: FROM, to: email,
     subject: 'We\'d love to know more — Smileys',
     html: `
@@ -490,7 +528,7 @@ export async function sendActivationEmail(
         <p style="color:#7c2d12;font-size:14px;margin:0;line-height:1.6">Smileys ${esc(cityName)} is just getting started, and you're founding member #${founding.rank}. ${who} — the first clubs and events take their shape from the people in this room.</p>
        </div>`
   }
-  await getResend().emails.send({
+  await send('sendActivationEmail', {
     from: FROM, to: email,
     subject: safeSubject(`You're in, ${firstName}! Activate your Smileys account`),
     html: `
@@ -520,7 +558,7 @@ export async function sendActivationEmail(
 // password (235 approved members never activated, 2026-09-08).
 export async function sendNewActivationLinkEmail(email: string, name: string, token: string) {
   const url = `${APP_URL}/activate?token=${token}`
-  await getResend().emails.send({
+  await send('sendNewActivationLinkEmail', {
     from: FROM, to: email,
     subject: 'Your new Smileys activation link',
     html: `
@@ -549,7 +587,7 @@ export async function sendLoginNudgeEmail(email: string, name: string, token: st
   const subject   = nudgeNumber === 1
     ? safeSubject(`${firstName}, your Smileys account is waiting for you`)
     : safeSubject(`Last reminder — your Smileys spot is still open, ${firstName}`)
-  await getResend().emails.send({
+  await send('sendLoginNudgeEmail', {
     from: FROM, to: email,
     subject,
     html: `
@@ -569,12 +607,12 @@ export async function sendLoginNudgeEmail(email: string, name: string, token: st
         </p>
       </div>
     `,
-  })
+  }, { throwOnError: true })
 }
 
 export async function sendEventApprovedEmail(email: string, name: string, eventTitle: string, eventDate: string, eventNeighborhood: string, eventId: string) {
   const url = `${APP_URL}/events/${eventId}`
-  await getResend().emails.send({
+  await send('sendEventApprovedEmail', {
     from: FROM, to: email,
     subject: safeSubject(`You're in for "${eventTitle}" 🎉`),
     html: `
@@ -597,7 +635,7 @@ export async function sendEventApprovedEmail(email: string, name: string, eventT
 }
 
 export async function sendEventRejectedEmail(email: string, name: string, eventTitle: string) {
-  await getResend().emails.send({
+  await send('sendEventRejectedEmail', {
     from: FROM, to: email,
     subject: safeSubject(`Update on your request for "${eventTitle}"`),
     html: `
@@ -630,7 +668,7 @@ const FREE_FOOTER = `Plans change? Cancel at least ${NO_SHOW_CANCELLATION_CUTOFF
 export async function sendRsvpConfirmationEmail(email: string, name: string, eventTitle: string, eventDate: string, eventLocation: string, eventId: string, opts: { free?: boolean } = {}) {
   const url = `${APP_URL}/events/${eventId}`
   const firstName = firstNameOf(name)
-  await getResend().emails.send({
+  await send('sendRsvpConfirmationEmail', {
     from: FROM, to: email,
     subject: safeSubject(`You're going to "${eventTitle}" 🎉`),
     html: `
@@ -656,7 +694,7 @@ export async function sendRsvpConfirmationEmail(email: string, name: string, eve
 export async function sendReviewRequestEmail(email: string, name: string, eventTitle: string, eventEmoji: string) {
   const url = `${APP_URL}/reviews`
   const firstName = firstNameOf(name)
-  await getResend().emails.send({
+  await send('sendReviewRequestEmail', {
     from: FROM, to: email,
     subject: safeSubject(`How was "${eventTitle}"? Share your review`),
     html: `
@@ -694,7 +732,7 @@ export async function sendReviewRequestEmail(email: string, name: string, eventT
 export async function sendSpotOpenedEmail(email: string, name: string, eventTitle: string, eventDate: string, eventId: string) {
   const url = `${APP_URL}/events/${eventId}`
   const firstName = firstNameOf(name)
-  await getResend().emails.send({
+  await send('sendSpotOpenedEmail', {
     from: FROM, to: email,
     subject: safeSubject(`A spot just opened for "${eventTitle}" — claim it!`),
     html: `
@@ -718,7 +756,7 @@ export async function sendSpotOpenedEmail(email: string, name: string, eventTitl
 
 export async function sendEventCancelledEmail(email: string, name: string, eventTitle: string, eventDate: string) {
   const firstName = firstNameOf(name)
-  await getResend().emails.send({
+  await send('sendEventCancelledEmail', {
     from: FROM, to: email,
     subject: safeSubject(`"${eventTitle}" has been cancelled`),
     html: `
@@ -745,7 +783,7 @@ export async function sendRefundEmail(email: string, name: string, eventTitle: s
        </div>`
     : ''
   // Money owed back reaches a banned account too (recipient guard above).
-  await getResend('account').emails.send({
+  await send('sendRefundEmail', {
     from: FROM, to: email,
     subject: safeSubject(`Your refund for "${eventTitle}"`),
     html: `
@@ -759,12 +797,12 @@ export async function sendRefundEmail(email: string, name: string, eventTitle: s
         <p style="color:#9ca3af;font-size:12px;text-align:center">Questions? Reply to this email or reach us at info@smileyscommunity.com</p>
       </div>
     `,
-  })
+  }, { policy: 'account', throwOnError: true })
 }
 
 export async function sendNewDeviceLoginEmail(email: string, name: string, ip: string, time: string) {
   const firstName = firstNameOf(name)
-  await getResend().emails.send({
+  await send('sendNewDeviceLoginEmail', {
     from: FROM, to: email,
     subject: 'New login to your Smileys account',
     html: `
@@ -790,7 +828,7 @@ export async function sendNewDeviceLoginEmail(email: string, name: string, ip: s
 
 export async function sendAccountLockedEmail(email: string, name: string) {
   const firstName = firstNameOf(name)
-  await getResend().emails.send({
+  await send('sendAccountLockedEmail', {
     from: FROM, to: email,
     subject: 'Your Smileys account has been temporarily locked',
     html: `
@@ -818,7 +856,7 @@ export async function sendListingExpiryEmail(email: string, name: string, listin
   // room listings ever posted lapsed unrenewed.
   const url       = listingId ? `${APP_URL}/board/renew/${listingId}` : `${APP_URL}/board`
   const firstName = firstNameOf(name)
-  await getResend().emails.send({
+  await send('sendListingExpiryEmail', {
     from: FROM, to: email,
     subject: safeSubject(`Your listing "${listingTitle}" expires in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}`),
     html: `
@@ -859,7 +897,7 @@ export async function sendBroadcastEmail(
     .map(p => `<p style="margin:0 0 16px;color:#374151;font-size:14px;line-height:1.6">${esc(p).replace(/\n/g, '<br>')}</p>`)
     .join('')
 
-  await getResend().emails.send({
+  await send('sendBroadcastEmail', {
     from:    FROM,
     to:      email,
     subject: safeSubject(title),
@@ -892,7 +930,7 @@ export async function sendBroadcastEmail(
         </p>
       </div>
     `,
-  })
+  }, { throwOnError: true })
 }
 
 // A single low-pressure "your first Smileys event?" invite, personalised to the
@@ -911,7 +949,7 @@ export async function sendFirstEventNudgeEmail(
   const pretty    = new Date(ev.date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
   const meta      = [ev.neighborhood, `${pretty}${ev.time ? ` · ${ev.time}` : ''}`].filter(Boolean).map(x => esc(String(x))).join(' · ')
   const going     = ev.attendees > 0 ? `${ev.attendees} ${ev.attendees === 1 ? 'person is' : 'people are'} going` : ''
-  await getResend().emails.send({
+  await send('sendFirstEventNudgeEmail', {
     from: FROM, to: email,
     subject: safeSubject(`${ev.emoji ? ev.emoji + ' ' : ''}${ev.title} — your first Smileys event?`),
     html: `
@@ -930,7 +968,7 @@ export async function sendFirstEventNudgeEmail(
         <p style="margin:20px 0 0;color:#6b7280;font-size:13px;line-height:1.6">Not your thing? <a href="${APP_URL}/events?utm_source=first_rsvp_nudge" style="color:#b45309;font-weight:600;text-decoration:none">Browse everything on this week →</a> Just come as you are and say hi — that's all it takes.</p>
         <p style="color:#9ca3af;font-size:11px;margin-top:24px;line-height:1.5">You're receiving this because you're a member of Smileys Community.<br><a href="${unsub}" style="color:#9ca3af">Unsubscribe from these emails</a></p>
       </div>`,
-  })
+  }, { throwOnError: true })
 }
 
 // Internal weekly summary of the first-RSVP nudge cron, sent to admins so the
@@ -953,7 +991,7 @@ export async function sendNudgeReportEmail(
           <span style="color:#6b7280;font-size:12px">Both arms were matched to a real event; only the first was emailed.</span>
         </p>`
     : ''
-  await getResend().emails.send({
+  await send('sendNudgeReportEmail', {
     from: FROM, to,
     subject: `First-RSVP nudge: ${r.emailed} sent · ${rate}% converting`,
     html: `
@@ -981,7 +1019,7 @@ export async function sendListingAlertEmail(
   const url = `${APP_URL}/board`
   const unsub = `${APP_URL}/settings`
   const excerpt = listing.description.length > 120 ? listing.description.slice(0, 120) + '…' : listing.description
-  await getResend().emails.send({
+  await send('sendListingAlertEmail', {
     from: FROM, to,
     subject: safeSubject(`New ${categoryLabel} listing: ${listing.title}`),
     html: `
@@ -1090,9 +1128,9 @@ export async function sendNewsletterEmail(
   userId: string, email: string, name: string, subject: string, bodyHtml: string, newsletterId?: string,
   preheader?: string,
 ): Promise<string> {
-  const { data, error } = await getResend().emails.send(buildNewsletterPayload(userId, email, name, subject, bodyHtml, newsletterId, preheader))
-  if (error || !data?.id) throw error ?? new Error('Resend returned no email ID')
-  return data.id
+  const res = await send('sendNewsletterEmail', buildNewsletterPayload(userId, email, name, subject, bodyHtml, newsletterId, preheader), { throwOnError: true })
+  if (!res.ok || !res.id) throw new Error('Resend returned no email ID')
+  return res.id
 }
 
 // Bulk newsletter send via Resend's Batch API — up to 100 emails per request.
@@ -1157,7 +1195,7 @@ export async function sendEventReminderEmail(
   const unsub     = unsubscribeUrl(userId)
   const firstName = firstNameOf(name)
   const url       = `${APP_URL}/events/${eventId}`
-  await getResend().emails.send({
+  await send('sendEventReminderEmail', {
     from: FROM, to: email,
     subject: safeSubject(`Reminder: ${eventTitle} ${eventEmoji} is coming up!`),
     html: `
@@ -1181,7 +1219,7 @@ export async function sendEventReminderEmail(
       </div>
     `,
     tags: [{ name: 'type', value: 'event_reminder' }],
-  })
+  }, { throwOnError: true })
 }
 
 export async function sendNoShowEmail(
@@ -1195,7 +1233,7 @@ export async function sendNoShowEmail(
   const unsub     = unsubscribeUrl(userId)
   const firstName = firstNameOf(name)
   const url       = `${APP_URL}/events`
-  await getResend().emails.send({
+  await send('sendNoShowEmail', {
     from: FROM, to: email,
     subject: safeSubject(`We missed you at ${eventTitle} ${eventEmoji}`),
     html: `
@@ -1219,7 +1257,7 @@ export async function sendNoShowEmail(
       </div>
     `,
     tags: [{ name: 'type', value: 'no_show' }],
-  })
+  }, { throwOnError: true })
 }
 
 // ── No-show cards ───────────────────────────────────────────────────────────
@@ -1251,7 +1289,7 @@ export async function sendYellowCardEmail(
   const unsub     = unsubscribeUrl(userId)
   const firstName = firstNameOf(name)
   const url       = `${APP_URL}/no-show`
-  await getResend().emails.send({
+  await send('sendYellowCardEmail', {
     from: FROM, to: email,
     subject: safeSubject(`We missed you at ${eventTitle} ${eventEmoji}`),
     html: `
@@ -1288,7 +1326,7 @@ export async function sendRedCardEmail(
   const unsub     = unsubscribeUrl(userId)
   const firstName = firstNameOf(name)
   const url       = `${APP_URL}/no-show`
-  await getResend().emails.send({
+  await send('sendRedCardEmail', {
     from: FROM, to: email,
     subject: safeSubject(`Your RSVPs are paused — second no-show at ${eventTitle}`),
     html: `
@@ -1331,7 +1369,7 @@ export async function sendHostNoShowCardsEmail(
     counts.yellow ? `${counts.yellow} first-time warning${counts.yellow === 1 ? '' : 's'}` : null,
     counts.red    ? `${counts.red} second no-show${counts.red === 1 ? '' : 's'} (RSVPs paused)` : null,
   ].filter(Boolean).join(' and ')
-  await getResend().emails.send({
+  await send('sendHostNoShowCardsEmail', {
     from: FROM, to: email,
     subject: safeSubject(`${total} no-show${total === 1 ? '' : 's'} recorded for ${eventTitle} ${eventEmoji}`),
     html: `
@@ -1358,7 +1396,7 @@ export async function sendHostNoShowCardsEmail(
 // and directory pings — the bell alone can sit unseen past the deadline.
 export async function sendAdminNoShowAppealEmail(memberName: string, eventTitle: string, appealDeadlineAt: Date) {
   const adminEmail = process.env.ADMIN_EMAIL ?? 'info@smileyscommunity.com'
-  await getResend().emails.send({
+  await send('sendAdminNoShowAppealEmail', {
     from: FROM, to: adminEmail,
     subject: safeSubject(`No-show appeal: ${memberName}`),
     html: `
@@ -1388,7 +1426,7 @@ export async function sendReconfirmEmail(
   const unsub     = unsubscribeUrl(userId)
   const firstName = firstNameOf(name)
   const eventUrl  = `${APP_URL}/events/${eventId}`
-  await getResend().emails.send({
+  await send('sendReconfirmEmail', {
     from: FROM, to: email,
     subject: safeSubject(`Still coming to ${eventTitle} ${dayText}? ${eventEmoji}`),
     html: `
@@ -1423,7 +1461,7 @@ export async function sendSpotReleasedEmail(
   const unsub     = unsubscribeUrl(userId)
   const firstName = firstNameOf(name)
   const eventUrl  = `${APP_URL}/events/${eventId}`
-  await getResend().emails.send({
+  await send('sendSpotReleasedEmail', {
     from: FROM, to: email,
     subject: safeSubject(`Your spot at ${eventTitle} went to the waitlist ${eventEmoji}`),
     html: `

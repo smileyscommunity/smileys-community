@@ -310,7 +310,7 @@ describe('d. event edit and the cap', () => {
       p.eventAttendee.count.mockImplementation(async ({ where }: any) => where.eventId === 'e2' ? 6 : 3)
       expect((await eventPUT(req({ totalSpots: 8, applyToSeries: true }), params)).status).toBe(200)
       expect(p.event.updateMany).toHaveBeenCalledWith({ where: { seriesId: 's1', id: { not: 'e1' }, date: { gte: '2026-09-14' } }, data: { totalSpots: 8 } })
-      expect(h.recompute).toHaveBeenCalledWith('e2', 8)
+      expect(h.recompute).toHaveBeenCalledWith('e2', 8, p)   // batch 42: under the occurrence's lock
     })
   })
 })
@@ -356,7 +356,8 @@ describe('f. co-host changes re-derive spotsLeft', () => {
     expect(h.recompute).toHaveBeenCalledWith('e1', 10)
     h.recompute.mockClear()
     expect((await cohostDELETE(req({ userId: 'u5' }), params)).status).toBe(200)
-    expect(h.recompute).toHaveBeenCalledWith('e1', 10)
+    // batch 42: a removal is capacity-checked, so it re-derives inside the lock
+    expect(h.recompute).toHaveBeenCalledWith('e1', 10, p)
   })
 })
 

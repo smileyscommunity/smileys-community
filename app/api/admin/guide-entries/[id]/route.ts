@@ -62,8 +62,9 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   if (!canActInCity(session, existing.cityId)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   await prisma.guideEntry.delete({ where: { id } })
+  // cityId passed: the entry is gone, so the audit lookup can't resolve it.
   await writeAudit(session.id, session.name, 'guide_entry_delete', id, 'guide_entry', {
-    city: existing.city.slug, slug: existing.slug, title: existing.title,
+    city: existing.city.slug, slug: existing.slug, title: existing.title, cityId: existing.cityId,
   })
   return NextResponse.json({ ok: true })
 }

@@ -252,12 +252,18 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
 
   async function removeCohost(userId: string, name: string) {
     if (!(await confirmToast(`Remove ${name} as co-host?`))) return
-    await fetch(`/app/api/admin/events/${id}/cohosts`, {
-      method: 'DELETE', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId }),
-    })
-    setCohosts(prev => prev.filter(c => c.userId !== userId))
+    // Their seat counts again once they're not a co-host: a full event asks
+    // "exceed capacity?" first. Not optimistic — a refusal keeps the chip.
+    try {
+      const res = await withCapacityConfirm(allowOverCapacity => fetch(`/app/api/admin/events/${id}/cohosts`, {
+        method: 'DELETE', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(allowOverCapacity ? { userId, allowOverCapacity: true } : { userId }),
+      }))
+      if (!res) return
+      if (!res.ok) { await toastApiError(res, 'Could not remove co-host'); return }
+      setCohosts(prev => prev.filter(c => c.userId !== userId))
+    } catch { toast.error('Could not remove co-host — check your connection') }
   }
 
   function isValidUrl(v: string) { try { new URL(v); return true } catch { return false } }

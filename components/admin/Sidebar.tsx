@@ -1,11 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { resolveImageUrl } from '@/lib/data'
 import { NAV_GROUPS, navItems } from '@/lib/adminNav'
+import { useModCounts } from '@/hooks/useModCounts'
 
 // SVG icon components
 function Icon({ d, d2 }: { d: string; d2?: string }) {
@@ -111,32 +111,20 @@ export default function Sidebar({ open, onClose }: Props) {
   const isHost     = user.isClubHost === true
   const userRoles  = [role, ...(isHost ? ['host'] : [])]
 
-  // Pending-count badges on Applications / Moderation. mod-stats is already
-  // polled by Topbar, so this adds one more poll per admin page — cheap, and
-  // it turns the sidebar into a "where is the work" cue.
-  const [counts, setCounts] = useState<{ applications: number; reports: number }>({ applications: 0, reports: 0 })
-  useEffect(() => {
-    function load() {
-      fetch('/app/api/admin/mod-stats', { credentials: 'include' })
-        .then(r => r.ok ? r.json() : null)
-        .then(d => {
-          if (d) setCounts({
-            applications: d.pendingApplications ?? 0,
-            reports:      d.pendingReports      ?? 0,
-          })
-        })
-        .catch(() => {})
-    }
-    load()
-    const t = setInterval(load, 60_000)
-    return () => clearInterval(t)
-  }, [])
+  // Pending-count badges on Applications / Moderation — a "where is the work"
+  // cue. Read through the Topbar's useModCounts: its own 60s poll ignored
+  // smileys:moderation-changed, so after a queue action these badges lagged
+  // the Topbar's by up to a minute, and it was a second request per page.
+  // `enabled` must match the Topbar's — the hook clears the shared counts
+  // when any consumer passes false.
+  const isMod     = role === 'moderator' || role === 'admin'
+  const modCounts = useModCounts(isMod)
 
   // Per-item badge count. Add more mappings here as additional pending
   // signals come online (e.g. unreviewed audit lines).
   function badgeFor(href: string): number {
-    if (href.startsWith('/admin/applications')) return counts.applications
-    if (href.startsWith('/admin/moderation'))   return counts.reports
+    if (href.startsWith('/admin/applications')) return modCounts?.pendingApplications ?? 0
+    if (href.startsWith('/admin/moderation'))   return modCounts?.pendingReports      ?? 0
     return 0
   }
 

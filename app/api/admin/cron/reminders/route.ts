@@ -5,7 +5,7 @@ import { timingSafeEqual } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notify'
 import { sendReviewRequestEmail, sendListingExpiryEmail, recordEmailFailure } from '@/lib/email'
-import { noShowPolicyApplies, NO_SHOW_CANCELLATION_CUTOFF_HOURS, checkInIsCredible, isNoShow } from '@/lib/noShowPolicy'
+import { noShowPolicyApplies, NO_SHOW_CANCELLATION_CUTOFF_HOURS, checkInIsCredible, isNoShow, eventRunners, noShowExemptionReason } from '@/lib/noShowPolicy'
 import { getSession } from '@/lib/session'
 import { recordCronRun } from '@/lib/cronHealth'
 import { citiesByToday, type CityDay } from '@/lib/city'
@@ -24,7 +24,14 @@ async function sentKeys(type: string, userIds: string[], links: string[]): Promi
   return new Set(rows.map(r => `${r.userId}:${r.link}`))
 }
 
-type AttendanceRow = { userId: string; status: string; checkedIn: boolean; attendance: string; cancelledAt: Date | null; cancelledBy: string | null }
+type AttendanceRow = {
+  userId: string; status: string; checkedIn: boolean; attendance: string; cancelledAt: Date | null; cancelledBy: string | null
+  user: { role: string } | null
+}
+
+// The event's approved club hosts — the same select lib/noShow settleEvent
+// feeds to eventRunners.
+const CLUB_HOSTS = { select: { memberships: { where: { role: 'host', status: 'approved' }, select: { userId: true } } } }
 
 /**
  * The approved rows that actually came — the only ones a "you attended"
@@ -33,18 +40,29 @@ type AttendanceRow = { userId: string; status: string; checkedIn: boolean; atten
  * connection suggestion. Same definition the no-show sweep applies
  * (lib/noShowPolicy): a scan always counts as attended; once check-in is
  * credible an unscanned seat is a no-show even before the sweep has
- * stamped it; staff are never no-shows.
+ * stamped it.
+ *
+ * Exemption is the sweep's too (noShowExemptionReason): host, co-hosts,
+ * the club's hosts and admins/moderators are never no-shows and never in
+ * the check-in ratio's room. Being exempt is not proof of being there,
+ * though: the event's own host and co-hosts ran it, so they count as
+ * attended; a club host or admin/moderator who wasn't scanned may never
+ * have come, so they are only nudged on a scan.
  */
 function attendedRows<T extends AttendanceRow>(
-  event: { hostId: string | null; cohosts: { userId: string }[] },
+  event: { hostId: string | null; cohosts: { userId: string }[]; club: { memberships: { userId: string }[] } | null },
   rows: T[],
   startsAt: Date,
 ): T[] {
-  const staff    = new Set([event.hostId, ...event.cohosts.map(c => c.userId)])
-  const room     = rows.filter(a => a.status === 'approved' && !staff.has(a.userId))
+  const runners  = eventRunners(event)
+  const exempt   = new Map(rows.map(a => [a, noShowExemptionReason(a.userId, a.user?.role, runners)]))
+  const room     = rows.filter(a => a.status === 'approved' && !exempt.get(a))
   const credible = checkInIsCredible(room.filter(a => a.checkedIn).length, room.length)
   return rows.filter(a => {
-    if (a.checkedIn || staff.has(a.userId)) return true
+    if (a.checkedIn) return true
+    const why = exempt.get(a)
+    if (why === 'event_host' || why === 'event_cohost') return true
+    if (why) return false
     if (a.attendance === 'no_show') return false
     return !(credible && isNoShow(a, startsAt))
   })
@@ -202,9 +220,10 @@ async function runSweep() {
     include: {
       attendees: {
         where: { status: 'approved' },
-        select: { userId: true, status: true, checkedIn: true, attendance: true, cancelledAt: true, cancelledBy: true },
+        select: { userId: true, status: true, checkedIn: true, attendance: true, cancelledAt: true, cancelledBy: true, user: { select: { role: true } } },
       },
       cohosts: { select: { userId: true } },
+      club:    CLUB_HOSTS,
     },
   })
 
@@ -251,9 +270,10 @@ async function runSweep() {
       include: {
         attendees: {
           where: { status: 'approved' },
-          include: { user: { select: { id: true, name: true, email: true } } },
+          include: { user: { select: { id: true, name: true, email: true, role: true } } },
         },
         cohosts: { select: { userId: true } },
+        club:    CLUB_HOSTS,
       },
     }),
   ])

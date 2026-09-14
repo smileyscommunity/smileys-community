@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { useAdminLoad } from '@/lib/admin/useAdminLoad'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
+import { proWaitlistCsv } from '@/lib/admin/csvExports'
 
 interface Entry {
   id:         string
@@ -34,11 +35,6 @@ const STATUS_STYLES: Record<string, string> = {
 }
 
 const inputCls = 'bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-1.5 text-white text-sm focus:outline-none focus:border-amber-500'
-
-function csvEscape(s: string) {
-  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`
-  return s
-}
 
 export default function AdminProWaitlistPage() {
   const { data, loading, error, retry, setData } = useAdminLoad<Payload>(
@@ -77,16 +73,8 @@ export default function AdminProWaitlistPage() {
 
   function downloadCsv() {
     if (!data) return
-    const rows = [
-      ['position', 'founder', 'name', 'email', 'industry', 'role', 'status', 'createdAt'].join(','),
-      ...data.entries.map(e => [
-        e.position, e.isFounder ? 'yes' : 'no',
-        csvEscape(e.name), csvEscape(e.email),
-        csvEscape(e.industry ?? ''), csvEscape(e.role ?? ''),
-        e.status, e.createdAt,
-      ].join(',')),
-    ]
-    const blob = new Blob([rows.join('\n')], { type: 'text/csv' })
+    // The old escaper only quoted; a signup named "=cmd|…" ran as a formula in Excel.
+    const blob = new Blob([proWaitlistCsv(data.entries)], { type: 'text/csv' })
     const url  = URL.createObjectURL(blob)
     const a    = document.createElement('a')
     a.href = url

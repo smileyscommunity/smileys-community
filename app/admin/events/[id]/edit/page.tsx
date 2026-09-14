@@ -258,13 +258,16 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
 
   // Not optimistic: a refused DELETE (403 step-up, 500) used to drop the chip
   // anyway, so the co-host looked removed and was still on the event.
+  // A co-host holding a seat takes it back into the count when removed — on a
+  // full event that's refused until "exceed capacity?" is answered yes.
   async function removeCohost(userId: string) {
     try {
-      const res = await fetch(`/app/api/admin/events/${id}/cohosts`, {
+      const res = await withCapacityConfirm(allowOverCapacity => fetch(`/app/api/admin/events/${id}/cohosts`, {
         method: 'DELETE', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId }),
-      })
+        body: JSON.stringify(allowOverCapacity ? { userId, allowOverCapacity: true } : { userId }),
+      }))
+      if (!res) return
       if (!res.ok) { await toastApiError(res, 'Could not remove co-host'); return }
       setCohosts(prev => prev.filter(c => c.userId !== userId))
     } catch { toast.error('Could not remove co-host — check your connection') }

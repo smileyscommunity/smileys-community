@@ -150,9 +150,10 @@ export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id:
   if (!snapshot) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (!canActInCity(session, snapshot.cityId)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   await prisma.post.delete({ where: { id } })
+  // cityId from the snapshot: the post is gone, so the audit lookup can't find it.
   writeAudit(session.id, session.name, 'post.delete', id, 'post',
     { title: snapshot.title, status: snapshot.status, category: snapshot.category,
-      authorId: snapshot.authorId, publishedAt: snapshot.publishedAt?.toISOString() ?? null },
+      authorId: snapshot.authorId, publishedAt: snapshot.publishedAt?.toISOString() ?? null, cityId: snapshot.cityId },
     `Deleted ${snapshot.status} post "${snapshot.title}" (${snapshot.category})`,
   )
   revalidateTag('posts')

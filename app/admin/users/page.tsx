@@ -12,6 +12,7 @@ import { getInitials, whatsappUrl } from '@/lib/data'
 import { useAuth } from '@/contexts/AuthContext'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import { loadFailure } from '@/lib/admin/useAdminLoad'
+import { membersCsv } from '@/lib/admin/csvExports'
 
 type TabKey = 'all' | 'member' | 'moderator' | 'admin' | 'banned' | 'suspended' | 'inactive' | 'warned' | 'noshows' | 'deleted'
 
@@ -498,15 +499,8 @@ function AdminUsersPageInner() {
   function exportSelected() {
     if (selected.size === 0) return
     const targets = users.filter(u => selected.has(u.id))
-    const headers = ['Name', 'Email', 'Role', 'Status', 'Warnings', 'Nationality', 'Joined', 'Last Active']
-    const rows = targets.map(u => [
-      u.name, u.email, u.role,
-      isSuspended(u) ? 'suspended' : u.status,
-      String(u.warningCount), u.nationality ?? '',
-      new Date(u.joinedAt).toLocaleDateString('en-GB'),
-      u.lastActive ? new Date(u.lastActive).toLocaleDateString('en-GB') : '',
-    ])
-    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
+    // Formula-safe cells: a member can name themselves "=HYPERLINK(…)".
+    const csv = membersCsv(targets, isSuspended)
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
     const a = Object.assign(document.createElement('a'), { href: url, download: 'members-selected.csv' })
     a.click()
@@ -758,15 +752,7 @@ function AdminUsersPageInner() {
           </select>
           <button
             onClick={() => {
-              const headers = ['Name', 'Email', 'Role', 'Status', 'Warnings', 'Nationality', 'Joined', 'Last Active']
-              const rows = visible.map(u => [
-                u.name, u.email, u.role,
-                isSuspended(u) ? 'suspended' : u.status,
-                String(u.warningCount), u.nationality ?? '',
-                new Date(u.joinedAt).toLocaleDateString('en-GB'),
-                u.lastActive ? new Date(u.lastActive).toLocaleDateString('en-GB') : '',
-              ])
-              const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
+              const csv = membersCsv(visible, isSuspended)
               const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
               const a = Object.assign(document.createElement('a'), { href: url, download: 'members.csv' })
               a.click()

@@ -74,8 +74,10 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   // Same rule as PATCH: a global quote is every city's, so admin-only.
   if (!canActOnQuoteCity(session, snapshot.cityId)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   await prisma.testimonial.delete({ where: { id } })
+  // cityId from the snapshot (null for a global quote): the row is gone, so
+  // the audit lookup can't find it.
   writeAudit(session.id, session.name, 'testimonial.delete', id, 'testimonial',
-    { memberName: snapshot.memberName, role: snapshot.role, category: snapshot.category, active: snapshot.active, quotePreview: snapshot.quote.slice(0, 100) },
+    { memberName: snapshot.memberName, role: snapshot.role, category: snapshot.category, active: snapshot.active, quotePreview: snapshot.quote.slice(0, 100), cityId: snapshot.cityId },
     `Deleted testimonial from "${snapshot.memberName}" (${snapshot.category})`,
   )
   return NextResponse.json({ ok: true })

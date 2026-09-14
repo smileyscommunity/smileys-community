@@ -460,7 +460,7 @@ export async function DELETE(_: NextRequest, { params }: Params) {
     const { id } = await params
     if (id === session.id) return NextResponse.json({ error: 'Cannot delete yourself' }, { status: 400 })
 
-    const target = await prisma.user.findUnique({ where: { id }, select: { name: true, email: true } })
+    const target = await prisma.user.findUnique({ where: { id }, select: { name: true, email: true, cityId: true } })
 
     // P1 fix: snapshot every payment row + write a per-payment
     // "deletion" PaymentLog before the user.delete cascade vaporises
@@ -597,8 +597,10 @@ export async function DELETE(_: NextRequest, { params }: Params) {
       }, {}),
       ids:         payments.map(p => p.id),
     }
+    // cityId from the snapshot: the user row is gone, so the audit lookup
+    // can't resolve their home city.
     writeAudit(session.id, session.name, 'user.remove', id, 'user',
-      { name: target?.name, email: target?.email, payments: paymentSummary, retained },
+      { name: target?.name, email: target?.email, cityId: target?.cityId ?? null, payments: paymentSummary, retained },
       `User ${target?.name ?? id} (${target?.email ?? ''}) permanently removed${
         paymentSummary ? ` — ${paymentSummary.count} payment${paymentSummary.count === 1 ? '' : 's'} destroyed (${formatMoney(paymentSummary.totalAmount, payments[0]?.currency)} across ${Object.entries(paymentSummary.byStatus).map(([s, n]) => `${n} ${s}`).join(', ')})` : ''
       }`,

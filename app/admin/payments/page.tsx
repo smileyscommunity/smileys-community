@@ -9,6 +9,7 @@ import { CityBadge, useAdminCities } from '@/components/admin/CitySelect'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { DEFAULT_CURRENCY, formatMoney, currencySymbol } from '@/lib/data'
+import { paymentsCsv } from '@/lib/admin/csvExports'
 
 interface Payment {
   id: string
@@ -308,24 +309,11 @@ function AdminPaymentsPageInner() {
   }, [payments, filter, debouncedSearch, dateFrom, dateTo])
 
   // CSV export of the current visible filter — admins use this to
-  // reconcile against bank statements + accounting. UTF-8 BOM so
-  // Excel doesn't mangle the ₺ symbol on open.
+  // reconcile against bank statements + accounting. paymentsCsv neutralises
+  // formula cells (a member name or note starting with =) and adds the BOM.
   function exportCsv() {
     if (filtered.length === 0) { toast.error('Nothing to export with the current filters'); return }
-    const header = ['Date', 'Member name', 'Email', 'Event', 'Amount', 'Currency', 'Status', 'Method', 'Notes']
-    const rows = filtered.map(p => [
-      new Date(p.createdAt).toISOString(),
-      p.user.name,
-      p.user.email,
-      p.event.title,
-      String(p.amount),
-      p.currency,
-      p.status,
-      p.method,
-      (p.notes ?? '').replace(/\r?\n/g, ' '),
-    ])
-    const escape = (v: string) => `"${v.replace(/"/g, '""')}"`
-    const csv = '﻿' + [header, ...rows].map(r => r.map(escape).join(',')).join('\n')
+    const csv  = paymentsCsv(filtered)
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
     const url  = URL.createObjectURL(blob)
     const a    = document.createElement('a')

@@ -30,7 +30,9 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
 
     await prisma.eventMessage.delete({ where: { id } })
     writeAudit(session.id, session.name, 'message.delete', id, 'eventMessage',
-      { eventId: msg.eventId, userId: msg.userId, preview: msg.message.slice(0, 80) },
+      // The audit resolver has no 'eventMessage' case (and the row is gone):
+      // the event's city is what scopes this row.
+      { eventId: msg.eventId, userId: msg.userId, preview: msg.message.slice(0, 80), cityId: msg.event.cityId },
       `Message deleted: "${msg.message.slice(0, 60)}${msg.message.length > 60 ? '…' : ''}"`,
     )
 

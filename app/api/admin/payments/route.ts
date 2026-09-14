@@ -298,7 +298,7 @@ export async function DELETE(req: NextRequest) {
   const snapshot = await prisma.payment.findUnique({
     where: { id },
     select: { id: true, amount: true, currency: true, status: true, method: true, notes: true, createdAt: true,
-              userId: true, eventId: true, user: { select: { email: true, name: true } }, event: { select: { title: true } } },
+              userId: true, eventId: true, user: { select: { email: true, name: true } }, event: { select: { title: true, cityId: true } } },
   })
   if (!snapshot) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
@@ -322,8 +322,11 @@ export async function DELETE(req: NextRequest) {
     }),
     prisma.payment.delete({ where: { id } }),
   ])
+  // cityId from the snapshot: the audit resolves a payment's city through
+  // the payment row, which is gone by now.
   writeAudit(session.id, session.name, 'payment.delete', id, 'payment',
     {
+      cityId:   snapshot.event.cityId,
       amount:   snapshot.amount,
       currency: snapshot.currency,
       status:   snapshot.status,

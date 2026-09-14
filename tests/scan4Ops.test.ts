@@ -92,7 +92,7 @@ describe('1 reminders sweep releases the claim when the write failed', () => {
     vi.doMock('@/lib/session', () => ({ getSession: vi.fn(async () => null) }))
     vi.doMock('@/lib/city', () => ({ citiesByToday: vi.fn(async () => [{ date: '2026-09-13', cityIds: ['c1'] }]) }))
     vi.doMock('@/lib/eventTime', () => ({ eventStartsAt: () => new Date(Date.now() + 24 * 60 * 60 * 1000) }))
-    vi.doMock('@/lib/noShowPolicy', () => ({ noShowPolicyApplies: () => false, NO_SHOW_CANCELLATION_CUTOFF_HOURS: 12, checkInIsCredible: () => false, isNoShow: () => false }))
+    vi.doMock('@/lib/noShowPolicy', () => ({ noShowPolicyApplies: () => false, NO_SHOW_CANCELLATION_CUTOFF_HOURS: 12, checkInIsCredible: () => false, isNoShow: () => false, eventRunners: () => ({ hostId: null, cohostIds: [], clubHostIds: [] }), noShowExemptionReason: () => null }))
     for (const k of Object.keys(notifyResult)) delete notifyResult[k]
     process.env.CRON_SECRET = 'cron-test-secret'
 
