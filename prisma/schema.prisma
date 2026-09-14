@@ -965,6 +965,7 @@ model EventRecommendation {
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   event     Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, eventId])
   @@index([userId, createdAt])
   @@index([eventId])
   @@map("event_recommendations")
