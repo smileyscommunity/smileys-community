@@ -231,7 +231,7 @@ export default function ContentPage() {
             <div className="rounded-xl bg-zinc-950 border border-zinc-800 p-4">
               <p className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider mb-2">Live, from the database</p>
               <div className="grid grid-cols-3 gap-3 text-sm">
-                <div><span className="text-white font-bold tabular-nums">{live.members.toLocaleString('en-US')}</span> <span className="text-zinc-500">approved members</span></div>
+                <div><span className="text-white font-bold tabular-nums">{live.members.toLocaleString('en-US')}</span> <span className="text-zinc-500">activated members</span></div>
                 <div><span className="text-white font-bold tabular-nums">{live.events.toLocaleString('en-US')}</span> <span className="text-zinc-500">events hosted</span></div>
                 <div><span className="text-white font-bold tabular-nums">{live.clubs.toLocaleString('en-US')}</span> <span className="text-zinc-500">active clubs</span></div>
               </div>

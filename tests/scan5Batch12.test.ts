@@ -213,7 +213,8 @@ describe('48. bulk approve / promote confirm first and report once (already fixe
     const afterAt = body.indexOf('} finally {')
     expect(loopAt).toBeGreaterThan(-1)
     expect(afterAt).toBeGreaterThan(loopAt)
-    expect(body.slice(loopAt, afterAt)).toContain('const res = await fetch(')
+    // The request may go through the batch capacity confirm (scan5Batch34) — still one awaited request per member.
+    expect(body.slice(loopAt, afterAt)).toMatch(/const res = await (fetch\(|sendChecked\(allowOverCapacity => fetch\()/)
     expect(body).not.toMatch(/Promise\.all|\.forEach\(|\.map\(/)
     expect(body.slice(0, afterAt)).not.toContain('toast')
     const summary = body.slice(afterAt)

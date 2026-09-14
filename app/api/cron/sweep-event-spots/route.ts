@@ -105,22 +105,11 @@ async function runSweep() {
     where: { OR: [{ expiresAt: { lt: dayAgo } }, { revokedAt: { lt: dayAgo } }] },
   })
 
-  // First-event recommendations: the block logged a row per card on every
-  // dashboard load. The funnel (admin analytics) reads distinct members, the
-  // click and RSVP stamps, the (member, event) pair for attendance, and each
-  // member's first showing — all carried by the earliest row per pair plus
-  // every stamped row. Unstamped repeats older than a week go.
-  const recommendationsPruned = await prisma.$executeRaw`
-    DELETE FROM event_recommendations r
-    WHERE r."clickedAt" IS NULL AND r."rsvpedAt" IS NULL
-      AND r."createdAt" < now() - interval '7 days'
-      AND EXISTS (
-        SELECT 1 FROM event_recommendations e
-        WHERE e."userId" = r."userId" AND e."eventId" = r."eventId"
-          AND (e."createdAt" < r."createdAt" OR (e."createdAt" = r."createdAt" AND e.id < r.id))
-      )`
+  // Duplicate first-event recommendations moved to their own cron
+  // (app/api/cron/sweep-recommendation-dupes): as the last step here any
+  // earlier failure skipped them, and they never reported on their own.
 
-  return { scanned: events.length, fixed: fixes.length, fixes, clubsScanned: clubs.length, clubsFixed: clubFixes.length, clubFixes, staleRateLimitsPruned: staleLimits.count, staleSessionsPruned: staleSessions.count, recommendationsPruned }
+  return { scanned: events.length, fixed: fixes.length, fixes, clubsScanned: clubs.length, clubsFixed: clubFixes.length, clubFixes, staleRateLimitsPruned: staleLimits.count, staleSessionsPruned: staleSessions.count }
 }
 
 export async function POST(req: NextRequest) {

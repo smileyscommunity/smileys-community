@@ -67,7 +67,11 @@ export async function sendPushToUser(
   payload: { title: string; body: string; link?: string },
 ) {
   const subs = await prisma.pushSubscription.findMany({
-    where:   { userId },
+    // A banned member's devices (account deletion bans too) get nothing: the
+    // ban ended that contact. Filtered through the relation so the check costs
+    // no extra round trip on the hot path. Suspension is decided per type in
+    // lib/notify, which is where the type is known.
+    where:   { userId, user: { status: { notIn: ['banned', 'deleted'] } } },
     orderBy: { createdAt: 'desc' },
     take:    MAX_SUBS_PER_SEND,
   })

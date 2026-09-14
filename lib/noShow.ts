@@ -9,7 +9,7 @@ import {
   CardKind, CardStatus, COUNTING_STATUSES,
   NO_SHOW_PROCESSING_DELAY_HOURS, NO_SHOW_PROCESSING_LOOKBACK_DAYS,
   noShowPolicyApplies, isNoShow, checkInIsCredible, windowStart, NO_SHOW_ROLLING_WINDOW_DAYS, cardKindFor, redCardWindows, restrictionAfterRejectedAppeal,
-  evaluateGate, type GateResult,
+  evaluateGate, type GateResult, eventRunners, noShowExemptionReason,
 } from '@/lib/noShowPolicy'
 
 // ── No-show cards: everything that touches the database ─────────────────────
@@ -138,6 +138,7 @@ export async function settleEvent(eventId: string, now: Date = new Date()): Prom
       status: true, cancelledAt: true, noShowProcessedAt: true,
       city:    { select: { timezone: true } },
       cohosts: { select: { userId: true } },
+      club:    { select: { memberships: { where: { role: 'host', status: 'approved' }, select: { userId: true } } } },
     },
   })
   if (!event) return none
@@ -153,15 +154,19 @@ export async function settleEvent(eventId: string, now: Date = new Date()): Prom
   // late cancels by the member. Pending and removed rows can't be no-shows.
   const attendees = await prisma.eventAttendee.findMany({
     where:  { eventId, status: { in: ['approved', 'cancelled'] } },
-    select: { id: true, userId: true, status: true, checkedIn: true, cancelledAt: true, cancelledBy: true },
+    select: { id: true, userId: true, status: true, checkedIn: true, cancelledAt: true, cancelledBy: true, user: { select: { role: true } } },
   })
-  const staff    = new Set([event.hostId, ...event.cohosts.map(c => c.userId)])
-  const room     = attendees.filter(a => a.status === 'approved' && !staff.has(a.userId))
+  // Exempt: host, co-hosts, the club's hosts, and admins/moderators
+  // (lib/noShowPolicy noShowExemptionReason). The host/co-host-only set
+  // carded a moderator and two club hosts (2026-09 audit).
+  const runners  = eventRunners(event)
+  const exempt   = (a: { userId: string; user?: { role: string } | null }) => noShowExemptionReason(a.userId, a.user?.role, runners) !== null
+  const room     = attendees.filter(a => a.status === 'approved' && !exempt(a))
   const checkIns = room.filter(a => a.checkedIn).length
   if (checkIns === 0) return { ...none, skipped: 'no_checkins' }
   if (!checkInIsCredible(checkIns, room.length)) return { ...none, skipped: 'low_checkin' }
 
-  const noShows  = attendees.filter(a => !staff.has(a.userId) && isNoShow(a, startsAt))
+  const noShows  = attendees.filter(a => !exempt(a) && isNoShow(a, startsAt))
   // "free" in the policy's sense: nothing paid in advance (lib/noShowPolicy).
   const free     = noShowPolicyApplies(event)
 

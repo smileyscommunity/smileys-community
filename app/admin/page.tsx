@@ -17,6 +17,9 @@ interface Stats {
   // Which city these numbers describe; null = every city combined.
   city: { id: string; name: string; slug: string } | null
   totalAccounts: number; members: number; hosts: number
+  // `members` split by activation: approved and set a password, vs approved
+  // and never activated — the public figures count only the first.
+  membersActivated: number; membersNotActivated: number
   events: number; upcoming: number; rsvps: number
   newMembersThisMonth: number
   revenueCollected: number; revenuePending: number; pendingPayments: number
@@ -42,6 +45,9 @@ interface Stats {
   // the city has been live long enough that "just launched" no longer
   // explains the empty calendar.
   stalledCities:    { id: string; slug: string; name: string; members: number; daysLive: number; severity: 'amber' | 'red'; label: string }[]
+  // Postponed events with no new date — seats held on a day that isn't
+  // happening, outside every sweep. Longest-postponed first.
+  postponedNoDate?: { id: string; title: string; emoji: string; date: string; seats: number; pending: number; waitlist: number; paymentsPending: number; daysSincePostponed: number; fromAudit: boolean }[]
   trends: { members: number; rsvps: number; revenue: number }
   hangouts:   {
     active: number; today: number; referencesWeek: number
@@ -288,6 +294,19 @@ export default function AdminPage() {
       label: `${stats.stalledCities.length} live ${stats.stalledCities.length !== 1 ? 'cities' : 'city'} with no upcoming event: ${stats.stalledCities.map(c => c.label).join(' · ')}`,
       href: '/admin/cities',
       color: stats.stalledCities.some(c => c.severity === 'red')
+        ? 'border-red-500/30 bg-red-500/5 text-red-400'
+        : 'border-amber-500/30 bg-amber-500/5 text-amber-400',
+    },
+    // Postponed-with-no-date pill. Nothing automated resolves these (no
+    // auto-cancel, by design); the host is reminded after a week, and this is
+    // where staff see who is still waiting. Red once any has sat two weeks.
+    // One event links straight to its edit page; several to the events list.
+    stats.postponedNoDate && stats.postponedNoDate.length > 0 && {
+      icon: '⏸️',
+      label: `${stats.postponedNoDate.length} postponed event${stats.postponedNoDate.length !== 1 ? 's' : ''} with no new date: ${stats.postponedNoDate.map(e =>
+        `${e.title} · ${e.seats} seat${e.seats !== 1 ? 's' : ''}${e.pending ? ` + ${e.pending} pending` : ''} · ${e.daysSincePostponed}d${e.fromAudit ? '' : '+'}`).join(' · ')}`,
+      href: stats.postponedNoDate.length === 1 ? `/admin/events/${stats.postponedNoDate[0].id}/edit` : '/admin/events?tab=all',
+      color: stats.postponedNoDate.some(e => e.daysSincePostponed >= 14)
         ? 'border-red-500/30 bg-red-500/5 text-red-400'
         : 'border-amber-500/30 bg-amber-500/5 text-amber-400',
     },
@@ -562,8 +581,10 @@ export default function AdminPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {([
           {
-            label: 'Members', value: stats?.members,
-            sub: stats ? `+${stats.newMembersThisMonth} this month` : null,
+            // Activated is what every public "N members" shows; the
+            // approved-but-never-activated half is the funnel leak.
+            label: 'Members (activated)', value: stats?.membersActivated,
+            sub: stats ? `${stats.membersNotActivated} approved, not activated · +${stats.newMembersThisMonth} this month` : null,
             trend: stats?.trends.members,
             icon: '👥', iconBg: 'bg-blue-500/10 text-blue-400',
             href: '/admin/users',

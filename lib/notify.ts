@@ -100,29 +100,97 @@ const PREF_KEY: Record<string, 'newEvents' | 'reminders' | 'eventUpdates' | 'joi
 // Quiet hours are the MEMBER's evening, so the hour is read on their home
 // city's clock — not the founding city's. Hand-built UTC offsets are how
 // this used to work and exactly what lib/cityTime.ts warns against.
-async function inQuietWindow(userId: string, from: number, to: number): Promise<boolean> {
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { cityId: true } })
-  const h = nowInTz(user?.cityId ? await getCityTz(user.cityId) : DEFAULT_TZ).hour
+// `knownCityId` (null = no city) skips the lookup when the recipient row was already read.
+async function inQuietWindow(userId: string, from: number, to: number, knownCityId?: string | null): Promise<boolean> {
+  const cityId = knownCityId !== undefined
+    ? knownCityId
+    : (await prisma.user.findUnique({ where: { id: userId }, select: { cityId: true } }))?.cityId
+  const h = nowInTz(cityId ? await getCityTz(cityId) : DEFAULT_TZ).hour
   // Equal bounds (the preferences route allows them) mean no window, not a
   // 24-hour one: a member who set 22–22 by accident keeps getting pushes.
   if (from === to) return false
   return from > to ? (h >= from || h < to) : (h >= from && h < to)
 }
 
+// ── Who may receive a notification at all ──────────────────────────────────
+//
+// 2026-09 audit: 21 notifications reached a banned member in 30 days. Every
+// caller picks its recipients its own way, so the account is checked here,
+// once, for all of them:
+//   - missing, or banned (account deletion also sets banned): nothing. They
+//     can't sign in to read a bell entry, and a push to their device is the
+//     contact the ban ended.
+//   - suspended (suspendedUntil in the future): still a member, locked out
+//     for now. They keep what concerns their account and the commitments they
+//     already made — warnings, no-show cards, RSVP/waitlist outcomes,
+//     cancellations, event updates, reminders, host messages — waiting for
+//     them when they're back. The social, broadcast and staff-queue pings
+//     below are skipped. A skip list, not an allow list, on purpose: a new
+//     type nobody classified still reaches a suspended member, rather than a
+//     notice about their own account silently vanishing.
+export const SUSPENDED_SKIPPED_TYPES: ReadonlySet<string> = new Set([
+  // broadcasts and discovery
+  'new_event', 'new_hangout', 'new_article', 'availability_pulse', 'pulse_wave',
+  'announcement', 'listing_new', 'visitor_announced', 'connection_suggestion', 'profile_view',
+  // social activity and engagement asks
+  'attendee_joined', 'event_message', 'event_photos', 'review_request', 'event_survey', 'nps_survey',
+  'connection_request', 'connection_accepted', 'message',
+  'club_wall_post', 'club_post_reply', 'club_mention', 'neighborhood_mention',
+  'hangout_join', 'hangout_message', 'hangout_recap',
+  // a freed seat to claim needs a sign-in they don't have
+  'spot_opened',
+  // staff queues: another moderator picks them up
+  'application', 'report', 'directory_submission', 'no_show_appeal',
+])
+
+export interface NotificationRecipient {
+  status:          string | null
+  suspendedUntil?: Date | string | null
+  cityId?:         string | null
+}
+
+export type RecipientSkip = 'missing' | 'banned' | 'suspended'
+
+/** Why this notification must not reach this user — null when it may. */
+export function recipientSkipReason(user: NotificationRecipient | null, type: string, now: Date = new Date()): RecipientSkip | null {
+  if (!user) return 'missing'
+  if (user.status === 'banned' || user.status === 'deleted') return 'banned'
+  if (user.suspendedUntil && new Date(user.suspendedUntil).getTime() > now.getTime() && SUSPENDED_SKIPPED_TYPES.has(type)) return 'suspended'
+  return null
+}
+
+/** null = no such user (Prisma's not-found). undefined = unreadable: fail open and deliver. */
+async function loadRecipient(userId: string): Promise<NotificationRecipient | null | undefined> {
+  try {
+    return await prisma.user.findUnique({ where: { id: userId }, select: { status: true, suspendedUntil: true, cityId: true } })
+  } catch {
+    return undefined
+  }
+}
+
 // Resolves true when the notification was handled — the row written, folded
-// into a bundle, or deliberately skipped because the member muted the type —
-// and false only when the write failed. It still never throws: callers that
+// into a bundle, or deliberately skipped because the member muted the type or
+// the account may not receive it (recipientSkipReason) — and false only when
+// the write failed. It still never throws: callers that
 // ignore the result (or `.catch(() => {})` it) behave exactly as before. The
 // once-only sweeps read it to hand back a claim whose write was lost.
+//
+// `recipient`: a caller already holding the user row (status, suspendedUntil,
+// and cityId if it has it) passes it and saves the lookup.
 export async function createNotification(
   userId: string,
   type: string,
   title: string,
   body: string,
   link?: string,
+  recipient?: NotificationRecipient,
 ): Promise<boolean> {
   try {
     const prefKey = PREF_KEY[type]
+
+    const user = recipient ?? await loadRecipient(userId)
+    // Skipped counts as handled: a sweep must not hand the claim back and retry a banned member forever.
+    if (user !== undefined && recipientSkipReason(user, type)) return true
 
     // Quiet hours suppress only the push ping — the in-app bell entry is still
     // recorded, so a notification sent during a member's quiet window is there
@@ -133,7 +201,7 @@ export async function createNotification(
       const prefs = await prisma.notificationPreference.findUnique({ where: { userId } })
       if (prefs) {
         if (!prefs[prefKey]) return true
-        if (prefs.quietHours && await inQuietWindow(userId, prefs.quietFrom, prefs.quietTo)) suppressPush = true
+        if (prefs.quietHours && await inQuietWindow(userId, prefs.quietFrom, prefs.quietTo, user?.cityId)) suppressPush = true
       }
     }
 

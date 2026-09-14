@@ -566,6 +566,7 @@ echo '  ✓ payment-reminders'
 chmod +x $REMOTE/scripts/db-backup.sh
 (crontab -l 2>/dev/null | grep -v 'db-backup' ; echo '0 2 * * * $REMOTE/scripts/db-backup.sh >> /var/log/db-backup.log 2>&1') | crontab -
 echo '  ✓ db-backup'
+chmod +x $REMOTE/scripts/sweep-recommendation-dupes.sh; (crontab -l 2>/dev/null | grep -v 'sweep-recommendation-dupes' ; echo '47 3 * * * $REMOTE/scripts/sweep-recommendation-dupes.sh >> /var/log/sweep-recommendation-dupes.log 2>&1') | crontab -; echo '  ✓ recommendation-dupes'
 
 # Hourly reminders dispatch — replaces the hand-added crontab line that
 # embedded CRON_SECRET as a literal curl argument (visible in crontab -l,

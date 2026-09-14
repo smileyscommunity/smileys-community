@@ -6,6 +6,7 @@ import { CLUB_CATEGORIES } from '@/lib/data'
 import { slugify } from '@/lib/slug'
 import { resolveTargetCityId } from '@/lib/city'
 import { computeEventSurveyRollup, aggregateRollup } from '@/lib/survey'
+import { COUNTED_CLUB_MEMBERSHIP_WHERE } from '@/lib/clubMemberCount'
 
 // GET /api/admin/clubs
 //
@@ -61,6 +62,16 @@ export async function GET(req: NextRequest) {
     })
     const pendingMap = new Map<string, number>(pendingByClub.map((r: any) => [r.clubId, r._count._all] as [string, number]))
 
+    // Approved, non-banned hosts per club. A club with none has nobody who
+    // can see its join requests from the club side — the list flags those
+    // (99 active clubs at the 2026-09 audit) and /admin/club-requests queues them.
+    const hostsByClub = clubIds.length === 0 ? [] : await prisma.clubMembership.groupBy({
+      by: ['clubId'],
+      where: { ...COUNTED_CLUB_MEMBERSHIP_WHERE, role: 'host', clubId: { in: clubIds } },
+      _count: { _all: true },
+    })
+    const hostMap = new Map<string, number>(hostsByClub.map((r: any) => [r.clubId, r._count._all] as [string, number]))
+
     // Quality rollup. Pull every published/archived event id in
     // one go, batch through computeEventSurveyRollup, then
     // aggregate per-club via the same helper /admin/clubs/[id]
@@ -85,6 +96,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(clubs.map((c: any) => ({
       ...c,
       pendingCount: pendingMap.get(c.id) ?? 0,
+      hostCount:    hostMap.get(c.id) ?? 0,
       quality:      qualityByClub.get(c.id) ?? null,
     })))
   } catch (e) {

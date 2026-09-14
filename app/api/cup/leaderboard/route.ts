@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { ACTIVATED_MEMBER_WHERE } from '@/lib/memberCount'
 import { getSession } from '@/lib/session'
 import { restrictedSetFor } from '@/lib/memberPrivacy'
 import { firstNameOf } from '@/lib/data'
@@ -70,7 +71,8 @@ export async function GET(req: Request) {
     prisma.cupBracketPick.findMany({
       select: { userId: true, pointsAwarded: true, submittedAt: true },
     }),
-    prisma.user.count({ where: { status: 'approved' } }),
+    // "0 of N members playing" — only activated members can play at all.
+    prisma.user.count({ where: ACTIVATED_MEMBER_WHERE }),
   ])
 
   // Build a per-user accumulator.

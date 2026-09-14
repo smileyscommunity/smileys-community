@@ -5,6 +5,7 @@ import { createNotification } from '@/lib/notify'
 import { writeAudit } from '@/lib/audit'
 import { rateLimit } from '@/lib/rateLimit'
 import { UserStatus } from '@/lib/constants'
+import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 
 async function canManage(session: { id: string; role: string } | null, eventId: string) {
   if (!session) return false
@@ -56,7 +57,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const userId = await readUserId(req)
     if (!userId) return NextResponse.json({ error: 'userId required' }, { status: 400 })
 
-    const event = await prisma.event.findUnique({ where: { id }, select: { title: true, hostId: true } })
+    const event = await prisma.event.findUnique({ where: { id }, select: { title: true, hostId: true, totalSpots: true } })
     if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
     if (event.hostId === userId) return NextResponse.json({ error: 'Already the main host' }, { status: 400 })
 
@@ -72,6 +73,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       update: {},
       include: { user: { select: { id: true, name: true, color: true, profilePhoto: true } } },
     })
+    // A co-host takes no seat (lib/spotsLeft), so an attendee made co-host
+    // frees one — and one removed as co-host takes one back. The counter the
+    // RSVP gate reads was left as it was, and a stale-high one seated a member
+    // past the cap.
+    await recomputeSpotsLeft(id, event.totalSpots).catch(err =>
+      console.error('[cohosts POST] spotsLeft recompute failed', { eventId: id, err: String(err) }))
 
     await createNotification(
       userId,
@@ -108,9 +115,12 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
     const [user, event] = await Promise.all([
       prisma.user.findUnique({ where: { id: userId }, select: { name: true } }),
-      prisma.event.findUnique({ where: { id }, select: { title: true } }),
+      prisma.event.findUnique({ where: { id }, select: { title: true, totalSpots: true } }),
     ])
     await prisma.eventCoHost.deleteMany({ where: { eventId: id, userId } })
+    // See POST: their seat counts again now.
+    if (event) await recomputeSpotsLeft(id, event.totalSpots).catch(err =>
+      console.error('[cohosts DELETE] spotsLeft recompute failed', { eventId: id, err: String(err) }))
     writeAudit(session.id, session.name, 'event.cohost_remove', userId, 'user',
       { eventId: id, eventTitle: event?.title, userName: user?.name },
       `Removed ${user?.name ?? userId} as co-host of "${event?.title ?? id}"`,

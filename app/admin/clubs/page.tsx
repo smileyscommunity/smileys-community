@@ -98,6 +98,8 @@ interface Club {
   // city is null for a global club — listed in every city, owned by none.
   city?: { name: string; slug: string } | null
   pendingCount?: number
+  // Approved, non-banned hosts. 0 = nobody can answer the club's requests.
+  hostCount?: number
   quality?: {
     eventsTracked:   number
     totalResponses:  number
@@ -217,7 +219,7 @@ export default function AdminClubsPage() {
   // clubs listed everywhere (Culture and Language etc.).
   const [cityFilter, setCityFilter] = useState('')
   const cities = useAdminCities()
-  const [statusFilter,   setStatusFilter]   = useState<'all' | 'active' | 'inactive' | 'with-pending'>('all')
+  const [statusFilter,   setStatusFilter]   = useState<'all' | 'active' | 'inactive' | 'with-pending' | 'no-host'>('all')
 
   // Two-stage destructive confirms — Delete is permanent (cascades
   // to events), Deactivate is recoverable but notifies members.
@@ -442,6 +444,10 @@ export default function AdminClubsPage() {
   const totalClubs   = clubList.length
   const activeCount  = clubList.filter(c => c.isActive).length
   const pendingTotal = clubList.reduce((s, c) => s + (c.pendingCount ?? 0), 0)
+  // Active clubs with no approved host — nobody can answer their join
+  // requests from the club side. hostCount undefined (older API) never flags.
+  const isHostless = (c: Club) => c.isActive && c.hostCount === 0
+  const hostlessCount = clubList.filter(isHostless).length
 
   // Filtered list — search hits name + description + slug; category
   // dropdown filters exactly; status pills filter active/inactive/
@@ -455,6 +461,7 @@ export default function AdminClubsPage() {
     if (statusFilter === 'active'       && !c.isActive)              return false
     if (statusFilter === 'inactive'     &&  c.isActive)              return false
     if (statusFilter === 'with-pending' && (c.pendingCount ?? 0) === 0) return false
+    if (statusFilter === 'no-host'      && !isHostless(c))           return false
     if (search.trim()) {
       const q = search.trim().toLowerCase()
       const hay = `${c.name} ${c.description} ${c.slug}`.toLowerCase()
@@ -559,12 +566,12 @@ export default function AdminClubsPage() {
             </select>
           )}
           <div className="flex gap-1 bg-zinc-800 rounded-xl p-1 border border-zinc-700">
-            {(['all', 'active', 'inactive', 'with-pending'] as const).map(s => (
+            {(['all', 'active', 'inactive', 'with-pending', 'no-host'] as const).map(s => (
               <button key={s} onClick={() => setStatusFilter(s)}
                 className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors ${
                   statusFilter === s ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-white'
                 }`}>
-                {s === 'with-pending' ? 'Pending' : s.charAt(0).toUpperCase() + s.slice(1)}
+                {s === 'with-pending' ? 'Pending' : s === 'no-host' ? `No host${hostlessCount ? ` (${hostlessCount})` : ''}` : s.charAt(0).toUpperCase() + s.slice(1)}
               </button>
             ))}
           </div>
@@ -643,6 +650,13 @@ export default function AdminClubsPage() {
                       )}
                       {club.isPrivate && <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-400">Private</span>}
                       {!club.isActive && <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-500/10 text-red-400">Inactive</span>}
+                      {isHostless(club) && (
+                        <Link href="/admin/club-requests"
+                          className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/20 transition-colors"
+                          title="No approved host — its join requests are answered from Club requests">
+                          No host
+                        </Link>
+                      )}
                       {/* Pending badge — the difference between
                           "missed 5 join requests for a week" and
                           "I saw that, I'll triage it now." */}

@@ -7,6 +7,8 @@ import { postCityScope } from '@/lib/postScope'
 import { getSession } from '@/lib/session'
 import { resolveCityId, getCityConfig } from '@/lib/city'
 import { getStatsFor } from '@/lib/cities'
+import { ACTIVATED_MEMBER_WHERE } from '@/lib/memberCount'
+import { countedReferralsWhere } from '@/lib/referrals'
 import { CITY_MATURITY } from '@/lib/cityMaturity'
 import { CITY_STATUS } from '@/lib/cityStatus'
 import { DISCOVER_LINKS } from '@/lib/navLinks'
@@ -177,9 +179,11 @@ export default async function DashboardPage() {
   // partner accounts. The old role IN ['member','moderator'] filter excluded
   // hosts — so a host-role user in a seeding city passed every gate but
   // wasn't counted in their own rank and saw "member #0".
+  // Activated only (lib/memberCount) — the same rule as getStatsFor, or the
+  // gate and the maturity it guards disagree again.
   const MEMBER_ROLES = { notIn: ['admin', 'partner'] }
   const cityMemberCount = await prisma.user.count({
-    where: { cityId, status: 'approved', role: MEMBER_ROLES },
+    where: { ...ACTIVATED_MEMBER_WHERE, cityId, role: MEMBER_ROLES },
   })
   let founding: { cityName: string; rank: number; total: number; firstName: string } | null = null
   // Only for a member whose OWN city is seeding, and only once that city is
@@ -194,10 +198,10 @@ export default async function DashboardPage() {
   if (city.status === CITY_STATUS.Live && cityMemberCount < 150 && cityId === session.cityId) {
     const stats = (await getStatsFor([cityId])).get(cityId)
     if (stats?.maturity === CITY_MATURITY.Seeding && userProfile?.joinedAt) {
-      // This member's join position in the city — count of approved members
+      // This member's join position in the city — count of activated members
       // who joined no later than they did.
       const rank = await prisma.user.count({
-        where: { cityId, status: 'approved', role: MEMBER_ROLES, joinedAt: { lte: userProfile.joinedAt } },
+        where: { ...ACTIVATED_MEMBER_WHERE, cityId, role: MEMBER_ROLES, joinedAt: { lte: userProfile.joinedAt } },
       })
       founding = { cityName: city.name, rank: Math.max(1, rank), total: cityMemberCount, firstName: firstNameOf(session.name) }
     }
@@ -480,7 +484,8 @@ export default async function DashboardPage() {
     (async () => {
       if (!userProfile?.referralCode) return { friends: 0, events: 0 }
       const apps = await prisma.memberApplication.findMany({
-        where: { referredBy: userProfile.referralCode, status: 'approved' },
+        // Same rule as the invite page and profile badge (lib/referrals).
+        where: countedReferralsWhere(userProfile.referralCode),
         select: { email: true }
       })
       if (!apps.length) return { friends: 0, events: 0 }
@@ -529,7 +534,8 @@ export default async function DashboardPage() {
       take: 20,
       select: { id: true, title: true, date: true, emoji: true, neighborhood: true, price: true, currency: true },
     }),
-    prisma.user.count({ where: { cityId, status: 'approved' } }),
+    // "Total members" — activated only (lib/memberCount).
+    prisma.user.count({ where: { ...ACTIVATED_MEMBER_WHERE, cityId } }),
     prisma.event.count({ where: { cityId, date: { gte: today, lte: weekEndStr }, status: 'published' } }),
     userProfile?.neighborhood
       ? prisma.event.count({ where: { cityId, neighborhood: userProfile.neighborhood, date: { gte: today }, status: 'published' } })

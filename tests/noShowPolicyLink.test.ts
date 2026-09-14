@@ -13,6 +13,8 @@ vi.mock('resend', () => ({
     emails = { send: async (m: { subject: string; html: string }) => { sent.push(m); return { data: null, error: null } } }
   },
 }))
+// lib/email's recipient guard reads the user table; nobody here is banned.
+vi.mock('@/lib/prisma', () => ({ prisma: { user: { findMany: async () => [] } } }))
 vi.mock('@/lib/unsubscribe', () => ({
   unsubscribeUrl:         () => 'https://example.test/unsub',
   oneClickUnsubscribeUrl: () => 'https://example.test/unsub-1c',

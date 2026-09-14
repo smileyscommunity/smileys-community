@@ -29,8 +29,13 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (!cardId) return NextResponse.json({ error: 'cardId required' }, { status: 400 })
     if (reason.length < 3) return NextResponse.json({ error: 'A short reason is required' }, { status: 400 })
 
-    const card = await prisma.noShowCard.findUnique({ where: { id: cardId }, select: { eventId: true } })
+    const card = await prisma.noShowCard.findUnique({ where: { id: cardId }, select: { eventId: true, userId: true } })
     if (!card || card.eventId !== eventId) return NextResponse.json({ error: 'Card not found' }, { status: 404 })
+    // Door authority is not self-clearance: a club host or moderator holding
+    // a card from this event can't waive it for themselves.
+    if (card.userId === session.id) {
+      return NextResponse.json({ error: 'Someone else has to clear your own card', code: 'conflict_of_interest' }, { status: 403 })
+    }
 
     const outcome = await waiveCard({ cardId, actor: { id: session.id, name: session.name }, reason })
     if (outcome === 'not_found')    return NextResponse.json({ error: 'Card not found' }, { status: 404 })

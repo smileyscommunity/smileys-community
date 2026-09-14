@@ -15,6 +15,7 @@ import { getRsvpGate, gateErrorBody } from '@/lib/noShow'
 import { CardStatus } from '@/lib/noShowPolicy'
 import { DEFAULT_CURRENCY } from '@/lib/data'
 import { rateLimit } from '@/lib/rateLimit'
+import { lockEventRow, seatState, seatVerdict, overCapacityBody, wantsOverCapacity } from '@/lib/eventCapacity'
 
 // Who is taking the member off the event, for the soft-cancel stamp.
 // Everyone past canManageEventOps who isn't an admin is some kind of host.
@@ -270,19 +271,31 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       // the approval path is careful to enforce. Order still decides who goes
       // first; the quota decides who is eligible.
       const next = eventRow ? await findPromotableFromWaitlist(eventId, eventRow) : null
-      if (next && eventRow) {
-        await prisma.$transaction(async (tx) => {
-          await tx.waitlistEntry.delete({ where: { id: next.id } })
-          await activateAttendee(tx, { userId: next.userId, eventId, status: 'approved' })
-          // A promoted seat owes what any seat owes (lib/rsvpConfirmed).
-          await createSeatPayment(tx, eventId, eventRow, next.userId)
+      if (eventRow) {
+        const promoted = await prisma.$transaction(async (tx) => {
+          await lockEventRow(tx, eventId)
+          // Removing one seat from an event already over its cap frees nothing:
+          // promoting into it kept the event over (12/10 → remove → promote →
+          // 12/10). Only a seat that is really free is handed on.
+          const seats = next ? await seatState(tx, eventId) : null
+          const room  = !!next && (!seats || seatVerdict(seats).ok)
+          if (next && room) {
+            await tx.waitlistEntry.delete({ where: { id: next.id } })
+            await activateAttendee(tx, { userId: next.userId, eventId, status: 'approved' })
+            // A promoted seat owes what any seat owes (lib/rsvpConfirmed).
+            await createSeatPayment(tx, eventId, eventRow, next.userId)
+          }
+          // Recompute in every branch, under the lock — the blind increment
+          // could creep past totalSpots on repeated remove cycles, and a
+          // counter written after commit let a member RSVP read the stale one.
+          await recomputeSpotsLeft(eventId, seats?.totalSpots ?? eventRow.totalSpots, tx)
+          return room
         })
-        createNotification(next.userId, 'waitlist_promoted', 'Spot available! 🎉',
-          `A spot opened up for "${eventRow?.title}" — you're in!`, `/events/${eventId}`)
+        if (next && promoted) {
+          createNotification(next.userId, 'waitlist_promoted', 'Spot available! 🎉',
+            `A spot opened up for "${eventRow?.title}" — you're in!`, `/events/${eventId}`)
+        }
       }
-      // Recompute in every branch — the blind increment could creep past
-      // totalSpots on repeated remove cycles; recompute clamps both ends.
-      if (eventRow) await recomputeSpotsLeft(eventId, eventRow.totalSpots)
     }
 
     return NextResponse.json({ ok: true })
@@ -304,7 +317,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (!await canManageEventOps(session.id, session.role, eventId)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
-    const { userId, action } = await req.json().catch(() => ({}))
+    const body = await req.json().catch(() => ({}))
+    const { userId, action } = body
     // An unknown action used to fall through every branch and answer 200 —
     // a typo'd client looked like it worked.
     if (!PATCH_ACTIONS.includes(action)) {
@@ -421,9 +435,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       // the same approved seats, and three men approved at once onto the last
       // men's spot all got in.
       const WAITLIST_NOTE = { turkish_male_quota: 'Turkish male spots', male_quota: 'Male spots', female_quota: 'Female spots' } as const
+      let capacity: { approved: number; totalSpots: number } | null = null
       const quotaFull = await prisma.$transaction(async tx => {
-        await tx.$queryRaw`SELECT id FROM events WHERE id = ${eventId} FOR UPDATE`
-        let full: keyof typeof WAITLIST_NOTE | null = null
+        await lockEventRow(tx, eventId)
+        let full: keyof typeof WAITLIST_NOTE | 'over_capacity' | null = null
         if (event?.turkishMaleQuota && isMale && isTurkish) {
           const n = await tx.eventAttendee.count({
             where: { eventId, status: 'approved', user: { gender: { in: MALE_VARIANTS }, nationality: { in: TURKEY_VARIANTS } } },
@@ -456,6 +471,15 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           })
           return full
         }
+        // The cap, counted under the lock. Approving had no seat check at all —
+        // the balance rules above were the only limit. Refused unless the page
+        // confirmed going over (lib/admin/overCapacity); a co-host takes no seat.
+        const seats = await seatState(tx, eventId)
+        const verdict = seats && !seats.staffIds.includes(userId) ? seatVerdict(seats) : { ok: true as const }
+        if (!verdict.ok && !wantsOverCapacity(body)) {
+          capacity = verdict
+          return 'over_capacity'
+        }
         await tx.eventAttendee.update({
           where: { userId_eventId: { userId, eventId } },
           data: { status: 'approved' },
@@ -465,17 +489,21 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         // after they asked) — the seat then owed nothing. A surviving row is
         // left as it is (lib/rsvpConfirmed).
         if (event) await createSeatPayment(tx, eventId, event, userId)
+        // Recompute, never a blind decrement, and inside the lock: written
+        // after commit, a member's RSVP could still read the old counter and
+        // take the seat this approval just filled.
+        if (event) await recomputeSpotsLeft(eventId, seats?.totalSpots ?? event.totalSpots, tx)
         return null
       })
+      if (quotaFull === 'over_capacity') {
+        return NextResponse.json(overCapacityBody(capacity!), { status: 409 })
+      }
       if (quotaFull) {
         createNotification(userId, 'waitlist', 'Added to waitlist 📋',
           `${WAITLIST_NOTE[quotaFull]} for "${event?.title}" are full — you're on the waitlist.`, `/events/${eventId}`)
         return NextResponse.json({ ok: true, status: 'waitlisted', reason: quotaFull })
       }
 
-      // Recompute, never a blind decrement — approving into a full event
-      // used to push spotsLeft negative until the nightly sweep clamped it.
-      if (event) await recomputeSpotsLeft(eventId, event.totalSpots)
       autoJoinClub(userId, eventId).catch(() => {})
       createNotification(userId, 'rsvp', 'You\'re in! 🎉', `Your request for "${event?.title}" has been approved.`, `/events/${eventId}`)
       if (user?.email && event) {
@@ -580,7 +608,8 @@ export async function PUT(req: NextRequest, { params }: Params) {
     if (!await canManageEventOps(session.id, session.role, eventId)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
-    const { userId } = await req.json().catch(() => ({}))
+    const body = await req.json().catch(() => ({}))
+    const { userId } = body
     if (typeof userId !== 'string' || !userId) return NextResponse.json({ error: 'userId required' }, { status: 400 })
 
     const event = await prisma.event.findUnique({
@@ -610,17 +639,24 @@ export async function PUT(req: NextRequest, { params }: Params) {
     const quotaBlock = await quotaBlockFor(eventId, event, userId)
     if (quotaBlock) return quotaBlock
 
-    await prisma.$transaction(async (tx) => {
+    // A seat added by hand is a seat against the cap too — counted under the
+    // lock, refused past it unless the page confirmed (lib/eventCapacity).
+    const added = await prisma.$transaction(async (tx) => {
+      await lockEventRow(tx, eventId)
+      const seats = await seatState(tx, eventId)
+      const verdict = seats && !seats.staffIds.includes(userId) ? seatVerdict(seats) : { ok: true as const }
+      if (!verdict.ok && !wantsOverCapacity(body)) return verdict
       await tx.waitlistEntry.deleteMany({ where: { eventId, userId } })
       await activateAttendee(tx, { userId, eventId, status: 'approved' })
       // A seat added by hand owed nothing on the ledger; it owes what a
       // member's own RSVP owes (lib/rsvpConfirmed).
       await createSeatPayment(tx, eventId, event, userId)
+      // Recompute, never a blind decrement — and under the lock, so a member
+      // RSVP can't take this seat again off the old counter.
+      await recomputeSpotsLeft(eventId, seats?.totalSpots ?? event.totalSpots, tx)
+      return { ok: true as const }
     })
-    // Recompute, never a blind decrement: an admin adding to an already-full
-    // event used to push spotsLeft negative until the nightly sweep clamped
-    // it. Recompute derives from the rows just written and clamps at 0.
-    await recomputeSpotsLeft(eventId, event.totalSpots)
+    if (!added.ok) return NextResponse.json(overCapacityBody(added), { status: 409 })
 
     autoJoinClub(userId, eventId).catch(() => {})
     createNotification(userId, 'rsvp', 'You\'re in! 🎉',
@@ -645,7 +681,8 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (!await canManageEventOps(session.id, session.role, eventId)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
-    const { userId } = await req.json().catch(() => ({}))
+    const body = await req.json().catch(() => ({}))
+    const { userId } = body
     // Prisma drops an undefined filter: without this, an empty body deleted
     // the whole waitlist and revived every cancelled row on the event.
     if (typeof userId !== 'string' || !userId) {
@@ -680,14 +717,21 @@ export async function POST(req: NextRequest, { params }: Params) {
     const quotaBlock = await quotaBlockFor(eventId, eventMeta, userId)
     if (quotaBlock) return quotaBlock
 
-    await prisma.$transaction(async (tx) => {
+    // Same cap rule as the add above: a promotion is a seat.
+    const promoted = await prisma.$transaction(async (tx) => {
+      await lockEventRow(tx, eventId)
+      const seats = await seatState(tx, eventId)
+      const verdict = seats && !seats.staffIds.includes(userId) ? seatVerdict(seats) : { ok: true as const }
+      if (!verdict.ok && !wantsOverCapacity(body)) return verdict
       await tx.waitlistEntry.deleteMany({ where: { eventId, userId } })
       await activateAttendee(tx, { userId, eventId, status: 'approved' })
       // Same ledger row as the add above.
       await createSeatPayment(tx, eventId, eventMeta, userId)
+      // Recompute, never a blind decrement — see the PUT add-attendee path.
+      await recomputeSpotsLeft(eventId, seats?.totalSpots ?? eventMeta.totalSpots, tx)
+      return { ok: true as const }
     })
-    // Recompute, never a blind decrement — see the PUT add-attendee path.
-    await recomputeSpotsLeft(eventId, eventMeta.totalSpots)
+    if (!promoted.ok) return NextResponse.json(overCapacityBody(promoted), { status: 409 })
     autoJoinClub(userId, eventId).catch(() => {})
 
     return NextResponse.json({ ok: true })

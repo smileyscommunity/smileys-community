@@ -10,6 +10,7 @@ import { loadFailure } from '@/lib/admin/useAdminLoad'
 import { useAdminCities } from '@/components/admin/CitySelect'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { DEFAULT_TZ } from '@/lib/cityTime'
+import { REVIEW_CONFLICT_MESSAGE, type ReviewConflict } from '@/lib/noShowPolicy'
 
 // No-show cards inbox. Default view is what needs a decision: red cards
 // under appeal. Accept clears the card; reject re-arms the block (from the
@@ -24,6 +25,8 @@ interface Card {
   waivedAt: string | null; waiveReason: string | null; resolutionNote: string | null
   user:  { id: string; name: string; email: string }
   event: { id: string; title: string; emoji: string; date: string; cityId?: string }
+  // Set when the viewer may not judge this card (their own, or an event they run).
+  conflict?: ReviewConflict | null
 }
 
 type View = 'appeal_pending' | 'active' | 'all'
@@ -130,6 +133,11 @@ export default function AdminNoShowsPage() {
                   {c.resolutionNote && <p className="text-xs text-zinc-400 mt-2">Resolution: {c.resolutionNote}</p>}
                 </div>
                 <div className="flex gap-2 shrink-0">
+                  {c.conflict ? (
+                    (c.status === 'appeal_pending' || c.status === 'active') && (
+                      <p className="text-xs text-amber-400 max-w-[14rem]">{REVIEW_CONFLICT_MESSAGE[c.conflict]}</p>
+                    )
+                  ) : <>
                   {c.status === 'appeal_pending' && (
                     <>
                       <button onClick={() => resolve(c, 'accept')} disabled={busy === c.id}
@@ -142,6 +150,7 @@ export default function AdminNoShowsPage() {
                     <button onClick={() => resolve(c, 'overturn')} disabled={busy === c.id}
                       className="px-3 py-1.5 rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700 text-xs font-semibold disabled:opacity-40">Overturn</button>
                   )}
+                  </>}
                 </div>
               </div>
             </div>

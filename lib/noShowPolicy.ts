@@ -62,6 +62,73 @@ export type CardStatus = typeof CardStatus[keyof typeof CardStatus]
 /** Statuses that still count as a no-show in the rolling window. */
 export const COUNTING_STATUSES: string[] = [CardStatus.Active, CardStatus.AppealPending, CardStatus.Expired]
 
+// ── Who is never carded, and who may not judge a card ───────────────────────
+//
+// "Staff are never no-shows" used to mean the event's host and co-hosts only.
+// The 2026-09 audit found a moderator's own card activated and cards issued to
+// the club hosts running the event. One rule now: the people running the
+// event (host, co-hosts, approved hosts of its club) and platform staff
+// (admins, moderators) are exempt — never carded, and not counted in the
+// check-in ratio's room. A 'host' ROLE alone is not staff: a host attending
+// someone else's event as a member is carded like any member.
+
+export const NO_SHOW_STAFF_ROLES: readonly string[] = ['admin', 'moderator']
+
+/** Who runs an event, for the exemption and conflict rules. */
+export interface EventRunners {
+  hostId:      string | null
+  cohostIds:   string[]
+  clubHostIds: string[]
+}
+
+/** EventRunners from the usual Prisma shape; a missing event runs nobody. */
+export function eventRunners(e: {
+  hostId?: string | null
+  cohosts?: { userId: string }[] | null
+  club?: { memberships?: { userId: string }[] | null } | null
+} | null | undefined): EventRunners {
+  return {
+    hostId:      e?.hostId ?? null,
+    cohostIds:   (e?.cohosts ?? []).map(c => c.userId),
+    clubHostIds: (e?.club?.memberships ?? []).map(m => m.userId),
+  }
+}
+
+export type RunnerRole = 'event_host' | 'event_cohost' | 'club_host'
+export type ExemptionReason = RunnerRole | 'staff'
+
+function runnerRole(userId: string, e: EventRunners): RunnerRole | null {
+  if (e.hostId && userId === e.hostId) return 'event_host'
+  if (e.cohostIds.includes(userId))    return 'event_cohost'
+  if (e.clubHostIds.includes(userId))  return 'club_host'
+  return null
+}
+
+/** Why this attendee can never get a card for this event — null when they can. */
+export function noShowExemptionReason(userId: string, role: string | null | undefined, e: EventRunners): ExemptionReason | null {
+  return runnerRole(userId, e) ?? (role && NO_SHOW_STAFF_ROLES.includes(role) ? 'staff' : null)
+}
+
+export type ReviewConflict = 'own_card' | RunnerRole
+
+/**
+ * May this reviewer accept, reject or overturn this card? Not their own, and
+ * not one from an event they run: the door they ran is the evidence being
+ * judged. Applies to admins too. The host's own route is the waiver on the
+ * participants page, which is audited as a waiver.
+ */
+export function reviewConflict(reviewerId: string, card: { userId: string }, e: EventRunners): ReviewConflict | null {
+  if (card.userId === reviewerId) return 'own_card'
+  return runnerRole(reviewerId, e)
+}
+
+export const REVIEW_CONFLICT_MESSAGE: Record<ReviewConflict, string> = {
+  own_card:     'Another admin or moderator has to resolve your own card',
+  event_host:   'You host this event — another admin or moderator has to resolve its cards',
+  event_cohost: 'You co-host this event — another admin or moderator has to resolve its cards',
+  club_host:    "You host this event's club — another admin or moderator has to resolve its cards",
+}
+
 /**
  * Was check-in run well enough to read an unchecked seat as a no-show?
  * At least one scan, and at least the policy share of the room.

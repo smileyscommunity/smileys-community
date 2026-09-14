@@ -74,6 +74,16 @@ export async function GET() {
   return NextResponse.json(history)
 }
 
+// Club pages live at /clubs/<slug>. Broadcasts linked `/clubs/<clubId>` until
+// 2026-09-14, so every club broadcast's notification opened a 404 — and the
+// edit below still has to find those older rows by the id form (`legacy`).
+async function broadcastLink(eventId: string | null | undefined, clubId: string | null | undefined): Promise<{ link?: string; legacy?: string }> {
+  if (eventId) return { link: `/events/${eventId}` }
+  if (!clubId) return {}
+  const club = await prisma.club.findUnique({ where: { id: clubId }, select: { slug: true } })
+  return { link: club ? `/clubs/${club.slug}` : undefined, legacy: `/clubs/${clubId}` }
+}
+
 // PATCH /api/admin/notifications/broadcast — edit a sent broadcast.
 // Admin-only. Updates the Broadcast record AND every matching in-app
 // notification row: fan-out rows don't carry a broadcast FK, so the
@@ -101,7 +111,8 @@ export async function PATCH(req: NextRequest) {
   // Broadcast row is written (so `lte b.createdAt`), and starts after the
   // previous identical send's row was (or at most EDIT_WINDOW_MS earlier).
   const notifType = b.type === 'alert' ? 'system_alert' : 'announcement'
-  const link      = b.eventId ? `/events/${b.eventId}` : b.clubId ? `/clubs/${b.clubId}` : null
+  const { link: current, legacy } = await broadcastLink(b.eventId, b.clubId)
+  const link      = legacy ? { in: [current, legacy].filter((l): l is string => !!l) } : (current ?? null)
   const previous  = await prisma.broadcast.findFirst({
     where:   { id: { not: b.id }, title: b.title, message: b.message, clubId: b.clubId, eventId: b.eventId, createdAt: { lte: b.createdAt } },
     orderBy: { createdAt: 'desc' },
@@ -135,7 +146,6 @@ export async function POST(req: NextRequest) {
   }
 
   const notifType = type === 'alert' ? 'system_alert' : 'announcement'
-  const link      = eventId ? `/events/${eventId}` : clubId ? `/clubs/${clubId}` : undefined
   const isEmail   = channel === 'email'
 
   // `audience === 'city'` → every approved member of one city. Validated for
@@ -257,6 +267,9 @@ export async function POST(req: NextRequest) {
   // In-app notification for the whole audience (email channel included).
   // createNotification resolves false on a failed write rather than throwing,
   // so a success is a fulfilled `true`, not merely a settled promise.
+  // Resolved here, after every refusal, so the club lookup never runs for a
+  // send that is turned away. A vanished club gets no link rather than a 404.
+  const { link } = await broadcastLink(eventId, clubId)
   const notifyResults = await inChunks(dedup, u => createNotification(u.id, notifType, title.trim(), message.trim(), link))
   const notified = notifyResults.filter(r => r.status === 'fulfilled' && r.value === true).length
 

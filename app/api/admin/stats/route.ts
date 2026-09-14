@@ -6,6 +6,8 @@ import { todayInTz, DEFAULT_TZ, fromWallClockInTz } from '@/lib/cityTime'
 import { getCityTz } from '@/lib/city'
 import { listStaleSweepers } from '@/lib/cronHealth'
 import { stalledLiveCities, stalledSeverity, describeStalled } from '@/lib/cityOps'
+import { loadPostponedEvents, planPostponed } from '@/lib/postponedEvents'
+import { ACTIVATED_MEMBER_WHERE, NOT_ACTIVATED_MEMBER_WHERE } from '@/lib/memberCount'
 
 export async function GET(req: Request) {
   const session = await getSession()
@@ -60,7 +62,7 @@ export async function GET(req: Request) {
   }
 
   const [
-    totalAccounts, members, hosts, events, rsvps,
+    totalAccounts, members, membersActivated, membersNotActivated, hosts, events, rsvps,
     pendingApplications, pendingReports, upcoming,
     newMembersThisMonth, prevMembersMonth,
     rsvpsThisMonth, prevRsvpsMonth,
@@ -74,6 +76,10 @@ export async function GET(req: Request) {
   ] = await Promise.all<any>([
     prisma.user.count({ where: { role: { not: 'admin' }, ...inCity } }),
     prisma.user.count({ where: { status: 'approved', role: { in: ['member', 'moderator'] }, ...inCity } }),
+    // The same members split by activation (lib/memberCount): activated is what
+    // every public figure shows; the rest approved and never set a password.
+    prisma.user.count({ where: { ...ACTIVATED_MEMBER_WHERE, role: { in: ['member', 'moderator'] }, ...inCity } }),
+    prisma.user.count({ where: { ...NOT_ACTIVATED_MEMBER_WHERE, role: { in: ['member', 'moderator'] }, ...inCity } }),
     // Scoped by the host's own city rather than the club's: a global club
     // (cityId null) has no city to attribute its hosts to, and this metric
     // sits next to `members` — both should mean "people in this city".
@@ -213,12 +219,18 @@ export async function GET(req: Request) {
   // event is a city where a new member can join and find nothing to do —
   // the one failure mode the status flag cannot see. Scoped to ?city= when
   // the dashboard is; otherwise every live city.
-  const [emailFailures24h, staleSweepers, stalled] = await Promise.all([
+  //
+  // Postponed events with no new date sit outside every sweep, seats and all
+  // (lib/postponedEvents). A failed lookup costs the pill, not the dashboard.
+  const [emailFailures24h, staleSweepers, stalled, postponed] = await Promise.all([
     prisma.emailFailure.count({
       where: { createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
     }),
     listStaleSweepers(),
     stalledLiveCities(new Date(), cityId ? [cityId] : undefined),
+    loadPostponedEvents({ cityId })
+      .then(facts => planPostponed(facts, new Date()).filter(r => r.needsNewDate))
+      .catch(err => { console.error('[admin stats] postponed events lookup failed', err); return [] }),
   ])
 
   return NextResponse.json({
@@ -226,7 +238,7 @@ export async function GET(req: Request) {
     // labels every card from this, so a scoped total can never be mistaken
     // for the platform total.
     city,
-    totalAccounts, members, hosts, events, upcoming, rsvps,
+    totalAccounts, members, membersActivated, membersNotActivated, hosts, events, upcoming, rsvps,
     newMembersThisMonth, revenueCollected, revenuePending, pendingPayments,
     pendingApplications, pendingReports, emailFailures24h,
     pendingJoinRequests: pendingJoinRequests as number,
@@ -244,6 +256,12 @@ export async function GET(req: Request) {
     stalledCities: stalled.map(c => ({
       id: c.id, slug: c.slug, name: c.name, members: c.members, daysLive: c.daysLive,
       severity: stalledSeverity(c.daysLive), label: describeStalled(c),
+    })),
+    // Longest-postponed first. daysSincePostponed comes from the audit trail;
+    // fromAudit false means it fell back to updatedAt (a lower bound).
+    postponedNoDate: postponed.map(r => ({
+      id: r.id, title: r.title, emoji: r.emoji, date: r.date, seats: r.seats, pending: r.pending,
+      waitlist: r.waitlist, paymentsPending: r.paymentsPending, daysSincePostponed: r.daysSincePostponed, fromAudit: r.fromAudit,
     })),
     trends: {
       members: calcTrend(newMembersThisMonth, prevMembersMonth),

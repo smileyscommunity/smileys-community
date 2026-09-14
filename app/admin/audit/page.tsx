@@ -44,6 +44,7 @@ const ACTION_STYLES: Record<string, string> = {
   'application.approve':   'bg-green-500/10 text-green-400 border-green-500/20',
   'application.reject':    'bg-red-500/10 text-red-400 border-red-500/20',
   'application.escalate':  'bg-violet-500/10 text-violet-400 border-violet-500/20',
+  'application.hold':      'bg-amber-500/10 text-amber-400 border-amber-500/20',
   'report.escalate':       'bg-violet-500/10 text-violet-400 border-violet-500/20',
   'report.dismiss':        'bg-zinc-700 text-zinc-400 border-zinc-600',
   'message.delete':        'bg-orange-500/10 text-orange-400 border-orange-500/20',
@@ -51,6 +52,7 @@ const ACTION_STYLES: Record<string, string> = {
   'event.flagged':         'bg-red-500/10 text-red-400 border-red-500/20',
   'event.unpublished':     'bg-zinc-700 text-zinc-400 border-zinc-600',
   'event.update':          'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  'event.cohost_add':      'bg-blue-500/10 text-blue-400 border-blue-500/20',
   'club.update':           'bg-blue-500/10 text-blue-400 border-blue-500/20',
 }
 
@@ -65,6 +67,7 @@ const ACTION_LABELS: Record<string, string> = {
   'application.approve':   'Approve',
   'application.reject':    'Reject',
   'application.escalate':  'Escalate',
+  'application.hold':      'Hold',
   'report.escalate':       'Escalate',
   'report.dismiss':        'Dismiss',
   'message.delete':        'Delete msg',
@@ -72,6 +75,7 @@ const ACTION_LABELS: Record<string, string> = {
   'event.flagged':         'Flag',
   'event.unpublished':     'Unpublish',
   'event.update':          'Update',
+  'event.cohost_add':      'Add co-host',
   'club.update':           'Update',
 }
 

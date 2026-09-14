@@ -318,18 +318,27 @@ export async function PATCH(req: NextRequest) {
       }
       sendApplicationRejectedEmail(application.email, application.fullName, rejectionMessage)
         .catch(err => recordEmailFailure({ helper: 'sendApplicationRejectedEmail', recipient: application.email, error: err, context: { applicationId: id } }))
+      // cityId passed rather than left to the lookup: the application's city
+      // is already in hand, and moderators' city-scoped audit view reads it.
       writeAudit(session.id, session.name, 'application.reject', id, 'memberApplication',
-        { name: application.fullName, email: application.email, note: reviewNote },
+        { name: application.fullName, email: application.email, note: reviewNote, cityId: target.targetCityId },
         `Application rejected — ${application.fullName} (${application.email})${reviewNote ? `: ${reviewNote}` : ''}`,
       )
-    } else if (status === 'hold' && moreInfoMessage?.trim()) {
-      sendRequestMoreInfoEmail(application.email, application.fullName, moreInfoMessage.trim())
-        .catch(err => recordEmailFailure({ helper: 'sendRequestMoreInfoEmail', recipient: application.email, error: err, context: { applicationId: id } }))
+    } else if (status === 'hold') {
+      if (moreInfoMessage?.trim()) {
+        sendRequestMoreInfoEmail(application.email, application.fullName, moreInfoMessage.trim())
+          .catch(err => recordEmailFailure({ helper: 'sendRequestMoreInfoEmail', recipient: application.email, error: err, context: { applicationId: id } }))
+      }
+      // Parking an application is a decision too — it had no audit row at all.
+      writeAudit(session.id, session.name, 'application.hold', id, 'memberApplication',
+        { name: application.fullName, email: application.email, note: reviewNote, moreInfoRequested: !!moreInfoMessage?.trim(), cityId: target.targetCityId },
+        `Application put on hold — ${application.fullName} (${application.email})${reviewNote ? `: ${reviewNote}` : ''}`,
+      )
     }
 
     if (status === 'approved') {
       writeAudit(session.id, session.name, 'application.approve', id, 'memberApplication',
-        { name: application.fullName, email: application.email, ...(skippedClubs.length ? { skippedClubs } : {}) },
+        { name: application.fullName, email: application.email, cityId: target.targetCityId, ...(skippedClubs.length ? { skippedClubs } : {}) },
         `Application approved — ${application.fullName} (${application.email}) is now a member`,
       )
     }

@@ -16,6 +16,7 @@ import { todayInCity } from '@/lib/city'
 import { checkSeriesId, seriesScopeFor } from '@/lib/seriesOwnership'
 import { wasStaffPublished } from '@/lib/eventPublishHistory'
 import { eventTimeInput } from '@/lib/eventTime'
+import { lockEventRow, seatState, shrinkVerdict, belowApprovedBody, wantsOverCapacity } from '@/lib/eventCapacity'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -353,6 +354,11 @@ export async function PUT(req: NextRequest, { params }: Params) {
     if (N(data.spotsLeft) !== null && (data.spotsLeft as number) > effectiveSpots) {
       return NextResponse.json({ error: 'spotsLeft cannot exceed totalSpots' }, { status: 400 })
     }
+    // spotsLeft is derived from the seats (lib/spotsLeft). A typed value went
+    // straight into the counter the RSVP gate trusts — a stale-high one let
+    // members join a full event — so it is never written from the body; the
+    // update below re-derives it whenever the cap changes.
+    delete data.spotsLeft
     // Times: same shared normaliser as POST — '22.00' / '18' stored verbatim
     // read as ending 23:59. A blank endTime clears it; a blank start 400s.
     // The edit forms send every field back, so an old row's unparseable value
@@ -415,18 +421,66 @@ export async function PUT(req: NextRequest, { params }: Params) {
     if (cancelling) data.cancelledAt = cancelStamp
     else if (restoring) data.cancelledAt = null
 
-    const event = await prisma.event.update({ where: { id }, data })
+    // Capacity. Lowering totalSpots (or switching limited on) under the seats
+    // already held put limited events over their cap with nothing said — the
+    // edit is refused with the count unless the form confirmed going over
+    // (lib/admin/overCapacity). Nobody is ever unseated by an edit.
+    const spotsTouched   = 'totalSpots' in data || 'limitedSpots' in data
+    const overCapacityOk = wantsOverCapacity(body)
+    const capAfterEdit = (from: { totalSpots: number; limitedSpots: boolean }) => ({
+      totalSpots: typeof data.totalSpots === 'number' ? data.totalSpots : from.totalSpots,
+      limited:    'limitedSpots' in data ? data.limitedSpots === true : from.limitedSpots,
+    })
+    const capVerdict = async (db: Parameters<typeof seatState>[0], ev: { id: string; totalSpots: number; limitedSpots: boolean }) => {
+      const to = capAfterEdit(ev)
+      if (!to.limited) return { ok: true as const }
+      const seats = await seatState(db, ev.id, { countEvenIfUnlimited: true })
+      return shrinkVerdict({ approved: seats?.approved ?? 0, from: { totalSpots: ev.totalSpots, limited: ev.limitedSpots }, to })
+    }
 
-    // If totalSpots changed, recompute spotsLeft so it reflects the new capacity
-    if (data.totalSpots !== undefined) {
-      await recomputeSpotsLeft(id, event.totalSpots)
+    // "Apply to series" copies the cap to every future occurrence, each with
+    // its own seats — checked here, before anything is written.
+    // "Future" is measured on the EVENT's city clock, not the founding city's.
+    // Only events the caller could edit themselves (lib/seriesOwnership): a
+    // mixed series from before the ownership check can't be used to rewrite
+    // someone else's events either.
+    const today = applyToSeries && before.seriesId ? await todayInCity(before.cityId) : null
+    const seriesSpots = spotsTouched && today && before.seriesId
+      ? await prisma.event.findMany({
+          where:  { seriesId: before.seriesId, id: { not: id }, date: { gte: today }, ...seriesScopeFor(session, before.cityId) },
+          select: { id: true, title: true, date: true, totalSpots: true, limitedSpots: true },
+        })
+      : []
+    if (!overCapacityOk) {
+      for (const sib of seriesSpots) {
+        const v = await capVerdict(prisma, sib)
+        if (!v.ok) return NextResponse.json(belowApprovedBody(v, `"${sib.title}" on ${sib.date}`), { status: 400 })
+      }
+    }
+
+    let event: Awaited<ReturnType<typeof prisma.event.update>>
+    if (spotsTouched) {
+      // Checked, written and re-derived under the row lock the RSVP route
+      // takes, so no join lands between the count and the new counter.
+      const outcome = await prisma.$transaction(async tx => {
+        await lockEventRow(tx, id)
+        const v = await capVerdict(tx, { id, totalSpots: before.totalSpots, limitedSpots: before.limitedSpots })
+        if (!v.ok && !overCapacityOk) return { refused: v, updated: null }
+        const updated = await tx.event.update({ where: { id }, data })
+        await recomputeSpotsLeft(id, updated.totalSpots, tx)
+        return { refused: null, updated }
+      })
+      if (!outcome.updated) return NextResponse.json(belowApprovedBody(outcome.refused!), { status: 400 })
+      event = outcome.updated
+    } else {
+      event = await prisma.event.update({ where: { id }, data })
     }
 
     // Un-cancelling brings back the members the cancel released.
     if (restoring) {
       try {
         const r = await restoreSeatsReleasedByCancel({
-          id, title: before.title, totalSpots: event.totalSpots,
+          id, title: before.title, totalSpots: event.totalSpots, limitedSpots: event.limitedSpots,
           approvalRequired: before.approvalRequired, cancelledAt: before.cancelledAt,
         })
         writeAudit(session.id, session.name, 'event.restore', id, 'event',
@@ -454,22 +508,24 @@ export async function PUT(req: NextRequest, { params }: Params) {
     // but `time` DOES propagate — a recurring event keeps the same time each
     // occurrence, so editing the time with "apply to series" should update
     // every future instance (was silently excluded before).
-    if (applyToSeries && before.seriesId) {
+    if (applyToSeries && before.seriesId && today) {
       const SERIES_EXCLUDED = new Set(['date', 'registrationDeadline', 'seriesId', 'tags'])
       const seriesData: Record<string, unknown> = {}
       for (const [k, v] of Object.entries(data)) {
         if (!SERIES_EXCLUDED.has(k)) seriesData[k] = v
       }
       if (Object.keys(seriesData).length > 0) {
-        // "Future" is measured on the EVENT's city clock, not the founding city's.
-        const today = await todayInCity(before.cityId)
         await prisma.event.updateMany({
-          // Only events the caller could edit themselves (lib/seriesOwnership):
-          // a mixed series from before the ownership check can't be used to
-          // rewrite someone else's events either.
+          // Same scope as the capacity check above (lib/seriesOwnership).
           where: { seriesId: before.seriesId, id: { not: id }, date: { gte: today }, ...seriesScopeFor(session, before.cityId) },
           data: seriesData,
         })
+        // The copied cap left each occurrence's counter at its old value —
+        // the number the RSVP gate reads. Re-derive them from their own seats.
+        for (const sib of seriesSpots) {
+          await recomputeSpotsLeft(sib.id, capAfterEdit(sib).totalSpots).catch(err =>
+            console.error('[event PUT series] spotsLeft recompute failed', { eventId: sib.id, err: String(err) }))
+        }
       }
     }
 
@@ -609,7 +665,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     const before = await prisma.event.findUnique({
       where: { id },
-      select: { title: true, hostId: true, clubId: true, status: true, cityId: true, cancelledAt: true, approvalRequired: true, totalSpots: true },
+      select: { title: true, hostId: true, clubId: true, status: true, cityId: true, cancelledAt: true, approvalRequired: true, totalSpots: true, limitedSpots: true },
     })
     if (!before) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
@@ -629,7 +685,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (restoring) {
       try {
         restoredSeats = (await restoreSeatsReleasedByCancel({
-          id, title: before.title, totalSpots: before.totalSpots,
+          id, title: before.title, totalSpots: before.totalSpots, limitedSpots: before.limitedSpots,
           approvalRequired: before.approvalRequired, cancelledAt: before.cancelledAt,
         })).restored
       } catch (err) {

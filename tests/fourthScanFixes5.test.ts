@@ -111,17 +111,16 @@ describe('once-only broadcasts and reports claim in rate_limits (item 21)', () =
 })
 
 describe('unbounded tables (item 22)', () => {
-  it('the nightly sweep prunes dead sessions and duplicate unstamped recommendations', () => {
+  it('the nightly sweep prunes dead sessions', () => {
     const src = read('app/api/cron/sweep-event-spots/route.ts')
     expect(src).toMatch(/prisma\.session\.deleteMany\(\{\s*where: \{ OR: \[\{ expiresAt: \{ lt: dayAgo \} \}, \{ revokedAt: \{ lt: dayAgo \} \}\] \}/)
-    expect(src).toMatch(/DELETE FROM event_recommendations r\s+WHERE r\."clickedAt" IS NULL AND r\."rsvpedAt" IS NULL/)
-    // The earliest row per (member, event) survives: the funnel's first showing.
-    expect(src).toMatch(/e\."createdAt" < r\."createdAt" OR \(e\."createdAt" = r\."createdAt" AND e\.id < r\.id\)/)
+    // Duplicate recommendations have their own cron now (tests/scan5Batch38).
+    expect(src).not.toContain('DELETE FROM event_recommendations')
   })
-  it('the first-event block logs a card at most once a day per member', () => {
+  it('the first-event block logs a card once per member (serialized writer)', () => {
     const src = read('app/api/first-event/route.ts')
-    expect(src).toMatch(/createdAt: \{ gte: since \}/)
-    expect(src).toMatch(/if \(fresh\.length\) await prisma\.eventRecommendation\.createMany/)
+    expect(src).toMatch(/await logRecommendations\(session\.id, events\)/)
+    expect(src).not.toContain('prisma.eventRecommendation.createMany')
   })
   it('getSession stamps lastUsedAt at most every five minutes', () => {
     const src = read('lib/session.ts')

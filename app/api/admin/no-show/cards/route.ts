@@ -3,6 +3,7 @@ import { maskRows } from '@/lib/admin/maskContact'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin, canModerateReports, failClosedCityId } from '@/lib/access'
+import { reviewConflict, eventRunners } from '@/lib/noShowPolicy'
 
 // Cards inbox for the admin panel. Moderators see their own city's members
 // only (same scoping as reports); admins see everything. `status` filters:
@@ -27,10 +28,22 @@ export async function GET(req: NextRequest) {
       take: 200,
       include: {
         user:  { select: { id: true, name: true, email: true, cityId: true } },
-        event: { select: { id: true, title: true, emoji: true, date: true, hostId: true, cityId: true } },  // cityId: the page formats card times on the event city's clock
+        event: { select: {
+          id: true, title: true, emoji: true, date: true, hostId: true, cityId: true,  // cityId: the page formats card times on the event city's clock
+          // Only the viewer's own runner rows — enough to flag a conflict, nothing about anyone else.
+          cohosts: { where: { userId: session.id }, select: { userId: true } },
+          club:    { select: { memberships: { where: { userId: session.id, role: 'host', status: 'approved' }, select: { userId: true } } } },
+        } },
       },
     })
-    return NextResponse.json({ cards: maskRows(session, cards, 'user') })
+    // Cards from an event the viewer runs stay visible (the queue should show
+    // what exists) but carry `conflict`, and the page offers no action on them;
+    // cards/[id] refuses them regardless.
+    const rows = cards.map(({ event: { cohosts, club, ...event }, ...c }) => ({
+      ...c, event,
+      conflict: reviewConflict(session.id, c, eventRunners({ hostId: event.hostId, cohosts, club })),
+    }))
+    return NextResponse.json({ cards: maskRows(session, rows, 'user') })
   } catch (e) {
     console.error('[admin no-show cards]', e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

@@ -3,6 +3,7 @@
 import { toast } from 'sonner'
 import { confirmToast } from '@/lib/confirmToast'
 import { promptToast } from '@/lib/promptToast'
+import { withCapacityConfirm } from '@/lib/admin/overCapacity'
 
 import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
@@ -121,11 +122,13 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
   const isPast = eventDate ? eventDate < today : false
 
   async function approve(userId: string) {
-    const res = await fetch(`/app/api/admin/events/${id}/participants`, {
+    // A full event refuses the seat; "exceed capacity?" first, override on yes.
+    const res = await withCapacityConfirm(allowOverCapacity => fetch(`/app/api/admin/events/${id}/participants`, {
       method: 'PATCH', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, action: 'approve' }),
-    })
+      body: JSON.stringify({ userId, action: 'approve', ...(allowOverCapacity ? { allowOverCapacity: true } : {}) }),
+    }))
+    if (!res) return
     const d = await res.json().catch(() => ({}))
     // Refusals (a paused member's 409, a vanished request's 404) used to do
     // nothing visible.
@@ -153,11 +156,12 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
 
   async function addParticipant(user: AttendeeUser) {
     setAddBusy(user.id)
-    const res = await fetch(`/app/api/admin/events/${id}/participants`, {
+    const res = await withCapacityConfirm(allowOverCapacity => fetch(`/app/api/admin/events/${id}/participants`, {
       method: 'PUT', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: user.id }),
-    })
+      body: JSON.stringify({ userId: user.id, ...(allowOverCapacity ? { allowOverCapacity: true } : {}) }),
+    }))
+    if (!res) { setAddBusy(null); return }
     if (res.ok) {
       setAttendees(prev => [...prev, { userId: user.id, status: 'approved', checkedIn: false, joinedAt: new Date().toISOString(), user }])
       toast.success(`${user.name} added ✓`)
@@ -170,16 +174,21 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
   }
 
   async function promoteWaitlist(entry: WaitlistEntry) {
-    const res = await fetch(`/app/api/admin/events/${id}/participants`, {
+    const res = await withCapacityConfirm(allowOverCapacity => fetch(`/app/api/admin/events/${id}/participants`, {
       method: 'POST', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: entry.userId }),
-    })
+      body: JSON.stringify({ userId: entry.userId, ...(allowOverCapacity ? { allowOverCapacity: true } : {}) }),
+    }))
+    if (!res) return
     if (res.ok) {
       setWaitlist(prev => prev.filter(w => w.userId !== entry.userId))
       const newAttendee: Attendee = { userId: entry.userId, status: 'approved', checkedIn: false, joinedAt: new Date().toISOString(), user: entry.user }
       setAttendees(prev => [...prev, newAttendee])
       toast.success(`${entry.user.name} approved ✓`)
+    } else {
+      // A refusal (a red card's 409, a quota) used to do nothing visible.
+      const d = await res.json().catch(() => ({}))
+      toast.error(d?.error ?? 'Could not promote')
     }
   }
 

@@ -3,6 +3,7 @@ import { randomBytes } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { restrictedSetFor } from '@/lib/memberPrivacy'
+import { countedReferralsWhere } from '@/lib/referrals'
 
 function generateCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -13,9 +14,11 @@ export async function GET() {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  // User.referralCount is not selected: nothing ever incremented it, so it
+  // disagreed with the approved tally below (lib/referrals).
   let user = await prisma.user.findUnique({
     where: { id: session.id },
-    select: { referralCode: true, referralCount: true, name: true },
+    select: { referralCode: true, name: true },
   })
   if (!user) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
@@ -30,13 +33,13 @@ export async function GET() {
       user = await prisma.user.update({
         where: { id: session.id },
         data: { referralCode: code },
-        select: { referralCode: true, referralCount: true, name: true },
+        select: { referralCode: true, name: true },
       })
     } catch {
       // Another concurrent request already saved a code — fetch it
       user = await prisma.user.findUnique({
         where: { id: session.id },
-        select: { referralCode: true, referralCount: true, name: true },
+        select: { referralCode: true, name: true },
       })
       if (!user) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
@@ -44,9 +47,9 @@ export async function GET() {
 
   const [pending, approvedApps, referredApps] = await Promise.all([
     prisma.memberApplication.count({ where: { referredBy: user.referralCode!, status: 'pending' } }),
-    prisma.memberApplication.count({ where: { referredBy: user.referralCode!, status: { in: ['approved', 'active'] } } }),
+    prisma.memberApplication.count({ where: countedReferralsWhere(user.referralCode!) }),
     prisma.memberApplication.findMany({
-      where: { referredBy: user.referralCode!, status: { in: ['approved', 'active'] } },
+      where: countedReferralsWhere(user.referralCode!),
       select: { email: true },
       take: 20,
     }),
@@ -73,7 +76,8 @@ export async function GET() {
 
   return NextResponse.json({
     code:          user.referralCode,
-    referralCount: user.referralCount,
+    // Kept in the payload for older clients; same number as `approved`.
+    referralCount: approvedApps,
     pending,
     approved: approvedApps,
     joined,

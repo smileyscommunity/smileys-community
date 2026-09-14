@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
+import { ACTIVATED_MEMBER_WHERE } from '@/lib/memberCount'
 
 interface Props {
   name: string
@@ -21,7 +22,8 @@ export default async function HeroStats({ name, cityId, groupLink, groupLabel, u
   const [monthlyCount, pastCount, totalLocals, approvedHost] = await Promise.all([
     prisma.event.count({ where: { neighborhood: name, cityId, date: { gte: monthStr } } }),
     prisma.event.count({ where: { neighborhood: name, cityId, date: { lt: today } } }),
-    prisma.user.count({ where: { neighborhood: name, cityId, status: 'approved' } }),
+    // "N local members" — activated members only (lib/memberCount).
+    prisma.user.count({ where: { ...ACTIVATED_MEMBER_WHERE, neighborhood: name, cityId } }),
     userId
       ? prisma.clubMembership.findFirst({
           where: { userId, role: 'host', status: 'approved' },

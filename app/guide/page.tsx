@@ -14,6 +14,7 @@ import { Fragment } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { prisma } from '@/lib/prisma'
+import { ACTIVATED_MEMBER_WHERE } from '@/lib/memberCount'
 import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
 import { DEFAULT_CITY_SLUG } from '@/lib/city'
 import { postCityScope } from '@/lib/postScope'
@@ -92,9 +93,10 @@ export default async function GuidePage({ searchParams }: { searchParams?: Promi
       orderBy: { _count: { neighborhood: 'desc' } },
       take:    10,
     }),
+    // "N local members" — activated members only (lib/memberCount).
     prisma.user.groupBy({
       by:    ['neighborhood'],
-      where: { status: 'approved', neighborhood: { not: null }, cityId },
+      where: { ...ACTIVATED_MEMBER_WHERE, neighborhood: { not: null }, cityId },
       _count: { _all: true },
     }),
   ])

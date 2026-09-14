@@ -12,7 +12,8 @@ vi.mock('@/lib/audit',        () => ({ writeAudit: vi.fn() }))
 vi.mock('@/lib/eventQuota',   () => ({ findPromotableFromWaitlist: vi.fn(), hasQuotaRoomFor: vi.fn(), quotaEventSelect: { genderBalance: true, maleQuota: true, femaleQuota: true, turkishMaleQuota: true, totalSpots: true } }))
 vi.mock('@/lib/noShow',       () => ({ getRsvpGate: vi.fn(async () => ({ ok: true })), gateErrorBody: vi.fn() }))
 vi.mock('@/lib/prisma', () => ({ prisma: {
-  $transaction:  vi.fn(async (fn: any) => fn({ waitlistEntry: { deleteMany: vi.fn() }, eventAttendee: { updateMany: vi.fn(async () => ({ count: 1 })), create: vi.fn() } })),
+  // The tx also takes the event row lock and counts seats (lib/eventCapacity, scan5Batch34).
+  $transaction:  vi.fn(async (fn: any) => fn({ $queryRaw: vi.fn(async () => []), event: { findUnique: vi.fn(async () => null), update: vi.fn() }, eventCoHost: { findMany: vi.fn(async () => []) }, waitlistEntry: { deleteMany: vi.fn() }, eventAttendee: { updateMany: vi.fn(async () => ({ count: 1 })), create: vi.fn(), count: vi.fn(async () => 0) } })),
   event:         { findUnique: vi.fn() },
   user:          { findUnique: vi.fn(async () => ({ gender: 'male', nationality: 'Germany' })), findMany: vi.fn(async () => []) },
   eventAttendee: { findUnique: vi.fn(), findMany: vi.fn(async () => []) },

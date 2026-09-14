@@ -3,6 +3,7 @@ import { unsubscribeUrl, oneClickUnsubscribeUrl } from '@/lib/unsubscribe'
 import { APP_URL as ENV_APP_URL } from '@/lib/env'
 import { prisma } from '@/lib/prisma'
 import type { Prisma } from '@prisma/client'
+import type { CreateEmailOptions, CreateEmailRequestOptions, CreateEmailResponse } from 'resend'
 import { DEFAULT_TZ, formatDay } from '@/lib/cityTime'
 import { NO_SHOW_CANCELLATION_CUTOFF_HOURS, NO_SHOW_ROLLING_WINDOW_DAYS, NO_SHOW_POLICY_PATH } from '@/lib/noShowPolicy'
 import { firstNameOf } from './data'
@@ -46,10 +47,66 @@ function safeSubject(s: string): string {
   return String(s).replace(/[\r\n]+/g, ' ').slice(0, 200)
 }
 
-function getResend() {
+// ── Recipient guard ─────────────────────────────────────────────────────────
+//
+// Every send goes through getResend(), so the check lives here once instead
+// of in every helper. An address that belongs to a banned account (account
+// deletion bans too, and rewrites the address to @deleted.smileys) gets
+// nothing by default: reminders, nudges, newsletters, broadcasts, card
+// notices, alerts. Mail a banned person must still receive opts in with
+// getResend('account'): the refund notice (money goes back whatever the ban)
+// and the email-changed security notice. Password resets stay blocked on
+// purpose — a banned account can't sign in, and the ban revokes its reset
+// tokens. Suspension is not checked here: suspended members are still
+// members (lib/notify decides their bell by type).
+type RecipientPolicy = 'member' | 'account'
+const BLOCKED_USER_STATUSES = ['banned', 'deleted']
+const normEmail = (a: string) => a.trim().toLowerCase()
+
+/** The addresses (normalised) among these that belong to a banned account. Fails open — empty — on a lookup error. */
+export async function blockedRecipients(addresses: string[]): Promise<Set<string>> {
+  const wanted  = [...new Set(addresses.filter(Boolean))]
+  const blocked = new Set(wanted.map(normEmail).filter(a => a.endsWith('@deleted.smileys')))
+  const rest    = wanted.filter(a => !blocked.has(normEmail(a)))
+  if (!rest.length) return blocked
+  try {
+    const rows = await prisma.user.findMany({
+      where:  { email: { in: [...new Set([...rest, ...rest.map(normEmail)])] }, status: { in: BLOCKED_USER_STATUSES } },
+      select: { email: true },
+    })
+    for (const r of rows) blocked.add(normEmail(r.email))
+  } catch (err) {
+    // A failed lookup must not swallow a sign-in link or a card notice.
+    console.error('[email] recipient guard lookup failed, sending anyway', { err: serializeError(err) })
+  }
+  return blocked
+}
+
+function getResend(policy: RecipientPolicy = 'member') {
   const key = process.env.RESEND_API_KEY
   if (!key) throw new Error('RESEND_API_KEY is not set')
-  return new Resend(key)
+  const client = new Resend(key)
+  return {
+    emails: {
+      async send(payload: CreateEmailOptions, options?: CreateEmailRequestOptions): Promise<CreateEmailResponse> {
+        if (policy === 'member') {
+          const to      = ([] as string[]).concat(payload.to)
+          const blocked = await blockedRecipients(to)
+          const keep    = to.filter(a => !blocked.has(normEmail(a)))
+          if (!keep.length) {
+            console.info('[email] skipped: recipient account is banned')
+            // Resolves like a send that produced nothing — not an error to record.
+            return { data: null, error: null, headers: null } as unknown as CreateEmailResponse
+          }
+          if (keep.length < to.length) payload = { ...payload, to: keep }
+        }
+        return client.emails.send(payload, options)
+      },
+    },
+    // Passes through: the one batch caller, sendNewsletterBatch, filters with
+    // blockedRecipients first so Resend's ids stay aligned with its chunk.
+    batch: client.batch,
+  }
 }
 
 // #4 monitoring: every send*Email .catch in the app now also
@@ -184,7 +241,8 @@ export async function sendAlreadyRegisteredEmail(email: string, name: string) {
 // legitimate owner gets if a hijacked session rotates them out — without it
 // their only clue was suddenly being logged out.
 export async function sendEmailChangedNotice(oldEmail: string, name: string, newEmail: string) {
-  await getResend().emails.send({
+  // Security notice: reaches the old address even on a banned account.
+  await getResend('account').emails.send({
     from: FROM, to: oldEmail,
     subject: 'Your Smileys login email was changed',
     html: `
@@ -686,7 +744,8 @@ export async function sendRefundEmail(email: string, name: string, eventTitle: s
         <p style="color:#374151;font-size:14px;margin:0;line-height:1.6">${esc(note)}</p>
        </div>`
     : ''
-  await getResend().emails.send({
+  // Money owed back reaches a banned account too (recipient guard above).
+  await getResend('account').emails.send({
     from: FROM, to: email,
     subject: safeSubject(`Your refund for "${eventTitle}"`),
     html: `
@@ -1052,6 +1111,11 @@ export async function sendNewsletterBatch(
   const resendLogs: { newsletterId: string; resendId: string }[] = []
   const failed: { email: string; error: string }[] = []
   let sent = 0
+
+  // The recipient guard single sends get in getResend, applied up front so
+  // each chunk's Resend ids line up with the recipients actually sent.
+  const blocked = await blockedRecipients(recipients.map(r => r.email))
+  if (blocked.size) recipients = recipients.filter(r => !blocked.has(normEmail(r.email)))
 
   for (let i = 0; i < recipients.length; i += CHUNK) {
     const chunk    = recipients.slice(i, i + CHUNK)

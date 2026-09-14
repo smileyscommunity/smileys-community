@@ -44,6 +44,11 @@ async function cityForTarget(targetType: string | undefined, targetId: string | 
                                  .then(r => r?.business?.cityId ?? null)
     case 'report':         return prisma.report.findUnique({ where: { id: targetId }, select: { reported: { select: { cityId: true } } } })
                                  .then(r => r?.reported?.cityId ?? null)
+    // Missing until 2026-09-14: every approve/reject row audited city-less,
+    // so moderators' city-scoped audit view never showed their own queue.
+    case 'memberApplication':
+                           return prisma.memberApplication.findUnique({ where: { id: targetId }, select: { targetCityId: true } })
+                                 .then(r => r?.targetCityId || null)
     default:               return null
   }
 }

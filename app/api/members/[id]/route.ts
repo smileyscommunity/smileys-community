@@ -7,6 +7,7 @@ import { createNotification } from '@/lib/notify'
 import { isAdminOrModerator, isClubHost } from '@/lib/access'
 import { todayInCity, resolveCityId } from '@/lib/city'
 import { firstNameOf } from '@/lib/data'
+import { countedReferralsWhere } from '@/lib/referrals'
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
@@ -140,9 +141,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   // after status churn. Skips the count entirely when the user has
   // no referralCode yet — most users never generate one.
   const broughtInCount = user.referralCode
-    ? await prisma.memberApplication.count({
-        where: { referredBy: user.referralCode, status: { in: ['approved', 'active'] } },
-      })
+    ? await prisma.memberApplication.count({ where: countedReferralsWhere(user.referralCode) })
     : 0
 
   // Block check — return 404 so blocker/blocked don't know they're blocked

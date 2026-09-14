@@ -21,6 +21,7 @@ import { prisma } from './prisma'
 import { todayInTz, DEFAULT_TZ } from './cityTime'
 import { CITY_STATUS, isCityStatus, type CityStatus, type CityStats, type PublicCity } from './cityStatus'
 import { classifyCityMaturity } from './cityMaturity'
+import { ACTIVATED_MEMBER_WHERE } from './memberCount'
 
 export * from './cityStatus'
 export { DEFAULT_CITY_SLUG, getDefaultCityId, resolveCityId } from './city'
@@ -101,8 +102,9 @@ export async function getStatsFor(cityIds: string[]): Promise<Map<string, CitySt
       // on a city card, and this definition must match the dashboard's
       // founding gate exactly: the two used to differ (this one counted
       // everyone approved), so a city could pass one 150-member threshold
-      // and fail the other on different numbers.
-      where: { cityId: { in: cityIds }, status: 'approved', role: { notIn: ['admin', 'partner'] } },
+      // and fail the other on different numbers. Activated only
+      // (lib/memberCount): a city of approvals nobody took up is still seeding.
+      where: { ...ACTIVATED_MEMBER_WHERE, cityId: { in: cityIds }, role: { notIn: ['admin', 'partner'] } },
       _count: { _all: true },
     }),
     prisma.club.groupBy({

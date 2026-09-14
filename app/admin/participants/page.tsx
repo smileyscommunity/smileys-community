@@ -12,6 +12,7 @@ import { todayInTz, dayInTz, DEFAULT_TZ } from '@/lib/cityTime'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { useAdminCities } from '@/components/admin/CitySelect'
 import { isEventFull, matchesPersonSearch } from '@/lib/admin/participantsView'
+import { withCapacityConfirm, capacityConfirmForBatch } from '@/lib/admin/overCapacity'
 
 // ─── Page contract ──────────────────────────────────────────────────
 // This page is an INBOX: everything on it either needs a decision
@@ -222,11 +223,13 @@ export default function AdminParticipantsPage() {
   }
 
   async function approve(userId: string, eventId: string) {
-    const res = await fetch(`/app/api/admin/events/${eventId}/participants`, {
+    // A full event refuses the seat; "exceed capacity?" first, override on yes.
+    const res = await withCapacityConfirm(allowOverCapacity => fetch(`/app/api/admin/events/${eventId}/participants`, {
       method: 'PATCH', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, action: 'approve' }),
-    })
+      body: JSON.stringify({ userId, action: 'approve', ...(allowOverCapacity ? { allowOverCapacity: true } : {}) }),
+    }))
+    if (!res) return
     if (res.ok) {
       const d = await res.json().catch(() => ({}))
       // A full balance quota answers 200 with status 'waitlisted': the member
@@ -284,11 +287,12 @@ export default function AdminParticipantsPage() {
   }
 
   async function promoteWaitlist(entry: WaitlistEntry) {
-    const res = await fetch(`/app/api/admin/events/${entry.eventId}/participants`, {
+    const res = await withCapacityConfirm(allowOverCapacity => fetch(`/app/api/admin/events/${entry.eventId}/participants`, {
       method: 'POST', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: entry.userId }),
-    })
+      body: JSON.stringify({ userId: entry.userId, ...(allowOverCapacity ? { allowOverCapacity: true } : {}) }),
+    }))
+    if (!res) return
     if (res.ok) {
       setWaitlist(prev => prev.filter(w => !(w.userId === entry.userId && w.eventId === entry.eventId)))
       setAttendees(prev => [...prev, {
@@ -391,12 +395,14 @@ export default function AdminParticipantsPage() {
     load(true)
   }
 
-  const patchAction = (action: 'approve' | 'reject') => async (a: Attendee) => {
-    const res = await fetch(`/app/api/admin/events/${a.eventId}/participants`, {
+  // Approvals past an event's cap are refused: one "exceed capacity?" per
+  // bulk run (a fresh confirm per click), the override only on a yes.
+  const patchAction = (action: 'approve' | 'reject', sendChecked = capacityConfirmForBatch()) => async (a: Attendee) => {
+    const res = await sendChecked(allowOverCapacity => fetch(`/app/api/admin/events/${a.eventId}/participants`, {
       method: 'PATCH', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: a.userId, action }),
-    })
+      body: JSON.stringify({ userId: a.userId, action, ...(allowOverCapacity ? { allowOverCapacity: true } : {}) }),
+    }))
     if (!res.ok) return false
     const d = await res.json().catch(() => ({}))
     return d?.status === 'waitlisted' ? 'waitlisted' as const : true

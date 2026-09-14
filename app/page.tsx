@@ -14,6 +14,7 @@ import { CITY_MATURITY } from '@/lib/cityMaturity'
 import { APP_URL } from '@/lib/env'
 import { loadContent } from '@/lib/content'
 import { approx } from '@/lib/communityStats'
+import { ACTIVATED_MEMBER_WHERE } from '@/lib/memberCount'
 import { absoluteOgImage } from '@/lib/og'
 import { isSoldOut } from '@/lib/soldOut'
 
@@ -87,7 +88,8 @@ const getLandingData = unstable_cache(
       // the cross-city view getEvents was designed to serve.
       getEvents({ limit: 24, upcoming: true }),
       prisma.testimonial.findMany({ where: { active: true }, orderBy: [{ order: 'asc' }], take: 3 }),
-      prisma.user.count({ where: { status: 'approved' } }),
+      // "N members and counting" — activated members only (lib/memberCount).
+      prisma.user.count({ where: ACTIVATED_MEMBER_WHERE }),
       // Community write-ups — member and host stories, already public at
       // /posts/<slug>. Handbook articles are excluded: they're practical
       // reference ("how to get a residence permit"), not community life.

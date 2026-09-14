@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { jsonLdHtml } from '@/lib/jsonLd'
 import Image from 'next/image'
 import { prisma } from '@/lib/prisma'
+import { ACTIVATED_MEMBER_WHERE } from '@/lib/memberCount'
 import type { NeighborhoodView } from '@/lib/neighborhoodsDb'
 import type { CityConfig } from '@/lib/city'
 import type { SessionUser } from '@/lib/session'
@@ -125,7 +126,8 @@ export default async function NeighborhoodSections({
       orderBy: { _count: { hostId: 'desc' } },
       take:    4,
     }),
-    prisma.user.count({ where: { neighborhood: name, cityId, status: 'approved', neighborhoodVisible: true, hiddenFromMembers: false } }),
+    // A public member total — activated members only (lib/memberCount).
+    prisma.user.count({ where: { ...ACTIVATED_MEMBER_WHERE, neighborhood: name, cityId, neighborhoodVisible: true, hiddenFromMembers: false } }),
     prisma.event.groupBy({
       by:    ['neighborhood'],
       where: { cityId, date: { gte: today } },

@@ -8,6 +8,7 @@ import { rateLimit } from '@/lib/rateLimit'
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 import { writeAudit } from '@/lib/audit'
 import { todayInCity, resolveCityId } from '@/lib/city'
+import { applicationScrubData, TOMBSTONE_EMAIL_SUFFIX } from '@/lib/applicationScrub'
 
 // Account deletion follows an anonymize-and-clear strategy, not hard
 // delete. The User row is preserved (with all identifying fields
@@ -173,10 +174,24 @@ export async function POST(req: NextRequest) {
     await tx.businessReview.updateMany({ where: { authorId: id }, data: { comment: null } })
     await tx.review.updateMany({ where: { userId: id }, data: { text: '' } })
     await tx.eventSurvey.updateMany({ where: { userId: id }, data: { anomalyNote: null } })
-    // The application row is keyed by email, not userId, and held full PII
-    // (phone, instagram, bio, photo) past the erasure. The admin audit
-    // snapshot written below remains the one deliberate retention.
-    await tx.memberApplication.updateMany({ where: { email: user.email }, data: { phone: null, instagram: null, bio: null, profilePhoto: null } })
+    // The application row is keyed by email, not userId, and kept the full
+    // name, email and every answer past the erasure. Scrub it to a tombstone
+    // that takes the user's ghost address (still linked, routes nowhere);
+    // city/status/dates stay for stats. Case-insensitive: /apply lowercases,
+    // older rows may not. The admin audit snapshot below remains the one
+    // deliberate retention.
+    await tx.memberApplication.updateMany({
+      where: { email: { equals: user.email, mode: 'insensitive' } },
+      data:  applicationScrubData(`${ghost}${TOMBSTONE_EMAIL_SUFFIX}`),
+    })
+    // Other copies of the address outside the user row: a Pro waitlist signup
+    // (name + unique email) and failed-send logs naming the recipient.
+    await tx.proWaitlistEntry.deleteMany({ where: { OR: [{ userId: id }, { email: { equals: user.email, mode: 'insensitive' } }] } })
+    await tx.emailFailure.deleteMany({ where: { recipient: { equals: user.email, mode: 'insensitive' } } })
+    // A self-submitted testimonial is the member's name and words on public
+    // city pages; userId is SetNull-on-delete, which never fires here because
+    // the user row is kept.
+    await tx.testimonial.updateMany({ where: { userId: id }, data: { memberName: 'Deleted Member', quote: DELETED_BODY, photo: null, role: null, active: false } })
 
     // ── 3. Anonymize the User row itself ─────────────────────────────────
     // Status: banned is what evicts the session in getSession(); bump
@@ -186,7 +201,7 @@ export async function POST(req: NextRequest) {
       where: { id },
       data: {
         name:             'Deleted Member',
-        email:            `${ghost}@deleted.smileys`,
+        email:            `${ghost}${TOMBSTONE_EMAIL_SUFFIX}`,
         password:         randomBytes(32).toString('hex'), // unusable password
         bio:              null,
         profilePhoto:     null,

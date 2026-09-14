@@ -115,7 +115,8 @@ export async function POST(req: NextRequest) {
           'listing_new',
           `${result.count} new ${categoryLabel.toLowerCase()} listings`,
           cleaned[0]?.title ?? 'Check the marketplace',
-          '/listings',
+          // /listings is the board's pre-rename path, alive only via a redirect.
+          '/board',
         ).catch(() => {})
       }
     }).catch(() => {})

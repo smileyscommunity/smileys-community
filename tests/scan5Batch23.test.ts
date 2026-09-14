@@ -185,11 +185,13 @@ describe('85b — editing a broadcast rewrites only that send', () => {
     p.broadcast.findUnique.mockResolvedValueOnce({ id: 'b2', type: 'reminder', title: 'T', message: 'M', clubId: 'k1', eventId: null, createdAt: sentAt })
     const prevAt = new Date('2026-09-10T09:40:00Z')
     p.broadcast.findFirst.mockResolvedValueOnce({ createdAt: prevAt })
+    // Club links are /clubs/<slug> since scan5Batch37; rows sent before carry the id form.
+    p.club.findUnique.mockResolvedValueOnce({ slug: 'k-one' })
     const res = await broadcastPATCH(jsonReq({ id: 'b2', title: 'T2', message: 'M2' }))
     expect(res.status).toBe(200)
     expect(p.broadcast.findFirst.mock.calls[0][0].where).toMatchObject({ id: { not: 'b2' }, title: 'T', message: 'M', clubId: 'k1', eventId: null })
     expect(p.notification.updateMany.mock.calls[0][0]).toEqual({
-      where: { type: 'announcement', title: 'T', body: 'M', link: '/clubs/k1', createdAt: { gt: prevAt, lte: sentAt } },
+      where: { type: 'announcement', title: 'T', body: 'M', link: { in: ['/clubs/k-one', '/clubs/k1'] }, createdAt: { gt: prevAt, lte: sentAt } },
       data:  { title: 'T2', body: 'M2' },
     })
   })

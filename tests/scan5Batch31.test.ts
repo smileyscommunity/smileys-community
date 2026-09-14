@@ -131,6 +131,8 @@ describe('normalizeClock', () => {
   it.each([
     ['19:30', '19:30'], ['9:30', '09:30'], ['22.00', '22:00'], ['7.15', '07:15'],
     ['2230', '22:30'], ['18', '18:00'], ['9', '09:00'], [' 21:00 ', '21:00'], ['00:00', '00:00'],
+    // Live rows from the Sept 2026 dry run: space and h/H separators.
+    ['23 30', '23:30'], ['23 00', '23:00'], ['21h45', '21:45'], ['21H45', '21:45'], ['9h05', '09:05'],
   ])('%j → %j', (raw, want) => {
     expect(normalizeClock(raw, 'start')).toBe(want)
     expect(normalizeClock(raw, 'end')).toBe(want)
@@ -143,7 +145,7 @@ describe('normalizeClock', () => {
     }
   })
 
-  it.each(['late', '25:00', '19:60', '7pm', '19:00 - 22:00', '123', '', '24:30', ':30'])('rejects %j', raw => {
+  it.each(['late', '25:00', '19:60', '7pm', '19:00 - 22:00', '123', '', '24:30', ':30', '21h', 'h45', '23  30x', '21h4'])('rejects %j', raw => {
     expect(normalizeClock(raw, 'end')).toBeNull()
   })
 })

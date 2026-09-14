@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { rateLimit, getIp } from '@/lib/rateLimit'
 import { firstNameOf } from '@/lib/data'
+import { REFERRAL_COUNTED_STATUSES } from '@/lib/referrals'
 
 // GET /api/apply/referral-context?ref=XYZ
 //
@@ -39,7 +40,7 @@ export async function GET(req: NextRequest) {
     // regardless of how many friends they brought in.
     prisma.memberApplication.groupBy({
       by:     ['referredBy'],
-      where:  { referredBy: { not: null }, status: { in: ['approved', 'active'] } },
+      where:  { referredBy: { not: null }, status: { in: [...REFERRAL_COUNTED_STATUSES] } },
       _count: { _all: true },
     }).then(rows => rows.length),
   ])

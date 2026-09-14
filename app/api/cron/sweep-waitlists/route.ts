@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notify'
 import { recordCronRun } from '@/lib/cronHealth'
 import { citiesByToday } from '@/lib/city'
+import { remindHostsOfPostponedEvents } from '@/lib/postponedReminder'
 
 // Sweeper that closes the waitlist lifecycle. Without this cron, a member
 // who queued for a full event and never won a freed spot stays on that
@@ -12,10 +13,15 @@ import { citiesByToday } from '@/lib/city'
 //
 // One pass per call:
 //   - Find waitlist entries whose event date is before Istanbul-today.
-//   - Events that actually happened (not cancelled/postponed) → send the
-//     member a warm close-out nudging them to the events list. Cancelled/
-//     postponed events delete silently — those members already got the
-//     cancellation notice, a "filled up" note would be wrong.
+//   - Events that actually happened (not cancelled) → send the member a warm
+//     close-out nudging them to the events list. Cancelled events delete
+//     silently — those members already got the cancellation notice, a
+//     "filled up" note would be wrong.
+//   - Postponed events keep their queue: the date they carry is the one they
+//     lost, not a sign they are over. Cancelling clears the queue; a new date
+//     brings the entries back into this sweep.
+//   - Hosts of events postponed a week with no new date get one reminder
+//     (lib/postponedReminder — never an auto-cancel).
 //   - Delete the entries. Idempotency comes for free: deleted rows can't
 //     be picked up again. Notify-then-delete, so a crash mid-flight
 //     retries on the next run (worst case: duplicate note — acceptable).
@@ -49,6 +55,7 @@ export async function POST(req: NextRequest) {
       ? await prisma.event.findMany({
           where: {
             id: { in: eventIds },
+            status: { not: 'postponed' },
             OR: dayGroups.map(({ date, cityIds }) => ({ date: { lt: date }, cityId: { in: cityIds } })),
           },
           select: { id: true, title: true, emoji: true, status: true, date: true, cityId: true },
@@ -66,10 +73,10 @@ export async function POST(req: NextRequest) {
     let notified = 0
     for (const entry of stale) {
       const event = pastEvent.get(entry.eventId)!
-      // Cancelled/postponed events already told their people — only send
-      // the "filled up" close-out when the event genuinely ran full.
+      // Cancelled events already told their people — only send the "filled
+      // up" close-out when the event genuinely ran full.
       const noteCutoff = noteCutoffFor.get(event.cityId)
-      if (event.status !== 'cancelled' && event.status !== 'postponed' && noteCutoff && event.date >= noteCutoff) {
+      if (event.status !== 'cancelled' && noteCutoff && event.date >= noteCutoff) {
         await createNotification(
           entry.userId,
           'waitlist',
@@ -85,8 +92,15 @@ export async function POST(req: NextRequest) {
       ? await prisma.waitlistEntry.deleteMany({ where: { id: { in: stale.map(e => e.id) } } })
       : { count: 0 }
 
+    // Rides this daily sweep rather than a crontab line of its own. A failure
+    // here is logged and reported, never allowed to fail the waitlist close.
+    const postponed = await remindHostsOfPostponedEvents().catch(err => {
+      console.error('[sweep-waitlists] postponed host reminders failed', err)
+      return { checked: 0, reminded: 0, failed: true }
+    })
+
     await recordCronRun('sweep-waitlists', true)
-    return NextResponse.json({ ok: true, deleted, notified })
+    return NextResponse.json({ ok: true, deleted, notified, postponed })
   } catch (e) {
     console.error('[sweep-waitlists]', e)
     await recordCronRun('sweep-waitlists', false, e)

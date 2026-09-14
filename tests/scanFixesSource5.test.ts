@@ -48,7 +48,8 @@ describe('moderator-facing rosters mask email', () => {
     ['app/api/admin/listings/[id]/route.ts', /maskRows\(session, \[listing\], 'user'\)\[0\]/],
     ['app/api/admin/moving-sales/route.ts', /maskRows\(session, sales, 'user'\)/],
     ['app/api/admin/messages/route.ts', /maskRows\(session, messages, 'user'\)/],
-    ['app/api/admin/no-show/cards/route.ts', /maskRows\(session, cards, 'user'\)/],
+    // The inbox now maps cards to rows (adding the review-conflict flag) before masking.
+    ['app/api/admin/no-show/cards/route.ts', /maskRows\(session, (cards|rows), 'user'\)/],
     ['app/api/admin/directory/route.ts', /maskRows\(session, businesses, 'submittedBy'\)/],
     ['app/api/admin/directory/claims/route.ts', /maskRows\(session, claims, 'claimant'\)/],
     ['app/api/admin/directory/reports/route.ts', /maskRows\(session, reports, 'reporter'\)/],

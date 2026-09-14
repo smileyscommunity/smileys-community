@@ -19,6 +19,7 @@ import { todayInTz, dayInTz, formatDay, DEFAULT_TZ } from '@/lib/cityTime'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import { loadFailure } from '@/lib/admin/useAdminLoad'
 import { isEventFull, promotableSeats, toCsv } from '@/lib/admin/participantsView'
+import { withCapacityConfirm, capacityConfirmForBatch } from '@/lib/admin/overCapacity'
 
 interface NoShowCard { id: string; userId: string; kind: 'yellow' | 'red'; status: string; waivedAt: string | null; notifiedAt: string | null; user: { id: string; name: string } }
 
@@ -142,14 +143,17 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
     let failed = 0
     let waitlisted = 0
     let firstError: string | null = null
+    // A full event refuses the seat (409 over_capacity): one "exceed
+    // capacity?" for the whole batch, and the override only on a yes.
+    const sendChecked = capacityConfirmForBatch()
     try {
       for (const userId of userIds) {
         try {
-          const res = await fetch(`/app/api/admin/events/${id}/participants`, {
+          const res = await sendChecked(allowOverCapacity => fetch(`/app/api/admin/events/${id}/participants`, {
             method, credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body(userId)),
-          })
+            body: JSON.stringify({ ...body(userId), ...(allowOverCapacity ? { allowOverCapacity: true } : {}) }),
+          }))
           if (res.ok) {
             // A full quota answers 200 with status 'waitlisted' — not a seat.
             const d = await res.json().catch(() => null)
@@ -188,11 +192,13 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
 
   async function approveAttendee(userId: string) {
     setBusy(userId)
-    const res = await fetch(`/app/api/admin/events/${id}/participants`, {
+    // Past the cap the server refuses; the override goes only after a confirm.
+    const res = await withCapacityConfirm(allowOverCapacity => fetch(`/app/api/admin/events/${id}/participants`, {
       method: 'PATCH', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, action: 'approve' }),
-    })
+      body: JSON.stringify({ userId, action: 'approve', ...(allowOverCapacity ? { allowOverCapacity: true } : {}) }),
+    }))
+    if (!res) { setBusy(null); return }
     if (res.ok) {
       const d = await res.json().catch(() => ({}))
       // A full quota answers 200 with status 'waitlisted': not a seat.
@@ -325,11 +331,12 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
 
   async function addParticipant(user: AttendeeUser) {
     setBusy(user.id)
-    const res = await fetch(`/app/api/admin/events/${id}/participants`, {
+    const res = await withCapacityConfirm(allowOverCapacity => fetch(`/app/api/admin/events/${id}/participants`, {
       method: 'PUT', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: user.id }),
-    })
+      body: JSON.stringify({ userId: user.id, ...(allowOverCapacity ? { allowOverCapacity: true } : {}) }),
+    }))
+    if (!res) { setBusy(null); return }
     if (res.ok) {
       setAttendees(prev => [...prev, { userId: user.id, status: 'approved', checkedIn: false, joinedAt: new Date().toISOString(), user }])
       toast.success(`${user.name} added ✓`)
@@ -343,11 +350,12 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
 
   async function promote(entry: WaitlistEntry) {
     setBusy(entry.userId)
-    const res = await fetch(`/app/api/admin/events/${id}/participants`, {
+    const res = await withCapacityConfirm(allowOverCapacity => fetch(`/app/api/admin/events/${id}/participants`, {
       method: 'POST', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: entry.userId }),
-    })
+      body: JSON.stringify({ userId: entry.userId, ...(allowOverCapacity ? { allowOverCapacity: true } : {}) }),
+    }))
+    if (!res) { setBusy(null); return }
     if (res.ok) {
       setWaitlist(prev => prev.filter(w => w.userId !== entry.userId))
       setAttendees(prev => [...prev, { userId: entry.userId, status: 'approved', checkedIn: false, joinedAt: new Date().toISOString(), user: entry.user }])

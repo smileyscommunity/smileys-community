@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { canViewModStats, isAdmin, failClosedCityId } from '@/lib/access'
 import { todayInCity, resolveCityId } from '@/lib/city'
+import { countHostlessClubRequests } from '@/lib/clubRequests'
 
 export async function GET() {
   try {
@@ -59,11 +60,15 @@ export async function GET() {
         select: { id: true, title: true, date: true, time: true, spotsLeft: true, totalSpots: true, status: true },
       }),
     ])
+    // Join requests to clubs with no host — nobody but staff can answer them.
+    // Scoped like its queue (/admin/club-requests) so the pill matches the list.
+    const hostlessClubRequests = await countHostlessClubRequests(session)
 
     return NextResponse.json({
       pendingApplications,
       pendingReports,
       approvalQueueEvents,
+      hostlessClubRequests,
       visitorsThisWeek,
       recentMessages,
       myEvents,

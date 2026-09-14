@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { fixNameCasing } from '@/lib/data'
 import { recordCronRun } from '@/lib/cronHealth'
+import { deleteExpiredAuthTokens, deleteStaleConnectionRequests } from '@/lib/hygieneSweeps'
 
 // Nightly name-hygiene sweeper. The write path (register + profile PATCH)
 // runs formatName, which fixes lowercase-first-letter words but deliberately
@@ -42,7 +43,17 @@ async function runSweep() {
   }
 
   if (fixes.length) console.log('[cron sweep-name-hygiene]', fixes.join('; '))
-  return { scanned: users.length, fixed: fixes.length, fixes }
+
+  // Two more nightly hygiene jobs ride on this sweep rather than new crons
+  // (see lib/hygieneSweeps). Counts go FIRST in the summary: the cron wrapper
+  // logs only the first 300 characters and `fixes` can be long.
+  const expiredTokens = await deleteExpiredAuthTokens()
+  const staleConnectionRequests = await deleteStaleConnectionRequests()
+  if (expiredTokens.passwordReset || expiredTokens.emailVerification || staleConnectionRequests) {
+    console.log('[cron sweep-name-hygiene] deleted', { expiredTokens, staleConnectionRequests })
+  }
+
+  return { expiredTokens, staleConnectionRequests, scanned: users.length, fixed: fixes.length, fixes }
 }
 
 export async function POST(req: NextRequest) {

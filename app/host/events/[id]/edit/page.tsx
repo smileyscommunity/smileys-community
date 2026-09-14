@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { confirmToast } from '@/lib/confirmToast'
+import { withCapacityConfirm } from '@/lib/admin/overCapacity'
 import { toastApiError } from '@/lib/apiError'
 import {} from '@/lib/data'
 import { todayInTz, DEFAULT_TZ, formatDay } from '@/lib/cityTime'
@@ -282,10 +283,13 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
         ))) return
     setError(''); setSaving(true)
     try {
-      const res = await fetch(`/app/api/admin/events/${id}`, {
+      // Switching limited spots on under the seats already held is refused with
+      // the count; saved again with the override only after "exceed capacity?".
+      const res = await withCapacityConfirm(allowOverCapacity => fetch(`/app/api/admin/events/${id}`, {
         method: 'PUT', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          ...(allowOverCapacity ? { allowOverCapacity: true } : {}),
           ...form, tagIds: selectedTagIds, vibes: [],
           minAge: form.minAge ? parseInt(form.minAge) : null,
           maxAge: form.maxAge ? parseInt(form.maxAge) : null,
@@ -296,7 +300,8 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
           registrationDeadline: form.registrationDeadline || null,
           ticketUrl: paymentMethod === 'buyonline' ? (form.ticketUrl.trim() || null) : null,
         }),
-      })
+      }))
+      if (!res) return
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Failed to save'); return }
       router.push('/host/events')

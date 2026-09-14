@@ -122,7 +122,9 @@ async function runSweep() {
     where: {
       status: 'pending',
       OR: staleGroups.map(({ date, cityIds }) => ({
-        event: { date: { lt: date }, cityId: { in: cityIds } },
+        // Not a postponed event: its date is the one it no longer has, so
+        // "three days past" is not a missed payment — the seat still stands.
+        event: { date: { lt: date }, cityId: { in: cityIds }, status: { not: 'postponed' } },
       })),
     },
     select: { id: true, userId: true, eventId: true, event: { select: { title: true } } },

@@ -2,6 +2,7 @@ import { dayInTz, DEFAULT_TZ, shiftDay } from './cityTime'
 import { todayInCity } from '@/lib/city'
 import { prisma } from '@/lib/prisma'
 import { activeAttendeeWhere } from '@/lib/attendance'
+import { stampRecommendation } from '@/lib/eventRecommendations'
 
 // "Your First Event" matcher — a deterministic recommender aimed at the
 // biggest funnel leak (signed-in → first RSVP, ~45% as of July 2026).
@@ -88,19 +89,13 @@ export function istanbulDateStr(offsetDays = 0): string {
 }
 
 /**
- * Attribution: stamp rsvpedAt on the member's most recent recommendation for
- * this event, if any. Best-effort side-effect — call fire-and-forget from the
- * RSVP flow (.catch(() => {})); never let it affect the RSVP outcome.
+ * Attribution: stamp rsvpedAt on the member's recommendation for this event,
+ * if any — the earliest row, which the duplicate prune keeps (see
+ * lib/eventRecommendations). Best-effort side-effect — call fire-and-forget
+ * from the RSVP flow (.catch(() => {})); never let it affect the RSVP outcome.
  */
 export async function stampFirstEventRsvp(userId: string, eventId: string): Promise<void> {
-  const rec = await prisma.eventRecommendation.findFirst({
-    where: { userId, eventId, rsvpedAt: null },
-    orderBy: { createdAt: 'desc' },
-    select: { id: true },
-  })
-  if (rec) {
-    await prisma.eventRecommendation.update({ where: { id: rec.id }, data: { rsvpedAt: new Date() } })
-  }
+  await stampRecommendation(userId, eventId, 'rsvpedAt')
 }
 
 export type FirstEventCard = {

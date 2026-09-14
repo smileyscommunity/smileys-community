@@ -73,6 +73,8 @@ export const NAV_GROUPS: { label: string; items: AdminNavItem[] }[] = [
     items: [
       { label: 'Cities',       href: '/admin/cities',       exact: false, roles: ['admin'],               icon: 'cities'       },
       { label: 'Clubs',        href: '/admin/clubs',        exact: false, roles: ['admin'],               icon: 'clubs'        },
+      // Join requests to clubs with no approved host (city-scoped for moderators).
+      { label: 'Club requests', href: '/admin/club-requests', exact: false, roles: ['admin', 'moderator'], icon: 'clubs'       },
       { label: 'Hosts',        href: '/admin/hosts',        exact: false, roles: ['admin'],               icon: 'hosts'        },
       { label: 'Marketplace',  href: '/admin/listings',     exact: false, roles: ['admin', 'moderator'],  icon: 'board'        },
       { label: 'Moving Sales', href: '/admin/moving-sales', exact: false, roles: ['admin', 'moderator'],  icon: 'board'        },

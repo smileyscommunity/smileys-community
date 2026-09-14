@@ -5,6 +5,7 @@ import { readFileSync } from 'fs'
 import { join } from 'path'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
+import { ACTIVATED_MEMBER_WHERE } from '@/lib/memberCount'
 import { neighborhoodToSlug } from '@/lib/neighborhoods'
 import { APP_URL } from '@/lib/env'
 import { getSession } from '@/lib/session'
@@ -84,9 +85,10 @@ const getNeighborhoodStats = unstable_cache(
       where: { cityId, date: { gte: today } },
       _count: { _all: true },
     }),
+    // "N locals" — activated members only (lib/memberCount).
     prisma.user.groupBy({
       by: ['neighborhood'],
-      where: { cityId, neighborhood: { not: null }, status: 'approved' },
+      where: { ...ACTIVATED_MEMBER_WHERE, cityId, neighborhood: { not: null } },
       _count: { _all: true },
     }),
     prisma.event.findMany({

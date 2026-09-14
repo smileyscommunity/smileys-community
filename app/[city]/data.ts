@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
+import { ACTIVATED_MEMBER_WHERE } from '@/lib/memberCount'
 import { postCityScope } from '@/lib/postScope'
 import { todayInTz } from '@/lib/cityTime'
 import { getEvents, getClubs } from '@/lib/db'
@@ -86,9 +87,9 @@ export const getCityPageData = unstable_cache(
       // A number is all the page renders — never fetch names for a count
       // (the shape invites the next edit to display them), and admin-hidden
       // accounts stay out of every public figure. Uncapped: 'take' was
-      // silently flooring busy weeks at 6.
+      // silently flooring busy weeks at 6. Activated only (lib/memberCount).
       prisma.user.count({
-        where: { status: 'approved', role: 'member', joinedAt: { gte: sevenDaysAgo }, cityId, hiddenFromMembers: false },
+        where: { ...ACTIVATED_MEMBER_WHERE, role: 'member', joinedAt: { gte: sevenDaysAgo }, cityId, hiddenFromMembers: false },
       }),
       // Does this city have a guide worth linking to? Published entries only —
       // a city whose guide is still all drafts has nothing to read yet.

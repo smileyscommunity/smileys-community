@@ -15,9 +15,10 @@
 // one in view rather than by accident.
 
 import { prisma } from './prisma'
+import { ACTIVATED_MEMBER_WHERE } from './memberCount'
 
 export interface CommunityStats {
-  members: number   // approved accounts
+  members: number   // activated approved accounts (lib/memberCount)
   events:  number   // events actually run (published or archived)
   clubs:   number   // active clubs
 }
@@ -29,7 +30,9 @@ export async function getCommunityStats(): Promise<CommunityStats> {
   if (cache && cache.expires > Date.now()) return cache.value
 
   const [members, events, clubs] = await Promise.all([
-    prisma.user.count({ where: { status: 'approved' } }),
+    // Activated only — approved-but-never-activated accounts were a quarter
+    // of the published figure's growth and have never seen the site.
+    prisma.user.count({ where: ACTIVATED_MEMBER_WHERE }),
     prisma.event.count({ where: { status: { in: ['published', 'archived'] } } }),
     prisma.club.count({ where: { isActive: true } }),
   ])

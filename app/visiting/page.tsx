@@ -4,6 +4,7 @@ import Image from 'next/image'
 import { APP_URL } from '@/lib/env'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
+import { ACTIVATED_MEMBER_WHERE } from '@/lib/memberCount'
 import { restrictedSetFor } from '@/lib/memberPrivacy'
 import type { Metadata } from 'next'
 import { getSession } from '@/lib/session'
@@ -171,9 +172,10 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
       orderBy: [{ openToHosting: 'desc' }, { goodHangouts: 'desc' }],
       take:    8,
     }),
+    // Member totals per neighborhood — activated only (lib/memberCount).
     prisma.user.groupBy({
       by:      ['neighborhood'],
-      where:   { neighborhood: { not: null }, status: 'approved', cityId: cityId },
+      where:   { ...ACTIVATED_MEMBER_WHERE, neighborhood: { not: null }, cityId: cityId },
       _count:  { _all: true },
     }),
   ])

@@ -3,6 +3,7 @@
 import { toast } from 'sonner'
 import { useState, useEffect, use } from 'react'
 import { confirmToast } from '@/lib/confirmToast'
+import { withCapacityConfirm } from '@/lib/admin/overCapacity'
 import { toastApiError } from '@/lib/apiError'
 import { countryName } from '@/lib/country'
 import { geocodeFailureMessage } from '@/lib/geocodeError'
@@ -303,11 +304,14 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
   async function doSave(payload: object) {
     setSaving(true)
     try {
-      const res = await fetch(`/app/api/admin/events/${id}`, {
+      // Total spots below the seats already held is refused with the count;
+      // the save goes again with the override only after "exceed capacity?".
+      const res = await withCapacityConfirm(allowOverCapacity => fetch(`/app/api/admin/events/${id}`, {
         method: 'PUT', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
+        body: JSON.stringify(allowOverCapacity ? { ...payload, allowOverCapacity: true } : payload),
+      }))
+      if (!res) return
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Failed to save'); return }
       if (form.hostId && form.clubId) {

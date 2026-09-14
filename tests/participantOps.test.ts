@@ -89,7 +89,7 @@ describe('participants DELETE — removing an approved attendee', () => {
     expect(p.eventAttendee.create).toHaveBeenCalledWith({ data: { userId: 'u2', eventId: 'e1', status: 'approved', stealth: false } })
 
     expect(createNotification).toHaveBeenCalledWith('u2', 'waitlist_promoted', expect.any(String), expect.stringContaining('Picnic'), '/events/e1')
-    expect(recomputeSpotsLeft).toHaveBeenCalledWith('e1', 12)
+    expect(recomputeSpotsLeft).toHaveBeenCalledWith('e1', 12, expect.anything())
   })
 
   it('writes an attendee.delete audit row naming the removed member', async () => {
@@ -109,7 +109,7 @@ describe('participants DELETE — removing an approved attendee', () => {
     await DELETE(req({ userId: 'u1' }), params)
     expect(p.waitlistEntry.delete).not.toHaveBeenCalled()
     expect(createNotification).not.toHaveBeenCalled()
-    expect(recomputeSpotsLeft).toHaveBeenCalledWith('e1', 12)
+    expect(recomputeSpotsLeft).toHaveBeenCalledWith('e1', 12, expect.anything())
   })
 
   it('removing a pending request neither promotes nor recomputes', async () => {
@@ -164,7 +164,7 @@ describe('participants POST — promote from waitlist', () => {
     expect(res.status).toBe(200)
     expect(p.waitlistEntry.deleteMany).toHaveBeenCalledWith({ where: { eventId: 'e1', userId: 'u1' } })
     expect(p.eventAttendee.create).toHaveBeenCalledWith({ data: { userId: 'u1', eventId: 'e1', status: 'approved', stealth: false } })
-    expect(recomputeSpotsLeft).toHaveBeenCalledWith('e1', 8)
+    expect(recomputeSpotsLeft).toHaveBeenCalledWith('e1', 8, expect.anything())
   })
 
   it.each(['cancelled', 'archived'])('refuses to promote into a %s event', async (status) => {

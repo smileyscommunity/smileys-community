@@ -33,7 +33,9 @@ export type ClockKind = 'start' | 'end'
 export function normalizeClock(raw: unknown, kind: ClockKind = 'start'): string | null {
   if (typeof raw !== 'string') return null
   const s = raw.trim()
-  const m = s.match(/^(\d{1,2})[:.](\d{2})$/) ?? s.match(/^(\d{2})(\d{2})$/) ?? s.match(/^(\d{1,2})()$/)
+  // Hosts also type '23 30' and '21h45' (the French/Turkish habit) — six live
+  // rows in the Sept 2026 audit were only unreadable for that separator.
+  const m = s.match(/^(\d{1,2})\s*[:.hH ]\s*(\d{2})$/) ?? s.match(/^(\d{2})(\d{2})$/) ?? s.match(/^(\d{1,2})()$/)
   if (!m) return null
   const h   = Number(m[1])
   const min = m[2] === '' ? 0 : Number(m[2])
