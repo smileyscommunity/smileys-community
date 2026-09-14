@@ -249,7 +249,7 @@ describe('f. rsvp route on the shared helper: behaviour unchanged', () => {
     h.getSession.mockResolvedValue({ id: 'm1', name: 'Mo', role: 'member', email: 'mo@x.test' })
     const res = await rsvpDELETE(req(), params)
     expect(res.status).toBe(200)
-    expect(h.announceSpotOpened).toHaveBeenCalledWith('e1')
+    expect(h.announceSpotOpened).toHaveBeenCalledWith('e1', ['m1'])   // the canceller names the seat
     expect(h.recompute).not.toHaveBeenCalled()
   })
 

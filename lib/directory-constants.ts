@@ -96,13 +96,26 @@ export function attributionDisplay(fullName: string | null | undefined): string 
   return lastInitial ? `${first} ${lastInitial}.` : first
 }
 
+// The profile URLs people actually paste: with or without the scheme, www./m.,
+// and the instagr.am short domain. Only a schemed www/bare instagram.com was
+// recognised, so "instagram.com/foo" was refused as an invalid handle.
+const INSTAGRAM_URL_RE = /^(?:https?:\/\/)?(?:(?:www|m)\.)?(?:instagram\.com|instagr\.am)\//i
+// First path segments that are Instagram pages (a post, a reel), not a profile.
+const INSTAGRAM_NON_PROFILE = new Set(['p', 'reel', 'reels', 'tv', 'stories', 'explore', 'accounts', 'direct'])
+
 export function normalizeInstagramHandle(raw: string | null | undefined): string | null {
   if (!raw || typeof raw !== 'string') return null
   let s = raw.trim()
   if (!s) return null
-  s = s.replace(/^https?:\/\/(www\.)?instagram\.com\//i, '')
+  if (INSTAGRAM_URL_RE.test(s)) {
+    s = s.replace(INSTAGRAM_URL_RE, '').split(/[/?#]/)[0]
+    if (INSTAGRAM_NON_PROFILE.has(s.toLowerCase())) return null
+  } else {
+    s = s.replace(/\/$/, '')
+    // Any other site's URL. "evil.com/foo" used to pass as the handle "evil.com".
+    if (/[/:]/.test(s) || /^(?:www\.)?instagram\.com$/i.test(s)) return null
+  }
   s = s.replace(/^@/, '')
-  s = s.split(/[/?#]/)[0]
   if (!/^[A-Za-z0-9._]{1,30}$/.test(s)) return null
   return s
 }

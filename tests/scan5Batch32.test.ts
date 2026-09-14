@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // Fifth scan, batch 32 — production data audit findings:
-//   97. "spot opened" alerts are throttled per member: once per event per
-//       window, at most a daily cap across events; the first still immediate
+//   97. "spot opened" alerts are throttled per member: once per seat per
+//       window (per event until scan 6 batch 10), at most a daily cap across
+//       events; the first still immediate
 //   98. the club memberCount recount counts what the live paths count —
 //       banned members' rows don't come back overnight
 //  100. an approval only enrols the member in their approved city's clubs
@@ -63,7 +64,7 @@ import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notify'
 import { sendSpotOpenedEmail } from '@/lib/email'
 import { writeAudit } from '@/lib/audit'
-import { announceSpotOpened, SPOT_ALERT_DAILY_CAP, SPOT_ALERT_EVENT_WINDOW_MS } from '@/lib/spotOpened'
+import { announceSpotOpened, SPOT_ALERT_DAILY_CAP, SPOT_ALERT_SEAT_WINDOW_MS } from '@/lib/spotOpened'
 import { COUNTED_CLUB_MEMBERSHIP_WHERE } from '@/lib/clubMemberCount'
 import { partitionClubsForCity } from '@/lib/approvalClubs'
 import { POST as sweep } from '@/app/api/cron/sweep-event-spots/route'
@@ -84,30 +85,33 @@ beforeEach(() => {
 describe('97. spot-opened alerts are throttled per member', () => {
   const EVENT = { title: 'Picnic', date: '2026-09-20', totalSpots: 10, soldOut: false, limitedSpots: true }
 
-  // One seat opening on `eventId`, with `waiting` on its waitlist.
-  const open = (eventId: string, waiting: string[] = ['w1']) => {
+  // One seat (given back by `seat`) opening on `eventId`, with `waiting` on its waitlist.
+  const open = (eventId: string, waiting: string[] = ['w1'], seat = 'x1') => {
     p.event.findUnique.mockReset()
       .mockResolvedValueOnce(EVENT)
       .mockResolvedValueOnce({ spotsLeft: 1 })
     p.waitlistEntry.findMany.mockResolvedValueOnce(waiting.map(userId => ({ userId })))
     p.user.findMany.mockResolvedValueOnce(waiting.map(id => ({ id, name: id, email: `${id}@x`, gender: null, nationality: null })))
-    return announceSpotOpened(eventId)
+    return announceSpotOpened(eventId, [seat])
   }
   const alertsTo = (userId: string) => (createNotification as any).mock.calls.filter((c: any[]) => c[0] === userId).length
 
-  it('the first alert goes out immediately, keyed per member per event', async () => {
+  it('the first alert goes out immediately, keyed per member per seat', async () => {
     expect(await open('e1')).toBe(1)
     expect(createNotification).toHaveBeenCalledTimes(1)
     expect(sendSpotOpenedEmail).toHaveBeenCalledTimes(1)
-    expect(h.claimOnce).toHaveBeenCalledWith('spot-opened:w1:e1', SPOT_ALERT_EVENT_WINDOW_MS)
-    expect(SPOT_ALERT_EVENT_WINDOW_MS).toBe(6 * 3_600_000)
+    expect(h.claimOnce).toHaveBeenCalledWith('spot-opened:w1:e1:x1', SPOT_ALERT_SEAT_WINDOW_MS)
+    expect(SPOT_ALERT_SEAT_WINDOW_MS).toBe(6 * 3_600_000)
   })
 
-  it('a second opening on the same event inside the window does not re-alert', async () => {
+  // Scan 6 batch 10: the window is per seat now — a new seat on the same
+  // event alerts again (tests/scan6Batch10).
+  it('the same seat opening again inside the window does not re-alert; a new seat does', async () => {
     await open('e1')
     expect(await open('e1')).toBe(0)
     expect(alertsTo('w1')).toBe(1)
     expect(sendSpotOpenedEmail).toHaveBeenCalledTimes(1)
+    expect(await open('e1', ['w1'], 'x2')).toBe(1)
   })
 
   it('a different event still alerts, and other waitlisters are unaffected', async () => {
@@ -123,9 +127,9 @@ describe('97. spot-opened alerts are throttled per member', () => {
     for (let i = 1; i <= SPOT_ALERT_DAILY_CAP + 2; i++) await open(`e${i}`)
     expect(alertsTo('w1')).toBe(SPOT_ALERT_DAILY_CAP)
     expect(h.rateLimit).toHaveBeenCalledWith('spot-opened-daily:w1', SPOT_ALERT_DAILY_CAP, 86_400_000)
-    // The capped events' claims were handed back, so they can alert once the day resets.
-    expect(h.releaseClaim).toHaveBeenCalledWith('spot-opened:w1:e6')
-    expect(h.counts.has('spot-opened:w1:e7')).toBe(false)
+    // The capped events' seat claims were handed back, so they can alert once the day resets.
+    expect(h.releaseClaim).toHaveBeenCalledWith('spot-opened:w1:e6:x1')
+    expect(h.counts.has('spot-opened:w1:e7:x1')).toBe(false)
   })
 
   it('fails open when the throttle store errors', async () => {

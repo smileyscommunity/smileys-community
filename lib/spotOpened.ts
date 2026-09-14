@@ -7,20 +7,33 @@ import { claimOnce, rateLimit, releaseClaim } from '@/lib/rateLimit'
 
 // Per-member throttle. Every join/cancel cycle on a busy event re-ran the
 // fan-out, and one waitlister got 11 identical "claim it!" alerts in a day.
-// The first alert still goes out immediately; repeats for the same event
-// wait out the window, and no member gets more than the cap per day.
-export const SPOT_ALERT_EVENT_WINDOW_MS = 6 * 3_600_000
-export const SPOT_ALERT_DAILY_CAP       = 5
+// The claim is per SEAT, not per event: the seat is the member who gave it
+// back (EventAttendee is unique per user+event, so their id names the seat).
+// A per-event claim silenced a genuinely new seat for six hours — seat A at
+// 17:00 alerted and was claimed, seat B at 18:30 for a 20:00 event told
+// nobody and sat empty. The same member cancelling, rejoining and cancelling
+// again is still one alert per window; the daily cap bounds everything else.
+export const SPOT_ALERT_SEAT_WINDOW_MS         = 6 * 3_600_000
+// A caller that can't name the seat falls back to a short per-event window,
+// so an unknown second seat waits minutes, not hours.
+export const SPOT_ALERT_UNKNOWN_SEAT_WINDOW_MS = 30 * 60_000
+export const SPOT_ALERT_DAILY_CAP             = 5
 const DAY_MS = 86_400_000
 
-async function mayAlert(userId: string, eventId: string): Promise<boolean> {
-  const eventKey = `spot-opened:${userId}:${eventId}`
+async function mayAlert(userId: string, eventId: string, seats: string[]): Promise<boolean> {
+  const keys = seats.length
+    ? seats.map(s => ({ key: `spot-opened:${userId}:${eventId}:${s}`, ms: SPOT_ALERT_SEAT_WINDOW_MS }))
+    : [{ key: `spot-opened:${userId}:${eventId}`, ms: SPOT_ALERT_UNKNOWN_SEAT_WINDOW_MS }]
   try {
-    if (!await claimOnce(eventKey, SPOT_ALERT_EVENT_WINDOW_MS)) return false
+    // One fan-out can carry several seats (the reconfirm release): alert if
+    // any of them is news to this member.
+    const fresh: string[] = []
+    for (const k of keys) if (await claimOnce(k.key, k.ms)) fresh.push(k.key)
+    if (fresh.length === 0) return false
     if (await rateLimit(`spot-opened-daily:${userId}`, SPOT_ALERT_DAILY_CAP, DAY_MS)) return true
-    // Capped: hand the event claim back, or an alert that never went out
-    // would silence this event for the member for the whole window.
-    await releaseClaim(eventKey)
+    // Capped: hand the seat claims back, or an alert that never went out
+    // would silence those seats for the member for the whole window.
+    for (const key of fresh) await releaseClaim(key)
     return false
   } catch (e) {
     // Fail open: a missed open seat costs the member more than one extra alert.
@@ -38,8 +51,10 @@ async function mayAlert(userId: string, eventId: string): Promise<boolean> {
  * the member's own cancel and by the day-before reconfirmation release.
  *
  * Re-derives spotsLeft afterwards so the event page shows the open seat.
+ * `releasedUserIds` are the members whose seats just opened — the throttle's
+ * seat identity (see mayAlert).
  */
-export async function announceSpotOpened(eventId: string): Promise<number> {
+export async function announceSpotOpened(eventId: string, releasedUserIds: string[] = []): Promise<number> {
   const event = await prisma.event.findUnique({
     where:  { id: eventId },
     select: { title: true, date: true, soldOut: true, limitedSpots: true, ...quotaEventSelect },
@@ -76,7 +91,7 @@ export async function announceSpotOpened(eventId: string): Promise<number> {
   const users: typeof candidates = []
   for (const u of candidates) {
     // Quota first, so a closed side never spends the member's throttle.
-    if ((await hasQuotaRoomFor(eventId, event, u)).ok && await mayAlert(u.id, eventId)) users.push(u)
+    if ((await hasQuotaRoomFor(eventId, event, u)).ok && await mayAlert(u.id, eventId, releasedUserIds)) users.push(u)
   }
 
   for (const u of users) {

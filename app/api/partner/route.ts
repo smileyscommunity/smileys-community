@@ -52,31 +52,42 @@ export async function PATCH(req: NextRequest) {
   // non-string value 500'd. Same validators as the directory submit route.
   const str = (v: unknown, max: number) => typeof v === 'string' ? v.trim().slice(0, max) : v == null ? null : undefined
   const data: Record<string, string | null> = {}
+  // Only a CHANGED value is validated and written (the admin partner PATCH does
+  // the same). A stored legacy http:// website or "instagram.com/foo" handle,
+  // echoed back by an older page, would otherwise 400 a save that only edits
+  // the discount — and the partner has no way to see why.
+  const current = await prisma.partner.findUnique({
+    where: { id: partnerId },
+    select: { name: true, category: true, discount: true, address: true, neighborhood: true, website: true, instagram: true, logo: true, coverImage: true },
+  })
+  // The account can lose its partner between the role check and here (admin
+  // deleted the partner row) — a clean 404, not a P2025 500.
+  if (!current) return NextResponse.json({ error: 'Partner not found' }, { status: 404 })
+  const norm = (v: unknown) => typeof v === 'string' ? (v.trim() || null) : v ?? null
+  const unchanged = (key: keyof typeof current) => norm(body[key]) === norm(current[key])
   for (const [key, max] of [['name', 120], ['category', 60], ['discount', 200], ['address', 300], ['neighborhood', 80]] as const) {
-    if (!(key in body)) continue
+    if (!(key in body) || unchanged(key)) continue
     const v = str(body[key], max)
     // All five are NOT NULL columns: a null (a cleared field serialised as
     // null) passed this check and 500'd in prisma.partner.update.
     if (typeof v !== 'string' || (key === 'name' && !v)) return NextResponse.json({ error: `${key} must be text` }, { status: 400 })
     data[key] = v
   }
-  if ('website' in body) {
+  if ('website' in body && !unchanged('website')) {
     const v = str(body.website, 300)
     if (v === undefined || (v && !isSafeHref(v))) return NextResponse.json({ error: 'Website must start with https://' }, { status: 400 })
     data.website = v || null
   }
-  if ('instagram' in body) {
+  if ('instagram' in body && !unchanged('instagram')) {
     const v = str(body.instagram, 60)
     if (v === undefined) return NextResponse.json({ error: 'Instagram must be text' }, { status: 400 })
     const handle = v ? normalizeInstagramHandle(v) : null
     if (v && !handle) return NextResponse.json({ error: 'Invalid Instagram handle' }, { status: 400 })
-    data.instagram = handle
+    if (handle !== current.instagram) data.instagram = handle
   }
-  // The settings page PATCHes the whole record it loaded, so an admin-set
-  // external logo comes back on every save. Only a CHANGED value is held to
-  // the uploads-only rule (/perks renders these as <img> to every member and
-  // CSP allows any https image, so a new external URL is a tracking pixel).
-  const current = await prisma.partner.findUnique({ where: { id: partnerId }, select: { logo: true, coverImage: true } })
+  // An admin-set external logo is an unchanged value too. Only a CHANGED image
+  // is held to the uploads-only rule (/perks renders these as <img> to every
+  // member and CSP allows any https image, so a new external URL is a tracking pixel).
   for (const key of ['logo', 'coverImage'] as const) {
     if (!(key in body)) continue
     const v = str(body[key], 300)
@@ -85,10 +96,6 @@ export async function PATCH(req: NextRequest) {
     if (v && !isUploadedImageUrl(v)) return NextResponse.json({ error: `${key} must be an image uploaded through Smileys` }, { status: 400 })
     data[key] = v || null
   }
-
-  // The account can lose its partner between the role check and here (admin
-  // deleted the partner row) — a clean 404, not a P2025 500.
-  if (!current) return NextResponse.json({ error: 'Partner not found' }, { status: 404 })
 
   const updated = await prisma.partner.update({
     where: { id: partnerId },

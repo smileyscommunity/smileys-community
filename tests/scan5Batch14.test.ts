@@ -234,13 +234,13 @@ describe('56. no new seats once the event has started', () => {
       p.event.findUnique.mockResolvedValue({ ...EVENT, time: 'TBA', endTime: null })
       at('2026-09-12T12:00:00Z')
       await DELETE(req(), params)
-      expect(announceSpotOpened).toHaveBeenCalledWith('e1')
+      expect(announceSpotOpened).toHaveBeenCalledWith('e1', ['u1'])   // the canceller names the seat
     })
 
     it('before the start announces as before', async () => {
       at('2026-09-12T09:00:00Z')
       await DELETE(req(), params)
-      expect(announceSpotOpened).toHaveBeenCalledWith('e1')
+      expect(announceSpotOpened).toHaveBeenCalledWith('e1', ['u1'])   // the canceller names the seat
       expect(recomputeSpotsLeft).not.toHaveBeenCalled()   // announceSpotOpened owns the recompute
     })
   })

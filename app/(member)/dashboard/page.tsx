@@ -7,7 +7,8 @@ import { postCityScope } from '@/lib/postScope'
 import { getSession } from '@/lib/session'
 import { resolveCityId, getCityConfig } from '@/lib/city'
 import { getStatsFor } from '@/lib/cities'
-import { ACTIVATED_MEMBER_WHERE } from '@/lib/memberCount'
+import { COMMUNITY_MEMBER_WHERE } from '@/lib/memberCount'
+import { foundingRankFor } from '@/lib/foundingRank'
 import { countedReferralsWhere } from '@/lib/referrals'
 import { CITY_MATURITY } from '@/lib/cityMaturity'
 import { CITY_STATUS } from '@/lib/cityStatus'
@@ -177,15 +178,13 @@ export default async function DashboardPage() {
   // self-sustaining member floor (150) is never seeding, so Istanbul's
   // dashboard pays one count and skips the rest; only small cities run the
   // full maturity computation + rank query.
-  // "Members" here = community members: everyone approved except admin and
-  // partner accounts. The old role IN ['member','moderator'] filter excluded
-  // hosts — so a host-role user in a seeding city passed every gate but
-  // wasn't counted in their own rank and saw "member #0".
-  // Activated only (lib/memberCount) — the same rule as getStatsFor, or the
-  // gate and the maturity it guards disagree again.
-  const MEMBER_ROLES = { notIn: ['admin', 'partner'] }
+  // "Members" here = activated community members, every role except admin
+  // and partner (COMMUNITY_MEMBER_WHERE). The old role IN ['member','moderator']
+  // filter excluded hosts — so a host-role user in a seeding city passed every
+  // gate but wasn't counted in their own rank and saw "member #0". Same rule
+  // as getStatsFor, or the gate and the maturity it guards disagree again.
   const cityMemberCount = await prisma.user.count({
-    where: { ...ACTIVATED_MEMBER_WHERE, cityId, role: MEMBER_ROLES },
+    where: { ...COMMUNITY_MEMBER_WHERE, cityId },
   })
   let founding: { cityName: string; rank: number; total: number; firstName: string } | null = null
   // Only for a member whose OWN city is seeding, and only once that city is
@@ -200,12 +199,10 @@ export default async function DashboardPage() {
   if (city.status === CITY_STATUS.Live && cityMemberCount < 150 && cityId === session.cityId) {
     const stats = (await getStatsFor([cityId])).get(cityId)
     if (stats?.maturity === CITY_MATURITY.Seeding && userProfile?.joinedAt) {
-      // This member's join position in the city — count of activated members
-      // who joined no later than they did.
-      const rank = await prisma.user.count({
-        where: { ...ACTIVATED_MEMBER_WHERE, cityId, role: MEMBER_ROLES, joinedAt: { lte: userProfile.joinedAt } },
-      })
-      founding = { cityName: city.name, rank: Math.max(1, rank), total: cityMemberCount, firstName: firstNameOf(session.name) }
+      // This member's join position in the city — the helper the activation
+      // email uses, so "#13" in the inbox is "#13" here.
+      const rank = await foundingRankFor(cityId, { joinedAt: userProfile.joinedAt, activated: true })
+      founding = { cityName: city.name, rank, total: cityMemberCount, firstName: firstNameOf(session.name) }
     }
   }
 
@@ -536,8 +533,9 @@ export default async function DashboardPage() {
       take: 20,
       select: { id: true, title: true, date: true, emoji: true, neighborhood: true, price: true, currency: true },
     }),
-    // "Total members" — activated only (lib/memberCount).
-    prisma.user.count({ where: { ...ACTIVATED_MEMBER_WHERE, cityId } }),
+    // "Total members" — activated community members (lib/memberCount); it
+    // counted admins and partners, so it disagreed with the panel above.
+    prisma.user.count({ where: { ...COMMUNITY_MEMBER_WHERE, cityId } }),
     prisma.event.count({ where: { cityId, date: { gte: today, lte: weekEndStr }, status: 'published' } }),
     userProfile?.neighborhood
       ? prisma.event.count({ where: { cityId, neighborhood: userProfile.neighborhood, date: { gte: today }, status: 'published' } })

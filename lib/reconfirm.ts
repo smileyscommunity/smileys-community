@@ -147,6 +147,7 @@ export async function releaseEvent(event: {
     include: { user: { select: { id: true, name: true, email: true } } },
   })
   let released = 0
+  const releasedUserIds: string[] = []
   for (const a of rows) {
     if (released >= needed) break
     if (staff.has(a.userId)) continue
@@ -170,8 +171,11 @@ export async function releaseEvent(event: {
         await recordEmailFailure({ helper: 'sendSpotReleasedEmail', recipient: a.user.email, error: err, context: { eventId: event.id, userId: a.userId } })
       })
     released++
+    releasedUserIds.push(a.userId)
   }
-  if (released > 0) await announceSpotOpened(event.id)
+  // The released members name the seats, so the fan-out's throttle tells
+  // these apart from any seat opened earlier today.
+  if (released > 0) await announceSpotOpened(event.id, releasedUserIds)
   return released
 }
 

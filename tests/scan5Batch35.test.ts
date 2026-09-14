@@ -128,8 +128,9 @@ describe('c. admin dashboard shows both halves of the funnel', () => {
     expect(body.membersActivated).toBe(40)
     expect(body.membersNotActivated).toBe(12)
     const wheres = p.user.count.mock.calls.map((c: any) => c[0].where)
-    expect(wheres).toContainEqual({ ...ACTIVATED_MEMBER_WHERE,     role: { in: ['member', 'moderator'] }, cityId: 'c-b' })
-    expect(wheres).toContainEqual({ ...NOT_ACTIVATED_MEMBER_WHERE, role: { in: ['member', 'moderator'] }, cityId: 'c-b' })
+    // Every role but admin/partner since scan6Batch9 (member+moderator dropped hosts).
+    expect(wheres).toContainEqual({ ...ACTIVATED_MEMBER_WHERE,     role: { notIn: ['admin', 'partner'] }, cityId: 'c-b' })
+    expect(wheres).toContainEqual({ ...NOT_ACTIVATED_MEMBER_WHERE, role: { notIn: ['admin', 'partner'] }, cityId: 'c-b' })
   })
 
   it('the Members card leads with activated and names the gap', () => {
@@ -154,9 +155,11 @@ describe('d. public and member-facing member totals use the rule', () => {
 
   it('the dashboard founding gate, rank and "Total members" count activated members', () => {
     const src = read('app/(member)/dashboard/page.tsx')
-    expect(src).toMatch(/cityMemberCount = await prisma\.user\.count\(\{\s*where: \{ \.\.\.ACTIVATED_MEMBER_WHERE, cityId, role: MEMBER_ROLES \}/)
-    expect(src).toMatch(/const rank = await prisma\.user\.count\(\{\s*where: \{ \.\.\.ACTIVATED_MEMBER_WHERE, cityId, role: MEMBER_ROLES, joinedAt/)
-    expect(src).toMatch(/prisma\.user\.count\(\{ where: \{ \.\.\.ACTIVATED_MEMBER_WHERE, cityId \} \}\)/)
+    // COMMUNITY_MEMBER_WHERE is ACTIVATED_MEMBER_WHERE plus the member-role
+    // rule; the rank lives in lib/foundingRank (scan6Batch9).
+    expect(src).toMatch(/cityMemberCount = await prisma\.user\.count\(\{\s*where: \{ \.\.\.COMMUNITY_MEMBER_WHERE, cityId \}/)
+    expect(src).toMatch(/const rank = await foundingRankFor\(cityId, \{ joinedAt: userProfile\.joinedAt, activated: true \}\)/)
+    expect(src).toMatch(/prisma\.user\.count\(\{ where: \{ \.\.\.COMMUNITY_MEMBER_WHERE, cityId \} \}\)/)
     expect(src).not.toMatch(/prisma\.user\.count\(\{ where: \{ cityId, status: 'approved' \} \}\)/)
   })
 })

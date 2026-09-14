@@ -13,7 +13,7 @@ import { hashToken } from '@/lib/tokenHash'
 import { promoteApplicationPhoto } from '@/lib/promotePhoto'
 import { getStatsFor } from '@/lib/cities'
 import { CITY_MATURITY } from '@/lib/cityMaturity'
-import { firstNameOf } from '@/lib/data'
+import { foundingRankFor, foundingFellowNames } from '@/lib/foundingRank'
 import { clubsForApprovedCity, type SkippedClub } from '@/lib/approvalClubs'
 
 function normalizeName(name: string): string {
@@ -247,24 +247,16 @@ export async function PATCH(req: NextRequest) {
             // Founding members get their rank and the first names of the
             // people already in — joining a five-person city should feel like
             // being let into something, not like arriving at an empty room.
+            // Rank and names come from lib/foundingRank, the dashboard panel's
+            // own definition: activated members only. The account was just
+            // created without a password, so it ranks after everyone counted.
             let founding: { rank: number; others: string[] } | undefined
             if (isFoundingCity) {
-              const MEMBER_ROLES = { notIn: ['admin', 'partner'] }
-              const [rank, fellows] = await Promise.all([
-                prisma.user.count({
-                  where: { cityId: application.targetCityId, status: 'approved', role: MEMBER_ROLES, joinedAt: { lte: user.joinedAt } },
-                }),
-                prisma.user.findMany({
-                  where: {
-                    cityId: application.targetCityId, status: 'approved', role: MEMBER_ROLES,
-                    foundingMember: true, id: { not: user.id }, hiddenFromMembers: false,
-                  },
-                  orderBy: { joinedAt: 'asc' },
-                  take: 3,
-                  select: { name: true },
-                }),
+              const [rank, others] = await Promise.all([
+                foundingRankFor(application.targetCityId, { joinedAt: user.joinedAt, activated: false }),
+                foundingFellowNames(application.targetCityId, user.id),
               ])
-              founding = { rank: Math.max(1, rank), others: fellows.map(f => firstNameOf(f.name)) }
+              founding = { rank, others }
             }
             await sendActivationEmail(application.email, application.fullName, token, welcomeMessage || undefined, targetCity?.name, founding)
           } else {

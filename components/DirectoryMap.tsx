@@ -1,12 +1,8 @@
 'use client'
 
 // Leaflet map view for /directory. Renders one pin per visible
-// business; pins land on:
-//   1. The business's own (lat, lon) when set, otherwise
-//   2. For default-city (Istanbul) businesses only, the centroid of
-//      its neighborhood (from NEIGHBORHOOD_META) offset by a
-//      deterministic per-id jitter so multiple businesses in the same
-//      neighborhood don't all stack on the same pixel.
+// business; where each pin lands (own coords, else the default city's
+// neighborhood centroid) lives in lib/directoryMapPosition.
 //
 // Businesses with no coords and no usable fallback are skipped (the
 // pre-list filter in the parent should already exclude them). The
@@ -16,25 +12,14 @@
 import 'leaflet/dist/leaflet.css'
 import { useEffect, useRef, useState } from 'react'
 import type { Map, Marker } from 'leaflet'
-import { NEIGHBORHOOD_META } from '@/lib/neighborhoods'
+import { resolvePosition, type PositionedBusiness } from '@/lib/directoryMapPosition'
 
-export interface MapBusiness {
-  id: string
+export interface MapBusiness extends PositionedBusiness {
   name: string
   category: string
-  neighborhood: string | null
-  latitude:  number | null
-  longitude: number | null
   avgRating:   number | null
   reviewCount: number
-  // Slug of the city the business is listed in. Gates the neighborhood
-  // fallback below; absent means "unknown", which gets no fallback pin.
-  citySlug?: string | null
 }
-
-// Mirrors DEFAULT_CITY_SLUG in lib/city — not imported because that module
-// pulls in prisma, which can't ship in this client bundle.
-const DEFAULT_CITY_SLUG = 'istanbul'
 
 interface Props {
   businesses:   MapBusiness[]
@@ -45,39 +30,6 @@ interface Props {
   defaultCenter?: [number, number] | null
 }
 
-// Deterministic per-id jitter in roughly ±300m at Istanbul's latitude.
-// Same id always produces the same offset, so re-renders don't make
-// pins jump around.
-function jitterFromId(id: string): [number, number] {
-  let a = 0, b = 0
-  for (let i = 0; i < id.length; i++) {
-    const c = id.charCodeAt(i)
-    a = (a * 131 + c)  & 0xffff
-    b = (b * 257 + c) & 0xffff
-  }
-  // ~0.003 lat/lon at Istanbul lat ≈ 300m
-  return [
-    ((a / 0xffff) - 0.5) * 0.006,
-    ((b / 0xffff) - 0.5) * 0.006,
-  ]
-}
-
-function resolvePosition(b: MapBusiness): [number, number] | null {
-  if (b.latitude != null && b.longitude != null) return [b.latitude, b.longitude]
-  // NEIGHBORHOOD_META is Istanbul-only and keyed by bare name, and other
-  // cities reuse those names (Ankara's Bahçelievler/Ulus, İzmir's Göztepe) —
-  // the fallback pinned them in Istanbul and fitBounds spanned both cities.
-  // Only the default city's businesses may use it; unknown city → no pin.
-  if (b.neighborhood && b.citySlug === DEFAULT_CITY_SLUG) {
-    const meta = NEIGHBORHOOD_META[b.neighborhood]
-    if (meta) {
-      const [dLat, dLon] = jitterFromId(b.id)
-      return [meta.lat + dLat, meta.lon + dLon]
-    }
-  }
-  return null
-}
-
 // Istanbul-wide default view — centered between the European and
 // Asian sides at a zoom where most central neighborhoods fit.
 const DEFAULT_CENTER: [number, number] = [41.0245, 29.0083]
@@ -85,7 +37,9 @@ const DEFAULT_ZOOM = 11
 
 export default function DirectoryMap({ businesses, onPinClick, defaultCenter }: Props) {
   const [ready, setReady] = useState(false)
-  const pinKey = businesses.map(b => `${b.id}:${b.latitude}:${b.longitude}:${b.avgRating ?? ''}:${b.reviewCount ?? ''}`).join('|')
+  // citySlug is in the key because it decides whether a coordinate-less
+  // business gets a neighborhood pin — a change must redraw.
+  const pinKey = businesses.map(b => `${b.id}:${b.latitude}:${b.longitude}:${b.citySlug ?? ''}:${b.avgRating ?? ''}:${b.reviewCount ?? ''}`).join('|')
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef       = useRef<Map | null>(null)
   const markersRef   = useRef<Marker[]>([])

@@ -37,6 +37,9 @@ export type DirectoryBusiness = {
   languages:       string | null
   latitude:        number | null
   longitude:       number | null
+  // Slug of the business's own city, so the client never has to infer it
+  // from a separately fetched "current city" (the map's pin fallback).
+  citySlug:        string | null
   hours:           string | null
   memberDiscount:  string | null
   tags:            string[]
@@ -95,6 +98,8 @@ export async function queryDirectory(filters: DirectoryFilters & { cityId: strin
       hours: true, memberDiscount: true, tags: true,
       claimedById: true,
       submittedBy: { select: { name: true } },
+      // Relation select: loaded with the page, not per row.
+      city: { select: { slug: true } },
       createdAt: true,
     },
   })
@@ -142,7 +147,7 @@ export async function queryDirectory(filters: DirectoryFilters & { cityId: strin
   const claimByBiz   = new Map(myClaims.map(c     => [c.businessId, c.status]))
 
   const items = page.map(b => {
-    const { submittedBy, claimedById, ...rest } = b
+    const { submittedBy, claimedById, city, ...rest } = b
     const rawStatus = claimByBiz.get(b.id)
     const myClaimStatus: DirectoryBusiness['myClaimStatus'] =
       rawStatus === 'pending' || rawStatus === 'approved' || rawStatus === 'rejected'
@@ -150,6 +155,7 @@ export async function queryDirectory(filters: DirectoryFilters & { cityId: strin
         : 'none'
     return {
       ...rest,
+      citySlug:        city?.slug ?? null,
       avgRating:       statsByBiz.get(b.id)?.avgRating   ?? null,
       reviewCount:     statsByBiz.get(b.id)?.reviewCount ?? 0,
       saveCount:       saveByBiz.get(b.id)               ?? 0,

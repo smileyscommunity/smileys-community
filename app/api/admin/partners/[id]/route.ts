@@ -35,9 +35,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   const { id } = await params
   // A moderator edits partners in their own city only.
-  const scope = await prisma.partner.findUnique({ where: { id }, select: { cityId: true } })
-  if (!scope) return NextResponse.json({ error: 'Partner not found' }, { status: 404 })
-  if (!canActInCity(session, scope.cityId)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const current = await prisma.partner.findUnique({ where: { id } })
+  if (!current) return NextResponse.json({ error: 'Partner not found' }, { status: 404 })
+  if (!canActInCity(session, current.cityId)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const body = await req.json().catch(() => null)
   if (!body || typeof body !== 'object') return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
 
@@ -47,9 +47,16 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   // Each field is now typed the way the partner self-edit route types it.
   const data: Record<string, string | boolean | null> = {}
   const str = (v: unknown, max: number) => typeof v === 'string' ? v.trim().slice(0, max) : v == null ? null : undefined
+  // Only a value that differs from the row is validated and written. The panel
+  // used to echo the whole row, and a legacy http:// logo or "instagram.com/foo"
+  // stored before these rules 400'd every save, even one changing only the
+  // discount. Unchanged legacy values pass through untouched.
+  const norm = (v: unknown) => typeof v === 'string' ? (v.trim() || null) : v ?? null
+  const row = current as unknown as Record<string, unknown>
+  const unchanged = (key: string) => norm(body[key]) === norm(row[key])
   // Required columns: null or blank would 500 on the NOT NULL constraint.
   for (const [key, max] of [['name', 120], ['category', 60], ['discount', 200], ['address', 300], ['neighborhood', 80]] as const) {
-    if (!(key in body)) continue
+    if (!(key in body) || unchanged(key)) continue
     const v = str(body[key], max)
     if (typeof v !== 'string') return NextResponse.json({ error: `${key} must be text` }, { status: 400 })
     if (key === 'name' && !v) return NextResponse.json({ error: 'name is required' }, { status: 400 })
@@ -57,21 +64,22 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
   // URL fields render as <a href> on /partner and /perks — reject
   // `javascript:` / `data:` schemes. Empty string unsets.
-  if ('website' in body) {
+  if ('website' in body && !unchanged('website')) {
     const v = str(body.website, 300)
     if (v === undefined || (v && !isSafeHref(v))) return NextResponse.json({ error: 'website must be https:// or a /relative path' }, { status: 400 })
     data.website = v || null
   }
-  if ('instagram' in body) {
+  if ('instagram' in body && !unchanged('instagram')) {
     const v = str(body.instagram, 60)
     const handle = v ? normalizeInstagramHandle(v) : null
     if (v === undefined || (v && !handle)) return NextResponse.json({ error: 'Invalid Instagram handle' }, { status: 400 })
-    data.instagram = handle
+    // "@foo" typed over a stored "foo" is not an edit.
+    if (handle !== current.instagram) data.instagram = handle
   }
   // Rendered as <img> to every member. Staff may paste an https image URL (the
   // panel has no uploader) or an uploads path; nothing else (data:, javascript:).
   for (const key of ['logo', 'coverImage'] as const) {
-    if (!(key in body)) continue
+    if (!(key in body) || unchanged(key)) continue
     const v = str(body[key], 500)
     if (v === undefined || (v && !isUploadedImageUrl(v) && !/^https:\/\/[^\s"'<>]+$/.test(v))) {
       return NextResponse.json({ error: `${key} must be an https:// image URL or an uploaded image` }, { status: 400 })
@@ -80,9 +88,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
   if ('isActive' in body) {
     if (typeof body.isActive !== 'boolean') return NextResponse.json({ error: 'isActive must be true or false' }, { status: 400 })
-    data.isActive = body.isActive
+    if (body.isActive !== current.isActive) data.isActive = body.isActive
   }
 
+  // Nothing differs: answer with the row rather than issue an empty UPDATE.
+  if (Object.keys(data).length === 0) return NextResponse.json(current)
   const partner = await prisma.partner.update({ where: { id }, data })
   return NextResponse.json(partner)
 }

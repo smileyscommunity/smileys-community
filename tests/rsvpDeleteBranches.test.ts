@@ -145,7 +145,8 @@ describe('DELETE /events/[id]/rsvp — spot-opened announcement', () => {
     p.eventAttendee.findUnique.mockResolvedValue({ status: 'approved' })
     await DELETE(req(), params)
     expect(announceSpotOpened).toHaveBeenCalledTimes(1)
-    expect(announceSpotOpened).toHaveBeenCalledWith('e1')
+    // The canceller names the seat for the spot-opened throttle.
+    expect(announceSpotOpened).toHaveBeenCalledWith('e1', ['u1'])
   })
 
   it('does not announce when a pending request is withdrawn', async () => {

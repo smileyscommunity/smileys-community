@@ -111,10 +111,10 @@ describe('69 neighborhood wall expanded replies', () => {
   })
 })
 
-// Source pins: vitest here has no JSX transform, so the .tsx can't be imported
-// to call resolvePosition directly.
+// Source pins on the placement logic, which moved out of the .tsx into
+// lib/directoryMapPosition (scan 6 batch 12 also tests it directly).
 describe('70 directory map neighborhood fallback', () => {
-  const src = read('components/DirectoryMap.tsx')
+  const src = read('lib/directoryMapPosition.ts')
   const start = src.indexOf('function resolvePosition(')
   const fn = src.slice(start, src.indexOf('\n}\n', start))
 

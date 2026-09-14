@@ -28,3 +28,22 @@ export const NOT_ACTIVATED_MEMBER_WHERE = {
   status:   'approved',
   password: null,
 } satisfies Prisma.UserWhereInput
+
+/**
+ * Which roles are "members" in a member total: every role except admin and
+ * partner accounts (staff and business logins, not community members). Hosts
+ * and moderators count. Before this was shared, the dashboard's "Total
+ * members" counted admins and partners, the admin stats card dropped hosts,
+ * and the city cards used this rule — three numbers for one city.
+ */
+export const MEMBER_ROLE_FILTER: { notIn: string[] } = { notIn: ['admin', 'partner'] }
+
+/**
+ * An activated community member — the where clause behind every member
+ * total, the city maturity thresholds and the founding-member rank. Same
+ * spread rule as above: add filters after it.
+ */
+export const COMMUNITY_MEMBER_WHERE = {
+  ...ACTIVATED_MEMBER_WHERE,
+  role: MEMBER_ROLE_FILTER,
+} satisfies Prisma.UserWhereInput

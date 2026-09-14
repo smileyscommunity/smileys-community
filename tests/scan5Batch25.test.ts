@@ -107,7 +107,11 @@ describe('87a. a tag group with tags is refused, not a foreign-key 500', () => {
 
 describe('87b. every field the admin partner panel shows actually saves', () => {
   beforeEach(() => {
-    p.partner.findUnique.mockResolvedValue({ cityId: 'c1' })
+    // A stored row: the route writes only values that differ from it (scan 6, batch 11).
+    p.partner.findUnique.mockResolvedValue({
+      cityId: 'c1', name: 'Café', category: 'Cafe', website: 'https://cafe.example', instagram: null,
+      logo: '/app/api/files/general/old.jpg', coverImage: null, isActive: true,
+    })
     p.partner.update.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({ id: 'p1', ...data }))
   })
   const patch = (body: unknown) => adminPartnerPATCH(jsonReq(body), params('p1'))
@@ -209,7 +213,8 @@ describe('88b. partner settings for a demoted account and null fields', () => {
   it('a null on a NOT NULL column is a 400, not a 500', async () => {
     session.current = { ...member, role: 'partner', partnerId: 'p1' }
     p.user.findUnique.mockResolvedValue({ role: 'partner', partnerId: 'p1' })
-    p.partner.findUnique.mockResolvedValue({ logo: null, coverImage: null })
+    // NOT NULL columns always hold a string, so a null is a change, not an echo.
+    p.partner.findUnique.mockResolvedValue({ name: 'Café', discount: '10%', logo: null, coverImage: null })
     expect((await partnerPATCH(jsonReq({ discount: null }))).status).toBe(400)
     expect(p.partner.update).not.toHaveBeenCalled()
   })

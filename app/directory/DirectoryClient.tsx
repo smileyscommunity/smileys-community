@@ -51,6 +51,9 @@ interface Business {
   // Map view falls back to neighborhood centroid + jitter when null.
   latitude:  number | null
   longitude: number | null
+  // The business's own city slug, from the same response as the row — the
+  // map's neighborhood fallback reads it (see DirectoryMap).
+  citySlug: string | null
   // Weekly opening hours, free-form member-discount perk.
   hours: Record<string, string | null> | null
   memberDiscount: string | null
@@ -594,10 +597,11 @@ function DirectoryPageInner() {
               neighborhood: b.neighborhood,
               latitude: b.latitude, longitude: b.longitude,
               avgRating: b.avgRating, reviewCount: b.reviewCount,
-              // The list is fetched for the same city viewCity resolves
-              // (pinned slug or cookie), so it tells the map whether the
-              // Istanbul-only neighborhood fallback applies.
-              citySlug: viewCity?.slug ?? null,
+              // Each row's own city, not viewCity: that comes from a separate
+              // /api/city/current fetch that can land after (or never, or
+              // still naming the previous city) the list, which drew pins for
+              // the wrong city and pinKey never redrew them.
+              citySlug: b.citySlug,
             }))}
             onPinClick={onPinClick}
             defaultCenter={viewCity?.lat != null && viewCity?.lng != null ? [viewCity.lat, viewCity.lng] : null}

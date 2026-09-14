@@ -7,7 +7,7 @@ import { getCityTz } from '@/lib/city'
 import { listStaleSweepers } from '@/lib/cronHealth'
 import { stalledLiveCities, stalledSeverity, describeStalled } from '@/lib/cityOps'
 import { loadPostponedEvents, planPostponed } from '@/lib/postponedEvents'
-import { ACTIVATED_MEMBER_WHERE, NOT_ACTIVATED_MEMBER_WHERE } from '@/lib/memberCount'
+import { COMMUNITY_MEMBER_WHERE, NOT_ACTIVATED_MEMBER_WHERE, MEMBER_ROLE_FILTER } from '@/lib/memberCount'
 
 export async function GET(req: Request) {
   const session = await getSession()
@@ -75,11 +75,13 @@ export async function GET(req: Request) {
     ...rsvpsByDayCounts
   ] = await Promise.all<any>([
     prisma.user.count({ where: { role: { not: 'admin' }, ...inCity } }),
-    prisma.user.count({ where: { status: 'approved', role: { in: ['member', 'moderator'] }, ...inCity } }),
+    // Members = every role but admin and partner (MEMBER_ROLE_FILTER) — the
+    // city cards' and dashboard's rule. member+moderator here dropped hosts.
+    prisma.user.count({ where: { status: 'approved', role: MEMBER_ROLE_FILTER, ...inCity } }),
     // The same members split by activation (lib/memberCount): activated is what
     // every public figure shows; the rest approved and never set a password.
-    prisma.user.count({ where: { ...ACTIVATED_MEMBER_WHERE, role: { in: ['member', 'moderator'] }, ...inCity } }),
-    prisma.user.count({ where: { ...NOT_ACTIVATED_MEMBER_WHERE, role: { in: ['member', 'moderator'] }, ...inCity } }),
+    prisma.user.count({ where: { ...COMMUNITY_MEMBER_WHERE, ...inCity } }),
+    prisma.user.count({ where: { ...NOT_ACTIVATED_MEMBER_WHERE, role: MEMBER_ROLE_FILTER, ...inCity } }),
     // Scoped by the host's own city rather than the club's: a global club
     // (cityId null) has no city to attribute its hosts to, and this metric
     // sits next to `members` — both should mean "people in this city".

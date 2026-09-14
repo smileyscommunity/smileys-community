@@ -18,6 +18,8 @@ interface PartnerData {
 
 export default function PartnerSettings() {
   const [formData, setFormData] = useState<PartnerData | null>(null)
+  // The last-saved record, so a save sends only what changed since.
+  const [saved, setSaved] = useState<PartnerData | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setLoadingSaving] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -33,11 +35,13 @@ export default function PartnerSettings() {
           setLoadError(d?.error ?? `Could not load your business (HTTP ${r.status})`)
           return
         }
-        setFormData({
+        const loaded = {
           ...d,
           name: d.name ?? '', category: d.category ?? '', discount: d.discount ?? '',
           address: d.address ?? '', neighborhood: d.neighborhood ?? '',
-        })
+        }
+        setFormData(loaded)
+        setSaved(loaded)
       })
       .catch(() => setLoadError('Network error — could not load your business'))
       .finally(() => setLoading(false))
@@ -45,21 +49,27 @@ export default function PartnerSettings() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!formData) return
+    if (!formData || !saved) return
+    // Only the fields the partner actually edited. Empty optional fields go as
+    // null (the route unsets them); the required text fields stay strings.
+    // Echoing untouched values made a legacy website or handle block every save.
+    const body: Record<string, string | null> = {}
+    for (const key of ['name', 'discount'] as const) {
+      if (formData[key] !== saved[key]) body[key] = formData[key]
+    }
+    for (const key of ['website', 'instagram', 'logo', 'coverImage'] as const) {
+      if ((formData[key] || null) !== (saved[key] || null)) body[key] = formData[key] || null
+    }
+    if (Object.keys(body).length === 0) { toast('No changes to save'); return }
     setLoadingSaving(true)
     try {
       const res = await fetch('/app/api/partner', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        // Only the fields this form edits. Empty optional fields go as null
-        // (the route unsets them); the required text fields stay strings.
-        body: JSON.stringify({
-          name: formData.name, discount: formData.discount,
-          website: formData.website || null, instagram: formData.instagram || null,
-          logo: formData.logo || null, coverImage: formData.coverImage || null,
-        }),
+        body: JSON.stringify(body),
       })
       if (res.ok) {
+        setSaved(formData)
         toast.success('Business information updated')
       } else {
         const d = await res.json().catch(() => ({}))

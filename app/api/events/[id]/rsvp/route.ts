@@ -552,7 +552,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     // is re-derived (the card's "X going") — no announcement, no promotion.
     const started = !!event && eventHasStarted(event, await getCityTz(event.cityId))
     if (wasApproved && started) await recomputeSpotsLeft(eventId, event.totalSpots)
-    else if (wasApproved) await announceSpotOpened(eventId)
+    else if (wasApproved) await announceSpotOpened(eventId, [session.id])
 
     return NextResponse.json({ ok: true })
   } catch (e) {

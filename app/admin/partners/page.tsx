@@ -84,13 +84,22 @@ export default function AdminPartnersPage() {
   function closePanel() { setPanel({ id: '', mode: null }) }
 
   async function saveEdit(id: string) {
-    const data = editForms[id]
-    if (!data) return
+    const form = editForms[id]
+    const original = partners.find(p => p.id === id)
+    if (!form || !original) return
+    // Only the fields the admin edited. Sending the whole row made the server
+    // re-validate legacy values (an old http:// logo) and refuse the save.
+    const changed: Record<string, unknown> = {}
+    for (const { key } of FIELDS) {
+      const k = key as keyof Partner
+      if ((form[k] ?? '') !== (original[k] ?? '')) changed[key] = form[k]
+    }
+    if (Object.keys(changed).length === 0) { closePanel(); toast('No changes to save'); return }
     setSaving(id)
     const res = await fetch(`/app/api/admin/partners/${id}`, {
       method: 'PATCH', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
+      body: JSON.stringify(changed),
     })
     if (res.ok) {
       const updated = await res.json()

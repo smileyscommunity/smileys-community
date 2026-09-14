@@ -123,6 +123,8 @@ describe('releaseEvent', () => {
     expect(createNotification).toHaveBeenCalledWith('silent', 'reconfirm_released', expect.any(String), expect.any(String), '/events/e1')
     expect(sendSpotReleasedEmail).toHaveBeenCalledTimes(2)
     expect(announceSpotOpened).toHaveBeenCalledTimes(1)
+    // The released members are the seats the throttle tells apart.
+    expect(announceSpotOpened).toHaveBeenCalledWith('e1', ['silent', 'silent2'])
   })
 
   it('releases no more seats than there are people waiting, most recent joiners first', async () => {
