@@ -13,9 +13,11 @@
 // re-apply vetting signal and deliberately kept — and what remains is accounts
 // that left without an admin doing it. The six are inside that set.
 //
-// Two things were checked before treating the set as safe (2026-09-14):
-//   · none of them matches a live, non-deleted account by name or phone, so
-//     none is an active member who merely changed their email address;
+// Two things were meant to make the set safe (2026-09-14):
+//   · no candidate may match a live, non-deleted account by name or phone, so
+//     none is an active member who merely changed their email address. The
+//     first run's check was broken (see the guard below): it scrubbed six live
+//     members' applications, restored the same day from the 02:00 backup;
 //   · admin-removal auditing runs from 2026-05-12 and the audit log itself
 //     begins 2026-05-08, so only a removal inside that six-day window could
 //     have gone unaudited. One row (an application dated 2026-05-06) sits near
@@ -69,8 +71,8 @@ async function main() {
   // application keeps the old address and looks orphaned while they are still
   // here. Scrubbing that erases an active member's application.
   //
-  // This is not hypothetical. Latife Yakova's approval audit records one
-  // address while her account carries another; her application survived only
+  // This is not hypothetical. One member's approval audit records one
+  // address while their account carries another; their application survived only
   // because it happens to match the account today. So every candidate is
   // checked against live, non-deleted accounts by name and phone, and a match
   // is reported and skipped rather than scrubbed.
@@ -81,7 +83,11 @@ async function main() {
     if (a.fullName) or.push({ name: { equals: a.fullName, mode: 'insensitive' } })
     if (a.phone)    or.push({ phone: a.phone })
     const live = or.length
-      ? await prisma.user.count({ where: { banReason: { not: 'deleted' }, OR: or } })
+      // `banReason: { not: 'deleted' }` compiles to `"banReason" <> 'deleted'`, which is
+      // NULL — not true — for every member who was never banned, so the guard matched
+      // nobody and on 2026-09-14 scrubbed six live members' applications (restored from
+      // the 02:00 backup). NULL has to be let in explicitly.
+      ? await prisma.user.count({ where: { AND: [{ OR: [{ banReason: null }, { NOT: { banReason: 'deleted' } }] }, { OR: or }] } })
       : 0
     if (live > 0) withheld.push({ id: a.id, live }); else targets.push(a)
   }
