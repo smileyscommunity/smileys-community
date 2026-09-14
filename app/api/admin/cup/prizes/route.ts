@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator } from '@/lib/access'
+import { isAdminOrModerator, isAdmin } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
+import { requireStepUp } from '@/lib/stepUp'
+import { isLiveCampaign } from '@/lib/cup-data'
 
 // GET   /api/admin/cup/prizes       — every prize incl. archived
 // POST  /api/admin/cup/prizes       — create
@@ -119,8 +121,18 @@ export async function DELETE(req: NextRequest) {
   const id = typeof body.id === 'string' ? body.id : ''
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
 
-  const prize = await prisma.cupPrize.findUnique({ where: { id }, select: { title: true } })
+  const prize = await prisma.cupPrize.findUnique({
+    where: { id }, select: { title: true, campaign: { select: { slug: true, status: true } } },
+  })
   if (!prize) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  // A live campaign's prize is something members are playing for: deleting
+  // it is an admin call, behind step-up like other destructive ops.
+  // Moderators can still tidy draft/wrapped/archived campaigns.
+  if (isLiveCampaign(prize.campaign)) {
+    if (!isAdmin(session)) return NextResponse.json({ error: 'Only an admin can delete a prize from a live campaign — archive it instead' }, { status: 403 })
+    const stepUp = requireStepUp(session)
+    if (stepUp) return stepUp
+  }
 
   await prisma.cupPrize.delete({ where: { id } })
   writeAudit(session.id, session.name, 'cup.prize_delete', id, 'cup_prize',

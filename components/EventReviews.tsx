@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { getInitials } from '@/lib/data'
+import { toast } from 'sonner'
 
 interface Review {
   id: string
@@ -75,10 +76,21 @@ export default function EventReviews({ eventId, isPast }: { eventId: string; isP
   }
 
   async function deleteReview() {
-    const res = await fetch(`/app/api/events/${eventId}/reviews`, {
-      method: 'DELETE', credentials: 'include',
-    })
-    if (res.ok) setReviews(prev => prev.filter(r => r.user.id !== user.id))
+    // A refused or failed delete used to fail silently — the review stayed
+    // and nothing said why. Removed locally only after the server agrees.
+    try {
+      const res = await fetch(`/app/api/events/${eventId}/reviews`, {
+        method: 'DELETE', credentials: 'include',
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => null)
+        toast.error(d?.error ?? 'Could not delete your review')
+        return
+      }
+      setReviews(prev => prev.filter(r => r.user.id !== user.id))
+    } catch {
+      toast.error('Network error — try again')
+    }
   }
 
   if (loading) return null

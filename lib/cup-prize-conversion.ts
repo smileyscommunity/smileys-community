@@ -39,6 +39,12 @@ export interface ConversionResult {
 
 const SLUG_RE = /^[a-z0-9-]+$/
 
+// Thrown when the donation already has a published prize, so the route can
+// answer 409 instead of the generic 400.
+export class DonationAlreadyPublishedError extends Error {
+  constructor() { super('Donation already published') }
+}
+
 export function slugifyForCup(input: string): string {
   return input.trim().toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
@@ -61,6 +67,23 @@ export async function convertDonationToPrize(
   },
 ): Promise<ConversionResult> {
   const { donationId, campaignId, sponsor, prize, reviewedByUserId, reviewNote } = args
+
+  // ── Donation: claim first ────────────────────────────────────
+  // Two Publish clicks (double-click, two admins) each created a sponsor
+  // and a prize off the same donation. The conditional update takes the
+  // row lock; a concurrent publish waits on it, re-reads linkedPrizeId as
+  // set once the winner commits, matches nothing and throws — rolling back
+  // before it creates anything.
+  const claimed = await tx.cupPrizeDonation.updateMany({
+    where: { id: donationId, linkedPrizeId: null },
+    data: {
+      status:           'approved',
+      reviewedByUserId,
+      reviewedAt:       new Date(),
+      reviewNote,
+    },
+  })
+  if (claimed.count === 0) throw new DonationAlreadyPublishedError()
 
   // ── Sponsor: reuse-by-id or create new ──────────────────────
   let sponsorId: string | null = null
@@ -124,14 +147,10 @@ export async function convertDonationToPrize(
     select: { id: true },
   })
 
-  // ── Donation: mark approved + link ───────────────────────────
+  // ── Donation: link ────────────────────────────────────────────
   await tx.cupPrizeDonation.update({
     where: { id: donationId },
     data: {
-      status:           'approved',
-      reviewedByUserId,
-      reviewedAt:       new Date(),
-      reviewNote,
       linkedSponsorId:  sponsorId,
       linkedPrizeId:    created.id,
     },

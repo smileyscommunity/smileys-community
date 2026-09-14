@@ -22,7 +22,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { CUP_TEAMS as TEAMS, TEAM_BY_CODE, teamLabel, ROUND_LABEL, isFixtureLocked, CUP_GROUPS, CUP_TZ } from '@/lib/cup-data'
 import { avatarUrl } from '@/lib/data'
-import { formatDay, fromWallClockInTz, todayInTz } from '@/lib/cityTime'
+import { formatDay, todayInTz } from '@/lib/cityTime'
 
 interface Fixture {
   id:        string
@@ -803,7 +803,6 @@ function DateStageSections({
     return Array.from(map.entries())
       .map(([key, list]) => ({
         dayKey: key,
-        date:   fromWallClockInTz(`${key}T00:00`, CUP_TZ),
         list:   list.sort((a, b) => a.kickoffAt.localeCompare(b.kickoffAt)),
       }))
       .sort((a, b) => a.dayKey.localeCompare(b.dayKey))
@@ -834,7 +833,10 @@ function DateStageSections({
       {byDay.map(d => {
         const isToday = d.dayKey === todayKey
         const isPast  = d.dayKey < todayKey
-        const dayLabel = d.date.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+        // The key is already the CUP_TZ calendar day. It used to become
+        // Istanbul midnight (21:00 UTC the day before) and be formatted in
+        // the viewer's zone, so west of Istanbul every header read a day early.
+        const dayLabel = formatDay(d.dayKey, { weekday: 'short', day: 'numeric', month: 'short' })
         return (
           <div key={d.dayKey} id={`cup-day-${d.dayKey}`} className={`bg-white rounded-2xl border shadow-sm overflow-hidden scroll-mt-4 ${
             isToday ? 'border-amber-300 ring-1 ring-amber-200' : 'border-gray-100'
@@ -2190,7 +2192,9 @@ function MiniRankCard() {
   }
 
   const yourRank = data.yourRank
-  const idx = data.rows.findIndex(r => r.rank === yourRank)
+  // By identity, not rank: ties share a rank, so a tied player above you
+  // matched first and the card centred on them, hiding your row.
+  const idx = data.rows.findIndex(r => r.isYou)
   // In-slice: show ±2 around your row (5 rows). Outside: top 3 +
   // pinned-you below — the pinned strip uses the same amber accent
   // as the main board so the visual language matches.
@@ -2297,7 +2301,9 @@ function Leaderboard({ tournamentOver = false }: { tournamentOver?: boolean }) {
     )
   }
 
-  const youInSlice = data.yourRank !== null && data.rows.some(r => r.rank === data.yourRank)
+  // By identity, not rank: ties share a rank, so a tied player in the top-N
+  // suppressed the pinned "You" row while your own row sat below the cut.
+  const youInSlice = data.rows.some(r => r.isYou)
   // Member spotlight — top of the board, with a "top dog" treatment.
   // Hidden when no one has scored yet (top.score === 0); only
   // surfaces once there's actual movement to celebrate.

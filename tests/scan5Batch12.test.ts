@@ -204,7 +204,7 @@ describe('48. bulk approve / promote confirm first and report once (already fixe
       expect(fn).not.toContain('fetch(')
     }
     expect(src).toContain('onClick={() => approveAll(pending)}')
-    expect(src).toContain('onClick={() => promoteBatch(waitlist.slice(0, event.spotsLeft))}')
+    expect(src).toContain('onClick={() => promoteBatch(waitlist.slice(0, promotable))}')
   })
 
   it('/admin/events/[id]/participants runBatch: one request at a time, one summary after the loop', () => {

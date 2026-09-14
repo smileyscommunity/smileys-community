@@ -25,7 +25,9 @@ interface Message {
   user: { id: string; name: string; color: string }
 }
 
-export default function EventMessages({ eventId, eventDate, eventTz }: { eventId: string; eventDate: string; eventTz?: string }) {
+// canPost: the page's copy of the messages route's rule (admin, host, co-host,
+// approved attendee). The route reads and posts for the same set.
+export default function EventMessages({ eventId, eventDate, eventTz, canPost }: { eventId: string; eventDate: string; eventTz?: string; canPost: boolean }) {
   const { user, isLoggedIn } = useAuth()
 
   // Discussion auto-locks 14 days post-event so dead-air messages don't
@@ -41,21 +43,51 @@ export default function EventMessages({ eventId, eventDate, eventTz }: { eventId
   const [editingId,  setEditingId]  = useState<string | null>(null)
   const [editDraft,  setEditDraft]  = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
-  const bottomRef = useRef<HTMLDivElement>(null)
+  // The route answers 403 to anyone outside the discussion. That used to
+  // parse as "no messages" — an empty list saying "Be the first!" above a
+  // composer that could never send.
+  const [forbidden,  setForbidden]  = useState(!canPost)
+  const rootRef   = useRef<HTMLDivElement>(null)
+  const listRef   = useRef<HTMLDivElement>(null)
   const composerRef = useRef<HTMLTextAreaElement>(null)
+  const targetedRef = useRef(false)
 
   useEffect(() => {
+    // No request for viewers the route would refuse. Re-runs when canPost
+    // flips (joining refreshes the page's props).
+    // Messages are cleared too, so a member who just left doesn't keep the thread.
+    if (!canPost) { setMessages([]); setForbidden(true); setInitialised(true); return }
+    setForbidden(false)
     fetch(`/app/api/events/${eventId}/messages`, { credentials: 'include' })
-      .then(r => r.json())
-      .then(d => { setMessages(Array.isArray(d) ? d : []); setInitialised(true) })
+      .then(async r => {
+        if (r.status === 401 || r.status === 403) { setMessages([]); setForbidden(true); return }
+        const d = await r.json()
+        setMessages(Array.isArray(d) ? d : [])
+      })
       .catch(() => {})
-  }, [eventId])
+      .finally(() => setInitialised(true))
+  }, [eventId, canPost])
 
-  // Only scroll to bottom when a new message is added after initial load
+  // Keep the newest message in view by scrolling the LIST box itself.
+  // scrollIntoView on a sentinel scrolled the whole page too, and because
+  // the initial load also changes messages.length, simply opening an event
+  // with an active discussion yanked the reader down to it.
   useEffect(() => {
-    if (!initialised || messages.length === 0) return
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages.length])
+    if (!initialised) return
+    const el = listRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [messages.length, initialised])
+
+  // The page itself moves only when the URL asks for the discussion
+  // (#discussion, or a ?comment= deep link) — once, after the first load.
+  useEffect(() => {
+    if (!initialised || targetedRef.current) return
+    targetedRef.current = true
+    const { hash, search } = window.location
+    if (hash === '#discussion' || new URLSearchParams(search).has('comment')) {
+      rootRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [initialised])
 
   // The composer starts one line tall and grows with its content, to a cap.
   // Without this a pasted paragraph would sit in a one-line window with the
@@ -100,12 +132,23 @@ export default function EventMessages({ eventId, eventDate, eventTz }: { eventId
   }
 
   async function handleDelete(messageId: string) {
-    const res = await fetch(`/app/api/events/${eventId}/messages`, {
-      method: 'DELETE', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messageId }),
-    })
-    if (res.ok) setMessages(prev => prev.filter(m => m.id !== messageId))
+    // A refused or failed delete used to do nothing at all — no message, the
+    // row just stayed. Removed locally only once the server agrees.
+    try {
+      const res = await fetch(`/app/api/events/${eventId}/messages`, {
+        method: 'DELETE', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messageId }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => null)
+        toast.error(d?.error ?? 'Could not delete the message')
+        return
+      }
+      setMessages(prev => prev.filter(m => m.id !== messageId))
+    } catch {
+      toast.error('Network error — try again')
+    }
   }
 
   function startEdit(msg: Message) {
@@ -150,14 +193,18 @@ export default function EventMessages({ eventId, eventDate, eventTz }: { eventId
   const tooLong = left < 0
 
   return (
-    <div className="bg-white rounded-2xl shadow-card overflow-hidden">
+    <div id="discussion" ref={rootRef} className="bg-white rounded-2xl shadow-card overflow-hidden scroll-mt-20">
       <div className="px-5 py-4 border-b border-gray-100">
-        <h2 className="font-bold text-gray-900">Discussion ({messages.length})</h2>
+        <h2 className="font-bold text-gray-900">Discussion{forbidden ? '' : ` (${messages.length})`}</h2>
         <p className="text-xs text-gray-400 mt-0.5">Chat with attendees{isLocked ? ' · closed' : ''}</p>
       </div>
 
-      <div className="divide-y divide-gray-50 max-h-80 overflow-y-auto">
-        {messages.length === 0 && (
+      <div ref={listRef} className="divide-y divide-gray-50 max-h-80 overflow-y-auto">
+        {forbidden ? (
+          <p className="px-5 py-6 text-sm text-gray-500 text-center">
+            Discussion is for attendees — join the event to read and post.
+          </p>
+        ) : initialised && messages.length === 0 && (
           <p className="px-5 py-6 text-sm text-gray-400 text-center">No messages yet. Be the first!</p>
         )}
         {messages.map(msg => {
@@ -234,13 +281,15 @@ export default function EventMessages({ eventId, eventDate, eventTz }: { eventId
             </div>
           )
         })}
-        <div ref={bottomRef} />
       </div>
 
       {isLocked ? (
         <div className="px-5 py-4 border-t border-gray-100 text-center text-sm text-gray-400">
           Discussion closed — leave a <span className="font-semibold text-gray-600">Review</span> above instead.
         </div>
+      ) : isLoggedIn && forbidden ? (
+        // No composer for someone the route refuses; the list above says why.
+        null
       ) : isLoggedIn ? (
         <div className="px-5 py-4 border-t border-gray-100 flex gap-3 items-end">
           {/* A textarea, not an <input type="text">. A single-line input cannot

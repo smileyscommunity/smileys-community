@@ -5,7 +5,7 @@ import { timingSafeEqual } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notify'
 import { sendReviewRequestEmail, sendListingExpiryEmail, recordEmailFailure } from '@/lib/email'
-import { noShowPolicyApplies, NO_SHOW_CANCELLATION_CUTOFF_HOURS } from '@/lib/noShowPolicy'
+import { noShowPolicyApplies, NO_SHOW_CANCELLATION_CUTOFF_HOURS, checkInIsCredible, isNoShow } from '@/lib/noShowPolicy'
 import { getSession } from '@/lib/session'
 import { recordCronRun } from '@/lib/cronHealth'
 import { citiesByToday, type CityDay } from '@/lib/city'
@@ -22,6 +22,32 @@ async function sentKeys(type: string, userIds: string[], links: string[]): Promi
     select: { userId: true, link: true },
   })
   return new Set(rows.map(r => `${r.userId}:${r.link}`))
+}
+
+type AttendanceRow = { userId: string; status: string; checkedIn: boolean; attendance: string; cancelledAt: Date | null; cancelledBy: string | null }
+
+/**
+ * The approved rows that actually came — the only ones a "you attended"
+ * nudge may address. Status alone kept a settled no-show (attendance
+ * 'no_show', status still 'approved') in both the review ask and the
+ * connection suggestion. Same definition the no-show sweep applies
+ * (lib/noShowPolicy): a scan always counts as attended; once check-in is
+ * credible an unscanned seat is a no-show even before the sweep has
+ * stamped it; staff are never no-shows.
+ */
+function attendedRows<T extends AttendanceRow>(
+  event: { hostId: string | null; cohosts: { userId: string }[] },
+  rows: T[],
+  startsAt: Date,
+): T[] {
+  const staff    = new Set([event.hostId, ...event.cohosts.map(c => c.userId)])
+  const room     = rows.filter(a => a.status === 'approved' && !staff.has(a.userId))
+  const credible = checkInIsCredible(room.filter(a => a.checkedIn).length, room.length)
+  return rows.filter(a => {
+    if (a.checkedIn || staff.has(a.userId)) return true
+    if (a.attendance === 'no_show') return false
+    return !(credible && isNoShow(a, startsAt))
+  })
 }
 
 export async function GET(req: NextRequest) {
@@ -71,6 +97,13 @@ async function runSweep() {
   const onDay   = (gs: CityDay[]) => gs.map(({ date, cityIds }) => ({ date, cityId: { in: cityIds } }))
   const before  = (gs: CityDay[]) => gs.map(({ date, cityIds }) => ({ date: { lt: date }, cityId: { in: cityIds } }))
   const todayOrTomorrow = [...todayGroups, ...tomorrowGroups]
+
+  // Event.date/time are the CITY's wall clock. `new Date(`${date}T${time}`)`
+  // read them in the process zone — UTC on the server — so a 19:00 Istanbul
+  // event was three hours further away than it is, and "starts in ~2 hours"
+  // went out as the doors opened.
+  const tzByCity = new Map((await prisma.city.findMany({ select: { id: true, timezone: true } })).map(c => [c.id, c.timezone ?? DEFAULT_TZ]))
+  const startsAtOf = (e: { date: string; time: string | null; cityId: string }) => eventStartsAt(e, tzByCity.get(e.cityId) ?? DEFAULT_TZ)
 
   // Auto-archive published events whose date has passed
   const { count: archivedCount } = await prisma.event.updateMany({
@@ -169,8 +202,9 @@ async function runSweep() {
     include: {
       attendees: {
         where: { status: 'approved' },
-        select: { userId: true },
+        select: { userId: true, status: true, checkedIn: true, attendance: true, cancelledAt: true, cancelledBy: true },
       },
+      cohosts: { select: { userId: true } },
     },
   })
 
@@ -181,7 +215,9 @@ async function runSweep() {
     justArchivedEvents.map(e => `/events/${e.id}`),
   )
   for (const event of justArchivedEvents) {
-    const attendeeIds = event.attendees.map(a => a.userId)
+    // "People you met" is for people who were there: a no-show met nobody,
+    // and isn't someone the others met either.
+    const attendeeIds = attendedRows(event, event.attendees, startsAtOf(event)).map(a => a.userId)
     if (attendeeIds.length < 2) continue
 
     for (const userId of attendeeIds) {
@@ -217,15 +253,10 @@ async function runSweep() {
           where: { status: 'approved' },
           include: { user: { select: { id: true, name: true, email: true } } },
         },
+        cohosts: { select: { userId: true } },
       },
     }),
   ])
-
-  // Event.date/time are the CITY's wall clock. `new Date(`${date}T${time}`)`
-  // read them in the process zone — UTC on the server — so a 19:00 Istanbul
-  // event was three hours further away than it is, and "starts in ~2 hours"
-  // went out as the doors opened.
-  const tzByCity = new Map((await prisma.city.findMany({ select: { id: true, timezone: true } })).map(c => [c.id, c.timezone ?? DEFAULT_TZ]))
 
   let sent24h = 0
   let sent2h  = 0
@@ -238,7 +269,7 @@ async function runSweep() {
     sentKeys('reminder_2h',  upcomingAttendeeIds, upcomingLinks),
   ])
   for (const event of upcomingEvents) {
-    const eventTime = eventStartsAt(event, tzByCity.get(event.cityId) ?? DEFAULT_TZ)
+    const eventTime = startsAtOf(event)
     const diffHours = (eventTime.getTime() - now.getTime()) / (60 * 60 * 1000)
 
     const is24h = diffHours >= 23 && diffHours <= 25
@@ -293,7 +324,8 @@ async function runSweep() {
     select: { userId: true },
   })).map(p => p.userId))
   for (const event of pastEvents) {
-    for (const attendee of event.attendees) {
+    // "You attended" — so only those who did (see attendedRows).
+    for (const attendee of attendedRows(event, event.attendees, startsAtOf(event))) {
       const userId = attendee.user.id
       if (reviewsMuted.has(userId)) continue
       const key = `${userId}:${reviewLinkFor(event.id)}`

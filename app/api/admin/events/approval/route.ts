@@ -29,7 +29,7 @@ export async function GET() {
       take: 100,
       select: {
         id: true, title: true, description: true, date: true, time: true,
-        price: true, totalSpots: true, status: true, approvalRequired: true,
+        price: true, currency: true, totalSpots: true, status: true, approvalRequired: true,  // currency: priced in the event's own
         coverImage: true, address: true, neighborhood: true, createdAt: true,
         hostId: true,
         club: { select: { id: true, name: true } },

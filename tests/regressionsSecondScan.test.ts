@@ -27,7 +27,7 @@ describe('unlimited-spots counter', () => {
   it('admin fill bars cap at 100 and "Full" respects the flag', () => {
     expect(read('app/admin/page.tsx')).toMatch(/Math\.min\(100, Math\.round/)
     expect(read('app/(member)/cup/page.tsx')).toMatch(/Math\.min\(100, Math\.round/)
-    expect(read('app/admin/participants/page.tsx')).toMatch(/const full = event\.limitedSpots !== false && event\.spotsLeft <= 0/)
+    expect(read('app/admin/participants/page.tsx')).toContain('const full = isEventFull(event)')
   })
 })
 

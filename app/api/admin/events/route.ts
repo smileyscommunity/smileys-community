@@ -10,6 +10,7 @@ import { computeEventSurveyRollup } from '@/lib/survey'
 import { ensurePendingVenueBusiness } from '@/lib/venueDirectory'
 import { todayInCity, resolveTargetCityId, getCityConfig } from '@/lib/city'
 import { checkSeriesId } from '@/lib/seriesOwnership'
+import { MAX_SERIES_OCCURRENCES } from '@/lib/seriesCreate'
 
 export async function GET(req: NextRequest) {
   try {
@@ -132,6 +133,14 @@ export async function POST(req: NextRequest) {
     // to edit (lib/seriesOwnership) — the create path accepted any id.
     const series = await checkSeriesId(seriesId, session)
     if (!series.ok) return NextResponse.json({ error: series.error }, { status: 403 })
+    // The Repeat forms create a series one POST per date; the occurrence box's
+    // max={52} was only advisory, so a typed 500 made 500 events. Bound it here.
+    if (seriesId) {
+      const inSeries = await prisma.event.count({ where: { seriesId } })
+      if (inSeries >= MAX_SERIES_OCCURRENCES) {
+        return NextResponse.json({ error: `A series can have at most ${MAX_SERIES_OCCURRENCES} events` }, { status: 400 })
+      }
+    }
 
     // A leading emoji typed into the title would render doubled everywhere
     // (every surface shows the emoji field next to the title) — move it

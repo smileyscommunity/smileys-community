@@ -15,6 +15,7 @@ import { EVENT_EMOJIS as EMOJIS } from '@/lib/eventEmojis'
 import { currencySymbol } from '@/lib/data'
 import { countryName } from '@/lib/country'
 import { geocodeFailureMessage } from '@/lib/geocodeError'
+import { clampOccurrences, seriesOutcomeMessage, MIN_SERIES_OCCURRENCES, MAX_SERIES_OCCURRENCES, type SeriesFailure } from '@/lib/seriesCreate'
 
 const inputCls = 'w-full px-4 py-3 rounded-xl border border-zinc-700 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500 bg-zinc-800 placeholder-zinc-500'
 
@@ -192,7 +193,7 @@ function HostNewEventForm() {
     // local setDate() shifted a series day across a DST boundary in the
     // host's browser timezone. setUTCDate keeps it timezone-free.
     const base = new Date(form.date + 'T00:00:00Z')
-    for (let i = 0; i < occurrences; i++) {
+    for (let i = 0; i < clampOccurrences(occurrences); i++) {
       const d = new Date(base)
       if (repeat === 'monthly') d.setUTCMonth(d.getUTCMonth() + i)
       else d.setUTCDate(d.getUTCDate() + days * i)
@@ -285,15 +286,27 @@ function HostNewEventForm() {
         lng:  form.lng  ? parseFloat(form.lng)  : null,
       }
 
+      // Every date is attempted and the outcome reported as created vs failed.
+      // Stopping at the first failure hid how many already existed, so a retry
+      // duplicated them.
+      let created = 0
+      const failures: SeriesFailure[] = []
       for (const date of dates) {
-        const res = await fetch('/app/api/admin/events', {
-          method: 'POST', credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...payload, date }),
-        })
-        const data = await res.json()
-        if (!res.ok) { setError(data.error ?? 'Failed to create event'); return }
+        try {
+          const res = await fetch('/app/api/admin/events', {
+            method: 'POST', credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...payload, date }),
+          })
+          const data = await res.json().catch(() => ({}))
+          if (!res.ok) { failures.push({ date, error: data?.error ?? 'Failed to create event' }); continue }
+          created++
+        } catch {
+          failures.push({ date, error: 'network error' })
+        }
       }
+      const outcome = seriesOutcomeMessage(dates.length, created, failures)
+      if (outcome) { setError(outcome); return }
 
       // (A self-grant of club-host used to be POSTed here; that route is
       // staff-only and answered 403 for every host, so it was dead.)
@@ -445,10 +458,10 @@ function HostNewEventForm() {
               <label className="text-xs text-zinc-400 shrink-0">Occurrences</label>
               <input
                 type="number"
-                min={2}
-                max={52}
+                min={MIN_SERIES_OCCURRENCES}
+                max={MAX_SERIES_OCCURRENCES}
                 value={occurrences}
-                onChange={e => setOccurrences(parseInt(e.target.value) || 2)}
+                onChange={e => setOccurrences(Math.min(MAX_SERIES_OCCURRENCES, parseInt(e.target.value) || 0))}
                 className="w-20 px-3 py-2 bg-zinc-800 border border-zinc-700 text-white text-sm rounded-xl focus:outline-none focus:border-amber-500"
               />
               <span className="text-xs text-zinc-500">events will be created</span>
@@ -646,7 +659,7 @@ function HostNewEventForm() {
           disabled={saving}
           className="w-full py-3.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl transition-colors disabled:opacity-50 text-sm"
         >
-          {saving ? 'Creating…' : repeat !== 'none' ? `Create ${occurrences} Events` : 'Create Event'}
+          {saving ? 'Creating…' : repeat !== 'none' ? `Create ${clampOccurrences(occurrences)} Events` : 'Create Event'}
         </button>
       </form>
     </div>

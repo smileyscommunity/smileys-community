@@ -12,8 +12,10 @@ const userSelect  = { id: true, name: true, color: true, email: true, profilePho
 // header can show a status pill (live / draft / cancelled / etc.) —
 // without it, the admin moderating bulk requests can't tell that
 // they're approving people into a cancelled event. spotsLeft/totalSpots
-// drive the capacity badge + full-event promote guard.
-const eventSelect = { id: true, title: true, date: true, emoji: true, status: true, spotsLeft: true, totalSpots: true }
+// drive the capacity badge + full-event promote guard. limitedSpots decides
+// whether there is a cap at all (an unlimited event is never "Full"), and
+// cityId lets the page judge "past" on the event's own city calendar.
+const eventSelect = { id: true, title: true, date: true, emoji: true, status: true, spotsLeft: true, totalSpots: true, limitedSpots: true, cityId: true }
 
 export async function GET() {
   try {
@@ -73,7 +75,9 @@ export async function GET() {
     const eventMap = Object.fromEntries(waitlistEvents.map(e => [e.id, e]))
     const waitlist = waitlistRaw
       .map(w => ({ ...w, user: userMap[w.userId], event: eventMap[w.eventId] }))
-      .filter(w => w.event != null)
+      // waitlist has no FK to users, so a deleted member leaves an orphan row
+      // whose user is undefined — the page crashed rendering its name.
+      .filter(w => w.event != null && w.user != null)
 
     return NextResponse.json({ attendees, waitlist })
   } catch (e) {

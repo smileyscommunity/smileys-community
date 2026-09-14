@@ -9,6 +9,7 @@ import { useState, useEffect, useMemo, useRef, Suspense } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { resolveImageUrl } from '@/lib/data'
+import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 
 interface Application {
   id: string; fullName: string; email: string; phone: string | null
@@ -142,6 +143,7 @@ function AdminApplicationsPageInner() {
   // so the chips show THAT city's clubs instead of the viewer's.
   const [modalClubs,    setModalClubs]    = useState<ClubOption[] | null>(null)
   const [loading,       setLoading]       = useState(true)
+  const [loadError,     setLoadError]     = useState<string | null>(null)
   const [selected,      setSelected]      = useState<Application | null>(null)
   // 'hold' status (API-side) folds INTO the Pending tab as a badge rather
   // than getting its own tab. The Request More Info workflow is preserved
@@ -218,17 +220,21 @@ function AdminApplicationsPageInner() {
       fetch('/app/api/admin/settings',     opts).then(r => r.json()),
     ]).then(([appsData, clubData, settings]) => {
       if (!Array.isArray(appsData)) {
+        // The toast vanished and left "No pending applications. 🎉" under it;
+        // the banner below stays until a Retry lands.
         console.error('[applications] API returned non-array:', appsData)
-        toast.error('Failed to load applications — try refreshing')
+        setLoadError(typeof appsData?.error === 'string' ? appsData.error : 'Failed to load applications')
         return
       }
+      setLoadError(null)
       setApps(appsData)
       setClubs(Array.isArray(clubData) ? clubData : [])
       if (settings?.defaultClubId) setDefaultClubId(settings.defaultClubId)
       const now = new Date()
       setLastRefresh(now)
       lastRefreshRef.current = now.getTime()
-    }).finally(() => setLoading(false))
+    }).catch(() => setLoadError('Network error — could not load applications'))
+      .finally(() => setLoading(false))
   }
 
   useEffect(() => {
@@ -856,6 +862,7 @@ function AdminApplicationsPageInner() {
 
       {/* List */}
       <div className="space-y-2">
+        <LoadErrorBanner message={loadError} onRetry={loadApps} title="Couldn't load applications" />
         {/* Skeleton rows mirror the real application card shape (avatar
             + name/badges row + meta row) so nothing jumps when data
             lands. Matches the bar pattern shipped on /admin/users +
@@ -875,7 +882,7 @@ function AdminApplicationsPageInner() {
             <div className="h-7 w-20 rounded-lg bg-zinc-800 animate-pulse shrink-0" />
           </div>
         ))}
-        {!loading && visible.length === 0 && (
+        {!loading && !loadError && visible.length === 0 && (
           <div className="py-16 text-center">
             <div className="text-3xl mb-2">{tab === 'pending' ? '🎉' : tab === 'approved' ? '✅' : '📭'}</div>
             <p className="text-zinc-500 text-sm">No {tab} applications.</p>

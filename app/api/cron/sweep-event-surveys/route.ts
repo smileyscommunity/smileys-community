@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notify'
 import { recordCronRun } from '@/lib/cronHealth'
+import { claimOnce, releaseClaim } from '@/lib/rateLimit'
 import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
 import { eventEndsAt } from '@/lib/eventTime'
 
@@ -26,6 +27,32 @@ import { checkCronAuth } from '@/lib/cronAuth'
 
 async function authorize(req: NextRequest): Promise<NextResponse | null> {
   return checkCronAuth(req)
+}
+
+// Outlives the 7-day dispatch window, so a claim can't expire and re-arm
+// a send while the event is still being picked up.
+const CLAIM_WINDOW_MS = 9 * 24 * 60 * 60 * 1000
+const LOCK_MS         = 30 * 60 * 1000
+
+// Stamping after the sends is what lets a failure retry — and what let two
+// overlapping runs (or a retried run that died mid-loop) both survey the
+// whole room. A per-recipient claim, like the reminders/no-show/reconfirm
+// sweeps take, lets exactly one run send; a write that failed hands the
+// claim back so the next hourly run retries that member alone.
+async function notifyOnce(key: string, userId: string, title: string, body: string, link: string): Promise<'sent' | 'skipped' | 'failed'> {
+  if (!await claimOnce(key, CLAIM_WINDOW_MS)) return 'skipped'
+  if (await createNotification(userId, 'event_survey', title, body, link)) return 'sent'
+  await releaseClaim(key)
+  return 'failed'
+}
+
+// One run works an event at a time. Recipient claims alone let an
+// overlapping run find everyone "already claimed" and stamp the event while
+// the other run's send was failing — and the stamp ends the retry.
+// Released when done; a run that crashes lets it lapse after LOCK_MS.
+async function withLock(key: string, work: () => Promise<void>): Promise<void> {
+  if (!await claimOnce(key, LOCK_MS)) return
+  try { await work() } finally { await releaseClaim(key) }
 }
 
 async function runSweep() {
@@ -59,23 +86,30 @@ async function runSweep() {
     const endedAt = eventEndsAt(event, tzByCity.get(event.cityId) ?? DEFAULT_TZ).getTime()
     if (endedAt > oneDayAgo.getTime()) continue
 
-    const targets = await eligibleTargets(event.id, event.hostId)
-    for (const userId of targets) {
-      createNotification(
-        userId,
-        'event_survey',
-        `${event.emoji} How was "${event.title}"?`,
-        `Two quick questions. Anonymous to the host. Takes 20 seconds.`,
-        `/events/${event.id}/feedback`,
-      ).catch(() => {})
-      dispatchedNotices++
-    }
+    await withLock(`event-survey-run:${event.id}`, async () => {
+      const targets = await eligibleTargets(event.id, event.hostId)
+      let failed = false
+      for (const userId of targets) {
+        const outcome = await notifyOnce(
+          `event-survey:${event.id}:${userId}`,
+          userId,
+          `${event.emoji} How was "${event.title}"?`,
+          `Two quick questions. Anonymous to the host. Takes 20 seconds.`,
+          `/events/${event.id}/feedback`,
+        )
+        if (outcome === 'sent') dispatchedNotices++
+        if (outcome === 'failed') failed = true
+      }
 
-    await prisma.event.update({
-      where: { id: event.id },
-      data:  { surveyDispatchedAt: now },
+      // Unstamped on a failure so the next run retries it (the date filter
+      // above drops it after 7 days either way).
+      if (failed) return
+      await prisma.event.update({
+        where: { id: event.id },
+        data:  { surveyDispatchedAt: now },
+      })
+      dispatchedEvents++
     })
-    dispatchedEvents++
   }
 
   // ── Pass 2: 48-hour follow-up nudge ─────────────────────────────────────
@@ -96,30 +130,33 @@ async function runSweep() {
     },
   })))).flat()
 
-  for (const event of reminderPass) {
+  for (const event of reminderPass) await withLock(`event-survey-reminder-run:${event.id}`, async () => {
     const respondedIds = new Set(event.surveys.map(s => s.userId))
     const targets      = await eligibleTargets(event.id, event.hostId)
     // Only nudge those who haven't submitted yet.
     const nonResponders = targets.filter(uid => !respondedIds.has(uid))
 
+    let failed = false
     for (const userId of nonResponders) {
-      createNotification(
+      const outcome = await notifyOnce(
+        `event-survey-reminder:${event.id}:${userId}`,
         userId,
-        'event_survey',
         `${event.emoji} Still time to rate "${event.title}"`,
         `Your feedback helps us improve. Takes 20 seconds — closes in a few days.`,
         `/events/${event.id}/feedback`,
-      ).catch(() => {})
-      dispatchedNotices++
+      )
+      if (outcome === 'sent') dispatchedNotices++
+      if (outcome === 'failed') failed = true
     }
 
+    if (failed) return
     await prisma.event.update({
       where: { id: event.id },
       data:  { surveyReminderAt: now },
     })
     // Count as a dispatched event only if we actually sent reminders.
     if (nonResponders.length > 0) dispatchedEvents++
-  }
+  })
 
   return { now: now.toISOString(), dispatchedEvents, dispatchedNotices }
 }

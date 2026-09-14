@@ -7,6 +7,7 @@ import { getEventById, redactEventForGuest, canSeeEvent, PUBLIC_EVENT_STATUSES }
 import { getCityConfig } from '@/lib/city'
 import { DEFAULT_TZ, todayInTz, fromWallClockInTz } from '@/lib/cityTime'
 import { eventPhase } from '@/lib/eventTime'
+import { joinBlock, joinBlockLabel } from '@/lib/eventJoinState'
 import { formatDate, formatTime, formatPrice, vibeConfig, resolveImageUrl, avatarUrl, getInitials, type Event, firstNameOf} from '@/lib/data'
 import { countryFlag } from '@/lib/countries'
 import { prisma } from '@/lib/prisma'
@@ -170,6 +171,9 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
   // was computed separately.
   const soldOut     = isSoldOut(event)
   const saidSoldOut = isManuallySoldOut(event)
+  // Same refusal rule as the RSVP route (status, past day, started), so the
+  // button reads "Cancelled" / "Event ended" instead of joining into a 400.
+  const closedLabel = joinBlockLabel(joinBlock(event, eventTz))
 
   const session = await getSession()
 
@@ -421,6 +425,11 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
   // Same gate as GET /api/events/[id]/photos: uploaders are attendees, so the
   // gallery is a roster — and it named stealth attendees to any member.
   const canSeeInside = isAdmin || session.role === 'moderator' || isHost || cohostIds.includes(session.id) || myAttendance?.status === 'approved'
+  // Exactly who GET/POST /api/events/[id]/messages admit — admin, host,
+  // co-host, approved attendee (moderators are NOT in it, unlike
+  // canSeeInside). Everyone else was shown an empty discussion and a
+  // composer whose every send 403'd.
+  const canUseDiscussion = isAdmin || isHost || cohostIds.includes(session.id) || myAttendance?.status === 'approved'
 
   const hasCoords    = event.lat != null && event.lng != null
   // Directions link — always resolvable so every event gets one (the map still
@@ -1088,7 +1097,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
           <EventReviews eventId={event.id} isPast={isPast} />
 
           {/* Discussion */}
-          <EventMessages eventId={event.id} eventDate={event.date} eventTz={eventTz} />
+          <EventMessages eventId={event.id} eventDate={event.date} eventTz={eventTz} canPost={canUseDiscussion} />
 
           {/* Similar events — placed after member-generated content
               so "you might also like…" doesn't interrupt the
@@ -1162,6 +1171,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                 membersOnly={event.membersOnly}
                 currency={event.currency}
                 payTo={event.payTo}
+                closedLabel={closedLabel}
               />
               {myAttendance?.status === 'approved' && !isPast && (
                 <div className="mt-2">
@@ -1270,6 +1280,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
             membersOnly={event.membersOnly}
             currency={event.currency}
             payTo={event.payTo}
+            closedLabel={closedLabel}
           />
         </div>
       )}

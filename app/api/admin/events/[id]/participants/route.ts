@@ -198,7 +198,9 @@ export async function GET(_: NextRequest, { params }: Params) {
       ? await prisma.user.findMany({ where: { id: { in: waitlistUserIds } }, select: userSelect })
       : []
     const userMap = Object.fromEntries(waitlistUsers.map(u => [u.id, u]))
-    const waitlist = waitlistRaw.map(w => ({ ...w, user: userMap[w.userId] }))
+    // waitlist has no FK to users: a deleted member leaves a row with no user,
+    // and the page crashed on `w.user.name`. Drop the orphans.
+    const waitlist = waitlistRaw.map(w => ({ ...w, user: userMap[w.userId] })).filter(w => w.user != null)
 
     // Contact details follow the check-in route's rule: admins and the
     // primary host only. Co-hosts and club hosts run the door by name and

@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
       take: 200,
       include: {
         user:  { select: { id: true, name: true, email: true, cityId: true } },
-        event: { select: { id: true, title: true, emoji: true, date: true, hostId: true } },
+        event: { select: { id: true, title: true, emoji: true, date: true, hostId: true, cityId: true } },  // cityId: the page formats card times on the event city's clock
       },
     })
     return NextResponse.json({ cards: maskRows(session, cards, 'user') })

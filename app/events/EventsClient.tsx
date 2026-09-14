@@ -686,7 +686,7 @@ function AppEventsPageInner() {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                   {featuredFiltered.map(event => (
-                    <EventCard key={event.id} event={event} linkPrefix="/events" initialStatus={attendance[event.id] ?? null} cityName={viewCity?.name} />
+                    <EventCard key={event.id} event={event} linkPrefix="/events" initialStatus={attendance[event.id] ?? null} cityName={viewCity?.name} timeZone={tz} />
                   ))}
                 </div>
               </section>
@@ -696,7 +696,7 @@ function AppEventsPageInner() {
                 row above is visible (no duplication). */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
               {restFiltered.map(event => (
-                <EventCard key={event.id} event={event} linkPrefix="/events" initialStatus={attendance[event.id] ?? null} cityName={viewCity?.name} />
+                <EventCard key={event.id} event={event} linkPrefix="/events" initialStatus={attendance[event.id] ?? null} cityName={viewCity?.name} timeZone={tz} />
               ))}
             </div>
 

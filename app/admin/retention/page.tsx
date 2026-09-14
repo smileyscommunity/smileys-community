@@ -14,7 +14,7 @@ interface Member {
 interface RetentionData {
   neverAttended: Member[]
   dormant: Member[]
-  stats: { neverAttendedCount: number; dormantCount: number }
+  stats: { neverAttendedCount: number; dormantCount: number; listLimit?: number }
 }
 
 function timeAgo(dateStr: string) {
@@ -205,6 +205,18 @@ export default function RetentionPage() {
           </button>
         ))}
       </div>
+
+      {/* The lists are capped server-side while the counts are real totals —
+          say so instead of letting 50 rows pass for the whole cohort. */}
+      {data && !loading && (() => {
+        const shown = tab === 'never' ? data.neverAttended.length : data.dormant.length
+        const total = tab === 'never' ? data.stats.neverAttendedCount : data.stats.dormantCount
+        return shown < total ? (
+          <p className="text-xs text-zinc-500 px-1 py-2">
+            Showing the first {shown} of {total} — {tab === 'never' ? 'most recently joined' : 'longest dormant'} first.
+          </p>
+        ) : null
+      })()}
 
       {/* Members list */}
       <div className="bg-zinc-900 border border-zinc-800 border-t-0 rounded-b-2xl overflow-hidden">

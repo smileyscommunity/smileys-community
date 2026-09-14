@@ -70,8 +70,13 @@ describe('notifyMentions', () => {
     const n = await notifyMentions({ ...base, content: 'welcome @Ali' })
     expect(n).toBe(1)
     expect(p.user.findMany.mock.calls[0][0].where).toMatchObject({ cityId: 'c1', status: 'approved', id: { not: 'me' } })
-    // The prefix query receives the word as typed, never JS-lowercased.
-    expect(p.user.findMany.mock.calls[0][0].where.OR).toEqual([{ name: { startsWith: 'Ali', mode: 'insensitive' } }])
+    // The query receives the word as typed, never JS-lowercased, and asks for
+    // it as a whole word (a bare prefix capped at 50 let Alices crowd out Ali).
+    expect(p.user.findMany.mock.calls[0][0].where.OR).toEqual([
+      { name: { equals: 'Ali', mode: 'insensitive' } },
+      { name: { startsWith: 'Ali ', mode: 'insensitive' } },
+      { name: { contains: ' Ali ', mode: 'insensitive' } },
+    ])
     expect(createNotification).toHaveBeenCalledTimes(1)
     expect((createNotification as any).mock.calls[0][0]).toBe('u1')
   })

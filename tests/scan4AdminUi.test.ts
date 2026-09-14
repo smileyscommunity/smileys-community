@@ -119,7 +119,7 @@ describe('participants: confirmed sequential batches, city-day past check (8)', 
     expect(src).not.toContain('pending.forEach(a => approveAttendee(a.userId))')
     expect(src).not.toContain('.forEach(promote)')
     expect(src).toContain('onClick={() => approveAll(pending)} disabled={busy !== null}')
-    expect(src).toContain('onClick={() => promoteBatch(waitlist.slice(0, event.spotsLeft))} disabled={busy !== null}')
+    expect(src).toContain('onClick={() => promoteBatch(waitlist.slice(0, promotable))} disabled={busy !== null}')
   })
   it('batches confirm, run one at a time, summarise once and reload', () => {
     expect(src).toMatch(/async function approveAll[\s\S]*?confirmToast\(/)

@@ -27,9 +27,13 @@ interface Props {
   // Who collects the money — 'venue' (pay at the event) shows "Join",
   // 'smileys' (we collect) shows "Buy ticket". See Event.payTo.
   payTo?:       'venue' | 'smileys'
+  // Set by the page when the RSVP route would refuse a join (cancelled,
+  // postponed, ended, already started — lib/eventJoinState). The button
+  // says so instead of offering a tap that can only fail.
+  closedLabel?: string | null
 }
 
-export default function RSVPButton({ eventId, hostId, spotsLeft, soldOut = false, limitedSpots = true, price, memberPrice, membersOnly, currency = DEFAULT_CURRENCY, payTo = 'venue' }: Props) {
+export default function RSVPButton({ eventId, hostId, spotsLeft, soldOut = false, limitedSpots = true, price, memberPrice, membersOnly, currency = DEFAULT_CURRENCY, payTo = 'venue', closedLabel = null }: Props) {
   const { isLoggedIn, user } = useAuth()
   const { status, position, loading, checked, join, leave, gate, ackRequest, confirmAck, cancelAck, reconfirm, confirmComing, confirmWithToken } = useRSVP(eventId)
   const [confirmCancel, setConfirmCancel] = useState(false)
@@ -78,6 +82,17 @@ export default function RSVPButton({ eventId, hostId, spotsLeft, soldOut = false
     return (
       <div className="flex items-center justify-center gap-2 w-full px-6 py-3 bg-blue-50 border-2 border-blue-200 text-blue-700 font-semibold rounded-xl text-sm mb-3">
         🎤 You're hosting this event
+      </div>
+    )
+  }
+
+  // Closed for joining: the idle member gets the honest label, not a Join
+  // button. Someone already on it (attending, pending, waitlisted) still sees
+  // where they stand below.
+  if (closedLabel && (status === 'idle' || status === 'error' || status === 'loading')) {
+    return (
+      <div className="flex items-center justify-center gap-2 w-full px-6 py-3 bg-gray-100 border-2 border-gray-200 text-gray-500 font-semibold rounded-xl text-sm mb-3">
+        {closedLabel}
       </div>
     )
   }

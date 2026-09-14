@@ -9,6 +9,7 @@ interface Club {
   emoji: string
   slug: string
   memberCount: number
+  canManage?: boolean
 }
 
 export default function HostClubsPage() {
@@ -40,9 +41,12 @@ export default function HostClubsPage() {
       ) : (
         <div className="space-y-3">
           {clubs.map(club => (
+            // The manage page opens only for the club's approved hosts (and
+            // admins); a city host's city clubs 404'd there, so they link to
+            // the club's public page instead.
             <Link
               key={club.id}
-              href={`/host/clubs/${club.slug}`}
+              href={club.canManage === false ? `/clubs/${club.slug}` : `/host/clubs/${club.slug}`}
               className="bg-zinc-900 border border-zinc-800 hover:border-zinc-600 rounded-xl p-4 flex items-center gap-4 transition-colors group"
             >
               <div aria-hidden="true" className="w-14 h-14 rounded-xl bg-zinc-800 flex items-center justify-center text-3xl shrink-0">
@@ -53,7 +57,7 @@ export default function HostClubsPage() {
                 <div className="text-xs text-zinc-500 mt-0.5">{club.memberCount} members</div>
               </div>
               <div className="text-xs text-zinc-600 group-hover:text-amber-500 transition-colors shrink-0">
-                Manage →
+                {club.canManage === false ? 'View →' : 'Manage →'}
               </div>
             </Link>
           ))}

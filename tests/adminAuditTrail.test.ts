@@ -12,7 +12,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('@/lib/session',   () => ({ getSession: vi.fn() }))
 vi.mock('@/lib/audit',     () => ({ writeAudit: vi.fn(async () => {}) }))
 vi.mock('@/lib/notify',    () => ({ createNotification: vi.fn(async () => {}) }))
-vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn(async () => true) }))
+vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn(async () => true), claimOnce: vi.fn(async () => true), releaseClaim: vi.fn(async () => {}) }))
 // Both routes now judge "has it happened" on the event city's calendar.
 vi.mock('@/lib/city',      () => ({ todayInCity: vi.fn(async () => '2026-09-12') }))
 vi.mock('@/lib/email',     () => ({

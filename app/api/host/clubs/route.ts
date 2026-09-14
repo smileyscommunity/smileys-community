@@ -13,7 +13,7 @@ export async function GET() {
       select: { id: true, name: true, emoji: true, slug: true, memberCount: true },
       orderBy: { name: 'asc' },
     })
-    return NextResponse.json(clubs)
+    return NextResponse.json(clubs.map(c => ({ ...c, canManage: true })))
   }
 
   // Everyone else (hosts, moderators) sees only clubs they are assigned to
@@ -22,7 +22,11 @@ export async function GET() {
     select: { club: { select: { id: true, name: true, emoji: true, slug: true, memberCount: true } } },
     orderBy: { club: { name: 'asc' } },
   })
-  const clubs = memberships.map(m => m.club)
+  // `canManage` says whether /host/clubs/[slug] will open for this viewer —
+  // it requires an approved host membership (or admin). The My Clubs list
+  // linked every row there, so a city host's city clubs all 404'd.
+  const clubs: { id: string; name: string; emoji: string; slug: string; memberCount: number; canManage: boolean }[] =
+    memberships.map(m => ({ ...m.club, canManage: true }))
 
   // A city host (consul) runs events across their city without per-club host
   // grants — the create form was unusable for them (empty club list, then a
@@ -35,7 +39,7 @@ export async function GET() {
       select: { id: true, name: true, emoji: true, slug: true, memberCount: true },
       orderBy: { name: 'asc' },
     })
-    clubs.push(...cityClubs)
+    clubs.push(...cityClubs.map(c => ({ ...c, canManage: false })))
   }
   return NextResponse.json(clubs)
 }

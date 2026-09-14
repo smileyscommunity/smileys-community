@@ -10,6 +10,9 @@ import QRScanner from '@/components/QRScanner'
 import ScanResultToast from '@/components/ScanResultToast'
 import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
+import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
+import { loadFailure } from '@/lib/admin/useAdminLoad'
+import { matchesPersonSearch } from '@/lib/admin/participantsView'
 
 interface Event {
   id: string
@@ -25,7 +28,9 @@ interface Attendee {
   id: string
   userId: string
   checkedIn: boolean
-  user: { id: string; name: string; color: string; email: string }
+  // email is absent for co-hosts and club hosts — the check-in GET only
+  // sends it to admins and the primary host.
+  user: { id: string; name: string; color: string; email?: string | null }
 }
 
 function CheckInPageInner() {
@@ -41,6 +46,12 @@ function CheckInPageInner() {
   const [attendees,     setAttendees]     = useState<Attendee[]>([])
   const [loadingEvents, setLoadingEvents] = useState(true)
   const [loadingAtts,   setLoadingAtts]   = useState(false)
+  // A failed load used to fall through to "No events today" / "No attendees
+  // registered" — at the door that reads as the truth. Ticks drive Retry.
+  const [eventsError,   setEventsError]   = useState<string | null>(null)
+  const [attsError,     setAttsError]     = useState<string | null>(null)
+  const [eventsTick,    setEventsTick]    = useState(0)
+  const [attsTick,      setAttsTick]      = useState(0)
   const [search,        setSearch]        = useState('')
   const [lastChecked,   setLastChecked]   = useState<string | null>(null)
   // Stat-tile filter — tap Checked in / Remaining to narrow the list,
@@ -93,8 +104,9 @@ function CheckInPageInner() {
   }, [])
 
   useEffect(() => {
+    setEventsError(null)
     fetch('/app/api/admin/events', { credentials: 'include' })
-      .then(r => r.json())
+      .then(async r => { if (!r.ok) throw await loadFailure(r); return r.json() })
       .then(data => {
         const list = Array.isArray(data) ? data.filter((e: Event) => e.status !== 'cancelled' && e.status !== 'archived') : []
         setEvents(list)
@@ -113,23 +125,26 @@ function CheckInPageInner() {
         const stillValid = defaultEventId && list.some((e: Event) => e.id === defaultEventId && e.date >= today)
         if (!stillValid) setSelectedId(fallback)
       })
+      .catch((e: Error) => setEventsError(e?.message ?? 'Failed to load'))
       .finally(() => setLoadingEvents(false))
   // defaultEventId is intentionally read once on mount — adding it to
   // deps would refire the events fetch every time we router.replace()
-  // to sync the URL with the active selection.
+  // to sync the URL with the active selection. eventsTick is Retry only.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [eventsTick])
 
   useEffect(() => {
     if (!selectedId) return
     setLoadingAtts(true)
+    setAttsError(null)
     setAttendees([])
     setView('all')
     fetch(`/app/api/events/${selectedId}/checkin`, { credentials: 'include' })
-      .then(r => r.json())
+      .then(async r => { if (!r.ok) throw await loadFailure(r); return r.json() })
       .then(data => setAttendees(Array.isArray(data) ? data : []))
+      .catch((e: Error) => setAttsError(e?.message ?? 'Failed to load'))
       .finally(() => setLoadingAtts(false))
-  }, [selectedId])
+  }, [selectedId, attsTick])
 
   // URL-sync selectedId so reload keeps the kiosk on the right event.
   // Replace (not push) keeps the back button useful — the typical user
@@ -149,9 +164,9 @@ function CheckInPageInner() {
     const byView = view === 'in' ? attendees.filter(a => a.checkedIn)
       : view === 'remaining' ? attendees.filter(a => !a.checkedIn)
       : attendees
-    return q
-      ? byView.filter(a => a.user.name.toLowerCase().includes(q) || a.user.email.toLowerCase().includes(q))
-      : byView
+    // Null-safe: lower-casing a missing email threw on the first keystroke
+    // for co-hosts, whose rows carry no email.
+    return q ? byView.filter(a => matchesPersonSearch(a.user, q)) : byView
   }, [attendees, search, view])
 
   const checkedInCount = attendees.filter(a => a.checkedIn).length
@@ -261,6 +276,9 @@ function CheckInPageInner() {
 
         {loadingEvents ? (
           <div className="text-zinc-500 text-sm">Loading events…</div>
+        ) : eventsError ? (
+          <LoadErrorBanner message={eventsError} title="Couldn't load events"
+            onRetry={() => { setLoadingEvents(true); setEventsTick(t => t + 1) }} />
         ) : (
           <>
             <select
@@ -353,7 +371,12 @@ function CheckInPageInner() {
         {loadingAtts && (
           <div className="px-4 py-10 text-center text-zinc-500 text-sm">Loading attendees…</div>
         )}
-        {!loadingAtts && filtered.length === 0 && (
+        {!loadingAtts && attsError && selectedId && (
+          <div className="px-4 py-6">
+            <LoadErrorBanner message={attsError} title="Couldn't load attendees" onRetry={() => setAttsTick(t => t + 1)} />
+          </div>
+        )}
+        {!loadingAtts && !attsError && filtered.length === 0 && (
           <div className="px-4 py-10 text-center text-zinc-500 text-sm">
             {/* Three distinct empty states — old code collapsed all of
                 them into "No attendees registered", which was wrong on

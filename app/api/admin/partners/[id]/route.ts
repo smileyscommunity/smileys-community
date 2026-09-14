@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { getSession, type SessionUser } from '@/lib/session'
 import { canManagePartners, canManageUsers, canActInCity } from '@/lib/access'
 import { isSafeHref } from '@/lib/safeUrl'
+import { normalizeInstagramHandle } from '@/lib/directory-constants'
+import { isUploadedImageUrl } from '@/lib/uploadedImageUrl'
 import { writeAudit } from '@/lib/audit'
 
 type Params = { params: Promise<{ id: string }> }
@@ -36,19 +38,49 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const scope = await prisma.partner.findUnique({ where: { id }, select: { cityId: true } })
   if (!scope) return NextResponse.json({ error: 'Partner not found' }, { status: 404 })
   if (!canActInCity(session, scope.cityId)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  const body = await req.json()
-  const allowed = ['name', 'category', 'discount', 'address', 'neighborhood', 'website', 'instagram', 'isActive']
-  const data: Record<string, unknown> = {}
-  for (const key of allowed) {
-    if (key in body) data[key] = body[key]
-  }
+  const body = await req.json().catch(() => null)
+  if (!body || typeof body !== 'object') return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
 
+  // The edit panel shows Logo URL and Cover Image URL, but this list omitted
+  // them — the save toasted "Saved ✓" and the images never changed. Instagram
+  // was run through isSafeHref, so the form's own "@username" placeholder 400'd.
+  // Each field is now typed the way the partner self-edit route types it.
+  const data: Record<string, string | boolean | null> = {}
+  const str = (v: unknown, max: number) => typeof v === 'string' ? v.trim().slice(0, max) : v == null ? null : undefined
+  // Required columns: null or blank would 500 on the NOT NULL constraint.
+  for (const [key, max] of [['name', 120], ['category', 60], ['discount', 200], ['address', 300], ['neighborhood', 80]] as const) {
+    if (!(key in body)) continue
+    const v = str(body[key], max)
+    if (typeof v !== 'string') return NextResponse.json({ error: `${key} must be text` }, { status: 400 })
+    if (key === 'name' && !v) return NextResponse.json({ error: 'name is required' }, { status: 400 })
+    data[key] = v
+  }
   // URL fields render as <a href> on /partner and /perks — reject
-  // `javascript:` / `data:` schemes. Empty string is allowed (unset).
-  for (const urlKey of ['website', 'instagram'] as const) {
-    if (urlKey in data && data[urlKey] && !isSafeHref(String(data[urlKey]))) {
-      return NextResponse.json({ error: `${urlKey} must be https:// or a /relative path` }, { status: 400 })
+  // `javascript:` / `data:` schemes. Empty string unsets.
+  if ('website' in body) {
+    const v = str(body.website, 300)
+    if (v === undefined || (v && !isSafeHref(v))) return NextResponse.json({ error: 'website must be https:// or a /relative path' }, { status: 400 })
+    data.website = v || null
+  }
+  if ('instagram' in body) {
+    const v = str(body.instagram, 60)
+    const handle = v ? normalizeInstagramHandle(v) : null
+    if (v === undefined || (v && !handle)) return NextResponse.json({ error: 'Invalid Instagram handle' }, { status: 400 })
+    data.instagram = handle
+  }
+  // Rendered as <img> to every member. Staff may paste an https image URL (the
+  // panel has no uploader) or an uploads path; nothing else (data:, javascript:).
+  for (const key of ['logo', 'coverImage'] as const) {
+    if (!(key in body)) continue
+    const v = str(body[key], 500)
+    if (v === undefined || (v && !isUploadedImageUrl(v) && !/^https:\/\/[^\s"'<>]+$/.test(v))) {
+      return NextResponse.json({ error: `${key} must be an https:// image URL or an uploaded image` }, { status: 400 })
     }
+    data[key] = v || null
+  }
+  if ('isActive' in body) {
+    if (typeof body.isActive !== 'boolean') return NextResponse.json({ error: 'isActive must be true or false' }, { status: 400 })
+    data.isActive = body.isActive
   }
 
   const partner = await prisma.partner.update({ where: { id }, data })

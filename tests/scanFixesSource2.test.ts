@@ -12,7 +12,8 @@ describe('event discussion lock', () => {
   it('the composer locks on the same rule and clock', () => {
     const src = read('components/EventMessages.tsx')
     expect(src).toMatch(/todayInTz\(eventTz \?\? DEFAULT_TZ\) >= discussionLockDay\(eventDate\)/)
-    expect(read('app/events/[id]/page.tsx')).toContain('<EventMessages eventId={event.id} eventDate={event.date} eventTz={eventTz} />')
+    // canPost added by scan5Batch27 (item 90d) — the lock props are unchanged.
+    expect(read('app/events/[id]/page.tsx')).toContain('<EventMessages eventId={event.id} eventDate={event.date} eventTz={eventTz} canPost={canUseDiscussion} />')
   })
 })
 

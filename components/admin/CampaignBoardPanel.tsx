@@ -116,7 +116,8 @@ function SponsorRow({ s, onChanged }: { s: AdminSponsor; onChanged: () => void }
       body: JSON.stringify({ id: s.id }),
     })
     setBusy(false)
-    if (!res.ok) { toast.error('Delete failed'); return }
+    // Live-campaign deletes are admin + step-up only; show the reason.
+    if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d.error ?? 'Delete failed'); return }
     toast.success(`Deleted ${s.name}`)
     onChanged()
   }
@@ -304,7 +305,8 @@ function PrizeRow({ p, sponsors, onChanged }: {
       body: JSON.stringify({ id: p.id }),
     })
     setBusy(false)
-    if (!res.ok) { toast.error('Delete failed'); return }
+    // Live-campaign deletes are admin + step-up only; show the reason.
+    if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d.error ?? 'Delete failed'); return }
     toast.success(`Deleted ${p.title}`)
     onChanged()
   }

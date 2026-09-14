@@ -5,6 +5,7 @@ import { isAdminOrModerator, canActInCity } from '@/lib/access'
 import { rateLimit } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
 import { buildReactions } from '@/lib/posts'
+import { extractMentions, mentionMatches, dropBlocked, MAX_RECIPIENTS } from '@/lib/mentions'
 
 type Params = { params: Promise<{ slug: string }> }
 
@@ -135,24 +136,21 @@ async function notifyMentions(
   title: string,
   link: string,
 ) {
-  const matches = [...content.matchAll(/@(\w+)/g)].map(m => m[1])
-  if (!matches.length) return
+  // Same whole-name resolver as the wall. `@(\w+)` without the u flag read
+  // "@Çağla" as nothing and "@Ayşe" as "Ay", and `startsWith` then pinged
+  // every Ayla and Aylin in the club.
+  const words = extractMentions(content)
+  if (!words.length) return
   const members = await prisma.clubMembership.findMany({
     where: { clubId, status: 'approved', userId: { not: excludeUserId } },
     include: { user: { select: { id: true, name: true } } },
   })
-  const toNotify: string[] = []
-  for (const word of matches) {
-    for (const m of members) {
-      if (m.user.name.toLowerCase().startsWith(word.toLowerCase()) && !toNotify.includes(m.userId)) {
-        toNotify.push(m.userId)
-      }
-    }
-  }
-  if (!toNotify.length) return
+  const matched = members.map(m => m.user).filter(u => words.some(w => mentionMatches(u.name, w)))
+  if (!matched.length) return
+  const recipients = (await dropBlocked(excludeUserId, matched)).slice(0, MAX_RECIPIENTS)
   await Promise.allSettled(
-    toNotify.map(userId =>
-      createNotification(userId, 'club_mention', title, content.slice(0, 120), link)
+    recipients.map(u =>
+      createNotification(u.id, 'club_mention', title, content.slice(0, 120), link)
     )
   )
 }

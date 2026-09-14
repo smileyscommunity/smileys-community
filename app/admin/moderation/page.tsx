@@ -11,6 +11,9 @@ import Avatar from '@/components/admin/Avatar'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { DEFAULT_CURRENCY, formatMoney, currencySymbol } from '@/lib/data'
 import { phonePlaceholder, dialCode } from '@/lib/country'
+import { formatDay } from '@/lib/cityTime'
+import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
+import { loadFailure } from '@/lib/admin/useAdminLoad'
 
 interface Report {
   id: string
@@ -51,10 +54,12 @@ interface EventMessage {
 
 interface QueueEvent {
   id: string; title: string; description: string | null; date: string; time: string
-  price: number; totalSpots: number; status: string; createdAt: string
+  price: number; currency?: string; totalSpots: number; status: string; createdAt: string
   address: string | null; neighborhood: string | null; coverImage: string | null
-  host: { id: string; name: string; email: string; color: string }
-  club: { id: string; name: string }
+  // Both can be missing: clubId is optional on Event, and the approval route
+  // answers host: null when the host's account is gone.
+  host: { id: string; name: string; email: string; color: string } | null
+  club: { id: string; name: string } | null
 }
 
 const REASON_LABELS: Record<string, string> = {
@@ -119,6 +124,7 @@ function ModerationPageInner() {
   const [messages,  setMessages]  = useState<EventMessage[]>([])
   const [queue,     setQueue]     = useState<QueueEvent[]>([])
   const [loading,   setLoading]   = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(initialStatus)
   // "From surveys" pill — filters to reports auto-created by the
   // post-event survey when an attendee flagged something off. These
@@ -189,25 +195,32 @@ function ModerationPageInner() {
   // load() runs the initial fetch and the auto-refresh poll. background=true
   // skips the skeleton flicker so the 30s refresh doesn't blank the page.
   const load = useCallback((background = false) => {
-    const safe = (p: Promise<Response>) =>
-      p.then(r => r.json()).catch((e) => { console.error('Moderation fetch error:', e); return null })
+    // A refused feed (403, 429, 500) used to parse its error body, fail the
+    // Array.isArray check and blank that tab — "No reports" while reports
+    // waited. A failed feed now keeps what was on screen and names itself
+    // in the retry banner.
+    const failed: string[] = []
+    const safe = (label: string, p: Promise<Response>) =>
+      p.then(async r => { if (!r.ok) throw await loadFailure(r); return r.json() })
+        .catch((e) => { console.error('Moderation fetch error:', e); failed.push(`${label}: ${e?.message ?? 'failed'}`); return null })
 
     if (!background) setLoading(true)
     const all = [
-      safe(fetch('/app/api/admin/moderation',     { credentials: 'include' })),
-      safe(fetch('/app/api/admin/messages',        { credentials: 'include' })),
-      safe(fetch('/app/api/admin/events/approval', { credentials: 'include' })),
-      isAdmin ? safe(fetch('/app/api/admin/users?status=banned', { credentials: 'include' })) : Promise.resolve(null),
-      isAdmin ? safe(fetch('/app/api/admin/blacklist',           { credentials: 'include' })) : Promise.resolve(null),
+      safe('Reports',     fetch('/app/api/admin/moderation',     { credentials: 'include' })),
+      safe('Messages',    fetch('/app/api/admin/messages',        { credentials: 'include' })),
+      safe('Event queue', fetch('/app/api/admin/events/approval', { credentials: 'include' })),
+      isAdmin ? safe('Banned',    fetch('/app/api/admin/users?status=banned', { credentials: 'include' })) : Promise.resolve(null),
+      isAdmin ? safe('Blacklist', fetch('/app/api/admin/blacklist',           { credentials: 'include' })) : Promise.resolve(null),
     ]
 
     Promise.all(all).then(([r, m, q, b, bl]) => {
-      setReports(Array.isArray(r) ? r : [])
-      setMessages(Array.isArray(m) ? m : [])
-      setQueue(Array.isArray(q) ? q : [])
-      setBanned(Array.isArray(b)   ? b   : [])
-      setBlacklist(Array.isArray(bl) ? bl : [])
-      setLastRefresh(new Date())
+      if (r  !== null) setReports(Array.isArray(r) ? r : [])
+      if (m  !== null) setMessages(Array.isArray(m) ? m : [])
+      if (q  !== null) setQueue(Array.isArray(q) ? q : [])
+      if (b  !== null) setBanned(Array.isArray(b)   ? b   : [])
+      if (bl !== null) setBlacklist(Array.isArray(bl) ? bl : [])
+      setLoadError(failed.length ? failed.join(' · ') : null)
+      if (!failed.length) setLastRefresh(new Date())
     }).finally(() => { if (!background) setLoading(false) })
   }, [isAdmin])
 
@@ -424,7 +437,7 @@ function ModerationPageInner() {
   const s = search.trim().toLowerCase()
   const matchReport   = (r: Report)        => !s || r.reporter.name.toLowerCase().includes(s) || r.reported.name.toLowerCase().includes(s) || r.reason.toLowerCase().includes(s) || (r.details?.toLowerCase().includes(s) ?? false)
   const matchMessage  = (m: EventMessage)  => !s || m.user.name.toLowerCase().includes(s) || m.message.toLowerCase().includes(s) || m.event.title.toLowerCase().includes(s)
-  const matchQueue    = (e: QueueEvent)    => !s || e.title.toLowerCase().includes(s) || e.host.name.toLowerCase().includes(s) || (e.club?.name.toLowerCase().includes(s) ?? false)
+  const matchQueue    = (e: QueueEvent)    => !s || e.title.toLowerCase().includes(s) || (e.host?.name.toLowerCase().includes(s) ?? false) || (e.club?.name.toLowerCase().includes(s) ?? false)
   const matchBanned   = (u: BannedUser)    => !s || u.name.toLowerCase().includes(s) || u.email.toLowerCase().includes(s) || (u.banReason?.toLowerCase().includes(s) ?? false)
   const matchBlEntry  = (b: BlacklistEntry)=> !s || (b.email?.toLowerCase().includes(s) ?? false) || (b.phone?.toLowerCase().includes(s) ?? false) || (b.name?.toLowerCase().includes(s) ?? false) || b.reason.toLowerCase().includes(s)
 
@@ -501,6 +514,8 @@ function ModerationPageInner() {
           </div>
         )}
       </div>
+
+      <LoadErrorBanner message={loadError} onRetry={() => load()} title="Couldn't load part of the moderation queue" />
 
       {loading ? (
         <div className="space-y-3">
@@ -768,10 +783,15 @@ function ModerationPageInner() {
                         </span>
                       </div>
                       <div className="flex items-center gap-3 text-xs text-zinc-500 mb-2">
-                        <span>Host: <span className="text-zinc-300">{e.host.name}</span></span>
-                        <span>Club: <span className="text-zinc-300">{e.club.name}</span></span>
-                        <span>{formatMoney(e.price, cur)} · {e.totalSpots} spots</span>
-                        <span>{new Date(e.date).toLocaleDateString()}</span>
+                        {/* host/club are nullable (deleted host, club-less
+                            event) — this crashed the whole tab. Price is in
+                            the event's currency; the date is a bare day, so
+                            formatDay (new Date() parsed it as UTC midnight
+                            and showed the day before west of Greenwich). */}
+                        <span>Host: <span className="text-zinc-300">{e.host?.name ?? 'Deleted member'}</span></span>
+                        <span>Club: <span className="text-zinc-300">{e.club?.name ?? 'No club'}</span></span>
+                        <span>{formatMoney(e.price, e.currency ?? cur)} · {e.totalSpots} spots</span>
+                        <span>{formatDay(e.date)}</span>
                       </div>
                       {e.description && (
                         <p className="text-xs text-zinc-500 line-clamp-2 mb-2">{e.description}</p>

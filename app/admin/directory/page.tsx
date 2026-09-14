@@ -869,14 +869,15 @@ function ClaimsList() {
       const r = await fetch(`/app/api/admin/directory/claims?status=${status}`, { credentials: 'include' })
       if (!r.ok) {
         const d = await r.json().catch(() => ({}))
-        toast.error(d?.error || `Couldn't load claims (HTTP ${r.status})`)
+        // Retry on the toast: the empty list below it is not "no claims".
+        toast.error(d?.error || `Couldn't load claims (HTTP ${r.status})`, { action: { label: 'Retry', onClick: () => load() } })
         setRows([])
         return
       }
       const d = await r.json()
       setRows(Array.isArray(d) ? d : [])
     } catch {
-      toast.error('Network error — could not load claims')
+      toast.error('Network error — could not load claims', { action: { label: 'Retry', onClick: () => load() } })
     } finally {
       setLoading(false)
     }
@@ -1011,14 +1012,15 @@ function ReportsList() {
       const r = await fetch(`/app/api/admin/directory/reports?status=${status}`, { credentials: 'include' })
       if (!r.ok) {
         const d = await r.json().catch(() => ({}))
-        toast.error(d?.error || `Couldn't load reports (HTTP ${r.status})`)
+        // Retry on the toast: the empty list below it is not "no reports".
+        toast.error(d?.error || `Couldn't load reports (HTTP ${r.status})`, { action: { label: 'Retry', onClick: () => load() } })
         setRows([])
         return
       }
       const d = await r.json()
       setRows(Array.isArray(d) ? d : [])
     } catch {
-      toast.error('Network error — could not load reports')
+      toast.error('Network error — could not load reports', { action: { label: 'Retry', onClick: () => load() } })
     } finally {
       setLoading(false)
     }

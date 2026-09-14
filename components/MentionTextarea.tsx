@@ -5,13 +5,18 @@ import { resolveImageUrl, getInitials, firstNameOf} from '@/lib/data'
 
 interface Member { id: string; name: string; color: string; photo: string | null; restricted?: boolean }
 
+// The word being typed after '@'. `\w` had no u flag, so "@Ç", "@Ş" or "@İ"
+// offered nobody and "@Ay" closed the moment "ş" was typed. A trailing
+// hyphen/apostrophe is allowed here because "@Jean-" is mid-word.
+const TYPING_MENTION = /@(\p{L}[\p{L}\p{M}\p{N}_'’-]*)$/u
+
 function getMentionQuery(value: string, cursor: number): string | null {
-  const match = value.slice(0, cursor).match(/@(\w+)$/)
+  const match = value.slice(0, cursor).match(TYPING_MENTION)
   return match ? match[1] : null
 }
 
 function insertMention(value: string, cursor: number, name: string) {
-  const match = value.slice(0, cursor).match(/@(\w+)$/)
+  const match = value.slice(0, cursor).match(TYPING_MENTION)
   if (!match) return { text: value, newCursor: cursor }
   const firstName = firstNameOf(name)
   const start     = cursor - match[0].length

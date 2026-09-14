@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
-import { sendRsvpConfirmationEmail, recordEmailFailure } from '@/lib/email'
+import { createSeatPayment, announceConfirmedSeat } from '@/lib/rsvpConfirmed'
 import { autoJoinClub } from '@/lib/autoJoinClub'
 import { stampFirstEventRsvp } from '@/lib/firstEvent'
 import { announceSpotOpened } from '@/lib/spotOpened'
@@ -12,7 +12,6 @@ import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 import { trackServer } from '@/lib/posthog-server'
 import { activateAttendee, cancelAttendeeOp, withdrawPendingOp, isActiveAttendee } from '@/lib/attendance'
 import { checkRsvpAllowed, gateErrorBody, getRsvpGate, recordYellowAcknowledgement } from '@/lib/noShow'
-import { noShowPolicyApplies } from '@/lib/noShowPolicy'
 import { DEFAULT_CURRENCY, formatMoney } from '@/lib/data'
 import { todayInCity, getCityTz } from '@/lib/city'
 import { eventStartsAt, eventEndsAt, type EventClock } from '@/lib/eventTime'
@@ -179,12 +178,17 @@ export async function POST(req: NextRequest, { params }: Params) {
         if (claimed.count === 0) return { ok: false as const }
         await tx.waitlistEntry.delete({ where: { id: onWaitlist.id } })
         await activateAttendee(tx, { userId: session.id, eventId, status: 'approved', stealth })
+        // A claimed seat is a confirmed seat: same ledger row as a straight
+        // RSVP, on the same transaction (lib/rsvpConfirmed).
+        await createSeatPayment(tx, eventId, event, session.id)
         return { ok: true as const }
       })
       if (outcome.ok) {
         autoJoinClub(session.id, eventId).catch(() => {})
         stampFirstEventRsvp(session.id, eventId).catch(() => {})
         createNotification(session.id, 'rsvp', "You're in! 🎉", `You claimed the open spot for "${event.title}".`, `/events/${eventId}`)
+        // …and the same host notice + confirmation email the claim skipped.
+        announceConfirmedSeat(session.id, eventId, event)
         trackRsvp('approved', { via: 'waitlist_claim' })
         ackAfterJoin(); return NextResponse.json({ ok: true, status: 'approved' })
       }
@@ -384,16 +388,8 @@ export async function POST(req: NextRequest, { params }: Params) {
 
       await activateAttendee(tx, { userId: session.id, eventId, status: 'approved', stealth })
 
-      // P6 defense-in-depth: clamp amount non-negative. Mirrors the
-      // approval-required path above so a misconfigured event.price
-      // can't land a negative payment row in either flow.
-      const safeAmount = Math.max(0, Number(event.price) || 0)
-      // Same payTo guard as the approval-required path above.
-      if (safeAmount > 0 && event.payTo === 'smileys') {
-        await tx.payment.create({
-          data: { userId: session.id, eventId, amount: safeAmount, currency: event.currency ?? DEFAULT_CURRENCY, status: 'pending' },
-        })
-      }
+      // Ledger row, shared with the waitlist claim (lib/rsvpConfirmed).
+      await createSeatPayment(tx, eventId, event, session.id)
       return { kind: 'approved' as const }
     })
 
@@ -427,34 +423,9 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     createNotification(session.id, 'rsvp', 'You\'re in! 🎉', `Your spot for "${event.title}" is confirmed.`, `/events/${eventId}`)
 
-    // Confirmation email + host notification (fire-and-forget)
-    ;(async () => {
-      const [user, city] = await Promise.all([
-        prisma.user.findUnique({ where: { id: session.id }, select: { email: true, name: true } }),
-        prisma.city.findUnique({ where: { id: event.cityId }, select: { name: true } }),
-      ])
-      if (user) {
-        sendRsvpConfirmationEmail(
-          user.email, user.name ?? 'Member',
-          event.title, event.date,
-          event.location ?? event.neighborhood ?? city?.name ?? 'your city',
-          eventId,
-          { free: noShowPolicyApplies(event) },
-        ).catch(async err => {
-          console.error('[rsvp POST] sendRsvpConfirmationEmail failed', { userId: session.id, eventId, err: String(err) })
-          await recordEmailFailure({ helper: 'sendRsvpConfirmationEmail', recipient: user.email, error: err, context: { userId: session.id, eventId } })
-        })
-      }
-      if (event.hostId) {
-        createNotification(
-          event.hostId,
-          'attendee_joined',
-          'New RSVP 🎉',
-          `${user?.name ?? 'A member'} just signed up for "${event.title}"`,
-          `/host/events/${eventId}/participants`,
-        )
-      }
-    })()
+    // Confirmation email + host notification (fire-and-forget), shared
+    // with the waitlist claim (lib/rsvpConfirmed).
+    announceConfirmedSeat(session.id, eventId, event)
 
     trackRsvp('approved')
     ackAfterJoin(); return NextResponse.json({ ok: true, status: 'approved' })

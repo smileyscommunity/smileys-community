@@ -19,10 +19,13 @@ async function currentPartnerId(): Promise<string | null> {
   return user?.role === 'partner' && user.partnerId ? user.partnerId : null
 }
 
+// The settings form shows this text as-is, so it says why rather than "Forbidden".
+const NOT_A_PARTNER = 'This account is no longer linked to a partner business. Ask an admin if that looks wrong.'
+
 export async function GET() {
   const partnerId = await currentPartnerId()
   if (!partnerId) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    return NextResponse.json({ error: NOT_A_PARTNER }, { status: 403 })
   }
 
   const partner = await prisma.partner.findUnique({
@@ -37,7 +40,7 @@ export async function GET() {
 export async function PATCH(req: NextRequest) {
   const partnerId = await currentPartnerId()
   if (!partnerId) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    return NextResponse.json({ error: NOT_A_PARTNER }, { status: 403 })
   }
 
   const body = await req.json().catch(() => null)
@@ -52,7 +55,9 @@ export async function PATCH(req: NextRequest) {
   for (const [key, max] of [['name', 120], ['category', 60], ['discount', 200], ['address', 300], ['neighborhood', 80]] as const) {
     if (!(key in body)) continue
     const v = str(body[key], max)
-    if (v === undefined || (key === 'name' && !v)) return NextResponse.json({ error: `${key} must be text` }, { status: 400 })
+    // All five are NOT NULL columns: a null (a cleared field serialised as
+    // null) passed this check and 500'd in prisma.partner.update.
+    if (typeof v !== 'string' || (key === 'name' && !v)) return NextResponse.json({ error: `${key} must be text` }, { status: 400 })
     data[key] = v
   }
   if ('website' in body) {
@@ -80,6 +85,10 @@ export async function PATCH(req: NextRequest) {
     if (v && !isUploadedImageUrl(v)) return NextResponse.json({ error: `${key} must be an image uploaded through Smileys` }, { status: 400 })
     data[key] = v || null
   }
+
+  // The account can lose its partner between the role check and here (admin
+  // deleted the partner row) — a clean 404, not a P2025 500.
+  if (!current) return NextResponse.json({ error: 'Partner not found' }, { status: 404 })
 
   const updated = await prisma.partner.update({
     where: { id: partnerId },

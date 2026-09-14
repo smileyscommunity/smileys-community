@@ -4,7 +4,7 @@ import type { Prisma } from '@prisma/client'
 import { createNotification } from '@/lib/notify'
 import { sendReconfirmEmail, sendSpotReleasedEmail, recordEmailFailure } from '@/lib/email'
 import { eventStartsAt } from '@/lib/eventTime'
-import { dayInTz, DEFAULT_TZ } from '@/lib/cityTime'
+import { dayInTz, shiftDay, formatDay, DEFAULT_TZ } from '@/lib/cityTime'
 import { announceSpotOpened } from '@/lib/spotOpened'
 import { countSeatableFromWaitlist, quotaEventSelect } from '@/lib/eventQuota'
 import { reconfirmUrl } from '@/lib/reconfirmToken'
@@ -64,6 +64,19 @@ const fmtTime = (d: Date, tz: string) =>
 const fmtWhen = (d: Date, tz: string) =>
   d.toLocaleString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: tz })
 
+/**
+ * "today" / "tomorrow" / "on Friday" — the event's date read against the
+ * city's calendar at `now`. The ask always said "tomorrow", but a member who
+ * joins inside the ask window, or an event published inside it, is first
+ * asked on a later tick — often on the day itself.
+ */
+export function dayPhrase(date: string, tz: string, now: Date): string {
+  const today = dayInTz(now, tz)
+  if (date === today) return 'today'
+  if (date === shiftDay(today, 1)) return 'tomorrow'
+  return `on ${formatDay(date, { weekday: 'long' })}`
+}
+
 async function staffIds(eventId: string, hostId: string): Promise<Set<string>> {
   const cohosts = await prisma.eventCoHost.findMany({ where: { eventId }, select: { userId: true } })
   return new Set([hostId, ...cohosts.map(c => c.userId)])
@@ -79,6 +92,7 @@ export async function askEvent(event: {
     include: { user: { select: { id: true, name: true, email: true } } },
   })
   const deadline = new Date(startsAt.getTime() - RECONFIRM_RELEASE_HOURS_BEFORE * HOUR)
+  const day = dayPhrase(event.date, tz, now)
   let asked = 0
   for (const a of rows) {
     if (staff.has(a.userId)) continue
@@ -88,9 +102,9 @@ export async function askEvent(event: {
     const emoji = event.emoji ?? '📅'
     const body  = `Tap to confirm your spot. Unanswered spots may go to the waitlist from ${fmtTime(deadline, tz)}.`
     // createNotification sends the push itself (and honours quiet hours).
-    await createNotification(a.userId, 'reconfirm_ask', `${emoji} Still coming to ${event.title} tomorrow?`, body, `/events/${event.id}`)
+    await createNotification(a.userId, 'reconfirm_ask', `${emoji} Still coming to ${event.title} ${day}?`, body, `/events/${event.id}`)
     sendReconfirmEmail(a.user.id, a.user.email, a.user.name ?? 'Member', event.title, emoji,
-      fmtWhen(startsAt, tz), fmtTime(deadline, tz), reconfirmUrl(a.user.id, event.id), event.id)
+      fmtWhen(startsAt, tz), fmtTime(deadline, tz), reconfirmUrl(a.user.id, event.id), event.id, day)
       .catch(async err => {
         console.error('[reconfirm] sendReconfirmEmail failed', { eventId: event.id, userId: a.userId, err: String(err) })
         await recordEmailFailure({ helper: 'sendReconfirmEmail', recipient: a.user.email, error: err, context: { eventId: event.id, userId: a.userId } })
@@ -146,7 +160,9 @@ export async function releaseEvent(event: {
     const emoji = event.emoji ?? '📅'
     await createNotification(a.userId, 'reconfirm_released',
       `${emoji} Your spot at ${event.title} went to the waitlist`,
-      'We asked yesterday and didn\'t hear back, and someone was waiting. Still want to come? You can rejoin if a spot is open.',
+      // "Yesterday" was wrong for the same reason as the ask's "tomorrow":
+      // the ask can land on the event's own day.
+      'We asked earlier and didn\'t hear back, and someone was waiting. Still want to come? You can rejoin if a spot is open.',
       `/events/${event.id}`)
     sendSpotReleasedEmail(a.user.id, a.user.email, a.user.name ?? 'Member', event.title, emoji, event.id)
       .catch(async err => {

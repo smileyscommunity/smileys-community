@@ -99,7 +99,8 @@ export default async function CityEventsPage({ params }: Params) {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {events.map(e => <EventCard key={e.id} event={e} />)}
+              {/* The city's own clock decides a card's started/ended state. */}
+              {events.map(e => <EventCard key={e.id} event={e} timeZone={city.timezone} />)}
             </div>
           )}
           <div className="mt-10 flex flex-col sm:flex-row gap-4 items-center justify-center">

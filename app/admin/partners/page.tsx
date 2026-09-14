@@ -38,8 +38,8 @@ const FIELDS = [
   { key: 'neighborhood', label: 'Neighborhood',    span: 1 },
   { key: 'website',      label: 'Website',         span: 1, placeholder: 'https://...' },
   { key: 'instagram',    label: 'Instagram',       span: 1, placeholder: '@username' },
-  { key: 'logo',         label: 'Logo URL',        span: 1, placeholder: 'https://... image URL' },
-  { key: 'coverImage',   label: 'Cover Image URL', span: 1, placeholder: 'https://... image URL' },
+  { key: 'logo',         label: 'Logo URL',        span: 1, placeholder: 'https://... image URL or /app/api/files/...' },
+  { key: 'coverImage',   label: 'Cover Image URL', span: 1, placeholder: 'https://... image URL or /app/api/files/...' },
 ]
 
 const inputCls = 'w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2 text-white text-sm focus:outline-none focus:border-amber-500'
@@ -97,7 +97,11 @@ export default function AdminPartnersPage() {
       setPartners(prev => prev.map(p => p.id === id ? { ...p, ...updated } : p))
       closePanel()
       toast.success('Saved ✓')
-    } else toast.error('Failed to save')
+    } else {
+      // The route now validates each field — show which one it refused.
+      const d = await res.json().catch(() => ({}))
+      toast.error(d?.error ?? 'Failed to save')
+    }
     setSaving(null)
   }
 

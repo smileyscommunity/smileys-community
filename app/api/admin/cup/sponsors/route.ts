@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator } from '@/lib/access'
+import { isAdminOrModerator, isAdmin } from '@/lib/access'
 import { isSafeHref } from '@/lib/safeUrl'
 import { writeAudit } from '@/lib/audit'
+import { requireStepUp } from '@/lib/stepUp'
+import { isLiveCampaign } from '@/lib/cup-data'
 
 // Mirror of the prizes admin route but for CupSponsor. Same auth,
 // same shape: GET + POST + PATCH + DELETE. Slugs are required on
@@ -33,10 +35,16 @@ const SLUG_RE = /^[a-z0-9-]+$/
 function parsePayload(body: Record<string, unknown>) {
   const name        = typeof body.name === 'string' ? body.name.trim().slice(0, 200) : null
   const slug        = typeof body.slug === 'string' ? body.slug.trim().toLowerCase().slice(0, 80) : null
-  const blurb       = typeof body.blurb === 'string' ? body.blurb.trim().slice(0, 500) : null
-  const logoUrl     = typeof body.logoUrl === 'string' ? body.logoUrl.trim().slice(0, 500) : null
-  const websiteUrl  = typeof body.websiteUrl === 'string' ? body.websiteUrl.trim().slice(0, 500) : null
-  const instagramUrl = typeof body.instagramUrl === 'string' ? body.instagramUrl.trim().slice(0, 500) : null
+  // undefined = not in the body (leave as is); null or '' = clear. The edit
+  // form sends null for an emptied field, which this used to fold into the
+  // same null as "omitted" — PATCH skipped it and said "Updated" while the
+  // old logo/website/blurb stayed. Same rule as the prizes route.
+  const optText = (key: 'blurb' | 'logoUrl' | 'websiteUrl' | 'instagramUrl', max: number) =>
+    !(key in body) ? undefined : typeof body[key] === 'string' ? (body[key] as string).trim().slice(0, max) || null : null
+  const blurb        = optText('blurb', 500)
+  const logoUrl      = optText('logoUrl', 500)
+  const websiteUrl   = optText('websiteUrl', 500)
+  const instagramUrl = optText('instagramUrl', 500)
   const status      = typeof body.status === 'string' && ['pending', 'active', 'archived'].includes(body.status) ? body.status : null
   return { name, slug, blurb, logoUrl, websiteUrl, instagramUrl, status }
 }
@@ -102,10 +110,10 @@ export async function PATCH(req: NextRequest) {
   const data: Record<string, unknown> = {}
   if (p.name)                                                   data.name         = p.name
   if (p.slug)                                                   data.slug         = p.slug
-  if (p.blurb !== null && p.blurb !== undefined)                data.blurb        = p.blurb
-  if (p.logoUrl !== null && p.logoUrl !== undefined)            data.logoUrl      = p.logoUrl
-  if (p.websiteUrl !== null && p.websiteUrl !== undefined)      data.websiteUrl   = p.websiteUrl
-  if (p.instagramUrl !== null && p.instagramUrl !== undefined)  data.instagramUrl = p.instagramUrl
+  if (p.blurb !== undefined)                                    data.blurb        = p.blurb
+  if (p.logoUrl !== undefined)                                  data.logoUrl      = p.logoUrl
+  if (p.websiteUrl !== undefined)                               data.websiteUrl   = p.websiteUrl
+  if (p.instagramUrl !== undefined)                             data.instagramUrl = p.instagramUrl
   if (p.status)                                                 data.status       = p.status
 
   try {
@@ -129,8 +137,18 @@ export async function DELETE(req: NextRequest) {
   const id = typeof body.id === 'string' ? body.id : ''
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
 
-  const sponsor = await prisma.cupSponsor.findUnique({ where: { id }, select: { name: true } })
+  const sponsor = await prisma.cupSponsor.findUnique({
+    where: { id }, select: { name: true, campaign: { select: { slug: true, status: true } } },
+  })
   if (!sponsor) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  // Deleting from a live campaign strips attribution off its prizes in
+  // front of members: an admin call, behind step-up like other destructive
+  // ops. Moderators can still tidy draft/wrapped/archived campaigns.
+  if (isLiveCampaign(sponsor.campaign)) {
+    if (!isAdmin(session)) return NextResponse.json({ error: 'Only an admin can delete a sponsor from a live campaign — archive it instead' }, { status: 403 })
+    const stepUp = requireStepUp(session)
+    if (stepUp) return stepUp
+  }
 
   await prisma.cupSponsor.delete({ where: { id } })
   writeAudit(session.id, session.name, 'cup.sponsor_delete', id, 'cup_sponsor',

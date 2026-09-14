@@ -5,6 +5,11 @@ import Link from 'next/link'
 import { toast } from 'sonner'
 import { promptToast } from '@/lib/promptToast'
 import { confirmToast } from '@/lib/confirmToast'
+import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
+import { loadFailure } from '@/lib/admin/useAdminLoad'
+import { useAdminCities } from '@/components/admin/CitySelect'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
+import { DEFAULT_TZ } from '@/lib/cityTime'
 
 // No-show cards inbox. Default view is what needs a decision: red cards
 // under appeal. Accept clears the card; reject re-arms the block (from the
@@ -18,11 +23,13 @@ interface Card {
   restrictionStartsAt: string | null; restrictionEndsAt: string | null
   waivedAt: string | null; waiveReason: string | null; resolutionNote: string | null
   user:  { id: string; name: string; email: string }
-  event: { id: string; title: string; emoji: string; date: string }
+  event: { id: string; title: string; emoji: string; date: string; cityId?: string }
 }
 
 type View = 'appeal_pending' | 'active' | 'all'
-const fmt = (iso: string | null) => iso ? new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'
+// Card times (issued, appeal deadline, block window) read on the event
+// city's clock — the device's zone put a Tbilisi deadline an hour off.
+const fmt = (iso: string | null, tz: string) => iso ? new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: tz }) : '—'
 
 const STATUS_PILL: Record<string, string> = {
   active:         'bg-zinc-700 text-zinc-200',
@@ -36,11 +43,20 @@ export default function AdminNoShowsPage() {
   const [view,  setView]  = useState<View>('appeal_pending')
   const [cards, setCards] = useState<Card[] | null>(null)
   const [busy,  setBusy]  = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const adminCities = useAdminCities()
+  const currentTz   = useCurrentCity()?.timezone ?? DEFAULT_TZ
+  const tzFor = (c: Card) => adminCities.find(x => x.id === c.event.cityId)?.timezone ?? currentTz
 
+  // A refused or failed load used to become [] — "No appeals waiting." while
+  // appeals sat unanswered. It now shows the reason and a Retry.
   const load = useCallback(() => {
     setCards(null)
+    setLoadError(null)
     fetch(`/app/api/admin/no-show/cards?status=${view}`, { credentials: 'include' })
-      .then(r => r.json()).then(d => setCards(d.cards ?? [])).catch(() => setCards([]))
+      .then(async r => { if (!r.ok) throw await loadFailure(r); return r.json() })
+      .then(d => setCards(Array.isArray(d?.cards) ? d.cards : []))
+      .catch((e: Error) => setLoadError(e?.message ?? 'Failed to load'))
   }, [view])
   useEffect(() => { load() }, [load])
 
@@ -82,7 +98,8 @@ export default function AdminNoShowsPage() {
         </div>
       </div>
 
-      {cards === null ? <p className="text-zinc-500 text-sm">Loading…</p>
+      {loadError ? <LoadErrorBanner message={loadError} onRetry={load} title="Couldn't load no-show cards" />
+       : cards === null ? <p className="text-zinc-500 text-sm">Loading…</p>
        : cards.length === 0 ? <p className="text-zinc-500 text-sm">{view === 'appeal_pending' ? 'No appeals waiting.' : 'No cards.'}</p>
        : (
         <div className="space-y-3">
@@ -96,16 +113,16 @@ export default function AdminNoShowsPage() {
                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase ${STATUS_PILL[c.status] ?? STATUS_PILL.active}`}>{c.status.replace('_', ' ')}</span>
                   </div>
                   <p className="text-xs text-zinc-400 mt-0.5">
-                    {c.event.emoji} <Link href={`/admin/events/${c.event.id}/participants`} className="hover:underline">{c.event.title}</Link> · {c.event.date} · issued {fmt(c.issuedAt)}
+                    {c.event.emoji} <Link href={`/admin/events/${c.event.id}/participants`} className="hover:underline">{c.event.title}</Link> · {c.event.date} · issued {fmt(c.issuedAt, tzFor(c))}
                   </p>
                   {c.kind === 'red' && (
                     <p className="text-xs text-zinc-500 mt-1">
-                      Appeal until {fmt(c.appealDeadlineAt)} · block {fmt(c.restrictionStartsAt)} → {fmt(c.restrictionEndsAt)}
+                      Appeal until {fmt(c.appealDeadlineAt, tzFor(c))} · block {fmt(c.restrictionStartsAt, tzFor(c))} → {fmt(c.restrictionEndsAt, tzFor(c))}
                     </p>
                   )}
                   {c.appealNote && (
                     <blockquote className="mt-2 text-sm text-zinc-200 bg-zinc-800/60 rounded-lg px-3 py-2 border-l-2 border-violet-500/50">
-                      <span className="text-[10px] text-zinc-500 uppercase tracking-wide">Appeal · {fmt(c.appealedAt)}{c.appealStatus && c.appealStatus !== 'pending' ? ` · ${c.appealStatus}` : ''}</span>
+                      <span className="text-[10px] text-zinc-500 uppercase tracking-wide">Appeal · {fmt(c.appealedAt, tzFor(c))}{c.appealStatus && c.appealStatus !== 'pending' ? ` · ${c.appealStatus}` : ''}</span>
                       <p className="whitespace-pre-wrap mt-1">{c.appealNote}</p>
                     </blockquote>
                   )}

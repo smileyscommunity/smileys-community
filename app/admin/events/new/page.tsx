@@ -1,6 +1,7 @@
 'use client'
 
 import { toast } from 'sonner'
+import { clampOccurrences, seriesOutcomeMessage, MIN_SERIES_OCCURRENCES, MAX_SERIES_OCCURRENCES, type SeriesFailure } from '@/lib/seriesCreate'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -206,7 +207,7 @@ export default function NewEventPage() {
     const days = repeat === 'weekly' ? 7 : repeat === 'biweekly' ? 14 : 30
     const dates: string[] = []
     const base = new Date(form.date)
-    for (let i = 0; i < occurrences; i++) {
+    for (let i = 0; i < clampOccurrences(occurrences); i++) {
       const d = new Date(base)
       if (repeat === 'monthly') {
         d.setMonth(d.getMonth() + i)
@@ -278,15 +279,31 @@ export default function NewEventPage() {
       // event simply never showed up publicly, which reads as "it didn't
       // work". Say so instead.
       let savedPending = false
+      // Every date is attempted and the outcome reported as created vs failed.
+      // The loop used to stop at the first failure without saying how many
+      // events already existed, so re-submitting duplicated them.
+      let created = 0
+      const failures: SeriesFailure[] = []
       for (const date of dates) {
-        const res = await fetch('/app/api/admin/events', {
-          method: 'POST', credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...payload, date }),
-        })
-        const data = await res.json()
-        if (!res.ok) { setError(data.error ?? 'Failed'); return }
-        if (data?.status === 'pending' && form.status !== 'pending') savedPending = true
+        try {
+          const res = await fetch('/app/api/admin/events', {
+            method: 'POST', credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...payload, date }),
+          })
+          const data = await res.json().catch(() => ({}))
+          if (!res.ok) { failures.push({ date, error: data?.error ?? `HTTP ${res.status}` }); continue }
+          created++
+          if (data?.status === 'pending' && form.status !== 'pending') savedPending = true
+        } catch {
+          failures.push({ date, error: 'network error' })
+        }
+      }
+      const outcome = seriesOutcomeMessage(dates.length, created, failures)
+      if (outcome) {
+        setError(outcome)
+        if (created > 0) toast.warning(`Created ${created} of ${dates.length} events`)
+        return
       }
       if (savedPending) {
         toast.warning('Saved for review — not public yet', {
@@ -477,13 +494,13 @@ export default function NewEventPage() {
             {repeat !== 'none' && (
               <div>
                 <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Occurrences</label>
-                <input type="number" min={2} max={52} value={occurrences} onChange={e => setOccurrences(parseInt(e.target.value) || 2)} className={inputCls} />
+                <input type="number" min={MIN_SERIES_OCCURRENCES} max={MAX_SERIES_OCCURRENCES} value={occurrences} onChange={e => setOccurrences(Math.min(MAX_SERIES_OCCURRENCES, parseInt(e.target.value) || 0))} className={inputCls} />
               </div>
             )}
           </div>
           {repeat !== 'none' && form.date && (
             <p className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2">
-              Creates <strong>{occurrences} events</strong> — {buildDates().map(d => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })).join(' · ')}
+              Creates <strong>{clampOccurrences(occurrences)} events</strong> — {buildDates().map(d => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })).join(' · ')}
             </p>
           )}
 
@@ -744,8 +761,8 @@ export default function NewEventPage() {
         <Link href="/admin/events" className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-xl px-4 py-2 text-sm font-semibold">Cancel</Link>
         <button onClick={handleSave} disabled={saving} className="bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl px-8 py-2 text-sm disabled:opacity-50">
           {saving
-            ? (repeat !== 'none' ? `Creating ${occurrences} events…` : 'Creating…')
-            : (repeat !== 'none' ? `Create ${occurrences} events` : 'Create event')}
+            ? (repeat !== 'none' ? `Creating ${clampOccurrences(occurrences)} events…` : 'Creating…')
+            : (repeat !== 'none' ? `Create ${clampOccurrences(occurrences)} events` : 'Create event')}
         </button>
       </div>
     </div>

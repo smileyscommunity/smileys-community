@@ -108,6 +108,9 @@ export async function POST(req: NextRequest, { params }: Params) {
   // the ACTIVE count (what the go-live gate checks), not all rows; counting
   // soft-deleted rows made the meter show ✓ for a city the gate would refuse.
   const activeTotal = await prisma.neighborhood.count({ where: { cityId, active: true } })
+  // PATCH already dropped the 60s per-city cache; add and hide didn't, so the
+  // "View & edit" list (and every picker) kept the old set for a minute.
+  if (toCreate.length > 0 || toReactivate.length > 0) invalidateNeighborhoodCache(cityId)
   return NextResponse.json({
     ok: true,
     added: toCreate.length,
@@ -268,5 +271,6 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     data:  { active: false },
   })
   if (updated.count === 0) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  invalidateNeighborhoodCache(cityId) // see POST — a hidden row must leave the list now, not in 60s
   return NextResponse.json({ ok: true })
 }

@@ -18,6 +18,21 @@ import { DEFAULT_TZ } from './cityTime'
 // literal seven times; a future cup that belongs to a city passes that
 // city's zone instead.
 export const CUP_TZ = DEFAULT_TZ
+
+// The campaign that carries the live cup (same slug the campaigns route
+// refuses to delete).
+export const LIVE_CUP_SLUG = 'world-cup-2026'
+
+// Whether a sponsor/prize row sits on a live campaign, for the delete
+// guards in /api/admin/cup/{sponsors,prizes}. A moderator could delete
+// either on a running campaign with no second factor. Fails closed: a row
+// with no campaign (legacy/global, which the seed backfills onto the cup)
+// counts as live, and so does any status other than a finished one.
+export function isLiveCampaign(campaign: { slug: string; status: string } | null | undefined): boolean {
+  if (!campaign) return true
+  if (campaign.slug === LIVE_CUP_SLUG) return true
+  return !['draft', 'wrapped', 'archived'].includes(campaign.status)
+}
 // Defined HERE and not in lib/cup.ts because the cup page is a client
 // component: cup.ts imports prisma, and a client import of it drags the
 // Postgres driver into the browser bundle (the build fails resolving fs/tls).

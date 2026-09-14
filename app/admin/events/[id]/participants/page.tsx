@@ -15,7 +15,10 @@ import { useAdminMemberSearch } from '@/hooks/useAdminMemberSearch'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { DEFAULT_CURRENCY, formatMoney, currencySymbol } from '@/lib/data'
 import { useAdminCities } from '@/components/admin/CitySelect'
-import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
+import { todayInTz, dayInTz, formatDay, DEFAULT_TZ } from '@/lib/cityTime'
+import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
+import { loadFailure } from '@/lib/admin/useAdminLoad'
+import { isEventFull, promotableSeats, toCsv } from '@/lib/admin/participantsView'
 
 interface NoShowCard { id: string; userId: string; kind: 'yellow' | 'red'; status: string; waivedAt: string | null; notifiedAt: string | null; user: { id: string; name: string } }
 
@@ -51,12 +54,13 @@ function SectionHeader({ title, count, color, badge, children }: {
 const BATCH_BUSY = '__batch__'
 
 export default function ParticipantsPage({ params }: { params: Promise<{ id: string }> }) {
-  const cur = useCurrentCity()?.currency ?? DEFAULT_CURRENCY
+  // The admin's city currency is only the fallback: the event carries its own
+  // (a Tbilisi event is priced in GEL whichever city the admin is viewing).
+  const cityCurrency = useCurrentCity()?.currency ?? DEFAULT_CURRENCY
   // "Past" is decided on the EVENT's city calendar; the admin's current city
   // is the fallback until the city list loads.
   const adminCities = useAdminCities()
   const currentTz   = useCurrentCity()?.timezone ?? DEFAULT_TZ
-  const sym = currencySymbol(cur).trim()
   const { id } = use(params)
   const [event,     setEvent]     = useState<Event | null>(null)
   const [attendees, setAttendees] = useState<Attendee[]>([])
@@ -69,6 +73,7 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
   const [payments,  setPayments]  = useState<Record<string, PaymentRow>>({})
   const [payBusy,   setPayBusy]   = useState<string | null>(null)
   const [loading,   setLoading]   = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [toggling,  setToggling]  = useState<string | null>(null)
   const [busy,      setBusy]      = useState<string | null>(null)
   // Bumped after a batch so the event (spotsLeft) and rosters reload from the
@@ -92,10 +97,16 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
   const [reminding,      setReminding]      = useState(false)
 
   useEffect(() => {
+    // A refused or failed roster load used to parse the error body as an
+    // empty roster ("No approved attendees yet") — now it raises a retry
+    // banner. A 404 on the event is still "Event not found"; the users list
+    // only feeds a badge, so its failure stays quiet.
+    const strict = async (r: Response) => { if (!r.ok) throw await loadFailure(r); return r.json() }
+    setLoadError(null)
     Promise.all([
-      fetch(`/app/api/events/${id}`, { credentials: 'include' }).then(r => r.json()),
-      fetch(`/app/api/admin/events/${id}/participants`, { credentials: 'include' }).then(r => r.json()),
-      fetch('/app/api/admin/users', { credentials: 'include' }).then(r => r.json()),
+      fetch(`/app/api/events/${id}`, { credentials: 'include' }).then(r => r.status === 404 ? null : strict(r)),
+      fetch(`/app/api/admin/events/${id}/participants`, { credentials: 'include' }).then(strict),
+      fetch('/app/api/admin/users', { credentials: 'include' }).then(r => r.ok ? r.json() : []).catch(() => []),
     ]).then(([ev, data, users]) => {
       setEvent(ev)
       // The users list here only feeds the no-show badge on existing
@@ -114,8 +125,11 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
         }
         setPayments(map)
       }
-    }).finally(() => setLoading(false))
+    }).catch((e: Error) => setLoadError(e?.message ?? 'Failed to load'))
+      .finally(() => setLoading(false))
   }, [id, reloadTick])
+
+  const retryLoad = () => { if (!event) setLoading(true); setReloadTick(t => t + 1) }
 
   // Batch actions ("Approve all", "Promote N"): one confirm, one busy flag for
   // the whole batch, requests one at a time, one summary toast, then a reload.
@@ -388,8 +402,15 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
   }
 
   if (loading) return <div className="p-8 text-center text-zinc-500 text-sm">Loading…</div>
+  if (loadError && !event) return <div className="p-4 sm:p-6 max-w-3xl"><LoadErrorBanner message={loadError} onRetry={retryLoad} title="Couldn't load participants" /></div>
   if (!event)  return <div className="p-8 text-center text-zinc-500 text-sm">Event not found</div>
 
+  const cur              = event.currency ?? cityCurrency
+  const sym              = currencySymbol(cur).trim()
+  const full             = isEventFull(event)
+  // Batch promotion fills open seats on a limited event; an unlimited event
+  // has no seats to run out of, so the whole queue is promotable.
+  const promotable       = Math.min(waitlist.length, promotableSeats(event))
   const approved         = attendees.filter(a => a.status === 'approved')
   const eventTz          = adminCities.find(c => c.id === event.cityId)?.timezone ?? currentTz
   const isPastEvent      = event.date < todayInTz(eventTz)
@@ -420,6 +441,9 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
 
   return (
     <div className="p-4 sm:p-6 space-y-5 max-w-3xl">
+
+      {/* A reload after a batch failed: what's below is the last good copy. */}
+      <LoadErrorBanner message={loadError} onRetry={retryLoad} title="Couldn't refresh participants — showing the last loaded list" />
 
       {/* Header */}
       <div className="flex items-center gap-3">
@@ -488,7 +512,9 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
       <div className="bg-zinc-900 rounded-xl border border-zinc-800 px-4 py-3 space-y-1.5">
         <div className="flex justify-between text-xs text-zinc-500 mb-1">
           <span>Capacity</span>
-          <span>{goingCount} / {event.totalSpots}{event.spotsLeft === 0 && <span className="ml-2 text-red-400 font-bold">FULL</span>}</span>
+          {/* FULL only for a limited event at its cap — spotsLeft is clamped
+              to 0 on unlimited events too, which labelled open events FULL. */}
+          <span>{goingCount} / {event.totalSpots}{full && <span className="ml-2 text-red-400 font-bold">FULL</span>}</span>
         </div>
         <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
           <div className="h-full rounded-full bg-amber-400 transition-all" style={{ width: `${fillPct}%` }} />
@@ -653,7 +679,8 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
         // no-show anyone should be told about.
         const clearedCount  = noShowCards.filter(c => c.status === 'waived' && noShows.some(a => a.userId === c.userId)).length
         const sweepTime = sweepNotifiedAt
-          ? new Date(sweepNotifiedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+          // The event city's clock, not the device's.
+          ? new Date(sweepNotifiedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: eventTz })
           : null
         const byCheckin = attendeeView === 'checkedin' ? approved.filter(a => a.checkedIn)
           : attendeeView === 'noshows' ? noShows
@@ -737,7 +764,9 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
                   const headers = ['Name', ...(withEmail ? ['Email'] : []), 'Status', 'Checked In', ...(trackPayments ? ['Paid'] : [])]
                   const rows = approved.map(a => [a.user.name, ...(withEmail ? [a.user.email ?? ''] : []), a.status, a.checkedIn ? 'Yes' : 'No',
                     ...(trackPayments ? [payments[a.userId]?.status === 'paid' ? 'Yes' : 'No'] : [])])
-                  const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
+                  // toCsv neutralises cells a spreadsheet would run as a
+                  // formula (a member named "=HYPERLINK(…)") on top of quoting.
+                  const csv = toCsv([headers, ...rows])
                   const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([csv], { type: 'text/csv' })), download: `${event?.title ?? 'event'}-attendees.csv` })
                   a.click()
                 }}
@@ -827,10 +856,10 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
       {/* ── WAITLIST ── */}
       <div ref={waitlistRef} className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
         <SectionHeader title="Waitlist" count={waitlist.length} color="bg-violet-500/20 text-violet-400">
-          {waitlist.length > 0 && event.spotsLeft > 0 && (
-            <button onClick={() => promoteBatch(waitlist.slice(0, event.spotsLeft))} disabled={busy !== null}
+          {promotable > 0 && (
+            <button onClick={() => promoteBatch(waitlist.slice(0, promotable))} disabled={busy !== null}
               className="text-xs px-3 py-2 rounded-lg bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 font-semibold transition-colors disabled:opacity-40">
-              Promote {Math.min(waitlist.length, event.spotsLeft)}
+              Promote {promotable}
             </button>
           )}
         </SectionHeader>
@@ -845,7 +874,8 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
                     <p className="text-sm font-semibold text-white truncate">{w.user.name}</p>
                   </div>
                   <p className="text-xs text-zinc-600 shrink-0">
-                    {new Date(w.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                    {/* Joined-the-queue day on the event city's calendar, not the device's. */}
+                    {formatDay(dayInTz(new Date(w.createdAt), eventTz), { day: 'numeric', month: 'short' })}
                   </p>
                   <div className="flex items-center gap-2 shrink-0">
                     <WhatsAppButton user={w.user} />

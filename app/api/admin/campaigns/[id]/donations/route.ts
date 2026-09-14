@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
-import { convertDonationToPrize, type SponsorPayload, type PrizePayload } from '@/lib/cup-prize-conversion'
+import { convertDonationToPrize, DonationAlreadyPublishedError, type SponsorPayload, type PrizePayload } from '@/lib/cup-prize-conversion'
 
 // GET   /api/admin/campaigns/[id]/donations  — donations for one campaign
 // PATCH /api/admin/campaigns/[id]/donations  — { id, action, reviewNote }
@@ -81,6 +81,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       )
       return NextResponse.json({ ok: true, status: 'approved', ...result })
     } catch (e) {
+      // The loser of a double publish: the transaction rolled back, nothing
+      // was created — say so rather than "see the server log".
+      if (e instanceof DonationAlreadyPublishedError) {
+        return NextResponse.json({ error: 'This donation has already been published' }, { status: 409 })
+      }
       console.error('[donation approve]', e)
       return NextResponse.json({ error: 'Could not approve the donation — see the server log' }, { status: 400 })
     }

@@ -47,6 +47,8 @@ export default function EventTabs({
   window: w,
   linkPrefix = '/events',
   limit = 3,
+  allHref,
+  timeZone,
 }: {
   // cityName rides each event when the caller mixes cities (the global
   // landing page) so every card names where its dinner actually is.
@@ -54,6 +56,13 @@ export default function EventTabs({
   window: EventWindow
   linkPrefix?: string
   limit?: number
+  // Where "View all events" goes. A city page passes its own entry link
+  // (a plain /app/... URL: the cookie-setting route for members, the city's
+  // hub for guests); omitted → the global /events. Hardwired to /events, the
+  // link on /izmir opened whatever city the cookie held — Istanbul by default.
+  allHref?: string
+  // The single city's zone when the caller has one, for the cards' join state.
+  timeZone?: string
 }) {
   // Open on the first tab that actually has something. A "Today" tab that
   // greets every visitor with an empty state makes a busy calendar look dead.
@@ -94,7 +103,7 @@ export default function EventTabs({
 
       {shown.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {shown.map(e => <EventCard key={e.id} event={e} linkPrefix={linkPrefix} cityName={e.cityName} />)}
+          {shown.map(e => <EventCard key={e.id} event={e} linkPrefix={linkPrefix} cityName={e.cityName} timeZone={timeZone} />)}
         </div>
       ) : (
         <div className="rounded-2xl border border-dashed border-gray-200 bg-white p-10 text-center">
@@ -108,7 +117,9 @@ export default function EventTabs({
       )}
 
       <div className="mt-8 text-center md:text-left">
-        <Link href="/events" className="btn-secondary md:btn-ghost">View all events</Link>
+        {allHref
+          ? <a href={allHref} className="btn-secondary md:btn-ghost">View all events</a>
+          : <Link href="/events" className="btn-secondary md:btn-ghost">View all events</Link>}
       </div>
     </>
   )

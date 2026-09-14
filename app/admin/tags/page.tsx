@@ -81,8 +81,16 @@ export default function TagsPage() {
   // Was mutating state regardless of res.ok — admin clicked
   // Delete, server 500'd, the group was gone from the UI but
   // stayed in the DB. State now waits for confirmation.
+  //
+  // A group with tags is refused server-side (409): deleting it would strip
+  // those tags off every event using them. Say so before the round trip.
   async function deleteGroup(id: string) {
-    if (!(await confirmToast('Delete this group and all its tags?'))) return
+    const group = groups.find(g => g.id === id)
+    if (group && group.tags.length > 0) {
+      toast.error(`Delete the ${group.tags.length} tag${group.tags.length === 1 ? '' : 's'} in "${group.name}" first`)
+      return
+    }
+    if (!(await confirmToast('Delete this empty group?'))) return
     const res = await fetch(`/app/api/admin/tag-groups/${id}`, { method: 'DELETE', credentials: 'include' })
     if (!res.ok) {
       const d = await res.json().catch(() => ({}))

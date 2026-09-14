@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { canManageTags } from '@/lib/access'
+import { deleteCached } from '@/lib/analyticsCache'
 
 export async function GET() {
   const session = await getSession()
@@ -22,5 +23,7 @@ export async function POST(req: NextRequest) {
   if (!name?.trim()) return NextResponse.json({ error: 'Name required' }, { status: 400 })
 
   const group = await prisma.tagGroup.create({ data: { name: name.trim(), emoji: emoji || '🏷️' } })
+  // Same 2-minute /api/tags cache the tag routes bust — a new group was invisible to pickers until it expired.
+  deleteCached('tags:groups')
   return NextResponse.json(group)
 }

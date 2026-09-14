@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { resolveCityId } from '@/lib/city'
+import { resolveCityId, getCityTz } from '@/lib/city'
+import { todayInTz } from '@/lib/cityTime'
 import { loadViewerFacts, sharedContextFor, contextLabel } from '@/lib/sharedContext'
 import { rotationSeed, seededShuffle } from '@/lib/rotation'
 
@@ -60,6 +61,8 @@ export async function GET() {
   })
   const connectedIds = new Set(conns.map(c => c.requesterId === session.id ? c.receiverId : c.requesterId))
 
+  const cityId = await resolveCityId(session)
+
   const visibleWhere = {
     status: 'approved' as const,
     // Same rule as /api/members and members/search: admin-hidden accounts
@@ -68,7 +71,7 @@ export async function GET() {
     // Discovery is "people near you" — without the city scope every one of
     // its sections mixed all cities' members (the last unscoped member
     // surface after the multi-city pass).
-    cityId: await resolveCityId(session),
+    cityId,
     id: { notIn: [...excluded] },
     OR: [
       { profileVisibility: 'everyone' },
@@ -76,15 +79,20 @@ export async function GET() {
     ],
   }
 
-  const today = new Date().toISOString().split('T')[0]
+  // Event.date is the city's calendar day: a UTC "today" dropped tonight's
+  // hosts after midnight UTC east of it and kept yesterday's west of it.
+  const today = todayInTz(await getCityTz(cityId))
   const clubIds = [...viewer.clubIds]
 
   // Event.hostId is a bare column (no User back-relation), so upcoming
   // hosts are resolved by id rather than a nested relation filter.
+  // City-scoped: the 200-row cap was spent network-wide, so a busy city's
+  // events crowded a small city's hosts out of its own "Hosts" section.
   const upcomingHosts = await prisma.event.findMany({
-    where:  { date: { gte: today }, status: 'published' },
-    select: { hostId: true },
-    take:   200,
+    where:   { cityId, date: { gte: today }, status: 'published' },
+    select:  { hostId: true },
+    orderBy: { date: 'asc' },
+    take:    200,
   })
   const hostIds = [...new Set(upcomingHosts.map(e => e.hostId).filter(Boolean))]
 
@@ -140,7 +148,9 @@ export async function GET() {
         ...visibleWhere,
         AND: [{
           OR: [
-            { clubMemberships: { some: { role: 'host', status: 'approved' } } },
+            // This city's clubs (or network-wide ones), not a host role
+            // held in some other city.
+            { clubMemberships: { some: { role: 'host', status: 'approved', club: { OR: [{ cityId }, { cityId: null }] } } } },
             { id: { in: hostIds } },
           ],
         }],

@@ -16,6 +16,8 @@ import EventBadges from '@/components/EventBadges'
 import { useRSVP } from '@/hooks/useRSVP'
 import NoShowAckModal from '@/components/NoShowAckModal'
 import { isSoldOut, isManuallySoldOut } from '@/lib/soldOut'
+import { joinBlock, joinBlockLabel } from '@/lib/eventJoinState'
+import { DEFAULT_TZ } from '@/lib/cityTime'
 
 function Tip({ text, children }: { text: string; children: React.ReactNode }) {
   // tabIndex on the wrapper + :focus-within (rather than only :hover) is what
@@ -46,9 +48,12 @@ interface EventCardProps {
   // don't know the view city must not stamp the founding city's name on
   // every card (a Bodrum event card used to read "· Istanbul").
   cityName?:    string
+  // The event city's IANA zone, for "has it started/ended". Callers that
+  // don't know it fall back to the default city's clock.
+  timeZone?:    string
 }
 
-export default function EventCard({ event, linkPrefix = '/events', initialStatus, cityName }: EventCardProps) {
+export default function EventCard({ event, linkPrefix = '/events', initialStatus, cityName, timeZone = DEFAULT_TZ }: EventCardProps) {
   const href        = `${linkPrefix}/${event.id}`
   const router      = useRouter()
   const goingCount  = event.totalSpots - event.spotsLeft
@@ -78,11 +83,18 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
   // lib/soldOut is the one place that decides which.
   const soldOut     = isSoldOut(event)
   const saidSoldOut = isManuallySoldOut(event)
+  // The RSVP route refuses cancelled, postponed, finished and in-progress
+  // events; the button used to stay live on all of them and every tap ended
+  // in an error toast. A member already in keeps "✓ Joined" on an event
+  // that's under way or over — that's still true and worth seeing.
+  const block        = joinBlock(event, timeZone)
+  const keepsJoined  = status === 'joined' && (block === 'started' || block === 'ended')
+  const blockedLabel = keepsJoined ? null : joinBlockLabel(block)
 
   async function handleJoin(e: React.MouseEvent) {
     e.preventDefault()
     e.stopPropagation()
-    if (isCancelled) return
+    if (block) return
     if (status !== 'idle' && status !== 'error') return
     await join()
   }
@@ -294,14 +306,16 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
 
             <motion.button
               onClick={handleJoin}
-              disabled={isCancelled || status !== 'idle'}
-              whileTap={!isCancelled && status === 'idle' ? { scale: 0.93 } : {}}
+              disabled={!!block || status !== 'idle'}
+              whileTap={!block && status === 'idle' ? { scale: 0.93 } : {}}
               className={`text-xs font-semibold py-1.5 min-h-[44px] rounded-lg transition-colors disabled:cursor-default overflow-hidden ${
-                soldOut && status === 'idle' && !isCancelled ? 'px-2' : 'px-3'
+                soldOut && status === 'idle' && !blockedLabel ? 'px-2' : 'px-3'
               } ${
                 isCancelled         ? 'bg-red-100 text-red-700'      :
+                blockedLabel         ? 'bg-gray-100 text-gray-500'   :
                 status === 'joined'  ? 'bg-green-100 text-green-700' :
                 status === 'pending' ? 'bg-amber-100 text-amber-700' :
+                status === 'waitlisted' ? 'bg-violet-100 text-violet-700' :
                 status === 'loading' ? 'bg-gray-100 text-gray-400'   :
                 status === 'error'   ? 'bg-red-100 text-red-600'     :
                 soldOut
@@ -311,16 +325,20 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
             >
               <AnimatePresence mode="wait" initial={false}>
                 <motion.span
-                  key={status}
+                  key={blockedLabel ?? status}
                   initial={{ opacity: 0, y: -8 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 8 }}
                   transition={{ duration: 0.14 }}
                   className="block"
                 >
-                  {isCancelled         ? 'Cancelled'  :
+                  {blockedLabel        ? blockedLabel :
                    status === 'joined'  ? '✓ Joined'   :
                    status === 'pending' ? '⏳ Pending'  :
+                   // The card knew the member was queued (seeded from
+                   // /events/attending, or from their own tap) and still
+                   // read "Full · Join waitlist" — as if they weren't on it.
+                   status === 'waitlisted' ? '⏳ On waitlist' :
                    status === 'loading' ? '…'          :
                    status === 'error'   ? 'Error'      :
                    soldOut ? `${saidSoldOut ? 'Sold out' : 'Full'} · Join waitlist${event.waitlistCount ? ` (${event.waitlistCount})` : ''}` :

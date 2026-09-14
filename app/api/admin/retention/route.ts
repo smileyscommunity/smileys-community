@@ -6,6 +6,8 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator, isAdmin, failClosedCityId } from '@/lib/access'
 
+const LIST_LIMIT = 50
+
 export async function GET(req: NextRequest) {
   const session = await getSession()
   if (!session || !isAdminOrModerator(session)) {
@@ -28,20 +30,24 @@ export async function GET(req: NextRequest) {
   const day60Str  = dayInTz(day60ago, cityId ? await getCityTz(cityId) : DEFAULT_TZ)
 
   // Never attended: approved members > 7 days old with 0 approved attendances
-  const neverAttended = await prisma.user.findMany({
-    where: {
-      status: 'approved',
-      joinedAt: { lt: day7ago },
-      joinedEvents: { none: { status: 'approved' } },
-      ...(cityId ? { cityId } : {}),
-    },
-    select: {
-      id: true, name: true, email: true, color: true, profilePhoto: true,
-      neighborhood: true, interests: true, joinedAt: true,
-    },
-    orderBy: { joinedAt: 'desc' },
-    take: 50,
-  })
+  const neverWhere = {
+    status: 'approved',
+    joinedAt: { lt: day7ago },
+    joinedEvents: { none: { status: 'approved' } },
+    ...(cityId ? { cityId } : {}),
+  }
+  const [neverAttended, neverAttendedCount] = await Promise.all([
+    prisma.user.findMany({
+      where: neverWhere,
+      select: {
+        id: true, name: true, email: true, color: true, profilePhoto: true,
+        neighborhood: true, interests: true, joinedAt: true,
+      },
+      orderBy: { joinedAt: 'desc' },
+      take: LIST_LIMIT,
+    }),
+    prisma.user.count({ where: neverWhere }),
+  ])
 
   // Dormant: attended at least once, but last event > 60 days ago
   const dormant = await prisma.$queryRaw<{
@@ -59,7 +65,19 @@ export async function GET(req: NextRequest) {
     GROUP BY u.id, u.name, u.email, u.color, u.neighborhood
     HAVING MAX(e.date) < ${day60Str}
     ORDER BY MAX(e.date) ASC
-    LIMIT 50
+    LIMIT ${LIST_LIMIT}
+  `
+  const [{ total: dormantCount }] = await prisma.$queryRaw<{ total: number }[]>`
+    SELECT COUNT(*)::int AS total FROM (
+      SELECT u.id
+      FROM users u
+      JOIN event_attendees ea ON ea."userId" = u.id AND ea.status = 'approved'
+      JOIN events e ON e.id = ea."eventId"
+      WHERE u.status = 'approved'
+        AND (${cityId}::text IS NULL OR u."cityId" = ${cityId})
+      GROUP BY u.id
+      HAVING MAX(e.date) < ${day60Str}
+    ) d
   `
 
   // Names + neighborhoods are the roster; the address is not (see lib/admin/maskContact).
@@ -67,9 +85,13 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     neverAttended: mask(neverAttended),
     dormant:       mask(dormant),
+    // The counts were `rows.length` of a LIMIT 50 list, so a city with 300
+    // dormant members showed "50" as if that were the total. Real totals now;
+    // `listLimit` lets the page say "showing first 50 of 300".
     stats: {
-      neverAttendedCount: neverAttended.length,
-      dormantCount: dormant.length,
+      neverAttendedCount,
+      dormantCount,
+      listLimit: LIST_LIMIT,
     },
   })
 }

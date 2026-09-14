@@ -92,7 +92,7 @@ describe('1 reminders sweep releases the claim when the write failed', () => {
     vi.doMock('@/lib/session', () => ({ getSession: vi.fn(async () => null) }))
     vi.doMock('@/lib/city', () => ({ citiesByToday: vi.fn(async () => [{ date: '2026-09-13', cityIds: ['c1'] }]) }))
     vi.doMock('@/lib/eventTime', () => ({ eventStartsAt: () => new Date(Date.now() + 24 * 60 * 60 * 1000) }))
-    vi.doMock('@/lib/noShowPolicy', () => ({ noShowPolicyApplies: () => false, NO_SHOW_CANCELLATION_CUTOFF_HOURS: 12 }))
+    vi.doMock('@/lib/noShowPolicy', () => ({ noShowPolicyApplies: () => false, NO_SHOW_CANCELLATION_CUTOFF_HOURS: 12, checkInIsCredible: () => false, isNoShow: () => false }))
     for (const k of Object.keys(notifyResult)) delete notifyResult[k]
     process.env.CRON_SECRET = 'cron-test-secret'
 
@@ -105,8 +105,8 @@ describe('1 reminders sweep releases the claim when the write failed', () => {
     h.prisma.city.findMany.mockResolvedValue([{ id: 'c1', timezone: 'Europe/Istanbul' }])
     h.prisma.event.findMany.mockImplementation(async ({ where }: { where: { status: unknown } }) => {
       if (where.status === 'archived') return []
-      if (where.status === 'published') return [{ id: 'e1', title: 'Walk', time: '19:00', cityId: 'c1', attendees: [{ userId: 'u1' }] }]
-      return [{ id: 'p1', title: 'Picnic', emoji: '🧺', cityId: 'c1', attendees: [{ user: { id: 'u2', name: 'Ana', email: 'ana@example.com' } }] }]
+      if (where.status === 'published') return [{ id: 'e1', title: 'Walk', time: '19:00', cityId: 'c1', attendees: [{ userId: 'u1' }], cohosts: [] }]
+      return [{ id: 'p1', title: 'Picnic', emoji: '🧺', cityId: 'c1', attendees: [{ user: { id: 'u2', name: 'Ana', email: 'ana@example.com' } }], cohosts: [] }]
     })
   })
   afterEach(() => {

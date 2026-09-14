@@ -17,6 +17,11 @@ const SEND_CHUNK = 50
 // queries; the page only ever shows 50.
 const MOD_HISTORY_SCAN = 300
 
+// How long before its Broadcast row an edit looks for that send's in-app
+// rows. The fan-out runs in 50-row chunks and ends before the row is written;
+// an hour is far past any real audience, and the same span as the send claim.
+const EDIT_WINDOW_MS = 60 * 60_000
+
 // The client's per-compose idempotency key. Short and plain so it can't bloat
 // or poison the rate_limits key it becomes.
 const REQUEST_ID = /^[A-Za-z0-9-]{8,64}$/
@@ -72,10 +77,10 @@ export async function GET() {
 // PATCH /api/admin/notifications/broadcast — edit a sent broadcast.
 // Admin-only. Updates the Broadcast record AND every matching in-app
 // notification row: fan-out rows don't carry a broadcast FK, so the
-// linkage is the broadcast's exact type+title+body (identical for all
-// rows created by one send). Read state is preserved. Already-delivered
-// emails can't be recalled — the response reports how many in-app rows
-// were rewritten.
+// linkage is the broadcast's exact type+title+body+link inside the window
+// its own fan-out ran in (see EDIT_WINDOW_MS above). Read state is preserved.
+// Already-delivered emails can't be recalled — the response reports how many
+// in-app rows were rewritten.
 export async function PATCH(req: NextRequest) {
   const session = await getSession()
   if (!session || !isAdmin(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -88,9 +93,24 @@ export async function PATCH(req: NextRequest) {
   const b = await prisma.broadcast.findUnique({ where: { id } })
   if (!b) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
+  // type+title+body alone is not one send: a weekly "Reminder" re-sent with
+  // the same text, or the same copy sent to two clubs, had every earlier
+  // send's rows rewritten too. Notifications carry no broadcast id and no
+  // sender, so the match is narrowed to this send's own rows: the link POST
+  // gave them, and createdAt inside its fan-out — which finishes before the
+  // Broadcast row is written (so `lte b.createdAt`), and starts after the
+  // previous identical send's row was (or at most EDIT_WINDOW_MS earlier).
   const notifType = b.type === 'alert' ? 'system_alert' : 'announcement'
+  const link      = b.eventId ? `/events/${b.eventId}` : b.clubId ? `/clubs/${b.clubId}` : null
+  const previous  = await prisma.broadcast.findFirst({
+    where:   { id: { not: b.id }, title: b.title, message: b.message, clubId: b.clubId, eventId: b.eventId, createdAt: { lte: b.createdAt } },
+    orderBy: { createdAt: 'desc' },
+    select:  { createdAt: true },
+  })
+  const floor = new Date(b.createdAt.getTime() - EDIT_WINDOW_MS)
+  const from  = previous && previous.createdAt > floor ? previous.createdAt : floor
   const rewritten = await prisma.notification.updateMany({
-    where: { type: notifType, title: b.title, body: b.message },
+    where: { type: notifType, title: b.title, body: b.message, link, createdAt: { gt: from, lte: b.createdAt } },
     data:  { title: title.trim(), body: message.trim() },
   })
   await prisma.broadcast.update({

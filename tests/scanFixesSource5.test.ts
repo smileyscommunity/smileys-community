@@ -6,7 +6,10 @@ const read = (p: string) => readFileSync(p, 'utf-8')
 describe('reminders cron', () => {
   it('reads the event start on its city clock, not the process zone', () => {
     const src = read('app/api/admin/cron/reminders/route.ts')
-    expect(src).toMatch(/const eventTime = eventStartsAt\(event, tzByCity\.get\(event\.cityId\) \?\? DEFAULT_TZ\)/)
+    // The city-clock read now lives in startsAtOf, shared by the reminder and
+    // attended-only (no-show) paths.
+    expect(src).toMatch(/const startsAtOf = \(e: [^)]*\) => eventStartsAt\(e, tzByCity\.get\(e\.cityId\) \?\? DEFAULT_TZ\)/)
+    expect(src).toMatch(/const eventTime = startsAtOf\(event\)/)
     expect(src).not.toMatch(/new Date\(`\$\{event\.date\}T\$\{event\.time/)
   })
 })

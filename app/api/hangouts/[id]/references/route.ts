@@ -158,11 +158,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           })
 
       if (delta.good !== 0 || delta.noShow !== 0) {
+        // noShowCount is recounted, not incremented: one no-show per member
+        // per hangout. Every participant's report added one, so a host with
+        // five joiners (or one joiner per hangout, reporting each) was
+        // charged per report rather than per meetup missed. The unique on
+        // (hangout, from, to) already stops join/leave/rejoin from minting a
+        // second row per reporter; this makes the count distinct per hangout
+        // and heals any drift on the next change. Serializable (below) keeps
+        // two racing reporters from reading each other's half-written state.
+        const noShowCount = delta.noShow !== 0
+          ? (await tx.hangoutReference.findMany({
+              where:    { toUserId: body.toUserId!, vibe: 'no_show', hangout: { status: { not: 'cancelled' } } },
+              distinct: ['hangoutId'],
+              select:   { hangoutId: true },
+            })).length
+          : undefined
         await tx.user.update({
           where: { id: body.toUserId! },
           data: {
             goodHangouts: { increment: delta.good },
-            noShowCount:  { increment: delta.noShow },
+            ...(noShowCount !== undefined ? { noShowCount } : {}),
           },
         })
       }

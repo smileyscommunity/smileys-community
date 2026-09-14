@@ -1,13 +1,13 @@
 import EventTabs from '@/components/EventTabs'
 import JoinCityButton from '@/components/JoinCityButton'
 import type { Event } from '@/lib/data'
-import type { PublicCity } from '../data'
+import type { PublicCity, EnterLink } from '../data'
 
 type Window = Parameters<typeof EventTabs>[0]['window']
 
 // A live city with none yet gets an invitation, not a missing section
 // (§30: never look broken, communicate opportunity).
-export default function Events({ city, tabEvents, eventWindow }: { city: PublicCity; tabEvents: Event[]; eventWindow: Window }) {
+export default function Events({ city, tabEvents, eventWindow, enter }: { city: PublicCity; tabEvents: Event[]; eventWindow: Window; enter: EnterLink }) {
   if (tabEvents.length === 0) {
     return (
       <section className="py-12 sm:py-16 bg-gray-50">
@@ -32,7 +32,9 @@ export default function Events({ city, tabEvents, eventWindow }: { city: PublicC
           <h2 className="section-title">What's happening in <span className="text-amber-600">{city.name}</span></h2>
           <p className="section-subtitle">Pick a day and see what's on.</p>
         </div>
-        <EventTabs events={tabEvents} window={eventWindow} />
+        {/* "View all" goes to THIS city's events — same session-aware link the
+            Hero's "See what's on" uses — not the cookie's city at /events. */}
+        <EventTabs events={tabEvents} window={eventWindow} allHref={enter('events')} timeZone={city.timezone} />
       </div>
     </section>
   )

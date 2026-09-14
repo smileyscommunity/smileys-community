@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { resolveImageUrl, getInitials } from '@/lib/data'
 import MentionTextarea, { MentionInput } from '@/components/MentionTextarea'
 import { confirmToast } from '@/lib/confirmToast'
+import { MENTION_NAME } from '@/lib/mentionToken'
 
 const REPORT_REASONS = [
   { value: 'spam',          label: 'Spam' },
@@ -15,10 +16,14 @@ const REPORT_REASONS = [
   { value: 'other',         label: 'Other' },
 ]
 
+// Unicode-aware like the server resolver: `@\w+` highlighted "@Ay" of "@Ayşe".
+const MENTION_SPLIT = new RegExp(`(@${MENTION_NAME})`, 'gu')
+const MENTION_WHOLE = new RegExp(`^@${MENTION_NAME}$`, 'u')
+
 function renderContent(text: string) {
-  const parts = text.split(/(@\w+)/g)
+  const parts = text.split(MENTION_SPLIT)
   return parts.map((part, i) =>
-    /^@\w+$/.test(part)
+    MENTION_WHOLE.test(part)
       ? <span key={i} className="font-semibold text-amber-600">{part}</span>
       : <span key={i}>{part}</span>
   )

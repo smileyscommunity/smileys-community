@@ -10,6 +10,8 @@ import UserAvatar from '@/components/UserAvatar'
 import WhatsAppButton from '@/components/WhatsAppButton'
 import { todayInTz, dayInTz, DEFAULT_TZ } from '@/lib/cityTime'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
+import { useAdminCities } from '@/components/admin/CitySelect'
+import { isEventFull, matchesPersonSearch } from '@/lib/admin/participantsView'
 
 // ─── Page contract ──────────────────────────────────────────────────
 // This page is an INBOX: everything on it either needs a decision
@@ -18,12 +20,12 @@ import { useCurrentCity } from '@/hooks/useCurrentCity'
 // own participants page, one tap away via every event link here.
 
 interface User {
-  id: string; name: string; color: string; email: string
+  id: string; name: string; color: string; email?: string | null
   profilePhoto?: string | null; phone?: string | null; nationality?: string | null
 }
 interface EventRef {
   id: string; title: string; date: string; emoji: string; status: string
-  spotsLeft: number; totalSpots: number; limitedSpots?: boolean
+  spotsLeft: number; totalSpots: number; limitedSpots?: boolean; cityId?: string
 }
 interface Attendee {
   userId: string; eventId: string; status: string; checkedIn: boolean; joinedAt: string
@@ -75,8 +77,10 @@ function cityDay(iso: string, tz: string): string {
 // when demand exceeds supply the badge goes red so the admin sees the
 // oversubscription before approving into it.
 function SeatsBadge({ event, demand }: { event: EventRef; demand: number }) {
-  if (event.totalSpots <= 0) return null
-  const full = event.limitedSpots !== false && event.spotsLeft <= 0
+  // No cap, no seat count: an unlimited event's spotsLeft runs negative past
+  // its nominal total, which used to read "Full" (or "-3 spots left").
+  if (event.totalSpots <= 0 || event.limitedSpots !== true) return null
+  const full = isEventFull(event)
   const tight = !full && demand > event.spotsLeft
   return (
     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
@@ -89,8 +93,9 @@ function SeatsBadge({ event, demand }: { event: EventRef; demand: number }) {
 
 // Section header shared by the grouped views — event identity, status
 // pill, capacity, and a right-aligned meta line.
-function EventGroupHeader({ event, demand, meta }: { event: EventRef; demand: number; meta: string }) {
-  const tz   = useCurrentCity()?.timezone ?? DEFAULT_TZ
+function EventGroupHeader({ event, demand, meta, tz }: { event: EventRef; demand: number; meta: string; tz: string }) {
+  // tz is the EVENT's city (resolved by the page), not the admin's — a
+  // Tbilisi event viewed from Istanbul turns "Past" on Tbilisi's midnight.
   const pill = eventStatusPill(event.status, event.date, tz)
   return (
     <div className="flex items-center gap-2 px-5 py-3 border-b border-zinc-800 bg-zinc-800/40">
@@ -156,6 +161,8 @@ function ParticipantRow({
 export default function AdminParticipantsPage() {
   // Admin surfaces follow the city being administered.
   const tz = useCurrentCity()?.timezone ?? DEFAULT_TZ
+  const adminCities = useAdminCities()
+  const tzFor = (ev: EventRef) => adminCities.find(c => c.id === ev.cityId)?.timezone ?? tz
   const [attendees,   setAttendees]   = useState<Attendee[]>([])
   const [waitlist,    setWaitlist]    = useState<WaitlistEntry[]>([])
   const [loading,     setLoading]     = useState(true)
@@ -300,11 +307,8 @@ export default function AdminParticipantsPage() {
   // ── Derived views ──────────────────────────────────────────────────
   // One search box narrows whichever view is open; groups with no
   // matches disappear entirely.
-  const matches = useCallback((u: User) => {
-    const needle = q.trim().toLowerCase()
-    if (!needle) return true
-    return u.name.toLowerCase().includes(needle) || u.email.toLowerCase().includes(needle)
-  }, [q])
+  // Null-safe: email is optional on these rows (see matchesPersonSearch).
+  const matches = useCallback((u: User) => matchesPersonSearch(u, q), [q])
 
   // pending stays in the server's joinedAt-asc order — longest-waiting
   // request first within each event. approved flips to joinedAt-desc
@@ -496,7 +500,7 @@ export default function AdminParticipantsPage() {
                 <div className="space-y-3">
                   {pendingByEvent.map(group => (
                     <div key={group.event.id} className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
-                      <EventGroupHeader event={group.event} demand={group.rows.length}
+                      <EventGroupHeader event={group.event} demand={group.rows.length} tz={tzFor(group.event)}
                         meta={`${formatShortDate(group.event.date)} · ${group.rows.length} pending`} />
                       <div className="divide-y divide-zinc-800">
                         {group.rows.map(a => {
@@ -538,10 +542,12 @@ export default function AdminParticipantsPage() {
             ) : (
               <div className="space-y-3">
                 {waitlistByEvent.map(group => {
-                  const full = group.event.totalSpots > 0 && group.event.spotsLeft <= 0
+                  // Only a limited event can be full — this ignored the flag
+                  // and disabled promotions on busy unlimited events.
+                  const full = isEventFull(group.event)
                   return (
                     <div key={group.event.id} className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
-                      <EventGroupHeader event={group.event} demand={group.rows.length}
+                      <EventGroupHeader event={group.event} demand={group.rows.length} tz={tzFor(group.event)}
                         meta={`${formatShortDate(group.event.date)} · ${group.rows.length} in queue`} />
                       <div className="divide-y divide-zinc-800">
                         {group.rows.map((w, i) => (

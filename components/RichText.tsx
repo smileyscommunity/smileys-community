@@ -1,4 +1,5 @@
 import React from 'react'
+import { MENTION_NAME } from '@/lib/mentionToken'
 
 // Shared inline rich-text renderer for member-authored text (club
 // announcements, wall posts/replies, club rules, event messages). Renders:
@@ -20,7 +21,9 @@ import React from 'react'
 // throws "invalid group specifier name" on Safari/iOS < 16.4 and crashes
 // every page that renders RichText. The word-boundary and no-edge-space
 // checks that were lookbehinds are enforced in JS below (see isEmphasis).
-const TOKEN_RE = /(https?:\/\/[^\s]+)|(\*[^*\n]+\*)|(_[^_\n]+_)|(@\w+)/g
+// The mention alternative is Unicode-aware (u flag) so "@Çağla" highlights
+// whole instead of not at all, matching what the server notifies.
+const TOKEN_RE = new RegExp(String.raw`(https?:\/\/[^\s]+)|(\*[^*\n]+\*)|(_[^_\n]+_)|(@${MENTION_NAME})`, 'gu')
 // Punctuation that commonly trails a URL in prose but isn't part of it.
 const URL_TRAIL_RE = /[.,!?;:)\]]+$/
 const ALNUM = /[A-Za-z0-9]/

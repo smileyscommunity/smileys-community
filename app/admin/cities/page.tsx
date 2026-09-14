@@ -116,6 +116,14 @@ export default function AdminCitiesPage() {
     if (status === CITY_STATUS.Live) {
       const ok = await confirmToast(`Take ${city.name} live? It appears on the homepage, in the city menu and at /${city.slug} immediately.`)
       if (!ok) return
+    } else if (city.status === CITY_STATUS.Live || status === CITY_STATUS.Paused) {
+      // Taking a live city down (or pausing any public one) was one stray
+      // dropdown pick away. The select is controlled, so Cancel leaves it as is.
+      const label = CITY_STATUS_META[status as keyof typeof CITY_STATUS_META]?.label ?? status
+      const ok = await confirmToast(status === CITY_STATUS.Paused
+        ? `Pause ${city.name}? It disappears from the public site — homepage, city menu and /${city.slug} — immediately.`
+        : `Set ${city.name} to ${label}? Its live pages (events, stats, clubs) stop showing immediately.`)
+      if (!ok) return
     }
     await patchCity(city, { status }, `${city.name} → ${CITY_STATUS_META[status as keyof typeof CITY_STATUS_META]?.label ?? status}`)
   }
@@ -180,32 +188,54 @@ export default function AdminCitiesPage() {
     } finally { setHoodBusy(null) }
   }
 
+  // Host grant/revoke: a non-JSON error page (502, proxy HTML) threw at
+  // res.json() with no toast, a network drop was an unhandled rejection, and
+  // the remove path discarded the server's reason. State changes only after a
+  // confirmed success; hostBusy stops a double-click granting twice.
+  const [hostBusy, setHostBusy] = useState<string | null>(null)
+
   async function addHost(city: City) {
     const email = (hostEmail[city.id] ?? '').trim()
-    if (!email) return
-    const res = await fetch(`/app/api/admin/cities/${city.id}/hosts`, {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
-    })
-    const d = await res.json()
-    if (!res.ok) { toast.error(d.error ?? 'Could not add host'); return }
-    toast.success(`${d.name} is now a city host`)
-    setHostEmail(prev => ({ ...prev, [city.id]: '' }))
-    setData(prev => (prev ?? []).map(c => c.id === city.id
-      ? { ...c, hosts: [...c.hosts.filter(h => h.id !== d.id), d], readiness: { ...c.readiness, hosts: true } }
-      : c))
+    if (!email || hostBusy) return
+    setHostBusy(city.id)
+    try {
+      const res = await fetch(`/app/api/admin/cities/${city.id}/hosts`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok || !d?.cityHostId) { toast.error(d?.error ?? `Could not add host (HTTP ${res.status})`); return }
+      toast.success(`${d.name} is now a city host`)
+      setHostEmail(prev => ({ ...prev, [city.id]: '' }))
+      setData(prev => (prev ?? []).map(c => c.id === city.id
+        ? { ...c, hosts: [...c.hosts.filter(h => h.id !== d.id), d], readiness: { ...c.readiness, hosts: true } }
+        : c))
+    } catch {
+      toast.error('Network error — host not added')
+    } finally { setHostBusy(null) }
   }
 
   async function removeHost(city: City, host: CityHost) {
+    if (hostBusy) return
     if (!(await confirmToast(`Remove ${host.name} as a host of ${city.name}?`))) return
-    const res = await fetch(`/app/api/admin/cities/${city.id}/hosts?cityHostId=${host.cityHostId}`, { method: 'DELETE', credentials: 'include' })
-    if (!res.ok) { toast.error('Could not remove host'); return }
-    setData(prev => (prev ?? []).map(c => {
-      if (c.id !== city.id) return c
-      const hosts = c.hosts.filter(h => h.cityHostId !== host.cityHostId)
-      return { ...c, hosts, readiness: { ...c.readiness, hosts: hosts.length > 0 } }
-    }))
+    setHostBusy(city.id)
+    try {
+      const res = await fetch(`/app/api/admin/cities/${city.id}/hosts?cityHostId=${encodeURIComponent(host.cityHostId)}`, { method: 'DELETE', credentials: 'include' })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        toast.error(d?.error ?? `Could not remove host (HTTP ${res.status})`)
+        return
+      }
+      toast.success(`${host.name} is no longer a host of ${city.name}`)
+      setData(prev => (prev ?? []).map(c => {
+        if (c.id !== city.id) return c
+        const hosts = c.hosts.filter(h => h.cityHostId !== host.cityHostId)
+        return { ...c, hosts, readiness: { ...c.readiness, hosts: hosts.length > 0 } }
+      }))
+    } catch {
+      toast.error('Network error — host not removed')
+    } finally { setHostBusy(null) }
   }
 
   if (error) return <LoadErrorBanner message={error} onRetry={retry} />
@@ -437,7 +467,7 @@ export default function AdminCitiesPage() {
                     {city.hosts.map(h => (
                       <li key={h.cityHostId} className="flex items-center justify-between gap-2 text-sm">
                         <span className="text-zinc-300">{h.name} <span className="text-zinc-600">· {h.email}</span></span>
-                        <button onClick={() => removeHost(city, h)} className="text-xs text-zinc-500 hover:text-red-400 transition-colors">Remove</button>
+                        <button onClick={() => removeHost(city, h)} disabled={hostBusy === city.id} className="text-xs text-zinc-500 hover:text-red-400 transition-colors disabled:opacity-40">Remove</button>
                       </li>
                     ))}
                   </ul>
@@ -447,8 +477,8 @@ export default function AdminCitiesPage() {
                     value={hostEmail[city.id] ?? ''}
                     onChange={e => setHostEmail(prev => ({ ...prev, [city.id]: e.target.value }))}
                     onKeyDown={e => { if (e.key === 'Enter') addHost(city) }} />
-                  <button onClick={() => addHost(city)}
-                    className="shrink-0 text-xs font-semibold px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition-colors">Add host</button>
+                  <button onClick={() => addHost(city)} disabled={hostBusy === city.id}
+                    className="shrink-0 text-xs font-semibold px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition-colors disabled:opacity-40">{hostBusy === city.id ? 'Saving…' : 'Add host'}</button>
                 </div>
               </div>
 
