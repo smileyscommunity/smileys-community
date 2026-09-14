@@ -29,7 +29,9 @@ export async function GET() {
 
     if (!isAdmin(session)) {
       const memberships = await prisma.clubMembership.findMany({
-        where: { userId: session.id, role: 'host', status: 'approved' },
+        // Active clubs only: the gate above passes on any one active club, and
+        // an inactive club's attendees (email, phone) are not its host's to see.
+        where: { userId: session.id, role: 'host', status: 'approved', club: { isActive: true } },
         select: { clubId: true },
       })
       const clubIds = memberships.map(m => m.clubId)

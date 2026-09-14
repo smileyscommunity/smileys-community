@@ -190,12 +190,16 @@ describe('b/d. the name-hygiene sweep deletes expired tokens and stale requests'
     expect(Object.keys(body).slice(0, 3)).toEqual(['ok', 'expiredTokens', 'staleConnectionRequests'])
 
     const cutoff = new Date(NOW.getTime() - DAY)
-    expect(h.calls['passwordResetToken.findMany']).toHaveLength(2)   // a short batch ends the loop
-    for (const find of h.calls['passwordResetToken.findMany']) {
-      expect(find).toEqual({ where: { expiresAt: { lt: cutoff } }, select: { id: true }, take: HYGIENE_BATCH_SIZE })
+    // No activatable accounts here (user.findMany → []), so the 1-day rule
+    // covers every token; scan6Batch2 pins the activation-link exception.
+    const deadWhere = { expiresAt: { lt: cutoff }, OR: [{ userId: { notIn: [] } }, { used: true }] }
+    const deadFinds = h.calls['passwordResetToken.findMany'].filter((a: any) => a.where.OR)
+    expect(deadFinds).toHaveLength(2)   // a short batch ends the loop
+    for (const find of deadFinds) {
+      expect(find).toEqual({ where: deadWhere, select: { id: true }, take: HYGIENE_BATCH_SIZE })
     }
     // The expiry condition is repeated on the delete itself.
-    expect(h.calls['passwordResetToken.deleteMany'][0].where).toEqual({ id: { in: ids(HYGIENE_BATCH_SIZE, 'p').map(r => r.id) }, expiresAt: { lt: cutoff } })
+    expect(h.calls['passwordResetToken.deleteMany'][0].where).toEqual({ id: { in: ids(HYGIENE_BATCH_SIZE, 'p').map(r => r.id) }, ...deadWhere })
     expect(last('emailVerificationToken.deleteMany').where).toEqual({ id: { in: ['v0', 'v1'] }, expiresAt: { lt: cutoff } })
 
     // d. pending only, untouched for 90 days — declined decline-memory never matches.
@@ -208,7 +212,7 @@ describe('b/d. the name-hygiene sweep deletes expired tokens and stale requests'
     h.results['passwordResetToken.findMany']   = () => ids(HYGIENE_BATCH_SIZE, 'p')
     h.results['passwordResetToken.deleteMany'] = countIds
     const body = await (await nameHygienePOST({} as any)).json()
-    expect(h.calls['passwordResetToken.findMany']).toHaveLength(HYGIENE_MAX_BATCHES)
+    expect(h.calls['passwordResetToken.findMany'].filter((a: any) => a.where.OR)).toHaveLength(HYGIENE_MAX_BATCHES)
     expect(body.expiredTokens.passwordReset).toBe(HYGIENE_BATCH_SIZE * HYGIENE_MAX_BATCHES)
   })
 })

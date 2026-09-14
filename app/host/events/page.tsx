@@ -46,11 +46,13 @@ function StatusMenu({ e, saving, onStatusChange }: { e: Event; saving: boolean; 
   const [open, setOpen] = useState(false)
   const actions = [
     e.status !== 'cancelled'  && { label: 'Cancel',    status: 'cancelled',  cls: 'text-red-400' },
-    e.status !== 'postponed'  && { label: 'Postpone',  status: 'postponed',  cls: 'text-amber-400' },
-    e.status !== 'archived'   && { label: 'Archive',   status: 'archived',   cls: 'text-zinc-400' },
+    // A cancelled event stays cancelled through these moves — no spots come
+    // back and only a moderator can publish it again.
+    e.status !== 'postponed'  && { label: e.status === 'cancelled' ? 'Postpone (stays cancelled)' : 'Postpone',  status: 'postponed',  cls: 'text-amber-400' },
+    e.status !== 'archived'   && { label: e.status === 'cancelled' ? 'Archive (stays cancelled)'  : 'Archive',   status: 'archived',   cls: 'text-zinc-400' },
     // Publishing is a staff decision (the edit route blocks a host's move
     // INTO published) — offering it here produced a failure every time.
-    e.status !== 'draft'      && { label: 'Draft',     status: 'draft',      cls: 'text-zinc-400' },
+    e.status !== 'draft'      && { label: e.status === 'cancelled' ? 'Draft (stays cancelled)'    : 'Draft',     status: 'draft',      cls: 'text-zinc-400' },
   ].filter(Boolean) as { label: string; status: string; cls: string }[]
 
   return (

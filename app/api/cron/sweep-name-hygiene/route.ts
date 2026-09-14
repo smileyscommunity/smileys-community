@@ -49,7 +49,7 @@ async function runSweep() {
   // logs only the first 300 characters and `fixes` can be long.
   const expiredTokens = await deleteExpiredAuthTokens()
   const staleConnectionRequests = await deleteStaleConnectionRequests()
-  if (expiredTokens.passwordReset || expiredTokens.emailVerification || staleConnectionRequests) {
+  if (expiredTokens.passwordReset || expiredTokens.staleActivation || expiredTokens.emailVerification || staleConnectionRequests) {
     console.log('[cron sweep-name-hygiene] deleted', { expiredTokens, staleConnectionRequests })
   }
 

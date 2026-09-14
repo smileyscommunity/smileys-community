@@ -164,7 +164,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   const { slug } = await params
-  const club = await prisma.club.findUnique({ where: { slug }, select: { id: true, name: true, cityId: true } })
+  const club = await prisma.club.findUnique({ where: { slug }, select: { id: true, name: true, cityId: true, isActive: true } })
   if (!club) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const isPrivileged = canActInCity(session, club.cityId)
@@ -188,7 +188,8 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Invalid post type' }, { status: 400 })
   }
 
-  const isHost = membership?.role === 'host'
+  // An inactive club's host announces nothing (lib/access isClubHost).
+  const isHost = membership?.role === 'host' && club.isActive
   if (type === 'announcement' && !isHost && !isPrivileged) {
     return NextResponse.json({ error: 'Only hosts, admins, or moderators can post announcements' }, { status: 403 })
   }

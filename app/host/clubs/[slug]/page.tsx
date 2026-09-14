@@ -17,7 +17,7 @@ export default async function HostClubPage({ params }: { params: Promise<{ slug:
   const club = await prisma.club.findUnique({
     where: { slug },
     select: {
-      id: true, name: true, emoji: true, slug: true, isPrivate: true,
+      id: true, name: true, emoji: true, slug: true, isPrivate: true, isActive: true,
       rules: true, spotlightUserId: true, spotlightNote: true, spotlightUpdatedAt: true,
     },
   })
@@ -29,7 +29,8 @@ export default async function HostClubPage({ params }: { params: Promise<{ slug:
       where: { userId_clubId: { userId: session.id, clubId: club.id } },
       select: { role: true, status: true },
     })
-    if (membership?.role !== 'host' || membership?.status !== 'approved') notFound()
+    // Hosting an inactive club opens no roster (lib/access isClubHost).
+    if (membership?.role !== 'host' || membership?.status !== 'approved' || !club.isActive) notFound()
   }
 
   const [resources, spotlightUser] = await Promise.all([

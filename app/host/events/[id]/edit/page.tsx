@@ -438,6 +438,10 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
                   <option value="cancelled">Cancelled</option>
                 </select>
               )}
+              {/* The PUT route keeps a cancelled event cancelled through every non-publish move. */}
+              {!isStaff && loadedStatus === 'cancelled' && form.status !== 'cancelled' && (
+                <p className="mt-1.5 text-xs text-zinc-500">It stays cancelled — no spots come back, and only a moderator can publish it again.</p>
+              )}
             </div>
             <div>
               <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Language</label>

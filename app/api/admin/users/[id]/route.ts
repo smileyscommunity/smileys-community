@@ -331,7 +331,19 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       allowed.tokenVersion = { increment: 1 }
     }
 
-    const user = await prisma.user.update({ where: { id }, data: allowed })
+    // An email edit moves the member's application with it, in one
+    // transaction: applications are keyed by email, and one left on the old
+    // address looks orphaned (the 2026-09-14 scrub erased live members' rows
+    // that way) and escapes self-deletion's scrub.
+    const user = allowed.email !== undefined
+      ? (await prisma.$transaction([
+          prisma.user.update({ where: { id }, data: allowed }),
+          prisma.memberApplication.updateMany({
+            where: { email: { equals: target.email, mode: 'insensitive' } },
+            data:  { email: allowed.email as string },
+          }),
+        ]))[0]
+      : await prisma.user.update({ where: { id }, data: allowed })
 
     // Premium/VIP grant → celebrate it (in-app + email). Fires only on a
     // genuine upgrade FROM a non-paid tier INTO a paid one — so re-saving an

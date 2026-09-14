@@ -40,7 +40,8 @@ export async function GET() {
         },
       }),
       prisma.clubMembership.count({
-        where: { userId: session.id, status: 'approved', role: 'host' },
+        // Inactive clubs grant nothing — same count as lib/access isClubHost.
+        where: { userId: session.id, status: 'approved', role: 'host', club: { isActive: true } },
       }),
       // City-level hosting authority (consul / city-host grant). The /host
       // panel gates read this — without it the panel is unreachable for

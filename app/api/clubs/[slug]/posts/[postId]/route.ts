@@ -17,7 +17,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   // A cannot pin a post in club B by passing `/api/clubs/A/posts/<B-post-id>`.
   // We fetch club + post + (conditionally) membership in parallel.
   const [club, post] = await Promise.all([
-    prisma.club.findUnique({ where: { slug }, select: { id: true, cityId: true } }),
+    prisma.club.findUnique({ where: { slug }, select: { id: true, cityId: true, isActive: true } }),
     prisma.clubPost.findUnique({ where: { id: postId }, select: { id: true, clubId: true, userId: true } }),
   ])
   if (!club || !post || post.clubId !== club.id) {
@@ -44,7 +44,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         select: { role: true, status: true },
       })
       const isApprovedMember = membership?.status === 'approved'
-      const isHost           = isApprovedMember && membership?.role === 'host'
+      // Hosting an inactive club edits nobody else's post.
+      const isHost           = isApprovedMember && membership?.role === 'host' && club.isActive
       const isOwner          = post.userId === session.id
       if (!isHost && !(isOwner && isApprovedMember)) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -66,7 +67,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       where: { userId_clubId: { userId: session.id, clubId: club.id } },
       select: { role: true, status: true },
     })
-    if (membership?.role !== 'host' || membership.status !== 'approved') {
+    if (membership?.role !== 'host' || membership.status !== 'approved' || !club.isActive) {
       return NextResponse.json({ error: 'Only hosts can pin posts' }, { status: 403 })
     }
   }
@@ -89,7 +90,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   const { slug, postId } = await params
   // IDOR fix: scope the post lookup by the slug's clubId — see PATCH above.
   const [club, post] = await Promise.all([
-    prisma.club.findUnique({ where: { slug }, select: { id: true, cityId: true } }),
+    prisma.club.findUnique({ where: { slug }, select: { id: true, cityId: true, isActive: true } }),
     prisma.clubPost.findUnique({ where: { id: postId }, select: { userId: true, clubId: true } }),
   ])
   if (!club || !post || post.clubId !== club.id) {
@@ -105,7 +106,8 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       where: { userId_clubId: { userId: session.id, clubId: post.clubId } },
       select: { role: true, status: true },
     })
-    if (membership?.role !== 'host' || membership.status !== 'approved') {
+    // An inactive club's host deletes nobody else's post.
+    if (membership?.role !== 'host' || membership.status !== 'approved' || !club.isActive) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
   }

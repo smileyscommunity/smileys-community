@@ -217,7 +217,9 @@ export async function canManageEventOps(sessionId: string, sessionRole: string, 
   if (cohost) return true
   if (!event.clubId) return false
   const membership = await prisma.clubMembership.findFirst({
-    where: { userId: sessionId, clubId: event.clubId, role: 'host', status: 'approved' },
+    // An inactive club's hosts run nothing: its events outlive deactivation,
+    // and this gate opens attendee contact details, broadcasts and the door.
+    where: { userId: sessionId, clubId: event.clubId, role: 'host', status: 'approved', club: { isActive: true } },
     select: { id: true },
   })
   return !!membership
@@ -235,9 +237,10 @@ export async function isClubHost(userId: string): Promise<boolean> {
 export async function isClubHostFor(userId: string, clubId: string): Promise<boolean> {
   const m = await prisma.clubMembership.findUnique({
     where: { userId_clubId: { userId, clubId } },
-    select: { status: true, role: true },
+    select: { status: true, role: true, club: { select: { isActive: true } } },
   })
-  return m?.status === MembershipStatus.Approved && m?.role === 'host'
+  // Same rule as isClubHost: no filing or moving events under an inactive club.
+  return m?.status === MembershipStatus.Approved && m?.role === 'host' && m.club?.isActive === true
 }
 
 // ── City-level host capabilities ──────────────────────────────────────────

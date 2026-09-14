@@ -28,7 +28,9 @@ export async function GET(req: NextRequest) {
   }
   // Expired but still ours: say so, and let the page offer a fresh link
   // (POST /api/auth/activate/resend with this same token). Before this the
-  // page showed a dead end with an email address on it.
+  // page showed a dead end with an email address on it. The nightly sweep
+  // (lib/hygieneSweeps) keeps these rows for never-activated members so this
+  // answer still reaches them weeks after expiry.
   if (record.expiresAt < new Date()) {
     return NextResponse.json({ error: 'This activation link has expired.', expired: true }, { status: 410 })
   }

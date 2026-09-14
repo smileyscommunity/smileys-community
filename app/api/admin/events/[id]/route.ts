@@ -265,7 +265,10 @@ export async function PUT(req: NextRequest, { params }: Params) {
         // from those two parked states AND only when staff demonstrably put it
         // live before (audit trail, lib/eventPublishHistory) — pending,
         // cancelled and archived still go through a moderator.
-        const reopening = (before.status === 'draft' || before.status === 'postponed') && await wasStaffPublished(id)
+        // A cancelled event parked as draft/postponed keeps its cancelledAt:
+        // staff publishing it once before must not let the host skip the
+        // moderator by going cancelled → draft → published.
+        const reopening = (before.status === 'draft' || before.status === 'postponed') && !before.cancelledAt && await wasStaffPublished(id)
         if (!reopening) {
           return NextResponse.json(
             { error: 'Publishing an event is staff-only — it stays pending until a moderator approves it.' },
@@ -417,8 +420,16 @@ export async function PUT(req: NextRequest, { params }: Params) {
     // staff restore the event.
     // One instant for the event and every seat it releases, so a restore can
     // find exactly those seats again (lib/eventRestore).
-    const cancelling  = body.status === 'cancelled' && before.status !== 'cancelled'
-    const restoring   = !cancelling && data.status !== undefined && data.status !== 'cancelled' && before.status === 'cancelled'
+    // Only a move INTO published un-cancels. Archive, draft, postponed and
+    // pending from a cancelled event used to count as a restore too — archiving
+    // one told every released member their spot was back, reseated them,
+    // re-opened their payments and cleared the stamp the survey and review
+    // sweeps skip on. Parked moves keep the stamp (and the seats released).
+    // Re-cancelling a parked cancelled event keeps its original stamp: the
+    // released seats are matched to it, and everyone was already told.
+    const cancelling  = body.status === 'cancelled' && before.status !== 'cancelled' && !before.cancelledAt
+    const restoring   = !cancelling && data.status === 'published' && before.status !== 'published' &&
+                        (before.status === 'cancelled' || !!before.cancelledAt)
     const cancelStamp = new Date()
     if (cancelling) data.cancelledAt = cancelStamp
     else if (restoring) data.cancelledAt = null
@@ -685,11 +696,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Cross-city moderation is admin-only' }, { status: 403 })
     }
 
-    // Leaving 'cancelled' through a status change is a restore: clear the
-    // stamp the RSVP gate and the sweeps read, and put back the seats the
-    // cancel released (lib/eventRestore). Publishing a cancelled event from
-    // the events list used to bring it back live with nobody on it.
-    const restoring = before.status === 'cancelled'
+    // Publishing a cancelled event is a restore: clear the stamp the RSVP
+    // gate and the sweeps read, and put back the seats the cancel released
+    // (lib/eventRestore). Publishing a cancelled event from the events list
+    // used to bring it back live with nobody on it. Flagging, unpublishing or
+    // sending it back to pending is not a restore — it stays cancelled, and
+    // nobody is told their spot is back.
+    const restoring = status === 'published' && before.status !== 'published' &&
+                      (before.status === 'cancelled' || !!before.cancelledAt)
     const event = await prisma.event.update({ where: { id }, data: restoring ? { status, cancelledAt: null } : { status } })
     let restoredSeats = 0
     if (restoring) {

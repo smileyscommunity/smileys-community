@@ -16,7 +16,7 @@ export async function DELETE(_: NextRequest, { params }: Params) {
   }
 
   const { slug, id } = await params
-  const club = await prisma.club.findUnique({ where: { slug }, select: { id: true } })
+  const club = await prisma.club.findUnique({ where: { slug }, select: { id: true, isActive: true } })
   if (!club) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const photo = await prisma.clubPhoto.findUnique({ where: { id }, select: { userId: true, clubId: true } })
@@ -28,7 +28,8 @@ export async function DELETE(_: NextRequest, { params }: Params) {
       where: { userId_clubId: { userId: session.id, clubId: club.id } },
       select: { role: true, status: true },
     })
-    if (membership?.role !== 'host' || membership?.status !== 'approved') {
+    // Hosting an inactive club deletes nobody else's photo.
+    if (membership?.role !== 'host' || membership?.status !== 'approved' || !club.isActive) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
   }

@@ -584,6 +584,14 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
               <option value="cancelled">Cancelled</option>
               <option value="archived">Archived</option>
             </select>
+            {/* Only Published un-cancels (the PUT route restores seats and tells members). */}
+            {loadedStatus === 'cancelled' && form.status !== 'cancelled' && (
+              <p className="mt-1.5 text-xs text-zinc-500">
+                {form.status === 'published'
+                  ? 'Publishing brings the event back: released spots are restored and those members are told.'
+                  : 'It stays cancelled — no spots come back and nobody is notified. Only Published restores it.'}
+              </p>
+            )}
             {form.status === 'pending' && (
               <button
                 type="button"

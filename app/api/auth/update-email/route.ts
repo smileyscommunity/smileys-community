@@ -8,6 +8,7 @@ import { rateLimit, getIp } from '@/lib/rateLimit'
 import { hashToken } from '@/lib/tokenHash'
 import { verifySync } from 'otplib/functional'
 import { decryptTotpSecret } from '@/lib/totpCrypto'
+import { writeAudit } from '@/lib/audit'
 
 export async function POST(req: NextRequest) {
   try {
@@ -78,6 +79,14 @@ export async function POST(req: NextRequest) {
         data:  { email: newEmail, emailVerified: false, tokenVersion: { increment: 1 } },
         select: { tokenVersion: true },
       })
+      // Applications are keyed by email, not userId. Left on the old address
+      // the row looks like a departed member's (the orphan scrub erased six
+      // live members' applications that way on 2026-09-14) and self-deletion
+      // can no longer find it to scrub. Moves with the address, atomically.
+      await tx.memberApplication.updateMany({
+        where: { email: { equals: user.email, mode: 'insensitive' } },
+        data:  { email: newEmail },
+      })
       await tx.emailVerificationToken.deleteMany({ where: { userId: session.id } })
       await tx.emailVerificationToken.create({ data: { userId: session.id, token: hashedToken, expiresAt } })
       await tx.session.deleteMany({ where: { userId: session.id } })
@@ -92,6 +101,12 @@ export async function POST(req: NextRequest) {
       })
       return { tokenVersion: u.tokenVersion, newSessionId: row.id }
     })
+    // The trail self-deletion reads to find applications still filed under an
+    // earlier address — same action and meta shape as the admin email edit.
+    await writeAudit(session.id, session.name, 'user.email_change', session.id, 'user',
+      { from: user.email, to: newEmail, self: true },
+      `${session.name} changed their own email`,
+    )
     // Fire-and-forget mail sends AFTER the tx commits — slow SMTP shouldn't
     // hold a DB transaction open. The OLD address gets a change notice: it's
     // the owner's only signal if a hijacked session rotated their email.

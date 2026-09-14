@@ -101,7 +101,8 @@ export async function POST(req: NextRequest) {
 
   const [isClubHost, cityIds] = await Promise.all([
     prisma.clubMembership.count({
-      where: { userId: user.id, status: 'approved', role: 'host' },
+      // Inactive clubs grant nothing — same count as lib/access isClubHost.
+      where: { userId: user.id, status: 'approved', role: 'host', club: { isActive: true } },
     }).then(c => c > 0),
     // City-level hosting authority — same payload field the /host gates read.
     hostCityIds(user.id),

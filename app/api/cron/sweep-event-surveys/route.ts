@@ -75,6 +75,8 @@ async function runSweep() {
   const firstPass = (await Promise.all(cities.map(c => prisma.event.findMany({
     where: {
       status:             { in: ['published', 'archived'] },
+      // Archiving a cancelled event keeps its cancelledAt — it never happened.
+      cancelledAt:        null,
       surveyDispatchedAt: null,
       cityId:             c.id,
       date:               { lt: todayInTz(c.timezone), gte: todayInTz(c.timezone, -7) },
@@ -118,6 +120,7 @@ async function runSweep() {
   const reminderPass = (await Promise.all(cities.map(c => prisma.event.findMany({
     where: {
       status:             { in: ['published', 'archived'] },
+      cancelledAt:        null,
       surveyDispatchedAt: { lte: twoDaysAgo },
       surveyReminderAt:   null,
       cityId:             c.id,

@@ -184,6 +184,36 @@ export async function POST(req: NextRequest) {
       where: { email: { equals: user.email, mode: 'insensitive' } },
       data:  applicationScrubData(`${ghost}${TOMBSTONE_EMAIL_SUFFIX}`),
     })
+    // An application can still sit under an EARLIER address: email changes
+    // only started moving it on 2026-09-15. Both change paths (self-service
+    // and the admin edit) audit `user.email_change` with meta.from, so those
+    // addresses are known. A released address can be taken up by someone
+    // else, so only rows filed before the user left it are scrubbed, and never
+    // under an address another account holds today.
+    const changes = await tx.auditLog.findMany({
+      where:  { action: 'user.email_change', targetId: id },
+      select: { meta: true, createdAt: true },
+    })
+    const leftAt = new Map<string, Date>()
+    for (const c of changes) {
+      const from = ((c.meta ?? null) as { from?: unknown } | null)?.from
+      if (typeof from !== 'string' || !from.trim()) continue
+      const key = from.trim().toLowerCase()
+      if (key === user.email.toLowerCase()) continue   // scrubbed just above
+      const prev = leftAt.get(key)
+      if (!prev || c.createdAt > prev) leftAt.set(key, c.createdAt)
+    }
+    for (const [earlier, before] of leftAt) {
+      const heldNow = await tx.user.findFirst({
+        where:  { id: { not: id }, email: { equals: earlier, mode: 'insensitive' } },
+        select: { id: true },
+      })
+      if (heldNow) continue
+      await tx.memberApplication.updateMany({
+        where: { email: { equals: earlier, mode: 'insensitive' }, createdAt: { lte: before } },
+        data:  applicationScrubData(`${ghost}${TOMBSTONE_EMAIL_SUFFIX}`),
+      })
+    }
     // Other copies of the address outside the user row: a Pro waitlist signup
     // (name + unique email) and failed-send logs naming the recipient.
     await tx.proWaitlistEntry.deleteMany({ where: { OR: [{ userId: id }, { email: { equals: user.email, mode: 'insensitive' } }] } })

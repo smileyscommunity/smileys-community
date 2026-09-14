@@ -216,7 +216,8 @@ async function runSweep() {
 
   // Post-event connection suggestions — send to attendees of events that just archived (yesterday)
   const justArchivedEvents = await prisma.event.findMany({
-    where: { OR: onDay(yesterdayGroups), status: 'archived' },
+    // A cancelled event can be archived and keeps its cancelledAt — nobody met there.
+    where: { OR: onDay(yesterdayGroups), status: 'archived', cancelledAt: null },
     include: {
       attendees: {
         where: { status: 'approved' },
@@ -266,7 +267,8 @@ async function runSweep() {
       include: { attendees: { where: { status: 'approved' }, select: { userId: true } } },
     }),
     prisma.event.findMany({
-      where: { OR: onDay(yesterdayGroups), status: { in: ['published', 'archived'] } },
+      // An archived cancelled event keeps its cancelledAt: nothing to review.
+      where: { OR: onDay(yesterdayGroups), status: { in: ['published', 'archived'] }, cancelledAt: null },
       include: {
         attendees: {
           where: { status: 'approved' },

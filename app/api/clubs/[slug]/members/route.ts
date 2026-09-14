@@ -16,7 +16,7 @@ export async function GET(req: NextRequest, { params }: Params) {
   const { slug } = await params
   const pending = req.nextUrl.searchParams.get('pending') === '1'
 
-  const club = await prisma.club.findUnique({ where: { slug }, select: { id: true, isPrivate: true, cityId: true } })
+  const club = await prisma.club.findUnique({ where: { slug }, select: { id: true, isPrivate: true, cityId: true, isActive: true } })
   if (!club) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   // Same rule as the club wall: a private club's roster is for its approved
@@ -40,7 +40,8 @@ export async function GET(req: NextRequest, { params }: Params) {
         where: { userId_clubId: { userId: session.id, clubId: club.id } },
         select: { role: true, status: true },
       })
-      if (membership?.role !== 'host' || membership?.status !== 'approved') {
+      // An inactive club's host no longer reads applicants' bios.
+      if (membership?.role !== 'host' || membership?.status !== 'approved' || !club.isActive) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
     }
@@ -133,7 +134,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
   }
 
-  const club = await prisma.club.findUnique({ where: { slug }, select: { id: true, name: true, slug: true, cityId: true } })
+  const club = await prisma.club.findUnique({ where: { slug }, select: { id: true, name: true, slug: true, cityId: true, isActive: true } })
   if (!club) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   // Must be a host of this club, or staff for its city (moderators are
@@ -144,7 +145,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       where: { userId_clubId: { userId: session.id, clubId: club.id } },
       select: { role: true, status: true },
     })
-    if (hostMembership?.role !== 'host' || hostMembership?.status !== 'approved') {
+    // Hosting an inactive club decides nobody's request.
+    if (hostMembership?.role !== 'host' || hostMembership?.status !== 'approved' || !club.isActive) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
   }

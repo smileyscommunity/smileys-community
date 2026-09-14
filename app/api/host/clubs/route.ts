@@ -18,7 +18,8 @@ export async function GET() {
 
   // Everyone else (hosts, moderators) sees only clubs they are assigned to
   const memberships = await prisma.clubMembership.findMany({
-    where: { userId: session.id, role: 'host', status: 'approved' },
+    // canManage links to /host/clubs/[slug], which refuses an inactive club's hosts.
+    where: { userId: session.id, role: 'host', status: 'approved', club: { isActive: true } },
     select: { club: { select: { id: true, name: true, emoji: true, slug: true, memberCount: true } } },
     orderBy: { club: { name: 'asc' } },
   })

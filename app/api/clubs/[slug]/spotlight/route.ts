@@ -61,7 +61,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
   }
 
   const { slug } = await params
-  const club = await prisma.club.findUnique({ where: { slug }, select: { id: true } })
+  const club = await prisma.club.findUnique({ where: { slug }, select: { id: true, isActive: true } })
   if (!club) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   if (!isAdmin(session)) {
@@ -69,7 +69,8 @@ export async function PUT(req: NextRequest, { params }: Params) {
       where: { userId_clubId: { userId: session.id, clubId: club.id } },
       select: { role: true, status: true },
     })
-    if (membership?.role !== 'host' || membership?.status !== 'approved') {
+    // An inactive club's host features nobody.
+    if (membership?.role !== 'host' || membership?.status !== 'approved' || !club.isActive) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
   }

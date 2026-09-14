@@ -56,11 +56,13 @@ function ActionsMenu({
 }) {
   const [open, setOpen] = useState(false)
   const statusOptions = [
-    event.status !== 'published' && { label: 'Publish',  status: 'published', cls: 'text-green-400' },
+    // Only Publish brings a cancelled event back (seats restored, members told);
+    // every other move keeps it cancelled, so say so on the menu.
+    event.status !== 'published' && { label: event.status === 'cancelled' ? 'Restore & publish' : 'Publish', status: 'published', cls: 'text-green-400' },
     event.status !== 'cancelled' && { label: 'Cancel',   status: 'cancelled', cls: 'text-red-400'   },
-    event.status !== 'postponed' && { label: 'Postpone', status: 'postponed', cls: 'text-amber-400' },
-    event.status !== 'draft'     && { label: 'Draft',    status: 'draft',     cls: 'text-zinc-400'  },
-    event.status !== 'archived'  && { label: 'Archive',  status: 'archived',  cls: 'text-zinc-500'  },
+    event.status !== 'postponed' && { label: event.status === 'cancelled' ? 'Postpone (stays cancelled)' : 'Postpone', status: 'postponed', cls: 'text-amber-400' },
+    event.status !== 'draft'     && { label: event.status === 'cancelled' ? 'Draft (stays cancelled)'    : 'Draft',    status: 'draft',     cls: 'text-zinc-400'  },
+    event.status !== 'archived'  && { label: event.status === 'cancelled' ? 'Archive (stays cancelled)'  : 'Archive',  status: 'archived',  cls: 'text-zinc-500'  },
   ].filter(Boolean) as { label: string; status: string; cls: string }[]
 
   return (
