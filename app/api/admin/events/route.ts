@@ -11,6 +11,7 @@ import { ensurePendingVenueBusiness } from '@/lib/venueDirectory'
 import { todayInCity, resolveTargetCityId, getCityConfig } from '@/lib/city'
 import { checkSeriesId } from '@/lib/seriesOwnership'
 import { MAX_SERIES_OCCURRENCES } from '@/lib/seriesCreate'
+import { eventTimeInput } from '@/lib/eventTime'
 
 export async function GET(req: NextRequest) {
   try {
@@ -129,6 +130,12 @@ export async function POST(req: NextRequest) {
     if (!title || !date || !time || !location || !clubId || !hostId) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
+    // Free-text times were stored verbatim ('22.00', '18', '24:00') and then
+    // read as ending 23:59. Normalise or 400 (lib/eventTime eventTimeInput).
+    const startTime = eventTimeInput(time, 'start')
+    if ('error' in startTime) return NextResponse.json({ error: startTime.error }, { status: 400 })
+    const finishTime = eventTimeInput(endTime, 'end')
+    if ('error' in finishTime) return NextResponse.json({ error: finishTime.error }, { status: 400 })
     // A new copy may only join a series whose other events are the caller's
     // to edit (lib/seriesOwnership) — the create path accepted any id.
     const series = await checkSeriesId(seriesId, session)
@@ -351,7 +358,8 @@ export async function POST(req: NextRequest) {
     const event = await prisma.event.create({
       data: {
         title:                cleanTitle,
-        date, time,
+        date,
+        time:                 startTime.value as string,
         location:             location.trim(),
         neighborhood:         neighborhood?.trim() ?? '',
         address:              address?.trim() ?? '',
@@ -390,7 +398,7 @@ export async function POST(req: NextRequest) {
         difficulty:           difficulty ?? null,
         refundPolicy:         refundPolicy ?? null,
         registrationDeadline: registrationDeadline ?? null,
-        endTime:              endTime ?? null,
+        endTime:              finishTime.value,
         // The event's city decides the currency when the form didn't: an
         // Athens event is priced in euros by default, not lira. Reads the
         // resolved city rather than the club's, so a global club's event

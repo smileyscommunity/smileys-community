@@ -607,9 +607,12 @@ export default function BoardFeed() {
     let cancelled = false
     fetch(`/app/api/hangouts${cityQs}`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : { hangouts: [] })
-      .then(d => { if (!cancelled) setHangouts((d.hangouts ?? []).slice(0, 3).map((h: { id: string; title: string; neighborhood: string | null; location: string; startsAt: string; joins?: unknown[]; user?: { name?: string } }) => ({
+      // GET /api/hangouts shapes the join rows as `joiners` (the users), not
+      // `joins` — reading `joins` made every card's count 0, so "👥 N joined"
+      // never rendered.
+      .then(d => { if (!cancelled) setHangouts((d.hangouts ?? []).slice(0, 3).map((h: { id: string; title: string; neighborhood: string | null; location: string; startsAt: string; joiners?: unknown[]; user?: { name?: string } }) => ({
         id: h.id, title: h.title, neighborhood: h.neighborhood, location: h.location,
-        startsAt: h.startsAt, joinCount: h.joins?.length ?? 0, host: firstNameOf(h.user?.name) || 'A Smiley',
+        startsAt: h.startsAt, joinCount: h.joiners?.length ?? 0, host: firstNameOf(h.user?.name) || 'A Smiley',
       }))) })
       .catch(() => {})
     return () => { cancelled = true }

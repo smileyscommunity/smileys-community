@@ -69,9 +69,16 @@ export default function DonationRow({ d, onAction }: Props) {
         websiteUrl:  form.sponsorWebsiteUrl.trim() || null,
       }
     }
-    await onAction(d.id, 'approve', body)
-    setPublishing(false)
-    setShowForm(false)
+    // try/finally: a rejected onAction (network drop) used to strand the
+    // form on "Publishing…" with no way to retry.
+    try {
+      await onAction(d.id, 'approve', body)
+      setShowForm(false)
+    } catch {
+      toast.error('Network error — nothing was published')
+    } finally {
+      setPublishing(false)
+    }
   }
 
   return (

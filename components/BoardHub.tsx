@@ -735,10 +735,14 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
   }[]>([])
   // Carries the pinned city like the listings fetch does — otherwise a shared
   // ?city= link previewed the viewer's cookie city's sales.
+  // Sequenced like loadSeq: a city switch mid-flight let the slower, older
+  // city's sales land last and preview the wrong city.
+  const movingPreviewSeq = useRef(0)
   useEffect(() => {
+    const seq = ++movingPreviewSeq.current
     fetch(`/app/api/moving-sales${pinnedCity ? `?city=${encodeURIComponent(pinnedCity)}` : ''}`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
-      .then(data => setMovingPreview((data?.sales ?? []).slice(0, 3)))
+      .then(data => { if (seq === movingPreviewSeq.current) setMovingPreview((data?.sales ?? []).slice(0, 3)) })
       .catch(() => {})
   }, [pinnedCity])
 

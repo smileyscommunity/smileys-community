@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { isUploadedImageUrl } from '@/lib/uploadedImageUrl'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { resolveCityId } from '@/lib/city'
+import { resolveCityId, getCityTz } from '@/lib/city'
+import { todayInTz } from '@/lib/cityTime'
 import { getPublicCity } from '@/lib/cities'
 import { resolvePostingCityId } from '@/lib/cityMembership'
 import { rateLimit } from '@/lib/rateLimit'
@@ -55,13 +56,16 @@ export async function POST(req: NextRequest) {
   if (typeof leavingOn !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(leavingOn)) {
     return NextResponse.json({ error: 'When are you leaving?' }, { status: 400 })
   }
-  if (leavingOn < new Date().toISOString().slice(0, 10)) {
+  // One resolution for the date floor, the neighborhood check and the row
+  // itself, and it follows membership rather than the view-city cookie — same
+  // reasoning as the listings route (resolvePostingCityId).
+  const postingCityId = await resolvePostingCityId(session)
+  // "Past" in the city the sale files to. The UTC day accepted a date that
+  // had already ended in cities east of UTC for the hours after their
+  // midnight (and refused today's date west of UTC in the evening).
+  if (leavingOn < todayInTz(await getCityTz(postingCityId))) {
     return NextResponse.json({ error: 'Leaving date is in the past' }, { status: 400 })
   }
-  // One resolution for the neighborhood check and the row itself, and it
-  // follows membership rather than the view-city cookie — same reasoning as
-  // the listings route (resolvePostingCityId).
-  const postingCityId = await resolvePostingCityId(session)
   const safeNeighborhood = await safeNeighborhoodFor(postingCityId, neighborhood)
   const safeNote = typeof note === 'string' ? note.trim().slice(0, 500) || null : null
   // Matches the Listing route's PHOTO_RE — only accept a URL our own

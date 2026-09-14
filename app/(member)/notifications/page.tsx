@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { FILTERS, FILTER_TYPES, TYPE_ICON, type Filter } from '@/lib/notificationFilters'
 import { toast } from 'sonner'
+import { sendNotificationAction, setReadFor, restoreAt } from '@/lib/notificationActions'
 import { usePullToRefresh } from '@/hooks/usePullToRefresh'
 import SwipeRow from '@/components/SwipeRow'
 import EmptyState from '@/components/EmptyState'
@@ -69,13 +70,14 @@ export default function NotificationsPage() {
 
   const unread = notifications.filter(n => !n.isRead).length
 
+  // Optimistic, rolled back when the server refuses — this used to mark
+  // everything read without reading the response (lib/notificationActions).
   async function markAllRead() {
-    await fetch('/app/api/notifications', {
-      method: 'PATCH', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ markAll: true }),
-    })
-    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })))
+    const ids = new Set(notifications.filter(n => !n.isRead).map(n => n.id))
+    setNotifications(prev => setReadFor(prev, ids, true))
+    if (!await sendNotificationAction('PATCH', { markAll: true }, 'Could not mark all as read')) {
+      setNotifications(prev => setReadFor(prev, ids, false))
+    }
   }
 
   async function clearAll() {
@@ -99,22 +101,23 @@ export default function NotificationsPage() {
 
   async function dismiss(e: React.MouseEvent, id: string) {
     e.stopPropagation()
-    await fetch('/app/api/notifications', {
-      method: 'DELETE', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
-    })
+    const index   = notifications.findIndex(n => n.id === id)
+    const removed = notifications[index]
+    if (!removed) return
     setNotifications(prev => prev.filter(n => n.id !== id))
+    if (!await sendNotificationAction('DELETE', { id }, 'Could not dismiss notification')) {
+      setNotifications(prev => restoreAt(prev, removed, index))
+    }
   }
 
   function handleClick(n: Notification) {
     if (!n.isRead) {
-      setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, isRead: true } : x))
-      fetch('/app/api/notifications', {
-        method: 'PATCH', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: n.id }),
-      }).catch(() => {})
+      const ids = new Set([n.id])
+      setNotifications(prev => setReadFor(prev, ids, true))
+      // Was `.catch(() => {})` — a refused read left the row looking read.
+      sendNotificationAction('PATCH', { id: n.id }, 'Could not mark as read').then(ok => {
+        if (!ok) setNotifications(prev => setReadFor(prev, ids, false))
+      })
     }
     if (n.link) router.push(n.link)
   }

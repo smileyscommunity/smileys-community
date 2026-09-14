@@ -4,7 +4,8 @@ import { useEditor, EditorContent } from '@tiptap/react'
 import { richTextExtensions } from './richTextExtensions'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { downscaleImage } from '@/lib/image-resize'
+import { ImageUploadError } from '@/lib/image-resize'
+import { prepareImageUpload } from '@/lib/imageUploadGuard'
 
 const COLORS = [
   { label: 'Default',  value: '' },
@@ -27,13 +28,23 @@ interface Props {
   uploadFolder?: string
 }
 
+// The action runs on CLICK. It used to run inside onMouseDown, which the
+// keyboard never fires — Tab to Bold, press Enter or Space, nothing happened.
+// mousedown still preventDefaults so a mouse click doesn't take focus and
+// collapse the editor's selection; Enter/Space fire click, and the commands'
+// chain().focus() restores the selection the editor kept while blurred.
+// `active` is omitted for one-shot actions (undo, image) so only real
+// toggles announce aria-pressed.
 function ToolbarBtn({ active, onClick, title, children }: { active?: boolean; onClick: () => void; title: string; children: React.ReactNode }) {
   return (
     <button
       type="button"
-      onMouseDown={e => { e.preventDefault(); onClick() }}
+      onMouseDown={e => e.preventDefault()}
+      onClick={onClick}
       title={title}
-      className={`px-2 py-1 rounded text-xs font-semibold transition-colors ${
+      aria-label={title}
+      aria-pressed={active}
+      className={`px-2 py-1 rounded text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 ${
         active ? 'bg-amber-500 text-white' : 'text-zinc-300 hover:bg-zinc-700 hover:text-white'
       }`}
     >
@@ -83,15 +94,17 @@ export default function RichTextEditor({ value, onChange, placeholder, className
     try {
       // Same pipeline as cover/photo uploads: downscale client-side, POST to
       // /api/upload, insert the returned /api/files path at the cursor.
-      const upload = await downscaleImage(file)
+      // prepareImageUpload applies the size limit to the shrunk photo, and its
+      // ImageUploadError (too large, iCloud-only) is shown verbatim.
+      const upload = await prepareImageUpload(file)
       const fd = new FormData()
       fd.append('file', upload)
       fd.append('folder', uploadFolder)
       const r = await fetch('/app/api/upload', { method: 'POST', credentials: 'include', body: fd }).then(res => res.json())
       if (r?.url) editor.chain().focus().setImage({ src: r.url }).run()
       else toast.error(r?.error ?? 'Image upload failed')
-    } catch {
-      toast.error('Image upload failed')
+    } catch (err) {
+      toast.error(err instanceof ImageUploadError ? err.message : 'Image upload failed')
     } finally {
       setImgUploading(false)
       e.target.value = ''
@@ -143,7 +156,7 @@ export default function RichTextEditor({ value, onChange, placeholder, className
 
         <ToolbarBtn active={editor.isActive('link')} onClick={() => { setLinkUrl(editor.getAttributes('link').href ?? ''); setLinkOpen(o => !o) }} title="Add / edit link">🔗</ToolbarBtn>
 
-        <ToolbarBtn active={false} onClick={() => fileInputRef.current?.click()} title="Insert image">
+        <ToolbarBtn onClick={() => fileInputRef.current?.click()} title="Insert image">
           {imgUploading ? '⏳' : '🖼'}
         </ToolbarBtn>
         <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImagePick} />
@@ -153,16 +166,20 @@ export default function RichTextEditor({ value, onChange, placeholder, className
         {/* Color picker */}
         <div className="flex items-center gap-1">
           {COLORS.map(c => (
+            // Same click-not-mousedown rule as ToolbarBtn, so the swatches
+            // work from the keyboard too.
             <button
               key={c.value}
               type="button"
-              onMouseDown={e => {
-                e.preventDefault()
+              onMouseDown={e => e.preventDefault()}
+              onClick={() => {
                 if (c.value) editor.chain().focus().setColor(c.value).run()
                 else editor.chain().focus().unsetColor().run()
               }}
               title={c.label}
-              className="w-4 h-4 rounded-full border border-zinc-600 transition-transform hover:scale-125"
+              aria-label={c.value ? `Text colour: ${c.label}` : 'Default text colour'}
+              aria-pressed={c.value ? editor.isActive('textStyle', { color: c.value }) : undefined}
+              className="w-4 h-4 rounded-full border border-zinc-600 transition-transform hover:scale-125 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
               style={{ backgroundColor: c.value || '#e4e4e7' }}
             />
           ))}
@@ -170,8 +187,8 @@ export default function RichTextEditor({ value, onChange, placeholder, className
 
         <div className="w-px h-4 bg-zinc-700 mx-1" />
 
-        <ToolbarBtn active={false} onClick={() => editor.chain().focus().undo().run()} title="Undo">↩</ToolbarBtn>
-        <ToolbarBtn active={false} onClick={() => editor.chain().focus().redo().run()} title="Redo">↪</ToolbarBtn>
+        <ToolbarBtn onClick={() => editor.chain().focus().undo().run()} title="Undo">↩</ToolbarBtn>
+        <ToolbarBtn onClick={() => editor.chain().focus().redo().run()} title="Redo">↪</ToolbarBtn>
       </div>
 
       {/* Link input row — inline (no native prompt(), which no-ops in the PWA).
@@ -195,19 +212,21 @@ export default function RichTextEditor({ value, onChange, placeholder, className
             autoFocus
             className="flex-1 bg-zinc-800 text-white text-xs px-2 py-1 rounded border border-zinc-700 focus:outline-none focus:ring-1 focus:ring-amber-500"
           />
+          {/* Click, not mousedown, so Tab → Enter/Space works here too. */}
           <button type="button"
-            onMouseDown={e => {
-              e.preventDefault()
+            onMouseDown={e => e.preventDefault()}
+            onClick={() => {
               const url = linkUrl.trim()
               if (!url) editor.chain().focus().unsetLink().run()
               else editor.chain().focus().extendMarkRange('link').setLink({ href: /^https?:\/\//i.test(url) ? url : `https://${url}` }).run()
               setLinkOpen(false)
             }}
-            className="text-xs font-semibold text-amber-400 hover:text-amber-300 px-2 py-1 shrink-0">
+            className="text-xs font-semibold text-amber-400 hover:text-amber-300 px-2 py-1 shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 rounded">
             Apply
           </button>
-          <button type="button" onMouseDown={e => { e.preventDefault(); setLinkOpen(false) }}
-            className="text-xs text-zinc-500 hover:text-zinc-300 px-1 shrink-0">✕</button>
+          <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => setLinkOpen(false)}
+            aria-label="Close link editor"
+            className="text-xs text-zinc-500 hover:text-zinc-300 px-1 shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 rounded">✕</button>
         </div>
       )}
 

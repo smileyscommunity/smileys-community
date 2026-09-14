@@ -28,6 +28,8 @@ import {
   teamLabel,
   isValidTeamCode,
   isFixtureLocked,
+  isCupFinished,
+  LIVE_CUP_SLUG,
   type CupRound,
 } from '@/lib/cup-data'
 
@@ -62,6 +64,23 @@ export async function tournamentStartAt(): Promise<Date | null> {
     select:  { kickoffAt: true },
   })
   return first?.kickoffAt ?? null
+}
+
+// isCupFinished, read from the database: the cup campaign's status, whether
+// the Final has a result, and when the last match kicked off. Used by the
+// match-reminder gate and sweeper so neither keeps running after the cup.
+export async function isCupFinishedNow(now: Date = new Date()): Promise<boolean> {
+  const [campaign, final, last] = await Promise.all([
+    prisma.campaign.findUnique({ where: { slug: LIVE_CUP_SLUG }, select: { status: true } }),
+    prisma.cupFixture.findFirst({ where: { round: 'final' }, select: { winnerTeam: true } }),
+    prisma.cupFixture.findFirst({ orderBy: { kickoffAt: 'desc' }, select: { kickoffAt: true } }),
+  ])
+  return isCupFinished({
+    status:        campaign?.status ?? null,
+    finalDecided:  !!final?.winnerTeam,
+    lastKickoffAt: last?.kickoffAt ?? null,
+    now,
+  })
 }
 
 // Helpers for the predict POST validator. The fixture may have

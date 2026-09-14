@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import posthog from 'posthog-js'
 import { toast } from 'sonner'
@@ -11,6 +11,7 @@ import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import { downscaleImage, ImageUploadError } from '@/lib/image-resize'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { DEFAULT_CURRENCY, currencySymbol } from '@/lib/data'
+import { DEFAULT_TZ, todayInTz } from '@/lib/cityTime'
 
 interface SaleItem { id: string; name: string; price: string | null; claimed: boolean }
 interface Sale {
@@ -83,10 +84,33 @@ export default function MovingSales({ cityName = '', city = '' }: { cityName?: s
     if (ok) { setCopiedId(id); toast.success('Link copied!'); setTimeout(() => setCopiedId(null), 2000) }
   }
 
+  // Leaving-date floor in the POSTING city's calendar — the server checks the
+  // same day. The UTC day (toISOString) lagged cities east of UTC after local
+  // midnight, so the picker still offered yesterday. The cookie city's zone
+  // serves when it IS the posting city; otherwise ask for the posting city's.
+  const [postingTz, setPostingTz] = useState<string | null>(null)
+  const postingSlug = postingCity?.slug ?? ''
+  const postingIsCurrent = !!current && postingSlug === current.slug
+  useEffect(() => {
+    if (!postingSlug || postingIsCurrent) { setPostingTz(null); return }
+    let cancelled = false
+    fetch(`/app/api/city/current?city=${encodeURIComponent(postingSlug)}`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (!cancelled && typeof d?.timezone === 'string' && d.timezone) setPostingTz(d.timezone) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [postingSlug, postingIsCurrent])
+  const minLeavingOn = todayInTz((postingIsCurrent ? current?.timezone : postingTz) ?? current?.timezone ?? DEFAULT_TZ)
+
   // Same ?city= as the listings grid, so a shared city link lists that city's sales.
+  // Sequenced like BoardHub's loadSeq: a city switch (or a post-submit reload)
+  // overlapping an earlier load let the slower response land last.
+  const loadSeq = useRef(0)
   const load = useCallback(async () => {
+    const seq = ++loadSeq.current
     const res = await fetch(`/app/api/moving-sales${city ? `?city=${encodeURIComponent(city)}` : ''}`, { credentials: 'include' })
     const data = await res.json().catch(() => ({ sales: [] }))
+    if (seq !== loadSeq.current) return
     setSales(data.sales ?? [])
   }, [city])
   useEffect(() => { load() }, [load])
@@ -220,7 +244,7 @@ export default function MovingSales({ cityName = '', city = '' }: { cityName?: s
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="block">
               <span className="block text-sm font-semibold text-gray-700 mb-1.5">Leaving on</span>
-              <input type="date" value={leavingOn} min={new Date().toISOString().slice(0, 10)}
+              <input type="date" value={leavingOn} min={minLeavingOn}
                 onChange={e => setLeavingOn(e.target.value)} className="input" />
             </label>
             <label className="block">

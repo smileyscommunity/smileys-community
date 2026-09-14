@@ -28,6 +28,10 @@ export default function SayHiButton({ targetId, targetName }: { targetId: string
       if (!res.ok) { toast.error(data.error ?? 'Could not send'); return }
       setSent(true)
       toast.success(`Request sent to ${firstNameOf(targetName)}!`)
+    } catch {
+      // Offline / dropped connection: fetch rejects before any response, and
+      // with only a finally the button just reset — no word it hadn't sent.
+      toast.error('Could not send — check your connection')
     } finally {
       setSending(false)
     }

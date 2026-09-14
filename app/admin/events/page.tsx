@@ -14,6 +14,7 @@ import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { DEFAULT_CURRENCY, formatMoney, currencySymbol } from '@/lib/data'
 import { clubOptionLabel } from '@/lib/clubLabel'
+import { notifyModerationChanged } from '@/lib/modCounts'
 
 type TabKey = 'all' | 'upcoming' | 'pending' | 'cancelled' | 'archived'
 const TAB_KEYS: TabKey[] = ['all', 'upcoming', 'pending', 'cancelled', 'archived']
@@ -318,6 +319,7 @@ function AdminEventsPageInner() {
     }
     setEvents(prev => prev.map(e => e.id === event.id ? { ...e, status: 'published' } : e))
     toast.success(`"${event.title}" published`)
+    notifyModerationChanged()  // topbar event-queue badge refetches
   }
 
   async function handleDelete(event: AdminEvent) {
@@ -351,6 +353,7 @@ function AdminEventsPageInner() {
     if (res.ok) {
       setEvents(prev => prev.map(e => e.id === id ? { ...e, status: newStatus } : e))
       toast.success(`Status → ${newStatus}`)
+      notifyModerationChanged()
       // Auto-open the notify modal for the two states whose business
       // impact is on attendees, not on internal bookkeeping. Admin can
       // edit or close — the status change is already committed.
@@ -427,7 +430,7 @@ function AdminEventsPageInner() {
     setEvents(prev => prev.map(e => ok.has(e.id) ? { ...e, status: 'published' } : e))
     setSelected(new Set())
     setBulkBusy(false)
-    if (ok.size)                    toast.success(`Approve: ${ok.size} done`)
+    if (ok.size)                    { toast.success(`Approve: ${ok.size} done`); notifyModerationChanged() }
     if (results.length - ok.size)   toast.error(`Approve: ${results.length - ok.size} failed`)
   }
 

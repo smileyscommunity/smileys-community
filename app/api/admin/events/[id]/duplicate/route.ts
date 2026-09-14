@@ -3,7 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator, canActInCity } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
-import { todayInCity, resolveCityId } from '@/lib/city'
+import { todayInCity } from '@/lib/city'
+import { duplicateEventData } from '@/lib/eventDuplicate'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -15,14 +16,12 @@ type Params = { params: Promise<{ id: string }> }
 // endpoint persists the copy server-side so the action behaves the way
 // the UI implied all along.
 //
-// Behaviour:
-//   - title gets " (Copy)" appended
-//   - date resets to today (source date is usually past or imminent)
-//   - status starts as 'draft' so the admin can review before publishing
-//   - spotsLeft resets to totalSpots (no inherited attendees / waitlist)
-//   - seriesId is cleared — the copy is not a phantom member of the
-//     source's recurring series
-//   - cancelledAt / cancelReason cleared even if the source was killed
+// Behaviour: the copy is built from an explicit allow-list in
+// lib/eventDuplicate — content is copied; title gets " (Copy)", date is today
+// in the event's city, status is 'draft', seats/series/cancel state and every
+// sweep stamp start fresh. It used to spread the source row, which carried
+// noShowProcessedAt / surveyDispatchedAt into the copy so its no-show
+// settlement and survey were silently skipped.
 export async function POST(_: NextRequest, { params }: Params) {
   try {
     const session = await getSession()
@@ -39,28 +38,10 @@ export async function POST(_: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Cross-city duplicate is admin-only' }, { status: 403 })
     }
 
-    // Pull every field except the ones we want to override or have
-    // Prisma regenerate (id, createdAt, updatedAt).
-    const {
-      id: _id, createdAt: _c, updatedAt: _u,
-      title, date: _date, status: _status, spotsLeft: _spotsLeft,
-      seriesId: _series, isRecurring: _rec,
-      cancelledAt: _ca, cancelReason: _cr,
-      ...rest
-    } = source
-
     const copy = await prisma.event.create({
-      data: {
-        ...rest,
-        title:        `${title} (Copy)`,
-        date:         await todayInCity(await resolveCityId(session)),
-        status:       'draft',
-        spotsLeft:    source.totalSpots,
-        seriesId:     null,
-        isRecurring:  false,
-        cancelledAt:  null,
-        cancelReason: null,
-      },
+      // "Today" on the copy's own city clock — it lands in source.cityId, and
+      // the viewer's city could already be a different calendar day.
+      data: duplicateEventData(source, await todayInCity(source.cityId)),
       include: {
         // host isn't a relation on Event (see schema — only `club`),
         // so the list API attaches it via a separate query. Mirror that

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { activeAttendeeWhere } from '@/lib/attendance'
 import { restoreSeatsReleasedByCancel } from '@/lib/eventRestore'
+import { backfillSeatPayments, collectsSeatPayment } from '@/lib/rsvpConfirmed'
 import { waiveCard } from '@/lib/noShow'
 import { getSession } from '@/lib/session'
 import { isAdmin, isAdminOrModerator, isClubHost, isClubHostFor, hostCityIds } from '@/lib/access'
@@ -14,6 +15,7 @@ import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 import { todayInCity } from '@/lib/city'
 import { checkSeriesId, seriesScopeFor } from '@/lib/seriesOwnership'
 import { wasStaffPublished } from '@/lib/eventPublishHistory'
+import { eventTimeInput } from '@/lib/eventTime'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -135,8 +137,8 @@ export async function PUT(req: NextRequest, { params }: Params) {
     const before = await prisma.event.findUnique({
       where: { id },
       select: {
-        hostId: true, clubId: true, cityId: true, date: true, time: true, location: true, title: true,
-        neighborhood: true, price: true, memberPrice: true, totalSpots: true,
+        hostId: true, clubId: true, cityId: true, date: true, time: true, endTime: true, location: true, title: true,
+        neighborhood: true, price: true, memberPrice: true, payTo: true, totalSpots: true,
         emoji: true, isPremium: true, membersOnly: true, limitedSpots: true, isFirstTimerFriendly: true, status: true,
         seriesId: true, cancelledAt: true, approvalRequired: true,
       }
@@ -351,6 +353,21 @@ export async function PUT(req: NextRequest, { params }: Params) {
     if (N(data.spotsLeft) !== null && (data.spotsLeft as number) > effectiveSpots) {
       return NextResponse.json({ error: 'spotsLeft cannot exceed totalSpots' }, { status: 400 })
     }
+    // Times: same shared normaliser as POST — '22.00' / '18' stored verbatim
+    // read as ending 23:59. A blank endTime clears it; a blank start 400s.
+    // The edit forms send every field back, so an old row's unparseable value
+    // ('19:00 - 22:00') arrives unchanged on an unrelated edit — leave that
+    // one alone rather than blocking the save; scripts/repair-malformed-event-
+    // times.ts owns the old rows.
+    for (const [key, kind] of [['time', 'start'], ['endTime', 'end']] as const) {
+      if (!(key in data)) continue
+      const t = eventTimeInput(data[key], kind)
+      if ('error' in t) {
+        if (data[key] === before[key]) { delete data[key]; continue }
+        return NextResponse.json({ error: t.error }, { status: 400 })
+      }
+      data[key] = t.value
+    }
     // Date sanity if being changed.
     if (data.date !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(String(data.date))) {
       return NextResponse.json({ error: 'date must be YYYY-MM-DD' }, { status: 400 })
@@ -420,6 +437,18 @@ export async function PUT(req: NextRequest, { params }: Params) {
       }
     }
 
+    // Collection switched on (a price, or payTo → smileys) after people had
+    // joined: their seats had no ledger row until the sweep's two-day
+    // backfill reached them. Idempotent, so re-pricing an event that already
+    // collects writes nothing.
+    if (collectsSeatPayment(event) && (event.price !== before.price || event.payTo !== before.payTo)) {
+      try {
+        await backfillSeatPayments(id)
+      } catch (err) {
+        console.error('[event PUT] seat payment backfill failed', { eventId: id, err: String(err) })
+      }
+    }
+
     // Propagate changes to all future events in the same series. `date` and
     // `registrationDeadline` stay per-occurrence (each instance has its own),
     // but `time` DOES propagate — a recurring event keeps the same time each
@@ -475,7 +504,8 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
     // Notify attendees if date, time, or location changed
     const changed = (body.date && body.date !== before.date) ||
-                    (body.time && body.time !== before.time) ||
+                    // The normalised value: '19.30' resent for a stored '19:30' is no change.
+                    (data.time && data.time !== before.time) ||
                     (body.location && body.location !== before.location)
     if (changed) {
       ;(async () => {

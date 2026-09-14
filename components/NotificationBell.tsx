@@ -5,6 +5,7 @@ import { timeAgo } from '@/lib/timeAgo'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { TYPE_ICON } from '@/lib/notificationFilters'
+import { sendNotificationAction, setReadFor, restoreAt } from '@/lib/notificationActions'
 
 interface Notification {
   id: string; type: string; title: string; body: string
@@ -45,33 +46,37 @@ export default function NotificationBell() {
   const unread  = notifs.filter(n => !n.isRead).length
   const preview = notifs.slice(0, 6)
 
+  // Optimistic, rolled back when the server refuses — these used to update
+  // the list without reading the response (see lib/notificationActions).
   async function markAllRead() {
-    await fetch('/app/api/notifications', {
-      method: 'PATCH', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ markAll: true }),
-    })
-    setNotifs(prev => prev.map(n => ({ ...n, isRead: true })))
+    const ids = new Set(notifs.filter(n => !n.isRead).map(n => n.id))
+    setNotifs(prev => setReadFor(prev, ids, true))
+    if (!await sendNotificationAction('PATCH', { markAll: true }, 'Could not mark all as read')) {
+      setNotifs(prev => setReadFor(prev, ids, false))
+    }
   }
 
   async function dismiss(e: React.MouseEvent, id: string) {
     e.stopPropagation()
-    await fetch('/app/api/notifications', {
-      method: 'DELETE', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
-    })
+    const index   = notifs.findIndex(n => n.id === id)
+    const removed = notifs[index]
+    if (!removed) return
     setNotifs(prev => prev.filter(n => n.id !== id))
+    if (!await sendNotificationAction('DELETE', { id }, 'Could not dismiss notification')) {
+      setNotifs(prev => restoreAt(prev, removed, index))
+    }
   }
 
-  async function handleClick(n: Notification) {
+  function handleClick(n: Notification) {
     if (!n.isRead) {
-      await fetch('/app/api/notifications', {
-        method: 'PATCH', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: n.id }),
+      const ids = new Set([n.id])
+      setNotifs(prev => setReadFor(prev, ids, true))
+      // Not awaited — opening the notification shouldn't wait on a read
+      // receipt. The bell stays mounted across the route change, so the
+      // rollback and toast still land.
+      sendNotificationAction('PATCH', { id: n.id }, 'Could not mark as read').then(ok => {
+        if (!ok) setNotifs(prev => setReadFor(prev, ids, false))
       })
-      setNotifs(prev => prev.map(x => x.id === n.id ? { ...x, isRead: true } : x))
     }
     setOpen(false)
     // Linkless notifications (e.g. all-member announcements) go to the

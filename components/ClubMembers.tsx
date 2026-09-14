@@ -90,14 +90,19 @@ export default function ClubMembers({ slug }: { slug: string }) {
   const [members, setMembers] = useState<ClubMember[]>([])
   const [loading, setLoading] = useState(true)
   const [search,  setSearch]  = useState('')
+  const [loadError, setLoadError] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
 
+  // A non-OK response used to parse as `{ error }`, become [], and render
+  // "No members yet. Be the first to join!" — a 502 is not an empty club.
   useEffect(() => {
+    setLoading(true); setLoadError(false)
     fetch(`/app/api/clubs/${slug}/members`, { credentials: 'include' })
-      .then(r => r.json())
+      .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
       .then(data => setMembers(Array.isArray(data) ? data : []))
-      .catch(() => {})   // a 502 is not an empty list, and never an unhandled rejection
+      .catch(() => setLoadError(true))   // never an unhandled rejection
       .finally(() => setLoading(false))
-  }, [slug])
+  }, [slug, reloadKey])
 
   const filtered = search.trim()
     ? members.filter(m =>
@@ -117,6 +122,14 @@ export default function ClubMembers({ slug }: { slug: string }) {
           <div className="h-3 bg-gray-200 rounded w-10" />
         </div>
       ))}
+    </div>
+  )
+
+  if (loadError) return (
+    <div role="alert" className="text-center py-12">
+      <p className="text-gray-600 mb-3">Couldn&apos;t load members.</p>
+      <button type="button" onClick={() => setReloadKey(k => k + 1)}
+        className="text-sm font-semibold text-amber-600 hover:underline">Try again</button>
     </div>
   )
 

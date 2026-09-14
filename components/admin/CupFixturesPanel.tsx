@@ -94,6 +94,10 @@ export default function CupFixturesPanel() {
           : `No new suggestions · scanned ${d.matchesScanned} match${d.matchesScanned === 1 ? '' : 'es'}`,
       )
       load()
+    } catch {
+      // The finally reset the spinner, but a network error was an unhandled
+      // rejection with no word to the admin.
+      toast.error('Network error — suggestions not refreshed')
     } finally {
       setRefreshing(false)
     }
@@ -253,10 +257,14 @@ function FixtureRow({ fixture, onSaved }: { fixture: Fixture; onSaved: () => voi
           awayTeam: fixture.suggestedAwayTeam,
         }),
       })
-      const d = await res.json()
+      // Guarded parse + catch: a non-JSON 502 or a dropped connection threw
+      // with no toast (the finally cleared the busy state, silently).
+      const d = await res.json().catch(() => ({}))
       if (!res.ok) { toast.error(d.error ?? 'Apply teams failed'); return }
       toast.success(`Teams set · ${teamLabel(fixture.suggestedHomeTeam)} vs ${teamLabel(fixture.suggestedAwayTeam)}`)
       onSaved()
+    } catch {
+      toast.error('Network error — teams not set')
     } finally {
       setSaving(false)
     }
@@ -280,7 +288,7 @@ function FixtureRow({ fixture, onSaved }: { fixture: Fixture; onSaved: () => voi
           winnerTeam: fixture.suggestedWinnerTeam ?? null,
         }),
       })
-      const d = await res.json()
+      const d = await res.json().catch(() => ({}))
       if (!res.ok) { toast.error(d.error ?? 'Apply failed'); return }
       const scored   = d.predScored ?? 0
       const brackets = d.bracketsRescored ?? 0
@@ -288,6 +296,8 @@ function FixtureRow({ fixture, onSaved }: { fixture: Fixture; onSaved: () => voi
         `Applied${scored ? ` · ${scored} prediction${scored === 1 ? '' : 's'} scored` : ''}${brackets ? ` · ${brackets} bracket${brackets === 1 ? '' : 's'} rescored` : ''}`,
       )
       onSaved()
+    } catch {
+      toast.error('Network error — result not applied')
     } finally {
       setSaving(false)
     }
@@ -318,7 +328,7 @@ function FixtureRow({ fixture, onSaved }: { fixture: Fixture; onSaved: () => voi
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      const d = await res.json()
+      const d = await res.json().catch(() => ({}))
       if (!res.ok) { toast.error(d.error ?? 'Save failed'); return }
 
       const scored   = d.predScored ?? 0
@@ -328,6 +338,8 @@ function FixtureRow({ fixture, onSaved }: { fixture: Fixture; onSaved: () => voi
       )
       setEditing(false)
       onSaved()
+    } catch {
+      toast.error('Network error — nothing was saved')
     } finally {
       setSaving(false)
     }

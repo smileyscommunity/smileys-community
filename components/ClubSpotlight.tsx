@@ -33,8 +33,10 @@ export default function ClubSpotlight({ slug, initialSpotlight, canEdit, dark }:
     setEditing(true); setError(''); setSelected(null); setSearch(''); setNoteInput('')
     if (members.length === 0) {
       setLoadingMembers(true)
+      // A failed load used to show "No members" — the host couldn't tell the
+      // picker was broken. members stays empty, so reopening retries.
       fetch(`/app/api/clubs/${slug}/members`, { credentials: 'include' })
-        .then(r => r.ok ? r.json() : [])
+        .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
         .then(data => {
           if (Array.isArray(data)) {
             setMembers(data.map((m: any) => ({
@@ -45,6 +47,7 @@ export default function ClubSpotlight({ slug, initialSpotlight, canEdit, dark }:
             })))
           }
         })
+        .catch(() => setError("Couldn't load club members — close and reopen to try again"))
         .finally(() => setLoadingMembers(false))
     }
   }

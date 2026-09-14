@@ -354,10 +354,14 @@ function PostRow({
                     <div className="flex items-center gap-1.5">
                       <span className="text-[11px] font-semibold text-gray-900">{r.author.name}</span>
                       <span className="text-[10px] text-gray-400">{timeAgo(r.createdAt)}</span>
+                      {/* Hover-only (opacity-0 group-hover) was unreachable on
+                          phones — there is no hover. Visible by default; it
+                          only hides until hover on wide screens with a real
+                          pointer, and shows again for keyboard focus. */}
                       {(r.author.id === myId || isStaff) && (
-                        <button onClick={() => deleteReply(r.id)}
-                          className="ml-auto text-[10px] text-gray-300 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all">
-                          ✕
+                        <button onClick={() => deleteReply(r.id)} aria-label="Delete reply"
+                          className="ml-auto text-[10px] text-gray-300 hover:text-red-400 opacity-100 [@media(min-width:640px)_and_(hover:hover)]:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-all">
+                          <span aria-hidden="true">✕</span>
                         </button>
                       )}
                     </div>
@@ -431,11 +435,16 @@ export default function NeighborhoodWall({ slug, myId, isStaff, name }: Props) {
   const [composeOpen,    setComposeOpen]    = useState(false)
 
   useEffect(() => {
+    // Moving between neighborhoods reuses this component: without the flag a
+    // slower answer for the previous slug landed last and showed its wall.
+    let cancelled = false
+    setLoading(true)
     fetch(`/app/api/neighborhoods/${slug}/posts`, { credentials: 'include' })
       .then(r => r.json())
-      .then(d => { if (Array.isArray(d)) setPosts(d) })
+      .then(d => { if (!cancelled && Array.isArray(d)) setPosts(d) })
       .catch(() => {})
-      .finally(() => setLoading(false))
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
   }, [slug])
 
   async function submit() {

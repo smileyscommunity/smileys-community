@@ -78,11 +78,19 @@ export default function AdminCampaignDetailPage() {
   useEffect(load, [id])
 
   async function act(donationId: string, action: 'approve' | 'decline', body?: Record<string, unknown>) {
-    const res = await fetch(`/app/api/admin/campaigns/${id}/donations`, {
-      method: 'PATCH', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: donationId, action, ...(body ?? {}) }),
-    })
+    // Caught here so DonationRow's awaited publish can't reject and strand
+    // its "Publishing…" state on a dropped connection.
+    let res: Response
+    try {
+      res = await fetch(`/app/api/admin/campaigns/${id}/donations`, {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: donationId, action, ...(body ?? {}) }),
+      })
+    } catch {
+      toast.error('Network error — nothing was updated')
+      return
+    }
     const d = await res.json().catch(() => ({}))
     if (!res.ok) {
       toast.error(d.error ?? 'Could not update')
@@ -326,18 +334,25 @@ function EditPanel({ campaign, onSaved, onCancel }: {
       startsAt:    draft.startsAt || null,
       endsAt:      draft.endsAt   || null,
     }
-    const res = await fetch('/app/api/admin/campaigns', {
-      method: 'PATCH', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-    const d = await res.json().catch(() => ({}))
-    setSaving(false)
-    if (!res.ok) { toast.error(d.error ?? 'Save failed'); return }
-    toast.success('Saved')
-    // The PATCH response returns the campaign without _count + hasFixtures
-    // (the GET endpoint adds those). Preserve those from current state.
-    onSaved({ ...campaign, ...d.campaign })
+    // try/finally: a network error threw past setSaving(false) and left
+    // Save, Cancel and Delete all disabled until a reload.
+    try {
+      const res = await fetch('/app/api/admin/campaigns', {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) { toast.error(d.error ?? 'Save failed'); return }
+      toast.success('Saved')
+      // The PATCH response returns the campaign without _count + hasFixtures
+      // (the GET endpoint adds those). Preserve those from current state.
+      onSaved({ ...campaign, ...d.campaign })
+    } catch {
+      toast.error('Network error — nothing was saved')
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function destroy() {
@@ -346,16 +361,22 @@ function EditPanel({ campaign, onSaved, onCancel }: {
       return
     }
     setDeleting(true)
-    const res = await fetch('/app/api/admin/campaigns', {
-      method: 'DELETE', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: campaign.id }),
-    })
-    const d = await res.json().catch(() => ({}))
-    setDeleting(false)
-    if (!res.ok) { toast.error(d.error ?? 'Delete failed'); return }
-    toast.success(`Deleted "${campaign.name}"`)
-    router.push('/admin/campaigns')
+    // Same try/finally as save — "Deleting…" must not outlive the request.
+    try {
+      const res = await fetch('/app/api/admin/campaigns', {
+        method: 'DELETE', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: campaign.id }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) { toast.error(d.error ?? 'Delete failed'); return }
+      toast.success(`Deleted "${campaign.name}"`)
+      router.push('/admin/campaigns')
+    } catch {
+      toast.error('Network error — nothing was deleted')
+    } finally {
+      setDeleting(false)
+    }
   }
 
   return (

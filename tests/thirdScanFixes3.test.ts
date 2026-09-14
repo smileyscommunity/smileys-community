@@ -66,7 +66,9 @@ describe('20 busy flags recover', () => {
     expect(read(file)).toMatch(re)
   })
   it.each(['components/ClubMembers.tsx', 'components/ClubPastEvents.tsx', 'components/ClubReviews.tsx', 'components/admin/CupFixturesPanel.tsx'])('%s catches a failed load', (file) => {
-    expect(read(file)).toMatch(/\.catch\(\(\) => \{\}\)[^\n]*\n\s*\.finally\(/)
+    // scan5Batch29 (93c): the club lists now record the failure for an error
+    // state instead of swallowing it — still caught, still followed by finally.
+    expect(read(file)).toMatch(/\.catch\(\(\) => (?:\{\}|setLoadError\(true\))\)[^\n]*\n\s*\.finally\(/)
   })
 })
 

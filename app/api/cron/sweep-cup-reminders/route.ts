@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { sendPushToUser } from '@/lib/push'
 import { teamLabel } from '@/lib/cup-data'
 import { recordCronRun } from '@/lib/cronHealth'
+import { isCupFinishedNow } from '@/lib/cup'
 
 // Cup match-reminder sweeper. Fires every 5 minutes from system
 // crontab on the prod box; finds fixtures whose kickoff is ~30
@@ -47,6 +48,16 @@ async function runSweep() {
   // exactly once given a 5-min cron cadence.
   const lower   = new Date(now.getTime() + 25 * 60 * 1000)
   const upper   = new Date(now.getTime() + 35 * 60 * 1000)
+
+  // A finished cup (wrapped/archived, Final decided, last match over) sends
+  // nothing — "lock your pick" for a tournament that's over is noise, and a
+  // leftover or re-seeded fixture row must not revive the reminders.
+  if (await isCupFinishedNow(now)) {
+    return {
+      fixturesScanned: 0, fixturesPushed: 0, fixturesSkippedTbd: 0,
+      fixturesClaimMissed: 0, pushesSent: 0, cupFinished: true,
+    }
+  }
 
   const fixtures = await prisma.cupFixture.findMany({
     where: {
@@ -131,6 +142,7 @@ async function runSweep() {
     fixturesSkippedTbd: skipped.length,
     fixturesClaimMissed: claimMissed,
     pushesSent:       totalSent,
+    cupFinished:      false,
   }
 }
 

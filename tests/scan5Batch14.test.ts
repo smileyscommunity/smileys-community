@@ -47,6 +47,7 @@ import { getCityTz } from '@/lib/city'
 import { sendPushToUser } from '@/lib/push'
 import { announceSpotOpened } from '@/lib/spotOpened'
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
+import { claimOnce } from '@/lib/rateLimit'
 import { isNoShow, NO_SHOW_CANCELLATION_CUTOFF_HOURS } from '@/lib/noShowPolicy'
 
 const p = prisma as any
@@ -275,6 +276,9 @@ describe('57. checked in means not a no-show', () => {
 describe('58. one push per waitlister per opened spot', () => {
   it('the only push is the one createNotification sends', async () => {
     const { announceSpotOpened: realAnnounce } = await vi.importActual<typeof import('@/lib/spotOpened')>('@/lib/spotOpened')
+    // Batch 32 (item 97) throttles alerts on a per-member claim; this file's
+    // mock refuses every claim, so let both waitlisters' first alert through.
+    ;(claimOnce as any).mockResolvedValueOnce(true).mockResolvedValueOnce(true)
     p.event.findUnique.mockReset()
       .mockResolvedValueOnce({ title: 'Picnic', date: '2026-09-12', soldOut: false, limitedSpots: true, totalSpots: 20 })
       .mockResolvedValueOnce({ spotsLeft: 1 })

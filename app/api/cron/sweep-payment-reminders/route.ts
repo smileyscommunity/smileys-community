@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notify'
 import { recordCronRun } from '@/lib/cronHealth'
 import { citiesByToday } from '@/lib/city'
+import { backfillSeatPayments } from '@/lib/rsvpConfirmed'
+import { Attendance } from '@/lib/constants'
 
 // Payment-reminder sweeper for pay-in-advance events. Attendees of
 // Smileys-collected priced events starting within the next ~48h who
@@ -13,13 +15,19 @@ import { citiesByToday } from '@/lib/city'
 //
 // Three passes:
 //   1. BACKFILL — approved non-staff attendees with no live payment row
-//      (RSVP predated the payTo flip, or admin added them directly) get
-//      a pending row created, so the checklist / this sweeper / the
-//      payments overview all agree on who owes.
+//      (RSVP predated the payTo flip, admin added them directly, a voided
+//      row whose seat came back) get a pending row, through the same
+//      idempotent helper every seat path uses (lib/rsvpConfirmed), so the
+//      checklist / this sweeper / the payments overview agree on who owes.
 //   2. REMIND — pending rows with reminderSentAt NULL → notify + stamp.
 //   3. CLOSE — rows still pending 3+ days after their event auto-cancel
 //      with a 'never collected' log, so the ledger can't re-accumulate
 //      the phantom-pending pile that was hand-cleaned on 2026-07-08.
+//      Except a checked-in attendee's: see pass 3.
+//
+// This sweeper never touches a seat. A seat with no row at all is given one
+// and reminded (passes 1–2), not cancelled; a genuinely unpaid row is closed
+// on the ledger only, with its log, and the member keeps their history.
 //
 // Runs hourly via system crontab; see scripts/sweep-payment-reminders.sh.
 //
@@ -33,7 +41,6 @@ export const dynamic = 'force-dynamic'
 // constant-time (timingSafeEqual) instead of `!==`. See that file for
 // the rationale.
 import { checkCronAuth } from '@/lib/cronAuth'
-import { DEFAULT_CURRENCY } from '@/lib/data'
 
 async function runSweep() {
   // "Today, tomorrow, or the day after" is a claim about the event's own city.
@@ -56,13 +63,17 @@ async function runSweep() {
         cityId: { in: w.cityIds },
         date:   { gte: w.date, lte: w.cutoff },
       },
-      select: { id: true, title: true, date: true, price: true, currency: true, hostId: true },
+      select: { id: true, title: true, hostId: true },
     })),
   )).flat()
 
   let created = 0
   let reminded = 0
   for (const event of events) {
+    // Pass 1: backfill missing ledger rows so "unpaid" is a complete list.
+    // The helper skips staff and any seat that already has a live row.
+    created += await backfillSeatPayments(event.id)
+
     const [attendees, cohosts] = await Promise.all([
       prisma.eventAttendee.findMany({
         where:  { eventId: event.id, status: 'approved' },
@@ -73,25 +84,6 @@ async function runSweep() {
     const staff  = new Set([event.hostId, ...cohosts.map(c => c.userId)])
     const payers = attendees.map(a => a.userId).filter(id => !staff.has(id))
     if (!payers.length) continue
-
-    // Pass 1: backfill missing ledger rows so "unpaid" is a complete list.
-    const live = await prisma.payment.findMany({
-      where:  { eventId: event.id, userId: { in: payers }, status: { in: ['pending', 'paid'] } },
-      select: { id: true, userId: true, status: true, reminderSentAt: true },
-    })
-    const hasRow = new Set(live.map(p => p.userId))
-    const missing = payers.filter(id => !hasRow.has(id))
-    if (missing.length) {
-      await prisma.payment.createMany({
-        data: missing.map(userId => ({
-          userId, eventId: event.id,
-          amount: Math.max(0, Number(event.price) || 0),
-          currency: event.currency ?? DEFAULT_CURRENCY,
-          status: 'pending',
-        })),
-      })
-      created += missing.length
-    }
 
     // Pass 2: one nudge per unpaid attendee, then stamp so the next tick
     // (and the next event within the window) skips them.
@@ -133,28 +125,54 @@ async function runSweep() {
         event: { date: { lt: date }, cityId: { in: cityIds } },
       })),
     },
-    select: { id: true, event: { select: { title: true } } },
+    select: { id: true, userId: true, eventId: true, event: { select: { title: true } } },
   })
-  if (stale.length) {
-    await prisma.$transaction([
-      prisma.payment.updateMany({
-        where: { id: { in: stale.map(p => p.id) } },
+
+  // Someone checked in at the door came. "Never collected" is not what
+  // happened to them — the money changed hands unrecorded, or is still owed
+  // by someone who was in the room — and closing their row wrote exactly that
+  // (4 checked-in attendees in the 2026-09 audit). Their row stays pending
+  // for an admin to mark paid or cancel by hand.
+  const attended = stale.length
+    ? await prisma.eventAttendee.findMany({
+        where: {
+          eventId: { in: [...new Set(stale.map(p => p.eventId))] },
+          userId:  { in: [...new Set(stale.map(p => p.userId))] },
+          OR:      [{ checkedIn: true }, { attendance: Attendance.Attended }],
+        },
+        select: { userId: true, eventId: true },
+      })
+    : []
+  const came = new Set(attended.map(a => `${a.eventId}:${a.userId}`))
+
+  let autoCancelled = 0
+  let heldCheckedIn = 0
+  for (const p of stale) {
+    if (came.has(`${p.eventId}:${p.userId}`)) { heldCheckedIn++; continue }
+    // Guarded on the status just read: a row an admin marks paid between the
+    // read and this write stays paid, and gets no "auto-cancelled" log.
+    autoCancelled += await prisma.$transaction(async tx => {
+      const { count } = await tx.payment.updateMany({
+        where: { id: p.id, status: 'pending' },
         data:  { status: 'cancelled' },
-      }),
-      prisma.paymentLog.createMany({
-        data: stale.map(p => ({
-          paymentId: p.id, adminId: 'system', adminName: 'Payment sweeper',
-          fromStatus: 'pending', toStatus: 'cancelled',
-          note: `Auto-cancelled: not collected within 3 days after "${p.event.title}"`,
-        })),
-      }),
-    ])
+      })
+      if (count) {
+        await tx.paymentLog.create({
+          data: {
+            paymentId: p.id, adminId: 'system', adminName: 'Payment sweeper',
+            fromStatus: 'pending', toStatus: 'cancelled',
+            note: `Auto-cancelled: not collected within 3 days after "${p.event.title}"`,
+          },
+        })
+      }
+      return count
+    })
   }
 
-  if (created || reminded || stale.length) {
-    console.log(`[cron sweep-payment-reminders] backfilled ${created} rows, reminded ${reminded} attendees, auto-cancelled ${stale.length} stale pendings`)
+  if (created || reminded || autoCancelled || heldCheckedIn) {
+    console.log(`[cron sweep-payment-reminders] backfilled ${created} rows, reminded ${reminded} attendees, auto-cancelled ${autoCancelled} stale pendings, held ${heldCheckedIn} for checked-in attendees`)
   }
-  return { events: events.length, backfilled: created, reminded, autoCancelled: stale.length }
+  return { events: events.length, backfilled: created, reminded, autoCancelled, heldCheckedIn }
 }
 
 export async function POST(req: NextRequest) {

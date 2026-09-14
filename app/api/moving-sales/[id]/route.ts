@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { canActInCity } from '@/lib/access'
 import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
+import { getCityTz } from '@/lib/city'
+import { todayInTz } from '@/lib/cityTime'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -17,7 +19,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { id } = await params
-  const sale = await prisma.movingSale.findUnique({ where: { id }, select: { userId: true, cityId: true } })
+  const sale = await prisma.movingSale.findUnique({ where: { id }, select: { userId: true, cityId: true, leavingOn: true } })
   if (!sale) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (sale.userId !== session.id && !canActInCity(session, sale.cityId)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -43,6 +45,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (leavingOn !== undefined) {
       if (typeof leavingOn !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(leavingOn)) {
         return NextResponse.json({ error: 'When are you leaving?' }, { status: 400 })
+      }
+      // Same floor as POST, in the sale's own city's calendar. Only a CHANGED
+      // date is held to it: the admin edit form resends the stored date, and
+      // fixing a typo on a sale whose day has passed must still save.
+      if (leavingOn !== sale.leavingOn && leavingOn < todayInTz(await getCityTz(sale.cityId))) {
+        return NextResponse.json({ error: 'Leaving date is in the past' }, { status: 400 })
       }
       data.leavingOn = leavingOn
     }

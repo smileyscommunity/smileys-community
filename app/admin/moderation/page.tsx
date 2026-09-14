@@ -14,6 +14,7 @@ import { phonePlaceholder, dialCode } from '@/lib/country'
 import { formatDay } from '@/lib/cityTime'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import { loadFailure } from '@/lib/admin/useAdminLoad'
+import { notifyModerationChanged } from '@/lib/modCounts'
 
 interface Report {
   id: string
@@ -308,6 +309,7 @@ function ModerationPageInner() {
         setSelected(null)
         setReviewNote('')
         setBanReason('')
+        notifyModerationChanged()  // topbar report badge refetches
       } else {
         // A failed moderation action used to un-busy the button with no
         // signal — the operator thought the ban/warn landed while the report
@@ -418,7 +420,7 @@ function ModerationPageInner() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status }),
     })
-    if (res.ok) setQueue(prev => prev.map(e => e.id === id ? { ...e, status } : e))
+    if (res.ok) { setQueue(prev => prev.map(e => e.id === id ? { ...e, status } : e)); notifyModerationChanged() }
     else await toastApiError(res, 'Could not update event')
   }
 

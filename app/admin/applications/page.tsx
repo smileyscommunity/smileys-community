@@ -10,6 +10,7 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { resolveImageUrl } from '@/lib/data'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
+import { notifyModerationChanged } from '@/lib/modCounts'
 
 interface Application {
   id: string; fullName: string; email: string; phone: string | null
@@ -433,6 +434,7 @@ function AdminApplicationsPageInner() {
       setApps(prev => prev.map(a => a.id === id ? { ...a, status: 'hold', reviewNote } : a))
       setSelected(null)
       toast.success('Info requested — applicant emailed, moved to Hold')
+      notifyModerationChanged()  // topbar application badge refetches
     } else {
       const d = await res.json().catch(() => ({}))
       toast.error(d.error ?? 'Could not request info')
@@ -457,6 +459,7 @@ function AdminApplicationsPageInner() {
       setApps(prev => prev.map(a => a.id === id ? { ...a, status, reviewNote } : a))
       setSelected(null)
       toast.success(status === 'approved' ? 'Approved ✓' : 'Rejected')
+      notifyModerationChanged()
     } else {
       const d = await res.json().catch(() => ({}))
       toast.error(d.error ?? 'Failed to update application')
@@ -526,6 +529,7 @@ function AdminApplicationsPageInner() {
         toast.success(status === 'approved'
           ? 'Approved · standard welcome email sent (no personal note)'
           : 'Rejected · standard email sent (no personal note)')
+        notifyModerationChanged()
       } else {
         const d = await res.json().catch(() => ({}))
         toast.error(d.error ?? `Failed to ${status === 'approved' ? 'approve' : 'reject'}`)
@@ -572,7 +576,7 @@ function AdminApplicationsPageInner() {
       })
     }
     setBulkSaving(false)
-    if (ok.size) toast.success(`${verb}d ${ok.size}`)
+    if (ok.size) { toast.success(`${verb}d ${ok.size}`); notifyModerationChanged() }
     if (fail)    toast.error(`${fail} failed`)
   }
 

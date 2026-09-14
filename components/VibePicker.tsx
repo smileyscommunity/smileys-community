@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 interface Tag {
   id: string
@@ -83,12 +83,26 @@ export default function VibePicker({ selectedIds, onChange }: Props) {
   const [groups,      setGroups]      = useState<Group[]>([])
   const [lastAdded,   setLastAdded]   = useState<string | null>(null)
   const [dismissed,   setDismissed]   = useState<Set<string>>(new Set())
+  const [status,      setStatus]      = useState<'loading' | 'error' | 'ready'>('loading')
 
-  useEffect(() => {
-    fetch('/app/api/tags').then(r => r.json()).then(d => {
-      if (Array.isArray(d)) setGroups(d)
-    })
+  // An empty `groups` used to BE the loading state, so a 500 ({ error }), a
+  // dropped connection or a rejected promise left "Loading vibes…" on screen
+  // forever with no way out. Status is now explicit and always settles.
+  const loadTags = useCallback(async () => {
+    setStatus('loading')
+    let ok = false
+    try {
+      const res = await fetch('/app/api/tags')
+      const d = res.ok ? await res.json() : null
+      if (Array.isArray(d)) { setGroups(d); ok = true }
+    } catch {
+      // handled below — ok stays false
+    } finally {
+      setStatus(ok ? 'ready' : 'error')
+    }
   }, [])
+
+  useEffect(() => { loadTags() }, [loadTags])
 
   // flat lookup: name → Tag
   const tagByName: Record<string, Tag> = {}
@@ -124,7 +138,13 @@ export default function VibePicker({ selectedIds, onChange }: Props) {
         .filter((t): t is Tag => !!t && !selectedIds.includes(t.id))
     : []
 
-  if (!groups.length) return <div className="text-xs text-gray-400">Loading vibes…</div>
+  if (status === 'loading') return <div className="text-xs text-gray-400">Loading vibes…</div>
+  if (status === 'error') return (
+    <div role="alert" className="flex items-center gap-2 text-xs text-red-600">
+      <span>Couldn&apos;t load vibes.</span>
+      <button type="button" onClick={loadTags} className="font-semibold underline hover:text-red-700">Try again</button>
+    </div>
+  )
 
   return (
     <div className="space-y-3">

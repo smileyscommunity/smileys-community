@@ -37,6 +37,44 @@ export function isLiveCampaign(campaign: { slug: string; status: string } | null
 // component: cup.ts imports prisma, and a client import of it drags the
 // Postgres driver into the browser bundle (the build fails resolving fs/tls).
 
+// Longest a match can still be running after its kickoff: 90 minutes, half
+// time, stoppage, extra time and penalties, with room to spare.
+export const CUP_MATCH_WINDOW_MS = 3 * 60 * 60 * 1000
+
+// Whether the cup is over — for play and reminder purposes, NOT the delete
+// guard above (isLiveCampaign keeps the cup row protected forever). The page
+// went on inviting people to pick and to switch on match reminders weeks
+// after the Final. Any one signal is enough: an admin wrapped/archived the
+// campaign, the Final has a result, or the last match's window has closed
+// (so an unrecorded Final still counts as over).
+export function isCupFinished(opts: {
+  status?:        string | null
+  finalDecided?:  boolean
+  lastKickoffAt?: Date | string | number | null
+  now?:           Date
+}): boolean {
+  if (opts.status === 'wrapped' || opts.status === 'archived') return true
+  if (opts.finalDecided) return true
+  if (opts.lastKickoffAt == null) return false
+  const last = typeof opts.lastKickoffAt === 'object' ? opts.lastKickoffAt.getTime() : new Date(opts.lastKickoffAt).getTime()
+  if (!Number.isFinite(last)) return false
+  return (opts.now ?? new Date()).getTime() >= last + CUP_MATCH_WINDOW_MS
+}
+
+// Why a match-reminder sign-up is refused, or null when it may go ahead.
+// Shared by POST /api/cup/reminders so the copy and the rule live together.
+export const CUP_REMINDERS_CLOSED = 'World Cup 2026 has finished — match reminders are closed.'
+export const CUP_MATCH_KICKED_OFF = 'That match has already kicked off — reminders are closed for it.'
+export function cupReminderRefusal(opts: {
+  finished:   boolean
+  kickoffAt?: Date | string | number | null
+  now?:       Date
+}): string | null {
+  if (opts.finished) return CUP_REMINDERS_CLOSED
+  if (opts.kickoffAt != null && isFixtureLocked(opts.kickoffAt, opts.now)) return CUP_MATCH_KICKED_OFF
+  return null
+}
+
 export type CupRound = 'group' | 'r32' | 'r16' | 'qf' | 'sf' | 'final'
 
 // Scoring per round. winnerTeam matches pickedTeam → these points

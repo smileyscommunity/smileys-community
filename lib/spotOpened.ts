@@ -3,6 +3,31 @@ import { createNotification } from '@/lib/notify'
 import { sendSpotOpenedEmail, recordEmailFailure } from '@/lib/email'
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 import { hasQuotaRoomFor, quotaEventSelect } from '@/lib/eventQuota'
+import { claimOnce, rateLimit, releaseClaim } from '@/lib/rateLimit'
+
+// Per-member throttle. Every join/cancel cycle on a busy event re-ran the
+// fan-out, and one waitlister got 11 identical "claim it!" alerts in a day.
+// The first alert still goes out immediately; repeats for the same event
+// wait out the window, and no member gets more than the cap per day.
+export const SPOT_ALERT_EVENT_WINDOW_MS = 6 * 3_600_000
+export const SPOT_ALERT_DAILY_CAP       = 5
+const DAY_MS = 86_400_000
+
+async function mayAlert(userId: string, eventId: string): Promise<boolean> {
+  const eventKey = `spot-opened:${userId}:${eventId}`
+  try {
+    if (!await claimOnce(eventKey, SPOT_ALERT_EVENT_WINDOW_MS)) return false
+    if (await rateLimit(`spot-opened-daily:${userId}`, SPOT_ALERT_DAILY_CAP, DAY_MS)) return true
+    // Capped: hand the event claim back, or an alert that never went out
+    // would silence this event for the member for the whole window.
+    await releaseClaim(eventKey)
+    return false
+  } catch (e) {
+    // Fail open: a missed open seat costs the member more than one extra alert.
+    console.error('[spot-opened] throttle check failed, alerting anyway', { userId, eventId, err: String(e) })
+    return true
+  }
+}
 
 /**
  * A seat just came free: tell everyone on the waitlist and let the first
@@ -50,7 +75,8 @@ export async function announceSpotOpened(eventId: string): Promise<number> {
     : []
   const users: typeof candidates = []
   for (const u of candidates) {
-    if ((await hasQuotaRoomFor(eventId, event, u)).ok) users.push(u)
+    // Quota first, so a closed side never spends the member's throttle.
+    if ((await hasQuotaRoomFor(eventId, event, u)).ok && await mayAlert(u.id, eventId)) users.push(u)
   }
 
   for (const u of users) {

@@ -20,14 +20,28 @@ interface PastEvent {
 export default function ClubPastEvents({ slug }: { slug: string }) {
   const [events, setEvents]   = useState<PastEvent[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
 
+  // A non-OK response has no `events`, so it rendered "No past events yet."
   useEffect(() => {
+    setLoading(true); setLoadError(false)
     fetch(`/app/api/clubs/${slug}/past-events`)
-      .then(r => r.json())
+      .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
       .then(d => setEvents(d.events ?? []))
-      .catch(() => {})   // a 502 is not an empty list, and never an unhandled rejection
+      .catch(() => setLoadError(true))   // never an unhandled rejection
       .finally(() => setLoading(false))
-  }, [slug])
+  }, [slug, reloadKey])
+
+  if (loadError) {
+    return (
+      <div role="alert" className="bg-white rounded-2xl shadow-card p-12 text-center">
+        <p className="text-gray-600 mb-3">Couldn&apos;t load past events.</p>
+        <button type="button" onClick={() => setReloadKey(k => k + 1)}
+          className="text-sm font-semibold text-amber-600 hover:underline">Try again</button>
+      </div>
+    )
+  }
 
   if (loading) {
     return (

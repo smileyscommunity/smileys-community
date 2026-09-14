@@ -11,7 +11,8 @@ import { matchesTimeFilter, statusBadge, type TimeFilter } from '@/lib/hangoutTi
 import { HANGOUT_ACTIVITIES, ACTIVITY_META, HANGOUT_CAPACITIES } from '@/lib/hangoutActivities'
 import posthog from 'posthog-js'
 import { toast } from 'sonner'
-import { downscaleImage, ImageUploadError } from '@/lib/image-resize'
+import { ImageUploadError } from '@/lib/image-resize'
+import { prepareImageUpload } from '@/lib/imageUploadGuard'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { DEFAULT_TZ, dayInTz, todayInTz, atHourInTz, wallClockInTz, fromWallClockInTz } from '@/lib/cityTime'
 
@@ -321,8 +322,9 @@ export default function HangoutsPage() {
     try {
       // Inside the try: downscaleImage throws for iCloud-only and unreadable
       // photos, and outside it the spinner never cleared — Post stayed
-      // disabled until a reload.
-      const upload = await downscaleImage(file)
+      // disabled until a reload. prepareImageUpload = downscale with the size
+      // limit applied to the shrunk photo, not the raw camera file.
+      const upload = await prepareImageUpload(file)
       const fd = new FormData()
       fd.append('file', upload)
       fd.append('folder', 'hangouts')
@@ -1261,15 +1263,18 @@ function HangoutCard({ h, currentUser, onCancel, onMutated, neighborhoods }: {
     if (!file) return
     setEditUploading(true)
     try {
-      const upload = await downscaleImage(file)
+      // Same guard as the composer: size limit on the shrunk photo, and the
+      // ImageUploadError message (iCloud-only, too large) shown verbatim
+      // instead of a bare "Upload failed".
+      const upload = await prepareImageUpload(file)
       const fd = new FormData()
       fd.append('file', upload)
       fd.append('folder', 'hangouts')
       const r = await fetch('/app/api/upload', { method: 'POST', credentials: 'include', body: fd }).then(res => res.json())
       if (r?.url) setEPhoto(r.url)
       else toast.error(r?.error ?? 'Upload failed')
-    } catch {
-      toast.error('Upload failed')
+    } catch (err) {
+      toast.error(err instanceof ImageUploadError ? err.message : 'Upload failed')
     } finally {
       setEditUploading(false)
       e.target.value = ''

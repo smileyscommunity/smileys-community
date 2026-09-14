@@ -23,7 +23,8 @@ describe('photo attach never strands the spinner', () => {
   ])('%s downscales inside the try and reports ImageUploadError', (file) => {
     const src = read(file)
     // every downscaleImage call sits after a `try {` and before its catch
-    for (const m of src.matchAll(/await downscaleImage\(file\)/g)) {
+    // (prepareImageUpload wraps it with the size guards — scan5Batch29 93a)
+    for (const m of src.matchAll(/await (?:downscaleImage|prepareImageUpload)\(file\)/g)) {
       const before = src.slice(0, m.index)
       expect(before.lastIndexOf('try {')).toBeGreaterThan(before.lastIndexOf('setUploading(true)'))
     }

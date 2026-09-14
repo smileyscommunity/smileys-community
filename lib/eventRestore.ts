@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 import { createNotification } from '@/lib/notify'
+import { backfillSeatPayments } from '@/lib/rsvpConfirmed'
 
 // Cancelling an event releases every seat and pending request as removed by
 // staff, stamped at the event's own cancelledAt (app/api/admin/events/[id]).
@@ -49,6 +50,15 @@ export async function restoreSeatsReleasedByCancel(ev: RestorableEvent): Promise
     data:  { status, cancelledAt: null, cancelledBy: null },
   })
   await recomputeSpotsLeft(ev.id, ev.totalSpots)
+
+  // A seat that comes back approved owes what it owed before. The cancel left
+  // the ledger alone, but a row voided in the meantime (or never written) would
+  // otherwise bring the seat back free. Idempotent; a failure here must not
+  // cost members the "back on" notice below.
+  if (status === 'approved') {
+    await backfillSeatPayments(ev.id).catch(err =>
+      console.error('[eventRestore] seat payment backfill failed', { eventId: ev.id, err: String(err) }))
+  }
 
   for (const r of rows) {
     createNotification(r.userId, 'event_updated',

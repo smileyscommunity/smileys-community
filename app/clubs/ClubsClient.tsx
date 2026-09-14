@@ -211,6 +211,8 @@ function AppClubsPageInner() {
   const [clubs,        setClubs]       = useState<Club[]>([])
   const [memberships,  setMemberships] = useState<Membership[]>([])
   const [loading,      setLoading]     = useState(true)
+  const [loadError,    setLoadError]   = useState(false)
+  const [reloadKey,    setReloadKey]   = useState(0)
   const [toggling,     setToggling]    = useState<string | null>(null)
   // tab + activeCategory mirror to/from the URL so refresh + back-button
   // + sharing a filtered URL all work. Same pattern the events page uses.
@@ -249,18 +251,22 @@ function AppClubsPageInner() {
   // cycle. Each fetch fails open with `null` so a flaky CMS endpoint
   // doesn't take down the clubs grid.
   useEffect(() => {
+    setLoading(true); setLoadError(false)
     Promise.all([
       fetch('/app/api/content').then(r => r.json()).catch(() => null),
-      fetch(`/app/api/clubs${cityQs}`, { credentials: 'include' }).then(r => r.json()).catch(() => null),
+      // The clubs fetch alone must not fail open: a 500 used to become []
+      // and render "No clubs found — Check back soon." as if the city had none.
+      fetch(`/app/api/clubs${cityQs}`, { credentials: 'include' }).then(r => r.ok ? r.json() : null).catch(() => null),
       fetch('/app/api/clubs/memberships', { credentials: 'include' }).then(r => r.json()).catch(() => null),
       fetch(`/app/api/city/current${cityQs}`, { credentials: 'include' }).then(r => r.json()).catch(() => null),
     ]).then(([content, clubData, memberData, cityData]) => {
       if (content?.clubs) setHero(h => ({ ...h, ...content.clubs }))
       setClubs(Array.isArray(clubData) ? clubData : [])
+      setLoadError(!Array.isArray(clubData))
       setMemberships(Array.isArray(memberData) ? memberData : [])
       if (cityData?.slug) setViewCity(cityData)
     }).finally(() => setLoading(false))
-  }, [cityQs])
+  }, [cityQs, reloadKey])
 
   // O(1) clubId → membership lookup. Was memberships.find() called inside
   // a getMembership() function that ran once per card per render — for
@@ -575,6 +581,15 @@ function AppClubsPageInner() {
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {Array.from({ length: 8 }).map((_, i) => <ClubCardSkeleton key={i} />)}
+          </div>
+        ) : loadError ? (
+          <div role="alert" className="text-center py-20 max-w-xs mx-auto">
+            <h2 className="text-lg font-bold text-gray-900 mb-2">Couldn&apos;t load clubs</h2>
+            <p className="text-sm text-gray-600 mb-6">Something went wrong on our side — please try again.</p>
+            <button type="button" onClick={() => setReloadKey(k => k + 1)}
+              className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors">
+              Try again
+            </button>
           </div>
         ) : displayClubs.length === 0 ? (
           <div className="text-center py-20 max-w-xs mx-auto">

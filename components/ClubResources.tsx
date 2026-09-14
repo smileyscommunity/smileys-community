@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { toast } from 'sonner'
+import { toastApiError } from '@/lib/apiError'
 
 interface Resource {
   id: string; clubId: string; title: string; url: string; emoji: string; order: number; createdAt: string | Date
@@ -45,9 +47,16 @@ export default function ClubResources({ slug, initialResources, canEdit, dark }:
     }
   }
 
+  // A refused delete (403 once a host loses the role, 500, offline) used to
+  // leave the row in place with no word why — it read as a dead button.
   async function removeResource(id: string) {
-    const res = await fetch(`/app/api/clubs/${slug}/resources/${id}`, { method: 'DELETE', credentials: 'include' })
-    if (res.ok) setResources(prev => prev.filter(r => r.id !== id))
+    try {
+      const res = await fetch(`/app/api/clubs/${slug}/resources/${id}`, { method: 'DELETE', credentials: 'include' })
+      if (!res.ok) { await toastApiError(res, 'Could not remove the resource'); return }
+      setResources(prev => prev.filter(r => r.id !== id))
+    } catch {
+      toast.error('Could not remove the resource — check your connection')
+    }
   }
 
   if (!canEdit && resources.length === 0) return null
@@ -74,8 +83,11 @@ export default function ClubResources({ slug, initialResources, canEdit, dark }:
                 <span className="truncate">{r.title}</span>
               </a>
               {canEdit && (
-                <button onClick={() => removeResource(r.id)}
-                  className={`${del_} text-lg leading-none shrink-0 transition-colors`}>×</button>
+                // Always visible (no hover gate) with a finger-sized target
+                // on touch screens; the label says which resource goes.
+                <button type="button" onClick={() => removeResource(r.id)}
+                  aria-label={`Remove ${r.title}`} title="Remove"
+                  className={`${del_} text-lg leading-none shrink-0 transition-colors w-8 h-8 sm:w-6 sm:h-6 flex items-center justify-center rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400`}>×</button>
               )}
             </li>
           ))}

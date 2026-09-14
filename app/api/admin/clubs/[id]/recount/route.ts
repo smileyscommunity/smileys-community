@@ -2,6 +2,7 @@ import { canManageClubs } from '@/lib/access'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { COUNTED_CLUB_MEMBERSHIP_WHERE } from '@/lib/clubMemberCount'
 
 // POST /api/admin/clubs/[id]/recount
 //
@@ -30,8 +31,10 @@ export async function POST(_: NextRequest, { params }: Params) {
     const club = await prisma.club.findUnique({ where: { id }, select: { memberCount: true } })
     if (!club) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
+    // Same definition as the nightly sweep and the live paths — banned
+    // members' rows are kept but not counted (lib/clubMemberCount).
     const trueCount = await prisma.clubMembership.count({
-      where: { clubId: id, status: 'approved' },
+      where: { clubId: id, ...COUNTED_CLUB_MEMBERSHIP_WHERE },
     })
 
     const drift = trueCount - club.memberCount

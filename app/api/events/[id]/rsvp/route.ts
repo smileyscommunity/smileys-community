@@ -12,7 +12,7 @@ import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 import { trackServer } from '@/lib/posthog-server'
 import { activateAttendee, cancelAttendeeOp, withdrawPendingOp, isActiveAttendee } from '@/lib/attendance'
 import { checkRsvpAllowed, gateErrorBody, getRsvpGate, recordYellowAcknowledgement } from '@/lib/noShow'
-import { DEFAULT_CURRENCY, formatMoney } from '@/lib/data'
+import { formatMoney } from '@/lib/data'
 import { todayInCity, getCityTz } from '@/lib/city'
 import { eventStartsAt, eventEndsAt, type EventClock } from '@/lib/eventTime'
 
@@ -316,23 +316,13 @@ export async function POST(req: NextRequest, { params }: Params) {
       // attendee row committed with no payment record — member appears
       // attending but the paid-event commitment is missing.
       //
-      // P6 fix: clamp amount non-negative as defense in depth against
-      // a misconfigured event.price. The event editor should reject
-      // negative prices upstream, but we don't want a misconfig to
-      // turn into a credit-to-the-member when admin marks the row
-      // paid downstream.
-      const safeAmount = Math.max(0, Number(event.price) || 0)
-      // Ledger rows only exist for money that actually flows through us —
-      // venue-paid events (payTo='venue') otherwise pile up phantom
-      // pendings that nobody ever reconciles.
-      const weCollect = event.payTo === 'smileys'
+      // The row is written at request time through the shared helper
+      // (amount clamp, venue-paid guard, and no second live row for a
+      // member re-requesting while an earlier one is still paid). Approval
+      // keeps it — or writes it if it has gone since.
       await prisma.$transaction(async (tx) => {
         await activateAttendee(tx, { userId: session.id, eventId, status: 'pending', stealth })
-        if (safeAmount > 0 && weCollect) {
-          await tx.payment.create({
-            data: { userId: session.id, eventId, amount: safeAmount, currency: event.currency ?? DEFAULT_CURRENCY, status: 'pending' },
-          })
-        }
+        await createSeatPayment(tx, eventId, event, session.id)
       })
       createNotification(session.id, 'rsvp_pending', 'RSVP submitted ⏳',
         `Your request to join "${event.title}" is waiting on the host. You'll be notified once it's reviewed.`,

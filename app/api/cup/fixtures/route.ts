@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { LIVE_CUP_SLUG } from '@/lib/cup-data'
 
 // GET /api/cup/fixtures
 //
@@ -55,7 +56,13 @@ export async function GET() {
     }
   }
 
+  // The campaign's status rides along so the page can tell a wrapped cup
+  // (isCupFinished) and swap its play CTAs and reminder strip for the final
+  // standings — the fixtures alone can't show an admin's "wrapped".
+  const campaign = await prisma.campaign.findUnique({ where: { slug: LIVE_CUP_SLUG }, select: { status: true } })
+
   return NextResponse.json({
+    campaignStatus: campaign?.status ?? null,
     fixtures: fixtures.map(f => ({
       ...f,
       locked:   f.kickoffAt.getTime() <= now.getTime(),

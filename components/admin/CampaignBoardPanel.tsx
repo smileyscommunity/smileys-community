@@ -38,7 +38,7 @@ export default function CampaignBoardPanel({ campaignId }: { campaignId: string 
     ]).then(([s, p]) => {
       if (s?.sponsors) setSponsors(s.sponsors)
       if (p?.prizes)   setPrizes(p.prizes)
-    })
+    }).catch(() => toast.error('Could not load sponsors and prizes — check your connection'))
   }, [campaignId])
   useEffect(load, [load])
 
@@ -110,16 +110,23 @@ function SponsorRow({ s, onChanged }: { s: AdminSponsor; onChanged: () => void }
   async function destroy() {
     if (!(await confirmToast(`Delete sponsor "${s.name}"? Prizes tied to this sponsor lose their attribution.`))) return
     setBusy(true)
-    const res = await fetch('/app/api/admin/cup/sponsors', {
-      method: 'DELETE', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: s.id }),
-    })
-    setBusy(false)
-    // Live-campaign deletes are admin + step-up only; show the reason.
-    if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d.error ?? 'Delete failed'); return }
-    toast.success(`Deleted ${s.name}`)
-    onChanged()
+    // try/finally: a dropped connection threw before the busy reset and left
+    // this row's buttons disabled until a reload.
+    try {
+      const res = await fetch('/app/api/admin/cup/sponsors', {
+        method: 'DELETE', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: s.id }),
+      })
+      // Live-campaign deletes are admin + step-up only; show the reason.
+      if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d.error ?? 'Delete failed'); return }
+      toast.success(`Deleted ${s.name}`)
+      onChanged()
+    } catch {
+      toast.error('Network error — nothing was deleted')
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -200,17 +207,23 @@ function SponsorForm({ sponsor, campaignId, onSaved, onCancel }: {
     } else if (campaignId) {
       body.campaignId = campaignId
     }
-    const res = await fetch('/app/api/admin/cup/sponsors', {
-      method: isEdit ? 'PATCH' : 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-    const d = await res.json().catch(() => ({}))
-    setBusy(false)
-    if (!res.ok) { toast.error(d.error ?? 'Save failed'); return }
-    toast.success(isEdit ? 'Updated' : 'Created')
-    onSaved()
+    // try/finally so a network error can't leave the form stuck on Saving….
+    try {
+      const res = await fetch('/app/api/admin/cup/sponsors', {
+        method: isEdit ? 'PATCH' : 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) { toast.error(d.error ?? 'Save failed'); return }
+      toast.success(isEdit ? 'Updated' : 'Created')
+      onSaved()
+    } catch {
+      toast.error('Network error — nothing was saved')
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -299,30 +312,41 @@ function PrizeRow({ p, sponsors, onChanged }: {
   async function destroy() {
     if (!(await confirmToast(`Delete prize "${p.title}"?`))) return
     setBusy(true)
-    const res = await fetch('/app/api/admin/cup/prizes', {
-      method: 'DELETE', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: p.id }),
-    })
-    setBusy(false)
-    // Live-campaign deletes are admin + step-up only; show the reason.
-    if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d.error ?? 'Delete failed'); return }
-    toast.success(`Deleted ${p.title}`)
-    onChanged()
+    // try/finally: see SponsorRow.destroy — a network error stranded busy.
+    try {
+      const res = await fetch('/app/api/admin/cup/prizes', {
+        method: 'DELETE', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: p.id }),
+      })
+      // Live-campaign deletes are admin + step-up only; show the reason.
+      if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d.error ?? 'Delete failed'); return }
+      toast.success(`Deleted ${p.title}`)
+      onChanged()
+    } catch {
+      toast.error('Network error — nothing was deleted')
+    } finally {
+      setBusy(false)
+    }
   }
 
   async function unaward() {
     if (!(await confirmToast(`Remove the award from "${p.title}"? The prize will go back to active.`))) return
     setBusy(true)
-    const res = await fetch('/app/api/admin/cup/prizes', {
-      method: 'PATCH', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: p.id, awardedToUserId: null, status: 'active' }),
-    })
-    setBusy(false)
-    if (!res.ok) { toast.error('Update failed'); return }
-    toast.success('Award removed')
-    onChanged()
+    try {
+      const res = await fetch('/app/api/admin/cup/prizes', {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: p.id, awardedToUserId: null, status: 'active' }),
+      })
+      if (!res.ok) { toast.error('Update failed'); return }
+      toast.success('Award removed')
+      onChanged()
+    } catch {
+      toast.error('Network error — the award was not removed')
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -411,17 +435,23 @@ function PrizeForm({ prize, sponsors, campaignId, onSaved, onCancel }: {
     } else if (campaignId) {
       body.campaignId = campaignId
     }
-    const res = await fetch('/app/api/admin/cup/prizes', {
-      method: isEdit ? 'PATCH' : 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-    const d = await res.json().catch(() => ({}))
-    setBusy(false)
-    if (!res.ok) { toast.error(d.error ?? 'Save failed'); return }
-    toast.success(isEdit ? 'Updated' : 'Created')
-    onSaved()
+    // try/finally so a network error can't leave the form stuck on Saving….
+    try {
+      const res = await fetch('/app/api/admin/cup/prizes', {
+        method: isEdit ? 'PATCH' : 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) { toast.error(d.error ?? 'Save failed'); return }
+      toast.success(isEdit ? 'Updated' : 'Created')
+      onSaved()
+    } catch {
+      toast.error('Network error — nothing was saved')
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -479,13 +509,16 @@ function AwardForm({ prize, onSaved, onCancel }: {
   useEffect(() => {
     if (!query.trim()) { setResults([]); return }
     const t = setTimeout(async () => {
-      const res = await fetch(`/app/api/admin/users?search=${encodeURIComponent(query.trim())}&take=10`, { credentials: 'include' })
-      if (!res.ok) return
-      const d = await res.json()
-      // Different versions of /api/admin/users may key this
-      // differently; accept either shape.
-      const list = Array.isArray(d?.users) ? d.users : Array.isArray(d) ? d : []
-      setResults(list.map((u: { id: string; name: string; email?: string }) => ({ id: u.id, name: u.name, email: u.email })))
+      // A dropped search is just no results — never an unhandled rejection.
+      try {
+        const res = await fetch(`/app/api/admin/users?search=${encodeURIComponent(query.trim())}&take=10`, { credentials: 'include' })
+        if (!res.ok) return
+        const d = await res.json()
+        // Different versions of /api/admin/users may key this
+        // differently; accept either shape.
+        const list = Array.isArray(d?.users) ? d.users : Array.isArray(d) ? d : []
+        setResults(list.map((u: { id: string; name: string; email?: string }) => ({ id: u.id, name: u.name, email: u.email })))
+      } catch { /* next keystroke retries */ }
     }, 250)
     return () => clearTimeout(t)
   }, [query])
@@ -493,15 +526,21 @@ function AwardForm({ prize, onSaved, onCancel }: {
   async function award(userId: string, userName: string) {
     if (!(await confirmToast(`Award "${prize.title}" to ${userName}?`))) return
     setBusy(true)
-    const res = await fetch('/app/api/admin/cup/prizes', {
-      method: 'PATCH', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: prize.id, awardedToUserId: userId, status: 'awarded' }),
-    })
-    setBusy(false)
-    if (!res.ok) { toast.error('Award failed'); return }
-    toast.success(`Awarded to ${userName}`)
-    onSaved()
+    // try/finally: a network error left every result button disabled.
+    try {
+      const res = await fetch('/app/api/admin/cup/prizes', {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: prize.id, awardedToUserId: userId, status: 'awarded' }),
+      })
+      if (!res.ok) { toast.error('Award failed'); return }
+      toast.success(`Awarded to ${userName}`)
+      onSaved()
+    } catch {
+      toast.error('Network error — the prize was not awarded')
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (

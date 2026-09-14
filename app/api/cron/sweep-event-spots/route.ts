@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { citiesByToday } from '@/lib/city'
 import { expectedSpotsLeft } from '@/lib/spotsLeft'
 import { recordCronRun } from '@/lib/cronHealth'
+import { COUNTED_CLUB_MEMBERSHIP_WHERE } from '@/lib/clubMemberCount'
 
 // Nightly spotsLeft reconciliation. Event.spotsLeft is a cached counter
 // kept in sync by increment/decrement on the RSVP / participant paths —
@@ -65,9 +66,13 @@ async function runSweep() {
   // spotsLeft) — and unlike spotsLeft this counter previously had no
   // safety net beyond the manual admin recount button. Guarded per-row on
   // the current value so a concurrent join/leave wins.
+  //
+  // Counts by the shared definition (lib/clubMemberCount): approved rows of
+  // members who aren't banned. Counting approved rows alone put every banned
+  // member back overnight, undoing the ban path's decrement.
   const [clubs, approvedByClub] = await Promise.all([
     prisma.club.findMany({ select: { id: true, name: true, memberCount: true } }),
-    prisma.clubMembership.groupBy({ by: ['clubId'], where: { status: 'approved' }, _count: { _all: true } }),
+    prisma.clubMembership.groupBy({ by: ['clubId'], where: COUNTED_CLUB_MEMBERSHIP_WHERE, _count: { _all: true } }),
   ])
   const trueCounts = new Map(approvedByClub.map(g => [g.clubId, g._count._all]))
   const clubFixes: string[] = []

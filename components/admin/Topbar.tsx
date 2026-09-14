@@ -2,8 +2,9 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
+import { useModCounts } from '@/hooks/useModCounts'
+import type { ModCounts } from '@/lib/modCounts'
 import { navItems } from './Sidebar'
 
 function getPageTitle(pathname: string): string {
@@ -22,12 +23,6 @@ function getPageTitle(pathname: string): string {
   return match?.label ?? 'Admin'
 }
 
-interface ModCounts {
-  pendingApplications: number
-  pendingReports: number
-  approvalQueueEvents: number
-}
-
 function AlertBadge({ count, label, href, color }: { count: number; label: string; href: string; color: string }) {
   if (!count) return null
   return (
@@ -41,15 +36,10 @@ function AlertBadge({ count, label, href, color }: { count: number; label: strin
   )
 }
 
-function ModPanel() {
-  const [counts, setCounts] = useState<ModCounts | null>(null)
-
-  useEffect(() => {
-    fetch('/app/api/admin/mod-stats', { credentials: 'include' })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d) setCounts(d) })
-  }, [])
-
+// Counts come from useModCounts, which refetches on route change, focus and
+// the queue pages' moderation-changed event — they used to load once on mount
+// and keep pointing at work that had already been done.
+function ModPanel({ counts }: { counts: ModCounts | null }) {
   if (!counts) return null
   const total = counts.pendingApplications + counts.pendingReports + counts.approvalQueueEvents
   if (!total) return null
@@ -90,6 +80,7 @@ export default function Topbar({ onMenuClick }: Props) {
   const { user }  = useAuth()
   const pageTitle = getPageTitle(pathname)
   const isMod     = user?.role === 'moderator' || user?.role === 'admin'
+  const modCounts = useModCounts(isMod)
 
   return (
     <div className="h-14 border-b border-white/5 flex items-center justify-between px-4 sm:px-6 shrink-0 bg-zinc-950/50 backdrop-blur-sm sticky top-0 z-30">
@@ -109,7 +100,7 @@ export default function Topbar({ onMenuClick }: Props) {
 
       {/* Right */}
       <div className="flex items-center gap-2">
-        {isMod && <ModPanel />}
+        {isMod && <ModPanel counts={modCounts} />}
 
         <div className="w-px h-5 bg-white/10 mx-1 hidden sm:block" />
 

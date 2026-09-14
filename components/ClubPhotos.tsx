@@ -3,8 +3,11 @@
 import { useState, useEffect, useRef } from 'react'
 import PhotoLightbox from '@/components/PhotoLightbox'
 import { resolveImageUrl, getInitials } from '@/lib/data'
-import { downscaleImage } from '@/lib/image-resize'
+import { ImageUploadError } from '@/lib/image-resize'
+import { prepareImageUpload } from '@/lib/imageUploadGuard'
 import { confirmToast } from '@/lib/confirmToast'
+import { toast } from 'sonner'
+import { toastApiError } from '@/lib/apiError'
 
 interface PhotoAuthor { id: string; name: string; color: string; photo: string | null }
 interface Photo { id: string; url: string; caption: string | null; createdAt: string; source?: 'club' | 'event'; author: PhotoAuthor }
@@ -34,45 +37,65 @@ export default function ClubPhotos({ slug, canUpload, isMember, currentUserId, i
   const [lightbox, setLightbox]   = useState<Photo | null>(null)
   const [uploading, setUploading] = useState(false)
   const [error, setError]         = useState('')
+  const [loadError, setLoadError] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  // A failed load (500, offline) used to fall through to "No photos yet. Be
+  // the first to upload one!" — untrue, and an invitation to re-upload. Say
+  // it failed and offer a retry instead.
   useEffect(() => {
     if (!isMember) { setLoading(false); return }
+    setLoading(true); setLoadError(false)
     fetch(`/app/api/clubs/${slug}/photos`, { credentials: 'include' })
-      .then(r => r.ok ? r.json() : [])
+      .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
       .then(data => { if (Array.isArray(data)) setPhotos(data) })
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false))
-  }, [slug, isMember])
+  }, [slug, isMember, reloadKey])
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
     setUploading(true); setError('')
     try {
-      const upload = await downscaleImage(file)
+      // Size limit applies to the DOWNSCALED photo (lib/imageUploadGuard) —
+      // a 12 MB camera photo shrinks to well under the server's 5 MB.
+      const upload = await prepareImageUpload(file)
       const form = new FormData()
       form.append('file', upload); form.append('folder', 'clubs')
       const uploadRes = await fetch('/app/api/upload', { method: 'POST', credentials: 'include', body: form })
-      if (!uploadRes.ok) throw new Error('Upload failed')
+      if (!uploadRes.ok) { const d = await uploadRes.json().catch(() => ({})); throw new Error(d.error ?? 'Upload failed') }
       const { url } = await uploadRes.json()
       const createRes = await fetch(`/app/api/clubs/${slug}/photos`, {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url, caption: caption.trim() || null }),
       })
-      if (!createRes.ok) { const d = await createRes.json(); throw new Error(d.error ?? 'Failed') }
+      if (!createRes.ok) { const d = await createRes.json().catch(() => ({})); throw new Error(d.error ?? 'Failed') }
       const newPhoto = await createRes.json()
       setPhotos(prev => [newPhoto, ...prev])
       setCaption('')
+    } catch (err) {
+      setError(err instanceof ImageUploadError || err instanceof Error ? err.message : 'Upload failed')
+    } finally {
+      // In finally: a throw used to skip the reset, and a failed pick of the
+      // same file couldn't be retried (no change event for an unchanged input).
+      setUploading(false)
       if (fileRef.current) fileRef.current.value = ''
-    } catch (err: any) { setError(err.message ?? 'Upload failed') }
-    setUploading(false)
+    }
   }
 
   async function deletePhoto(id: string) {
     if (!(await confirmToast('Delete this photo?'))) return
-    const res = await fetch(`/app/api/clubs/${slug}/photos/${id}`, { method: 'DELETE', credentials: 'include' })
-    if (res.ok) setPhotos(prev => prev.filter(p => p.id !== id))
+    // A refused delete used to do nothing at all — the photo just stayed.
+    try {
+      const res = await fetch(`/app/api/clubs/${slug}/photos/${id}`, { method: 'DELETE', credentials: 'include' })
+      if (!res.ok) { await toastApiError(res, 'Could not delete the photo'); return }
+      setPhotos(prev => prev.filter(p => p.id !== id))
+    } catch {
+      toast.error('Could not delete the photo — check your connection')
+    }
   }
 
   const uploadCard  = dark ? 'bg-zinc-900 border border-zinc-800 rounded-2xl p-4' : 'bg-white shadow-card rounded-2xl p-4'
@@ -116,7 +139,13 @@ export default function ClubPhotos({ slug, canUpload, isMember, currentUserId, i
         </div>
       )}
 
-      {loading ? (
+      {loadError ? (
+        <div role="alert" className={emptyCard}>
+          <p className={`${empty_} text-sm mb-3`}>Couldn&apos;t load photos.</p>
+          <button type="button" onClick={() => setReloadKey(k => k + 1)}
+            className="text-sm font-semibold text-amber-600 hover:underline">Try again</button>
+        </div>
+      ) : loading ? (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {[1,2,3,4,5,6].map(i => <div key={i} className={`aspect-square ${skelBg} rounded-xl animate-pulse`} />)}
         </div>
@@ -155,9 +184,14 @@ export default function ClubPhotos({ slug, canUpload, isMember, currentUserId, i
                   </div>
                   {photo.caption && <p className="text-white text-xs mt-0.5 line-clamp-2">{photo.caption}</p>}
                 </div>
+                {/* Hover-only was unreachable on phones (no hover) and for
+                    keyboard users. Now: always shown below sm and on any
+                    no-hover device, revealed by hover or focus elsewhere. */}
                 {canDelete && (
-                  <button onClick={e => { e.stopPropagation(); deletePhoto(photo.id) }}
-                    className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/50 text-white text-sm leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500">
+                  <button type="button" onClick={e => { e.stopPropagation(); deletePhoto(photo.id) }}
+                    onKeyDown={e => e.stopPropagation()}
+                    aria-label="Delete photo" title="Delete photo"
+                    className="absolute top-2 right-2 w-8 h-8 sm:w-6 sm:h-6 rounded-full bg-black/50 text-white text-sm leading-none flex items-center justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 sm:focus:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity hover:bg-red-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400">
                     ×
                   </button>
                 )}

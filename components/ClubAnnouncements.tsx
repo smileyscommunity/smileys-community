@@ -5,6 +5,8 @@ import { resolveImageUrl, getInitials } from '@/lib/data'
 import RichText from '@/components/RichText'
 import FormatToolbar from '@/components/FormatToolbar'
 import { confirmToast } from '@/lib/confirmToast'
+import { toast } from 'sonner'
+import { toastApiError } from '@/lib/apiError'
 
 interface Author { id: string; name: string; color: string; photo: string | null; role: string; clubRole: string | null }
 interface Announcement { id: string; content: string; type: string; createdAt: string; editedAt?: string | null; isPinned: boolean; author: Author }
@@ -49,12 +51,19 @@ export default function ClubAnnouncements({ slug, canAnnounce, currentUserId, is
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const editRef = useRef<HTMLTextAreaElement>(null)
 
+  const [loadError, setLoadError] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
+
+  // A failed load used to become [] ("No announcements yet.") and a network
+  // error was an unhandled rejection. Record it and offer a retry.
   useEffect(() => {
+    setLoading(true); setLoadError(false)
     fetch(`/app/api/clubs/${slug}/posts?type=announcement`, { credentials: 'include' })
-      .then(r => r.ok ? r.json() : [])
+      .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
       .then(data => { if (Array.isArray(data)) setItems(data) })
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false))
-  }, [slug])
+  }, [slug, reloadKey])
 
   async function submit() {
     if (!content.trim() || posting) return
@@ -80,8 +89,14 @@ export default function ClubAnnouncements({ slug, canAnnounce, currentUserId, is
 
   async function deleteItem(id: string) {
     if (!(await confirmToast('Delete this announcement?'))) return
-    const res = await fetch(`/app/api/clubs/${slug}/posts/${id}`, { method: 'DELETE', credentials: 'include' })
-    if (res.ok) setItems(prev => prev.filter(a => a.id !== id))
+    // A refused delete used to do nothing — the announcement just stayed.
+    try {
+      const res = await fetch(`/app/api/clubs/${slug}/posts/${id}`, { method: 'DELETE', credentials: 'include' })
+      if (!res.ok) { await toastApiError(res, 'Could not delete the announcement'); return }
+      setItems(prev => prev.filter(a => a.id !== id))
+    } catch {
+      toast.error('Could not delete the announcement — check your connection')
+    }
   }
 
   function startEdit(item: Announcement) {
@@ -160,7 +175,13 @@ export default function ClubAnnouncements({ slug, canAnnounce, currentUserId, is
         </div>
       )}
 
-      {loading ? (
+      {loadError ? (
+        <div role="alert" className={emptyCard}>
+          <p className={`${empty_} text-sm mb-3`}>Couldn&apos;t load announcements.</p>
+          <button type="button" onClick={() => setReloadKey(k => k + 1)}
+            className="text-sm font-semibold text-amber-600 hover:underline">Try again</button>
+        </div>
+      ) : loading ? (
         <div className="space-y-3">
           {[1, 2].map(i => (
             <div key={i} className={`${skelCard} animate-pulse`}>

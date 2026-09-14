@@ -16,15 +16,19 @@ interface Review {
 export default function ClubReviews({ slug, isMember }: { slug: string; isMember: boolean }) {
   const [reviews, setReviews] = useState<Review[]>([])
   const [loading, setLoading]  = useState(true)
+  const [loadError, setLoadError] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
 
+  // A non-OK response has no `reviews`, so it rendered "No reviews yet."
   useEffect(() => {
     if (!isMember) { setLoading(false); return }
+    setLoading(true); setLoadError(false)
     fetch(`/app/api/clubs/${slug}/reviews`)
-      .then(r => r.json())
+      .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
       .then(d => setReviews(d.reviews ?? []))
-      .catch(() => {})   // a 502 is not an empty list, and never an unhandled rejection
+      .catch(() => setLoadError(true))   // never an unhandled rejection
       .finally(() => setLoading(false))
-  }, [slug, isMember])
+  }, [slug, isMember, reloadKey])
 
   if (!isMember) return (
     <div className="text-center py-16">
@@ -50,6 +54,16 @@ export default function ClubReviews({ slug, isMember }: { slug: string; isMember
             <div className="h-3 w-2/3 bg-gray-100 rounded" />
           </div>
         ))}
+      </div>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <div role="alert" className="bg-white rounded-2xl shadow-card p-12 text-center">
+        <p className="text-gray-600 mb-3">Couldn&apos;t load reviews.</p>
+        <button type="button" onClick={() => setReloadKey(k => k + 1)}
+          className="text-sm font-semibold text-amber-600 hover:underline">Try again</button>
       </div>
     )
   }

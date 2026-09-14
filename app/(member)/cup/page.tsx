@@ -20,7 +20,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { CUP_TEAMS as TEAMS, TEAM_BY_CODE, teamLabel, ROUND_LABEL, isFixtureLocked, CUP_GROUPS, CUP_TZ } from '@/lib/cup-data'
+import { CUP_TEAMS as TEAMS, TEAM_BY_CODE, teamLabel, ROUND_LABEL, isFixtureLocked, isCupFinished, CUP_GROUPS, CUP_TZ } from '@/lib/cup-data'
 import { avatarUrl } from '@/lib/data'
 import { formatDay, todayInTz } from '@/lib/cityTime'
 
@@ -98,6 +98,9 @@ export default function CupPredictionsPage() {
   const router = useRouter()
 
   const [fixtures, setFixtures] = useState<Fixture[] | null>(null)
+  // Cup campaign status from /fixtures — an admin's "wrapped"/"archived"
+  // ends the game even before the Final's result is recorded.
+  const [campaignStatus, setCampaignStatus] = useState<string | null>(null)
   const [bracket,  setBracket]  = useState<BracketResponse | null>(null)
   const [loading,  setLoading]  = useState(true)
   // Bracket draft — separate from the saved bracket so the user can
@@ -163,6 +166,7 @@ export default function CupPredictionsPage() {
       if (fxRes.ok) {
         const fxData = await fxRes.json()
         if (alive && fxData.fixtures) setFixtures(fxData.fixtures)
+        if (alive && typeof fxData.campaignStatus === 'string') setCampaignStatus(fxData.campaignStatus)
       }
       if (brRes.status === 401) {
         setAccessState('unauthenticated')
@@ -182,6 +186,7 @@ export default function CupPredictionsPage() {
         if (alive && res.ok) {
           const d = await res.json()
           if (alive && d.fixtures) setFixtures(d.fixtures)
+          if (alive && typeof d.campaignStatus === 'string') setCampaignStatus(d.campaignStatus)
         }
       } catch { /* ignore — next tick will retry */ }
     }
@@ -353,6 +358,15 @@ export default function CupPredictionsPage() {
   // framing on the Leaderboard spotlight.
   const finalFixture = fixtures?.find(f => f.round === 'final') ?? null
   const tournamentOver = !!finalFixture?.winnerTeam
+  // The page kept inviting people to lock in a bracket, pick matches and
+  // turn on match reminders long after the cup ended. cupFinished (Final
+  // decided, campaign wrapped/archived, or the last match's window closed)
+  // swaps every play CTA and the reminder strip for the final standings.
+  const lastKickoffAt = fixtures?.length
+    ? fixtures.reduce((max, f) => f.kickoffAt > max ? f.kickoffAt : max, fixtures[0].kickoffAt)
+    : null
+  const cupFinished = isCupFinished({ status: campaignStatus, finalDecided: tournamentOver, lastKickoffAt })
+  const canPick     = accessState === 'member' && !cupFinished
   // Score + pick-progress used to live in a standalone header
   // here; both are now carried by the Leaderboard's pinned "you"
   // row (see component below) so we don't duplicate the number.
@@ -384,7 +398,9 @@ export default function CupPredictionsPage() {
         <img src="/app/images/cup-banner.svg" alt=""
           className="w-full h-full object-cover block" loading="eager" decoding="async" />
       </div>
-      <h1 className="sr-only">Smileys World Cup 2026 — Jun 11 to Jul 19, predict every match</h1>
+      <h1 className="sr-only">{cupFinished
+        ? 'Smileys World Cup 2026 — Jun 11 to Jul 19, final standings'
+        : 'Smileys World Cup 2026 — Jun 11 to Jul 19, predict every match'}</h1>
 
       {/* Above-the-fold reading area — countdown + visitor hero.
           Capped at max-w-3xl on lg+ so the long-form content
@@ -407,7 +423,9 @@ export default function CupPredictionsPage() {
           loaded yet. */}
       {tournamentOver
         ? <ChampionBanner final={finalFixture!} />
-        : <Countdown fixtures={fixtures} />}
+        : cupFinished
+          ? <FinishedBanner />
+          : <Countdown fixtures={fixtures} />}
 
       {/* Visitor hero — 3-step path to play. Replaces the old
           two-line "Want to play?" tile because a visitor needs to
@@ -416,7 +434,10 @@ export default function CupPredictionsPage() {
           generous tap targets and a big primary CTA. Pending
           members get their own state below — same shell, different
           status to set expectations on timing. */}
-      {accessState === 'unauthenticated' && (
+      {/* Both "how to play" cards are gated on !cupFinished — "Apply to
+          play →" and "this page unlocks and you can pick" are false
+          promises once the cup is over. */}
+      {accessState === 'unauthenticated' && !cupFinished && (
         <div className="bg-white rounded-2xl shadow-card mb-4 overflow-hidden">
           <div className="bg-gradient-to-br from-amber-400 to-amber-600 px-5 py-5 text-white">
             <p className="text-[10px] font-bold uppercase tracking-widest opacity-90 mb-1">Free community game · members only</p>
@@ -461,7 +482,7 @@ export default function CupPredictionsPage() {
           </div>
         </div>
       )}
-      {accessState === 'not-member' && (
+      {accessState === 'not-member' && !cupFinished && (
         <div className="bg-white rounded-2xl shadow-card mb-4 overflow-hidden">
           <div className="bg-gradient-to-br from-amber-100 to-amber-200 px-5 py-4">
             <p className="text-[10px] font-bold text-amber-800 uppercase tracking-widest mb-1">Step 2 of 3</p>
@@ -496,7 +517,7 @@ export default function CupPredictionsPage() {
       <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-6 lg:items-start">
         {/* ── Main column ───────────────────────────────────── */}
         <main className="space-y-4 min-w-0 lg:col-start-1 lg:row-start-1">
-          {!bracketLocked && accessState === 'member' && (
+          {!bracketLocked && !cupFinished && accessState === 'member' && (
             <BracketCard
               bracket={bracket?.bracket ?? null}
               locked={bracketLocked}
@@ -530,7 +551,9 @@ export default function CupPredictionsPage() {
               support web push, haven't already subscribed, and
               haven't dismissed the strip. Single-tap enable; dismiss
               persists in localStorage so we don't nag. */}
-          {accessState === 'member' && <PushOptInStrip />}
+          {/* Never offered once the cup is finished — there are no
+              kickoffs left to remind anyone about. */}
+          {accessState === 'member' && !cupFinished && <PushOptInStrip />}
 
           {/* Trending vs Leaderboard ordering flips at first kickoff
               (bracketLocked === true → tournament is running).
@@ -542,20 +565,20 @@ export default function CupPredictionsPage() {
               what people are checking, and Trending becomes context
               for upcoming matches. Same components either way; only
               the order swaps. */}
-          {bracketLocked ? (
+          {bracketLocked || cupFinished ? (
             <>
-              <Leaderboard tournamentOver={tournamentOver} />
+              <Leaderboard tournamentOver={cupFinished} />
               <TrendingPicks />
             </>
           ) : (
             <>
               <TrendingPicks />
-              <Leaderboard tournamentOver={tournamentOver} />
+              <Leaderboard tournamentOver={cupFinished} />
             </>
           )}
 
           {/* Compact bracket summary — only after lock. */}
-          {bracketLocked && (
+          {(bracketLocked || cupFinished) && (
             <BracketSummary
               bracket={bracket?.bracket ?? null}
               accessState={accessState}
@@ -573,13 +596,13 @@ export default function CupPredictionsPage() {
             rules first (orientation), FAQ (common questions), then
             community (watch parties + prizes), share at the end. */}
         <aside className="space-y-4 mt-4 lg:mt-0 lg:sticky lg:top-4 min-w-0 lg:col-start-2 lg:row-start-1 lg:row-span-2">
-          <RulesCard defaultOpen={accessState !== 'member'} />
+          <RulesCard defaultOpen={accessState !== 'member' && !cupFinished} />
           {/* Your rank — desktop-only compact card showing your row
               ±2. Pairs with the full Leaderboard in the main column:
               that one stays high in the reading order on mobile, this
               one is the always-visible "where am I" glance for
               desktop users scrolling through 103 fixtures. */}
-          {accessState === 'member' && <MiniRankCard />}
+          {accessState === 'member' && <MiniRankCard finished={cupFinished} />}
           {/* Live group standings — 12 groups, each with its 4 teams
               ranked by points → GD → GF. Computed from the same
               fixtures the main column renders so the cards stay in
@@ -600,7 +623,7 @@ export default function CupPredictionsPage() {
           {/* Share — lives at the bottom of the sidebar as a final
               "spread the word" beat. Members only; visitors get the
               embedded share row inside their apply hero instead. */}
-          {accessState === 'member' && <ShareButton variant="member" />}
+          {accessState === 'member' && <ShareButton variant="member" finished={cupFinished} />}
         </aside>
 
         {/* ── Fixtures ─────────────────────────────────────────
@@ -646,14 +669,14 @@ export default function CupPredictionsPage() {
               <GroupStageSections
                 rows={byRound.group ?? []}
                 savingFixtureId={savingFixtureId}
-                canPick={accessState === 'member'}
+                canPick={canPick}
                 onPick={pickFixture}
               />
             ) : (
               <DateStageSections
                 rows={byRound.group ?? []}
                 savingFixtureId={savingFixtureId}
-                canPick={accessState === 'member'}
+                canPick={canPick}
                 onPick={pickFixture}
               />
             )}
@@ -678,7 +701,7 @@ export default function CupPredictionsPage() {
                     key={f.id}
                     fixture={f}
                     saving={savingFixtureId === f.id}
-                    canPick={accessState === 'member'}
+                    canPick={canPick}
                     onPick={(team) => pickFixture(f.id, team)}
                   />
                 ))}
@@ -1207,13 +1230,17 @@ function FixturePickButton({ label, team, isPicked, isWinner, disabled, onClick 
 //   • member:  full tile after the leaderboard with "show off" tone
 //   • compact: bare row of icons, no surrounding card (used inside
 //              the Prizes section)
-function ShareButton({ variant }: { variant: 'visitor' | 'member' | 'compact' }) {
+function ShareButton({ variant, finished = false }: { variant: 'visitor' | 'member' | 'compact'; finished?: boolean }) {
   const url  = typeof window !== 'undefined' ? window.location.href : 'https://smileyscommunity.com/app/cup'
   // Pure bragging-rights framing — no prizes/gifts mentioned at
   // all. The share text travels freely to WhatsApp/Telegram where
   // it could be screenshotted out of context, so any incentive
   // language here is the worst regulatory surface to leave open.
-  const text = 'Smileys World Cup 2026 — predict every match with the Smileys community. Free, members-only, just for fun. Worth a look?'
+  // Once the cup is over it shares the standings, not an invitation
+  // to predict matches that have all been played.
+  const text = finished
+    ? 'Smileys World Cup 2026 — how the Smileys community called the tournament. The final standings are in.'
+    : 'Smileys World Cup 2026 — predict every match with the Smileys community. Free, members-only, just for fun. Worth a look?'
 
   const u = encodeURIComponent(url)
   const t = encodeURIComponent(text)
@@ -1274,8 +1301,10 @@ function ShareButton({ variant }: { variant: 'visitor' | 'member' | 'compact' })
   }
   return (
     <div className="bg-white rounded-2xl shadow-card mb-4 px-5 py-4">
-      <p className="text-sm font-bold text-gray-900 text-center mb-1">Share the cup</p>
-      <p className="text-[11px] text-gray-600 text-center mb-3">Drop it in your group chat. Friends who&apos;d fit Smileys apply through this page.</p>
+      <p className="text-sm font-bold text-gray-900 text-center mb-1">{finished ? 'Share the final standings' : 'Share the cup'}</p>
+      <p className="text-[11px] text-gray-600 text-center mb-3">{finished
+        ? 'Drop it in your group chat — see who called it.'
+        : <>Drop it in your group chat. Friends who&apos;d fit Smileys apply through this page.</>}</p>
       {buttons}
     </div>
   )
@@ -1347,6 +1376,21 @@ function ChampionBanner({ final }: { final: Fixture }) {
       {score && runnerUp && (
         <p className="text-xs font-semibold opacity-90 mt-1.5">Beat {teamLabel(runnerUp)} {score} in the Final</p>
       )}
+    </div>
+  )
+}
+
+// Finished state when the cup is over but the Final has no recorded result
+// (campaign wrapped/archived, or the last match's window has closed) — the
+// ChampionBanner needs a winner, and the Countdown has nothing left to count.
+// Says plainly that picks and reminders are closed and points at the board.
+function FinishedBanner() {
+  return (
+    <div className="bg-gradient-to-br from-amber-400 to-amber-600 rounded-2xl mb-4 px-5 py-5 text-center text-white shadow-card">
+      <p className="text-[10px] font-bold uppercase tracking-widest opacity-90">World Cup 2026 · Finished</p>
+      <p className="text-3xl mt-1" aria-hidden="true">🏁</p>
+      <p className="text-xl font-extrabold leading-tight mt-1">Final standings</p>
+      <p className="text-xs font-semibold opacity-90 mt-1.5">Picks and match reminders are closed. Here&apos;s how the community called it.</p>
     </div>
   )
 }
@@ -2065,6 +2109,16 @@ function PushOptInStrip() {
     }
     setBusy(true)
     try {
+      // Ask the cup gate first: it answers 409 once the cup is finished, so a
+      // stale tab can't sign someone up to reminders for matches that are
+      // over (and we don't pop the OS permission prompt for nothing).
+      const gate = await fetch('/app/api/cup/reminders', { method: 'POST', credentials: 'include' })
+      if (!gate.ok) {
+        const g = await gate.json().catch(() => ({}))
+        toast.error(g.error ?? 'Could not enable match reminders')
+        if (gate.status === 409) setState('hidden')
+        return
+      }
       const permission = await Notification.requestPermission()
       if (permission !== 'granted') {
         // User declined the OS prompt — hide the strip so we don't
@@ -2078,11 +2132,13 @@ function PushOptInStrip() {
         userVisibleOnly: true,
         applicationServerKey: cupUrlBase64ToUint8Array(CUP_VAPID_PUBLIC_KEY) as BufferSource,
       })
-      await fetch('/app/api/push/subscribe', {
+      const subRes = await fetch('/app/api/push/subscribe', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(sub.toJSON()),
       })
+      // A refused subscribe used to toast "Match reminders on" regardless.
+      if (!subRes.ok) throw new Error('the server refused the subscription')
       toast.success('Match reminders on — we\'ll ping you before kickoffs')
       setState('hidden')
     } catch (e) {
@@ -2131,7 +2187,7 @@ function PushOptInStrip() {
 // — the 304 short-circuit (single Prisma aggregate when the
 // fixture watermark hasn't moved) makes the duplicate request
 // effectively free.
-function MiniRankCard() {
+function MiniRankCard({ finished = false }: { finished?: boolean }) {
   // Desktop-only via matchMedia, NOT just CSS `hidden lg:block`.
   // Re-evaluates on resize so a viewport crossing 1024 (tablet
   // rotate, window resize) renders the card with a correct
@@ -2185,7 +2241,9 @@ function MiniRankCard() {
           </div>
         ) : null}
         <div className="px-4 py-3 border-t border-gray-100">
-          <p className="text-xs text-gray-600">Lock in your bracket to enter the leaderboard.</p>
+          <p className="text-xs text-gray-600">{finished
+            ? 'You sat this one out — the standings are final.'
+            : 'Lock in your bracket to enter the leaderboard.'}</p>
         </div>
       </div>
     )
@@ -2293,9 +2351,12 @@ function Leaderboard({ tournamentOver = false }: { tournamentOver?: boolean }) {
       <div className="bg-white rounded-2xl shadow-card p-5 mb-4">
         <h2 className="text-sm font-bold text-gray-900 mb-1">Leaderboard</h2>
         <p className="text-xs text-gray-600">
-          {eligible !== null
-            ? `0 of ${eligible} member${eligible === 1 ? '' : 's'} playing. Be the first to lock in a bracket — you'll lead by default.`
-            : 'No picks yet — be the first to lock in a bracket and you’ll lead by default.'}
+          {/* A finished cup doesn't invite a first bracket. */}
+          {tournamentOver
+            ? 'The cup has finished — no one made the board this time.'
+            : eligible !== null
+              ? `0 of ${eligible} member${eligible === 1 ? '' : 's'} playing. Be the first to lock in a bracket — you'll lead by default.`
+              : 'No picks yet — be the first to lock in a bracket and you’ll lead by default.'}
         </p>
       </div>
     )

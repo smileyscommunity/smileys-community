@@ -21,15 +21,19 @@ export default function ClubHangouts({ slug, isMember }: { slug: string; isMembe
   const [clubId,   setClubId]   = useState<string | null>(null)
   const [hangouts, setHangouts] = useState<ClubHangout[]>([])
   const [loaded,   setLoaded]   = useState(false)
+  const [failed,   setFailed]   = useState(false)
 
+  // Either fetch failing used to land on "Nothing spontaneous right now." —
+  // a failed load isn't an empty one. null marks the failure.
   useEffect(() => {
     Promise.all([
       fetch(`/app/api/clubs/${slug}`, { credentials: 'include' }).then(r => r.ok ? r.json() : null).catch(() => null),
-      fetch('/app/api/hangouts', { credentials: 'include' }).then(r => r.ok ? r.json() : { hangouts: [] }).catch(() => ({ hangouts: [] })),
+      fetch('/app/api/hangouts', { credentials: 'include' }).then(r => r.ok ? r.json() : null).catch(() => null),
     ]).then(([club, hs]) => {
       const id = club?.id ?? club?.club?.id ?? null
       setClubId(id)
-      if (id) setHangouts(((hs.hangouts ?? []) as ClubHangout[]).filter(h => h.clubId === id).slice(0, 3))
+      if (!id || !hs) { setFailed(true); return }
+      setHangouts(((hs.hangouts ?? []) as ClubHangout[]).filter(h => h.clubId === id).slice(0, 3))
     }).finally(() => setLoaded(true))
   }, [slug])
 
@@ -40,7 +44,11 @@ export default function ClubHangouts({ slug, isMember }: { slug: string; isMembe
       <h3 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-3 flex items-center gap-2">
         <span aria-hidden="true">⚡</span> Spontaneous plans
       </h3>
-      {hangouts.length > 0 ? (
+      {failed ? (
+        <p role="alert" className="text-sm text-gray-500 bg-gray-50 border border-dashed border-gray-200 rounded-2xl p-6">
+          Couldn&apos;t load plans right now — refresh to try again.
+        </p>
+      ) : hangouts.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {hangouts.map(h => (
             <Link key={h.id} href={`/hangouts/${h.id}`}

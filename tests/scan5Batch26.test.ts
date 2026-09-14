@@ -28,7 +28,7 @@ const h = vi.hoisted(() => {
     eventAttendee:          { findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn(), create: vi.fn() },
     eventCoHost:            { findMany: vi.fn(), findFirst: vi.fn() },
     waitlistEntry:          { findUnique: vi.fn(), delete: vi.fn(), create: vi.fn(), count: vi.fn() },
-    payment:                { create: vi.fn() },
+    payment:                { create: vi.fn(), findFirst: vi.fn() },
   }
   return {
     prisma,

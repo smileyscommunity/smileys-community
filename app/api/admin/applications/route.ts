@@ -14,6 +14,7 @@ import { promoteApplicationPhoto } from '@/lib/promotePhoto'
 import { getStatsFor } from '@/lib/cities'
 import { CITY_MATURITY } from '@/lib/cityMaturity'
 import { firstNameOf } from '@/lib/data'
+import { clubsForApprovedCity, type SkippedClub } from '@/lib/approvalClubs'
 
 function normalizeName(name: string): string {
   if (!name) return name
@@ -97,9 +98,8 @@ export async function PATCH(req: NextRequest) {
     // default club is city-scoped to a city OTHER than the application's
     // target, swap it for the target city's own `social-<citySlug>` starter
     // club (see lib/seedCityClubs — every seeded city has one), or drop it if
-    // that club is missing/inactive. Only the settings default is touched:
-    // an admin deliberately assigning some other city's club, or a global
-    // club (cityId null), passes through untouched.
+    // that club is missing/inactive. Any OTHER club outside the target city is
+    // then dropped by the city filter below.
     let clubsToAssign: string[] | undefined = Array.isArray(assignedClubs) ? assignedClubs : undefined
     if (clubsToAssign?.length) {
       const defaultClubId = loadCommunitySettings().defaultClubId
@@ -119,6 +119,22 @@ export async function PATCH(req: NextRequest) {
             console.warn(`[applications] application ${id}: default club ${defaultClubId} is another city's and no active ${socialSlug} exists — dropped`)
           }
         }
+      }
+    }
+
+    // A member approved into a city is only ever put in that city's clubs or
+    // global ones (cityId null). Nine members approved into Antalya and İzmir
+    // were enrolled in a default-city club by a hand-picked assignment the
+    // backstop above let through. Skipped clubs are logged, kept out of the
+    // stored list (registration enrols from it too) and named in the response
+    // and the approval audit row.
+    let skippedClubs: SkippedClub[] = []
+    if (clubsToAssign?.length) {
+      const split = await clubsForApprovedCity(clubsToAssign, target.targetCityId)
+      clubsToAssign = split.keep
+      skippedClubs  = split.skipped
+      if (skippedClubs.length) {
+        console.warn(`[applications] application ${id}: skipped clubs outside city ${target.targetCityId}`, skippedClubs)
       }
     }
 
@@ -204,9 +220,14 @@ export async function PATCH(req: NextRequest) {
               if (e instanceof Prisma.PrismaClientKnownRequestError && (e as Prisma.PrismaClientKnownRequestError).code === 'P2002') return
               throw e
             }
-            // Auto-enroll in assigned clubs
-            if (application.assignedClubs?.length) {
-              await Promise.all(application.assignedClubs.map((clubId: string) =>
+            // Auto-enroll in assigned clubs. Re-filtered by city: an approval
+            // that sends no assignedClubs enrols from the list stored earlier,
+            // which may predate the city filter above.
+            const enrolClubs = application.assignedClubs?.length
+              ? (await clubsForApprovedCity(application.assignedClubs, application.targetCityId)).keep
+              : []
+            if (enrolClubs.length) {
+              await Promise.all(enrolClubs.map((clubId: string) =>
                 prisma.$transaction([
                   prisma.clubMembership.upsert({
                     where:  { userId_clubId: { userId: user.id, clubId } },
@@ -308,12 +329,12 @@ export async function PATCH(req: NextRequest) {
 
     if (status === 'approved') {
       writeAudit(session.id, session.name, 'application.approve', id, 'memberApplication',
-        { name: application.fullName, email: application.email },
+        { name: application.fullName, email: application.email, ...(skippedClubs.length ? { skippedClubs } : {}) },
         `Application approved — ${application.fullName} (${application.email}) is now a member`,
       )
     }
 
-    return NextResponse.json(application)
+    return NextResponse.json(skippedClubs.length ? { ...application, skippedClubs } : application)
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

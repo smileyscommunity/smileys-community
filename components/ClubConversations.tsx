@@ -37,14 +37,19 @@ export default function ClubConversations({ slug, isMember }: { slug: string; is
   const [title,   setTitle]   = useState('')
   const [body,    setBody]    = useState('')
   const [posting, setPosting] = useState(false)
+  const [loadError, setLoadError] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
 
+  // A failed load used to become `{ posts: [] }` and render "No conversations
+  // yet" — nudging members to start a thread that may already exist.
   useEffect(() => {
+    setLoading(true); setLoadError(false)
     fetch(`/app/api/board?club=${encodeURIComponent(slug)}`, { credentials: 'include' })
-      .then(r => r.ok ? r.json() : { posts: [] })
+      .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
       .then(d => setPosts((d.posts ?? []).map((p: Post & { replyCount?: number }) => p)))
-      .catch(() => {})
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false))
-  }, [slug])
+  }, [slug, reloadKey])
 
   async function submit() {
     if (posting || !title.trim()) { if (!title.trim()) toast.error('Say what your post is about'); return }
@@ -111,6 +116,12 @@ export default function ClubConversations({ slug, isMember }: { slug: string; is
       {loading ? (
         <div className="space-y-3">
           {[0, 1].map(i => <div key={i} className="bg-white border border-gray-100 rounded-2xl p-5 h-20 animate-pulse" />)}
+        </div>
+      ) : loadError ? (
+        <div role="alert" className="bg-gray-50 border border-dashed border-gray-200 rounded-2xl p-8 text-center">
+          <p className="text-sm text-gray-600 mb-2">Couldn&apos;t load conversations.</p>
+          <button type="button" onClick={() => setReloadKey(k => k + 1)}
+            className="text-sm font-semibold text-amber-600 hover:underline">Try again</button>
         </div>
       ) : posts.length === 0 ? (
         <div className="bg-gray-50 border border-dashed border-gray-200 rounded-2xl p-8 text-center">

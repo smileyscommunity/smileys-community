@@ -6,6 +6,7 @@ import { isAdmin, isClubHost, canManageEventOps } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
 import { sendEventApprovedEmail, sendEventRejectedEmail, recordEmailFailure } from '@/lib/email'
 import { autoJoinClub } from '@/lib/autoJoinClub'
+import { createSeatPayment } from '@/lib/rsvpConfirmed'
 
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 import { writeAudit } from '@/lib/audit'
@@ -244,7 +245,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
 
     const [entry, eventRow] = await Promise.all([
       prisma.eventAttendee.findUnique({ where: { userId_eventId: { userId, eventId } } }),
-      prisma.event.findUnique({ where: { id: eventId }, select: { title: true, approvalRequired: true, ...quotaEventSelect } }),
+      prisma.event.findUnique({ where: { id: eventId }, select: { title: true, approvalRequired: true, price: true, payTo: true, currency: true, hostId: true, ...quotaEventSelect } }),
     ])
     await cancelAttendeeOp(prisma, { userId, eventId, by: cancelActor(session) })
 
@@ -269,10 +270,12 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       // the approval path is careful to enforce. Order still decides who goes
       // first; the quota decides who is eligible.
       const next = eventRow ? await findPromotableFromWaitlist(eventId, eventRow) : null
-      if (next) {
+      if (next && eventRow) {
         await prisma.$transaction(async (tx) => {
           await tx.waitlistEntry.delete({ where: { id: next.id } })
           await activateAttendee(tx, { userId: next.userId, eventId, status: 'approved' })
+          // A promoted seat owes what any seat owes (lib/rsvpConfirmed).
+          await createSeatPayment(tx, eventId, eventRow, next.userId)
         })
         createNotification(next.userId, 'waitlist_promoted', 'Spot available! 🎉',
           `A spot opened up for "${eventRow?.title}" — you're in!`, `/events/${eventId}`)
@@ -368,7 +371,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     const [event, user, current] = await Promise.all([
-      prisma.event.findUnique({ where: { id: eventId }, select: { title: true, status: true, spotsLeft: true, date: true, neighborhood: true, turkishMaleQuota: true, genderBalance: true, maleQuota: true, femaleQuota: true, totalSpots: true, approvalRequired: true } }),
+      prisma.event.findUnique({ where: { id: eventId }, select: { title: true, status: true, spotsLeft: true, date: true, neighborhood: true, turkishMaleQuota: true, genderBalance: true, maleQuota: true, femaleQuota: true, totalSpots: true, approvalRequired: true, price: true, payTo: true, currency: true, hostId: true } }),
       prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true, gender: true, nationality: true } }),
       prisma.eventAttendee.findUnique({ where: { userId_eventId: { userId, eventId } }, select: { status: true } }),
     ])
@@ -457,6 +460,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           where: { userId_eventId: { userId, eventId } },
           data: { status: 'approved' },
         })
+        // Approval relied on the row written at request time, which can be
+        // gone by now (moved to the waitlist and back, collection switched on
+        // after they asked) — the seat then owed nothing. A surviving row is
+        // left as it is (lib/rsvpConfirmed).
+        if (event) await createSeatPayment(tx, eventId, event, userId)
         return null
       })
       if (quotaFull) {
@@ -577,7 +585,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
     const event = await prisma.event.findUnique({
       where: { id: eventId },
-      select: { title: true, spotsLeft: true, approvalRequired: true, hostId: true, status: true, ...quotaEventSelect },
+      select: { title: true, spotsLeft: true, approvalRequired: true, hostId: true, status: true, price: true, payTo: true, currency: true, ...quotaEventSelect },
     })
     if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
     if (event.hostId === userId) return NextResponse.json({ error: 'Hosts are automatically attending their own events' }, { status: 400 })
@@ -605,6 +613,9 @@ export async function PUT(req: NextRequest, { params }: Params) {
     await prisma.$transaction(async (tx) => {
       await tx.waitlistEntry.deleteMany({ where: { eventId, userId } })
       await activateAttendee(tx, { userId, eventId, status: 'approved' })
+      // A seat added by hand owed nothing on the ledger; it owes what a
+      // member's own RSVP owes (lib/rsvpConfirmed).
+      await createSeatPayment(tx, eventId, event, userId)
     })
     // Recompute, never a blind decrement: an admin adding to an already-full
     // event used to push spotsLeft negative until the nightly sweep clamped
@@ -643,7 +654,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     const eventMeta = await prisma.event.findUnique({
       where: { id: eventId },
-      select: { approvalRequired: true, hostId: true, status: true, ...quotaEventSelect },
+      select: { approvalRequired: true, hostId: true, status: true, price: true, payTo: true, currency: true, ...quotaEventSelect },
     })
     if (!eventMeta) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
     if (eventMeta.hostId === userId) return NextResponse.json({ error: 'Hosts are automatically attending their own events' }, { status: 400 })
@@ -672,6 +683,8 @@ export async function POST(req: NextRequest, { params }: Params) {
     await prisma.$transaction(async (tx) => {
       await tx.waitlistEntry.deleteMany({ where: { eventId, userId } })
       await activateAttendee(tx, { userId, eventId, status: 'approved' })
+      // Same ledger row as the add above.
+      await createSeatPayment(tx, eventId, eventMeta, userId)
     })
     // Recompute, never a blind decrement — see the PUT add-attendee path.
     await recomputeSpotsLeft(eventId, eventMeta.totalSpots)

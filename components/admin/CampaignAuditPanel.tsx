@@ -24,11 +24,15 @@ interface AuditEntry {
 
 export default function CampaignAuditPanel({ campaignId }: { campaignId: string }) {
   const [entries, setEntries] = useState<AuditEntry[] | null>(null)
+  // A refused or dropped load used to leave "Loading…" up forever.
+  const [failed,  setFailed]  = useState(false)
 
   useEffect(() => {
+    setFailed(false)
     fetch(`/app/api/admin/campaigns/${campaignId}/audit`, { credentials: 'include' })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.entries) setEntries(d.entries) })
+      .then(r => { if (!r.ok) throw new Error(String(r.status)); return r.json() })
+      .then(d => { if (d?.entries) setEntries(d.entries); else setFailed(true) })
+      .catch(() => setFailed(true))
   }, [campaignId])
 
   return (
@@ -36,7 +40,7 @@ export default function CampaignAuditPanel({ campaignId }: { campaignId: string 
       <div className="px-5 py-3.5 border-b border-zinc-800">
         <h2 className="text-sm font-bold text-white">Audit log</h2>
         <p className="text-[10px] text-zinc-500 mt-0.5">
-          {entries === null ? 'Loading…' : `${entries.length} most recent admin actions`}
+          {entries !== null ? `${entries.length} most recent admin actions` : failed ? 'Couldn’t load the audit log' : 'Loading…'}
         </p>
       </div>
 

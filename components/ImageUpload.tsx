@@ -2,7 +2,8 @@
 
 import { useState, useRef, useCallback } from 'react'
 import { resolveImageUrl } from '@/lib/data'
-import { downscaleImage } from '@/lib/image-resize'
+import { ImageUploadError } from '@/lib/image-resize'
+import { prepareImageUpload } from '@/lib/imageUploadGuard'
 
 interface Props {
   value: string
@@ -24,9 +25,13 @@ export default function ImageUpload({ value, onChange, label = 'Cover image', fo
   async function handleFile(file: File) {
     setError('')
 
+    // The 5 MB check used to run HERE, on the raw file — so a 6–15 MB phone
+    // camera photo was refused before downscaleImage could shrink it to
+    // ~1 MB. Only a sanity bound applies to the raw file now; the 5 MB limit
+    // (and the type check, so a HEIC the browser converts gets through)
+    // applies to what is actually uploaded. See lib/imageUploadGuard.
     const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
-    if (!allowed.includes(file.type)) { setError('Unsupported file type — use JPG, PNG, WebP, or GIF'); return }
-    if (file.size > 5 * 1024 * 1024)  { setError('File too large — max 5 MB'); return }
+    if (!file.type.startsWith('image/')) { setError('Unsupported file type — use JPG, PNG, WebP, or GIF'); return }
 
     setUploading(true)
     setProgress(0)
@@ -35,18 +40,19 @@ export default function ImageUpload({ value, onChange, label = 'Cover image', fo
     const tick = setInterval(() => setProgress(p => Math.min(p + 12, 85)), 120)
 
     try {
-      const upload = await downscaleImage(file)
+      const upload = await prepareImageUpload(file)
+      if (!allowed.includes(upload.type)) { setError('Unsupported file type — use JPG, PNG, WebP, or GIF'); return }
       const fd = new FormData()
       fd.append('file', upload)
       fd.append('folder', folder)
       const res  = await fetch('/app/api/upload', { method: 'POST', credentials: 'include', body: fd })
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
       clearInterval(tick)
       if (!res.ok) { setError(data.error ?? 'Upload failed'); return }
       setProgress(100)
       onChange(data.url)
-    } catch {
-      setError('Upload failed')
+    } catch (err) {
+      setError(err instanceof ImageUploadError ? err.message : 'Upload failed')
     } finally {
       clearInterval(tick)
       setTimeout(() => { setUploading(false); setProgress(0) }, 300)
@@ -185,7 +191,7 @@ export default function ImageUpload({ value, onChange, label = 'Cover image', fo
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
                 <span className="text-sm font-medium">Drop image here or click to browse</span>
-                <span className="text-xs opacity-60">JPG, PNG, WebP — max 5 MB</span>
+                <span className="text-xs opacity-60">JPG, PNG, WebP — large photos are shrunk automatically</span>
               </>
             )}
           </div>

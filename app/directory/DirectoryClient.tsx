@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useState, useEffect, useCallback } from 'react'
+import { Suspense, useState, useEffect, useCallback, useRef } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -327,13 +327,23 @@ function DirectoryPageInner() {
   // same pattern as the clubs page.
   const [viewCity, setViewCity] = useState<{ name: string; slug: string; isDefault: boolean; viewing?: boolean; homeName?: string | null; lat?: number | null; lng?: number | null; timezone?: string } | null>(null)
   useEffect(() => {
+    // Dropped once the pin changes, so an older city's answer can't name the page.
+    let cancelled = false
     fetch(`/app/api/city/current${pinnedCity ? `?city=${encodeURIComponent(pinnedCity)}` : ''}`, { credentials: 'include' })
       .then(r => r.json())
-      .then(d => { if (d?.slug) setViewCity(d) })
+      .then(d => { if (!cancelled && d?.slug) setViewCity(d) })
       .catch(() => {})
+    return () => { cancelled = true }
   }, [pinnedCity])
 
+  // Monotonic id per load, same pattern as BoardHub's loadSeq: tapping
+  // category/type/sort pills quickly fired overlapping fetches and whichever
+  // answered LAST won, so the grid could show the previous filter's results.
+  const loadSeq = useRef(0)
+
   const load = useCallback(() => {
+    const seq = ++loadSeq.current
+    const isCurrent = () => seq === loadSeq.current
     setLoading(true)
     const params = new URLSearchParams()
     if (category !== 'all') params.set('category', category)
@@ -349,11 +359,12 @@ function DirectoryPageInner() {
         return { items, total: Number.isFinite(t) ? t : items.length }
       })
       .then(({ items, total }) => {
+        if (!isCurrent()) return
         setBusinesses(items)
         setTotal(total)
       })
-      .catch(() => { setBusinesses([]); setTotal(0) })
-      .finally(() => setLoading(false))
+      .catch(() => { if (isCurrent()) { setBusinesses([]); setTotal(0) } })
+      .finally(() => { if (isCurrent()) setLoading(false) })
   }, [category, type, neighborhood, sort, pinnedCity])
 
   useEffect(() => { load() }, [load])
