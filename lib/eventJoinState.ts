@@ -11,10 +11,12 @@
 import { eventEndsAt, eventPhase, eventStartsAt, type EventClock } from '@/lib/eventTime'
 import { DEFAULT_TZ, dayInTz } from '@/lib/cityTime'
 
-export type JoinBlock = 'cancelled' | 'postponed' | 'closed' | 'ended' | 'started' | null
+export type JoinBlock = 'cancelled' | 'postponed' | 'closed' | 'deadline' | 'ended' | 'started' | null
 
 export interface JoinableEvent extends EventClock {
   status?: string | null
+  /** Optional 'YYYY-MM-DD'. Anything else is ignored, exactly as the route does. */
+  registrationDeadline?: string | null
 }
 
 const HHMM = /^\d{1,2}:\d{2}/
@@ -29,7 +31,19 @@ export function joinBlock(event: JoinableEvent, tz: string = DEFAULT_TZ, now: Da
   // Past calendar day on the event city's clock — the route's first date
   // gate, the same bare string compare, so a garbled date answers the same
   // way here as there.
-  if (event.date < dayInTz(now, tz)) return 'ended'
+  const today = dayInTz(now, tz)
+  if (event.date < today) return 'ended'
+
+  // The registration deadline. The route has refused a join past it since it
+  // started reading the field, but this module never knew about it, so the
+  // page and the cards kept offering a Join button that could only produce an
+  // error toast — the exact failure this file exists to prevent. Same predicate
+  // as the route, well-formed check included: two archived rows hold '20260730'
+  // and '09/07/2026' from before the format was enforced, and a bare compare
+  // would read those as long past and shut an open event.
+  if (event.registrationDeadline
+      && /^\d{4}-\d{2}-\d{2}$/.test(event.registrationDeadline)
+      && event.registrationDeadline < today) return 'deadline'
   // Guard the Date math below against a garbled row: the server never
   // treats bad data as "started", so neither does the button.
   if (!/^\d{4}-\d{2}-\d{2}$/.test(event.date)) return null
@@ -52,6 +66,7 @@ export const JOIN_BLOCK_LABEL: Record<Exclude<JoinBlock, null>, string> = {
   cancelled: 'Cancelled',
   postponed: 'Postponed',
   closed:    'Not open for RSVPs',
+  deadline:  'Registration closed',
   ended:     'Event ended',
   started:   'Already started',
 }
