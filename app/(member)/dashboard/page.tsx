@@ -127,7 +127,9 @@ export default async function DashboardPage() {
       orderBy: { joinedAt: 'desc' },
     }),
     prisma.clubMembership.findMany({
-      where: { userId: session.id, status: 'approved' },
+      // An inactive club's page 404s — 46 memberships were still listed here
+      // (2026-09 hygiene audit), and they also fed the "based on your clubs" picks.
+      where: { userId: session.id, status: 'approved', club: { isActive: true } },
       include: { club: { select: { id: true, name: true, slug: true, emoji: true, bgColor: true, memberCount: true } } },
     }),
     prisma.eventAttendee.count({

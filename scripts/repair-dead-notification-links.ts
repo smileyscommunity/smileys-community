@@ -181,6 +181,17 @@ export type LinkVerdict = { status: LinkStatus; pattern: string; newLink?: strin
 
 const isAbsolute = (link: string) => /^[a-z][a-z0-9+.-]*:/i.test(link) || link.startsWith('//')
 
+/**
+ * A post re-saved under a taken slug got a `-1` suffix; when that copy is
+ * later removed, the original (`…-paranoid`) is still live. The 2026-09-14 dry
+ * run listed 1,198 `new_article` links to such a `-1` slug as DEAD — they
+ * belong on the original, not nulled. Returns the un-suffixed slug, or null.
+ */
+export function originalPostSlug(slug: string): string | null {
+  const m = slug.match(/^(.+)-\d{1,3}$/)
+  return m ? m[1] : null
+}
+
 /** Every (target, key) the links need looked up. Club slugs are also tried as ids — broadcasts wrote ids. */
 export function referencedKeys(links: Iterable<string>): Map<TargetKey, Set<string>> {
   const out = new Map<TargetKey, Set<string>>()
@@ -194,6 +205,8 @@ export function referencedKeys(links: Iterable<string>): Map<TargetKey, Set<stri
     if (t) {
       add(t.target, m.params[t.param])
       if (t.target === 'club.slug') add('club.id', m.params[t.param])
+      const base = t.target === 'post.slug' ? originalPostSlug(m.params[t.param]) : null
+      if (base) add('post.slug', base)
     }
     for (const [k, target] of Object.entries(QUERY_TARGETS[m.route] ?? {})) {
       const v = query.get(k)
@@ -227,13 +240,18 @@ export function classifyLink(link: string, index: ExistenceIndex): LinkVerdict {
   if (t) {
     const v = m.params[t.param]
     if (!has(t.target, v)) {
-      const slug = t.target === 'club.slug' ? index.clubSlugById.get(v) : undefined
-      if (!slug) {
+      const clubSlug = t.target === 'club.slug' ? index.clubSlugById.get(v) : undefined
+      const original = t.target === 'post.slug' ? originalPostSlug(v) : null
+      if (clubSlug) {
+        // Broadcasts addressed the club by id; the page wants its slug.
+        candidate = m.route.replace('[slug]', encodeURIComponent(clubSlug)) + rest
+        rules.push('club id → slug')
+      } else if (original && has('post.slug', original)) {
+        candidate = m.route.replace('[slug]', encodeURIComponent(original)) + rest
+        rules.push('duplicate slug → original')
+      } else {
         return { status: 'DEAD', pattern: patternOf(path, query, m.route, rules), newLink: null, reason: `${t.target.split('.')[0]} ${v} no longer exists` }
       }
-      // Broadcasts addressed the club by id; the page wants its slug.
-      candidate = m.route.replace('[slug]', encodeURIComponent(slug)) + rest
-      rules.push('club id → slug')
     }
   } else if (m.route.includes('[')) {
     unverified = true

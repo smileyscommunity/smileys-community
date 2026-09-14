@@ -223,8 +223,11 @@ export async function canManageEventOps(sessionId: string, sessionRole: string, 
   return !!membership
 }
 export async function isClubHost(userId: string): Promise<boolean> {
+  // Hosting an inactive club grants nothing: this is the privilege gate (DMs to
+  // anyone, full directory, host console), and the 2026-09 hygiene audit found
+  // hosts of deactivated clubs still holding it.
   const count = await prisma.clubMembership.count({
-    where: { userId, status: MembershipStatus.Approved, role: 'host' },
+    where: { userId, status: MembershipStatus.Approved, role: 'host', club: { isActive: true } },
   })
   return count > 0
 }
