@@ -19,7 +19,7 @@ import { todayInTz, dayInTz, formatDay, DEFAULT_TZ } from '@/lib/cityTime'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import { loadFailure } from '@/lib/admin/useAdminLoad'
 import { isEventFull, promotableSeats, toCsv } from '@/lib/admin/participantsView'
-import { withCapacityConfirm, capacityConfirmForBatch } from '@/lib/admin/overCapacity'
+import { withCapacityConfirm, capacityConfirmForBatch, leftAtCapacity } from '@/lib/admin/overCapacity'
 
 interface NoShowCard { id: string; userId: string; kind: 'yellow' | 'red'; status: string; waivedAt: string | null; notifiedAt: string | null; user: { id: string; name: string } }
 
@@ -142,6 +142,7 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
     let ok = 0
     let failed = 0
     let waitlisted = 0
+    let atCapacity = 0
     let firstError: string | null = null
     // A full event refuses the seat (409 over_capacity): one "exceed
     // capacity?" for the whole batch, and the override only on a yes.
@@ -161,6 +162,9 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
             else ok++
             continue
           }
+          // Still refused for capacity = "Keep the cap" was pressed: they stay
+          // where they were by choice, which isn't a failure.
+          if (await leftAtCapacity(res)) { atCapacity++; continue }
           failed++
           if (!firstError) {
             const d = await res.json().catch(() => null)
@@ -172,9 +176,14 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
       setBusy(null)
       setReloadTick(t => t + 1)
     }
-    if (failed === 0) toast.success(`${verb} ${ok} ✓`)
-    else if (ok === 0) toast.error(`${verb} none — ${failed} failed${firstError ? `: ${firstError}` : ''}`)
-    else toast.warning(`${verb} ${ok} · ${failed} failed${firstError ? `: ${firstError}` : ''}`)
+    // Held at capacity reads as where they stayed — not as "N failed" quoting
+    // the refusal's "Confirm to seat them over capacity" after they said no.
+    const heldAs = method === 'PATCH' ? 'left pending' : 'left on the waitlist'
+    const held = atCapacity ? ` · ${atCapacity} ${heldAs} (at capacity)` : ''
+    if (failed === 0 && atCapacity > 0) toast.warning(`${verb} ${ok} · ${atCapacity} ${heldAs} (at capacity)`)
+    else if (failed === 0) toast.success(`${verb} ${ok} ✓`)
+    else if (ok === 0) toast.error(`${verb} none — ${failed} failed${firstError ? `: ${firstError}` : ''}${held}`)
+    else toast.warning(`${verb} ${ok} · ${failed} failed${firstError ? `: ${firstError}` : ''}${held}`)
     if (waitlisted) toast.warning(`${waitlisted} moved to the waitlist — their quota is full`)
   }
 

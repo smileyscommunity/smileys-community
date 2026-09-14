@@ -16,7 +16,7 @@ import EventBadges from '@/components/EventBadges'
 import { useRSVP } from '@/hooks/useRSVP'
 import NoShowAckModal from '@/components/NoShowAckModal'
 import { isSoldOut, isManuallySoldOut } from '@/lib/soldOut'
-import { joinBlock, joinBlockLabel } from '@/lib/eventJoinState'
+import { joinBlock, cardButtonState } from '@/lib/eventJoinState'
 import { DEFAULT_TZ } from '@/lib/cityTime'
 
 function Tip({ text, children }: { text: string; children: React.ReactNode }) {
@@ -85,11 +85,13 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
   const saidSoldOut = isManuallySoldOut(event)
   // The RSVP route refuses cancelled, postponed, finished and in-progress
   // events; the button used to stay live on all of them and every tap ended
-  // in an error toast. A member already in keeps "✓ Joined" on an event
-  // that's under way or over — that's still true and worth seeing.
+  // in an error toast. The closed label is only for a viewer with no place on
+  // the event — joined, pending and waitlisted keep their own status for every
+  // reason (a pending request past the deadline is still pending), exactly as
+  // RSVPButton does on the event page.
   const block        = joinBlock(event, timeZone)
-  const keepsJoined  = status === 'joined' && (block === 'started' || block === 'ended')
-  const blockedLabel = keepsJoined ? null : joinBlockLabel(block)
+  const buttonState  = cardButtonState(block, status)
+  const blockedLabel = buttonState.kind === 'closed' ? buttonState.label : null
 
   async function handleJoin(e: React.MouseEvent) {
     e.preventDefault()

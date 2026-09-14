@@ -74,3 +74,31 @@ export const JOIN_BLOCK_LABEL: Record<Exclude<JoinBlock, null>, string> = {
 export function joinBlockLabel(block: JoinBlock): string | null {
   return block ? JOIN_BLOCK_LABEL[block] : null
 }
+
+// ── Which label the card's button wears ─────────────────────────────────────
+//
+// The card used to put the closed label over everything except "✓ Joined" on
+// a started/ended event, so a member pending behind a passed registration
+// deadline read "Registration closed" days before the event — as if her
+// request were gone. RSVPButton on the event page had it right all along: the
+// closed label is for someone with no place on the event (idle, error, or
+// still loading their status); anyone joined, pending or waitlisted sees
+// where they stand, for EVERY closed reason — cancelled and postponed
+// included (the card's "Cancelled" ribbon and red button still say the event
+// is off; the page's button says "You're attending" there too). One rule for
+// both, so they can't drift again.
+
+export type Participation = 'idle' | 'joined' | 'pending' | 'waitlisted' | 'loading' | 'error'
+
+export type CardButtonState =
+  | { kind: 'closed'; block: Exclude<JoinBlock, null>; label: string }
+  | { kind: 'mine';   status: 'joined' | 'pending' | 'waitlisted' }
+  | { kind: 'open' }
+
+export function cardButtonState(block: JoinBlock, participation: Participation): CardButtonState {
+  if (participation === 'joined' || participation === 'pending' || participation === 'waitlisted') {
+    return { kind: 'mine', status: participation }
+  }
+  if (block) return { kind: 'closed', block, label: JOIN_BLOCK_LABEL[block] }
+  return { kind: 'open' }
+}

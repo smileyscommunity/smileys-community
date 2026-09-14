@@ -136,6 +136,25 @@ export function eventEndsAt(event: EventClock, tz: string = DEFAULT_TZ): Date {
   return end
 }
 
+// ── Has the event begun? ─────────────────────────────────────────────────────
+//
+// The door rule for joining (rsvp POST) and for handing a freed seat on
+// (the member's cancel, a host removing someone). It lived privately in the
+// rsvp route, so the staff removal path never asked and seated a waitlister
+// mid-event — who then got a no-show card for it.
+//
+// A TBA time has no start to pass (read as midnight it would close the door
+// at 00:00), so it counts as started only once its day is over. Times go
+// through readClock, so a legacy '19.30' starts at 19:30 as it does on the
+// event page, not at end of day. A row whose date doesn't parse is never
+// "started" — this gate must not lock anyone out on bad data.
+export function eventHasStarted(event: EventClock, tz: string = DEFAULT_TZ, now: number | Date = Date.now()): boolean {
+  const timeKnown = readClock(event.time, 'start') !== null
+  const at = (timeKnown ? eventStartsAt(event, tz) : eventEndsAt(event, tz)).getTime()
+  const t  = typeof now === 'number' ? now : now.getTime()
+  return Number.isFinite(at) && t >= at
+}
+
 // ── Where an event is in its day, for the status banner ──────────────────────
 //
 // 'soon' from two hours before the start, 'live' from the start until the end

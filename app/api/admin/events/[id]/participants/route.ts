@@ -16,6 +16,8 @@ import { CardStatus } from '@/lib/noShowPolicy'
 import { DEFAULT_CURRENCY } from '@/lib/data'
 import { rateLimit } from '@/lib/rateLimit'
 import { lockEventRow, seatState, seatVerdict, overCapacityBody, wantsOverCapacity } from '@/lib/eventCapacity'
+import { getCityTz } from '@/lib/city'
+import { eventHasStarted } from '@/lib/eventTime'
 
 // Who is taking the member off the event, for the soft-cancel stamp.
 // Everyone past canManageEventOps who isn't an admin is some kind of host.
@@ -246,7 +248,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
 
     const [entry, eventRow] = await Promise.all([
       prisma.eventAttendee.findUnique({ where: { userId_eventId: { userId, eventId } } }),
-      prisma.event.findUnique({ where: { id: eventId }, select: { title: true, approvalRequired: true, price: true, payTo: true, currency: true, hostId: true, ...quotaEventSelect } }),
+      prisma.event.findUnique({ where: { id: eventId }, select: { title: true, approvalRequired: true, price: true, payTo: true, currency: true, hostId: true, cityId: true, date: true, time: true, endTime: true, ...quotaEventSelect } }),
     ])
     await cancelAttendeeOp(prisma, { userId, eventId, by: cancelActor(session) })
 
@@ -270,7 +272,14 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       // next in line is a man, and the male count steps over the quota that
       // the approval path is careful to enforce. Order still decides who goes
       // first; the quota decides who is eligible.
-      const next = eventRow ? await findPromotableFromWaitlist(eventId, eventRow) : null
+      //
+      // Not once the event has started — the member's own cancel already
+      // holds back by the same rule. A host removing someone at 20:30 on a
+      // 19:00 event seated the first waitlister, who couldn't get there and
+      // was carded as a no-show for it. The counter is still re-derived in
+      // the lock below; nobody is seated or told a spot opened.
+      const started = !!eventRow && eventHasStarted(eventRow, await getCityTz(eventRow.cityId))
+      const next = eventRow && !started ? await findPromotableFromWaitlist(eventId, eventRow) : null
       if (eventRow) {
         const promoted = await prisma.$transaction(async (tx) => {
           await lockEventRow(tx, eventId)

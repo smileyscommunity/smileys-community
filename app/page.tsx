@@ -78,9 +78,12 @@ const getLandingData = unstable_cache(
     // being real, and each card names its city, so a founding city's first
     // event lands here automatically the day it's posted.
     const liveCityRows = await prisma.city.findMany({
-      where: { status: 'live' }, select: { id: true, name: true },
+      where: { status: 'live' }, select: { id: true, name: true, timezone: true },
     })
     const cityNameById = Object.fromEntries(liveCityRows.map(c => [c.id, c.name]))
+    // Each card judges "started"/"deadline" on its own city's clock, not
+    // Istanbul's — same query, one more column.
+    const cityTzById   = Object.fromEntries(liveCityRows.map(c => [c.id, c.timezone]))
 
     const [{ events: rawEvents }, testimonials, memberCount, stories] = await Promise.all([
       // Wide enough for the tabs to filter across a month; the page is
@@ -105,7 +108,7 @@ const getLandingData = unstable_cache(
     // is a guest BY CONSTRUCTION — redact inside the cache, unconditionally.
     // Same projection as GET /api/events: no exact address/GPS, no chat or
     // meeting links, no payment contact, no attendee identities.
-    const events = rawEvents.map(e => ({ ...redactEventForGuest(e), cityName: e.cityId ? cityNameById[e.cityId] : undefined }))
+    const events = rawEvents.map(e => ({ ...redactEventForGuest(e), cityName: e.cityId ? cityNameById[e.cityId] : undefined, timeZone: e.cityId ? cityTzById[e.cityId] : undefined }))
     return { events, testimonials, memberCount, stories }
   },
   ['global-landing-data'],

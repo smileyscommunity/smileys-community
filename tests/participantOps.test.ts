@@ -10,6 +10,9 @@ vi.mock('@/lib/spotsLeft',    () => ({ recomputeSpotsLeft: vi.fn().mockResolvedV
 vi.mock('@/lib/audit',        () => ({ writeAudit: vi.fn() }))
 vi.mock('@/lib/eventQuota',   () => ({ findPromotableFromWaitlist: vi.fn(), hasQuotaRoomFor: vi.fn(), quotaEventSelect: {} }))
 vi.mock('@/lib/noShow',       () => ({ getRsvpGate: vi.fn(), gateErrorBody: vi.fn() }))
+// DELETE now asks the city's clock whether the event has started; these rows
+// carry no date, so they read as not started and promotion runs as before.
+vi.mock('@/lib/city', async (orig) => ({ ...(await orig<any>()), getCityTz: vi.fn().mockResolvedValue('Europe/Istanbul') }))
 vi.mock('@/lib/prisma', () => ({ prisma: {
   $queryRaw:     vi.fn().mockResolvedValue([]),
   $transaction:  vi.fn(),

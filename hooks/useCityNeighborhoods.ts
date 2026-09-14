@@ -17,10 +17,16 @@ import { useState, useEffect } from 'react'
 // neighborhood belongs somewhere else — a visit's destination, say. Omit it
 // and the API resolves the viewer's city itself (view-city cookie → their own
 // city → the default), which is what a "post in my city" form wants.
-export function useCityNeighborhoods(city?: string): string[] {
+//
+// `null` means "the city isn't known yet": fetch nothing and return []. A
+// composer waiting on its POSTING city (lib/postingNeighborhoods) passes null
+// rather than undefined, which would fetch the browsed city's list and flash
+// it before the posting city's arrived.
+export function useCityNeighborhoods(city?: string | null): string[] {
   const [neighborhoods, setNeighborhoods] = useState<string[]>([])
 
   useEffect(() => {
+    if (city === null) { setNeighborhoods([]); return }
     // The cancelled flag drops out-of-order responses — a slow earlier fetch
     // must not overwrite a faster later one when `city` changes.
     let cancelled = false

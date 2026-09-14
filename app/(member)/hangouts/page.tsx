@@ -14,6 +14,7 @@ import { toast } from 'sonner'
 import { ImageUploadError } from '@/lib/image-resize'
 import { prepareImageUpload } from '@/lib/imageUploadGuard'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
+import { postingNeighborhoodsCity, neighborhoodIfListed } from '@/lib/postingNeighborhoods'
 import { DEFAULT_TZ, dayInTz, todayInTz, atHourInTz, wallClockInTz, fromWallClockInTz } from '@/lib/cityTime'
 
 // Spontaneous hangouts — members only (real-time, contact-required). Auto-
@@ -161,7 +162,16 @@ export default function HangoutsPage() {
   const tz = city?.timezone ?? DEFAULT_TZ
   const router = useRouter()
   const { user, isLoggedIn, isLoading } = useAuth()
-  const neighborhoods = useCityNeighborhoods()
+  // Two lists on purpose. The feed is the VIEWED city's, and a card's inline
+  // edit PATCHes a hangout whose own city (what the server validates against)
+  // is that viewed city — so the edit select keeps the viewed list.
+  const neighborhoods = useCityNeighborhoods(city?.slug ?? null)
+  // The hangout and pulse composers POST to the POSTING city
+  // (resolvePostingCityId), which silently drops a neighborhood from any
+  // other city — and with it the neighborhood fan-out and the pulse's local
+  // audience. Null until the city loads, so the browsed list never flashes.
+  const postingCity = city?.posting
+  const postingNeighborhoods = useCityNeighborhoods(postingNeighborhoodsCity(city))
 
   const [hangouts,       setHangouts]       = useState<Hangout[]>([])
   const [pulses,         setPulses]         = useState<Pulse[]>([])
@@ -349,7 +359,7 @@ export default function HangoutsPage() {
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title, location, neighborhood: neighborhood || undefined,
+          title, location, neighborhood: neighborhoodIfListed(neighborhood, postingNeighborhoods) || undefined,
           club: shareClub || undefined,
           description: description || undefined,
           startsAt: inputToISO(startsAt, tz),
@@ -386,7 +396,7 @@ export default function HangoutsPage() {
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          neighborhood: pulseNeighborhood || undefined,
+          neighborhood: neighborhoodIfListed(pulseNeighborhood, postingNeighborhoods) || undefined,
           note:         pulseNote || undefined,
           untilMinutes: pulseDuration,
         }),
@@ -565,6 +575,14 @@ export default function HangoutsPage() {
 
         {showForm && (
           <form onSubmit={handleSubmit} className="bg-white border border-gray-100 rounded-2xl p-5 space-y-4 shadow-sm">
+            {/* Same notice as the moving-sale form: browsing a city you
+                haven't joined files the hangout back home, where it won't
+                show in the feed underneath. */}
+            {postingCity?.differs && (
+              <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+                Posting to <strong>{postingCity.name}</strong> — the city you belong to, not the one you&apos;re browsing. Neighborhoods are {postingCity.name}&apos;s.
+              </p>
+            )}
             {/* Labels wrap their inputs so the association is implicit
                 (no htmlFor/id pair needed). SR users tabbing into any
                 field now hear the label announced. */}
@@ -646,9 +664,11 @@ export default function HangoutsPage() {
               <span className="block text-sm font-semibold text-gray-700 mb-1.5">
                 Neighborhood <span className="text-gray-400 font-normal">(pings nearby members)</span>
               </span>
-              <select value={neighborhood} onChange={e => setNeighborhood(e.target.value)} className="input bg-white">
+              {/* A ?neighborhood= deep link may name another city's
+                  neighborhood; it only shows (and posts) when listed here. */}
+              <select value={neighborhoodIfListed(neighborhood, postingNeighborhoods)} onChange={e => setNeighborhood(e.target.value)} className="input bg-white">
                 <option value="">— Not specified —</option>
-                {neighborhoods.map(n => <option key={n} value={n}>{n}</option>)}
+                {postingNeighborhoods.map(n => <option key={n} value={n}>{n}</option>)}
               </select>
             </label>
             {myClubs.length > 0 && (
@@ -728,6 +748,11 @@ export default function HangoutsPage() {
               <p className="text-sm font-bold text-amber-900">I&apos;m around</p>
               <p className="text-xs text-amber-700 mt-0.5">Lightweight ping — no venue or time committed. Auto-expires.</p>
             </div>
+            {postingCity?.differs && (
+              <p className="text-xs text-amber-800 bg-white/70 border border-amber-200 rounded-xl px-3 py-2">
+                Posting to <strong>{postingCity.name}</strong> — the city you belong to, not the one you&apos;re browsing. Neighborhoods are {postingCity.name}&apos;s.
+              </p>
+            )}
             <label className="block">
               <span className="block text-sm font-semibold text-gray-700 mb-1.5">
                 Note <span className="text-gray-400 font-normal">(optional)</span>
@@ -741,9 +766,9 @@ export default function HangoutsPage() {
                 <span className="block text-sm font-semibold text-gray-700 mb-1.5">
                   Where <span className="text-gray-400 font-normal">(pings members living there)</span>
                 </span>
-                <select value={pulseNeighborhood} onChange={e => setPulseNeighborhood(e.target.value)} className="input bg-white">
+                <select value={neighborhoodIfListed(pulseNeighborhood, postingNeighborhoods)} onChange={e => setPulseNeighborhood(e.target.value)} className="input bg-white">
                   <option value="">— Anywhere —</option>
-                  {neighborhoods.map(n => <option key={n} value={n}>{n}</option>)}
+                  {postingNeighborhoods.map(n => <option key={n} value={n}>{n}</option>)}
                 </select>
               </label>
               <label className="block">

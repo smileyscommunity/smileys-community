@@ -12,7 +12,7 @@ import { todayInTz, dayInTz, DEFAULT_TZ } from '@/lib/cityTime'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { useAdminCities } from '@/components/admin/CitySelect'
 import { isEventFull, matchesPersonSearch } from '@/lib/admin/participantsView'
-import { withCapacityConfirm, capacityConfirmForBatch } from '@/lib/admin/overCapacity'
+import { withCapacityConfirm, capacityConfirmPerEvent, leftAtCapacity } from '@/lib/admin/overCapacity'
 
 // ─── Page contract ──────────────────────────────────────────────────
 // This page is an INBOX: everything on it either needs a decision
@@ -366,7 +366,7 @@ export default function AdminParticipantsPage() {
   async function bulkRun(
     label: string,
     confirmMsg: string,
-    work: (a: Attendee) => Promise<boolean | 'waitlisted'>,
+    work: (a: Attendee) => Promise<boolean | 'waitlisted' | 'at_capacity'>,
     onSuccess: (ok: Set<string>) => void,
   ) {
     const targets = pending.filter(a => selected.has(rowKey(a)))
@@ -375,14 +375,17 @@ export default function AdminParticipantsPage() {
     setBulkSaving(true)
     // One at a time: the server seats each approval under a lock anyway, and a
     // sequence gives an honest tally — who got in, who went to the waitlist
-    // because their quota was full, and who failed.
+    // because their quota was full, who stayed pending because "Keep the cap"
+    // was pressed for their event, and who failed.
     const ok = new Set<string>()
     const handled = new Set<string>()
     let waitlisted = 0
+    let atCapacity = 0
     let fail = 0
     for (const a of targets) {
       const r = await work(a).catch(() => false as const)
       if (r === 'waitlisted') { waitlisted++; handled.add(rowKey(a)) }
+      else if (r === 'at_capacity') atCapacity++
       else if (r) { ok.add(rowKey(a)); handled.add(rowKey(a)) }
       else fail++
     }
@@ -391,19 +394,22 @@ export default function AdminParticipantsPage() {
     setBulkSaving(false)
     if (ok.size)    toast.success(`${label}: ${ok.size} done`)
     if (waitlisted) toast.warning(`${waitlisted} moved to the waitlist — their quota is full`)
+    if (atCapacity) toast.warning(`${atCapacity} left pending (at capacity)`)
     if (fail)       toast.error(`${label}: ${fail} failed — still selected, tap to retry`)
     load(true)
   }
 
-  // Approvals past an event's cap are refused: one "exceed capacity?" per
-  // bulk run (a fresh confirm per click), the override only on a yes.
-  const patchAction = (action: 'approve' | 'reject', sendChecked = capacityConfirmForBatch()) => async (a: Attendee) => {
+  // Approvals past an event's cap are refused. One click can span events, so
+  // "exceed capacity?" is asked once per EVENT with that event's counts (a
+  // fresh set per click), and the override only reaches an event that said yes.
+  const patchAction = (action: 'approve' | 'reject', confirms = capacityConfirmPerEvent()) => async (a: Attendee) => {
+    const sendChecked = confirms.forEvent(a.eventId)
     const res = await sendChecked(allowOverCapacity => fetch(`/app/api/admin/events/${a.eventId}/participants`, {
       method: 'PATCH', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId: a.userId, action, ...(allowOverCapacity ? { allowOverCapacity: true } : {}) }),
     }))
-    if (!res.ok) return false
+    if (!res.ok) return (await leftAtCapacity(res)) ? 'at_capacity' as const : false
     const d = await res.json().catch(() => ({}))
     return d?.status === 'waitlisted' ? 'waitlisted' as const : true
   }

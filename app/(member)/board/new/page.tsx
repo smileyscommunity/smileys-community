@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import Link from 'next/link'
 import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
+import { postingNeighborhoodsCity, neighborhoodIfListed } from '@/lib/postingNeighborhoods'
 import { downscaleImage, ImageUploadError } from '@/lib/image-resize'
 
 const CATEGORIES = [
@@ -42,10 +43,15 @@ function NewListingPageInner() {
   useEffect(() => {
     if (!isLoading && !isLoggedIn) router.replace('/login?next=/board/new')
   }, [isLoading, isLoggedIn, router])
-  const neighborhoods = useCityNeighborhoods()
   // Null until /api/city/current answers; the header renders the plain
   // 30-day line in that window rather than flashing a city that may be wrong.
   const city = useCurrentCity()
+  // The picker lists the POSTING city's names: the API validates the
+  // neighborhood against resolvePostingCityId and silently drops a name from
+  // the browsed city, so the form said "Posting to X" while offering Y's
+  // neighborhoods. Null (city not loaded) fetches nothing instead of flashing
+  // the browsed list.
+  const neighborhoods = useCityNeighborhoods(postingNeighborhoodsCity(city))
 
   // Prefill from query params — the moving-sale → rooms bridge arrives as
   // /board/new?category=ROOMS&neighborhood=…&availableFrom=…. Categories
@@ -133,7 +139,7 @@ function NewListingPageInner() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         category, title, description, price: price || null, contact: contact || null, contactEmail: contactEmail || null,
-        photo: photo || null, photoPosition, neighborhood: neighborhood || null,
+        photo: photo || null, photoPosition, neighborhood: neighborhoodIfListed(neighborhood, neighborhoods) || null,
         photos,
         attrs: {
           ...(category === 'ROOMS' ? { ...(housingType && { housingType }), ...(availableFrom && { availableFrom }), ...(furnished !== null && { furnished }) } : {}),
@@ -385,9 +391,12 @@ function NewListingPageInner() {
             <label htmlFor="nl-neighborhood" className="block text-sm font-semibold text-gray-700 mb-1.5">
               Neighborhood {category === 'ROOMS' ? <span className="text-gray-600 font-normal">(recommended)</span> : <span className="text-gray-400 font-normal">(optional)</span>}
             </label>
+            {/* A ?neighborhood= prefill only shows (and posts) when the posting
+                city has it — the select must not display one value while the
+                server saves another. */}
             <select
               id="nl-neighborhood"
-              value={neighborhood}
+              value={neighborhoodIfListed(neighborhood, neighborhoods)}
               onChange={e => setNeighborhood(e.target.value)}
               className="input bg-white"
             >

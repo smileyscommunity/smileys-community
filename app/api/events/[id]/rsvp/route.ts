@@ -14,19 +14,11 @@ import { activateAttendee, cancelAttendeeOp, withdrawPendingOp, isActiveAttendee
 import { checkRsvpAllowed, gateErrorBody, getRsvpGate, recordYellowAcknowledgement } from '@/lib/noShow'
 import { formatMoney } from '@/lib/data'
 import { todayInCity, getCityTz } from '@/lib/city'
-import { eventStartsAt, eventEndsAt, type EventClock } from '@/lib/eventTime'
+// Has the event begun, on its city's clock? Shared with the staff removal
+// path, which must hold back a promotion by the same rule (lib/eventTime).
+import { eventHasStarted } from '@/lib/eventTime'
 
 type Params = { params: Promise<{ id: string }> }
-
-// Has the event begun, on its city's clock? A TBA time has no start to pass
-// (read as midnight it would close the door at 00:00), so it counts as
-// started only once its day is over. A row whose date doesn't parse is
-// never "started" — this gate must not lock anyone out on bad data.
-function eventHasStarted(event: EventClock, tz: string, now: number = Date.now()): boolean {
-  const timeKnown = !!event.time && /^\d{1,2}:\d{2}/.test(event.time)
-  const at = (timeKnown ? eventStartsAt(event, tz) : eventEndsAt(event, tz)).getTime()
-  return Number.isFinite(at) && now >= at
-}
 
 export async function POST(req: NextRequest, { params }: Params) {
   try {

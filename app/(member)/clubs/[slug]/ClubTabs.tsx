@@ -11,6 +11,7 @@ import ClubPastEvents from '@/components/ClubPastEvents'
 import ClubReviews from '@/components/ClubReviews'
 import { resolveImageUrl, getInitials } from '@/lib/data'
 import type { Event } from '@/lib/data'
+import { DEFAULT_TZ } from '@/lib/cityTime'
 
 interface MemberAttendee {
   id: string; name: string; color: string; photo: string | null
@@ -29,6 +30,10 @@ interface Props {
   // Private clubs keep their roster for members and staff; the tab goes too.
   isPrivate?: boolean
   memberAttendeesByEvent: Record<string, MemberAttendee[]>
+  // cityId -> IANA zone for the cities these events are in. Without it the
+  // cards judged "started"/"deadline" on Istanbul's clock, so a Tbilisi
+  // event kept a working Join for an hour after the server refused it.
+  cityTimeZones?: Record<string, string>
   // Counts surfaced as small badges on the tab labels — passed from
   // the server so the badge is rendered immediately on first paint
   // (no client-side flash from a follow-up fetch).
@@ -68,7 +73,7 @@ const TAB_KEYS: readonly Tab[] = ['events', 'wall', 'photos', 'past', 'reviews',
 export default function ClubTabs({
   slug, clubEvents, canPost, currentUserId, isAdmin, canPin,
   canAnnounce, canUpload, isMember, isPrivate = false, memberAttendeesByEvent,
-  memberCount, reviewCount, reviewAvg,
+  cityTimeZones = {}, memberCount, reviewCount, reviewAvg,
 }: Props) {
   // Tab state lives in ?tab= rather than useState: the phone's Back
   // gesture then returns to the previous tab instead of leaving the club
@@ -126,7 +131,7 @@ export default function ClubTabs({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {clubEvents.map(event => (
               <div key={event.id}>
-                <EventCard event={event} linkPrefix="/events" />
+                <EventCard event={event} linkPrefix="/events" timeZone={(event.cityId && cityTimeZones[event.cityId]) || DEFAULT_TZ} />
                 {memberAttendeesByEvent[event.id]?.length > 0 && (
                   <AttendeeStack attendees={memberAttendeesByEvent[event.id]} />
                 )}

@@ -70,3 +70,33 @@ export function capacityConfirmForBatch() {
     return decision ? send(true) : res
   }
 }
+
+export type BatchCapacityConfirm = ReturnType<typeof capacityConfirmForBatch>
+
+/**
+ * The cross-event batch (the participants inbox approves requests for many
+ * events in one click). One answer for the whole run carried event A's
+ * "3 of 10 seats" yes into event B — seating B over its cap without anyone
+ * seeing B's numbers — and turned a no for A into silent failures for B.
+ * So one batch confirm per event: each event's first refusal asks with that
+ * event's counts, later refusals for the same event reuse its answer.
+ */
+export function capacityConfirmPerEvent() {
+  const byEvent = new Map<string, BatchCapacityConfirm>()
+  return {
+    forEvent(eventId: string): BatchCapacityConfirm {
+      let confirm = byEvent.get(eventId)
+      if (!confirm) { confirm = capacityConfirmForBatch(); byEvent.set(eventId, confirm) }
+      return confirm
+    },
+  }
+}
+
+/**
+ * A batch response that is still an over_capacity refusal means the person
+ * pressed "Keep the cap" — the request stays where it was by choice, so the
+ * summary counts it as held at capacity, not as a failure.
+ */
+export async function leftAtCapacity(res: Response): Promise<boolean> {
+  return (await capacityRefusal(res))?.code === OVER_CAPACITY_CODE
+}

@@ -454,7 +454,8 @@ describe('i. staff pages send the override only through the confirm', () => {
     expect(pages.perEvent).toContain('const sendChecked = capacityConfirmForBatch()')                     // approve all / promote N
     expect(pages.host.match(/withCapacityConfirm\(allowOverCapacity => fetch\(/g)).toHaveLength(3)
     expect(pages.inbox.match(/withCapacityConfirm\(allowOverCapacity => fetch\(/g)).toHaveLength(2)
-    expect(pages.inbox).toContain("const patchAction = (action: 'approve' | 'reject', sendChecked = capacityConfirmForBatch()) =>")
+    // The inbox batch spans events: one confirm per event (scan6Batch7).
+    expect(pages.inbox).toContain("const patchAction = (action: 'approve' | 'reject', confirms = capacityConfirmPerEvent()) =>")
     expect(pages.edit).toContain('const res = await withCapacityConfirm(allowOverCapacity => fetch(`/app/api/admin/events/${id}`, {')
     expect(pages.hostEdit).toContain('const res = await withCapacityConfirm(allowOverCapacity => fetch(`/app/api/admin/events/${id}`, {')
   })

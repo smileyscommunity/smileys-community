@@ -131,6 +131,13 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
     ? await prisma.city.findUnique({ where: { id: club.cityId }, select: { name: true } })
     : null
 
+  // Each event's city clock for the cards' join state — one query for the
+  // distinct cities, since a global club's events can sit in several.
+  const eventCityIds = [...new Set(clubEvents.map(e => e.cityId).filter((id): id is string => !!id))]
+  const cityTimeZones: Record<string, string> = eventCityIds.length
+    ? Object.fromEntries((await prisma.city.findMany({ where: { id: { in: eventCityIds } }, select: { id: true, timezone: true } })).map(c => [c.id, c.timezone]))
+    : {}
+
   const hosts = await prisma.clubMembership.findMany({
     where: { clubId: club.id, role: 'host', status: 'approved' },
     select: {
@@ -470,6 +477,7 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
               isMember={membershipStatus === 'approved'}
               isPrivate={club.isPrivate ?? false}
               memberAttendeesByEvent={memberAttendeesByEvent}
+              cityTimeZones={cityTimeZones}
               memberCount={club.memberCount}
               reviewCount={reviewStats._count._all}
               reviewAvg={reviewStats._avg.rating}

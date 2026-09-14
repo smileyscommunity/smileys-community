@@ -51,8 +51,9 @@ export default function EventTabs({
   timeZone,
 }: {
   // cityName rides each event when the caller mixes cities (the global
-  // landing page) so every card names where its dinner actually is.
-  events: (Event & { cityName?: string })[]
+  // landing page) so every card names where its dinner actually is; timeZone
+  // rides along for the same reason, so each card's join state uses its city's clock.
+  events: (Event & { cityName?: string; timeZone?: string })[]
   window: EventWindow
   linkPrefix?: string
   limit?: number
@@ -103,7 +104,7 @@ export default function EventTabs({
 
       {shown.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {shown.map(e => <EventCard key={e.id} event={e} linkPrefix={linkPrefix} cityName={e.cityName} timeZone={timeZone} />)}
+          {shown.map(e => <EventCard key={e.id} event={e} linkPrefix={linkPrefix} cityName={e.cityName} timeZone={e.timeZone ?? timeZone} />)}
         </div>
       ) : (
         <div className="rounded-2xl border border-dashed border-gray-200 bg-white p-10 text-center">
