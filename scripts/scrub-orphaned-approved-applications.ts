@@ -58,16 +58,42 @@ async function main() {
     if (typeof m.email === 'string' && m.email) removed.add(m.email.toLowerCase())
   }
 
-  const targets = (apps as any[]).filter(a => {
+  const candidates = (apps as any[]).filter(a => {
     const e = String(a.email).toLowerCase()
     return !userEmails.has(e) && !removed.has(e) && applicationPiiFields(a).length > 0
   })
 
+  // The guard that makes this safe, and the reason it is in the script rather
+  // than in whoever runs it: "no user has this email" does NOT mean the member
+  // is gone. It also describes a member who CHANGED their email — their
+  // application keeps the old address and looks orphaned while they are still
+  // here. Scrubbing that erases an active member's application.
+  //
+  // This is not hypothetical. Latife Yakova's approval audit records one
+  // address while her account carries another; her application survived only
+  // because it happens to match the account today. So every candidate is
+  // checked against live, non-deleted accounts by name and phone, and a match
+  // is reported and skipped rather than scrubbed.
+  const targets: any[] = []
+  const withheld: any[] = []
+  for (const a of candidates) {
+    const or: any[] = []
+    if (a.fullName) or.push({ name: { equals: a.fullName, mode: 'insensitive' } })
+    if (a.phone)    or.push({ phone: a.phone })
+    const live = or.length
+      ? await prisma.user.count({ where: { banReason: { not: 'deleted' }, OR: or } })
+      : 0
+    if (live > 0) withheld.push({ id: a.id, live }); else targets.push(a)
+  }
+  for (const w of withheld) {
+    console.log(`  ${w.id}  WITHHELD — ${w.live} live account(s) match by name or phone; treat as an email change, not a deletion`)
+  }
+
   for (const a of targets) {
     console.log(`  ${a.id}  created=${a.createdAt.toISOString().slice(0, 10)}  piiFields=${applicationPiiFields(a).length}`)
   }
-  console.log(`\nsummary: approved=${apps.length} orphaned+unexplained+holdingPii=${targets.length}` +
-    ` (admin removals excluded: ${removed.size} recorded)`)
+  console.log(`\nsummary: approved=${apps.length} candidates=${candidates.length} toScrub=${targets.length}` +
+    ` withheld(live account matches)=${withheld.length} (admin removals excluded: ${removed.size} recorded)`)
 
   if (!APPLY) { console.log('\nDRY RUN — nothing written.'); return }
 
