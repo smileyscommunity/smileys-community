@@ -5,7 +5,10 @@ import { timeAgo } from '@/lib/timeAgo'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { TYPE_ICON } from '@/lib/notificationFilters'
-import { sendNotificationAction, setReadFor, restoreAt, createNotificationSync } from '@/lib/notificationActions'
+import {
+  sendNotificationAction, setReadFor, restoreAt, createNotificationSync,
+  applyNotificationChange, createNotificationSourceId, emitNotificationChange, subscribeNotificationChanges,
+} from '@/lib/notificationActions'
 
 interface Notification {
   id: string; type: string; title: string; body: string
@@ -21,6 +24,8 @@ export default function NotificationBell() {
   const ref    = useRef<HTMLDivElement>(null)
   // Keeps a poll from undoing an in-flight mark-read / dismiss (lib/notificationActions).
   const [sync] = useState(createNotificationSync)
+  // Who we are when telling /notifications and other tabs what changed.
+  const [source] = useState(createNotificationSourceId)
 
   const load = useCallback(() => {
     const poll = sync.startPoll()
@@ -39,6 +44,15 @@ export default function NotificationBell() {
     const timer = setInterval(load, 60_000)
     return () => clearInterval(timer)
   }, [load])
+
+  // Read / dismissed on /notifications or in another tab: reflect it now, not
+  // at the next 60s poll (the badge used to keep counting it).
+  useEffect(() => {
+    return subscribeNotificationChanges(source, change => {
+      sync.receive(change)
+      setNotifs(prev => applyNotificationChange(prev, change))
+    })
+  }, [source, sync])
 
   // Close on outside click
   useEffect(() => {
@@ -62,7 +76,10 @@ export default function NotificationBell() {
     setNotifs(prev => setReadFor(prev, ids, true))
     if (!await sendNotificationAction('PATCH', { markAll: true }, 'Could not mark all as read').finally(settle)) {
       setNotifs(prev => setReadFor(prev, ids, false))
+      return
     }
+    // The server marked everything, not just the rows loaded here.
+    emitNotificationChange({ kind: 'readAll' }, source)
   }
 
   async function dismiss(e: React.MouseEvent, id: string) {
@@ -74,7 +91,9 @@ export default function NotificationBell() {
     setNotifs(prev => prev.filter(n => n.id !== id))
     if (!await sendNotificationAction('DELETE', { id }, 'Could not dismiss notification').finally(settle)) {
       setNotifs(prev => restoreAt(prev, removed, index))
+      return
     }
+    emitNotificationChange({ kind: 'dismiss', ids: [id] }, source)
   }
 
   function handleClick(n: Notification) {
@@ -87,6 +106,7 @@ export default function NotificationBell() {
       // rollback and toast still land.
       sendNotificationAction('PATCH', { id: n.id }, 'Could not mark as read').finally(settle).then(ok => {
         if (!ok) setNotifs(prev => setReadFor(prev, ids, false))
+        else emitNotificationChange({ kind: 'read', ids: [n.id] }, source)
       })
     }
     setOpen(false)

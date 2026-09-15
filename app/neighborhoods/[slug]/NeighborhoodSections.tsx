@@ -12,6 +12,12 @@ import { SITE_URL, APP_URL } from '@/lib/env'
 import NeighborhoodWall from '@/components/NeighborhoodWall'
 import AvatarImg from '@/components/AvatarImg'
 import { eventStartDate } from '@/lib/eventJsonLd'
+import { todayInTz, shiftDay } from '@/lib/cityTime'
+import { PUBLIC_EVENT_STATUSES } from '@/lib/db'
+
+// Same rule as HeroStats: public and actually held — no drafts/pending/flagged,
+// no cancelled, no postponed.
+const HELD_EVENT_STATUSES = ['published', 'archived']
 
 // Absolute URL for JSON-LD `image` — schema.org wants a full URL, but
 // resolveImageUrl only returns app-relative paths (fine for <img src>,
@@ -76,12 +82,14 @@ interface Props {
 export default async function NeighborhoodSections({
   name, slug, meta, siblings, cityId, city, guide, myId, viewer, isStaff, hasNoNeighborhood, sideLabel,
 }: Props) {
-  const today = new Date().toISOString().split('T')[0]
+  // The city's day, like HeroStats above this — server UTC split the page's
+  // "upcoming" from the hero's "past" differently for three hours a night.
+  const today = todayInTz(city.timezone)
 
   const now = new Date()
 
   const [
-    upcomingRaw, pastCount, localCandidates, hostCounts,
+    upcomingRaw, localCandidates, hostCounts,
     totalLocals, allEventCounts, communityPhotos, wallPostCount,
     activeListings, upcomingVisitors, activeHangouts, businesses, activePulses,
     boardPosts,
@@ -103,7 +111,6 @@ export default async function NeighborhoodSections({
         },
       },
     }),
-    prisma.event.count({ where: { neighborhood: name, cityId, date: { lt: today } } }),
     // This page is public and in the sitemap. The same three rules as the
     // "people nearby" strip on /neighborhoods: the member's own opt-out
     // (neighborhoodVisible), admin-hidden accounts, and connections-only
@@ -121,7 +128,8 @@ export default async function NeighborhoodSections({
     }),
     prisma.event.groupBy({
       by:      ['hostId'],
-      where:   { neighborhood: name, cityId },
+      // "N events hosted in X" — a draft or a cancelled event wasn't hosted.
+      where:   { neighborhood: name, cityId, status: { in: HELD_EVENT_STATUSES } },
       _count:  { _all: true },
       orderBy: { _count: { hostId: 'desc' } },
       take:    4,
@@ -130,11 +138,15 @@ export default async function NeighborhoodSections({
     prisma.user.count({ where: { ...ACTIVATED_MEMBER_WHERE, neighborhood: name, cityId, neighborhoodVisible: true, hiddenFromMembers: false } }),
     prisma.event.groupBy({
       by:    ['neighborhood'],
-      where: { cityId, date: { gte: today } },
+      // "N upcoming" on the nearby cards: the same published-only rule as the
+      // upcoming list above.
+      where: { cityId, date: { gte: today }, status: 'published' },
       _count: { _all: true },
     }),
+    // Each photo links to its event and borrows its title — never from an
+    // event the event page itself wouldn't show.
     prisma.eventPhoto.findMany({
-      where:   { event: { neighborhood: name, cityId } },
+      where:   { event: { neighborhood: name, cityId, status: { in: [...PUBLIC_EVENT_STATUSES] } } },
       take:    9,
       orderBy: { createdAt: 'desc' },
       select:  { id: true, url: true, caption: true, event: { select: { id: true, title: true } } },
@@ -237,7 +249,8 @@ export default async function NeighborhoodSections({
     where: {
       neighborhood: name, cityId,
       clubId: { not: null },
-      date: { gte: new Date(Date.now() - 30 * 86_400_000).toISOString().split('T')[0] },
+      status: { in: HELD_EVENT_STATUSES },
+      date: { gte: shiftDay(today, -30) },
     },
     _count: { _all: true },
     orderBy: { _count: { clubId: 'desc' } },

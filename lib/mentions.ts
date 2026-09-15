@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notify'
 import { firstNameOf } from '@/lib/data'
@@ -14,9 +15,8 @@ export const MAX_RECIPIENTS = 10
 
 const MENTION_RE = new RegExp(`@(${MENTION_NAME})`, 'gu')
 
-// Original case is kept: the DB lookup is a case-insensitive match and
-// Postgres folds 'İ' itself, whereas JS lowercasing turns 'İrem' into
-// 'i̇rem' (i + combining dot), which ILIKE never matches. Hyphens and
+// Original case is kept (it is the spelling the ILIKE fallback asks for);
+// the dedupe key is foldName, never bare JS lowercasing. Hyphens and
 // apostrophes inside a name are part of it (Jean-Luc, O'Brien) — the
 // composer inserts the whole first name, so the extractor must keep it.
 // NFC first: stored names are composed, so a decomposed "Çağla" typed on
@@ -28,11 +28,45 @@ export function extractMentions(content: string): string[] {
   return words.filter(w => { const k = foldName(w); if (seen.has(k)) return false; seen.add(k); return true }).slice(0, MAX_MENTIONS)
 }
 
+// One fold map drives both sides: foldName in JS and the SQL prefilter's
+// translate(), so a name the query loads is a name foldName can equal (and
+// the reverse). The DB has no unaccent extension and must not grow one.
+// Keys are lower-case; upper-case twins are derived below. Dotless ı and
+// capital İ fold to i — toLowerCase alone turns 'İrem' into 'i̇rem'.
+const FOLD_GROUPS: Record<string, string> = {
+  a: 'áàâäãåāăą', c: 'çćčĉċ', d: 'ďđð', e: 'éèêëēėęěĕ', g: 'ğĝġģ', h: 'ĥħ',
+  i: 'íìîïīįıĩİ', j: 'ĵ', k: 'ķ', l: 'łľĺļŀ', n: 'ñńňņ', o: 'óòôöõøōőŏ',
+  r: 'ŕřŗ', s: 'śšşșŝ', t: 'ťțţ', u: 'úùûüūůűũŭų', y: 'ýÿŷ', z: 'žźż', "'": '’',
+}
+// translate() maps one character to one, so these go through replace().
+export const FOLD_MULTI: ReadonlyArray<readonly [string, string]> = [
+  ['æ', 'ae'], ['Æ', 'ae'], ['œ', 'oe'], ['Œ', 'oe'], ['ß', 'ss'], ['ẞ', 'ss'],
+]
+
+function buildFold() {
+  const map = new Map<string, string>()
+  for (const [to, from] of Object.entries(FOLD_GROUPS)) {
+    for (const ch of Array.from(from)) {
+      const up = ch.toUpperCase()
+      // ASCII stays out ('ı' upper-cases to 'I'): lower() already folds it.
+      for (const c of [ch, up]) if (Array.from(c).length === 1 && /[^\x00-\x7f]/.test(c) && !map.has(c)) map.set(c, to)
+    }
+  }
+  return map
+}
+const FOLD_SINGLE = buildFold()
+// translate(name, FOLD_FROM, FOLD_TO): the same length, character for character.
+export const FOLD_FROM = [...FOLD_SINGLE.keys()].join('')
+export const FOLD_TO   = [...FOLD_SINGLE.values()].join('')
+const FOLD_ALL = new Map<string, string>([...FOLD_SINGLE, ...FOLD_MULTI])
+
 // Accent- and case-insensitive: 'İrem' / 'irem' / 'IREM' compare equal, and so
-// do the straight and curly apostrophe. Dotless ı folds to i as well —
-// toLowerCase maps 'I' to 'i', so "IŞIK" and "Işık" would otherwise differ.
+// do the straight and curly apostrophe. The map first (what SQL can mirror),
+// then any combining mark left over — a typed "@Nguyễn" still folds here even
+// though only its exact spelling reaches the query.
+const foldByMap = (s: string) => Array.from(s.normalize('NFC'), c => FOLD_ALL.get(c) ?? c).join('')
 export function foldName(s: string): string {
-  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/’/g, "'").toLowerCase().replace(/ı/g, 'i')
+  return foldByMap(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 }
 
 // A token and, when it carries an apostrophe suffix, its base: Turkish joins
@@ -53,55 +87,49 @@ export function mentionMatches(name: string, word: string): boolean {
   return mentionForms(word).some(f => names.has(foldName(f)))
 }
 
-// Candidates whose name holds the token as a whole word. A bare prefix query
-// capped at 50 let fifty Alices crowd out the one Ali the post was for.
-function nameHasWord(word: string) {
-  return [
-    { name: { equals:     word,         mode: 'insensitive' as const } },
-    { name: { startsWith: `${word} `,   mode: 'insensitive' as const } },
-    { name: { contains:   ` ${word} `,  mode: 'insensitive' as const } },
-  ]
+// lower(name) folded by the map above, as SQL. The map travels as bound
+// parameters, so there is one copy of it and nothing is spliced into the text.
+// Translate runs before lower(): 'İ' and upper-case accents fold the same
+// whatever the database's ctype does with them.
+const FOLDED_NAME = Prisma.sql`lower(${FOLD_MULTI.reduce(
+  (expr, [from, to]) => Prisma.sql`replace(${expr}, ${from}, ${to})`,
+  Prisma.sql`translate(name, ${FOLD_FROM}, ${FOLD_TO})`,
+)})`
+
+const likeEscape = (s: string) => s.replace(/[\\%_]/g, c => `\\${c}`)
+
+// A name holding the token as a whole word: the whole name, its first word, a
+// middle word ("H. Kübra Çulha") or its last ("Dr. Ali"). A bare prefix capped
+// at 50 let fifty Alices crowd out the one Ali the post was for.
+function wholeWordPatterns(token: string): string[] {
+  const w = likeEscape(token)
+  return [w, `${w} %`, `% ${w} %`, `% ${w}`]
 }
 
-// The DB match is case-insensitive but NOT accent-insensitive (no unaccent
-// extension), so "@Cagla" never loaded the Çağla row and foldName never got
-// to compare them. The prefilter asks for every Turkish spelling of the folded
-// token instead — the letters members type without the keyboard for them. 'İ'
-// only leads: formatName leaves no capitals mid-name.
-const LETTER_VARIANTS: Record<string, string[]> = { c: ['ç'], g: ['ğ'], i: ['ı'], o: ['ö'], s: ['ş'], u: ['ü'] }
-export const MAX_NAME_VARIANTS = 32
-
-// Spellings of a token that fold to the same name. Bounded: past
-// MAX_NAME_VARIANTS the spellings stop at the letters enumerated so far and
-// `whole` is false — the query then matches that prefix and mentionMatches
-// still decides on the whole name.
-export function nameVariants(word: string): { variants: string[]; whole: boolean } {
-  let out = ['']
-  const letters = Array.from(foldName(word))
-  for (let k = 0; k < letters.length; k++) {
-    const ch = letters[k]
-    const alts = [ch, ...(LETTER_VARIANTS[ch] ?? []), ...(k === 0 && ch === 'i' ? ['İ'] : [])]
-    if (out.length * alts.length > MAX_NAME_VARIANTS) return { variants: out, whole: false }
-    out = out.flatMap(p => alts.map(a => p + a))
+// Patterns for the folded name, plus the token as typed for ILIKE when it
+// keeps a letter the map doesn't cover ("@Nguyễn" still finds Nguyễn). Four
+// patterns per spelling per form: bounded by MAX_MENTIONS, not by name length.
+export function mentionPatterns(words: string[]): { folded: string[]; raw: string[] } {
+  const forms = words.flatMap(mentionForms)
+  const uniq = (xs: string[]) => [...new Set(xs)]
+  return {
+    folded: uniq(forms.flatMap(f => wholeWordPatterns(foldName(f)))),
+    raw:    uniq(forms.filter(f => /[^\x00-\x7f]/.test(foldByMap(f))).flatMap(wholeWordPatterns)),
   }
-  return { variants: out, whole: true }
 }
 
-// The token as typed (keeps accents outside the Turkish set: "@René") plus its
-// folded spellings, deduped.
-export function namePrefilter(words: string[]) {
-  const seen = new Set<string>()
-  return words.flatMap(mentionForms).flatMap(word => {
-    const { variants, whole } = nameVariants(word)
-    const spellings = variants.filter(v => v !== word && v !== word.toLowerCase())
-    return [
-      ...nameHasWord(word),
-      ...spellings.flatMap(v => whole ? nameHasWord(v) : [
-        { name: { startsWith: v,      mode: 'insensitive' as const } },
-        { name: { contains:   ` ${v}`, mode: 'insensitive' as const } },
-      ]),
-    ]
-  }).filter(c => { const k = JSON.stringify(c); if (seen.has(k)) return false; seen.add(k); return true })
+// The candidate query. Same scope as the Prisma version it replaced: approved
+// (so not banned or deleted), not admin-hidden (they are out of mention
+// autocomplete too), not the author, the post's city; 50 rows.
+export function mentionCandidatesSql(opts: { words: string[]; authorId: string; cityId: string | null }) {
+  const { folded, raw } = mentionPatterns(opts.words)
+  return Prisma.sql`
+    SELECT id, name FROM users
+    WHERE status = 'approved' AND "hiddenFromMembers" = false AND id <> ${opts.authorId}
+      ${opts.cityId ? Prisma.sql`AND "cityId" = ${opts.cityId}` : Prisma.empty}
+      AND (${FOLDED_NAME} LIKE ANY (ARRAY[${Prisma.join(folded)}]::text[])
+        ${raw.length ? Prisma.sql`OR name ILIKE ANY (ARRAY[${Prisma.join(raw)}]::text[])` : Prisma.empty})
+    LIMIT 50`
 }
 
 // Members on either side of a block with the author never get the ping.
@@ -128,20 +156,9 @@ export async function notifyMentions(opts: {
   const words = extractMentions(opts.content)
   if (!words.length) return 0
 
-  const candidates = await prisma.user.findMany({
-    where: {
-      // approved excludes banned (and so deleted) accounts. Admin-hidden
-      // accounts are out of mention autocomplete (api/members/search); a
-      // hand-typed @name must not notify them either.
-      status: 'approved',
-      hiddenFromMembers: false,
-      id:     { not: opts.authorId },
-      ...(opts.cityId ? { cityId: opts.cityId } : {}),
-      OR:     namePrefilter(words),
-    },
-    select: { id: true, name: true },
-    take:   50,
-  })
+  const candidates = await prisma.$queryRaw<{ id: string; name: string }[]>(
+    mentionCandidatesSql({ words, authorId: opts.authorId, cityId: opts.cityId }),
+  )
   const matched = candidates.filter(u => words.some(w => mentionMatches(u.name, w)))
   if (!matched.length) return 0
 

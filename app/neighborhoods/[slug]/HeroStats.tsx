@@ -2,7 +2,13 @@ import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { ACTIVATED_MEMBER_WHERE } from '@/lib/memberCount'
 import { getCityTz } from '@/lib/city'
-import { todayInTz } from '@/lib/cityTime'
+import { todayInTz, monthRangeFor } from '@/lib/cityTime'
+
+// Events that actually happen here. Drafts, pending, flagged and unpublished
+// events aren't public at all (lib/db PUBLIC_EVENT_STATUSES); of the public
+// ones, a cancelled event didn't take place and a postponed one isn't taking
+// place on the date it still carries.
+const HELD_EVENT_STATUSES = ['published', 'archived']
 
 interface Props {
   name: string
@@ -19,11 +25,13 @@ export default async function HeroStats({ name, cityId, groupLink, groupLabel, u
   // The city's calendar, not server UTC: a Tbilisi event tonight isn't "past"
   // at 21:00 UTC, and the 1st of the month starts at the city's midnight.
   const today    = todayInTz(await getCityTz(cityId))
-  const monthStr = `${today.slice(0, 8)}01`
+  // Bounded on both ends: with only `gte` the 1st, "this month" counted
+  // every later month too.
+  const month    = monthRangeFor(today)
 
   const [monthlyCount, pastCount, totalLocals, approvedHost] = await Promise.all([
-    prisma.event.count({ where: { neighborhood: name, cityId, date: { gte: monthStr } } }),
-    prisma.event.count({ where: { neighborhood: name, cityId, date: { lt: today } } }),
+    prisma.event.count({ where: { neighborhood: name, cityId, status: { in: HELD_EVENT_STATUSES }, date: { gte: month.start, lt: month.nextStart } } }),
+    prisma.event.count({ where: { neighborhood: name, cityId, status: { in: HELD_EVENT_STATUSES }, date: { lt: today } } }),
     // "N local members" — activated members only (lib/memberCount), minus the
     // same opt-outs NeighborhoodSections applies: a member who hid their
     // neighborhood, or an admin-hidden account, isn't counted as a local.

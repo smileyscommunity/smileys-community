@@ -82,7 +82,9 @@ const getNeighborhoodStats = unstable_cache(
   async (today: string, cityId: string) => Promise.all([
     prisma.event.groupBy({
       by: ['neighborhood'],
-      where: { cityId, date: { gte: today } },
+      // "N upcoming" — published only, like the next-event lookup below;
+      // drafts, pending and cancelled events aren't upcoming.
+      where: { cityId, date: { gte: today }, status: 'published' },
       _count: { _all: true },
     }),
     // "N locals" — activated members only (lib/memberCount).

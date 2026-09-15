@@ -24,7 +24,10 @@ const h = vi.hoisted(() => {
   } })
   const prisma: any = new Proxy({}, { get: (_t, m: string) =>
     m === '$transaction' ? (ops: any) => (typeof ops === 'function' ? ops(prisma) : Promise.all(ops))
-    : m === '$queryRaw' || m === '$queryRawUnsafe' ? () => Promise.resolve([])
+    : m === '$queryRaw' || m === '$queryRawUnsafe' ? (...args: any[]) => {
+      ;(calls[m] ??= []).push(args[0])
+      return Promise.resolve(m in results ? (typeof results[m] === 'function' ? results[m](args[0]) : results[m]) : [])
+    }
     : model(m) })
   return { prisma, calls, results, getSession: vi.fn(), createNotification: vi.fn(async () => true) }
 })
@@ -41,7 +44,8 @@ vi.mock('bcryptjs',                () => ({ default: { compare: vi.fn(async () =
 
 import { POST as deleteAccountPOST } from '@/app/api/auth/delete-account/route'
 import { POST as clubPostPOST } from '@/app/api/clubs/[slug]/posts/route'
-import { notifyMentions, nameVariants, MAX_NAME_VARIANTS, MAX_RECIPIENTS } from '@/lib/mentions'
+import { notifyMentions, mentionPatterns, MAX_RECIPIENTS } from '@/lib/mentions'
+import { runMentionSql, parseMentionSql } from './helpers/mentionSql'
 
 const last = (key: string) => h.calls[key]?.at(-1)
 const jsonReq = (body: any = {}) => ({ json: async () => body }) as any
@@ -82,10 +86,10 @@ describe('23. a deleted member leaves no contact on their listings', () => {
 })
 
 // ── 31. mentions reach accent variants, never hidden accounts ─────────────
-// A stand-in for Postgres: `mode: 'insensitive'` folds case, NOT accents —
-// exactly the gap that let "@Cagla" load nothing.
-type Row = { id: string; name: string; status: string; hiddenFromMembers: boolean; cityId: string }
-const USERS: Row[] = [
+// The wall lookup is raw SQL since scan 6 batch 26; tests/helpers/mentionSql
+// runs it against this table the way Postgres would (translate + LIKE, and
+// only the scope predicates the query really has).
+const USERS = [
   { id: 'u-cagla',  name: 'Çağla Öz',     status: 'approved', hiddenFromMembers: false, cityId: 'c1' },
   { id: 'u-isik',   name: 'Işık Tan',     status: 'approved', hiddenFromMembers: false, cityId: 'c1' },
   { id: 'u-ayse',   name: 'Ayşe Kaya',    status: 'approved', hiddenFromMembers: false, cityId: 'c1' },
@@ -97,26 +101,11 @@ const USERS: Row[] = [
   { id: 'u-deniz',  name: 'Deniz Ak',     status: 'approved', hiddenFromMembers: false, cityId: 'c1' },
   { id: 'u-other',  name: 'Çağla Başka',  status: 'approved', hiddenFromMembers: false, cityId: 'c2' },
 ]
-const lc = (s: string) => s.toLowerCase()
-const nameMatches = (name: string, f: any) =>
-  f.equals     !== undefined ? lc(name) === lc(f.equals)
-  : f.startsWith !== undefined ? lc(name).startsWith(lc(f.startsWith))
-  : lc(name).includes(lc(f.contains))
-function findUsers(args: any) {
-  const w = args.where
-  return USERS
-    .filter(u => (w.status === undefined || u.status === w.status)
-      && (w.hiddenFromMembers === undefined || u.hiddenFromMembers === w.hiddenFromMembers)
-      && (!w.cityId || u.cityId === w.cityId)
-      && u.id !== w.id?.not
-      && w.OR.some((o: any) => nameMatches(u.name, o.name)))
-    .slice(0, args.take ?? Infinity)
-    .map(({ id, name }) => ({ id, name }))
-}
+const findUsers = (q: any) => runMentionSql(q, USERS)
 
 describe('31. wall mentions', () => {
   const post = (content: string) => notifyMentions({ content, authorId: 'me', authorName: 'Me', cityId: 'c1', link: '/neighborhoods/moda' })
-  beforeEach(() => { h.results['user.findMany'] = findUsers })
+  beforeEach(() => { h.results['$queryRaw'] = findUsers })
 
   it('"@Cagla" and "@Isik" reach Çağla and Işık', async () => {
     expect(await post('selam @Cagla ve @Isik')).toBe(2)
@@ -131,7 +120,9 @@ describe('31. wall mentions', () => {
   it('a hidden account is not mentioned, nor a banned (deleted) one', async () => {
     expect(await post('@Deniz')).toBe(1)
     expect(notified()).toEqual(['u-deniz'])
-    expect(last('user.findMany').where).toMatchObject({ status: 'approved', hiddenFromMembers: false })
+    const q = parseMentionSql(last('$queryRaw'))
+    expect(q.text).toContain(`status = 'approved'`)
+    expect(q.text).toContain(`"hiddenFromMembers" = false`)
   })
 
   it('"@Ayşe" still does not fan out to Ay… names, "@Ayse" neither', async () => {
@@ -140,10 +131,8 @@ describe('31. wall mentions', () => {
     vi.clearAllMocks()
     expect(await post('hey @Ayse')).toBe(1)
     expect(notified()).toEqual(['u-ayse'])
-    // Every predicate is a whole word, never the bare prefix.
-    for (const c of last('user.findMany').where.OR) {
-      expect(c.name.equals ?? c.name.startsWith?.endsWith(' ') ?? /^ .* $/.test(c.name.contains)).toBeTruthy()
-    }
+    // Every pattern is a whole word, never the bare prefix.
+    expect(parseMentionSql(last('$queryRaw')).folded).toEqual(['ayse', 'ayse %', '% ayse %', '% ayse'])
   })
 
   it('keeps the given-name match after a leading initial', async () => {
@@ -155,17 +144,16 @@ describe('31. wall mentions', () => {
     await post('@Cagla')
     expect(notified()).toEqual(['u-cagla'])
     const many = Array.from({ length: 30 }, (_, i) => ({ id: `c${i}`, name: 'Cagla' }))
-    h.results['user.findMany'] = many
+    h.results['$queryRaw'] = many
     vi.clearAllMocks()
     expect(await post('@Çağla')).toBe(MAX_RECIPIENTS)
   })
 
-  it('the prefilter is bounded: long ambiguous names fall back to a prefix', () => {
-    expect(nameVariants('Çağla')).toEqual({ variants: ['cagla', 'cağla', 'çagla', 'çağla'], whole: true })
-    const long = nameVariants('Constantinos')
-    expect(long.whole).toBe(false)
-    expect(long.variants.length).toBeLessThanOrEqual(MAX_NAME_VARIANTS)
-    expect(long.variants).toContain('constantino')
+  it('the prefilter is bounded: four whole-word patterns per spelling, however many foldable letters', () => {
+    // The per-letter variant list (2^n spellings, cut to a prefix past 32)
+    // was replaced by folding the stored name in SQL (scan 6 batch 26).
+    expect(mentionPatterns(['Çağla']).folded).toEqual(['cagla', 'cagla %', '% cagla %', '% cagla'])
+    expect(mentionPatterns(['Constantinos']).folded).toHaveLength(4)
   })
 })
 

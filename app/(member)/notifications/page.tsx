@@ -6,7 +6,10 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { FILTERS, FILTER_TYPES, TYPE_ICON, type Filter } from '@/lib/notificationFilters'
 import { toast } from 'sonner'
-import { sendNotificationAction, setReadFor, restoreAt, createNotificationSync } from '@/lib/notificationActions'
+import {
+  sendNotificationAction, setReadFor, restoreAt, createNotificationSync,
+  applyNotificationChange, createNotificationSourceId, emitNotificationChange, subscribeNotificationChanges,
+} from '@/lib/notificationActions'
 import { usePullToRefresh } from '@/hooks/usePullToRefresh'
 import SwipeRow from '@/components/SwipeRow'
 import EmptyState from '@/components/EmptyState'
@@ -32,6 +35,8 @@ export default function NotificationsPage() {
   const clearedAt = useRef<number>(0)
   // Keeps a refetch from undoing an in-flight mark-read / dismiss (lib/notificationActions).
   const [sync] = useState(createNotificationSync)
+  // Who we are when telling the bell and other tabs what changed.
+  const [source] = useState(createNotificationSourceId)
   const router = useRouter()
 
   const load = useCallback(async () => {
@@ -59,6 +64,15 @@ export default function NotificationsPage() {
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [load])
 
+  // Read / dismissed from the bell or in another tab: apply it to this list
+  // instead of showing it unread until the next refetch.
+  useEffect(() => {
+    return subscribeNotificationChanges(source, change => {
+      sync.receive(change)
+      setNotifications(prev => applyNotificationChange(prev, change))
+    })
+  }, [source, sync])
+
   const { pullY, refreshing, progress, triggered } = usePullToRefresh(load)
 
   const filtered = useMemo(() => {
@@ -84,7 +98,10 @@ export default function NotificationsPage() {
     setNotifications(prev => setReadFor(prev, ids, true))
     if (!await sendNotificationAction('PATCH', { markAll: true }, 'Could not mark all as read').finally(settle)) {
       setNotifications(prev => setReadFor(prev, ids, false))
+      return
     }
+    // The server marked everything, not just the rows loaded here.
+    emitNotificationChange({ kind: 'readAll' }, source)
   }
 
   async function clearAll() {
@@ -100,6 +117,7 @@ export default function NotificationsPage() {
         clearedAt.current = Date.now()
         setNotifications([])
         setConfirmClear(false)
+        emitNotificationChange({ kind: 'clearAll' }, source)
       } else {
         const data = await res.json().catch(() => ({}))
         toast.error(data.error ?? 'Could not clear notifications')
@@ -118,7 +136,9 @@ export default function NotificationsPage() {
     setNotifications(prev => prev.filter(n => n.id !== id))
     if (!await sendNotificationAction('DELETE', { id }, 'Could not dismiss notification').finally(settle)) {
       setNotifications(prev => restoreAt(prev, removed, index))
+      return
     }
+    emitNotificationChange({ kind: 'dismiss', ids: [id] }, source)
   }
 
   function handleClick(n: Notification) {
@@ -129,6 +149,9 @@ export default function NotificationsPage() {
       // Was `.catch(() => {})` — a refused read left the row looking read.
       sendNotificationAction('PATCH', { id: n.id }, 'Could not mark as read').finally(settle).then(ok => {
         if (!ok) setNotifications(prev => setReadFor(prev, ids, false))
+        // Emitted even if this page has navigated away by then — the bell
+        // is still mounted and needs its badge to drop.
+        else emitNotificationChange({ kind: 'read', ids: [n.id] }, source)
       })
     }
     if (n.link) router.push(n.link)

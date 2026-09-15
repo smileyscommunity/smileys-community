@@ -183,6 +183,23 @@ export function weekRangeOf(today: string): { start: string; end: string } {
 }
 
 /**
+ * The calendar month containing `today`: its first day, and the first day of
+ * the NEXT month as an exclusive upper bound (`date >= start && date <
+ * nextStart`). String maths only — a local-zone `new Date(y, m + 1, 1)` reads
+ * back a day early west of UTC. The neighbourhood "events this month" stat
+ * had only the lower bound and counted every later month too.
+ */
+export function monthRangeFor(today: string): { start: string; nextStart: string } {
+  const y = Number(today.slice(0, 4))
+  const m = Number(today.slice(5, 7))
+  const [ny, nm] = m === 12 ? [y + 1, 1] : [y, m + 1]
+  return {
+    start:     `${today.slice(0, 8)}01`,
+    nextStart: `${String(ny).padStart(4, '0')}-${String(nm).padStart(2, '0')}-01`,
+  }
+}
+
+/**
  * Saturday–Sunday of the week that contains `today`. On a Sunday that is
  * yesterday and today: the old maths took the NEXT Saturday and hid the
  * Sunday events a member was looking for that same afternoon.

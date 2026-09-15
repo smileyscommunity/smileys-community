@@ -172,7 +172,8 @@ describe('30b. neighbourhood HeroStats', () => {
 
   it('"today" and "this month" come from the city timezone, not server UTC', () => {
     expect(src).toContain('const today    = todayInTz(await getCityTz(cityId))')
-    expect(src).toContain('const monthStr = `${today.slice(0, 8)}01`')
+    // The month is now a bounded range from lib/cityTime (scan6Batch27).
+    expect(src).toContain('const month    = monthRangeFor(today)')
     expect(src).not.toContain('toISOString()')
     expect(src).not.toMatch(/setHours\(/)
   })

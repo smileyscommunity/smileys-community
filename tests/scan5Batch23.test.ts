@@ -9,6 +9,7 @@ const read = (f: string) => readFileSync(f, 'utf8')
 
 const p = vi.hoisted(() => {
   const m: Record<string, any> = {
+    $queryRaw:          vi.fn(async () => []),
     user:               { findMany: vi.fn(async () => []), update: vi.fn(async () => ({})) },
     memberBlock:        { findMany: vi.fn(async () => []) },
     club:               { findUnique: vi.fn(), findMany: vi.fn(async () => []) },
@@ -43,6 +44,7 @@ vi.mock('@/lib/email', () => ({
 
 import { extractMentions, mentionMatches, notifyMentions } from '@/lib/mentions'
 import { MENTION_NAME } from '@/lib/mentionToken'
+import { parseMentionSql } from './helpers/mentionSql'
 import { POST as clubPostPOST } from '@/app/api/clubs/[slug]/posts/route'
 import { GET as broadcastGET, PATCH as broadcastPATCH } from '@/app/api/admin/notifications/broadcast/route'
 import { POST as nudgePOST } from '@/app/api/admin/tools/login-nudge/route'
@@ -103,23 +105,24 @@ describe('84 — resolution is by the full token, never a prefix', () => {
   })
 
   it('wall: "@Ayşe" notifies Ayşe only, and the query asks for whole words', async () => {
-    p.user.findMany.mockResolvedValueOnce([
+    p.$queryRaw.mockResolvedValueOnce([
       { id: 'u-ayse', name: 'Ayşe Kaya' }, { id: 'u-ayla', name: 'Ayla' }, { id: 'u-aylin', name: 'Aylin T.' },
     ])
     const n = await notifyMentions({ content: 'hey @Ayşe', authorId: 'me', authorName: 'Me', cityId: 'c1', link: '/neighborhoods/moda' })
     expect(n).toBe(1)
     expect((createNotification as any).mock.calls.map((c: any[]) => c[0])).toEqual(['u-ayse'])
-    const OR = p.user.findMany.mock.calls[0][0].where.OR
-    expect(OR).toContainEqual({ name: { equals: 'Ayşe', mode: 'insensitive' } })
-    expect(OR).not.toContainEqual({ name: { startsWith: 'Ay', mode: 'insensitive' } })
-    expect(OR).not.toContainEqual({ name: { startsWith: 'Ayşe', mode: 'insensitive' } })
+    // Whole words against the folded name (raw SQL since scan 6 batch 26).
+    const { folded } = parseMentionSql(p.$queryRaw.mock.calls[0][0])
+    expect(folded).toEqual(['ayse', 'ayse %', '% ayse %', '% ayse'])
+    expect(folded).not.toContain('ay%')
+    expect(folded).not.toContain('ayse%')
   })
 
   it('wall: "@Çağla" reaches Çağla', async () => {
-    p.user.findMany.mockResolvedValueOnce([{ id: 'u-cagla', name: 'Çağla Öz' }])
+    p.$queryRaw.mockResolvedValueOnce([{ id: 'u-cagla', name: 'Çağla Öz' }])
     const n = await notifyMentions({ content: '@Çağla bak', authorId: 'me', authorName: 'Me', cityId: 'c1', link: '/x' })
     expect(n).toBe(1)
-    expect(p.user.findMany.mock.calls[0][0].where.OR).toContainEqual({ name: { startsWith: 'Çağla ', mode: 'insensitive' } })
+    expect(parseMentionSql(p.$queryRaw.mock.calls[0][0]).folded).toContain('cagla %')
   })
 
   it('club wall: "@Ayşe" and "@Çağla" notify exactly those members, blocks respected', async () => {

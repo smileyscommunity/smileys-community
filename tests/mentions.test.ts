@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/prisma', () => ({ prisma: {
-  user:        { findMany: vi.fn() },
+  $queryRaw:   vi.fn(),
   memberBlock: { findMany: vi.fn().mockResolvedValue([]) },
 } }))
 vi.mock('@/lib/notify', () => ({ createNotification: vi.fn().mockResolvedValue(undefined) }))
@@ -9,6 +9,7 @@ vi.mock('@/lib/notify', () => ({ createNotification: vi.fn().mockResolvedValue(u
 import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notify'
 import { extractMentions, mentionMatches, notifyMentions, foldName, MAX_MENTIONS, MAX_RECIPIENTS } from '@/lib/mentions'
+import { parseMentionSql } from './helpers/mentionSql'
 
 // The wall's @mention resolver ran `name startsWith word` over the whole
 // membership — no city, no cap, no block check — and neighborhood_mention is
@@ -24,9 +25,9 @@ beforeEach(() => {
 
 describe('extractMentions', () => {
   it('ignores single-character handles and dedupes case-insensitively, keeping the first spelling', () => {
-    // Original case is kept for the DB prefix query: Postgres folds 'İ' on its
-    // own, whereas JS lowercasing produced 'i̇rem' (combining dot), which
-    // ILIKE never matched — İrem, İpek and İsmail were never notified.
+    // Dedupe is by foldName, never bare JS lowercasing: that produced 'i̇rem'
+    // (combining dot) for İrem, which no query ever matched — İrem, İpek and
+    // İsmail were never notified.
     expect(extractMentions('hi @a @e @Ali @ali @m')).toEqual(['Ali'])
   })
   it('keeps hyphens and apostrophes inside a name', () => {
@@ -66,22 +67,18 @@ describe('notifyMentions', () => {
   const base = { authorId: 'me', authorName: 'Me', cityId: 'c1', link: '/neighborhoods/moda' }
 
   it('scopes the lookup to the post city and only notifies exact first-name matches', async () => {
-    p.user.findMany.mockResolvedValue([{ id: 'u1', name: 'Ali Y.' }, { id: 'u2', name: 'Alice' }])
+    p.$queryRaw.mockResolvedValue([{ id: 'u1', name: 'Ali Y.' }, { id: 'u2', name: 'Alice' }])
     const n = await notifyMentions({ ...base, content: 'welcome @Ali' })
     expect(n).toBe(1)
-    expect(p.user.findMany.mock.calls[0][0].where).toMatchObject({ cityId: 'c1', status: 'approved', hiddenFromMembers: false, id: { not: 'me' } })
-    // The query receives the word as typed, never JS-lowercased, and asks for
-    // it as a whole word (a bare prefix capped at 50 let Alices crowd out Ali).
-    // The DB is not accent-insensitive, so the dotless spelling is asked for
-    // too (scan 6 batch 18) — still whole words.
-    expect(p.user.findMany.mock.calls[0][0].where.OR).toEqual([
-      { name: { equals: 'Ali', mode: 'insensitive' } },
-      { name: { startsWith: 'Ali ', mode: 'insensitive' } },
-      { name: { contains: ' Ali ', mode: 'insensitive' } },
-      { name: { equals: 'alı', mode: 'insensitive' } },
-      { name: { startsWith: 'alı ', mode: 'insensitive' } },
-      { name: { contains: ' alı ', mode: 'insensitive' } },
-    ])
+    const q = parseMentionSql(p.$queryRaw.mock.calls[0][0])
+    expect(q).toMatchObject({ cityId: 'c1', authorId: 'me', limit: 50 })
+    expect(q.text).toContain(`status = 'approved'`)
+    expect(q.text).toContain(`"hiddenFromMembers" = false`)
+    // The token is asked for as a whole word against the folded name (a bare
+    // prefix capped at 50 let Alices crowd out Ali). The DB has no unaccent,
+    // so the query folds the stored name itself (scan 6 batch 26).
+    expect(q.folded).toEqual(['ali', 'ali %', '% ali %', '% ali'])
+    expect(q.raw).toEqual([])
     expect(createNotification).toHaveBeenCalledTimes(1)
     expect((createNotification as any).mock.calls[0][0]).toBe('u1')
   })
@@ -89,11 +86,11 @@ describe('notifyMentions', () => {
   it('does nothing when the content has no usable handle', async () => {
     const n = await notifyMentions({ ...base, content: '@a @e @m everyone!' })
     expect(n).toBe(0)
-    expect(p.user.findMany).not.toHaveBeenCalled()
+    expect(p.$queryRaw).not.toHaveBeenCalled()
   })
 
   it('skips members on either side of a block', async () => {
-    p.user.findMany.mockResolvedValue([{ id: 'u1', name: 'Ali' }, { id: 'u2', name: 'Ali B.' }])
+    p.$queryRaw.mockResolvedValue([{ id: 'u1', name: 'Ali' }, { id: 'u2', name: 'Ali B.' }])
     p.memberBlock.findMany.mockResolvedValue([{ blockerId: 'u2', blockedId: 'me' }])
     const n = await notifyMentions({ ...base, content: '@ali' })
     expect(n).toBe(1)
@@ -101,7 +98,7 @@ describe('notifyMentions', () => {
   })
 
   it('caps recipients even when many share a first name', async () => {
-    p.user.findMany.mockResolvedValue(Array.from({ length: 30 }, (_, i) => ({ id: `u${i}`, name: 'Ali' })))
+    p.$queryRaw.mockResolvedValue(Array.from({ length: 30 }, (_, i) => ({ id: `u${i}`, name: 'Ali' })))
     const n = await notifyMentions({ ...base, content: '@ali' })
     expect(n).toBe(MAX_RECIPIENTS)
     expect(createNotification).toHaveBeenCalledTimes(MAX_RECIPIENTS)

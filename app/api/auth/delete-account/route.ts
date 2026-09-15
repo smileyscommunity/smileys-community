@@ -46,7 +46,8 @@ import { applicationScrubData, TOMBSTONE_EMAIL_SUFFIX } from '@/lib/applicationS
 //
 // What gets anonymized (user-authored content in threads / posts):
 //   - DirectMessage, EventMessage, ClubPostReply, NeighborhoodPostReply,
-//     HangoutMessage, ClubPost, NeighborhoodPost, Listing, VisitorAnnouncement
+//     HangoutMessage, ClubPost, NeighborhoodPost, Listing, VisitorAnnouncement,
+//     BusinessClaim (message only — the claim row is the ownership record)
 //   - The content/text/body is replaced with '[deleted]' so the
 //     containing thread / post / listing stays readable but no
 //     user-authored words survive.
@@ -176,6 +177,11 @@ export async function POST(req: NextRequest) {
     await tx.movingSale.updateMany({ where: { userId: id }, data: { note: null, photo: null } })
     await tx.guideTip.updateMany({ where: { userId: id }, data: { body: DELETED_BODY } })
     await tx.businessReview.updateMany({ where: { authorId: id }, data: { comment: null } })
+    // A business claim's `message` is the member's ownership proof in their
+    // own words (often a phone, email or full name), and staff claim lists
+    // render it verbatim. It is NOT NULL, so it gets the neutral body; the row,
+    // status, business and reviewer stamps stay as the ownership audit trail.
+    await tx.businessClaim.updateMany({ where: { claimantId: id }, data: { message: DELETED_BODY } })
     await tx.review.updateMany({ where: { userId: id }, data: { text: '' } })
     await tx.eventSurvey.updateMany({ where: { userId: id }, data: { anomalyNote: null } })
     // The application row is keyed by email, not userId, and kept the full
