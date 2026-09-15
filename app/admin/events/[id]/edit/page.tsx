@@ -18,6 +18,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { EVENT_EMOJIS as EMOJIS } from '@/lib/eventEmojis'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { phonePlaceholder, dialCode } from '@/lib/country'
+import { clampOccurrences, seriesOutcomeMessage, MIN_SERIES_COPIES, MAX_SERIES_COPIES, type SeriesFailure } from '@/lib/seriesCreate'
 import { clubOptionLabel } from '@/lib/clubLabel'
 const inputCls = 'bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none px-3 py-2.5 w-full text-sm'
 
@@ -396,7 +397,9 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
     const days = repeat === 'weekly' ? 7 : repeat === 'biweekly' ? 14 : 0
     const dates: string[] = []
     const base = new Date(form.date)
-    for (let i = 1; i <= occurrences; i++) {
+    // Clamped like the new-event page: the input's max is only advisory, so
+    // a typed 500 used to spawn 500 events.
+    for (let i = 1; i <= clampOccurrences(occurrences, MIN_SERIES_COPIES, MAX_SERIES_COPIES); i++) {
       const d = new Date(base)
       if (repeat === 'monthly') d.setMonth(d.getMonth() + i)
       else d.setDate(d.getDate() + days * i)
@@ -412,13 +415,25 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
     // Use existing seriesId or generate a new one to link all events in this series
     const sid = seriesId ?? crypto.randomUUID()
 
-    // If this event doesn't have a seriesId yet, assign it now
+    // If this event doesn't have a seriesId yet, assign it now. Its response
+    // used to be ignored, so a refused link still spawned copies that pointed
+    // at a series the source event wasn't in. Stop before creating anything.
     if (!seriesId) {
-      await fetch(`/app/api/admin/events/${id}`, {
-        method: 'PUT', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ seriesId: sid }),
-      })
+      try {
+        const res = await fetch(`/app/api/admin/events/${id}`, {
+          method: 'PUT', credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ seriesId: sid }),
+        })
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
+          setSpawnMsg(`Nothing created — could not link this event as a series: ${data?.error ?? `HTTP ${res.status}`}`)
+          setSpawning(false); return
+        }
+      } catch {
+        setSpawnMsg('Nothing created — could not link this event as a series (network error)')
+        setSpawning(false); return
+      }
       setSeriesId(sid)
     }
 
@@ -436,13 +451,30 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
       registrationDeadline: null,
     }
     try {
+      // Every date is attempted and the outcome reported as created vs failed.
+      // The loop used to stop at the first failure without saying how many
+      // copies already existed, so re-submitting duplicated them.
+      let created = 0
+      const failures: SeriesFailure[] = []
       for (const date of dates) {
-        const res = await fetch('/app/api/admin/events', {
-          method: 'POST', credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...payload, date }),
-        })
-        if (!res.ok) { setSpawnMsg('Failed to create some events'); setSpawning(false); return }
+        try {
+          const res = await fetch('/app/api/admin/events', {
+            method: 'POST', credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...payload, date }),
+          })
+          const data = await res.json().catch(() => ({}))
+          if (!res.ok) { failures.push({ date, error: data?.error ?? `HTTP ${res.status}` }); continue }
+          created++
+        } catch {
+          failures.push({ date, error: 'network error' })
+        }
+      }
+      const outcome = seriesOutcomeMessage(dates.length, created, failures)
+      if (outcome) {
+        setSpawnMsg(outcome)
+        if (created > 0) toast.warning(`Created ${created} of ${dates.length} events`)
+        return
       }
       setSpawnMsg(`✓ Created ${dates.length} events — all linked as a series`)
     } catch { setSpawnMsg('Something went wrong') }
@@ -904,11 +936,11 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
           </div>
           <div>
             <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Occurrences</label>
-            <input type="number" min={1} max={52} value={occurrences} onChange={e => setOccurrences(parseInt(e.target.value) || 1)} className={inputCls} />
+            <input type="number" min={MIN_SERIES_COPIES} max={MAX_SERIES_COPIES} value={occurrences} onChange={e => setOccurrences(Math.min(MAX_SERIES_COPIES, parseInt(e.target.value) || 0))} className={inputCls} />
           </div>
           <div className="flex items-end">
             <button onClick={handleSpawn} disabled={spawning || !form.date} className="w-full bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl px-4 py-2.5 transition-colors disabled:opacity-50">
-              {spawning ? 'Creating…' : `Create ${occurrences} more`}
+              {spawning ? 'Creating…' : `Create ${clampOccurrences(occurrences, MIN_SERIES_COPIES, MAX_SERIES_COPIES)} more`}
             </button>
           </div>
         </div>

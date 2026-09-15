@@ -9,10 +9,16 @@
 export const MAX_SERIES_OCCURRENCES = 52
 export const MIN_SERIES_OCCURRENCES = 2
 
-export function clampOccurrences(n: unknown): number {
+// The edit pages' "Create N more" counts copies of an event that already
+// exists, and the server's cap counts that source event too — so copies run
+// 1..51, not 2..52.
+export const MIN_SERIES_COPIES = 1
+export const MAX_SERIES_COPIES = MAX_SERIES_OCCURRENCES - 1
+
+export function clampOccurrences(n: unknown, min = MIN_SERIES_OCCURRENCES, max = MAX_SERIES_OCCURRENCES): number {
   const v = Math.floor(Number(n))
-  if (!Number.isFinite(v)) return MIN_SERIES_OCCURRENCES
-  return Math.min(MAX_SERIES_OCCURRENCES, Math.max(MIN_SERIES_OCCURRENCES, v))
+  if (!Number.isFinite(v)) return min
+  return Math.min(max, Math.max(min, v))
 }
 
 export interface SeriesFailure { date: string; error: string }

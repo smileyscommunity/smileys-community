@@ -9,8 +9,11 @@ import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
 import UserAvatar from '@/components/UserAvatar'
 import NoShowCardBadge from '@/components/NoShowCardBadge'
+import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { DEFAULT_TZ, todayInTz } from '@/lib/cityTime'
+import { loadFailure } from '@/lib/admin/useAdminLoad'
+import { toCsv } from '@/lib/admin/participantsView'
 
 interface AttendeeUser {
   id: string; name: string; color: string; email?: string; profilePhoto?: string | null
@@ -50,6 +53,9 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
   const [noShowCards, setNoShowCards] = useState<NoShowCard[]>([])
   const [waiving,     setWaiving]     = useState<string | null>(null)
   const [loading,    setLoading]    = useState(true)
+  const [loadError,  setLoadError]  = useState<string | null>(null)
+  const [notFound,   setNotFound]   = useState(false)
+  const [reloadTick, setReloadTick] = useState(0)
   const [tab,        setTab]        = useState<'pending' | 'approved' | 'waitlist' | 'reviews' | 'noshows'>('pending')
   const [addSearch,    setAddSearch]    = useState('')
   const [searchResults, setSearchResults] = useState<AttendeeUser[]>([])
@@ -77,17 +83,30 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
   }
 
   useEffect(() => {
+    // A refused, throttled or failed roster load (403/429/500) used to parse
+    // the error body as an empty roster — a host at the door saw "no
+    // attendees". Now it raises a retry banner, like the admin page. A 404 on
+    // the event still says "Event not found" (the roster route answers a
+    // missing event with 403, so the event's 404 decides first).
+    const strict = async (r: Response) => { if (!r.ok) throw await loadFailure(r); return r.json() }
+    setLoadError(null)
+    setNotFound(false)
     Promise.all([
-      fetch(`/app/api/events/${id}`, { credentials: 'include' }).then(r => r.json()),
-      fetch(`/app/api/admin/events/${id}/participants`, { credentials: 'include' }).then(r => r.json()),
-    ]).then(([ev, data]) => {
-      if (ev?.title) setEventTitle(ev.title)
-      if (ev?.date)  setEventDate(ev.date)
+      fetch(`/app/api/events/${id}`, { credentials: 'include' }).then(r => r.status === 404 ? null : strict(r)),
+      fetch(`/app/api/admin/events/${id}/participants`, { credentials: 'include' }),
+    ]).then(async ([ev, rosterRes]) => {
+      if (!ev) { setNotFound(true); return }
+      const data = await strict(rosterRes)
+      if (ev.title) setEventTitle(ev.title)
+      if (ev.date)  setEventDate(ev.date)
       setAttendees(Array.isArray(data.attendees) ? data.attendees : [])
       setWaitlist(Array.isArray(data.waitlist) ? data.waitlist : [])
       setNoShowCards(Array.isArray(data.noShowCards) ? data.noShowCards : [])
-    }).finally(() => setLoading(false))
-  }, [id])
+    }).catch((e: Error) => setLoadError(e?.message ?? 'Failed to load'))
+      .finally(() => setLoading(false))
+  }, [id, reloadTick])
+
+  const retryLoad = () => { setLoading(true); setReloadTick(t => t + 1) }
 
   useEffect(() => {
     if (addSearch.trim().length < 2) { setSearchResults([]); return }
@@ -204,7 +223,9 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
         new Date(a.joinedAt).toLocaleDateString('en-GB'),
       ]),
     ]
-    const csv  = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
+    // toCsv neutralises cells a spreadsheet would run as a formula (a member
+    // named "=HYPERLINK(…)") on top of quoting — the old escaper only quoted.
+    const csv  = toCsv(rows)
     const blob = new Blob([csv], { type: 'text/csv' })
     const url  = URL.createObjectURL(blob)
     const a    = document.createElement('a')
@@ -232,6 +253,9 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
   }
 
   if (loading) return <div className="p-8 text-center text-zinc-500 text-sm">Loading…</div>
+  // Never an empty roster on a failed load: the error, with Retry.
+  if (loadError) return <div className="p-4 sm:p-8"><LoadErrorBanner message={loadError} onRetry={retryLoad} title="Couldn't load participants" /></div>
+  if (notFound)  return <div className="p-8 text-center text-zinc-500 text-sm">Event not found</div>
 
   return (
     <div className="p-4 sm:p-8 space-y-6">

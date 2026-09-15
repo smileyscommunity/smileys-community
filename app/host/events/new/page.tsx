@@ -15,6 +15,7 @@ import { EVENT_EMOJIS as EMOJIS } from '@/lib/eventEmojis'
 import { currencySymbol } from '@/lib/data'
 import { countryName } from '@/lib/country'
 import { geocodeFailureMessage } from '@/lib/geocodeError'
+import { neighborhoodIfListed } from '@/lib/postingNeighborhoods'
 import { clampOccurrences, seriesOutcomeMessage, MIN_SERIES_OCCURRENCES, MAX_SERIES_OCCURRENCES, type SeriesFailure } from '@/lib/seriesCreate'
 
 const inputCls = 'w-full px-4 py-3 rounded-xl border border-zinc-700 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500 bg-zinc-800 placeholder-zinc-500'
@@ -24,17 +25,13 @@ export default function HostNewEventPage() {
 }
 
 function HostNewEventForm() {
-  // "Today" is the CITY's calendar day — a member abroad, or a city in
-  // another zone, must not get a different Tuesday than the community means.
   const city = useCurrentCity()
-  const tz = city?.timezone ?? DEFAULT_TZ
   const router       = useRouter()
   const searchParams = useSearchParams()
   const neighborhoodParam = searchParams.get('neighborhood') ?? ''
   const { user } = useAuth()
-  const neighborhoods = useCityNeighborhoods()
 
-  const [clubs,   setClubs]   = useState<{ id: string; name: string; emoji: string }[]>([])
+  const [clubs,   setClubs]   = useState<{ id: string; name: string; emoji: string; city: { slug: string; name: string; country: string; timezone: string; currency: string } | null }[]>([])
   const [saving,      setSaving]      = useState(false)
   const [error,       setError]       = useState('')
   const [repeat,      setRepeat]      = useState<'none' | 'weekly' | 'biweekly' | 'monthly'>('none')
@@ -72,6 +69,17 @@ function HostNewEventForm() {
     coverImagePosition:  50,
   })
 
+  // The event's city is the selected club's — the server files it there — not
+  // the city being browsed: a Tbilisi club's event made while viewing Istanbul
+  // geocoded inside Türkiye and offered Istanbul's neighborhoods. A global
+  // club (city null) has none, and the server then uses resolveCityId — the
+  // browsed city — so the fallback is the same. No club yet: browsed city.
+  const eventCity = clubs.find(c => c.id === form.clubId)?.city ?? city
+  // "Today" is the event CITY's calendar day — a member abroad, or a city in
+  // another zone, must not get a different Tuesday than the community means.
+  const tz = eventCity?.timezone ?? DEFAULT_TZ
+  const neighborhoods = useCityNeighborhoods(eventCity?.slug)
+
   useEffect(() => {
     fetch('/app/api/host/clubs', { credentials: 'include' })
       .then(r => r.ok ? r.json() : [])
@@ -108,11 +116,10 @@ function HostNewEventForm() {
   }, [])
 
   async function geocodeAddress() {
-    // The host's own city, not a hardcoded Istanbul — a Bodrum host's venue
-    // otherwise geocodes to Istanbul coordinates. (Admin forms hint with the
-    // parent club's city; hosts always create in their own.) Also include the
+    // The event's city, not a hardcoded Istanbul — a Bodrum host's venue
+    // otherwise geocodes to Istanbul coordinates. Also include the
     // neighborhood — this was the only one of the four event forms omitting it.
-    const cityHint = city ? [city.name, countryName(city.country)].filter(Boolean).join(', ') : ''
+    const cityHint = eventCity ? [eventCity.name, countryName(eventCity.country)].filter(Boolean).join(', ') : ''
     const query = [form.location, form.address, form.neighborhood, cityHint].filter(Boolean).join(', ')
     setGeocoding(true)
     try {
@@ -130,9 +137,9 @@ function HostNewEventForm() {
     finally { setGeocoding(false) }
   }
 
-  // The lookup searches this city's country — it used to search one country
-  // for every city. Hosts create in the city they're working in.
-  const geocodeCityParam = city?.slug ? `&city=${encodeURIComponent(city.slug)}` : ''
+  // The lookup searches the event city's country — it used to search one
+  // country for every city, then the browsed city's (see eventCity).
+  const geocodeCityParam = eventCity?.slug ? `&city=${encodeURIComponent(eventCity.slug)}` : ''
 
   async function parseMapsUrl(url: string) {
     const patterns = [
@@ -240,7 +247,9 @@ function HostNewEventForm() {
     if (form.date < todayInTz(tz)) { setError('Event date cannot be in the past'); return }
     if (!form.time)               { setError('Time is required'); return }
     if (!form.location.trim())    { setError('Location name is required'); return }
-    if (!form.neighborhood)       { setError('Neighborhood is required'); return }
+    // A prefill (?neighborhood=, a duplicate, or a pick before switching club)
+    // may belong to another city's list — that isn't a choice for this event.
+    if (!neighborhoodIfListed(form.neighborhood, neighborhoods)) { setError('Neighborhood is required'); return }
     if (!form.address.trim())     { setError('Full address is required'); return }
     if (!form.description.trim()) { setError('Description is required'); return }
     if (!form.coverImage)         { setError('Cover image is required'); return }
@@ -269,7 +278,7 @@ function HostNewEventForm() {
         whatsappUrl:  form.whatsappUrl.trim() || undefined,
         ticketUrl:    paymentMethod === 'buyonline' ? (form.ticketUrl.trim() || undefined) : undefined,
         location:     form.location.trim(),
-        neighborhood: form.neighborhood,
+        neighborhood: neighborhoodIfListed(form.neighborhood, neighborhoods),
         address:      form.address.trim(),
         totalSpots:   parseInt(form.totalSpots) || 20,
         description:  form.description.trim(),
@@ -486,7 +495,7 @@ function HostNewEventForm() {
         <div>
           <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Neighborhood *</label>
           <select
-            value={form.neighborhood}
+            value={neighborhoodIfListed(form.neighborhood, neighborhoods)}
             onChange={e => setForm(f => ({ ...f, neighborhood: e.target.value }))}
             className={inputCls}
           >
@@ -548,13 +557,13 @@ function HostNewEventForm() {
         {/* Pricing */}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Guest price ({currencySymbol(city?.currency).trim()})</label>
+            <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Guest price ({currencySymbol(eventCity?.currency).trim()})</label>
             <input type="number" min="0" value={form.price}
               onChange={e => setForm(f => ({ ...f, price: e.target.value }))}
               placeholder="0 = Free" className={inputCls} />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Member price ({currencySymbol(city?.currency).trim()})</label>
+            <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Member price ({currencySymbol(eventCity?.currency).trim()})</label>
             <input type="number" min="0" value={form.memberPrice}
               onChange={e => setForm(f => ({ ...f, memberPrice: e.target.value }))}
               placeholder="Optional" className={inputCls} />

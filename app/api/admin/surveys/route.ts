@@ -5,6 +5,7 @@ import { canModerateReports, isAdmin, failClosedCityId } from '@/lib/access'
 import type { Prisma } from '@prisma/client'
 import { resolveCityId, getCityTz } from '@/lib/city'
 import { fromWallClockInTz } from '@/lib/cityTime'
+import { toCsv } from '@/lib/admin/participantsView'
 
 // GET /api/admin/surveys
 //
@@ -206,7 +207,8 @@ export async function GET(req: NextRequest) {
       event: { select: { id: true, title: true, date: true, hostId: true } },
     },
   })
-  const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`
+  // Every cell through toCsv: decline_reason and anomaly_note are member
+  // free text, and the old escaper only quoted — "=HYPERLINK(" ran in Excel.
   const header = ['response_id', 'created_at', 'event_id', 'event_title', 'event_date', 'event_host_id', 'would_return', 'decline_reason', 'anomaly', 'anomaly_note']
   const body   = rows.map(r => [
     r.id, r.createdAt.toISOString(),
@@ -215,8 +217,8 @@ export async function GET(req: NextRequest) {
     r.returnDeclineReason ?? '',
     r.anomaly     ? 'yes' : 'no',
     r.anomalyNote ?? '',
-  ].map(esc).join(','))
-  const csv = [header.map(esc).join(','), ...body].join('\n')
+  ])
+  const csv = toCsv([header, ...body])
   return new NextResponse(csv, {
     status: 200,
     headers: {

@@ -69,10 +69,19 @@ async function runSweep() {
 
   let created = 0
   let reminded = 0
+  let backfillFailed = 0
   for (const event of events) {
     // Pass 1: backfill missing ledger rows so "unpaid" is a complete list.
     // The helper skips staff and any seat that already has a live row.
-    created += await backfillSeatPayments(event.id)
+    // One event's failure (a lock timeout, a deadlock abort) used to throw out
+    // of the whole run, so every later event missed its reminders. Counted
+    // and logged; the rows that do exist for this event still get reminded.
+    try {
+      created += await backfillSeatPayments(event.id)
+    } catch (err) {
+      backfillFailed++
+      console.error('[cron sweep-payment-reminders] backfill failed', { eventId: event.id, err: String(err) })
+    }
 
     const [attendees, cohosts] = await Promise.all([
       prisma.eventAttendee.findMany({
@@ -171,10 +180,10 @@ async function runSweep() {
     })
   }
 
-  if (created || reminded || autoCancelled || heldCheckedIn) {
-    console.log(`[cron sweep-payment-reminders] backfilled ${created} rows, reminded ${reminded} attendees, auto-cancelled ${autoCancelled} stale pendings, held ${heldCheckedIn} for checked-in attendees`)
+  if (created || reminded || autoCancelled || heldCheckedIn || backfillFailed) {
+    console.log(`[cron sweep-payment-reminders] backfilled ${created} rows, reminded ${reminded} attendees, auto-cancelled ${autoCancelled} stale pendings, held ${heldCheckedIn} for checked-in attendees, backfill failed on ${backfillFailed} event(s)`)
   }
-  return { events: events.length, backfilled: created, reminded, autoCancelled, heldCheckedIn }
+  return { events: events.length, backfilled: created, backfillFailed, reminded, autoCancelled, heldCheckedIn }
 }
 
 export async function POST(req: NextRequest) {

@@ -35,6 +35,7 @@
 import { prisma } from '@/lib/prisma'
 import { citiesByToday } from '@/lib/city'
 import { createSeatPayment, collectsSeatPayment, LIVE_PAYMENT_STATUSES } from '@/lib/rsvpConfirmed'
+import { lockEventRow } from '@/lib/eventCapacity'
 import { getInitials } from '@/lib/data'
 import { Attendance } from '@/lib/constants'
 
@@ -171,12 +172,16 @@ async function loadSeats(): Promise<SeatFacts[]> {
   })
 }
 
-async function apply(rows: PlannedSeat[]) {
+export async function apply(rows: PlannedSeat[]) {
   let created = 0
   let skipped = 0
   for (const r of rows) {
     if (r.action !== 'create_pending') continue
     const made = await prisma.$transaction(async tx => {
+      // Event row before createSeatPayment's advisory lock, the order every
+      // seat path keeps — a live approve for the same seat would otherwise
+      // deadlock this write.
+      await lockEventRow(tx, r.eventId)
       // Re-read both sides on the write: the seat must still be approved, and
       // the event still published, collecting and on the date the plan saw.
       const seat  = await tx.eventAttendee.findFirst({ where: { id: r.seatId, userId: r.userId, status: 'approved' }, select: { id: true } })

@@ -18,6 +18,7 @@ import RichTextEditor from '@/components/RichTextEditor'
 import { EVENT_EMOJIS as EMOJIS } from '@/lib/eventEmojis'
 import { countryName } from '@/lib/country'
 import { geocodeFailureMessage } from '@/lib/geocodeError'
+import { clampOccurrences, seriesOutcomeMessage, MIN_SERIES_COPIES, MAX_SERIES_COPIES, type SeriesFailure } from '@/lib/seriesCreate'
 const inputCls = 'w-full px-4 py-2.5 rounded-xl border border-zinc-700 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500 bg-zinc-800 placeholder-zinc-500'
 
 const emptyForm = {
@@ -334,7 +335,9 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
     // setDate() shifted a series day across a DST boundary in the host's
     // browser timezone.
     const base = new Date(form.date + 'T00:00:00Z')
-    for (let i = 1; i <= occurrences; i++) {
+    // Clamped like the new-event page: the input's max is only advisory, so
+    // a typed 500 used to spawn 500 events.
+    for (let i = 1; i <= clampOccurrences(occurrences, MIN_SERIES_COPIES, MAX_SERIES_COPIES); i++) {
       const d = new Date(base)
       if (repeat === 'monthly') d.setUTCMonth(d.getUTCMonth() + i)
       else d.setUTCDate(d.getUTCDate() + days * i)
@@ -348,12 +351,24 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
     setSpawning(true)
 
     const sid = seriesId ?? crypto.randomUUID()
+    // Its response used to be ignored, so a refused link still spawned copies
+    // pointing at a series the source event wasn't in. Stop before creating.
     if (!seriesId) {
-      await fetch(`/app/api/admin/events/${id}`, {
-        method: 'PUT', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ seriesId: sid }),
-      })
+      try {
+        const res = await fetch(`/app/api/admin/events/${id}`, {
+          method: 'PUT', credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ seriesId: sid }),
+        })
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
+          toast.error(`Nothing created — could not link this event as a series: ${data?.error ?? `HTTP ${res.status}`}`)
+          setSpawning(false); return
+        }
+      } catch {
+        toast.error('Nothing created — could not link this event as a series (network error)')
+        setSpawning(false); return
+      }
       setSeriesId(sid)
     }
 
@@ -368,14 +383,28 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
       ticketUrl: paymentMethod === 'buyonline' ? (form.ticketUrl.trim() || null) : null,
     }
     try {
+      // Every date is attempted and the outcome reported as created vs failed.
+      // Stopping at the first failure hid how many already existed, so a retry
+      // duplicated them.
+      let created = 0
+      const failures: SeriesFailure[] = []
       for (const date of dates) {
-        const res = await fetch('/app/api/admin/events', {
-          method: 'POST', credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...payload, date }),
-        })
-        if (!res.ok) { toast.error('Failed to create some events'); setSpawning(false); return }
+        try {
+          const res = await fetch('/app/api/admin/events', {
+            method: 'POST', credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...payload, date }),
+          })
+          const data = await res.json().catch(() => ({}))
+          if (!res.ok) { failures.push({ date, error: data?.error ?? 'Failed to create event' }); continue }
+          created++
+        } catch {
+          failures.push({ date, error: 'network error' })
+        }
       }
+      const outcome = seriesOutcomeMessage(dates.length, created, failures)
+      // Long-lived: it names the failed dates and warns against re-submitting.
+      if (outcome) { toast.error(outcome, { duration: 15000 }); return }
       toast.success(`Created ${dates.length} events — all linked as a series`)
     } catch { toast.error('Something went wrong') }
     finally { setSpawning(false) }
@@ -732,11 +761,11 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
             </div>
             <div>
               <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Occurrences</label>
-              <input type="number" min={1} max={52} value={occurrences} onChange={e => setOccurrences(parseInt(e.target.value) || 1)} className={inputCls} />
+              <input type="number" min={MIN_SERIES_COPIES} max={MAX_SERIES_COPIES} value={occurrences} onChange={e => setOccurrences(Math.min(MAX_SERIES_COPIES, parseInt(e.target.value) || 0))} className={inputCls} />
             </div>
             <div className="flex items-end">
               <button onClick={handleSpawn} disabled={spawning || !form.date} className="w-full px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors disabled:opacity-50">
-                {spawning ? 'Creating…' : `Create ${occurrences} more`}
+                {spawning ? 'Creating…' : `Create ${clampOccurrences(occurrences, MIN_SERIES_COPIES, MAX_SERIES_COPIES)} more`}
               </button>
             </div>
           </div>

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator, isAdmin, failClosedCityId } from '@/lib/access'
 import { periodFor, summarize, eligibilityCutoff, MIN_DAYS_FOR_NPS, type NPSRollup } from '@/lib/nps'
+import { toCsv } from '@/lib/admin/participantsView'
 
 // GET /api/admin/nps
 //
@@ -56,15 +57,16 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'desc' },
       take:    5000,  // safety cap; trailing 4 quarters of healthy NPS shouldn't approach this
     })
-    const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`
+    // Every cell through toCsv: `comment` is member free text, and the old
+    // escaper only quoted — a comment starting "=HYPERLINK(" ran in Excel.
     const header = ['period', 'score', 'band', 'created_at', 'comment']
     const body   = rows.map(r => [
       r.period, r.score,
       r.score >= 9 ? 'promoter' : r.score >= 7 ? 'passive' : 'detractor',
       r.createdAt.toISOString(),
       r.comment ?? '',
-    ].map(esc).join(','))
-    const csv = [header.map(esc).join(','), ...body].join('\n')
+    ])
+    const csv = toCsv([header, ...body])
     return new NextResponse(csv, {
       status: 200,
       headers: {

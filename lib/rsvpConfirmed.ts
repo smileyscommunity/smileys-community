@@ -5,6 +5,7 @@ import { sendRsvpConfirmationEmail, recordEmailFailure } from '@/lib/email'
 import { noShowPolicyApplies, type StakeFields } from '@/lib/noShowPolicy'
 import { DEFAULT_CURRENCY } from '@/lib/data'
 import { todayInCity } from '@/lib/city'
+import { lockEventRow } from '@/lib/eventCapacity'
 
 // What a confirmed seat sets in motion, shared by every member path that
 // lands one: the straight RSVP and the waitlist claim. The claim used to
@@ -31,7 +32,9 @@ export function collectsSeatPayment(event: Pick<StakeFields, 'price' | 'payTo'>)
 
 /**
  * Pending ledger row for the seat, unless one already stands. Call on the
- * seat's own transaction. Returns whether a row was written.
+ * seat's own transaction, after it has locked the event row
+ * (lib/eventCapacity lockEventRow) — the lock order every caller keeps is
+ * event row → per-seat advisory lock → insert. Returns whether a row was written.
  *
  * Only the straight RSVP and the waitlist claim used to write one. A host
  * approve, a manual add, a waitlist promotion and a restored event seated
@@ -91,6 +94,11 @@ export async function backfillSeatPayments(eventId: string): Promise<number> {
     // Re-read the seat on the write's transaction: someone who gave the spot
     // back since the list was read gets no charge for it.
     const made = await prisma.$transaction(async tx => {
+      // Event row first, like every seat path. Taking the per-seat advisory
+      // lock first, then needing the event row for the payment's foreign key,
+      // deadlocked (40P01) against a re-approve holding the row and waiting
+      // on the same advisory lock.
+      await lockEventRow(tx, eventId)
       const seat = await tx.eventAttendee.findFirst({ where: { eventId, userId, status: 'approved' }, select: { id: true } })
       return seat ? createSeatPayment(tx, eventId, event, userId) : false
     })

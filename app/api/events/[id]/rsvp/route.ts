@@ -159,6 +159,10 @@ export async function POST(req: NextRequest, { params }: Params) {
       }
 
       const outcome = await prisma.$transaction(async (tx) => {
+        // Event row before createSeatPayment's per-seat advisory lock — the
+        // order every seat path keeps (lib/rsvpConfirmed), so the hourly
+        // backfill can't deadlock against this claim.
+        await tx.$queryRaw`SELECT id FROM events WHERE id = ${eventId} FOR UPDATE`
         // A manual sold-out flag closes the door even when the counter says
         // there's room. Without this the waitlist would promote people into
         // an event whose page reads "Sold out".
@@ -313,6 +317,8 @@ export async function POST(req: NextRequest, { params }: Params) {
       // member re-requesting while an earlier one is still paid). Approval
       // keeps it — or writes it if it has gone since.
       await prisma.$transaction(async (tx) => {
+        // Event row first: same lock order as every seat path (lib/rsvpConfirmed).
+        await tx.$queryRaw`SELECT id FROM events WHERE id = ${eventId} FOR UPDATE`
         await activateAttendee(tx, { userId: session.id, eventId, status: 'pending', stealth })
         await createSeatPayment(tx, eventId, event, session.id)
       })

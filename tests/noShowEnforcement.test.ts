@@ -21,6 +21,8 @@ vi.mock('@/lib/noShow', () => ({
 vi.mock('@/lib/access', () => ({ canManageEventOps: vi.fn().mockResolvedValue(true) }))
 vi.mock('@/lib/prisma', () => ({ prisma: {
   $transaction:  vi.fn(),
+  // The pending request locks the event row first (lock order, lib/rsvpConfirmed).
+  $queryRaw:     vi.fn().mockResolvedValue([]),
   event:         { findUnique: vi.fn() },
   user:          { findUnique: vi.fn(), findMany: vi.fn().mockResolvedValue([]) },
   eventAttendee: { findUnique: vi.fn(), updateMany: vi.fn(), create: vi.fn(), count: vi.fn().mockResolvedValue(0) },
