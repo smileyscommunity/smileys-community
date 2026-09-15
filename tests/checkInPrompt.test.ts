@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { awaitingCheckIn, type CheckInPromptEvent } from '@/lib/checkInPrompt'
+import { awaitingCheckIn, doorEventsWhere, type CheckInPromptEvent } from '@/lib/checkInPrompt'
 import { NO_SHOW_PROCESSING_LOOKBACK_DAYS } from '@/lib/noShowPolicy'
 
 // Which finished events the host is chased about. The guard this mirrors
@@ -47,12 +47,11 @@ describe('awaitingCheckIn', () => {
     expect(awaitingCheckIn([event({ checkedInCount: 3 })], TZ, now)).toHaveLength(1)
   })
 
-  it('ignores paid events — they never yield cards', () => {
-    expect(awaitingCheckIn([event({ price: 250 })], TZ, now)).toEqual([])
-    expect(awaitingCheckIn([event({ price: 250, payTo: 'smileys' })], TZ, now)).toEqual([])
-    // A museum ticket bought at the door is under the policy: chase the host.
+  it('chases paid and prepaid events too — attendance is not only for cards', () => {
+    expect(awaitingCheckIn([event({ price: 250 })], TZ, now)).toHaveLength(1)
+    expect(awaitingCheckIn([event({ price: 1200, payTo: 'smileys', paymentContact: 'https://wa.me/1' })], TZ, now)).toHaveLength(1)
     expect(awaitingCheckIn([event({ price: 250, payTo: 'venue' })], TZ, now)).toHaveLength(1)
-    expect(awaitingCheckIn([event({ price: 0, memberPrice: 100 })], TZ, now)).toEqual([])
+    expect(awaitingCheckIn([event({ price: 0, memberPrice: 100 })], TZ, now)).toHaveLength(1)
   })
 
   it('ignores drafts, cancelled events and rooms nobody joined', () => {
@@ -87,5 +86,19 @@ describe('awaitingCheckIn', () => {
     expect(awaitingCheckIn([noEnd], TZ, now)).toEqual([])
     const midnight = new Date('2026-09-12T21:30:00Z')   // 00:30 Istanbul, next day
     expect(awaitingCheckIn([noEnd], TZ, midnight)).toHaveLength(1)
+  })
+})
+
+describe('doorEventsWhere', () => {
+  it('lists what the check-in API opens: host, co-host, active club host', () => {
+    expect(doorEventsWhere('u1', now).OR).toEqual([
+      { hostId: 'u1' },
+      { cohosts: { some: { userId: 'u1' } } },
+      { club: { is: { isActive: true, memberships: { some: { userId: 'u1', role: 'host', status: 'approved' } } } } },
+    ])
+  })
+
+  it('is bounded to the prompt lookback behind and tomorrow ahead', () => {
+    expect(doorEventsWhere('u1', now).date).toEqual({ gte: '2026-09-04', lte: '2026-09-13' })
   })
 })

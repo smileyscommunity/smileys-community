@@ -1,7 +1,5 @@
 import { eventEndsAt } from '@/lib/eventTime'
-import {
-  checkInIsCredible, noShowPolicyApplies, NO_SHOW_PROCESSING_LOOKBACK_DAYS,
-} from '@/lib/noShowPolicy'
+import { checkInIsCredible, NO_SHOW_PROCESSING_LOOKBACK_DAYS } from '@/lib/noShowPolicy'
 import { DEFAULT_TZ } from '@/lib/cityTime'
 
 // ── "You haven't checked anyone in" ─────────────────────────────────────────
@@ -66,9 +64,10 @@ export function awaitingCheckIn(
     // after it ran, which is exactly when a host looks at the dashboard.
     // The sweeper settles both statuses; this list must match it.
     if ((e.status !== 'published' && e.status !== 'archived') || e.noShowProcessedAt) return []
-    // Only events under the no-show policy ever produce cards, so only those
-    // are worth chasing a host about.
-    if (!noShowPolicyApplies(e)) return []
+    // Every event, paid and prepaid included. This used to chase only events
+    // under the no-show policy, which left prepaid ones (Sunset Sailing, paid
+    // to Smileys) without a single prompt — and without a check-in on most of
+    // their runs. Attendance is the record of who came, whatever the price.
     const approved = e.roomApproved  ?? e._count?.attendees ?? 0
     const checked  = e.roomCheckedIn ?? e.checkedInCount    ?? 0
     if (approved < 1 || checkInIsCredible(checked, approved)) return []
@@ -83,4 +82,24 @@ export function awaitingCheckIn(
       daysLeft: Math.max(1, Math.ceil((deadline - now.getTime()) / DAY)),
     }]
   }).sort((a, b) => a.daysLeft - b.daysLeft)
+}
+
+/**
+ * The events a member runs the door for: host, co-host, or an approved host
+ * of the event's active club — exactly who canManageEventOps lets through the
+ * check-in API. Feeds /host/checkin and the dashboard prompt
+ * (/api/host/events?scope=door). Bounded to the days check-in still matters —
+ * the prompt's lookback behind, tomorrow ahead for a city in a zone ahead —
+ * so the host of a long-running club doesn't pull every event it ever ran.
+ */
+export function doorEventsWhere(userId: string, now: Date = new Date()) {
+  const day = (offset: number) => new Date(now.getTime() + offset * DAY).toISOString().slice(0, 10)
+  return {
+    date: { gte: day(-(NO_SHOW_PROCESSING_LOOKBACK_DAYS + 1)), lte: day(1) },
+    OR: [
+      { hostId: userId },
+      { cohosts: { some: { userId } } },
+      { club: { is: { isActive: true, memberships: { some: { userId, role: 'host', status: 'approved' } } } } },
+    ],
+  }
 }

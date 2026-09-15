@@ -29,7 +29,7 @@ export const FILTER_TYPES: Record<Filter, string[]> = {
     'new_event', 'event_updated', 'event_cancelled', 'reminder_24h', 'reminder_2h',
     'attendee_joined', 'review_request', 'event_survey', 'rsvp', 'rsvp_pending',
     'waitlist', 'waitlist_joined', 'waitlist_promoted', 'spot_opened',
-    'checkin', 'checkin_started', 'checkin_count', 'event_message', 'event_photos',
+    'checkin', 'checkin_started', 'checkin_count', 'checkin_nudge', 'event_message', 'event_photos',
     'host_message', 'payment_reminder', 'payment_attention',
     // Day-before reconfirmation and no-show cards are event lifecycle too.
     'reconfirm_ask', 'reconfirm_released',
@@ -78,6 +78,7 @@ export const TYPE_ICON: Record<string, string> = {
   checkin:             '✅',
   checkin_started:     '📲',
   checkin_count:       '🔢',
+  checkin_nudge:       '📋',
   rsvp:                '🎉',
   rsvp_pending:        '⏳',
   waitlist:            '📋',

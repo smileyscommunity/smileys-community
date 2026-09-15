@@ -25,7 +25,7 @@ export async function GET() {
   if (!session) return NextResponse.json(null)
   try {
     const FIFTEEN_MINUTES = 15 * 60 * 1000
-    const [user, clubHostCount, cityIds] = await Promise.all([
+    const [user, clubHostCount, cityIds, cohostCount] = await Promise.all([
       prisma.user.findUnique({
         where: { id: session.id },
         select: {
@@ -48,6 +48,14 @@ export async function GET() {
       // anyone whose only authority is city-level. Recomputed on every call,
       // so a revoked grant stops counting on the next /me fetch.
       hostCityIds(session.id),
+      // Co-hosting a recent or upcoming event opens Check-In for it (lib/auth
+      // canRunDoor) — a plain member co-host had no way to the roster at all.
+      // Same eight-day floor as the door list (lib/checkInPrompt doorEventsWhere).
+      // A failed count reads as "not a co-host": the catch below ends the
+      // session, and a convenience flag must not sign anyone out.
+      prisma.eventCoHost.count({
+        where: { userId: session.id, event: { cancelledAt: null, date: { gte: new Date(Date.now() - 8 * 86400000).toISOString().slice(0, 10) } } },
+      }).catch(() => 0),
     ])
     const stale = !user?.lastActive || (Date.now() - new Date(user.lastActive).getTime()) > FIFTEEN_MINUTES
     if (stale) {
@@ -83,7 +91,7 @@ export async function GET() {
     }
     if (!user) { await deleteSession(); return NextResponse.json(null) }
     const isClubHost = clubHostCount > 0
-    return NextResponse.json({ ...user, isClubHost, hostCityIds: cityIds })
+    return NextResponse.json({ ...user, isClubHost, hostCityIds: cityIds, runsEvents: cohostCount > 0 })
   } catch {
     await deleteSession()
     return NextResponse.json(null)

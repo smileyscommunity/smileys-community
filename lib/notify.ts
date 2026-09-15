@@ -35,6 +35,7 @@ const PREF_KEY: Record<string, 'newEvents' | 'reminders' | 'eventUpdates' | 'joi
   connection_suggestion: null,
   profile_view:          null,
   host_message:       null,
+  checkin_nudge:      null,  // "check-in is open" to the event's own door staff
   message:            null,
   club_wall_post:       'wallPosts',
   club_post_reply:      'wallReplies',

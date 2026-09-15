@@ -10,6 +10,7 @@ import { getSession } from '@/lib/session'
 import { recordCronRun } from '@/lib/cronHealth'
 import { citiesByToday, type CityDay } from '@/lib/city'
 import { eventStartsAt } from '@/lib/eventTime'
+import { checkInNudges } from '@/lib/checkInNudge'
 import { DEFAULT_TZ } from '@/lib/cityTime'
 
 // One findMany instead of a findFirst per attendee. The per-row shape ran
@@ -264,7 +265,10 @@ async function runSweep() {
   const [upcomingEvents, pastEvents] = await Promise.all([
     prisma.event.findMany({
       where: { OR: onDay(todayOrTomorrow), status: 'published' },
-      include: { attendees: { where: { status: 'approved' }, select: { userId: true } } },
+      include: {
+        attendees: { where: { status: 'approved' }, select: { userId: true, checkedIn: true } },
+        cohosts:   { select: { userId: true } },
+      },
     }),
     prisma.event.findMany({
       // An archived cancelled event keeps its cancelledAt: nothing to review.
@@ -283,6 +287,7 @@ async function runSweep() {
   let sent24h = 0
   let sent2h  = 0
   let sentReviews = 0
+  let sentCheckInNudges = 0
 
   const upcomingAttendeeIds = upcomingEvents.flatMap(e => e.attendees.map(a => a.userId))
   const upcomingLinks = upcomingEvents.map(e => `/events/${e.id}`)
@@ -330,6 +335,19 @@ async function runSweep() {
           else await releaseClaim(claim2)
         }
       }
+    }
+  }
+
+  // "Check-in is open" — to the host and co-hosts, at the run nearest the
+  // start, linked to the roster (lib/checkInNudge). Claimed per person per
+  // event; a failed write hands the claim back, though the window has
+  // usually closed by the next tick.
+  for (const nudge of checkInNudges(upcomingEvents, now, startsAtOf)) {
+    for (const userId of nudge.userIds) {
+      const nudgeClaim = `checkin-nudge:${userId}:${nudge.eventId}`
+      if (!await claimOnce(nudgeClaim, 2 * 24 * 60 * 60 * 1000)) continue
+      if (await createNotification(userId, 'checkin_nudge', nudge.title, nudge.body, `/host/checkin?event=${nudge.eventId}`)) sentCheckInNudges++
+      else await releaseClaim(nudgeClaim)
     }
   }
 
@@ -384,5 +402,5 @@ async function runSweep() {
   // member_applications.profilePhoto, so a file still referenced from any
   // other column (a legacy member avatar) was deleted after 30 days.
 
-  return { sent24h, sent2h, sentReviews, archivedCount, sentConnections, checkedEvents: upcomingEvents.length + pastEvents.length, expiringListings: expiringListings.length }
+  return { sent24h, sent2h, sentReviews, sentCheckInNudges, archivedCount, sentConnections, checkedEvents: upcomingEvents.length + pastEvents.length, expiringListings: expiringListings.length }
 }

@@ -30,7 +30,10 @@ function EventList() {
   const router = useRouter()
 
   useEffect(() => {
-    fetch('/app/api/host/events', { credentials: 'include' })
+    // The door list: events you host, co-host or club-host. The own-events
+    // list left co-hosts and club hosts with "No events today" for a room the
+    // check-in API would have let them run.
+    fetch('/app/api/host/events?scope=door', { credentials: 'include' })
       .then(r => r.json())
       .then(d => setAll(Array.isArray(d) ? d : []))
       .catch(() => {})

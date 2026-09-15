@@ -1,25 +1,34 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin, isClubHost, hostCityIds } from '@/lib/access'
+import { doorEventsWhere } from '@/lib/checkInPrompt'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    // Own-events list (the where clause below is pinned to hostId = caller),
-    // so this gate only decides whether the caller is a host at all. City-level
-    // hosts count: an admin can assign a consul or city host as an event's
-    // host, and the /host events + check-in tools are theirs to run.
-    const mayList = isAdmin(session)
-      || await isClubHost(session.id)
-      || (await hostCityIds(session.id)).length > 0
-    if (!mayList) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    // ?scope=door: the events the caller runs the door for — host, co-host, or
+    // host of the event's active club (doorEventsWhere) — for /host/checkin and
+    // the dashboard's check-in prompt. The where clause is the gate there: it
+    // returns only events canManageEventOps already opens, so a plain member
+    // co-hosting one event gets that event and nothing else.
+    const door = req.nextUrl.searchParams.get('scope') === 'door'
+    // Own-events list otherwise (the where clause below is pinned to hostId =
+    // caller), so this gate only decides whether the caller is a host at all.
+    // City-level hosts count: an admin can assign a consul or city host as an
+    // event's host, and the /host events + check-in tools are theirs to run.
+    if (!door) {
+      const mayList = isAdmin(session)
+        || await isClubHost(session.id)
+        || (await hostCityIds(session.id)).length > 0
+      if (!mayList) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
     }
 
     const events = await prisma.event.findMany({
-      where: { hostId: session.id },
+      where: door ? doorEventsWhere(session.id) : { hostId: session.id },
       orderBy: { date: 'asc' },
       select: {
         id: true, title: true, date: true, time: true, location: true,

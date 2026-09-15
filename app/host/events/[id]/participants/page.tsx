@@ -270,6 +270,10 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
           <h1 className="text-xl font-bold text-white">Participants</h1>
           {eventTitle && <p className="text-sm text-zinc-400 mt-0.5 truncate">{eventTitle}</p>}
         </div>
+        <Link href={`/host/checkin?event=${id}`}
+          className="text-xs font-semibold text-white bg-amber-500 hover:bg-amber-600 px-3 py-2 rounded-lg transition-colors shrink-0">
+          Check in
+        </Link>
       </div>
 
       {/* Add participant */}

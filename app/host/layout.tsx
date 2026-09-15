@@ -5,7 +5,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
-import { canEnterHostPanel, canHostEvents, canHostClubs } from '@/lib/auth'
+import { canEnterHostPanel, canHostEvents, canHostClubs, canRunDoor } from '@/lib/auth'
 
 function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const pathname = usePathname()
@@ -18,7 +18,7 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
     { label: 'Dashboard', href: '/host',          exact: true,  show: true       },
     { label: 'My Events', href: '/host/events',   exact: false, show: canEvents  },
     { label: 'My Clubs',  href: '/host/clubs',    exact: false, show: canClubs   },
-    { label: 'Check-In',  href: '/host/checkin',  exact: false, show: canEvents  },
+    { label: 'Check-In',  href: '/host/checkin',  exact: false, show: canRunDoor(user) },
   ].filter(i => i.show)
 
   const isActive = (item: typeof navItems[0]) =>

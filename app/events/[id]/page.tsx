@@ -351,6 +351,8 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
 
   const isAdmin    = session.role === 'admin'
   const isHost     = session.id === event.hostId
+  // A week back: the check-in prompt's lookback (lib/checkInPrompt).
+  const checkInFloor = new Date(Date.parse(`${today}T00:00:00Z`) - 7 * 86400000).toISOString().slice(0, 10)
 
   const cohostRecords = await prisma.eventCoHost.findMany({
     where: { eventId: id },
@@ -581,6 +583,22 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
         <div className="lg:grid lg:grid-cols-3 lg:gap-10 px-4 lg:px-8 pt-6">
         {/* LEFT — main content */}
         <div className="lg:col-span-2 space-y-6">
+          {/* The door, for the people running it: on the day and through the
+              week after, while the room can still be checked in. Hosts used to
+              reach the roster only through the host panel menu, three taps
+              from here — and co-hosts not at all. */}
+          {(isHost || cohostIds.includes(session.id)) && event.status !== 'cancelled'
+            && (event.date === today || (isPast && event.date >= checkInFloor)) && (
+            <Link href={`/host/checkin?event=${event.id}`}
+              className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 hover:bg-amber-100 transition-colors">
+              <span aria-hidden="true" className="text-xl leading-none">📋</span>
+              <span className="flex-1 min-w-0">
+                <span className="block text-sm font-bold text-amber-900">Check people in</span>
+                <span className="block text-xs text-amber-800">Tap each guest as they arrive. The roster opens in one tap.</span>
+              </span>
+              <span className="text-sm font-bold text-amber-700 shrink-0">Open →</span>
+            </Link>
+          )}
           {/* A full-width banner rather than another pill in the badge row:
               this is the one fact that changes what you can do on the page, and
               the badges beside it are all things you can still act on. */}

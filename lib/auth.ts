@@ -12,6 +12,9 @@ export interface AppUser {
   // Empty/undefined for everyone else. Undefined rather than [] on sessions
   // whose payload predates the field, so `?? []` at every read.
   hostCityIds?: string[]
+  // Co-hosts a recent or upcoming event (/api/auth/me). A plain member can
+  // co-host; this is what lets them reach Check-In for it.
+  runsEvents?: boolean
   joinedEvents?: string[]
   joinedAt?: string
   email?: string
@@ -66,7 +69,7 @@ export function hasHostAuthority(user: AppUser): boolean {
  * kind, plus admins and moderators for oversight.
  */
 export function canEnterHostPanel(user: AppUser): boolean {
-  return user.role === 'admin' || user.role === 'moderator' || hasHostAuthority(user)
+  return user.role === 'admin' || user.role === 'moderator' || hasHostAuthority(user) || user.runsEvents === true
 }
 
 /**
@@ -79,6 +82,17 @@ export function canEnterHostPanel(user: AppUser): boolean {
  */
 export function canHostEvents(user: AppUser): boolean {
   return user.role === 'admin' || hasHostAuthority(user)
+}
+
+/**
+ * May the viewer open Check-In? Everyone with the events tools, plus a member
+ * whose only part is co-hosting an event (runsEvents): the check-in API
+ * already lets co-hosts in (canManageEventOps), and the door is theirs to run.
+ * The rest of the panel's APIs gate themselves, so entering it buys a plain
+ * co-host nothing else.
+ */
+export function canRunDoor(user: AppUser): boolean {
+  return canHostEvents(user) || user.runsEvents === true
 }
 
 /**

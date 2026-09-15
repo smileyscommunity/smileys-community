@@ -70,7 +70,7 @@ const h = vi.hoisted(() => {
       findUnique: vi.fn(async ({ where }: any) => events[where.id] ?? null),
       findMany:   vi.fn(async ({ where }: any) => Object.values(events).filter(e => where?.clubId?.in ? where.clubId.in.includes(e.clubId) : true).map(e => ({ id: e.id }))),
     },
-    eventCoHost:   { findUnique: vi.fn(async () => null), findMany: vi.fn(async () => []) },
+    eventCoHost:   { findUnique: vi.fn(async () => null), findMany: vi.fn(async () => []), count: vi.fn(async () => 0) },
     eventAttendee: {
       findMany: vi.fn(async ({ where }: any) => attendees.filter(byEvent(where?.eventId)).map(a => ({ ...a, user: { ...a.user }, event: { id: a.eventId, title: events[a.eventId].title } }))),
     },

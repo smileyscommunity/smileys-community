@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
-import { canHostEvents, canHostClubs } from '@/lib/auth'
+import { canHostEvents, canHostClubs, canRunDoor } from '@/lib/auth'
 import { firstNameOf } from '@/lib/data'
 import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
@@ -37,15 +37,25 @@ export default function HostDashboard() {
   const { user } = useAuth()
   const [events,  setEvents]  = useState<Event[]>([])
   const [loading, setLoading] = useState(true)
+  const [doorEvents, setDoorEvents] = useState<Event[]>([])
 
   const canEvents = canHostEvents(user)
   const canClubs  = canHostClubs(user)
+  const canDoor   = canRunDoor(user)
 
   useEffect(() => {
     if (!canEvents) { setLoading(false); return }
     fetch('/app/api/host/events', { credentials: 'include' })
       .then(r => r.json()).then(d => setEvents(Array.isArray(d) ? d : [])).catch(() => {})
       .finally(() => setLoading(false))
+  }, [])
+
+  // The check-in prompt reads the door list (?scope=door) — events you host,
+  // co-host or club-host — so a co-host is chased about the room they ran too.
+  useEffect(() => {
+    if (!canDoor) return
+    fetch('/app/api/host/events?scope=door', { credentials: 'include' })
+      .then(r => r.json()).then(d => setDoorEvents(Array.isArray(d) ? d : [])).catch(() => {})
   }, [])
 
   const today     = todayInTz(tz)
@@ -85,7 +95,7 @@ export default function HostDashboard() {
         </p>
       </div>
 
-      {canEvents && <CheckInPrompt events={events} tz={tz} />}
+      {canDoor && <CheckInPrompt events={doorEvents} tz={tz} />}
 
       <HostProfileCard />
 
@@ -173,8 +183,14 @@ export default function HostDashboard() {
                   Edit
                 </Link>
               </div>
-              <div className="mt-2 text-xs text-zinc-500 pl-11">
-                {e._count?.attendees ?? 0} / {e.totalSpots} attendees
+              <div className="mt-2 text-xs text-zinc-500 pl-11 flex items-center gap-3">
+                <span>{e._count?.attendees ?? 0} / {e.totalSpots} attendees</span>
+                {/* Event day: the roster one tap away, not three menus deep. */}
+                {e.date === today && (
+                  <Link href={`/host/checkin?event=${e.id}`} className="font-semibold text-amber-400 hover:text-amber-300 transition-colors">
+                    Check in →
+                  </Link>
+                )}
               </div>
             </div>
           ))}
