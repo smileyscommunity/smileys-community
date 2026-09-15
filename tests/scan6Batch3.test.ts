@@ -54,7 +54,7 @@ vi.mock('bcryptjs',                () => ({ default: { compare: vi.fn(async () =
 import { POST as updateEmailPOST }   from '@/app/api/auth/update-email/route'
 import { POST as deleteAccountPOST } from '@/app/api/auth/delete-account/route'
 import { PATCH as adminUserPATCH }   from '@/app/api/admin/users/[id]/route'
-import { planRelink, isLiveUser, type RelinkApplication, type RelinkUser } from '@/scripts/relink-email-changed-applications'
+import { planRelink, isLiveUser, normPhone, normName, firstLastKey, APPROVAL_TIMING_WINDOW_MS, type RelinkApplication, type RelinkUser } from '@/scripts/relink-email-changed-applications'
 
 const all = (key: string) => h.calls[key] ?? []
 const jsonReq = (body: any = {}) => ({ json: async () => body, headers: new Headers() }) as any
@@ -189,18 +189,116 @@ describe('c. admin email edit moves the application too', () => {
 
 // ── d. relink planning ─────────────────────────────────────────────────────
 describe('d. scripts/relink-email-changed-applications planning', () => {
+  const T = new Date('2026-06-01T10:00:00Z')
+  const PHONE_A = '+90 555 123 45 67', PHONE_A_LOCAL = '05551234567', PHONE_B = '+90 555 222 33 44'
+  // joinedAt defaults far from reviewedAt, so approval timing never applies by accident.
   const user = (over: Partial<RelinkUser>): RelinkUser =>
-    ({ id: 'u', email: 'u@x.com', name: 'Jane Doe', phone: '+905551', status: 'approved', banReason: null, ...over })
+    ({ id: 'u', email: 'u@x.com', name: 'Jane Doe', phone: PHONE_A, status: 'approved', banReason: null,
+       joinedAt: new Date('2025-01-01T00:00:00Z'), hasLinkedApplication: false, ...over })
   const app = (over: Partial<RelinkApplication>): RelinkApplication =>
-    ({ id: 'a', email: 'old@x.com', fullName: 'Jane Doe', phone: '+905551', ...over })
+    ({ id: 'a', email: 'old@x.com', fullName: 'Jane Doe', phone: PHONE_A_LOCAL, reviewedAt: T, ...over })
+  const at = (ms: number) => new Date(T.getTime() + ms)
 
-  it('relinks when trimmed, case-insensitive name AND exact phone match one live account', () => {
+  it('normalises phones to the last 10 digits and names with accents, ı/İ and punctuation folded', () => {
+    expect(normPhone('+90 555 123 45 67')).toBe('5551234567')
+    expect(normPhone('05551234567')).toBe('5551234567')
+    expect(normPhone('(555) 123-456')).toBe('555123456')
+    expect(normPhone('555 12 34')).toBeNull()
+    expect(normPhone(null)).toBeNull()
+    expect(normName('  Büşra   IŞIK ')).toBe('busra isik')
+    expect(normName('İlkay Öztürk-Çelik')).toBe('ilkay ozturk celik')
+    expect(normName('ılgın')).toBe('ilgin')
+    expect(firstLastKey(normName('Ayşe Nur Yılmaz'))).toBe('ayse yilmaz')
+    expect(firstLastKey('cher')).toBeNull()
+  })
+
+  it('relinks when normalised name AND phone match one live account with no application, across phone formats', () => {
     const { rows, counts } = planRelink({
-      apps:  [app({ id: 'a1', fullName: '  jane DOE ' })],
-      users: [user({ id: 'u1', email: 'New@Y.com' }), user({ id: 'u2', name: 'Jane Doe', phone: '+900000' })],
+      apps:  [app({ id: 'a1', fullName: '  jane DOE ', phone: '05551234567' })],
+      users: [user({ id: 'u1', email: 'New@Y.com', phone: '+90 555 123 45 67' }), user({ id: 'u2', email: 'u2@x.com', phone: PHONE_B })],
     })
     expect(rows).toEqual([{ id: 'a1', verdict: 'relink', userId: 'u1', basis: 'name+phone', seenEmail: 'old@x.com', newEmail: 'New@Y.com' }])
-    expect(counts).toMatchObject({ relink: 1, ambiguous: 0 })
+    expect(counts).toMatchObject({ relink: 1, duplicate: 0, ambiguous: 0 })
+  })
+
+  it('relinks across accent and Turkish ı/İ folding', () => {
+    const { rows } = planRelink({
+      apps:  [app({ id: 'a1', fullName: 'Büşra Işık' }), app({ id: 'a2', email: 'old2@x.com', fullName: 'ilkay yildiz', phone: PHONE_B })],
+      users: [user({ id: 'u1', name: 'Busra ISIK' }), user({ id: 'u2', email: 'u2@x.com', name: 'İlkay Yıldız', phone: '0 555 222 33 44' })],
+    })
+    expect(rows).toEqual([
+      expect.objectContaining({ id: 'a1', verdict: 'relink', userId: 'u1', basis: 'name+phone' }),
+      expect.objectContaining({ id: 'a2', verdict: 'relink', userId: 'u2', basis: 'name+phone' }),
+    ])
+  })
+
+  it('DUPLICATE (never relinked) when the matched account already has an application under its current email', () => {
+    const { rows, counts } = planRelink({
+      apps: [
+        app({ id: 'second', email: 'second@x.com', fullName: 'Busra Isik', phone: PHONE_A }),
+        app({ id: 'in-input', email: 'third@x.com', fullName: 'Other Person', phone: PHONE_B }),
+        app({ id: 'own', email: 'u2@x.com', fullName: 'Other Person', phone: PHONE_B }),
+        app({ id: 'middle', email: 'fourth@x.com', fullName: 'Ayşe Nur Yılmaz', phone: '+90 555 777 88 99' }),
+      ],
+      users: [
+        user({ id: 'u1', name: 'Büşra Işık', hasLinkedApplication: true }),
+        // Linked by an approved application in the same input, not by the flag.
+        user({ id: 'u2', email: 'U2@x.com', name: 'Other Person', phone: PHONE_B }),
+        user({ id: 'u3', email: 'u3@x.com', name: 'Ayse Yilmaz', phone: '05557778899', hasLinkedApplication: true }),
+      ],
+    })
+    expect(rows).toEqual([
+      { id: 'second',   verdict: 'duplicate', userId: 'u1', basis: 'name+phone' },
+      { id: 'in-input', verdict: 'duplicate', userId: 'u2', basis: 'name+phone' },
+      { id: 'middle',   verdict: 'duplicate', userId: 'u3', basis: 'first+last name+phone' },
+    ])
+    expect(counts).toMatchObject({ relink: 0, duplicate: 3, ambiguous: 0, linked: 1 })
+  })
+
+  it('first+last name with phone never relinks an account that has no application — AMBIGUOUS', () => {
+    const { rows } = planRelink({
+      apps:  [app({ id: 'a1', fullName: 'Ayşe Nur Yılmaz' })],
+      users: [user({ id: 'u1', name: 'Ayse Yilmaz' })],
+    })
+    expect(rows).toEqual([{ id: 'a1', verdict: 'ambiguous', basis: 'first+last name+phone (middle names differ)', candidates: ['u1'] }])
+  })
+
+  it('relinks on phone + approval timing when the name has changed since', () => {
+    const { rows, counts } = planRelink({
+      apps:  [app({ id: 'a1', fullName: 'Jane Smith' }), app({ id: 'edge', email: 'edge@x.com', fullName: 'Someone', phone: PHONE_B })],
+      users: [
+        user({ id: 'u1', email: 'now@x.com', joinedAt: at(40_000) }),
+        user({ id: 'u2', email: 'u2@x.com', name: 'Else', phone: PHONE_B, joinedAt: at(APPROVAL_TIMING_WINDOW_MS) }),
+      ],
+    })
+    expect(rows).toEqual([
+      { id: 'a1',   verdict: 'relink', userId: 'u1', basis: 'phone+approval-timing', seenEmail: 'old@x.com', newEmail: 'now@x.com' },
+      { id: 'edge', verdict: 'relink', userId: 'u2', basis: 'phone+approval-timing', seenEmail: 'edge@x.com', newEmail: 'u2@x.com' },
+    ])
+    expect(counts).toMatchObject({ relink: 2 })
+  })
+
+  it('no timing proof — AMBIGUOUS — outside 5 minutes, before approval, with no reviewedAt, when the account has an application, or when the phone or name points elsewhere', () => {
+    const phoneOnly = { verdict: 'ambiguous', basis: 'phone only (name differs)', candidates: ['u1'] }
+    const plan = (a: Partial<RelinkApplication>, users: RelinkUser[]) => planRelink({ apps: [app({ fullName: 'Jane Smith', ...a })], users }).rows
+    expect(plan({}, [user({ id: 'u1', joinedAt: at(APPROVAL_TIMING_WINDOW_MS + 1) })])).toEqual([{ id: 'a', ...phoneOnly }])
+    expect(plan({}, [user({ id: 'u1', joinedAt: at(-1) })])).toEqual([{ id: 'a', ...phoneOnly }])
+    expect(plan({ reviewedAt: null }, [user({ id: 'u1', joinedAt: at(1000) })])).toEqual([{ id: 'a', ...phoneOnly }])
+    expect(plan({}, [user({ id: 'u1', joinedAt: at(1000), hasLinkedApplication: true })])).toEqual([{ id: 'a', ...phoneOnly }])
+    // Phone shared by two accounts: not exactly one.
+    expect(plan({}, [user({ id: 'u1', joinedAt: at(1000) }), user({ id: 'u2', email: 'u2@x.com', name: 'Other' })]))
+      .toEqual([{ id: 'a', verdict: 'ambiguous', basis: 'phone only (name differs)', candidates: ['u1', 'u2'] }])
+    // The name belongs to a different account.
+    expect(plan({}, [user({ id: 'u1', joinedAt: at(1000) }), user({ id: 'u2', email: 'u2@x.com', name: 'Jane Smith', phone: PHONE_B })]))
+      .toEqual([{ id: 'a', verdict: 'ambiguous', basis: 'name and phone match different accounts', candidates: ['u2', 'u1'] }])
+  })
+
+  it('a phone with too few digits does not count — not for name+phone, not for timing', () => {
+    const { rows } = planRelink({
+      apps:  [app({ id: 'a1', phone: '555 12 34' }), app({ id: 'a2', email: 'b@x.com', fullName: 'Jane Smith', phone: '5551234' })],
+      users: [user({ id: 'u1', phone: '5551234', joinedAt: at(1000) })],
+    })
+    expect(rows).toEqual([{ id: 'a1', verdict: 'ambiguous', basis: 'name only (application has no phone)', candidates: ['u1'] }])
   })
 
   it('never touches an application whose email matches ANY user, or a tombstone', () => {
@@ -225,15 +323,27 @@ describe('d. scripts/relink-email-changed-applications planning', () => {
     expect(rows).toEqual([expect.objectContaining({ id: 'a1', verdict: 'ambiguous', candidates: ['u1', 'u2'] })])
   })
 
+  it('AMBIGUOUS when two applications would relink onto the same account', () => {
+    const { rows, counts } = planRelink({
+      apps:  [app({ id: 'a1' }), app({ id: 'a2', email: 'older@x.com', phone: PHONE_A })],
+      users: [user({ id: 'u1' })],
+    })
+    expect(rows).toEqual([
+      { id: 'a1', verdict: 'ambiguous', basis: 'name+phone, but 2 applications relink to this account', candidates: ['u1'] },
+      { id: 'a2', verdict: 'ambiguous', basis: 'name+phone, but 2 applications relink to this account', candidates: ['u1'] },
+    ])
+    expect(counts).toMatchObject({ relink: 0, ambiguous: 2 })
+  })
+
   it('AMBIGUOUS when only the name or only the phone matches, or they point at different accounts', () => {
     const { rows, counts } = planRelink({
       apps: [
-        app({ id: 'name-only',  phone: '+909999' }),
+        app({ id: 'name-only',  phone: '+90 599 999 99 99' }),
         app({ id: 'no-phone',   phone: null }),
-        app({ id: 'phone-only', fullName: 'Someone Else', phone: '+905552' }),
-        app({ id: 'split',      fullName: 'Jane Doe',     phone: '+905552' }),
+        app({ id: 'phone-only', fullName: 'Someone Else', phone: PHONE_B }),
+        app({ id: 'split',      fullName: 'Jane Doe',     phone: PHONE_B }),
       ],
-      users: [user({ id: 'u1' }), user({ id: 'u2', email: 'u2@x.com', name: 'Other Person', phone: '+905552' })],
+      users: [user({ id: 'u1' }), user({ id: 'u2', email: 'u2@x.com', name: 'Other Person', phone: PHONE_B })],
     })
     const by = Object.fromEntries(rows.map(r => [r.id, r]))
     expect(rows.every(r => r.verdict === 'ambiguous')).toBe(true)
@@ -241,7 +351,7 @@ describe('d. scripts/relink-email-changed-applications planning', () => {
     expect(by['no-phone']).toMatchObject({ basis: 'name only (application has no phone)', candidates: ['u1'] })
     expect(by['phone-only']).toMatchObject({ basis: 'phone only (name differs)', candidates: ['u2'] })
     expect(by['split']).toMatchObject({ basis: 'name and phone match different accounts', candidates: ['u1', 'u2'] })
-    expect(counts).toMatchObject({ relink: 0, ambiguous: 4 })
+    expect(counts).toMatchObject({ relink: 0, duplicate: 0, ambiguous: 4 })
   })
 
   it('banned and self-deleted accounts are not candidates; a NULL banReason is live', () => {
@@ -256,10 +366,5 @@ describe('d. scripts/relink-email-changed-applications planning', () => {
     })
     expect(rows).toEqual([])
     expect(counts.unmatched).toBe(1)
-  })
-
-  it('phone must match exactly — no normalisation', () => {
-    const { rows } = planRelink({ apps: [app({ id: 'a1', phone: '+90 5551' })], users: [user({ id: 'u1' })] })
-    expect(rows).toEqual([expect.objectContaining({ verdict: 'ambiguous', basis: 'name only (phone differs)' })])
   })
 })
