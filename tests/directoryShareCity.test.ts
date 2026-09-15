@@ -46,6 +46,7 @@ describe('the directory share names the city the sharer had on screen', () => {
   it('both APIs scope by ?city= and fall back to the viewer\'s city', () => {
     expect(api).toMatch(/const cityId\s*=\s*\(citySlug \? \(await getPublicCity\(citySlug\)\)\?\.id : undefined\) \?\? await resolveCityId\(session\)/)
     expect(api).toMatch(/isValidNeighborhoodFor\(cityId, neighborhood\)/)
-    expect(current).toMatch(/const viewedId = pinnedId \?\? await resolveCityId\(session\)/)
+    // scan6Batch23 put an exact ?cityId= lookup (the host event editor) ahead of the pinned slug.
+    expect(current).toMatch(/const viewedId = (byId \?\? )?pinnedId \?\? await resolveCityId\(session\)/)
   })
 })

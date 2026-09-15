@@ -8,7 +8,7 @@ import { toast } from 'sonner'
 import { confirmToast } from '@/lib/confirmToast'
 import { withCapacityConfirm } from '@/lib/admin/overCapacity'
 import { toastApiError } from '@/lib/apiError'
-import {} from '@/lib/data'
+import { currencySymbol } from '@/lib/data'
 import { todayInTz, DEFAULT_TZ, formatDay } from '@/lib/cityTime'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
@@ -37,7 +37,6 @@ const emptyForm = {
 export default function HostEditEventPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const router  = useRouter()
-  const neighborhoods = useCityNeighborhoods()
 
   const [form,          setForm]          = useState(emptyForm)
   // The status as LOADED from the server. What the select offers depends on
@@ -74,17 +73,28 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
   const [cohostSearch,  setCohostSearch]  = useState('')
   const [cohostResults, setCohostResults] = useState<{ id: string; name: string }[]>([])
   const city = useCurrentCity()
+  // Everything city-shaped on this form follows the EVENT's city — the one it
+  // is filed in, which moving it to another club does not change — not the
+  // city being browsed. Neighborhoods, the geocode hint and the price currency
+  // all used the browsed city, so a host looking at one city while editing an
+  // event in another got the wrong list, a wrong-country hint and wrong labels.
+  // null until the event and its city load (the browsed list never flashes);
+  // an event with no city, or a city lookup that fails, uses the browsed city.
+  const [eventCityId,     setEventCityId]     = useState('')
+  const [eventCity,       setEventCity]       = useState<{ name: string; slug: string; country: string | null; currency: string } | null>(null)
+  const [eventCityFailed, setEventCityFailed] = useState(false)
+  const formCity = eventCity ?? (!loading && (!eventCityId || eventCityFailed) ? city : null)
+  const neighborhoods = useCityNeighborhoods(formCity ? formCity.slug : null)
   // The lookup searches the EVENT's city's country (it used to search one
-  // country for every city); the host's current city until the event loads.
-  const [eventCityId,   setEventCityId]   = useState('')
+  // country for every city).
   const geocodeCityParam = eventCityId ? `&cityId=${encodeURIComponent(eventCityId)}`
-    : city?.slug ? `&city=${encodeURIComponent(city.slug)}` : ''
+    : formCity?.slug ? `&city=${encodeURIComponent(formCity.slug)}` : ''
   const [addingCohost,  setAddingCohost]  = useState(false)
   const [seriesId,      setSeriesId]      = useState<string | null>(null)
 
   async function geocodeAddress() {
-    // The host's own city, not hardcoded Istanbul — see host/events/new.
-    const cityHint = city ? [city.name, countryName(city.country)].filter(Boolean).join(', ') : ''
+    // The event's own city (formCity above), not the browsed one — see host/events/new.
+    const cityHint = formCity ? [formCity.name, countryName(formCity.country)].filter(Boolean).join(', ') : ''
     const query = [form.location, form.address, form.neighborhood, cityHint].filter(Boolean).join(', ')
     setGeocoding(true)
     try {
@@ -187,7 +197,18 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
           approvalRequired: event.approvalRequired ?? false,
         })
         setLoadedStatus(event.status ?? 'published')
-        if (typeof event.cityId === 'string') setEventCityId(event.cityId)
+        if (typeof event.cityId === 'string' && event.cityId) {
+          setEventCityId(event.cityId)
+          // The event API carries only the city's id; name, slug, country and
+          // currency come from the same place useCurrentCity reads them.
+          fetch(`/app/api/city/current?cityId=${encodeURIComponent(event.cityId)}`, { credentials: 'include' })
+            .then(r => r.ok ? r.json() : null)
+            .then(d => {
+              if (d?.slug) setEventCity({ name: d.name, slug: d.slug, country: d.country ?? null, currency: d.currency })
+              else setEventCityFailed(true)
+            })
+            .catch(() => setEventCityFailed(true))
+        }
         setPaymentMethod(event.ticketUrl ? 'buyonline' : 'venue')
         if (Array.isArray(event.tags) && event.tags.length) setSelectedTagIds(event.tags)
         if (event.seriesId) setSeriesId(event.seriesId)
@@ -615,11 +636,11 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
               <input type="number" min="1" value={form.totalSpots} onChange={e => set('totalSpots', e.target.value)} className={inputCls} />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Guest price</label>
+              <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Guest price ({currencySymbol(formCity?.currency).trim()})</label>
               <input type="number" min="0" value={form.price} onChange={e => set('price', e.target.value)} className={inputCls} />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Member price</label>
+              <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Member price ({currencySymbol(formCity?.currency).trim()})</label>
               <input type="number" min="0" value={form.memberPrice} onChange={e => set('memberPrice', e.target.value)} placeholder="Optional" className={inputCls} />
             </div>
             <div>

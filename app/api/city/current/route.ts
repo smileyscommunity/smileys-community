@@ -3,6 +3,7 @@ import { getSession } from '@/lib/session'
 import { resolveCityId, describeCity, getCityConfig } from '@/lib/city'
 import { resolvePostingCityId } from '@/lib/cityMembership'
 import { getPublicCity } from '@/lib/cities'
+import { prisma } from '@/lib/prisma'
 
 // The city this request's feeds resolve to (view-city cookie → member's
 // home city → default). Public. Page headers use it to name the city
@@ -29,7 +30,17 @@ export async function GET(req: NextRequest) {
   // its header must name that city, not the cookie's. Unknown slugs fall back.
   const slug     = req.nextUrl.searchParams.get('city')?.trim()
   const pinnedId = slug ? (await getPublicCity(slug))?.id : undefined
-  const viewedId = pinnedId ?? await resolveCityId(session)
+  // ?cityId=<id> — a form describing ONE record's city (the host event editor
+  // asks for the event's city, not the browsed one). Exact or 404: unlike a
+  // pinned page, quietly answering with another city would mislabel the form.
+  const cityIdParam = req.nextUrl.searchParams.get('cityId')?.trim()
+  let byId: string | undefined
+  if (cityIdParam) {
+    const row = await prisma.city.findUnique({ where: { id: cityIdParam }, select: { id: true } })
+    if (!row) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    byId = row.id
+  }
+  const viewedId = byId ?? pinnedId ?? await resolveCityId(session)
   const base = await describeCity(viewedId, session)
 
   // Guests have no membership and nothing to post with, so there is nothing
