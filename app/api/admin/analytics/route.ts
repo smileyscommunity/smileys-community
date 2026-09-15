@@ -5,6 +5,7 @@ import { getSession } from '@/lib/session'
 import { canViewAnalytics } from '@/lib/access'
 import { getCached, setCached } from '@/lib/analyticsCache'
 import { todayInCity, resolveCityId } from '@/lib/city'
+import { COMMUNITY_MEMBER_WHERE, MEMBER_ROLE_FILTER } from '@/lib/memberCount'
 
 const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
 
@@ -128,11 +129,13 @@ export async function GET(req: NextRequest) {
         select: { userId: true },
         distinct: ['userId'],
       }),
-      // Dormant members: approved but no event attendance in 90+ days
+      // Dormant members: activated community members (every role but
+      // admin/partner — hosts were dropped before) with no event attendance in
+      // 90+ days. Activated, because someone who never set a password didn't go
+      // quiet, they never arrived — they're the admin stats "not activated" gap.
       prisma.user.findMany({
         where: {
-          status: 'approved',
-          role: { in: ['member', 'moderator'] },
+          ...COMMUNITY_MEMBER_WHERE,
           joinedEvents: {
             none: { joinedAt: { gte: day90 }, status: 'approved' },
           },
@@ -244,8 +247,10 @@ export async function GET(req: NextRequest) {
             where:  { createdAt: { gte: periodStart }, action: 'user.ban' },
             select: { createdAt: true },
           }),
-      // Total approved members — denominator for the ban-rate metric.
-      prisma.user.count({ where: { status: 'approved', role: { in: ['member', 'moderator'] }, ...userCity } }),
+      // Total approved members — denominator for the ban-rate metric. Approval,
+      // not activation: a ban can land on an account that never activated.
+      // Roles per MEMBER_ROLE_FILTER (hosts count), like admin stats.
+      prisma.user.count({ where: { status: 'approved', role: MEMBER_ROLE_FILTER, ...userCity } }),
     ]) as [any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], number]
 
     // ── Members ──────────────────────────────────────────────────────────────
@@ -608,8 +613,11 @@ export async function GET(req: NextRequest) {
     // cohort math has the join key. Cheap query, single table scan.
     // City-scoped like allAttendees above; without it a city view divided a
     // city-only numerator by the network-wide denominator.
+    // Approval, not activation: a cohort that isn't activating is exactly what
+    // this table flags, so never-activated members stay in its size. Roles per
+    // MEMBER_ROLE_FILTER — hosts are members too.
     const approvedWithId = await prisma.user.findMany({
-      where:  { status: 'approved', role: { in: ['member', 'moderator'] }, ...userCity },
+      where:  { status: 'approved', role: MEMBER_ROLE_FILTER, ...userCity },
       // email added so we can match host-intent applications + acquisition-
       // source applications to actual user records via email join.
       // color/profilePhoto added so the host pipeline can render avatars

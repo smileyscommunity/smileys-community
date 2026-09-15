@@ -67,7 +67,7 @@ export default function ModeratorPage() {
       href: '/admin/moderation', color: 'border-red-500/30 bg-red-500/5 text-red-400',
     },
     (stats.hostlessClubRequests ?? 0) > 0 && {
-      icon: '🏛️', label: `${stats.hostlessClubRequests} club request${stats.hostlessClubRequests !== 1 ? 's' : ''} with no host`,
+      icon: '🏛️', label: `${stats.hostlessClubRequests} club request${stats.hostlessClubRequests !== 1 ? 's' : ''} only staff can answer`,
       href: '/admin/club-requests', color: 'border-amber-500/30 bg-amber-500/5 text-amber-400',
     },
     stats.visitorsThisWeek > 0 && {

@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { COUNTED_CLUB_MEMBERSHIP_WHERE } from '@/lib/clubMemberCount'
 
 /**
  * Nationality → regional Culture club seeding.
@@ -171,9 +172,11 @@ export async function seedRegionalClubs(opts: { includeTurkey?: boolean; dryRun?
     for (let i = 0; i < fresh.length; i += CHUNK) {
       await prisma.clubMembership.createMany({ data: fresh.slice(i, i + CHUNK), skipDuplicates: true })
     }
-    // Sync memberCount to the true approved count on every touched club.
+    // Sync memberCount on every touched club by the shared rule (approved, user
+    // not banned) — approved rows alone put banned members back into the
+    // count until the nightly recount (lib/clubMemberCount).
     for (const c of clubs) {
-      const count = await prisma.clubMembership.count({ where: { clubId: c.id, status: 'approved' } })
+      const count = await prisma.clubMembership.count({ where: { clubId: c.id, ...COUNTED_CLUB_MEMBERSHIP_WHERE } })
       await prisma.club.update({ where: { id: c.id }, data: { memberCount: count } })
     }
   }

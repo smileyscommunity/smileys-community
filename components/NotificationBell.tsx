@@ -5,7 +5,7 @@ import { timeAgo } from '@/lib/timeAgo'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { TYPE_ICON } from '@/lib/notificationFilters'
-import { sendNotificationAction, setReadFor, restoreAt } from '@/lib/notificationActions'
+import { sendNotificationAction, setReadFor, restoreAt, createNotificationSync } from '@/lib/notificationActions'
 
 interface Notification {
   id: string; type: string; title: string; body: string
@@ -19,13 +19,19 @@ export default function NotificationBell() {
   const [notifs, setNotifs] = useState<Notification[]>([])
   const router = useRouter()
   const ref    = useRef<HTMLDivElement>(null)
+  // Keeps a poll from undoing an in-flight mark-read / dismiss (lib/notificationActions).
+  const [sync] = useState(createNotificationSync)
 
   const load = useCallback(() => {
+    const poll = sync.startPoll()
     fetch('/app/api/notifications', { credentials: 'include' })
       .then(r => r.json())
-      .then(d => setNotifs(Array.isArray(d) ? d : []))
+      .then(d => {
+        const next = sync.resolvePoll(poll, Array.isArray(d) ? d as Notification[] : [])
+        if (next) setNotifs(next)
+      })
       .catch(() => {})
-  }, [])
+  }, [sync])
 
   // Initial load + poll every 60s
   useEffect(() => {
@@ -48,10 +54,13 @@ export default function NotificationBell() {
 
   // Optimistic, rolled back when the server refuses — these used to update
   // the list without reading the response (see lib/notificationActions).
+  // Each one registers with sync while its request is out and settles before
+  // any rollback, so a poll landing mid-request can't restore the old state.
   async function markAllRead() {
     const ids = new Set(notifs.filter(n => !n.isRead).map(n => n.id))
+    const settle = sync.begin({ kind: 'read', ids })
     setNotifs(prev => setReadFor(prev, ids, true))
-    if (!await sendNotificationAction('PATCH', { markAll: true }, 'Could not mark all as read')) {
+    if (!await sendNotificationAction('PATCH', { markAll: true }, 'Could not mark all as read').finally(settle)) {
       setNotifs(prev => setReadFor(prev, ids, false))
     }
   }
@@ -61,8 +70,9 @@ export default function NotificationBell() {
     const index   = notifs.findIndex(n => n.id === id)
     const removed = notifs[index]
     if (!removed) return
+    const settle = sync.begin({ kind: 'dismiss', id })
     setNotifs(prev => prev.filter(n => n.id !== id))
-    if (!await sendNotificationAction('DELETE', { id }, 'Could not dismiss notification')) {
+    if (!await sendNotificationAction('DELETE', { id }, 'Could not dismiss notification').finally(settle)) {
       setNotifs(prev => restoreAt(prev, removed, index))
     }
   }
@@ -70,11 +80,12 @@ export default function NotificationBell() {
   function handleClick(n: Notification) {
     if (!n.isRead) {
       const ids = new Set([n.id])
+      const settle = sync.begin({ kind: 'read', ids })
       setNotifs(prev => setReadFor(prev, ids, true))
       // Not awaited — opening the notification shouldn't wait on a read
       // receipt. The bell stays mounted across the route change, so the
       // rollback and toast still land.
-      sendNotificationAction('PATCH', { id: n.id }, 'Could not mark as read').then(ok => {
+      sendNotificationAction('PATCH', { id: n.id }, 'Could not mark as read').finally(settle).then(ok => {
         if (!ok) setNotifs(prev => setReadFor(prev, ids, false))
       })
     }

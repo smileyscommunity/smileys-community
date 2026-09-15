@@ -63,6 +63,47 @@ function nameHasWord(word: string) {
   ]
 }
 
+// The DB match is case-insensitive but NOT accent-insensitive (no unaccent
+// extension), so "@Cagla" never loaded the Çağla row and foldName never got
+// to compare them. The prefilter asks for every Turkish spelling of the folded
+// token instead — the letters members type without the keyboard for them. 'İ'
+// only leads: formatName leaves no capitals mid-name.
+const LETTER_VARIANTS: Record<string, string[]> = { c: ['ç'], g: ['ğ'], i: ['ı'], o: ['ö'], s: ['ş'], u: ['ü'] }
+export const MAX_NAME_VARIANTS = 32
+
+// Spellings of a token that fold to the same name. Bounded: past
+// MAX_NAME_VARIANTS the spellings stop at the letters enumerated so far and
+// `whole` is false — the query then matches that prefix and mentionMatches
+// still decides on the whole name.
+export function nameVariants(word: string): { variants: string[]; whole: boolean } {
+  let out = ['']
+  const letters = Array.from(foldName(word))
+  for (let k = 0; k < letters.length; k++) {
+    const ch = letters[k]
+    const alts = [ch, ...(LETTER_VARIANTS[ch] ?? []), ...(k === 0 && ch === 'i' ? ['İ'] : [])]
+    if (out.length * alts.length > MAX_NAME_VARIANTS) return { variants: out, whole: false }
+    out = out.flatMap(p => alts.map(a => p + a))
+  }
+  return { variants: out, whole: true }
+}
+
+// The token as typed (keeps accents outside the Turkish set: "@René") plus its
+// folded spellings, deduped.
+export function namePrefilter(words: string[]) {
+  const seen = new Set<string>()
+  return words.flatMap(mentionForms).flatMap(word => {
+    const { variants, whole } = nameVariants(word)
+    const spellings = variants.filter(v => v !== word && v !== word.toLowerCase())
+    return [
+      ...nameHasWord(word),
+      ...spellings.flatMap(v => whole ? nameHasWord(v) : [
+        { name: { startsWith: v,      mode: 'insensitive' as const } },
+        { name: { contains:   ` ${v}`, mode: 'insensitive' as const } },
+      ]),
+    ]
+  }).filter(c => { const k = JSON.stringify(c); if (seen.has(k)) return false; seen.add(k); return true })
+}
+
 // Members on either side of a block with the author never get the ping.
 export async function dropBlocked<T extends { id: string }>(authorId: string, users: T[]): Promise<T[]> {
   if (!users.length) return users
@@ -89,10 +130,14 @@ export async function notifyMentions(opts: {
 
   const candidates = await prisma.user.findMany({
     where: {
+      // approved excludes banned (and so deleted) accounts. Admin-hidden
+      // accounts are out of mention autocomplete (api/members/search); a
+      // hand-typed @name must not notify them either.
       status: 'approved',
+      hiddenFromMembers: false,
       id:     { not: opts.authorId },
       ...(opts.cityId ? { cityId: opts.cityId } : {}),
-      OR:     words.flatMap(mentionForms).flatMap(nameHasWord),
+      OR:     namePrefilter(words),
     },
     select: { id: true, name: true },
     take:   50,

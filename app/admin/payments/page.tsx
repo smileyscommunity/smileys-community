@@ -10,6 +10,7 @@ import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { DEFAULT_CURRENCY, formatMoney, currencySymbol } from '@/lib/data'
 import { paymentsCsv } from '@/lib/admin/csvExports'
+import { PAYMENT_HELD_CHECKED_IN } from '@/lib/constants'
 
 interface Payment {
   id: string
@@ -47,6 +48,7 @@ interface PaymentsStats {
   total:        number
   paidByCurrency: { currency: string; amount: number }[]
   pendingCount: number
+  heldCount?:   number
   byEvent:      ByEventStat[]
   rowCap:       number
   capped:       boolean
@@ -81,6 +83,10 @@ const FALLBACK_META: StatusMeta = { color: 'bg-zinc-800 text-zinc-400', next: nu
 function statusMeta(s: string | null | undefined): StatusMeta {
   return s && s in STATUSES ? STATUSES[s as StatusKey] : FALLBACK_META
 }
+
+// Held open by the payment sweep: the member checked in, nothing was marked
+// paid. Only an admin can say which it was.
+const isHeldCheckedIn = (p: Payment) => p.status === 'pending' && !!p.notes?.includes(PAYMENT_HELD_CHECKED_IN)
 
 type FilterKey = 'all' | StatusKey
 const FILTER_KEYS: readonly FilterKey[] = ['all', 'paid', 'pending', 'refunded', 'failed', 'cancelled'] as const
@@ -186,10 +192,11 @@ function AdminPaymentsPageInner() {
     }
   }
 
-  async function updateStatus(p: Payment, overrideNote?: string) {
+  async function updateStatus(p: Payment, overrideNote?: string, target?: StatusKey) {
     // Single source of truth for next-state — STATUSES treats null
     // as terminal so the call-site rejects without a doomed PATCH.
-    const next = statusMeta(p.status).next
+    // `target` is the held row's cancel, the one move off the cycle.
+    const next = target ?? statusMeta(p.status).next
     if (!next) { toast.error(`Cannot change status from ${p.status}`); return }
     await withBusy(p.id, async () => {
       const res = await fetch('/app/api/admin/payments', {
@@ -245,6 +252,11 @@ function AdminPaymentsPageInner() {
     } else {
       updateStatus(p)
     }
+  }
+
+  async function cancelHeld(p: Payment) {
+    if (!(await confirmToast(`Cancel this payment?\n\n${p.user.name} checked in but it was never marked paid. Cancelled is final.`))) return
+    await updateStatus(p, undefined, 'cancelled')
   }
 
   async function saveNotes(id: string, notes: string) {
@@ -348,7 +360,7 @@ function AdminPaymentsPageInner() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
           { label: 'Total Collected', value: stats?.paidByCurrency?.length ? stats.paidByCurrency.map(g => formatMoney(g.amount, g.currency)).join(' · ') : formatMoney(0, cur), color: 'text-green-400' },
-          { label: 'Pending',         value:  stats?.pendingCount     ?? 0,                     color: 'text-amber-400' },
+          { label: stats?.heldCount ? `Pending · ${stats.heldCount} checked in — confirm or cancel` : 'Pending', value: stats?.pendingCount ?? 0, color: 'text-amber-400' },
           { label: 'Transactions',    value:  stats?.total            ?? 0,                     color: 'text-white'     },
         ].map(s => (
           <div key={s.label} className="bg-zinc-900 rounded-xl p-4 border border-zinc-800">
@@ -482,6 +494,7 @@ function AdminPaymentsPageInner() {
                     <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${statusMeta(p.status).color}`}>
                       {p.status}
                     </span>
+                    {isHeldCheckedIn(p) && <div className="text-[10px] text-amber-300 mt-1">checked in — confirm or cancel</div>}
                   </div>
                 </div>
 
@@ -527,6 +540,12 @@ function AdminPaymentsPageInner() {
                           : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
                         }`}>
                         {busy === p.id ? '…' : statusMeta(p.status).action}
+                      </button>
+                    )}
+                    {isHeldCheckedIn(p) && (
+                      <button onClick={() => cancelHeld(p)} disabled={busy === p.id}
+                        className="text-xs px-3 py-2 rounded-lg font-semibold transition-colors disabled:opacity-50 bg-zinc-800 text-zinc-400 hover:bg-zinc-700">
+                        Cancel
                       </button>
                     )}
                     <button onClick={() => toggleLog(p.id)}
@@ -590,6 +609,7 @@ function AdminPaymentsPageInner() {
                         <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${statusMeta(p.status).color}`}>
                           {p.status}
                         </span>
+                        {isHeldCheckedIn(p) && <div className="text-[10px] text-amber-300 mt-1">checked in — confirm or cancel</div>}
                       </td>
                       <td className="px-4 py-3 max-w-[160px]">
                         {editNotes?.id === p.id ? (
@@ -634,6 +654,12 @@ function AdminPaymentsPageInner() {
                                 : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
                               }`}>
                               {busy === p.id ? '…' : statusMeta(p.status).action}
+                            </button>
+                          )}
+                          {isHeldCheckedIn(p) && (
+                            <button onClick={() => cancelHeld(p)} disabled={busy === p.id}
+                              className="text-xs px-2.5 py-1 rounded-lg font-semibold transition-colors disabled:opacity-50 bg-zinc-800 text-zinc-400 hover:bg-zinc-700">
+                              Cancel
                             </button>
                           )}
                           <button onClick={() => toggleLog(p.id)}

@@ -159,7 +159,11 @@ export async function POST(req: NextRequest) {
     await tx.hangoutMessage.updateMany({ where: { userId: id }, data: { body: DELETED_BODY } })
     await tx.clubPost.updateMany({ where: { userId: id }, data: { content: DELETED_BODY } })
     await tx.neighborhoodPost.updateMany({ where: { userId: id }, data: { content: DELETED_BODY, imageUrl: null } })
-    await tx.listing.updateMany({ where: { userId: id }, data: { description: DELETED_BODY, photo: null, status: 'expired' } })
+    // Listings carry their own contact COLUMNS (phone/WhatsApp string and an
+    // email), and staff listing views return them — clearing only the
+    // description left the member reachable after erasure. The gallery goes
+    // with the cover photo; title is NOT NULL, so it gets a neutral one.
+    await tx.listing.updateMany({ where: { userId: id }, data: { title: 'Removed listing', description: DELETED_BODY, photo: null, photos: [], contact: null, contactEmail: null, status: 'expired' } })
     // Visitor cards carry their own name/email/contact COLUMNS (they support
     // anonymous posting) — scrubbing only the intro left the member's name
     // and WhatsApp string on a card that can be visibility='public'.
@@ -168,8 +172,8 @@ export async function POST(req: NextRequest) {
     // the containing surface stays readable, the user's words go.
     await tx.boardReply.updateMany({ where: { userId: id }, data: { body: DELETED_BODY } })
     await tx.boardPost.updateMany({ where: { userId: id }, data: { title: 'Deleted post', body: DELETED_BODY } })
-    await tx.hangout.updateMany({ where: { userId: id }, data: { title: 'Deleted hangout', description: null, location: 'Removed', status: 'cancelled' } })
-    await tx.movingSale.updateMany({ where: { userId: id }, data: { note: null } })
+    await tx.hangout.updateMany({ where: { userId: id }, data: { title: 'Deleted hangout', description: null, location: 'Removed', photo: null, status: 'cancelled' } })
+    await tx.movingSale.updateMany({ where: { userId: id }, data: { note: null, photo: null } })
     await tx.guideTip.updateMany({ where: { userId: id }, data: { body: DELETED_BODY } })
     await tx.businessReview.updateMany({ where: { authorId: id }, data: { comment: null } })
     await tx.review.updateMany({ where: { userId: id }, data: { text: '' } })

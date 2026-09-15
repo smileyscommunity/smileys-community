@@ -68,7 +68,8 @@ describe('analytics city scope', () => {
   const src = read('app/api/admin/analytics/route.ts')
   it('cohort denominator and "today" follow the selected city', () => {
     expect(src).toMatch(/todayInCity\(cityId \?\? await resolveCityId\(session\)\)/)
-    expect(src).toMatch(/where:\s*\{ status: 'approved', role: \{ in: \['member', 'moderator'\] \}, \.\.\.userCity \}/)
+    // Role rule is MEMBER_ROLE_FILTER now (hosts count) — scan6Batch19.
+    expect(src).toMatch(/const approvedWithId = await prisma\.user\.findMany\(\{\s*where:\s*\{ status: 'approved', role: MEMBER_ROLE_FILTER, \.\.\.userCity \}/)
   })
 })
 

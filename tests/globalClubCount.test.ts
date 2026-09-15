@@ -43,9 +43,10 @@ describe('club member counts', () => {
     expect(club.globalMemberCount).toBe(225)
     expect(club.isGlobal).toBe(true)
     // The scoped count is only honest if the query asked for this city's
-    // approved members — the mock above decides the rows, so pin the filter.
+    // counted members — the mock above decides the rows, so pin the filter.
+    // Approved and not banned (lib/clubMemberCount, scan6Batch19).
     expect((prisma.club.findMany as any).mock.calls[0][0].include.memberships.where)
-      .toEqual({ status: 'approved', user: { cityId: 'c-bodrum' } })
+      .toEqual({ status: 'approved', user: { status: { not: 'banned' }, cityId: 'c-bodrum' } })
   })
 
   it('leaves a city-scoped club unchanged — both counts agree', async () => {

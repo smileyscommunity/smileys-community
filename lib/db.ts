@@ -8,6 +8,7 @@ import type { Club, Event, VibeTag } from './data'
 import { nowInTz, todayInTz, DEFAULT_TZ } from './cityTime'
 import { getCityTz, getCityConfig } from './city'
 import { isSoldOut } from '@/lib/soldOut'
+import { COUNTED_CLUB_MEMBERSHIP_WHERE } from './clubMemberCount'
 import { DEFAULT_CURRENCY } from './data'
 
 // ── Clubs ─────────────────────────────────────────────────────────────────
@@ -38,9 +39,11 @@ export async function getClubs(cityId: string): Promise<Club[]> {
       // would promise 225 people nearby when the real answer is none.
       // `globalMemberCount` carries the network-wide figure for the surfaces
       // that want to say "across Smileys".
-      _count: { select: { memberships: { where: { status: 'approved' } } } },
+      // Both counts use the shared rule (approved, user not banned) — approved
+      // rows alone counted banned members back in (lib/clubMemberCount).
+      _count: { select: { memberships: { where: COUNTED_CLUB_MEMBERSHIP_WHERE } } },
       memberships: {
-        where:  { status: 'approved', user: { cityId } },
+        where:  { ...COUNTED_CLUB_MEMBERSHIP_WHERE, user: { ...COUNTED_CLUB_MEMBERSHIP_WHERE.user, cityId } },
         select: { id: true },
       },
       // The club's next event *in this city*, and only if it's public.

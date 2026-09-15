@@ -35,6 +35,25 @@ export function parseModCounts(body: unknown): ModCounts | null {
 export const MOD_COUNTS_POLL_MS    = 60_000
 export const MOD_COUNTS_MIN_GAP_MS = 15_000
 
+// Generation guard for the hook's shared counts. Disabling (sign-out, demotion)
+// bumps the generation; a fetch that started under an older one must not write
+// when it lands, or the next moderator on this device sees the last one's
+// counts.
+export interface FetchGeneration {
+  start():              number
+  bump():               void
+  isCurrent(g: number): boolean
+}
+
+export function createFetchGeneration(): FetchGeneration {
+  let generation = 0
+  return {
+    start:     () => generation,
+    bump:      () => { generation += 1 },
+    isCurrent: g => g === generation,
+  }
+}
+
 export type ModRefreshReason = 'mount' | 'focus' | 'visible' | 'route' | 'changed' | 'poll'
 
 export function shouldRefreshModCounts(opts: {

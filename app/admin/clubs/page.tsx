@@ -10,6 +10,7 @@ import { useAdminLoad } from '@/lib/admin/useAdminLoad'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import CitySelect, { CityBadge, useAdminCities } from '@/components/admin/CitySelect'
 import { confirmToast } from '@/lib/confirmToast'
+import { clubStaffQueueReason } from '@/lib/clubRequestRouting'
 
 const EMOJI_GROUPS = [
   { label: 'Water & Sailing', emojis: ['⛵','🚢','🛥️','⚓','🏄','🤿','🎣','🌊','🐬','🐳','🚤','🛶','🐠','🐟','🦈','🐙','🪸','🏝️','🏖️','🐚','🦀','🦞','🦐','🌅'] },
@@ -444,10 +445,11 @@ export default function AdminClubsPage() {
   const totalClubs   = clubList.length
   const activeCount  = clubList.filter(c => c.isActive).length
   const pendingTotal = clubList.reduce((s, c) => s + (c.pendingCount ?? 0), 0)
-  // Active clubs with no approved host — nobody can answer their join
-  // requests from the club side. hostCount undefined (older API) never flags.
-  const isHostless = (c: Club) => c.isActive && c.hostCount === 0
-  const hostlessCount = clubList.filter(isHostless).length
+  // Clubs whose join requests only staff can answer — no approved host, or
+  // inactive with requests still pending. Same rule as /admin/club-requests
+  // and the Mod Home count (lib/clubRequestRouting), so the numbers agree.
+  const staffQueueReason = (c: Club) => clubStaffQueueReason(c)
+  const staffQueueCount = clubList.filter(c => staffQueueReason(c) !== null).length
 
   // Filtered list — search hits name + description + slug; category
   // dropdown filters exactly; status pills filter active/inactive/
@@ -461,7 +463,7 @@ export default function AdminClubsPage() {
     if (statusFilter === 'active'       && !c.isActive)              return false
     if (statusFilter === 'inactive'     &&  c.isActive)              return false
     if (statusFilter === 'with-pending' && (c.pendingCount ?? 0) === 0) return false
-    if (statusFilter === 'no-host'      && !isHostless(c))           return false
+    if (statusFilter === 'no-host'      && !staffQueueReason(c))     return false
     if (search.trim()) {
       const q = search.trim().toLowerCase()
       const hay = `${c.name} ${c.description} ${c.slug}`.toLowerCase()
@@ -571,7 +573,7 @@ export default function AdminClubsPage() {
                 className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors ${
                   statusFilter === s ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-white'
                 }`}>
-                {s === 'with-pending' ? 'Pending' : s === 'no-host' ? `No host${hostlessCount ? ` (${hostlessCount})` : ''}` : s.charAt(0).toUpperCase() + s.slice(1)}
+                {s === 'with-pending' ? 'Pending' : s === 'no-host' ? `Staff queue${staffQueueCount ? ` (${staffQueueCount})` : ''}` : s.charAt(0).toUpperCase() + s.slice(1)}
               </button>
             ))}
           </div>
@@ -650,11 +652,13 @@ export default function AdminClubsPage() {
                       )}
                       {club.isPrivate && <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-400">Private</span>}
                       {!club.isActive && <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-500/10 text-red-400">Inactive</span>}
-                      {isHostless(club) && (
+                      {staffQueueReason(club) && (
                         <Link href="/admin/club-requests"
                           className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/20 transition-colors"
-                          title="No approved host — its join requests are answered from Club requests">
-                          No host
+                          title={staffQueueReason(club) === 'no_host'
+                            ? 'No approved host — its join requests are answered from Club requests'
+                            : 'Inactive — hosts can’t act on its pending requests; staff answer them from Club requests'}>
+                          {staffQueueReason(club) === 'no_host' ? 'No host' : 'Staff queue'}
                         </Link>
                       )}
                       {/* Pending badge — the difference between

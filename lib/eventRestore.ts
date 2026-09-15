@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 import { createNotification } from '@/lib/notify'
@@ -58,7 +59,44 @@ export function splitRestoredSeats<T extends ReleasedRow>(rows: T[], cap: { tota
   return { seated, overflow }
 }
 
-export async function restoreSeatsReleasedByCancel(ev: RestorableEvent): Promise<{ restored: number; status: 'approved' | 'pending' | null; waitlisted?: number }> {
+export type PaidOnWaitlist = { paymentId: string; userId: string; amount: number; currency: string }
+
+/**
+ * The pending payment of a seat that went to the waitlist on restore was
+ * written for a seat they no longer hold. Left pending they showed as owing on
+ * the payments pages, and the sweep later closed it as "never collected".
+ * Closed here, in the restore's transaction, with the sweep's log shape. A
+ * paid row is money that changed hands: never touched, handed back so staff
+ * can refund or re-seat.
+ */
+async function releaseOverflowPayments(tx: Prisma.TransactionClient, ev: RestorableEvent, overflow: ReleasedRow[]): Promise<PaidOnWaitlist[]> {
+  if (overflow.length === 0) return []
+  const rows = await tx.payment.findMany({
+    where:  { eventId: ev.id, userId: { in: overflow.map(r => r.userId) }, status: { in: ['pending', 'paid'] } },
+    select: { id: true, userId: true, status: true, amount: true, currency: true },
+  })
+  const paid: PaidOnWaitlist[] = []
+  for (const p of rows) {
+    if (p.status === 'paid') {
+      paid.push({ paymentId: p.id, userId: p.userId, amount: p.amount, currency: p.currency })
+      continue
+    }
+    // Guarded on the status just read, like the sweep's close.
+    const { count } = await tx.payment.updateMany({ where: { id: p.id, status: 'pending' }, data: { status: 'cancelled' } })
+    if (count) {
+      await tx.paymentLog.create({
+        data: {
+          paymentId: p.id, adminId: 'system', adminName: 'Event restore',
+          fromStatus: 'pending', toStatus: 'cancelled',
+          note: `Auto-cancelled: "${ev.title}" was restored with fewer spots and this member went to the waitlist`,
+        },
+      })
+    }
+  }
+  return paid
+}
+
+export async function restoreSeatsReleasedByCancel(ev: RestorableEvent): Promise<{ restored: number; status: 'approved' | 'pending' | null; waitlisted?: number; paidOnWaitlist?: PaidOnWaitlist[] }> {
   if (!ev.cancelledAt) return { restored: 0, status: null }
   const rows = await prisma.eventAttendee.findMany({
     where: {
@@ -76,6 +114,7 @@ export async function restoreSeatsReleasedByCancel(ev: RestorableEvent): Promise
   const revive = { status, cancelledAt: null, cancelledBy: null }
   let seated: ReleasedRow[] = rows
   let overflow: ReleasedRow[] = []
+  let paidOnWaitlist: PaidOnWaitlist[] = []
   if (status === 'approved' && ev.limitedSpots) {
     // Counted and written under the event's row lock, like every other seat.
     ;({ seated, overflow } = await prisma.$transaction(async tx => {
@@ -93,9 +132,13 @@ export async function restoreSeatsReleasedByCancel(ev: RestorableEvent): Promise
           update: {},
         })
       }
+      paidOnWaitlist = await releaseOverflowPayments(tx, ev, split.overflow)
       await recomputeSpotsLeft(ev.id, totalSpots, tx)
       return split
     }))
+    if (paidOnWaitlist.length) {
+      console.warn('[eventRestore] waitlisted on restore with a paid payment — needs refund review', { eventId: ev.id, paidOnWaitlist })
+    }
   } else {
     await prisma.eventAttendee.updateMany({
       where: { id: { in: rows.map(r => r.id) }, status: 'removed' },
@@ -129,5 +172,9 @@ export async function restoreSeatsReleasedByCancel(ev: RestorableEvent): Promise
       `/events/${ev.id}`,
     ).catch(() => {})
   }
-  return { restored: seated.length, status, ...(overflow.length ? { waitlisted: overflow.length } : {}) }
+  return {
+    restored: seated.length, status,
+    ...(overflow.length ? { waitlisted: overflow.length } : {}),
+    ...(paidOnWaitlist.length ? { paidOnWaitlist } : {}),
+  }
 }

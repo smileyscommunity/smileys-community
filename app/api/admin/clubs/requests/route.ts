@@ -2,13 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
-import { pendingClubRequestsWhere, hostedClubIds } from '@/lib/clubRequests'
+import { pendingClubRequestsWhere, withStaffReasons } from '@/lib/clubRequests'
 
 // GET /api/admin/clubs/requests — the staff queue for club join requests.
 //
-// Default: only requests to clubs with no approved host, because nobody else
-// can see those — the club-side pending list is host-only. ?scope=all adds the
-// hosted clubs' requests (flagged hasHost) for stale ones a host is sitting on.
+// Default: only requests nobody but staff can answer — the club has no approved
+// host, or it is inactive (a host can't act on an inactive club), flagged by
+// staffReason; the club-side pending list is host-only. ?scope=all adds the
+// active hosted clubs' requests for stale ones a host is sitting on.
+// hostlessCount applies the same rule as Mod Home's count.
 // Acting goes through the existing PATCH /api/clubs/[slug]/members, which
 // already admits city staff via canActInCity. Nothing here approves or
 // rejects on its own.
@@ -29,27 +31,28 @@ export async function GET(req: NextRequest) {
         club: { select: { id: true, slug: true, name: true, emoji: true, cityId: true, isActive: true, isPrivate: true, city: { select: { name: true } } } },
       },
     })
-    const hosted = await hostedClubIds([...new Set(rows.map(r => r.club.id))])
+    const tagged = await withStaffReasons(rows)
     const now = Date.now()
 
-    const requests = rows
+    const requests = tagged
       .map(r => ({
         userId:      r.user.id,
         name:        r.user.name,
         color:       r.user.color,
         requestedAt: r.joinedAt,
         ageDays:     Math.floor((now - new Date(r.joinedAt).getTime()) / 86_400_000),
-        hasHost:     hosted.has(r.club.id),
+        hasHost:     r.hasHost,
+        staffReason: r.staffReason,
         club: {
           id: r.club.id, slug: r.club.slug, name: r.club.name, emoji: r.club.emoji,
           cityName: r.club.city?.name ?? null, isActive: r.club.isActive, isPrivate: r.club.isPrivate,
         },
       }))
-      .filter(r => all || !r.hasHost)
+      .filter(r => all || r.staffReason !== null)
 
     return NextResponse.json({
       requests,
-      hostlessCount: rows.filter(r => !hosted.has(r.club.id)).length,
+      hostlessCount: tagged.filter(r => r.staffReason !== null).length,
     })
   } catch (e) {
     console.error(e)

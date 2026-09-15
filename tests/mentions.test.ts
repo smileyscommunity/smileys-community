@@ -69,13 +69,18 @@ describe('notifyMentions', () => {
     p.user.findMany.mockResolvedValue([{ id: 'u1', name: 'Ali Y.' }, { id: 'u2', name: 'Alice' }])
     const n = await notifyMentions({ ...base, content: 'welcome @Ali' })
     expect(n).toBe(1)
-    expect(p.user.findMany.mock.calls[0][0].where).toMatchObject({ cityId: 'c1', status: 'approved', id: { not: 'me' } })
+    expect(p.user.findMany.mock.calls[0][0].where).toMatchObject({ cityId: 'c1', status: 'approved', hiddenFromMembers: false, id: { not: 'me' } })
     // The query receives the word as typed, never JS-lowercased, and asks for
     // it as a whole word (a bare prefix capped at 50 let Alices crowd out Ali).
+    // The DB is not accent-insensitive, so the dotless spelling is asked for
+    // too (scan 6 batch 18) — still whole words.
     expect(p.user.findMany.mock.calls[0][0].where.OR).toEqual([
       { name: { equals: 'Ali', mode: 'insensitive' } },
       { name: { startsWith: 'Ali ', mode: 'insensitive' } },
       { name: { contains: ' Ali ', mode: 'insensitive' } },
+      { name: { equals: 'alı', mode: 'insensitive' } },
+      { name: { startsWith: 'alı ', mode: 'insensitive' } },
+      { name: { contains: ' alı ', mode: 'insensitive' } },
     ])
     expect(createNotification).toHaveBeenCalledTimes(1)
     expect((createNotification as any).mock.calls[0][0]).toBe('u1')

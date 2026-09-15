@@ -85,3 +85,10 @@ export type Attendance = typeof Attendance[keyof typeof Attendance]
 // that used to live here said 'active' | 'paused' — neither value the database
 // has ever stored — so anything importing it was silently comparing against
 // strings that never match.
+
+// Payment.notes marker for a checked-in attendee's payment that is still
+// pending after the event. The payment sweep (pass 3) won't close it as
+// "never collected" (they came), so it writes this once instead: the row
+// drops out of the sweep, and the payments admin shows it as needing a
+// decision. Kept in notes because no other column fits without a migration.
+export const PAYMENT_HELD_CHECKED_IN = 'Checked in — confirm paid or cancel'

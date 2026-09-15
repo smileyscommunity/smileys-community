@@ -1,6 +1,8 @@
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { ACTIVATED_MEMBER_WHERE } from '@/lib/memberCount'
+import { getCityTz } from '@/lib/city'
+import { todayInTz } from '@/lib/cityTime'
 
 interface Props {
   name: string
@@ -14,16 +16,18 @@ interface Props {
 }
 
 export default async function HeroStats({ name, cityId, groupLink, groupLabel, userId, isYourNeighborhood }: Props) {
-  const today = new Date().toISOString().split('T')[0]
-  const monthStart = new Date()
-  monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0)
-  const monthStr = monthStart.toISOString().split('T')[0]
+  // The city's calendar, not server UTC: a Tbilisi event tonight isn't "past"
+  // at 21:00 UTC, and the 1st of the month starts at the city's midnight.
+  const today    = todayInTz(await getCityTz(cityId))
+  const monthStr = `${today.slice(0, 8)}01`
 
   const [monthlyCount, pastCount, totalLocals, approvedHost] = await Promise.all([
     prisma.event.count({ where: { neighborhood: name, cityId, date: { gte: monthStr } } }),
     prisma.event.count({ where: { neighborhood: name, cityId, date: { lt: today } } }),
-    // "N local members" — activated members only (lib/memberCount).
-    prisma.user.count({ where: { ...ACTIVATED_MEMBER_WHERE, neighborhood: name, cityId } }),
+    // "N local members" — activated members only (lib/memberCount), minus the
+    // same opt-outs NeighborhoodSections applies: a member who hid their
+    // neighborhood, or an admin-hidden account, isn't counted as a local.
+    prisma.user.count({ where: { ...ACTIVATED_MEMBER_WHERE, neighborhood: name, cityId, neighborhoodVisible: true, hiddenFromMembers: false } }),
     userId
       ? prisma.clubMembership.findFirst({
           where: { userId, role: 'host', status: 'approved' },

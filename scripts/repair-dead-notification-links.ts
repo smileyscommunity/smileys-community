@@ -174,6 +174,8 @@ export function normalizeLinkFormat(link: string): { link: string; rules: string
 export type ExistenceIndex = {
   keys:          Partial<Record<TargetKey, Set<string>>>
   clubSlugById:  Map<string, string>
+  /** createdAt of every post loaded by slug. Used to rule out a `-N` link older than its would-be original. */
+  postCreatedAtBySlug?: Map<string, Date>
 }
 
 export type LinkStatus = 'LIVE' | 'REWRITABLE' | 'DEAD' | 'UNVERIFIED'
@@ -186,11 +188,18 @@ const isAbsolute = (link: string) => /^[a-z][a-z0-9+.-]*:/i.test(link) || link.s
  * later removed, the original (`…-paranoid`) is still live. The 2026-09-14 dry
  * run listed 1,198 `new_article` links to such a `-1` slug as DEAD — they
  * belong on the original, not nulled. Returns the un-suffixed slug, or null.
+ *
+ * Only -1..-9: the posts route counts up from -1, and a title that really ends
+ * in a number (`istanbul-in-48`) must not become `istanbul-in` just because
+ * that slug exists. classifyLink also requires the base slug to exist exactly
+ * and, when dates are known, the link to be newer than that post.
  */
 export function originalPostSlug(slug: string): string | null {
-  const m = slug.match(/^(.+)-\d{1,3}$/)
+  const m = slug.match(/^(.+)-[1-9]$/)
   return m ? m[1] : null
 }
+
+const DUPLICATE_RULE = 'duplicate slug → original'
 
 /** Every (target, key) the links need looked up. Club slugs are also tried as ids — broadcasts wrote ids. */
 export function referencedKeys(links: Iterable<string>): Map<TargetKey, Set<string>> {
@@ -224,7 +233,8 @@ function patternOf(path: string, query: URLSearchParams, route: string | null, r
   return rules.length ? `${shown}  (${rules.join(', ')})` : shown
 }
 
-export function classifyLink(link: string, index: ExistenceIndex): LinkVerdict {
+/** `linkCreatedAt` is the notification's createdAt; without it the duplicate rewrite falls back to slug shape + existence. */
+export function classifyLink(link: string, index: ExistenceIndex, linkCreatedAt?: Date): LinkVerdict {
   if (isAbsolute(link)) return { status: 'UNVERIFIED', pattern: '<absolute URL>', reason: 'absolute URL — not an app page' }
 
   const norm  = normalizeLinkFormat(link)
@@ -242,13 +252,17 @@ export function classifyLink(link: string, index: ExistenceIndex): LinkVerdict {
     if (!has(t.target, v)) {
       const clubSlug = t.target === 'club.slug' ? index.clubSlugById.get(v) : undefined
       const original = t.target === 'post.slug' ? originalPostSlug(v) : null
+      const originalAt = original ? index.postCreatedAtBySlug?.get(original) : undefined
+      // A copy is always newer than the post whose slug it collided with, and
+      // its notifications newer still. A link older than the "original" was never about its copy.
+      const olderThanOriginal = !!(originalAt && linkCreatedAt && linkCreatedAt.getTime() < originalAt.getTime())
       if (clubSlug) {
         // Broadcasts addressed the club by id; the page wants its slug.
         candidate = m.route.replace('[slug]', encodeURIComponent(clubSlug)) + rest
         rules.push('club id → slug')
-      } else if (original && has('post.slug', original)) {
+      } else if (original && has('post.slug', original) && !olderThanOriginal) {
         candidate = m.route.replace('[slug]', encodeURIComponent(original)) + rest
-        rules.push('duplicate slug → original')
+        rules.push(DUPLICATE_RULE)
       } else {
         return { status: 'DEAD', pattern: patternOf(path, query, m.route, rules), newLink: null, reason: `${t.target.split('.')[0]} ${v} no longer exists` }
       }
@@ -274,9 +288,24 @@ export type PlannedLink = NotificationLinkRow & LinkVerdict
 
 export function planLinkRepairs(rows: NotificationLinkRow[], index: ExistenceIndex): PlannedLink[] {
   const cache = new Map<string, LinkVerdict>()
+  const classify = (key: string, link: string, at?: Date) => {
+    let v = cache.get(key)
+    if (!v) { v = classifyLink(link, index, at); cache.set(key, v) }
+    return v
+  }
+  const originalAt = new Map<string, Date | undefined>()
   return rows.map(r => {
-    let v = cache.get(r.link)
-    if (!v) { v = classifyLink(r.link, index); cache.set(r.link, v) }
+    let v = classify(r.link, r.link)
+    // Only the duplicate rewrite depends on the row's date, and only on whether
+    // it predates the original post, so each link has at most two verdicts.
+    if (r.createdAt && v.newLink && v.reason.includes(DUPLICATE_RULE)) {
+      if (!originalAt.has(r.link)) {
+        const slug = matchRoute(splitLink(v.newLink).path)?.params.slug
+        originalAt.set(r.link, slug ? index.postCreatedAtBySlug?.get(slug) : undefined)
+      }
+      const at = originalAt.get(r.link)
+      if (at && r.createdAt.getTime() < at.getTime()) v = classify(`${r.link} older`, r.link, r.createdAt)
+    }
     return { ...r, ...v }
   })
 }
@@ -343,7 +372,12 @@ async function main() {
   await load('movingSale', k => prisma.movingSale.findMany({ where: { id: { in: k } }, select: { id: true } }).then(ids))
   await load('campaign',   k => prisma.campaign.findMany({ where: { id: { in: k } }, select: { id: true } }).then(ids))
   await load('post.id',    k => prisma.post.findMany({ where: { id: { in: k } }, select: { id: true } }).then(ids))
-  await load('post.slug',  k => prisma.post.findMany({ where: { slug: { in: k } }, select: { slug: true } }).then(r => r.map(x => x.slug)))
+  index.postCreatedAtBySlug = new Map()
+  await load('post.slug',  async k => {
+    const posts = await prisma.post.findMany({ where: { slug: { in: k } }, select: { slug: true, createdAt: true } })
+    for (const p of posts) index.postCreatedAtBySlug!.set(p.slug, p.createdAt)
+    return posts.map(x => x.slug)
+  })
   await load('city.slug',  k => prisma.city.findMany({ where: { slug: { in: k } }, select: { slug: true } }).then(r => r.map(x => x.slug)))
   await load('neighborhood.slug', k => prisma.neighborhood.findMany({ where: { slug: { in: k } }, select: { slug: true } }).then(r => r.map(x => x.slug)))
   await load('club.slug',  k => prisma.club.findMany({ where: { slug: { in: k } }, select: { slug: true } }).then(r => r.map(x => x.slug)))

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import {
-  MODERATION_CHANGED_EVENT, MOD_COUNTS_POLL_MS,
+  MODERATION_CHANGED_EVENT, MOD_COUNTS_POLL_MS, createFetchGeneration,
   parseModCounts, shouldRefreshModCounts, type ModCounts, type ModRefreshReason,
 } from '@/lib/modCounts'
 
@@ -21,6 +21,8 @@ let lastFetchAt: number | null = null
 let inFlight = false
 let rerunAfterFlight = false
 const listeners = new Set<(c: ModCounts | null) => void>()
+// Bumped on disable so a fetch still out for the previous user can't write.
+const generation = createFetchGeneration()
 
 function refresh(reason: ModRefreshReason) {
   // An action that lands while a fetch is out may postdate that fetch's read
@@ -30,6 +32,7 @@ function refresh(reason: ModRefreshReason) {
   if (!shouldRefreshModCounts({ reason, now: Date.now(), lastFetchAt, inFlight, hidden })) return
   inFlight = true
   lastFetchAt = Date.now()
+  const gen = generation.start()
   fetch('/app/api/admin/mod-stats', { credentials: 'include' })
     .then(r => {
       if (r.status === 401 || r.status === 403) return { gone: true }  // no longer a moderator — hide
@@ -37,7 +40,7 @@ function refresh(reason: ModRefreshReason) {
       return r.json()
     })
     .then(d => {
-      if (d == null) return
+      if (d == null || !generation.isCurrent(gen)) return
       if ((d as { gone?: boolean }).gone) {
         sharedCounts = null
       } else {
@@ -49,6 +52,9 @@ function refresh(reason: ModRefreshReason) {
     })
     .catch(() => {})
     .finally(() => {
+      // Disable already reset the flight flags; a stale flight must not clear
+      // a newer user's inFlight or queue a rerun for them.
+      if (!generation.isCurrent(gen)) return
       inFlight = false
       if (rerunAfterFlight) { rerunAfterFlight = false; refresh('changed') }
     })
@@ -62,8 +68,13 @@ export function useModCounts(enabled: boolean): ModCounts | null {
     if (!enabled) {
       // Not a moderator (or signed out): the next user on this device must
       // not inherit the counts.
+      // A fetch already out is orphaned by the bump, and the flight flags
+      // reset so the next moderator's mount fetches straight away.
+      generation.bump()
       sharedCounts = null
       lastFetchAt = null
+      inFlight = false
+      rerunAfterFlight = false
       setCounts(null)
       return
     }

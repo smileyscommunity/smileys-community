@@ -9,15 +9,19 @@ import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import { loadFailure } from '@/lib/admin/useAdminLoad'
 import { confirmToast } from '@/lib/confirmToast'
 import { notifyModerationChanged } from '@/lib/modCounts'
+import type { ClubStaffReason } from '@/lib/clubRequestRouting'
 
 // Staff queue for club join requests. A club with no approved host has nobody
 // who can see its requests from the club side, so they sat unanswered; this
 // page lists them (city-scoped for moderators by the API) and acts through the
-// same approve/decline endpoint hosts use.
+// same approve/decline endpoint hosts use. Requests to an inactive club land
+// here too, host or not — that host can no longer answer them.
 
 interface ClubRequest {
   userId: string; name: string; color: string
   requestedAt: string; ageDays: number; hasHost: boolean
+  // Why only staff can answer it; null only in the "All pending" view.
+  staffReason: ClubStaffReason | null
   club: { id: string; slug: string; name: string; emoji: string; cityName: string | null; isActive: boolean; isPrivate: boolean }
 }
 
@@ -69,7 +73,7 @@ export default function ClubRequestsPage() {
           <h1 className="text-white text-2xl font-extrabold tracking-tight">Club requests</h1>
           <p className="text-sm text-zinc-500 mt-1">
             {scope === 'hostless'
-              ? 'Join requests to clubs with no approved host — nobody else can answer these.'
+              ? 'Join requests to clubs with no approved host, or to inactive clubs — nobody else can answer these.'
               : 'Every pending join request you can act on.'}
           </p>
         </div>
@@ -77,7 +81,7 @@ export default function ClubRequestsPage() {
           {(['hostless', 'all'] as const).map(s => (
             <button key={s} onClick={() => setScope(s)}
               className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors ${scope === s ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-white'}`}>
-              {s === 'hostless' ? 'No host' : 'All pending'}
+              {s === 'hostless' ? 'Staff only' : 'All pending'}
             </button>
           ))}
         </div>
@@ -108,7 +112,7 @@ export default function ClubRequestsPage() {
                     <span>· {r.club.cityName ?? 'Global'}</span>
                     <span className={r.ageDays >= 30 ? 'text-red-400' : ''}>· {r.ageDays === 0 ? 'today' : `${r.ageDays}d ago`}</span>
                     {!r.hasHost && <span className="font-semibold px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-400">No host</span>}
-                    {!r.club.isActive && <span className="font-semibold px-1.5 py-0.5 rounded-full bg-zinc-800 text-zinc-400">Inactive club</span>}
+                    {r.staffReason === 'club_inactive' && <span className="font-semibold px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-400" title="Hosts can't act on an inactive club — only staff can answer this">Club inactive</span>}
                     {user?.role === 'admin' && (
                       <Link href={`/admin/clubs/${r.club.id}`} className="text-amber-400 hover:text-amber-300">Club →</Link>
                     )}

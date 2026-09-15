@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { activeAttendeeWhere } from '@/lib/attendance'
-import { restoreSeatsReleasedByCancel } from '@/lib/eventRestore'
+import { restoreSeatsReleasedByCancel, type PaidOnWaitlist } from '@/lib/eventRestore'
 import { backfillSeatPayments, collectsSeatPayment } from '@/lib/rsvpConfirmed'
 import { waiveCard } from '@/lib/noShow'
 import { getSession } from '@/lib/session'
@@ -17,6 +17,13 @@ import { checkSeriesId, seriesScopeFor } from '@/lib/seriesOwnership'
 import { wasStaffPublished } from '@/lib/eventPublishHistory'
 import { eventTimeInput } from '@/lib/eventTime'
 import { lockEventRow, seatState, shrinkVerdict, belowApprovedBody, wantsOverCapacity } from '@/lib/eventCapacity'
+
+// A restore's overflow for the audit row, only when there was any: who went to
+// the waitlist, and which of them had already paid (lib/eventRestore).
+const restoreOverflowMeta = (r: { waitlisted?: number; paidOnWaitlist?: PaidOnWaitlist[] }) => ({
+  ...(r.waitlisted ? { waitlisted: r.waitlisted } : {}),
+  ...(r.paidOnWaitlist?.length ? { paidOnWaitlist: r.paidOnWaitlist } : {}),
+})
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -520,7 +527,8 @@ export async function PUT(req: NextRequest, { params }: Params) {
           approvalRequired: before.approvalRequired, cancelledAt: before.cancelledAt,
         })
         writeAudit(session.id, session.name, 'event.restore', id, 'event',
-          { restoredSeats: r.restored, restoredAs: r.status },
+          // Waitlisted-with-a-paid-payment is money to refund or a seat to find.
+          { restoredSeats: r.restored, restoredAs: r.status, ...restoreOverflowMeta(r) },
           `Restored cancelled event "${before.title}" (${r.restored} seat${r.restored === 1 ? '' : 's'} back)`)
       } catch (err) {
         console.error('[event PUT restore] restoring seats failed', { eventId: id, err: String(err) })
@@ -706,19 +714,22 @@ export async function PATCH(req: NextRequest, { params }: Params) {
                       (before.status === 'cancelled' || !!before.cancelledAt)
     const event = await prisma.event.update({ where: { id }, data: restoring ? { status, cancelledAt: null } : { status } })
     let restoredSeats = 0
+    let restoreExtra: ReturnType<typeof restoreOverflowMeta> = {}
     if (restoring) {
       try {
-        restoredSeats = (await restoreSeatsReleasedByCancel({
+        const r = await restoreSeatsReleasedByCancel({
           id, title: before.title, totalSpots: before.totalSpots, limitedSpots: before.limitedSpots,
           approvalRequired: before.approvalRequired, cancelledAt: before.cancelledAt,
-        })).restored
+        })
+        restoredSeats = r.restored
+        restoreExtra  = restoreOverflowMeta(r)
       } catch (err) {
         console.error('[event PATCH restore] restoring seats failed', { eventId: id, err: String(err) })
       }
     }
 
     writeAudit(session.id, session.name, `event.${status}`, id, 'event',
-      restoring ? { status, restoredFromCancelled: true, restoredSeats } : { status },
+      restoring ? { status, restoredFromCancelled: true, restoredSeats, ...restoreExtra } : { status },
       `Event status set to ${status}`,
     )
 

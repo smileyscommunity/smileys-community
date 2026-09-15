@@ -142,7 +142,9 @@ async function notifyMentions(
   const words = extractMentions(content)
   if (!words.length) return
   const members = await prisma.clubMembership.findMany({
-    where: { clubId, status: 'approved', userId: { not: excludeUserId } },
+    // Same people the club's member list shows: no admin-hidden or banned
+    // (deleted) accounts — a typed @name must not notify or reveal them.
+    where: { clubId, status: 'approved', userId: { not: excludeUserId }, user: { status: 'approved', hiddenFromMembers: false } },
     include: { user: { select: { id: true, name: true } } },
   })
   const matched = members.map(m => m.user).filter(u => words.some(w => mentionMatches(u.name, w)))

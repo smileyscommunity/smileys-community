@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { FILTERS, FILTER_TYPES, TYPE_ICON, type Filter } from '@/lib/notificationFilters'
 import { toast } from 'sonner'
-import { sendNotificationAction, setReadFor, restoreAt } from '@/lib/notificationActions'
+import { sendNotificationAction, setReadFor, restoreAt, createNotificationSync } from '@/lib/notificationActions'
 import { usePullToRefresh } from '@/hooks/usePullToRefresh'
 import SwipeRow from '@/components/SwipeRow'
 import EmptyState from '@/components/EmptyState'
@@ -30,6 +30,8 @@ export default function NotificationsPage() {
   const [confirmClear,   setConfirmClear]   = useState(false)
   const [clearing,       setClearing]       = useState(false)
   const clearedAt = useRef<number>(0)
+  // Keeps a refetch from undoing an in-flight mark-read / dismiss (lib/notificationActions).
+  const [sync] = useState(createNotificationSync)
   const router = useRouter()
 
   const load = useCallback(async () => {
@@ -37,9 +39,11 @@ export default function NotificationsPage() {
     // allowing a re-fetch, otherwise the visibilitychange listener can race
     // and refill the list with pre-delete data.
     if (Date.now() - clearedAt.current < 2000) return
+    const poll = sync.startPoll()
     const d = await fetch('/app/api/notifications', { credentials: 'include' }).then(r => r.json())
-    setNotifications(Array.isArray(d) ? d : [])
-  }, [])
+    const next = sync.resolvePoll(poll, Array.isArray(d) ? d as Notification[] : [])
+    if (next) setNotifications(next)
+  }, [sync])
 
   useEffect(() => {
     load().finally(() => setLoading(false))
@@ -72,20 +76,26 @@ export default function NotificationsPage() {
 
   // Optimistic, rolled back when the server refuses — this used to mark
   // everything read without reading the response (lib/notificationActions).
+  // Each action registers with sync while its request is out and settles
+  // before any rollback, so a refetch landing mid-request can't undo it.
   async function markAllRead() {
     const ids = new Set(notifications.filter(n => !n.isRead).map(n => n.id))
+    const settle = sync.begin({ kind: 'read', ids })
     setNotifications(prev => setReadFor(prev, ids, true))
-    if (!await sendNotificationAction('PATCH', { markAll: true }, 'Could not mark all as read')) {
+    if (!await sendNotificationAction('PATCH', { markAll: true }, 'Could not mark all as read').finally(settle)) {
       setNotifications(prev => setReadFor(prev, ids, false))
     }
   }
 
   async function clearAll() {
     setClearing(true)
+    // clearedAt only stops refetches that *start* after the clear; this also
+    // drops one already out, which would refill the list with pre-delete rows.
+    const settle = sync.begin({ kind: 'hold' })
     try {
       const res = await fetch('/app/api/notifications?clearAll=true', {
         method: 'DELETE', credentials: 'include',
-      })
+      }).finally(settle)
       if (res.ok) {
         clearedAt.current = Date.now()
         setNotifications([])
@@ -104,8 +114,9 @@ export default function NotificationsPage() {
     const index   = notifications.findIndex(n => n.id === id)
     const removed = notifications[index]
     if (!removed) return
+    const settle = sync.begin({ kind: 'dismiss', id })
     setNotifications(prev => prev.filter(n => n.id !== id))
-    if (!await sendNotificationAction('DELETE', { id }, 'Could not dismiss notification')) {
+    if (!await sendNotificationAction('DELETE', { id }, 'Could not dismiss notification').finally(settle)) {
       setNotifications(prev => restoreAt(prev, removed, index))
     }
   }
@@ -113,9 +124,10 @@ export default function NotificationsPage() {
   function handleClick(n: Notification) {
     if (!n.isRead) {
       const ids = new Set([n.id])
+      const settle = sync.begin({ kind: 'read', ids })
       setNotifications(prev => setReadFor(prev, ids, true))
       // Was `.catch(() => {})` — a refused read left the row looking read.
-      sendNotificationAction('PATCH', { id: n.id }, 'Could not mark as read').then(ok => {
+      sendNotificationAction('PATCH', { id: n.id }, 'Could not mark as read').finally(settle).then(ok => {
         if (!ok) setNotifications(prev => setReadFor(prev, ids, false))
       })
     }

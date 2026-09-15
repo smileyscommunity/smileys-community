@@ -61,9 +61,10 @@ describe('92a. notification actions report failure and roll back', () => {
     // no more fire-and-forget PATCH/DELETE whose response nobody reads
     expect(src).not.toMatch(/await fetch\('\/app\/api\/notifications', \{\s*method: '(PATCH|DELETE)'/)
     expect(src).not.toMatch(/body: JSON\.stringify\(\{ id: n\.id \}\),\s*\}\)\.catch\(\(\) => \{\}\)/)
-    expect(src).toMatch(/if \(!await sendNotificationAction\('PATCH', \{ markAll: true \}[^)]*\)\) \{\s*set\w+\(prev => setReadFor\(prev, ids, false\)\)/)
-    expect(src).toMatch(/if \(!await sendNotificationAction\('DELETE', \{ id \}[^)]*\)\) \{\s*set\w+\(prev => restoreAt\(prev, removed, index\)\)/)
-    expect(src).toMatch(/sendNotificationAction\('PATCH', \{ id: n\.id \}[^)]*\)\.then\(ok => \{\s*if \(!ok\) set\w+\(prev => setReadFor\(prev, ids, false\)\)/)
+    // `.finally(settle)`: scan 6 batch 22 releases the poll overlay before any rollback.
+    expect(src).toMatch(/if \(!await sendNotificationAction\('PATCH', \{ markAll: true \}[^)]*\)(?:\.finally\(settle\))?\) \{\s*set\w+\(prev => setReadFor\(prev, ids, false\)\)/)
+    expect(src).toMatch(/if \(!await sendNotificationAction\('DELETE', \{ id \}[^)]*\)(?:\.finally\(settle\))?\) \{\s*set\w+\(prev => restoreAt\(prev, removed, index\)\)/)
+    expect(src).toMatch(/sendNotificationAction\('PATCH', \{ id: n\.id \}[^)]*\)(?:\.finally\(settle\))?\.then\(ok => \{\s*if \(!ok\) set\w+\(prev => setReadFor\(prev, ids, false\)\)/)
   })
 
   it('say hi toasts a network failure instead of silently resetting', () => {

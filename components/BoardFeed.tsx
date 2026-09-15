@@ -655,6 +655,9 @@ export default function BoardFeed() {
   const nextOffset = useRef(0)
   // The post the API prepended, if any — not part of any page's count.
   const prependedId = useRef<string | null>(null)
+  // Whether that post also came back in an appended page — deduped out of
+  // posts, but the server's offset counted it there.
+  const prependedPaged = useRef(false)
   // Overlapping fetches (a filter tap while the first load is in flight, a
   // neighborhood cleared mid-load): a slower earlier response landed last
   // and replaced the newer list. Same loadSeq pattern as BoardHub — a fresh
@@ -678,7 +681,8 @@ export default function BoardFeed() {
       if (!isCurrent()) return
       const next: Post[] = data.posts ?? []
       const prepended = !append && typeof data.prependedPostId === 'string' ? data.prependedPostId : null
-      if (!append) prependedId.current = prepended
+      if (!append) { prependedId.current = prepended; prependedPaged.current = false }
+      else if (prependedId.current && next.some(p => p.id === prependedId.current)) prependedPaged.current = true
       const pageLength = next.length - (prepended ? 1 : 0)
       nextOffset.current = offset + pageLength
       setPosts(prev => {
@@ -696,10 +700,12 @@ export default function BoardFeed() {
   useEffect(() => { load(filter, false) }, [filter, load])
 
   // A deleted post is gone server-side too, so the next page starts one
-  // earlier — unless it was the prepended post, which no page counted.
+  // earlier — unless it was the prepended post and no appended page counted
+  // it. Once its real page arrived the offset includes it, and leaving the
+  // offset there made "Load more" skip a post.
   const removePost = useCallback((id: string) => {
     setPosts(prev => prev.filter(x => x.id !== id))
-    if (id !== prependedId.current) nextOffset.current = Math.max(0, nextOffset.current - 1)
+    if (id !== prependedId.current || prependedPaged.current) nextOffset.current = Math.max(0, nextOffset.current - 1)
   }, [])
 
   return (

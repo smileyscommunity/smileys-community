@@ -4,7 +4,7 @@ import { createNotification } from '@/lib/notify'
 import { recordCronRun } from '@/lib/cronHealth'
 import { citiesByToday } from '@/lib/city'
 import { backfillSeatPayments } from '@/lib/rsvpConfirmed'
-import { Attendance } from '@/lib/constants'
+import { Attendance, PAYMENT_HELD_CHECKED_IN } from '@/lib/constants'
 
 // Payment-reminder sweeper for pay-in-advance events. Attendees of
 // Smileys-collected priced events starting within the next ~48h who
@@ -23,7 +23,8 @@ import { Attendance } from '@/lib/constants'
 //   3. CLOSE — rows still pending 3+ days after their event auto-cancel
 //      with a 'never collected' log, so the ledger can't re-accumulate
 //      the phantom-pending pile that was hand-cleaned on 2026-07-08.
-//      Except a checked-in attendee's: see pass 3.
+//      Except a checked-in attendee's: marked once for an admin to decide,
+//      and out of this pass from then on (see pass 3).
 //
 // This sweeper never touches a seat. A seat with no row at all is given one
 // and reminded (passes 1–2), not cancelled; a genuinely unpaid row is closed
@@ -130,13 +131,17 @@ async function runSweep() {
   const stale = await prisma.payment.findMany({
     where: {
       status: 'pending',
+      // Already held for a checked-in attendee (below) — waiting on an admin,
+      // not on this sweep. NOT on a nullable column drops NULL rows in SQL,
+      // hence the explicit null arm.
+      AND: [{ OR: [{ notes: null }, { NOT: { notes: { contains: PAYMENT_HELD_CHECKED_IN } } }] }],
       OR: staleGroups.map(({ date, cityIds }) => ({
         // Not a postponed event: its date is the one it no longer has, so
         // "three days past" is not a missed payment — the seat still stands.
         event: { date: { lt: date }, cityId: { in: cityIds }, status: { not: 'postponed' } },
       })),
     },
-    select: { id: true, userId: true, eventId: true, event: { select: { title: true } } },
+    select: { id: true, userId: true, eventId: true, notes: true, event: { select: { title: true } } },
   })
 
   // Someone checked in at the door came. "Never collected" is not what
@@ -144,6 +149,11 @@ async function runSweep() {
   // by someone who was in the room — and closing their row wrote exactly that
   // (4 checked-in attendees in the 2026-09 audit). Their row stays pending
   // for an admin to mark paid or cancel by hand.
+  //
+  // Skipping it silently meant every hourly run re-read the same rows and
+  // logged "held N" again, forever, with nothing telling an admin to look.
+  // Held once instead: the marker in notes (shown on /admin/payments) takes
+  // the row out of the query above, and a log line records when and why.
   const attended = stale.length
     ? await prisma.eventAttendee.findMany({
         where: {
@@ -159,7 +169,28 @@ async function runSweep() {
   let autoCancelled = 0
   let heldCheckedIn = 0
   for (const p of stale) {
-    if (came.has(`${p.eventId}:${p.userId}`)) { heldCheckedIn++; continue }
+    if (came.has(`${p.eventId}:${p.userId}`)) {
+      // Prepended to any note an admin already wrote, and guarded on the
+      // status and note just read so neither an admin's edit nor a paid mark
+      // made in between is overwritten.
+      heldCheckedIn += await prisma.$transaction(async tx => {
+        const { count } = await tx.payment.updateMany({
+          where: { id: p.id, status: 'pending', notes: p.notes },
+          data:  { notes: p.notes ? `${PAYMENT_HELD_CHECKED_IN} · ${p.notes}` : PAYMENT_HELD_CHECKED_IN },
+        })
+        if (count) {
+          await tx.paymentLog.create({
+            data: {
+              paymentId: p.id, adminId: 'system', adminName: 'Payment sweeper',
+              fromStatus: null, toStatus: null,
+              note: `Held open: checked in at "${p.event.title}" but not marked paid — confirm paid or cancel`,
+            },
+          })
+        }
+        return count
+      })
+      continue
+    }
     // Guarded on the status just read: a row an admin marks paid between the
     // read and this write stays paid, and gets no "auto-cancelled" log.
     autoCancelled += await prisma.$transaction(async tx => {

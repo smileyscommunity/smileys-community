@@ -145,7 +145,7 @@ describe('d. public and member-facing member totals use the rule', () => {
   const SURFACES: [string, RegExp][] = [
     ['app/page.tsx',                                     /prisma\.user\.count\(\{ where: ACTIVATED_MEMBER_WHERE \}\)/],
     ['app/[city]/data.ts',                               /\.\.\.ACTIVATED_MEMBER_WHERE, role: 'member', joinedAt/],
-    ['app/neighborhoods/[slug]/HeroStats.tsx',           /user\.count\(\{ where: \{ \.\.\.ACTIVATED_MEMBER_WHERE, neighborhood: name, cityId \} \}\)/],
+    ['app/neighborhoods/[slug]/HeroStats.tsx',           /user\.count\(\{ where: \{ \.\.\.ACTIVATED_MEMBER_WHERE, neighborhood: name, cityId, neighborhoodVisible: true, hiddenFromMembers: false \} \}\)/],
     ['app/neighborhoods/[slug]/NeighborhoodSections.tsx', /user\.count\(\{ where: \{ \.\.\.ACTIVATED_MEMBER_WHERE, neighborhood: name, cityId, neighborhoodVisible/],
     ['app/neighborhoods/page.tsx',                       /\.\.\.ACTIVATED_MEMBER_WHERE, cityId, neighborhood: \{ not: null \}/],
     ['app/guide/page.tsx',                               /\.\.\.ACTIVATED_MEMBER_WHERE, neighborhood: \{ not: null \}, cityId/],

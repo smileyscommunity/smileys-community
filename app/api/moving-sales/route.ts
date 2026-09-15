@@ -19,7 +19,6 @@ import { authorProjector } from '@/lib/authorProjection'
 // model; the contact route handles reaching them. Expired sales (leavingOn
 // past) drop out of the list automatically.
 export async function GET(req: NextRequest) {
-  const today = new Date().toISOString().slice(0, 10)
   const session = await getSession()
   // ?city=<slug>: the marketplace pins its city in the URL, and the listings
   // grid beside this list already honours it — without this the sales under a
@@ -27,6 +26,10 @@ export async function GET(req: NextRequest) {
   // to the viewer's city, same as app/api/listings.
   const citySlug = new URL(req.url).searchParams.get('city')?.trim()
   const cityId   = (citySlug ? (await getPublicCity(citySlug))?.id : undefined) ?? await resolveCityId(session)
+  // "Expired" in the listed city's day, same floor POST/PATCH accept. The UTC
+  // day hid a sale leaving today for the hours after midnight west of UTC and
+  // kept yesterday's sales listed after midnight east of it.
+  const today = todayInTz(await getCityTz(cityId))
   const sales = await prisma.movingSale.findMany({
     where:   { status: 'active', leavingOn: { gte: today }, cityId, user: { status: 'approved', hiddenFromMembers: false } },
     orderBy: { leavingOn: 'asc' },

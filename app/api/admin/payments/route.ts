@@ -7,6 +7,7 @@ import { writeAudit } from '@/lib/audit'
 import { sendRefundEmail, recordEmailFailure } from '@/lib/email'
 import { rateLimit } from '@/lib/rateLimit'
 import { DEFAULT_CURRENCY, formatMoney } from '@/lib/data'
+import { PAYMENT_HELD_CHECKED_IN } from '@/lib/constants'
 
 // Allowlist of statuses the API accepts on PATCH. Previously the
 // server took whatever string the client sent — admin tooling
@@ -64,7 +65,7 @@ export async function GET() {
   // ROW_CAP. Previously the page derived all stats client-side
   // from the row list, which silently understated once the cap
   // kicked in.
-  const [payments, totalCount, paidByCurrency, pendingCount, byEvent] = await Promise.all([
+  const [payments, totalCount, paidByCurrency, pendingCount, heldCount, byEvent] = await Promise.all([
     prisma.payment.findMany({
       orderBy: { createdAt: 'desc' },
       take:    ROW_CAP,
@@ -81,6 +82,10 @@ export async function GET() {
       _sum:  { amount: true },
     }),
     prisma.payment.count({ where: { status: 'pending' } }),
+    // Pending rows the payment sweep held for a checked-in attendee: still
+    // counted as pending (nobody has decided), but called out so they get a
+    // decision instead of sitting there.
+    prisma.payment.count({ where: { status: 'pending', notes: { contains: PAYMENT_HELD_CHECKED_IN } } }),
     // Per-event aggregates: paid + pending totals so the "Revenue
     // by event" chart can show committed-but-unpaid alongside
     // paid. Computed server-side so the breakdown matches reality
@@ -126,6 +131,7 @@ export async function GET() {
         .map(g => ({ currency: g.currency ?? DEFAULT_CURRENCY, amount: g._sum.amount ?? 0 }))
         .sort((a, b) => b.amount - a.amount),
       pendingCount,
+      heldCount,
       byEvent:      byEventStats,
       rowCap:       ROW_CAP,
       capped:       totalCount > ROW_CAP,

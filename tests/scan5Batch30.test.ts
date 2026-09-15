@@ -324,7 +324,7 @@ describe('94c the topbar refetches on route, focus, visibility and moderation ac
 
   it('the queue pages fire the event after a successful action', () => {
     const count = (f: string) => read(f).match(/notifyModerationChanged\(\)/g)?.length ?? 0
-    expect(count('app/admin/moderation/page.tsx')).toBe(2)    // report resolved, queued event status
+    expect(count('app/admin/moderation/page.tsx')).toBe(3)    // report resolved, report already handled (409), queued event status
     expect(count('app/admin/applications/page.tsx')).toBe(4)  // hold, decide, quick decide, bulk
     expect(count('app/admin/events/page.tsx')).toBe(3)        // approve, status change, bulk approve
   })

@@ -8,6 +8,9 @@ import { join } from 'path'
 //   - concurrent first-event loads raced read-then-insert (~71 dupes a day)
 // Behaviour runs against a simulated table with a real per-key advisory lock,
 // so the concurrency tests fail when the lock is switched off.
+// scan6Batch20: the UNIQUE (userId, eventId) index now exists, so the cron
+// asks hasDuplicateRecommendations first. The simulated table has no index
+// (s.indexed=false) and answers the catalog/EXISTS checks from its rows.
 
 const h = vi.hoisted(() => {
   type Row = {
@@ -23,6 +26,7 @@ const h = vi.hoisted(() => {
     calls:       [] as string[],
     lockKeys:    [] as unknown[],
     failFill:    false,
+    indexed:     false,
   }
   const locks = new Map<string, Promise<void>>()
   const tick = () => new Promise<void>(r => setTimeout(r, 0))
@@ -103,6 +107,20 @@ const h = vi.hoisted(() => {
       await tick()
       return s.table.filter(r => userIds.includes(r.userId) && eventIds.includes(r.eventId)).map(r => ({ ...r }))
     }
+    if (sql.includes('pg_index')) {
+      s.calls.push('indexCheck')
+      return s.indexed ? [{ ok: 1 }] : []
+    }
+    if (sql.includes('EXISTS')) {
+      s.calls.push('dupCheck')
+      const seen = new Set<string>()
+      for (const r of s.table) {
+        const k = `${r.userId} ${r.eventId}`
+        if (seen.has(k)) return [{ dup: 1 }]
+        seen.add(k)
+      }
+      return []
+    }
     throw new Error(`unexpected raw SQL: ${sql}`)
   }
 
@@ -120,7 +138,7 @@ const h = vi.hoisted(() => {
   }
 
   const reset = () => {
-    s.table = []; s.seq = 0; s.lockEnabled = true; s.calls = []; s.lockKeys = []; s.failFill = false
+    s.table = []; s.seq = 0; s.lockEnabled = true; s.calls = []; s.lockKeys = []; s.failFill = false; s.indexed = false
     locks.clear()
   }
   const seed = (id: string, userId: string, eventId: string, minute: number, stamps: { clickedAt?: Date; rsvpedAt?: Date } = {}) => {
@@ -328,11 +346,13 @@ describe('sweep-recommendation-dupes cron', () => {
     h.seed('k', 'u1', 'e1', 0); h.seed('l', 'u1', 'e1', 1)
     const res = await cron(new Request('http://localhost', { method: 'POST' }) as any)
     expect(res.status).toBe(200)
-    expect(await res.json()).toMatchObject({ ok: true, deleted: 1, done: true })
+    expect(await res.json()).toMatchObject({ ok: true, indexed: false, duplicates: true, deleted: 1, done: true })
     expect(h.recordCronRun).toHaveBeenCalledWith('sweep-recommendation-dupes', true)
   })
 
   it('records a failure and answers 500', async () => {
+    // A duplicate has to exist, or the pre-check returns before the prune runs.
+    h.seed('k', 'u1', 'e1', 0); h.seed('l', 'u1', 'e1', 1)
     h.model.groupBy.mockRejectedValueOnce(new Error('boom'))
     const err = vi.spyOn(console, 'error').mockImplementation(() => {})
     const res = await cron(new Request('http://localhost', { method: 'POST' }) as any)

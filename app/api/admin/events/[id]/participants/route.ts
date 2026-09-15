@@ -406,6 +406,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if ((action === 'approve' || action === 'reject') && !isActiveAttendee(current)) {
       return NextResponse.json({ error: 'Not an attendee of this event' }, { status: 404 })
     }
+    // Approving someone already approved (a double-click, a stale tab) has
+    // nothing to do. Carried on, it counted them against the cap a second
+    // time — 409 and an "exceed capacity?" prompt for a member already seated.
+    if (action === 'approve' && current?.status === 'approved') {
+      return NextResponse.json({ ok: true })
+    }
     // A red-card block holds here as it does for PUT/POST: approving gives a
     // seat, and "to waitlist" gives a place in the queue — neither for a
     // member whose RSVPs are paused. Reject and remove stay open.
@@ -447,6 +453,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       let capacity: { approved: number; totalSpots: number } | null = null
       const quotaFull = await prisma.$transaction(async tx => {
         await lockEventRow(tx, eventId)
+        // Read again under the lock: two clicks sent together both saw
+        // 'pending' above, and the second would count the first's seat
+        // against its own approval — or trip a balance quota and waitlist a
+        // member who was just seated.
+        const now = await tx.eventAttendee.findUnique({ where: { userId_eventId: { userId, eventId } }, select: { status: true } })
+        if (now?.status === 'approved') return 'already_approved' as const
         let full: keyof typeof WAITLIST_NOTE | 'over_capacity' | null = null
         if (event?.turkishMaleQuota && isMale && isTurkish) {
           const n = await tx.eventAttendee.count({
@@ -504,6 +516,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         if (event) await recomputeSpotsLeft(eventId, seats?.totalSpots ?? event.totalSpots, tx)
         return null
       })
+      if (quotaFull === 'already_approved') return NextResponse.json({ ok: true })
       if (quotaFull === 'over_capacity') {
         return NextResponse.json(overCapacityBody(capacity!), { status: 409 })
       }
@@ -575,7 +588,17 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       // what the database actually holds.
       return NextResponse.json({ ok: true, waitlisted })
     } else if (action === 'reject') {
-      await cancelAttendeeOp(prisma, { userId, eventId, by: cancelActor(session) })
+      // Rejecting an approved attendee frees their seat, and spotsLeft kept
+      // counting it taken. Recounted under the event lock like every other
+      // seat change, so an RSVP can't read the counter in between.
+      await prisma.$transaction(async tx => {
+        await lockEventRow(tx, eventId)
+        await cancelAttendeeOp(tx, { userId, eventId, by: cancelActor(session) })
+        if (event) {
+          const seats = await seatState(tx, eventId)
+          await recomputeSpotsLeft(eventId, seats?.totalSpots ?? event.totalSpots, tx)
+        }
+      })
       // AD2 fix: reject path needs the same payment-aware audit
       // as DELETE. A rejected RSVP is functionally identical to
       // an admin-removed attendee from the payment side — pending

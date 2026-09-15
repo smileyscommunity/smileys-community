@@ -236,7 +236,8 @@ describe('b. every caller path: event row lock → advisory lock → insert', ()
       expect((await participantsPATCH(req({ userId: 'u1', action: 'approve' }), params)).status).toBe(200)
       p.eventAttendee.findUnique.mockResolvedValue({ status: 'approved' })
       expect((await participantsPATCH(req({ userId: 'u1', action: 'approve' }), params)).status).toBe(200)
-      expect(seatTransactions()).toHaveLength(2)
+      // batch 17: the re-approve of an approved seat returns before any lock or write
+      expect(seatTransactions()).toHaveLength(1)
       expectEventLockFirst()
     })
     it('manual add (PUT)', async () => {

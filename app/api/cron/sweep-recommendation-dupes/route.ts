@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { recordCronRun } from '@/lib/cronHealth'
-import { pruneDuplicateRecommendations } from '@/lib/eventRecommendations'
+import { hasDuplicateRecommendations, pruneDuplicateRecommendations } from '@/lib/eventRecommendations'
 
 // Nightly duplicate-recommendation prune: one event_recommendations row per
 // (member, event), the earliest, with every click/RSVP stamp folded into it
@@ -12,6 +12,12 @@ import { pruneDuplicateRecommendations } from '@/lib/eventRecommendations'
 // event-spots failure), and it only removed unstamped repeats older than a
 // week — stamped and recent duplicates were never touched. It runs and
 // reports on its own now.
+//
+// Since the UNIQUE (userId, eventId) index (migration 20260914000001) there
+// is normally nothing to find, so each run first asks hasDuplicateRecommendations,
+// which is a catalog lookup while the index holds, and returns early.
+// It is kept rather than retired: the staleness monitor and manual runs keep
+// working, and if the index is ever dropped or left invalid, it prunes again.
 //
 // Auth: requires `Authorization: Bearer <CRON_SECRET>`; 503 when unset.
 
@@ -27,10 +33,16 @@ export async function POST(req: NextRequest) {
   if (denied) return denied
 
   try {
+    const { indexed, duplicates } = await hasDuplicateRecommendations()
+    if (!duplicates) {
+      // A clean no-op is still a successful run for the staleness monitor.
+      await recordCronRun('sweep-recommendation-dupes', true)
+      return NextResponse.json({ ok: true, indexed, duplicates, groups: 0, deleted: 0, filled: 0, skipped: 0, batches: 0, done: true })
+    }
     const result = await pruneDuplicateRecommendations({ budgetMs: BUDGET_MS })
-    if (result.deleted) console.log('[cron sweep-recommendation-dupes]', result)
+    console.log('[cron sweep-recommendation-dupes]', { indexed, ...result })
     await recordCronRun('sweep-recommendation-dupes', true)
-    return NextResponse.json({ ok: true, ...result })
+    return NextResponse.json({ ok: true, indexed, duplicates, ...result })
   } catch (e) {
     console.error('[cron sweep-recommendation-dupes]', e)
     await recordCronRun('sweep-recommendation-dupes', false, e)

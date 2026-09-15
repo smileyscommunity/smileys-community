@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 // Follow-ups from the 2026-09-14 production dry runs of the 101–110 scripts:
 //  · repair-dead-notification-links would have nulled 1,198 new_article links
 //    to a `-1` duplicate post slug whose original is live
+//    (scan6Batch20 narrowed this to -1..-9 so `istanbul-in-48` stays DEAD)
 //  · 46 memberships in inactive clubs still showed on the dashboard (club page
 //    404s), and hosts of inactive clubs kept isClubHost privileges
 
@@ -26,11 +27,21 @@ describe('dead links: a removed `-1` duplicate post points at its live original'
   const dup  = 'scams-tourist-traps-in-t-rkiye-how-to-stay-safe-without-becoming-paranoid-1'
   const orig = 'scams-tourist-traps-in-t-rkiye-how-to-stay-safe-without-becoming-paranoid'
 
-  it('originalPostSlug strips a short numeric suffix only', () => {
+  it('originalPostSlug strips a single-digit -1..-9 counter only', () => {
     expect(originalPostSlug(dup)).toBe(orig)
     expect(originalPostSlug('guide-2')).toBe('guide')
     expect(originalPostSlug('plain-slug')).toBeNull()
     expect(originalPostSlug('2026')).toBeNull()
+    // A title that ends in a number is not a duplicate counter.
+    expect(originalPostSlug('istanbul-in-48')).toBeNull()
+    expect(originalPostSlug('top-10')).toBeNull()
+    expect(originalPostSlug('guide-0')).toBeNull()
+  })
+
+  it('a removed `istanbul-in-48` stays DEAD even though `istanbul-in` is live', () => {
+    const v = classifyLink('/posts/istanbul-in-48', index(['istanbul-in']))
+    expect(v).toMatchObject({ status: 'DEAD', newLink: null })
+    expect([...referencedKeys(['/posts/istanbul-in-48']).get('post.slug')!]).toEqual(['istanbul-in-48'])
   })
 
   it('referencedKeys asks for the original too, so the index can know it exists', () => {

@@ -329,14 +329,16 @@ describe('e. the payment sweep', () => {
   })
 
   it('pass 3: checked-in and attended rows are held open; the unpaid no-show row is closed with its log', async () => {
-    const stale = (id: string, userId: string) => ({ id, userId, eventId: 'e0', status: 'pending', event: { title: 'Past' } })
+    const stale = (id: string, userId: string) => ({ id, userId, eventId: 'e0', status: 'pending', notes: null, event: { title: 'Past' } })
     staleRows = [stale('p1', 'u1'), stale('p2', 'u2'), stale('p3', 'u3')]
     attended = [{ userId: 'u1', eventId: 'e0' }, { userId: 'u2', eventId: 'e0' }]
     const body = await (await sweepPOST(cronReq())).json()
     expect(body).toMatchObject({ autoCancelled: 1, heldCheckedIn: 2 })
     expect(staleRows.map(r => [r.id, r.status])).toEqual([['p1', 'pending'], ['p2', 'pending'], ['p3', 'cancelled']])
-    expect(p.paymentLog.create).toHaveBeenCalledTimes(1)
-    expect(p.paymentLog.create.mock.calls[0][0].data).toMatchObject({ paymentId: 'p3', adminId: 'system', toStatus: 'cancelled' })
+    // batch 17: the held rows are marked (and logged) once, not skipped silently
+    const logs = p.paymentLog.create.mock.calls.map((c: any) => c[0].data)
+    expect(logs.filter((d: any) => d.toStatus === 'cancelled')).toEqual([expect.objectContaining({ paymentId: 'p3', adminId: 'system' })])
+    expect(logs.filter((d: any) => d.toStatus === null).map((d: any) => d.paymentId)).toEqual(['p1', 'p2'])
     // the attended lookup asks about check-in and settled attendance both
     const q = p.eventAttendee.findMany.mock.calls.find((c: any) => c[0].where.OR)[0].where
     expect(q.OR).toEqual([{ checkedIn: true }, { attendance: 'attended' }])

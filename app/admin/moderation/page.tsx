@@ -310,6 +310,16 @@ function ModerationPageInner() {
         setReviewNote('')
         setBanReason('')
         notifyModerationChanged()  // topbar report badge refetches
+      } else if (res.status === 409) {
+        // Another moderator resolved it first. An error in the still-open
+        // modal left the report looking pending until the 30s refresh — close
+        // it, reload the list and say what happened.
+        setSelected(null)
+        setReviewNote('')
+        setBanReason('')
+        toast.info('Already handled by someone else')
+        load(true)
+        notifyModerationChanged()  // the badge dropped too
       } else {
         // A failed moderation action used to un-busy the button with no
         // signal — the operator thought the ban/warn landed while the report

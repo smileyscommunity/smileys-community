@@ -14,7 +14,7 @@ const session = vi.hoisted(() => ({ current: null as Record<string, unknown> | n
 vi.mock('@/lib/prisma', () => ({ prisma: p }))
 vi.mock('@/lib/session', () => ({ getSession: vi.fn(async () => session.current) }))
 vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn(async () => true) }))
-vi.mock('@/lib/city', () => ({ resolveCityId: vi.fn(async () => 'cookie-city') }))
+vi.mock('@/lib/city', () => ({ resolveCityId: vi.fn(async () => 'cookie-city'), getCityTz: vi.fn(async () => 'Europe/Istanbul') }))
 vi.mock('@/lib/cities', () => ({ getPublicCity: vi.fn(async (slug: string) => (slug === 'izmir' ? { id: 'izmir-id', slug: 'izmir' } : null)) }))
 vi.mock('@/lib/cityMembership', () => ({ resolvePostingCityId: vi.fn(async () => 'home-city') }))
 // The real rule, observable: the point is that the route defers to it.
