@@ -54,9 +54,11 @@ export const SWEEPER_INTERVAL_MIN: Record<string, number> = {
   // recordCronRun — they run tsx/pg_dump directly from their shell
   // scripts and surface via /var/log/<name>.log + emailed reports):
   //   db-backup, sweep-connection-abuse, sweep-neighborhood-hygiene.
+  //
+  // sweep-no-shows paused 2026-09-15 for the v2 standing rework (deploy.sh
+  // strips its crontab line). Re-add at 60 when it is registered again.
   'sweep-newsletters':      5,
   'sweep-event-surveys':    60,
-  'sweep-no-shows':         60,
   'sweep-reconfirm':        60,
   'sweep-hangouts':         60,
   'sweep-payment-reminders': 60,

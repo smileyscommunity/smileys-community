@@ -498,9 +498,15 @@ echo '  ✓ event-surveys'
 
 # Hourly at :25 — settles attendance ~2h after an event ends and issues
 # no-show cards (see app/api/cron/sweep-no-shows/route.ts).
-chmod +x $REMOTE/scripts/sweep-no-shows.sh
-(crontab -l 2>/dev/null | grep -v 'sweep-no-shows' ; echo '25 * * * * $REMOTE/scripts/sweep-no-shows.sh >> /var/log/sweep-no-shows.log 2>&1') | crontab -
-echo '  ✓ no-shows'
+# PAUSED 2026-09-15 — all 95 v1 cards were reversed (missed scans, WhatsApp
+# cancels) and a policy reset cleared them; the v2 standing rework replaces
+# "unscanned = no-show". Each deploy actively STRIPS the line (like the cup
+# sweepers) so a stale crontab can't reissue v1 cards. To restore, uncomment
+# the register block and drop the strip.
+# chmod +x $REMOTE/scripts/sweep-no-shows.sh
+# (crontab -l 2>/dev/null | grep -v 'sweep-no-shows' ; echo '25 * * * * $REMOTE/scripts/sweep-no-shows.sh >> /var/log/sweep-no-shows.log 2>&1') | crontab -
+crontab -l 2>/dev/null | grep -v 'sweep-no-shows' | crontab -
+echo '  ✓ no-shows stripped (paused)'
 
 # Hourly at :35 — day-before "still coming?" asks and the 12h seat release
 # (see app/api/cron/sweep-reconfirm/route.ts).
