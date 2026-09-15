@@ -150,9 +150,14 @@ export async function recordOffences(event: SweepEvent): Promise<Set<string>> {
 
 // ── Cards ───────────────────────────────────────────────────────────────────
 
-/** One member at a time, whichever path gets there first (sweep, moderator, admin). */
+/**
+ * One member at a time, whichever path gets there first (sweep, moderator, admin).
+ * Wrapped to return a column, as lib/rsvpConfirmed does: pg_advisory_xact_lock
+ * returns void, which the Prisma pg adapter can't deserialize — a bare SELECT of
+ * it threw on every evaluation, and no card could ever be issued.
+ */
 async function lockMember(tx: Tx, userId: string) {
-  await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`standing:${userId}`}))`
+  await tx.$queryRaw`SELECT 1 AS locked FROM (SELECT pg_advisory_xact_lock(hashtext(${`standing:${userId}`}))) AS l`
 }
 
 type LiveCardRow = { id: string; level: string; status: string; triggeredAt: Date; issuedAt: Date; shadow: boolean }

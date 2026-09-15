@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { readFileSync } from 'node:fs'
 
 vi.mock('@/lib/notify', () => ({ createNotification: vi.fn().mockResolvedValue(true) }))
 vi.mock('@/lib/audit',  () => ({ writeAudit: vi.fn().mockResolvedValue(undefined) }))
@@ -50,6 +51,17 @@ beforeEach(() => {
   p.eventAttendee.updateMany.mockResolvedValue({ count: 0 })
   let n = 0
   p.standingCard.create.mockImplementation(async ({ data }: any) => ({ id: `card${++n}`, status: 'active', issuedAt: NOW, ...data }))
+})
+
+describe('the member lock', () => {
+  // The mocks above accept any raw query. A real database doesn't: selecting
+  // pg_advisory_xact_lock bare returns void, which the Prisma pg adapter can't
+  // deserialize, and every evaluation threw (found against a scratch database).
+  it('selects a column around pg_advisory_xact_lock, never the void result itself', () => {
+    const src = readFileSync('lib/standing.ts', 'utf8')
+    expect(src).toContain('SELECT 1 AS locked FROM (SELECT pg_advisory_xact_lock(hashtext(')
+    expect(src).not.toMatch(/\$queryRaw`SELECT pg_advisory_xact_lock/)
+  })
 })
 
 describe('the switch', () => {
