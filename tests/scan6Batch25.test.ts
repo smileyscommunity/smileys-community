@@ -107,10 +107,17 @@ describe('self-deletion scrubs the member\'s business claim messages', () => {
     expect(claims.find(c => c.id === 'cl3')).toEqual(seedClaims().find(c => c.id === 'cl3'))
   })
 
-  it('does not reassign or clear business ownership (business contact is the business\'s)', async () => {
+  it('releases businesses the member owned, in the same transaction, touching nothing else on them', async () => {
+    // Left on a deleted account a business could not be claimed by anyone else
+    // and its reviews had nobody to answer them. The business contact details
+    // belong to the business, so only the two ownership columns change.
     await deleteAccountPOST(jsonReq({ password: 'pw' }))
+    const releases = h.log.filter(l => l.key === 'business.updateMany')
+    expect(releases).toEqual([{ key: 'business.updateMany', inTx: true }])
+    expect(h.calls['business.updateMany'][0]).toEqual({ where: { claimedById: 'u1' }, data: { claimedById: null, claimedAt: null } })
     expect(h.calls['business.update']).toBeUndefined()
-    expect(h.calls['business.updateMany']).toBeUndefined()
+    expect(h.calls['business.delete']).toBeUndefined()
+    expect(h.calls['business.deleteMany']).toBeUndefined()
   })
 
   it('a wrong password scrubs nothing', async () => {

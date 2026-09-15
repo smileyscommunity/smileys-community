@@ -182,6 +182,12 @@ export async function POST(req: NextRequest) {
     // render it verbatim. It is NOT NULL, so it gets the neutral body; the row,
     // status, business and reviewer stamps stay as the ownership audit trail.
     await tx.businessClaim.updateMany({ where: { claimantId: id }, data: { message: DELETED_BODY } })
+    // A business this member OWNED stays listed, but left on a deleted account
+    // nobody else could claim it ("already claimed") and nobody could answer its
+    // reviews until staff noticed. Release the ownership; the approved claim row
+    // above still records who held it and when. The business's own details
+    // (phone, address, website) belong to the business and stay.
+    await tx.business.updateMany({ where: { claimedById: id }, data: { claimedById: null, claimedAt: null } })
     await tx.review.updateMany({ where: { userId: id }, data: { text: '' } })
     await tx.eventSurvey.updateMany({ where: { userId: id }, data: { anomalyNote: null } })
     // The application row is keyed by email, not userId, and kept the full
