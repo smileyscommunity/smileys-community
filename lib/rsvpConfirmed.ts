@@ -2,7 +2,8 @@ import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notify'
 import { sendRsvpConfirmationEmail, recordEmailFailure } from '@/lib/email'
-import { noShowPolicyApplies, type StakeFields } from '@/lib/noShowPolicy'
+import { type StakeFields } from '@/lib/noShowPolicy'
+import { eventTier, cancelCutoffHours, type TierFields } from '@/lib/standingPolicy'
 import { DEFAULT_CURRENCY } from '@/lib/data'
 import { todayInCity } from '@/lib/city'
 import { lockEventRow } from '@/lib/eventCapacity'
@@ -14,7 +15,7 @@ import { lockEventRow } from '@/lib/eventCapacity'
 // owed nothing on the ledger and the host never heard they were coming.
 // Moved verbatim from app/api/events/[id]/rsvp/route.ts.
 
-export type SeatEvent = StakeFields & {
+export type SeatEvent = StakeFields & TierFields & {
   title: string; date: string; cityId: string; hostId: string | null
   location: string | null; neighborhood: string | null; currency: string | null
 }
@@ -120,7 +121,8 @@ export function announceConfirmedSeat(userId: string, eventId: string, event: Se
         event.title, event.date,
         event.location ?? event.neighborhood ?? city?.name ?? 'your city',
         eventId,
-        { free: noShowPolicyApplies(event) },
+        // A limited event's confirmation names its cancellation line (lib/email).
+        { cancelCutoffHours: eventTier(event) === 'scarce' ? cancelCutoffHours(event) : null },
       ).catch(async err => {
         console.error('[rsvp POST] sendRsvpConfirmationEmail failed', { userId, eventId, err: String(err) })
         await recordEmailFailure({ helper: 'sendRsvpConfirmationEmail', recipient: user.email, error: err, context: { userId, eventId } })

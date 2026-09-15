@@ -115,6 +115,7 @@ describe('24 assorted', () => {
     expect(read('components/VenueReviewPrompt.tsx')).not.toMatch(/(?<!try \{ return )localStorage\.getItem/)
     expect(read('app/host/events/new/page.tsx')).not.toMatch(/\/app\/api\/admin\/clubs\/\$\{form\.clubId\}\/hosts/)
     expect(read('app/host/events/[id]/edit/page.tsx')).toMatch(/buildSpawnDates\(\)\.map\(d => formatDay\(d/)
-    expect(read('app/(member)/no-show/page.tsx')).toMatch(/formatDay\(iso, \{ day: 'numeric', month: 'long' \}\)/)
+    // The v1 /no-show page now redirects to /standing, which carries the same day-safe event dates.
+    expect(read('app/(member)/standing/page.tsx')).toMatch(/formatDay\(iso, \{ day: 'numeric', month: 'long' \}\)/)
   })
 })

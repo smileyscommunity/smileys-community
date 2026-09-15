@@ -107,7 +107,7 @@ export default function RSVPButton({ eventId, hostId, spotsLeft, soldOut = false
         <div className="flex items-center justify-center gap-2 w-full px-6 py-3 bg-gray-100 border-2 border-gray-200 text-gray-500 font-semibold rounded-xl text-sm">
           RSVPs paused until {until}
         </div>
-        <Link href="/no-show" className="block text-center text-xs text-gray-400 hover:text-gray-600 underline mt-1.5">Why?</Link>
+        <Link href="/standing" className="block text-center text-xs text-gray-400 hover:text-gray-600 underline mt-1.5">Why?</Link>
       </div>
     )
   }

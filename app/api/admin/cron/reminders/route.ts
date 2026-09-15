@@ -5,7 +5,8 @@ import { timingSafeEqual } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notify'
 import { sendReviewRequestEmail, sendListingExpiryEmail, recordEmailFailure } from '@/lib/email'
-import { noShowPolicyApplies, NO_SHOW_CANCELLATION_CUTOFF_HOURS, checkInIsCredible, isNoShow, eventRunners, noShowExemptionReason } from '@/lib/noShowPolicy'
+import { checkInIsCredible, isNoShow, eventRunners, noShowExemptionReason } from '@/lib/noShowPolicy'
+import { eventTier, cancelCutoffHours } from '@/lib/standingPolicy'
 import { getSession } from '@/lib/session'
 import { recordCronRun } from '@/lib/cronHealth'
 import { citiesByToday, type CityDay } from '@/lib/city'
@@ -308,11 +309,12 @@ async function runSweep() {
       if (is24h) {
         const claim24 = `reminder-24h:${userId}:${event.id}`
         if (!sent24Set.has(`${userId}:/events/${event.id}`) && await claimOnce(claim24, 3 * 24 * 60 * 60 * 1000)) {
-          // Events with nothing paid in advance carry the no-show policy; the
-          // day-before reminder is the last moment a cancel is still
-          // comfortably inside the cutoff.
-          const body = `"${event.title}" is tomorrow at ${event.time}` + (noShowPolicyApplies(event)
-            ? `. Can't make it? Cancel at least ${NO_SHOW_CANCELLATION_CUTOFF_HOURS}h before so your spot goes to the waitlist.` : '')
+          // On a limited event a cancel after its cutoff counts toward the
+          // member's standing (lib/standingPolicy), so the day-before reminder
+          // names the line — any event, paid or free. Open events carry none.
+          const cutoff = eventTier(event) === 'scarce' ? cancelCutoffHours(event) : null
+          const body = `"${event.title}" is tomorrow at ${event.time}` + (cutoff != null
+            ? `. Can't make it? Cancel as soon as you can so your seat goes to someone waiting — cancelling less than ${cutoff}h before the start counts the same as not coming.` : '')
           // createNotification sends the push itself (and honours the
           // member's "reminders" mute + quiet hours). The explicit push that
           // used to follow doubled every reminder — and for a muted member,

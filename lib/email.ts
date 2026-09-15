@@ -659,13 +659,14 @@ export async function sendEventRejectedEmail(email: string, name: string, eventT
   })
 }
 
-// The footer line differs for events under the no-show policy (nothing paid
-// in advance — lib/noShowPolicy): that is where the policy
-// applies, and the RSVP confirmation is the first place a member should
-// hear about it — before it can ever bite, not after.
-const FREE_FOOTER = `Plans change? Cancel at least ${NO_SHOW_CANCELLATION_CUTOFF_HOURS} hours before so your spot goes to the waitlist — a spot left unused at a free or pay-at-the-door event counts as a no-show.`
+// The footer names the cancellation line on a LIMITED event (lib/standingPolicy):
+// that is where a late cancel counts toward the member's standing, paid or
+// free, and the RSVP confirmation is the first place a member should hear the
+// line — before it can ever count, not after. Open events get the plain ask.
+const limitedFooter = (hours: number) =>
+  `Plans change? Cancel at least ${hours} hours before so your seat goes to someone on the waitlist — on a limited event, cancelling later counts the same as not coming.`
 
-export async function sendRsvpConfirmationEmail(email: string, name: string, eventTitle: string, eventDate: string, eventLocation: string, eventId: string, opts: { free?: boolean } = {}) {
+export async function sendRsvpConfirmationEmail(email: string, name: string, eventTitle: string, eventDate: string, eventLocation: string, eventId: string, opts: { cancelCutoffHours?: number | null } = {}) {
   const url = `${APP_URL}/events/${eventId}`
   const firstName = firstNameOf(name)
   await send('sendRsvpConfirmationEmail', {
@@ -685,7 +686,7 @@ export async function sendRsvpConfirmationEmail(email: string, name: string, eve
         <a href="${url}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:16px">
           View event →
         </a>
-        <p style="color:#9ca3af;font-size:12px;text-align:center">${opts.free ? esc(FREE_FOOTER) : 'See you there. If your plans change, please cancel your spot so others can join.'}</p>
+        <p style="color:#9ca3af;font-size:12px;text-align:center">${opts.cancelCutoffHours != null ? esc(limitedFooter(opts.cancelCutoffHours)) : 'See you there. If your plans change, please cancel your spot so others can join.'}</p>
       </div>
     `,
   })
@@ -1190,7 +1191,8 @@ export async function sendEventReminderEmail(
   eventDate: string,
   eventLocation: string,
   eventId: string,
-  opts: { free?: boolean } = {},
+  // Set for a limited event: its cancellation cutoff, named in the footer.
+  opts: { cancelCutoffHours?: number | null } = {},
 ) {
   const unsub     = unsubscribeUrl(userId)
   const firstName = firstNameOf(name)
@@ -1212,7 +1214,7 @@ export async function sendEventReminderEmail(
         <a href="${url}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:16px">
           View event →
         </a>
-        <p style="color:#9ca3af;font-size:12px;text-align:center">${opts.free ? esc(FREE_FOOTER) : 'If your plans change, please cancel your spot so others can join.'}</p>
+        <p style="color:#9ca3af;font-size:12px;text-align:center">${opts.cancelCutoffHours != null ? esc(limitedFooter(opts.cancelCutoffHours)) : 'If your plans change, please cancel your spot so others can join.'}</p>
         <p style="color:#9ca3af;font-size:11px;text-align:center;margin-top:20px">
           You're getting this because you have a spot at this event. <a href="${APP_URL}/settings" style="color:#9ca3af">Manage notifications</a>
         </p>
