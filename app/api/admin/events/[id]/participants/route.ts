@@ -12,6 +12,7 @@ import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 import { writeAudit } from '@/lib/audit'
 import { activateAttendee, activeAttendeeWhere, cancelAttendeeOp, isActiveAttendee, type CancelActor } from '@/lib/attendance'
 import { getRsvpGate, gateErrorBody } from '@/lib/noShow'
+import { standingLevelsFor } from '@/lib/standingRead'
 import { CardStatus } from '@/lib/noShowPolicy'
 import { DEFAULT_CURRENCY } from '@/lib/data'
 import { rateLimit } from '@/lib/rateLimit'
@@ -190,11 +191,15 @@ export async function GET(_: NextRequest, { params }: Params) {
       activeCards.set(c.userId, cur)
     }
 
+    // Standing (switched on only), pending rows only: on a scarce event a red
+    // card is why the request is in this queue at all.
+    const standingLevels = await standingLevelsFor(pendingIds)
+
     // Keep all in the list for display, but tag host/cohost so client can distinguish
     const attendees = attendeesRaw.map(a => ({
       ...a,
       isStaff: excludeIds.has(a.userId),
-      ...(a.status === 'pending' ? { activeCards: activeCards.get(a.userId) ?? { yellow: 0, red: 0 } } : {}),
+      ...(a.status === 'pending' ? { activeCards: activeCards.get(a.userId) ?? { yellow: 0, red: 0 }, standing: standingLevels.get(a.userId) ?? null } : {}),
     }))
 
     const waitlistUserIds = waitlistRaw.map(w => w.userId)

@@ -1,4 +1,5 @@
-import { noShowExemptionReason, NO_SHOW_PROCESSING_LOOKBACK_DAYS, type EventRunners } from '@/lib/noShowPolicy'
+import { noShowExemptionReason, type EventRunners } from '@/lib/noShowPolicy'
+import { ATTENDANCE_AUTO_RESOLVE_HOURS } from '@/lib/standingPolicy'
 import { Attendance, AttendeeStatus } from '@/lib/constants'
 
 // ── Closing out the door: "mark the rest as no-show" ───────────────────────
@@ -13,23 +14,24 @@ import { Attendance, AttendeeStatus } from '@/lib/constants'
 // Client-safe on purpose: the check-in page counts the same "rest" the
 // route (app/api/events/[id]/checkin/close-out) marks.
 
-const DAY = 24 * 60 * 60 * 1000
+const HOUR = 60 * 60 * 1000
 
 export type CloseOutBlock = 'not_started' | 'too_late'
 
 export const CLOSE_OUT_BLOCK_MESSAGE: Record<CloseOutBlock, string> = {
   not_started: "The event hasn't started yet — no-shows can be marked once it has.",
-  too_late:    `This event ended more than ${NO_SHOW_PROCESSING_LOOKBACK_DAYS} days ago — its attendance can't be changed any more.`,
+  too_late:    `This event ended more than ${ATTENDANCE_AUTO_RESOLVE_HOURS} hours ago — its attendance is settled.`,
 }
 
 /**
  * Why no-shows can't be marked right now, or null when they can. Not before
- * the start — nobody is late yet — and not after the check-in prompt's
- * lookback, the same window a host is chased about an unchecked room.
+ * the start — nobody is late yet — and not once the standing sweep has
+ * resolved the room (ATTENDANCE_AUTO_RESOLVE_HOURS after the end): after that
+ * an unmarked RSVP is attended, and a correction is a dispute.
  */
 export function closeOutBlock(startsAt: Date, endsAt: Date, now: Date): CloseOutBlock | null {
   if (now.getTime() < startsAt.getTime()) return 'not_started'
-  if (now.getTime() > endsAt.getTime() + NO_SHOW_PROCESSING_LOOKBACK_DAYS * DAY) return 'too_late'
+  if (now.getTime() > endsAt.getTime() + ATTENDANCE_AUTO_RESOLVE_HOURS * HOUR) return 'too_late'
   return null
 }
 
@@ -61,5 +63,6 @@ export function noShowCandidates<R extends CloseOutRow>(rows: R[], runners: Even
  * GET returns (`exempt` is decided on the server, where the roles are).
  */
 export function restToClose<R extends { checkedIn: boolean; attendance?: string; exempt?: boolean }>(rows: R[]): R[] {
-  return rows.filter(r => !r.checkedIn && r.attendance !== Attendance.NoShow && !r.exempt)
+  // An RSVP the sweep already resolved as attended isn't "the rest" either.
+  return rows.filter(r => !r.checkedIn && r.attendance !== Attendance.NoShow && r.attendance !== Attendance.Attended && !r.exempt)
 }

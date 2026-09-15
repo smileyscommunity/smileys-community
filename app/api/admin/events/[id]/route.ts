@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isTier } from '@/lib/standingPolicy'
 import { prisma } from '@/lib/prisma'
 import { activeAttendeeWhere } from '@/lib/attendance'
 import { restoreSeatsReleasedByCancel, type PaidOnWaitlist } from '@/lib/eventRestore'
@@ -12,10 +13,10 @@ import { normalizePaymentContact } from '@/lib/safeUrl'
 import { splitLeadingEmoji, stripDupTrailingEmoji } from '@/lib/data'
 import { sendEventCancelledEmail, recordEmailFailure } from '@/lib/email'
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
-import { todayInCity } from '@/lib/city'
+import { todayInCity, getCityTz } from '@/lib/city'
 import { checkSeriesId, seriesScopeFor } from '@/lib/seriesOwnership'
 import { wasStaffPublished } from '@/lib/eventPublishHistory'
-import { eventTimeInput } from '@/lib/eventTime'
+import { eventTimeInput, eventStartsAt } from '@/lib/eventTime'
 import { lockEventRow, seatState, shrinkVerdict, belowApprovedBody, wantsOverCapacity } from '@/lib/eventCapacity'
 
 // A restore's overflow for the audit row, only when there was any: who went to
@@ -150,7 +151,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
         hostId: true, clubId: true, cityId: true, date: true, time: true, endTime: true, location: true, title: true,
         neighborhood: true, price: true, memberPrice: true, payTo: true, totalSpots: true,
         emoji: true, isPremium: true, membersOnly: true, limitedSpots: true, isFirstTimerFriendly: true, status: true,
-        seriesId: true, cancelledAt: true, approvalRequired: true,
+        seriesId: true, cancelledAt: true, approvalRequired: true, tierOverride: true,
       }
     })
     if (!before) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -176,7 +177,8 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
     const ALLOWED_FIELDS = [
       'title', 'date', 'time', 'location', 'neighborhood', 'address', 'description',
-      ...(admin ? ['totalSpots', 'spotsLeft'] : []),
+      ...(admin ? ['totalSpots', 'spotsLeft', 'cancelCutoffHours'] : []),
+      'tierOverride',
       'price', 'memberPrice', 'payTo', 'paymentContact', 'ticketUrl', 'intent', 'emoji', 'isPremium',
       'membersOnly', 'limitedSpots', 'soldOut', 'isFirstTimerFriendly', 'vibes', 'status', 'coverImage', 'coverImagePosition', 'meetingUrl',
       'whatsappUrl', 'minAge', 'maxAge', 'language', 'difficulty', 'refundPolicy',
@@ -347,6 +349,41 @@ export async function PUT(req: NextRequest, { params }: Params) {
     if (data.price === null) data.price = 0
     if (data.totalSpots === null) delete data.totalSpots
     if (data.spotsLeft  === null) delete data.spotsLeft
+
+    // Once the event has started, its seat commitment is fixed for anyone but
+    // staff: a tier (or limited spots) flipped afterwards would decide, after
+    // the fact, whose cancels and no-shows count.
+    // Asked only when a non-staff editor actually changes one of the two.
+    const startedForStanding = async () => !admin && eventStartsAt(before, await getCityTz(before.cityId)).getTime() <= Date.now()
+    if ('limitedSpots' in data && data.limitedSpots !== before.limitedSpots && await startedForStanding()) {
+      return NextResponse.json({ error: 'This event has started — ask an admin to change limited spots.' }, { status: 403 })
+    }
+
+    // Standing tier (lib/standingPolicy). Blank returns the event to the
+    // capacity rule. Who set an override, and when, is stamped only when it
+    // actually changes — the form sends the field back on every save.
+    if ('tierOverride' in data) {
+      const tier = data.tierOverride === '' || data.tierOverride == null ? null : data.tierOverride
+      if (tier !== null && !isTier(tier)) {
+        return NextResponse.json({ error: 'tierOverride must be scarce, open or blank' }, { status: 400 })
+      }
+      if (tier === before.tierOverride) {
+        delete data.tierOverride
+      } else {
+        if (await startedForStanding()) {
+          return NextResponse.json({ error: "This event has started — ask an admin to change its seat commitment." }, { status: 403 })
+        }
+        data.tierOverride     = tier
+        data.tierOverrideById = tier ? session.id : null
+        data.tierOverrideAt   = tier ? new Date() : null
+      }
+    }
+    // Staff only (ALLOWED_FIELDS): a longer cutoff for a trip, up to two weeks.
+    if ('cancelCutoffHours' in data) {
+      const hours = numField(data.cancelCutoffHours, 'cancelCutoffHours', { min: 0, max: 24 * 14, allowNull: true })
+      if (hours && typeof hours === 'object') return NextResponse.json({ error: hours.error }, { status: 400 })
+      data.cancelCutoffHours = hours
+    }
 
     // Cross-field checks.
     const N = (x: unknown) => typeof x === 'number' ? x : null

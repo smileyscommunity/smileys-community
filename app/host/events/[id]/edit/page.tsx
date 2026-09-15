@@ -32,6 +32,7 @@ const emptyForm = {
   minAge: '', maxAge: '',
   language: '', refundPolicy: '', registrationDeadline: '',
   endTime: '',
+  tierOverride: '',
 }
 
 export default function HostEditEventPage({ params }: { params: Promise<{ id: string }> }) {
@@ -195,6 +196,7 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
           registrationDeadline: event.registrationDeadline ?? '',
           endTime:          event.endTime          ?? '',
           approvalRequired: event.approvalRequired ?? false,
+          tierOverride:     event.tierOverride     ?? '',
         })
         setLoadedStatus(event.status ?? 'published')
         if (typeof event.cityId === 'string' && event.cityId) {
@@ -690,6 +692,15 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
               )}
             </div>
           )}
+          <div>
+            <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Seat commitment</label>
+            <select value={form.tierOverride} onChange={e => set('tierOverride', e.target.value)} className={inputCls}>
+              <option value="">Automatic — 20 seats or fewer counts as limited</option>
+              <option value="scarce">Limited — a booked table or a headcount promised to a venue</option>
+              <option value="open">Open — nobody loses a seat if someone doesn&apos;t come</option>
+            </select>
+            <p className="text-xs text-zinc-600 mt-1">A missed RSVP or late cancellation only affects a member&apos;s standing on limited events.</p>
+          </div>
           <div className="flex flex-wrap gap-4">
             {[
               { key: 'limitedSpots',     label: 'Limited spots'        },

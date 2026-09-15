@@ -9,6 +9,7 @@ import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
 import UserAvatar from '@/components/UserAvatar'
 import NoShowCardBadge from '@/components/NoShowCardBadge'
+import StandingBadge from '@/components/StandingBadge'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { DEFAULT_TZ, todayInTz } from '@/lib/cityTime'
@@ -22,6 +23,7 @@ interface Attendee {
   userId: string; status: string; checkedIn: boolean; joinedAt: string; user: AttendeeUser
   // Pending rows only: the member's active no-show cards across all events.
   activeCards?: { yellow: number; red: number }
+  standing?: 'yellow' | 'red' | null
 }
 interface WaitlistEntry {
   id: string; userId: string; createdAt: string; user: AttendeeUser
@@ -388,6 +390,7 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
                     <div className="flex items-center gap-2 min-w-0">
                       <p className="text-sm font-semibold text-white truncate">{a.user.name}</p>
                       <NoShowCardBadge cards={a.activeCards} />
+                      <StandingBadge level={a.standing} />
                     </div>
                     {a.user.email && <p className="text-xs text-zinc-500 truncate">{a.user.email}</p>}
                   </div>

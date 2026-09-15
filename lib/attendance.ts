@@ -56,6 +56,7 @@ export async function activateAttendee(
       attendance:  Attendance.Unknown,
       cancelledAt: null,
       cancelledBy: null,
+      cancelledLate: null,
       // A fresh commitment gets a fresh day-before ask. Without this a
       // member released for not answering, who then rejoins, is released
       // again on the next run — every hour until the start.
@@ -77,7 +78,8 @@ export async function activateAttendee(
  */
 export function cancelAttendeeOp(
   db: Db,
-  args: { userId: string; eventId: string; by: CancelActor },
+  // `late`: a member's cancel judged late at this moment (lib/standingPolicy isLateCancel).
+  args: { userId: string; eventId: string; by: CancelActor; late?: boolean | null },
 ) {
   const status = args.by === 'member' ? AttendeeStatus.Cancelled : AttendeeStatus.Removed
   // A member's own cancel stamps only a row that held a seat. A pending
@@ -89,7 +91,7 @@ export function cancelAttendeeOp(
     : { userId: args.userId, eventId: args.eventId, ...activeAttendeeWhere }
   return db.eventAttendee.updateMany({
     where,
-    data:  { status, cancelledAt: new Date(), cancelledBy: args.by },
+    data:  { status, cancelledAt: new Date(), cancelledBy: args.by, ...(args.by === 'member' && args.late != null ? { cancelledLate: args.late } : {}) },
   })
 }
 

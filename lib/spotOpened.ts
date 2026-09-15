@@ -57,7 +57,7 @@ async function mayAlert(userId: string, eventId: string, seats: string[]): Promi
 export async function announceSpotOpened(eventId: string, releasedUserIds: string[] = []): Promise<number> {
   const event = await prisma.event.findUnique({
     where:  { id: eventId },
-    select: { title: true, date: true, soldOut: true, limitedSpots: true, ...quotaEventSelect },
+    select: { title: true, date: true, soldOut: true, ...quotaEventSelect },   // quotaEventSelect carries limitedSpots
   })
   if (!event) return 0
 

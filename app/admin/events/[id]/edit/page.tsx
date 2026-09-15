@@ -34,6 +34,7 @@ const emptyForm = {
   minAge: '', maxAge: '',
   language: '', refundPolicy: '', registrationDeadline: '',
   endTime: '', lat: '', lng: '',
+  tierOverride: '', cancelCutoffHours: '',
 }
 
 export default function EditEventPage({ params }: { params: Promise<{ id: string }> }) {
@@ -162,6 +163,8 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
           approvalRequired: event.approvalRequired ?? false,
           lat:              event.lat  != null ? String(event.lat)  : '',
           lng:              event.lng  != null ? String(event.lng)  : '',
+          tierOverride:      event.tierOverride ?? '',
+          cancelCutoffHours: event.cancelCutoffHours != null ? String(event.cancelCutoffHours) : '',
         })
         setLoadedStatus(event.status ?? 'published')
         if (Array.isArray(event.tags) && event.tags.length) setSelectedTagIds(event.tags)
@@ -823,6 +826,21 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
         <div className="mb-4">
           <label className="block text-xs font-semibold text-zinc-400 mb-1.5">WhatsApp group URL</label>
           <input type="text" value={form.whatsappUrl} onChange={e => set('whatsappUrl', e.target.value)} placeholder="https://chat.whatsapp.com/..." className={inputCls} />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Seat commitment</label>
+            <select value={form.tierOverride} onChange={e => set('tierOverride', e.target.value)} className={inputCls}>
+              <option value="">Automatic — 20 seats or fewer counts as limited</option>
+              <option value="scarce">Limited — booked table / headcount promised</option>
+              <option value="open">Open — no seat lost on a no-show</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Late-cancel cutoff (hours before start)</label>
+            <input type="number" min={0} max={336} value={form.cancelCutoffHours} onChange={e => set('cancelCutoffHours', e.target.value)}
+              placeholder="Blank = 24 limited, 2 open" className={inputCls} />
+          </div>
         </div>
         <div className="flex flex-wrap gap-4">
           {[

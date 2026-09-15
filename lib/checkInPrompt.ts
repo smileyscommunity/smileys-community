@@ -1,5 +1,6 @@
 import { eventEndsAt } from '@/lib/eventTime'
-import { checkInIsCredible, NO_SHOW_PROCESSING_LOOKBACK_DAYS } from '@/lib/noShowPolicy'
+import { checkInIsCredible } from '@/lib/noShowPolicy'
+import { ATTENDANCE_AUTO_RESOLVE_HOURS } from '@/lib/standingPolicy'
 import { DEFAULT_TZ } from '@/lib/cityTime'
 
 // ── "You haven't checked anyone in" ─────────────────────────────────────────
@@ -13,14 +14,14 @@ import { DEFAULT_TZ } from '@/lib/cityTime'
 //
 // So: after an event ends, if the room went unchecked, say so where the host
 // will see it, and link straight to the scanner. There is a real deadline —
-// the sweeper stops looking NO_SHOW_PROCESSING_LOOKBACK_DAYS after the end,
-// and once an event falls out of that window its attendance can never be
-// settled — so the prompt counts down instead of nagging forever.
+// ATTENDANCE_AUTO_RESOLVE_HOURS after the end the standing sweep records every
+// unmarked RSVP as attended — so the prompt counts down instead of nagging.
 //
 // Factual, not scolding: a host who checked nobody in may simply have run a
 // small event where it wasn't worth it, and skipping is a legitimate choice.
 
-const DAY = 24 * 60 * 60 * 1000
+const HOUR = 60 * 60 * 1000
+const DAY  = 24 * HOUR
 
 export interface CheckInPromptEvent {
   id:                 string
@@ -48,7 +49,7 @@ export interface PendingCheckIn {
   event:    CheckInPromptEvent
   approved: number
   checked:  number
-  daysLeft: number
+  hoursLeft: number
 }
 
 /**
@@ -73,15 +74,14 @@ export function awaitingCheckIn(
     if (approved < 1 || checkInIsCredible(checked, approved)) return []
     const endsAt = eventEndsAt(e, tz).getTime()
     if (endsAt > now.getTime()) return []                       // still running
-    // Same floor the sweeper uses: an event that ended longer ago than the
-    // lookback is never processed again, so there is nothing left to save.
-    const deadline = endsAt + NO_SHOW_PROCESSING_LOOKBACK_DAYS * DAY
+    // Past the resolution the room is settled: nothing left to check in.
+    const deadline = endsAt + ATTENDANCE_AUTO_RESOLVE_HOURS * HOUR
     if (deadline <= now.getTime()) return []
     return [{
       event: e, approved, checked,
-      daysLeft: Math.max(1, Math.ceil((deadline - now.getTime()) / DAY)),
+      hoursLeft: Math.max(1, Math.ceil((deadline - now.getTime()) / HOUR)),
     }]
-  }).sort((a, b) => a.daysLeft - b.daysLeft)
+  }).sort((a, b) => a.hoursLeft - b.hoursLeft)
 }
 
 /**
@@ -89,13 +89,14 @@ export function awaitingCheckIn(
  * of the event's active club — exactly who canManageEventOps lets through the
  * check-in API. Feeds /host/checkin and the dashboard prompt
  * (/api/host/events?scope=door). Bounded to the days check-in still matters —
- * the prompt's lookback behind, tomorrow ahead for a city in a zone ahead —
+ * two days behind (an event still inside its resolution window), tomorrow
+ * ahead for a city in a zone ahead —
  * so the host of a long-running club doesn't pull every event it ever ran.
  */
 export function doorEventsWhere(userId: string, now: Date = new Date()) {
   const day = (offset: number) => new Date(now.getTime() + offset * DAY).toISOString().slice(0, 10)
   return {
-    date: { gte: day(-(NO_SHOW_PROCESSING_LOOKBACK_DAYS + 1)), lte: day(1) },
+    date: { gte: day(-2), lte: day(1) },
     OR: [
       { hostId: userId },
       { cohosts: { some: { userId } } },

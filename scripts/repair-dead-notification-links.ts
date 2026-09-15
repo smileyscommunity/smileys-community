@@ -50,7 +50,7 @@ export const PAGE_ROUTES = [
   '/admin/neighborhoods', '/admin/neighborhoods/[slug]', '/admin/newsletter', '/admin/no-shows', '/admin/notifications',
   '/admin/nps', '/admin/participants', '/admin/partners', '/admin/partners/new', '/admin/payments', '/admin/polls',
   '/admin/posts', '/admin/posts/[id]/edit', '/admin/posts/new', '/admin/pro-waitlist', '/admin/retention',
-  '/admin/security', '/admin/settings', '/admin/sponsors', '/admin/spotlight', '/admin/stories', '/admin/tags',
+  '/admin/security', '/admin/settings', '/admin/sponsors', '/admin/spotlight', '/admin/standing', '/admin/stories', '/admin/tags',
   '/admin/users', '/admin/users/[id]', '/advertise', '/appeal', '/apply', '/board', '/board/[id]', '/board/new',
   '/board/renew/[id]', '/card', '/cities', '/clubs', '/clubs/[slug]', '/clubs/feed', '/contact', '/contacts', '/cookies',
   '/cup', '/dashboard', '/directory', '/directory/[id]', '/directory/saved', '/directory/submit', '/events',
@@ -61,7 +61,7 @@ export const PAGE_ROUTES = [
   '/hosts', '/invite', '/login', '/marketplace', '/members', '/members/[id]', '/messages', '/messages/[userId]',
   '/moving-sales/[id]', '/my-events', '/neighborhoods', '/neighborhoods/[slug]', '/no-show', '/notifications',
   '/notifications/settings', '/partner', '/partner/settings', '/pending', '/perks', '/posts', '/posts/[slug]', '/privacy',
-  '/pro', '/profile', '/profile-visitors', '/reset-password', '/reviews', '/settings', '/share-story', '/survey/nps',
+  '/pro', '/profile', '/profile-visitors', '/reset-password', '/reviews', '/settings', '/share-story', '/standing', '/survey/nps',
   '/terms', '/unsubscribe', '/verify-email', '/visiting', '/visiting/new', '/why',
 ] as const
 

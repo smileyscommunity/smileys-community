@@ -5,7 +5,8 @@ import { isAdmin, canManageEventOps } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
 import { rateLimit, claimOnce } from '@/lib/rateLimit'
 import { Attendance } from '@/lib/constants'
-import { eventStartsAt } from '@/lib/eventTime'
+import { eventStartsAt, eventEndsAt } from '@/lib/eventTime'
+import { ATTENDANCE_AUTO_RESOLVE_HOURS } from '@/lib/standingPolicy'
 import { getCityTz } from '@/lib/city'
 import { eventRunners } from '@/lib/noShowPolicy'
 import { isExemptFromNoShow } from '@/lib/attendanceCloseOut'
@@ -99,7 +100,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // page (waiveCard), which closes the card and keeps the trail.
     const event = await prisma.event.findUnique({
       where:  { id: eventId },
-      select: { status: true, cancelledAt: true, noShowProcessedAt: true, cityId: true, date: true, time: true },
+      select: { status: true, cancelledAt: true, noShowProcessedAt: true, cityId: true, date: true, time: true, endTime: true },
     })
     if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
     if (event.cancelledAt || event.status === 'cancelled') {
@@ -112,6 +113,17 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       }, { status: 409 })
     }
 
+    // Standing resolves the room a day after the end (lib/standing). Past that
+    // line attendance is settled both ways, and a correction is a dispute a
+    // moderator decides — not a scan, days later, by whoever runs the door.
+    const tz = await getCityTz(event.cityId)
+    if (Date.now() > eventEndsAt(event, tz).getTime() + ATTENDANCE_AUTO_RESOLVE_HOURS * 60 * 60_000) {
+      return NextResponse.json({
+        error: 'Attendance for this event is settled — check-in closed a day after it ended.',
+        code:  'attendance_settled',
+      }, { status: 409 })
+    }
+
     // The door had no clock: a host could check the whole room in days
     // ahead, and the no-show sweep reads "half the room was scanned" as
     // proof check-in was really run — so everyone left unticked got a card.
@@ -119,7 +131,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // event city's clock (a TBA time reads as midnight, so noon the day
     // before). Un-checking is a correction and stays open.
     if (checkedIn) {
-      const startsAt = eventStartsAt(event, await getCityTz(event.cityId)).getTime()
+      const startsAt = eventStartsAt(event, tz).getTime()
       const opensAt  = startsAt - CHECKIN_OPENS_HOURS_BEFORE * 60 * 60_000
       if (Number.isFinite(opensAt) && Date.now() < opensAt) {
         return NextResponse.json({

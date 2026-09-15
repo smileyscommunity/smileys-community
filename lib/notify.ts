@@ -36,6 +36,13 @@ const PREF_KEY: Record<string, 'newEvents' | 'reminders' | 'eventUpdates' | 'joi
   profile_view:          null,
   host_message:       null,
   checkin_nudge:      null,  // "check-in is open" to the event's own door staff
+  // Standing (lib/standing): a member's own record — always delivered.
+  standing_yellow:           null,
+  standing_red:              null,
+  standing_cleared:          null,
+  standing_review:           null,
+  standing_restored:         null,
+  standing_dispute_resolved: null,
   message:            null,
   club_wall_post:       'wallPosts',
   club_post_reply:      'wallReplies',

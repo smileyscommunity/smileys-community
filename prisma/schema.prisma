@@ -84,6 +84,9 @@ model User {
   openToLanguage             Boolean                 @default(false)
   goodHangouts               Int                     @default(0)
   noShowCount                Int                     @default(0)
+  // Standing: the once-per-member hosting/volunteering substitution for one
+  // yellow-card commitment. Not offered yet — clearance is attendance-only.
+  standingSubstitutionUsed   Boolean                 @default(false)
   lastFingerprint            String?
   cityId                     String
   fingerprints               String[]                @default([])
@@ -121,6 +124,8 @@ model User {
   receivedMessages           DirectMessage[]         @relation("ReceivedMessages")
   joinedEvents               EventAttendee[]
   noShowCards                NoShowCard[]
+  standingOffences           StandingOffence[]
+  standingCards              StandingCard[]
   eventRecommendations       EventRecommendation[]
   cohostedEvents             EventCoHost[]
   eventMessages              EventMessage[]
@@ -660,8 +665,19 @@ model Event {
   // (no-shows marked, cards issued). Never reprocessed — an edit to the date
   // or end time afterwards must not open a second round of cards.
   noShowProcessedAt    DateTime?
+  // Standing tier (lib/standingPolicy eventTier). null = derived from capacity:
+  // limited and at most 20 seats is scarce. A host sets it for a venue
+  // commitment above the threshold — a 40-cover booking promised to a
+  // restaurant — and who set it is kept, to see whether it gets over-applied.
+  tierOverride         String?
+  tierOverrideById     String?
+  tierOverrideAt       DateTime?
+  // Hours before the start after which a member's cancel counts as late.
+  // null = the tier's default (24 scarce, 2 open); set for a trip that needs longer.
+  cancelCutoffHours    Int?
   attendees            EventAttendee[]
   noShowCards          NoShowCard[]
+  standingOffences     StandingOffence[]
   hangouts             Hangout[]       @relation("EventHangouts")
   saves                EventSave[]
   boardPosts           BoardPost[]     @relation("EventBoardPosts")
@@ -999,12 +1015,23 @@ model EventAttendee {
   attendance  String    @default("unknown")
   cancelledAt DateTime?
   cancelledBy String?   // 'member' | 'host' | 'admin' | 'system'
+  // Standing: whether a member's cancel was late, decided at the moment of the
+  // cancel against the event as it stood (lib/standingPolicy isLateCancel), so
+  // a tier or time edited afterwards can't rewrite it. null = not a member
+  // cancel, or one from before this was recorded.
+  cancelledLate Boolean?
   // Day-before "still coming?" on free limited-spot events (lib/reconfirm).
   // Asked once; an asked-but-unconfirmed seat is released to the waitlist at
   // the cancellation cutoff when someone is waiting.
   reconfirmAskedAt DateTime?
   reconfirmedAt    DateTime?
+  // Stamped when the standing sweep resolved an RSVP nobody marked, as
+  // attended, a day after the event ended: a penalty is never made out of
+  // host inaction, and this shows which doors weren't checked (lib/standing).
+  attendanceAutoResolvedAt DateTime?
   noShowCard  NoShowCard?
+  standingOffence    StandingOffence?
+  standingRecoveries StandingRecovery[]
   event     Event    @relation(fields: [eventId], references: [id])
   user      User     @relation(fields: [userId], references: [id])
 
@@ -1064,6 +1091,82 @@ model NoShowCard {
   @@index([eventId])
   @@index([status, restrictionStartsAt])
   @@map("no_show_cards")
+}
+
+// ── Standing (lib/standingPolicy rules, lib/standing applies them) ──────────
+//
+// An offence is one no-show or late cancellation, recorded once per RSVP row
+// after the event has resolved. Offences on open events, and in a city's
+// first 90 days, are logged (counts = false) and never carded.
+model StandingOffence {
+  id             String        @id @default(cuid())
+  userId         String
+  attendeeId     String        @unique
+  eventId        String
+  kind           String        // 'no_show' | 'late_cancel'
+  tier           String        // 'scarce' | 'open', as the event stood when it happened
+  counts         Boolean       // toward a card
+  loggedReason   String?       // why it doesn't count: 'open_tier' | 'new_city'
+  occurredAt     DateTime      // the event's start
+  recordedAt     DateTime      @default(now())
+  status         String        @default("open") // open | disputed | overturned | forgiven
+  cardId         String?
+  disputedAt     DateTime?
+  disputeNote    String?
+  resolvedAt     DateTime?
+  resolvedById   String?
+  resolutionNote String?
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attendee EventAttendee @relation(fields: [attendeeId], references: [id], onDelete: Cascade)
+  event    Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  card     StandingCard? @relation(fields: [cardId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status])
+  @@index([status])
+  @@index([eventId])
+  @@map("standing_offences")
+}
+
+// A yellow or red card. Rows are never rewritten into "the current card": a
+// member's history is the list, and a red keeps the yellow it escalated.
+model StandingCard {
+  id             String             @id @default(cuid())
+  userId         String
+  level          String             // 'yellow' | 'red'
+  status         String             @default("active") // active | review | cleared | restored | lapsed | escalated | withdrawn
+  // Issued while enforcement was off: kept for the numbers, never shown to the
+  // member or enforced. Switching enforcement on does not arm it.
+  shadow         Boolean            @default(true)
+  // When the offence that issued (or escalated) it happened. Only commitments
+  // after this count toward clearing it.
+  triggeredAt    DateTime
+  issuedAt       DateTime           @default(now())
+  fromCardId     String?            // red: the yellow it escalated
+  notifiedAt     DateTime?
+  resolvedAt     DateTime?
+  resolvedById   String?
+  resolutionNote String?
+  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  offences   StandingOffence[]
+  recoveries StandingRecovery[]
+
+  @@index([userId, status])
+  @@index([status, shadow])
+  @@map("standing_cards")
+}
+
+// One successful commitment toward clearing a card.
+model StandingRecovery {
+  id         String         @id @default(cuid())
+  cardId     String
+  attendeeId String?        // set for attendance: one RSVP never counts twice
+  source     String         // 'attendance' | 'host' | 'volunteer'
+  awardedAt  DateTime       @default(now())
+  card       StandingCard   @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  attendee   EventAttendee? @relation(fields: [attendeeId], references: [id], onDelete: SetNull)
+
+  @@unique([cardId, attendeeId])
+  @@map("standing_recoveries")
 }
 
 model Review {

@@ -39,6 +39,8 @@ vi.mock('@/lib/city', () => ({
   getDefaultCityId: vi.fn(async () => 'c-ist'),
   todayInCity:      vi.fn(async (_c: string, off = 0) => (off === 7 ? '2026-09-21' : off === -7 ? '2026-09-07' : '2026-09-14')),
   getCityConfig:    vi.fn(async () => ({ country: 'TR' })),
+  // The check-in route reads the event's city clock on every toggle (standing's resolution line).
+  getCityTz:        vi.fn(async () => 'Europe/Istanbul'),
 }))
 vi.mock('@/lib/content', () => ({ loadContent: () => ({}) }))
 // Routes get a stubbed session; the JWT pin below imports the real module.

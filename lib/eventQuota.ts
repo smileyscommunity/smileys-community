@@ -20,6 +20,8 @@ import type { Prisma, PrismaClient } from '@prisma/client'
 
 type Db = PrismaClient | Prisma.TransactionClient
 import { getRsvpGate } from './noShow'
+import { standingLevelsFor } from './standingRead'
+import { eventTier, needsHostApproval, orderWaitlist } from './standingPolicy'
 
 // Gender and nationality are free text on the user record, so compare against
 // the spellings actually seen rather than assuming a canonical case.
@@ -33,6 +35,9 @@ export interface QuotaEvent {
   femaleQuota:      number | null
   turkishMaleQuota: number | null
   totalSpots:       number
+  // For the standing order on a scarce event's waitlist (lib/standingPolicy).
+  limitedSpots?:    boolean | null
+  tierOverride?:    string | null
 }
 
 /** The columns hasQuotaRoomFor needs — for callers building their own select. */
@@ -42,6 +47,8 @@ export const quotaEventSelect = {
   femaleQuota:      true,
   turkishMaleQuota: true,
   totalSpots:       true,
+  limitedSpots:     true,
+  tierOverride:     true,
 } as const
 
 export type QuotaBlock = 'male_quota' | 'female_quota' | 'turkish_male_quota'
@@ -139,7 +146,14 @@ export async function findPromotableFromWaitlist(
   })
   const byId = new Map(users.map(u => [u.id, u]))
 
-  for (const entry of queue) {
+  // Standing (nothing changes while it is switched off): on a scarce event good
+  // standing goes first, and a red card's seat is the host's call — never an
+  // automatic promotion. They keep their place; the host can still add them.
+  const tier   = eventTier(event)
+  const levels = await standingLevelsFor(queue.map(q => q.userId))
+
+  for (const entry of orderWaitlist(queue, levels, tier)) {
+    if (needsHostApproval(levels.get(entry.userId) ?? 'good', tier)) continue
     const user = byId.get(entry.userId)
     // A waitlist row whose user has vanished is not promotable; skip rather
     // than treating unknown as eligible.
@@ -196,8 +210,14 @@ export async function countSeatableFromWaitlist(eventId: string, event: QuotaEve
     turkishMaleRoom = event.turkishMaleQuota != null ? event.turkishMaleQuota - turkishMales : Infinity
   }
 
+  // Same standing order as findPromotableFromWaitlist: a red card on a scarce
+  // event can't take a seat without the host, so it covers none.
+  const tier     = eventTier(event)
+  const levels   = await standingLevelsFor(queue.map(q => q.userId))
+  const seatable = orderWaitlist(queue, levels, tier).filter(q => !needsHostApproval(levels.get(q.userId) ?? 'good', tier))
+
   let seated = 0
-  for (const entry of queue) {
+  for (const entry of seatable) {
     if (seated >= free) break
     const user = byId.get(entry.userId)
     if (!user) continue

@@ -514,6 +514,13 @@ chmod +x $REMOTE/scripts/sweep-reconfirm.sh
 (crontab -l 2>/dev/null | grep -v 'sweep-reconfirm' ; echo '35 * * * * $REMOTE/scripts/sweep-reconfirm.sh >> /var/log/sweep-reconfirm.log 2>&1') | crontab -
 echo '  ✓ reconfirm'
 
+# Hourly at :50 — standing: resolves attendance a day after each event, records
+# offences and keeps cards up to date (see app/api/cron/sweep-standing/route.ts).
+# Enforcement is a separate switch (/admin/standing); until then it runs shadow.
+chmod +x $REMOTE/scripts/sweep-standing.sh
+(crontab -l 2>/dev/null | grep -v 'sweep-standing' ; echo '50 * * * * $REMOTE/scripts/sweep-standing.sh >> /var/log/sweep-standing.log 2>&1') | crontab -
+echo '  ✓ standing'
+
 chmod +x $REMOTE/scripts/sweep-nps-dispatch.sh
 (crontab -l 2>/dev/null | grep -v 'sweep-nps-dispatch' ; echo '10 9 * * * $REMOTE/scripts/sweep-nps-dispatch.sh >> /var/log/sweep-nps.log 2>&1') | crontab -
 echo '  ✓ nps-dispatch'

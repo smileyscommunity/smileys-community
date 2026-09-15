@@ -13,10 +13,12 @@ import { trackServer } from '@/lib/posthog-server'
 import { activateAttendee, cancelAttendeeOp, withdrawPendingOp, isActiveAttendee } from '@/lib/attendance'
 import { checkRsvpAllowed, gateErrorBody, getRsvpGate, recordYellowAcknowledgement } from '@/lib/noShow'
 import { formatMoney } from '@/lib/data'
+import { standingLevelFor } from '@/lib/standingRead'
+import { eventTier, needsHostApproval, isLateCancel } from '@/lib/standingPolicy'
 import { todayInCity, getCityTz } from '@/lib/city'
 // Has the event begun, on its city's clock? Shared with the staff removal
 // path, which must hold back a promotion by the same rule (lib/eventTime).
-import { eventHasStarted } from '@/lib/eventTime'
+import { eventHasStarted, eventStartsAt } from '@/lib/eventTime'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -117,6 +119,12 @@ export async function POST(req: NextRequest, { params }: Params) {
       if ('pendingAck' in gate) recordYellowAcknowledgement(session.id, eventId).catch(() => {})
     }
 
+    // Standing (lib/standing — nothing changes while it is switched off). A red
+    // card makes a seat on a scarce event the host's call: the join below goes
+    // through the approval path, and a waitlist claim becomes a request. Open
+    // events are never touched: recovery needs attending things.
+    const hostApprovalForStanding = needsHostApproval(await standingLevelFor(session.id), eventTier(event))
+
 
     // Check if already attending or pending. A cancelled/removed row is
     // history, not a seat — the join paths below revive it.
@@ -130,6 +138,41 @@ export async function POST(req: NextRequest, { params }: Params) {
       where: { userId_eventId: { userId: session.id, eventId } },
     })
     if (onWaitlist) {
+      if (hostApprovalForStanding) {
+        // A request still needs a request slot, exactly as on the approval path below.
+        if (event.limitedSpots) {
+          const coHosts  = await prisma.eventCoHost.findMany({ where: { eventId }, select: { userId: true } })
+          const staffIds = [...new Set([...(event.hostId ? [event.hostId] : []), ...coHosts.map(c => c.userId)])]
+          const notStaff = staffIds.length ? { NOT: { userId: { in: staffIds } } } : {}
+          const [approvedCount, pendingCount] = await Promise.all([
+            prisma.eventAttendee.count({ where: { eventId, status: 'approved', ...notStaff } }),
+            prisma.eventAttendee.count({ where: { eventId, status: 'pending',  ...notStaff } }),
+          ])
+          if (approvedCount + pendingCount >= event.totalSpots) {
+            return NextResponse.json({
+              ok: true, status: 'waitlisted',
+              message: `No request slots are open for "${event.title}" right now — you're still on the waitlist.`,
+            })
+          }
+        }
+        await prisma.$transaction(async (tx) => {
+          // Event row first: same lock order as every seat path (lib/rsvpConfirmed).
+          await tx.$queryRaw`SELECT id FROM events WHERE id = ${eventId} FOR UPDATE`
+          await tx.waitlistEntry.delete({ where: { id: onWaitlist.id } })
+          await activateAttendee(tx, { userId: session.id, eventId, status: 'pending', stealth })
+          await createSeatPayment(tx, eventId, event, session.id)
+        })
+        createNotification(session.id, 'rsvp_pending', 'RSVP submitted ⏳',
+          `Your request to join "${event.title}" is waiting on the host. You'll be notified once it's reviewed.`,
+          `/events/${eventId}`)
+        if (event.hostId) {
+          createNotification(event.hostId, 'attendee_joined', 'New RSVP awaiting approval ⏳',
+            `Someone just requested to join "${event.title}".`,
+            `/host/events/${eventId}/participants?tab=pending`)
+        }
+        trackRsvp('pending', { via: 'standing' })
+        ackAfterJoin(); return NextResponse.json({ ok: true, status: 'pending' })
+      }
       // The user is on the waitlist. If a spot is currently open (an
       // approved attendee just cancelled and triggered the "spot
       // opened" fanout), this is a claim attempt — promote them.
@@ -229,7 +272,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     // slots, plenty to pick from, without an unbounded pending stack. Male
     // 21 goes to waitlist with a "male spots are full" message so they
     // have honest signal.
-    if (event.approvalRequired) {
+    if (event.approvalRequired || hostApprovalForStanding) {
       // Helper that pushes the caller onto the waitlist with the right
       // reason text and returns the response. Used by both the over-capacity
       // and the quota-pool blocks below so the wording stays consistent.
@@ -463,10 +506,15 @@ export async function DELETE(req: NextRequest, { params }: Params) {
 
     const event = await prisma.event.findUnique({
       where:  { id: eventId },
-      select: { title: true, cityId: true, date: true, time: true, endTime: true, totalSpots: true },
+      select: { title: true, cityId: true, date: true, time: true, endTime: true, totalSpots: true, limitedSpots: true, tierOverride: true, cancelCutoffHours: true },
     })
 
     const wasApproved = existing.status === 'approved'
+    // Late or in time is decided now, against the event as it stands — the
+    // standing sweep reads this, never a tier or time edited afterwards.
+    const cancelledLate = wasApproved && event
+      ? isLateCancel(new Date(), eventStartsAt(event, await getCityTz(event.cityId)), event, existing.reconfirmAskedAt)
+      : null
 
     // P2 fix: capture which pending payments will get cancelled so we
     // can write a PaymentLog row for each one. Previously the
@@ -483,7 +531,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       // Soft-cancel: the row stays, stamped with when the member gave the
       // spot back. "Cancelled in time" vs "didn't come" is a question the
       // post-event no-show pass needs answered from this timestamp.
-      cancelAttendeeOp(prisma, { userId: session.id, eventId, by: 'member' }),
+      cancelAttendeeOp(prisma, { userId: session.id, eventId, by: 'member', late: cancelledLate }),
       withdrawPendingOp(prisma, { userId: session.id, eventId }),
       // Void any pending payment so no orphaned records remain
       prisma.payment.updateMany({

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { awaitingCheckIn, doorEventsWhere, type CheckInPromptEvent } from '@/lib/checkInPrompt'
-import { NO_SHOW_PROCESSING_LOOKBACK_DAYS } from '@/lib/noShowPolicy'
+import { ATTENDANCE_AUTO_RESOLVE_HOURS } from '@/lib/standingPolicy'
 
 // Which finished events the host is chased about. The guard this mirrors
 // (checkInIsCredible) is what kept the sweeper from carding a whole room on
@@ -8,7 +8,7 @@ import { NO_SHOW_PROCESSING_LOOKBACK_DAYS } from '@/lib/noShowPolicy'
 // never have settled anyway.
 
 const TZ  = 'Europe/Istanbul'
-const DAY = 24 * 60 * 60 * 1000
+const HOUR = 60 * 60 * 1000
 const now = new Date('2026-09-12T18:00:00Z')          // 21:00 Istanbul
 
 const event = (over: Partial<CheckInPromptEvent> = {}): CheckInPromptEvent => ({
@@ -64,19 +64,19 @@ describe('awaitingCheckIn', () => {
     expect(awaitingCheckIn([event({ noShowProcessedAt: '2026-09-12T17:00:00Z' })], TZ, now)).toEqual([])
   })
 
-  it('stops once the event falls outside the sweeper lookback', () => {
-    const old = new Date(now.getTime() + (NO_SHOW_PROCESSING_LOOKBACK_DAYS + 1) * DAY)
-    expect(awaitingCheckIn([event()], TZ, old)).toEqual([])
+  it('stops once the standing sweep has resolved the room', () => {
+    const resolved = new Date(now.getTime() + ATTENDANCE_AUTO_RESOLVE_HOURS * HOUR)
+    expect(awaitingCheckIn([event()], TZ, resolved)).toEqual([])
   })
 
   it('counts the days left down to the sweeper deadline', () => {
-    expect(awaitingCheckIn([event()], TZ, now)[0].daysLeft).toBe(NO_SHOW_PROCESSING_LOOKBACK_DAYS)
-    const late = new Date(now.getTime() + (NO_SHOW_PROCESSING_LOOKBACK_DAYS - 1) * DAY)
-    expect(awaitingCheckIn([event()], TZ, late)[0].daysLeft).toBe(1)
+    // Ended 11:00Z; resolved 24h later. At 18:00Z that is 17 hours away.
+    expect(awaitingCheckIn([event()], TZ, now)[0].hoursLeft).toBe(17)
+    expect(awaitingCheckIn([event()], TZ, new Date('2026-09-13T10:30:00Z'))[0].hoursLeft).toBe(1)
   })
 
   it('puts the most urgent event first', () => {
-    const older = event({ id: 'e0', date: '2026-09-09' })
+    const older = event({ id: 'e0', endTime: '12:30' })
     const ids = awaitingCheckIn([event(), older], TZ, now).map(p => p.event.id)
     expect(ids).toEqual(['e0', 'e1'])
   })
@@ -98,7 +98,7 @@ describe('doorEventsWhere', () => {
     ])
   })
 
-  it('is bounded to the prompt lookback behind and tomorrow ahead', () => {
-    expect(doorEventsWhere('u1', now).date).toEqual({ gte: '2026-09-04', lte: '2026-09-13' })
+  it('is bounded to two days behind and tomorrow ahead', () => {
+    expect(doorEventsWhere('u1', now).date).toEqual({ gte: '2026-09-10', lte: '2026-09-13' })
   })
 })

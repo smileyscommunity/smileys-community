@@ -47,6 +47,8 @@ export const NAV_GROUPS: { label: string; items: AdminNavItem[] }[] = [
       { label: 'Check-In',     href: '/admin/checkin',       exact: false, roles: ['admin', 'host'],            icon: 'checkin'      },
       // No-show cards: appeals inbox + card history. Hosts waive from Participants.
       { label: 'No-shows',     href: '/admin/no-shows',      exact: false, roles: ['admin', 'moderator'],       icon: 'noshows'      },
+      // Standing v2: disputes, red-card review, live cards and the enforcement switch.
+      { label: 'Standing',     href: '/admin/standing',      exact: false, roles: ['admin', 'moderator'],       icon: 'noshows'      },
       // Feedback ✿ = post-event safety + quality surveys. Lives here
       // because it's per-event signal, not a moderation action. The
       // auto-filed anomaly Reports still surface under Moderation

@@ -25,12 +25,12 @@ export default function CheckInPrompt({
               : `${pending.length} events still need their check-in`}
           </h3>
           <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
-            Attendance stays unsettled until you check people in — nobody is marked
-            a no-show from an unchecked room, so missed spots go unrecorded.
+            A day after the event, anyone not marked is recorded as attended. Check
+            people in, and mark the rest as no-show, before then.
           </p>
 
           <div className="mt-4 space-y-2">
-            {pending.map(({ event: e, approved, checked, daysLeft }) => (
+            {pending.map(({ event: e, approved, checked, hoursLeft }) => (
               <Link
                 key={e.id}
                 href={`/host/checkin?event=${e.id}`}
@@ -46,8 +46,8 @@ export default function CheckInPrompt({
                   </div>
                 </div>
                 <div className="ml-auto text-right shrink-0">
-                  <div className={`text-xs font-semibold ${daysLeft <= 2 ? 'text-red-400' : 'text-amber-400'}`}>
-                    {daysLeft}d left
+                  <div className={`text-xs font-semibold ${hoursLeft <= 6 ? 'text-red-400' : 'text-amber-400'}`}>
+                    {hoursLeft}h left
                   </div>
                   <div className="text-[11px] text-zinc-500">Check in →</div>
                 </div>

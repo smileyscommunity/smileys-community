@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isTier } from '@/lib/standingPolicy'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
@@ -125,7 +126,7 @@ export async function POST(req: NextRequest) {
             // cityId is only read when the parent club is global (cityId
             // null) and so has no city to give the event — see below.
             cityId,
-            isRecurring, seriesId, lat, lng } = body
+            isRecurring, seriesId, lat, lng, tierOverride, cancelCutoffHours } = body
 
     if (!title || !date || !time || !location || !clubId || !hostId) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -206,6 +207,18 @@ export async function POST(req: NextRequest) {
 
     const parsedPrice       = numField(price,       'price',       { min: 0, max: 100000 })
     const parsedMemberPrice = numField(memberPrice, 'memberPrice', { min: 0, max: 100000, allowNull: true })
+    // Standing tier and cancel cutoff (lib/standingPolicy). Blank = the
+    // capacity rule and the tier's cutoff. The cutoff is staff's to set.
+    const tierOverrideValue = tierOverride === '' || tierOverride == null ? null : tierOverride
+    if (tierOverrideValue !== null && !isTier(tierOverrideValue)) {
+      return NextResponse.json({ error: 'tierOverride must be scarce, open or blank' }, { status: 400 })
+    }
+    const parsedCutoff = (admin || isModerator(session))
+      ? numField(cancelCutoffHours, 'cancelCutoffHours', { min: 0, max: 24 * 14, allowNull: true })
+      : null
+    if (parsedCutoff && typeof parsedCutoff === 'object') {
+      return NextResponse.json({ error: parsedCutoff.error }, { status: 400 })
+    }
     // Closed set — payTo drives whether RSVP creates payment ledger rows.
     if (payTo != null && payTo !== '' && payTo !== 'venue' && payTo !== 'smileys') {
       return NextResponse.json({ error: 'payTo must be venue or smileys' }, { status: 400 })
@@ -383,6 +396,10 @@ export async function POST(req: NextRequest) {
         emoji:                finalEmoji,
         isPremium:            isPremium ?? false,
         membersOnly:          membersOnly ?? false,
+        tierOverride:         tierOverrideValue,
+        tierOverrideById:     tierOverrideValue ? session.id : null,
+        tierOverrideAt:       tierOverrideValue ? new Date() : null,
+        cancelCutoffHours:    parsedCutoff as number | null,
         limitedSpots:         limitedSpots ?? true,
         isFirstTimerFriendly: isFirstTimerFriendly ?? false,
         vibes:                vibes ?? [],

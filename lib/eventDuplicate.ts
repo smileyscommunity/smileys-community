@@ -26,6 +26,8 @@ export const DUPLICATE_COPIED_FIELDS = [
   'minAge', 'maxAge', 'genderBalance', 'maleQuota', 'femaleQuota', 'turkishMaleQuota',
   'meetingUrl', 'whatsappUrl',
   'clubId', 'hostId', 'cityId',
+  // Standing: the organiser's call on the tier and the cutoff.
+  'tierOverride', 'cancelCutoffHours',
 ] as const satisfies readonly (keyof Event)[]
 
 /**
@@ -44,6 +46,7 @@ export const DUPLICATE_RESET_FIELDS = [
   'cancelledAt', 'cancelReason',           // the copy isn't cancelled
   'surveyDispatchedAt', 'surveyReminderAt', // sweep stamps: set only after
   'noShowProcessedAt',                      //   an event has happened
+  'tierOverrideById', 'tierOverrideAt',     // who set the source's tier, not the copy's
 ] as const satisfies readonly (keyof Event)[]
 
 type Source = Pick<Event, (typeof DUPLICATE_COPIED_FIELDS)[number] | 'title' | 'totalSpots'>

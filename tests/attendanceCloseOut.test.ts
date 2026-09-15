@@ -57,9 +57,9 @@ describe('closeOutBlock', () => {
     expect(closeOutBlock(start, end, new Date('2026-09-13T14:59:00Z'))).toBe('not_started')
     expect(closeOutBlock(start, end, new Date('2026-09-13T15:00:00Z'))).toBeNull()
   })
-  it('stays open through the lookback week, then closes', () => {
-    expect(closeOutBlock(start, end, new Date('2026-09-20T16:00:00Z'))).toBeNull()
-    expect(closeOutBlock(start, end, new Date('2026-09-20T18:00:00Z'))).toBe('too_late')
+  it('stays open until the room is resolved a day after the end, then closes', () => {
+    expect(closeOutBlock(start, end, new Date('2026-09-14T16:59:00Z'))).toBeNull()
+    expect(closeOutBlock(start, end, new Date('2026-09-14T17:01:00Z'))).toBe('too_late')
   })
 })
 
@@ -206,6 +206,7 @@ describe('restToClose (the page\'s count)', () => {
       { userId: 'c', checkedIn: true,  attendance: 'attended' },
       { userId: 'd', checkedIn: false, attendance: 'no_show' },
       { userId: 'e', checkedIn: false, attendance: 'unknown', exempt: true },
+      { userId: 'f', checkedIn: false, attendance: 'attended' },
     ]
     expect(restToClose(rows).map(r => r.userId)).toEqual(['a', 'b'])
   })
