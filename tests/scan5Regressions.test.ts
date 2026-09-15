@@ -123,10 +123,11 @@ describe('4. the orphan sweep takes a last look before each delete', () => {
 
 describe('5. check-in screens show why the server refused', () => {
   it('host page, admin page, scan hook and toast all carry the server reason', () => {
-    expect(read('app/host/checkin/page.tsx')).toContain("failure = typeof d?.error === 'string' ? d.error : 'Check-in update failed. Please try again.'")
-    expect(read('app/host/checkin/page.tsx')).toContain("failure = 'No connection — the check-in was not saved. Please try again.'")
-    expect(read('app/admin/checkin/page.tsx')).toContain("${reason ? ` — ${reason}` : ''}")
-    expect(read('lib/checkin.ts')).toContain("flash({ type: 'error', name: attendee.user.name, ...(reason ? { message: reason } : {}) })")
+    // The reason is read once, where the PATCH is made, and carried to every screen.
+    expect(read('lib/checkinQueue.ts')).toContain("return { kind: 'refused', error: typeof d?.error === 'string' ? d.error : 'Check-in update failed. Please try again.' }")
+    expect(read('app/host/checkin/page.tsx')).toContain("const failure = outcome.kind === 'refused' ? outcome.error : null")
+    expect(read('app/admin/checkin/page.tsx')).toContain("${a.user.name} — ${outcome.error}")
+    expect(read('lib/checkin.ts')).toContain("message: outcome.kind === 'refused' ? outcome.error : 'No connection — the check-in was not saved.'")
     expect(read('components/ScanResultToast.tsx')).toContain('if (r.message) return r.name ? `${r.name}: ${r.message}` : r.message')
   })
 })

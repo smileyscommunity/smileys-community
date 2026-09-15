@@ -55,3 +55,11 @@ export function noShowCandidates<R extends CloseOutRow>(rows: R[], runners: Even
     && r.attendance === Attendance.Unknown
     && !isExemptFromNoShow(r.userId, r.user?.role, runners))
 }
+
+/**
+ * The page's count of what a close-out would mark, from the roster the check-in
+ * GET returns (`exempt` is decided on the server, where the roles are).
+ */
+export function restToClose<R extends { checkedIn: boolean; attendance?: string; exempt?: boolean }>(rows: R[]): R[] {
+  return rows.filter(r => !r.checkedIn && r.attendance !== Attendance.NoShow && !r.exempt)
+}

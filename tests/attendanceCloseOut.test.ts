@@ -11,7 +11,7 @@ vi.mock('@/lib/prisma', () => ({ prisma: {
   eventAttendee: { findMany: vi.fn(), updateMany: vi.fn() },
 } }))
 
-import { closeOutBlock, noShowCandidates } from '@/lib/attendanceCloseOut'
+import { closeOutBlock, noShowCandidates, restToClose } from '@/lib/attendanceCloseOut'
 import { POST as closeOut, DELETE as undoCloseOut } from '@/app/api/events/[id]/checkin/close-out/route'
 import { GET as roster } from '@/app/api/events/[id]/checkin/route'
 import { getSession } from '@/lib/session'
@@ -195,5 +195,18 @@ describe('GET /events/[id]/checkin roster', () => {
     const [r] = await (await roster(req(), params)).json()
     expect(r.user.email).toBe('g@x.test')
     expect(r.user.role).toBeUndefined()
+  })
+})
+
+describe('restToClose (the page\'s count)', () => {
+  it('counts unscanned, unmarked, non-exempt rows', () => {
+    const rows = [
+      { userId: 'a', checkedIn: false, attendance: 'unknown' },
+      { userId: 'b', checkedIn: false },
+      { userId: 'c', checkedIn: true,  attendance: 'attended' },
+      { userId: 'd', checkedIn: false, attendance: 'no_show' },
+      { userId: 'e', checkedIn: false, attendance: 'unknown', exempt: true },
+    ]
+    expect(restToClose(rows).map(r => r.userId)).toEqual(['a', 'b'])
   })
 })

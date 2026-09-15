@@ -65,11 +65,20 @@ describe('34. payment through Smileys stays a staff decision', () => {
 })
 
 describe('35. a dropped connection never leaves a false check-in', () => {
+  // Since 2026-09-15 a tap that can't reach the server is kept on the device
+  // and replayed (lib/checkinQueue, hooks/useCheckinSync) instead of rolled
+  // back. What must still never happen is a check-in on screen that is
+  // neither saved nor queued — and a refusal from the server always rolls back.
   it.each([
-    ['app/host/checkin/page.tsx',  /try \{\s*const res = await fetch\(`\/app\/api\/events\/\$\{eventId\}\/checkin`[\s\S]*?\} catch \{\s*failure = 'No connection/],
-    ['app/admin/checkin/page.tsx', /try \{\s*const res = await fetch\(`\/app\/api\/events\/\$\{selectedId\}\/checkin`[\s\S]*?\} catch \{\s*\/\/ Roll back the optimistic flip/],
-    ['lib/checkin.ts',             /try \{\s*const res = await fetch\(`\/app\/api\/events\/\$\{eventId\}\/checkin`[\s\S]*?\} catch \{\s*setAttendees\(prev => prev\.map\(a => a\.userId === userId \? \{ \.\.\.a, checkedIn: false \}/],
-  ])('%s rolls the optimistic check-in back when the request fails', (file, pattern) => {
+    ['app/host/checkin/page.tsx',  /const outcome = await send\(userId, next\)[\s\S]*?if \(failure\) \{\s*setAttendees\(prev => prev\.map\(a => a\.userId === userId \? \{ \.\.\.a, checkedIn: current/],
+    ['app/admin/checkin/page.tsx', /const outcome = await send\(a\.userId, next\)\s*if \(outcome\.kind === 'refused'\) \{\s*\/\/ Roll back the optimistic flip/],
+    ['lib/checkin.ts',             /if \(outcome\.kind === 'refused' \|\| \(outcome\.kind === 'offline' && !send\)\) \{\s*setAttendees\(prev => prev\.map\(a => a\.userId === userId \? \{ \.\.\.a, checkedIn: false \}/],
+  ])('%s rolls back a tap that was neither saved nor queued', (file, pattern) => {
     expect(read(file)).toMatch(pattern)
+  })
+
+  it('only a request that never reached the server is queued', () => {
+    expect(read('lib/checkinQueue.ts')).toMatch(/\} catch \{\s*return \{ kind: 'offline' \}/)
+    expect(read('hooks/useCheckinSync.ts')).toContain("if (outcome.kind === 'offline') update(queue => enqueue(queue, { eventId, userId, checkedIn, at: Date.now() }))")
   })
 })

@@ -6,6 +6,9 @@ import { toast } from 'sonner'
 import { Suspense } from 'react'
 import {getInitials} from '@/lib/data'
 import { vibrate, useScanCheckin } from '@/lib/checkin'
+import { applyPending, loadQueue, pendingFor } from '@/lib/checkinQueue'
+import { useCheckinSync } from '@/hooks/useCheckinSync'
+import { useCloseOut } from '@/hooks/useCloseOut'
 import QRScanner from '@/components/QRScanner'
 import ScanResultToast from '@/components/ScanResultToast'
 import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
@@ -28,6 +31,10 @@ interface Attendee {
   id: string
   userId: string
   checkedIn: boolean
+  // 'unknown' | 'attended' | 'no_show' (lib/constants Attendance)
+  attendance?: string
+  // Runs the event or is staff: never a no-show, never in "mark the rest".
+  exempt?: boolean
   // email is absent for co-hosts and club hosts — the check-in GET only
   // sends it to admins and the primary host.
   user: { id: string; name: string; color: string; email?: string | null }
@@ -141,7 +148,7 @@ function CheckInPageInner() {
     setView('all')
     fetch(`/app/api/events/${selectedId}/checkin`, { credentials: 'include' })
       .then(async r => { if (!r.ok) throw await loadFailure(r); return r.json() })
-      .then(data => setAttendees(Array.isArray(data) ? data : []))
+      .then(data => setAttendees(Array.isArray(data) ? applyPending(data, pendingFor(loadQueue(), selectedId)) : []))
       .catch((e: Error) => setAttsError(e?.message ?? 'Failed to load'))
       .finally(() => setLoadingAtts(false))
   }, [selectedId, attsTick])
@@ -199,6 +206,18 @@ function CheckInPageInner() {
     }
   }, [showAllEvents, selectedId, events])
 
+  // Taps that can't reach the server wait on this device (lib/checkinQueue);
+  // one the server turns down on replay is undone and said out loud.
+  const { pending, send } = useCheckinSync(selectedId, (item, error) => {
+    setAttendees(prev => prev.map(x => x.userId === item.userId ? { ...x, checkedIn: !item.checkedIn, attendance: 'unknown' } : x))
+    vibrate.error()
+    toast.error(error)
+  })
+  const pendingIds = new Set(pending.map(q => q.userId))
+  // "Mark the rest" — the same action as /host/checkin (hooks/useCloseOut).
+  const { rest, closing, markRest } = useCloseOut({ eventId: selectedId, attendees, setAttendees })
+  const started = !!event && todayInTz(tz) >= event.date
+
   async function toggle(a: Attendee) {
     if (toggling.has(a.id)) return  // ignore double-taps while inflight
     const next = !a.checkedIn
@@ -206,29 +225,21 @@ function CheckInPageInner() {
     // The old impl fired-and-forgot the fetch; a 500 would leave the
     // row showing "checked in" forever while the server still said
     // otherwise.
-    setAttendees(prev => prev.map(x => x.id === a.id ? { ...x, checkedIn: next } : x))
+    setAttendees(prev => prev.map(x => x.id === a.id ? { ...x, checkedIn: next, attendance: next ? 'attended' : 'unknown' } : x))
     setToggling(prev => { const s = new Set(prev); s.add(a.id); return s })
     flashLastChecked(a.userId)
-    // The server's reason (e.g. attendance already settled) goes in the toast.
-    let reason = ''
+    // No signal keeps the tap on this device until it can be sent
+    // (useCheckinSync); only the server's refusal rolls it back, with its
+    // reason (e.g. attendance already settled) in the toast.
     try {
-      const res = await fetch(`/app/api/events/${selectedId}/checkin`, {
-        method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: a.userId, checkedIn: next }),
-      })
-      if (!res.ok) {
-        const d = await res.json().catch(() => null)
-        if (typeof d?.error === 'string') reason = d.error
-        throw new Error('checkin refused')
+      const outcome = await send(a.userId, next)
+      if (outcome.kind === 'refused') {
+        // Roll back the optimistic flip and tell the operator. Vibrate so
+        // a kiosk operator scanning rapidly notices without looking.
+        setAttendees(prev => prev.map(x => x.id === a.id ? { ...x, checkedIn: a.checkedIn, attendance: a.attendance } : x))
+        vibrate.error()
+        toast.error(`Failed to ${next ? 'check in' : 'undo'} ${a.user.name} — ${outcome.error}`)
       }
-    } catch {
-      // Roll back the optimistic flip and tell the operator. Vibrate so
-      // a kiosk operator scanning rapidly notices without looking.
-      setAttendees(prev => prev.map(x => x.id === a.id ? { ...x, checkedIn: a.checkedIn } : x))
-      vibrate.error()
-      toast.error(`Failed to ${next ? 'check in' : 'undo'} ${a.user.name}${reason ? ` — ${reason}` : ''}`)
     } finally {
       setToggling(prev => { const s = new Set(prev); s.delete(a.id); return s })
     }
@@ -242,6 +253,7 @@ function CheckInPageInner() {
     attendees,
     setAttendees,
     onCheckinSuccess:  flashLastChecked,
+    send,
   })
 
   return (
@@ -360,6 +372,11 @@ function CheckInPageInner() {
           autoComplete="off"
           className="w-full bg-zinc-900 border border-zinc-700 text-white text-base rounded-xl px-4 py-3 placeholder-zinc-600 focus:outline-none focus:border-zinc-500"
         />
+        {pending.length > 0 && (
+          <p className="mt-2 text-xs text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+            No signal — {pending.length} check-in{pending.length === 1 ? '' : 's'} saved on this device, sending as soon as it&apos;s back online.
+          </p>
+        )}
       </div>
       </div>
 
@@ -414,6 +431,8 @@ function CheckInPageInner() {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="font-semibold text-base text-white">{a.user.name}</div>
+                {!isIn && a.attendance === 'no_show' && <div className="text-xs font-semibold text-red-400 mt-0.5">No-show</div>}
+                {pendingIds.has(a.userId) && <div className="text-[11px] text-amber-400 mt-0.5">Not sent yet</div>}
                 <div className="text-xs text-zinc-500 truncate mt-0.5">{a.user.email}</div>
               </div>
               <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-all ${
@@ -435,6 +454,24 @@ function CheckInPageInner() {
           )
         })}
       </div>
+
+      {/* Close out the door. Counts the whole roster, not the search or tile filter. */}
+      {started && !loadingAtts && rest.length > 0 && (
+        <div className="px-4 py-5">
+          <button
+            onClick={markRest}
+            disabled={closing || pending.length > 0}
+            className="w-full py-3 rounded-xl border border-red-900/60 bg-red-950/30 text-sm font-semibold text-red-300 hover:bg-red-950/50 transition-colors disabled:opacity-50"
+          >
+            {closing ? 'Marking…' : `Mark the other ${rest.length} as no-show`}
+          </button>
+          <p className="text-xs text-zinc-500 text-center mt-2">
+            {pending.length > 0
+              ? 'Waiting for the check-ins on this device to send first.'
+              : 'For the end of the event. Nothing is sent to anyone, and a late arrival can still be checked in.'}
+          </p>
+        </div>
+      )}
 
       {/* QR Scanner */}
       {scanning && (

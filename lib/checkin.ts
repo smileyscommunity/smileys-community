@@ -5,6 +5,7 @@
 // patterns, and toast vocabulary were duplicated and had drifted.
 
 import { type Dispatch, type SetStateAction, useState, useRef, useEffect, useCallback } from 'react'
+import { patchCheckin, type SendOutcome } from '@/lib/checkinQueue'
 
 /**
  * Parses a check-in QR code value into a userId.
@@ -87,8 +88,10 @@ export function useScanCheckin<A extends ScanAttendee>(params: {
   setAttendees:      Dispatch<SetStateAction<A[]>>
   onCheckinSuccess?: (userId: string) => void
   toastDurationMs?:  number
+  /** Queue-aware sender (hooks/useCheckinSync). Without it, a scan PATCHes directly. */
+  send?:             (userId: string, checkedIn: boolean) => Promise<SendOutcome>
 }) {
-  const { eventId, attendees, setAttendees, onCheckinSuccess, toastDurationMs = 3000 } = params
+  const { eventId, attendees, setAttendees, onCheckinSuccess, toastDurationMs = 3000, send } = params
 
   const [scanning,   setScanning]   = useState(false)
   const [scanResult, setScanResult] = useState<ScanResult | null>(null)
@@ -132,28 +135,24 @@ export function useScanCheckin<A extends ScanAttendee>(params: {
     // request, claim success in the toast, and leave the row visually
     // checked-in even if the server rejected.
     setAttendees(prev => prev.map(a => a.userId === userId ? { ...a, checkedIn: true } : a))
-    // The server's reason (e.g. attendance already settled) rides on the toast.
-    let reason = ''
-    try {
-      const res = await fetch(`/app/api/events/${eventId}/checkin`, {
-        method: 'PATCH', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, checkedIn: true }),
-      })
-      if (!res.ok) {
-        const d = await res.json().catch(() => null)
-        if (typeof d?.error === 'string') reason = d.error
-        throw new Error('checkin refused')
-      }
-      vibrate.success()
-      flash({ type: 'success', name: attendee.user.name })
-      onCheckinSuccess?.(userId)
-    } catch {
+    const outcome = send ? await send(userId, true) : await patchCheckin(eventId, userId, true)
+    // With a queue-aware `send` (hooks/useCheckinSync), no signal is not a
+    // failure: the scan waits on the device and the person is in. Without
+    // one, nothing was saved. A refusal is rolled back either way, with the
+    // server's reason (e.g. attendance already settled) on the toast.
+    if (outcome.kind === 'refused' || (outcome.kind === 'offline' && !send)) {
       setAttendees(prev => prev.map(a => a.userId === userId ? { ...a, checkedIn: false } : a))
       vibrate.error()
-      flash({ type: 'error', name: attendee.user.name, ...(reason ? { message: reason } : {}) })
+      flash({
+        type: 'error', name: attendee.user.name,
+        message: outcome.kind === 'refused' ? outcome.error : 'No connection — the check-in was not saved.',
+      })
+      return
     }
-  }, [eventId, attendees, setAttendees, onCheckinSuccess, flash])
+    vibrate.success()
+    flash({ type: 'success', name: attendee.user.name })
+    onCheckinSuccess?.(userId)
+  }, [eventId, attendees, setAttendees, onCheckinSuccess, flash, send])
 
   return { scanning, setScanning, scanResult, handleScan }
 }

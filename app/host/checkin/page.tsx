@@ -2,7 +2,9 @@
 
 import { useState, useEffect, Suspense, useMemo } from 'react'
 import { toast } from 'sonner'
-import { confirmToast } from '@/lib/confirmToast'
+import { useCheckinSync } from '@/hooks/useCheckinSync'
+import { useCloseOut } from '@/hooks/useCloseOut'
+import { applyPending, loadQueue, pendingFor } from '@/lib/checkinQueue'
 import { useSearchParams, useRouter } from 'next/navigation'
 import {resolveImageUrl, avatarUrl, getInitials} from '@/lib/data'
 import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
@@ -106,14 +108,21 @@ function CheckInScanner() {
   const [toggling,    setToggling]    = useState<string | null>(null)
   const [toggleError, setToggleError] = useState<string | null>(null)
   const [eventDate,   setEventDate]   = useState('')
-  const [closing,     setClosing]     = useState(false)
 
   // useScanCheckin owns scan parse + look-up + optimistic PATCH with
   // rollback + vibrate + toast lifecycle. Same hook /admin/checkin
   // uses — keeps the two surfaces from drifting on QR formats, scan
   // result shape, haptics, or wording.
+  // Taps that can't reach the server wait on the phone (lib/checkinQueue);
+  // one the server turns down on replay is undone here.
+  const { pending, send } = useCheckinSync(eventId, (item, error) => {
+    setAttendees(prev => prev.map(a => a.userId === item.userId ? { ...a, checkedIn: !item.checkedIn, attendance: 'unknown' } : a))
+    toast.error(error)
+  })
+  const pendingIds = new Set(pending.map(q => q.userId))
+
   const { scanning, setScanning, scanResult, handleScan } = useScanCheckin({
-    eventId, attendees, setAttendees,
+    eventId, attendees, setAttendees, send,
   })
 
   useEffect(() => {
@@ -122,7 +131,7 @@ function CheckInScanner() {
       fetch(`/app/api/events/${eventId}/checkin`, { credentials: 'include' }).then(r => r.json()),
       fetch(`/app/api/events/${eventId}`, { credentials: 'include' }).then(r => r.json()),
     ]).then(([att, ev]) => {
-      setAttendees(Array.isArray(att) ? att : [])
+      setAttendees(Array.isArray(att) ? applyPending(att, pendingFor(loadQueue(), eventId)) : [])
       if (ev?.title) setEventName(ev.title)
       if (typeof ev?.date === 'string') setEventDate(ev.date)
     }).finally(() => setLoading(false))
@@ -136,24 +145,11 @@ function CheckInScanner() {
     setAttendees(prev => prev.map(a => a.userId === userId ? { ...a, checkedIn: next, attendance: next ? 'attended' : 'unknown' } : a))
     // The server's reason is shown as it is: "attendance settled — clear the
     // card instead" can't be fixed by retrying, and a generic "try again" sent
-    // hosts round in circles. A dropped connection rolls back too, instead of
-    // leaving a check-in on screen that was never saved.
-    let failure: string | null = null
-    try {
-      const res = await fetch(`/app/api/events/${eventId}/checkin`, {
-        method: 'PATCH', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, checkedIn: next }),
-      })
-      if (res.ok) {
-        if (next) vibrate.success()
-      } else {
-        const d = await res.json().catch(() => null)
-        failure = typeof d?.error === 'string' ? d.error : 'Check-in update failed. Please try again.'
-      }
-    } catch {
-      failure = 'No connection — the check-in was not saved. Please try again.'
-    }
+    // hosts round in circles. No signal is not a failure: the tap waits on the
+    // phone and goes when the connection does (useCheckinSync).
+    const outcome = await send(userId, next)
+    const failure = outcome.kind === 'refused' ? outcome.error : null
+    if (!failure && next) vibrate.success()
     if (failure) {
       setAttendees(prev => prev.map(a => a.userId === userId ? { ...a, checkedIn: current, attendance: prevAttendance } : a))
       vibrate.error()
@@ -164,69 +160,12 @@ function CheckInScanner() {
 
 
   const checkedInCount = attendees.filter(a => a.checkedIn).length
-  const noShowCount    = attendees.filter(a => !a.checkedIn && a.attendance === 'no_show').length
-  // "The rest": what POST close-out would mark (lib/attendanceCloseOut). The
-  // day is the gate here; the server holds the exact start.
-  const rest    = attendees.filter(a => !a.checkedIn && a.attendance !== 'no_show' && !a.exempt)
+  // "Mark the rest" (hooks/useCloseOut). The day is the gate here; the
+  // server holds the exact start.
   const started = !!eventDate && todayInTz(tz) >= eventDate
-
-  async function undoNoShows(userIds: string[]) {
-    try {
-      const res = await fetch(`/app/api/events/${eventId}/checkin/close-out`, {
-        method: 'DELETE', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userIds }),
-      })
-      if (!res.ok) {
-        const d = await res.json().catch(() => null)
-        toast.error(typeof d?.error === 'string' ? d.error : "Couldn't undo. Please try again.")
-        return
-      }
-      setAttendees(prev => prev.map(a =>
-        userIds.includes(a.userId) && !a.checkedIn && a.attendance === 'no_show' ? { ...a, attendance: 'unknown' } : a))
-      toast.success('No-shows cleared')
-    } catch {
-      toast.error('No connection — nothing was undone.')
-    }
-  }
-
-  // End of the night: everyone not checked in and not running the event is a
-  // no-show, because the host says so — never because a scan is missing.
-  async function markRestNoShow() {
-    const n = rest.length
-    if (n === 0 || closing) return
-    const roomCheckedIn = attendees.filter(a => a.checkedIn && !a.exempt).length
-    const ok = await confirmToast(
-      roomCheckedIn === 0
-        ? `Nobody is checked in yet. Mark all ${n} as no-show? Only if the room really was empty.`
-        : `Mark the ${n} ${n === 1 ? 'person' : 'people'} not checked in as no-show? Anyone who turns up later can still be checked in.`,
-      { confirmLabel: 'Mark no-show' },
-    )
-    if (!ok) return
-    setClosing(true)
-    setToggleError(null)
-    try {
-      const res = await fetch(`/app/api/events/${eventId}/checkin/close-out`, { method: 'POST', credentials: 'include' })
-      const d = await res.json().catch(() => null)
-      if (!res.ok) {
-        vibrate.error()
-        setToggleError(typeof d?.error === 'string' ? d.error : "Couldn't mark no-shows. Please try again.")
-        return
-      }
-      const marked: string[] = Array.isArray(d?.marked) ? d.marked : []
-      setAttendees(prev => prev.map(a => marked.includes(a.userId) ? { ...a, attendance: 'no_show' } : a))
-      if (marked.length > 0) {
-        toast.success(`${marked.length} marked as no-show`, {
-          duration: 10_000,
-          action: { label: 'Undo', onClick: () => { undoNoShows(marked) } },
-        })
-      }
-    } catch {
-      setToggleError('No connection — no-shows were not marked. Please try again.')
-    } finally {
-      setClosing(false)
-    }
-  }
+  const { rest, noShowCount, closing, markRest } = useCloseOut({
+    eventId, attendees, setAttendees, onError: setToggleError,
+  })
   const visible = attendees.filter(a =>
     !search || a.user.name.toLowerCase().includes(search.toLowerCase())
   )
@@ -294,6 +233,12 @@ function CheckInScanner() {
         <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{toggleError}</p>
       )}
 
+      {pending.length > 0 && (
+        <p className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+          No signal — {pending.length} check-in{pending.length === 1 ? '' : 's'} saved on this phone, sending as soon as you&apos;re back online.
+        </p>
+      )}
+
       {/* Attendee list */}
       {visible.length === 0 ? (
         <div className="text-zinc-500 text-sm text-center py-8">No attendees found.</div>
@@ -326,6 +271,7 @@ function CheckInScanner() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-white truncate">{a.user.name}</p>
                     {!a.checkedIn && a.attendance === 'no_show' && <p className="text-xs font-semibold text-red-400">No-show</p>}
+                    {pendingIds.has(a.userId) && <p className="text-[11px] text-amber-400">Not sent yet</p>}
                     {a.user.email && <p className="text-xs text-zinc-400 truncate">{a.user.email}</p>}
                   </div>
                   <button
@@ -358,14 +304,16 @@ function CheckInScanner() {
       {started && rest.length > 0 && (
         <div className="pt-2">
           <button
-            onClick={markRestNoShow}
-            disabled={closing}
+            onClick={() => { setToggleError(null); markRest() }}
+            disabled={closing || pending.length > 0}
             className="w-full py-3 rounded-xl border border-red-900/60 bg-red-950/30 text-sm font-semibold text-red-300 hover:bg-red-950/50 transition-colors disabled:opacity-50"
           >
             {closing ? 'Marking…' : `Mark the other ${rest.length} as no-show`}
           </button>
           <p className="text-xs text-zinc-500 text-center mt-2">
-            For the end of the event. Nothing is sent to anyone, and a late arrival can still be checked in.
+            {pending.length > 0
+              ? 'Waiting for the check-ins on this phone to send first.'
+              : 'For the end of the event. Nothing is sent to anyone, and a late arrival can still be checked in.'}
           </p>
         </div>
       )}

@@ -35,6 +35,7 @@
     "framer-motion": "^12.40.0",
     "html2canvas": "^1.4.1",
     "jose": "^6.2.3",
+    "jsqr": "^1.4.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^1.16.0",
     "next": "^15.5.25",

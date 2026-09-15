@@ -7,6 +7,50 @@ interface Props {
   onClose: () => void
 }
 
+// Reads one QR value from the camera, with whichever engine the browser has:
+//   - BarcodeDetector (Chrome, Android): native and fast.
+//   - jsQR on canvas frames everywhere else. iOS Safari has no
+//     BarcodeDetector, so every host at the door with an iPhone used to get
+//     "QR scanning not supported" and a list to scroll. Loaded only when
+//     needed, so a browser with the native detector never downloads it.
+
+type Detect = (video: HTMLVideoElement) => Promise<string | null>
+
+// jsQR decodes on the main thread: ten reads a second is plenty for a card
+// held up to the camera, and leaves the phone its battery.
+const FALLBACK_INTERVAL_MS = 100
+// A member card fills the window; a downscaled frame reads just as well and
+// costs a phone a fraction of the time of a full 1080p one.
+const FALLBACK_MAX_WIDTH = 640
+
+async function createDetector(): Promise<Detect> {
+  if ('BarcodeDetector' in window) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const detector = new (window as any).BarcodeDetector({ formats: ['qr_code'] })
+    return async video => {
+      const codes: { rawValue: string }[] = await detector.detect(video)
+      return codes[0]?.rawValue ?? null
+    }
+  }
+  const { default: jsQR } = await import('jsqr')
+  const canvas = document.createElement('canvas')
+  const ctx    = canvas.getContext('2d', { willReadFrequently: true })
+  let last = 0
+  return async video => {
+    const now = performance.now()
+    if (!ctx || !video.videoWidth || now - last < FALLBACK_INTERVAL_MS) return null
+    last = now
+    const scale  = Math.min(1, FALLBACK_MAX_WIDTH / video.videoWidth)
+    const width  = Math.round(video.videoWidth * scale)
+    const height = Math.round(video.videoHeight * scale)
+    if (canvas.width !== width)   canvas.width  = width
+    if (canvas.height !== height) canvas.height = height
+    ctx.drawImage(video, 0, 0, width, height)
+    const { data } = ctx.getImageData(0, 0, width, height)
+    return jsQR(data, width, height, { inversionAttempts: 'dontInvert' })?.data || null
+  }
+}
+
 export default function QRScanner({ onScan, onClose }: Props) {
   const videoRef   = useRef<HTMLVideoElement>(null)
   const stopRef    = useRef<() => void>(() => {})
@@ -18,10 +62,8 @@ export default function QRScanner({ onScan, onClose }: Props) {
   const [supported, setSupported]   = useState(true)
 
   useEffect(() => {
-    if (!('BarcodeDetector' in window)) { setSupported(false); return }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const detector = new (window as any).BarcodeDetector({ formats: ['qr_code'] })
+    // No camera API at all: an insecure (http) page or a very old browser.
+    if (!navigator.mediaDevices?.getUserMedia) { setSupported(false); return }
 
     // Per-run state, not a shared ref. The old activeRef was set false on
     // cleanup and never reset, and a getUserMedia promise that resolved AFTER
@@ -41,34 +83,39 @@ export default function QRScanner({ onScan, onClose }: Props) {
     }
     stopRef.current = stop
 
-    navigator.mediaDevices
-      .getUserMedia({ video: { facingMode: 'environment' }, audio: false })
-      .then(s => {
-        // Closed while the permission prompt / camera start-up was pending.
-        if (!active) { s.getTracks().forEach(t => t.stop()); return }
-        stream = s
-        const video = videoRef.current
-        if (!video) { stop(); return }
-        video.srcObject = s
-        video.play().catch(() => {})
+    createDetector()
+      .then(detect => {
+        if (!active) return
+        return navigator.mediaDevices
+          .getUserMedia({ video: { facingMode: 'environment' }, audio: false })
+          .then(s => {
+            // Closed while the permission prompt / camera start-up was pending.
+            if (!active) { s.getTracks().forEach(t => t.stop()); return }
+            stream = s
+            const video = videoRef.current
+            if (!video) { stop(); return }
+            video.srcObject = s
+            video.play().catch(() => {})
 
-        async function scan() {
-          if (!active || !videoRef.current) return
-          try {
-            const codes: { rawValue: string }[] = await detector.detect(videoRef.current)
-            if (codes.length > 0 && active) {
-              // Camera off as soon as a code is read, whatever the parent does next.
-              stop()
-              onScanRef.current(codes[0].rawValue)
-              return
+            async function scan() {
+              if (!active || !videoRef.current) return
+              try {
+                const value = await detect(videoRef.current)
+                if (value && active) {
+                  // Camera off as soon as a code is read, whatever the parent does next.
+                  stop()
+                  onScanRef.current(value)
+                  return
+                }
+              } catch {}
+              if (active) frame = requestAnimationFrame(scan)
             }
-          } catch {}
-          if (active) frame = requestAnimationFrame(scan)
-        }
 
-        video.addEventListener('playing', () => { if (active) frame = requestAnimationFrame(scan) }, { once: true })
+            video.addEventListener('playing', () => { if (active) frame = requestAnimationFrame(scan) }, { once: true })
+          })
+          .catch(() => { if (active) setError('Camera access denied — please allow camera permissions and try again.') })
       })
-      .catch(() => { if (active) setError('Camera access denied — please allow camera permissions and try again.') })
+      .catch(() => { if (active) setError("The scanner couldn't start — check in from the list instead.") })
 
     return stop
   }, [])
@@ -91,8 +138,8 @@ export default function QRScanner({ onScan, onClose }: Props) {
       {!supported ? (
         <div className="flex-1 flex flex-col items-center justify-center text-white text-center px-8 gap-4">
           <div className="text-5xl">📷</div>
-          <p className="font-semibold">QR scanning not supported</p>
-          <p className="text-sm text-white/60">Update Chrome or Safari to the latest version, or check in manually from the list below.</p>
+          <p className="font-semibold">Camera not available</p>
+          <p className="text-sm text-white/60">This browser can&apos;t open the camera here. Check people in from the list instead.</p>
           <button onClick={close} className="mt-2 px-6 py-2.5 bg-amber-500 text-white rounded-xl text-sm font-semibold">Go back</button>
         </div>
       ) : error ? (
