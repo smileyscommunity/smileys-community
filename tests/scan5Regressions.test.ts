@@ -87,7 +87,7 @@ describe('3. a cleared no-show card no longer blocks the review', () => {
     new Request('http://x/api/events/e1/reviews', { method: 'POST', body: JSON.stringify({ rating: 5 }) }) as never,
     { params: Promise.resolve({ id: 'e1' }) })
   beforeEach(() => {
-    p.event.findUnique.mockResolvedValue({ id: 'e1', cityId: 'c1', date: '2026-09-01' })
+    p.event.findUnique.mockResolvedValue({ id: 'e1', cityId: 'c1', date: '2026-09-01', noShowProcessedAt: new Date('2026-09-02') })
     p.eventAttendee.findUnique.mockResolvedValue({ id: 'att1', status: 'approved', attendance: 'no_show' })
     p.review.findUnique.mockResolvedValue(null)
     p.review.create.mockResolvedValue({ id: 'r1' })
@@ -101,6 +101,13 @@ describe('3. a cleared no-show card no longer blocks the review', () => {
     p.noShowCard.findFirst.mockResolvedValue(null)
     expect((await call()).status).toBe(403)
     expect(p.review.create).not.toHaveBeenCalled()
+  })
+  it('a host-declared no-show on an unsettled event does not silence the review', async () => {
+    // A close-out mark (lib/attendanceCloseOut) has no card behind it.
+    p.noShowCard.findFirst.mockClear()
+    p.event.findUnique.mockResolvedValue({ id: 'e1', cityId: 'c1', date: '2026-09-01', noShowProcessedAt: null })
+    expect((await call()).status).toBe(200)
+    expect(p.noShowCard.findFirst).not.toHaveBeenCalled()
   })
 })
 

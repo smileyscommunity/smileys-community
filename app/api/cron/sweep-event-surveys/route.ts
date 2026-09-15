@@ -169,7 +169,10 @@ async function eligibleTargets(eventId: string, hostId: string): Promise<string[
     prisma.eventAttendee.findMany({
       // Someone the no-show sweep (same hour) marked absent has nothing to
       // review — and could file an anomaly flag on an event they missed.
-      where:  { eventId, status: 'approved', NOT: { attendance: 'no_show' } },
+      // Settled events only: a host's close-out mark (lib/attendanceCloseOut)
+      // is a declaration no card backs, and must not be a way to keep a room
+      // out of the survey that reports on the host.
+      where:  { eventId, status: 'approved', NOT: { attendance: 'no_show', event: { noShowProcessedAt: { not: null } } } },
       select: { userId: true },
     }),
     prisma.eventCoHost.findMany({

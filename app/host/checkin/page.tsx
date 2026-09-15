@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect, Suspense, useMemo } from 'react'
+import { toast } from 'sonner'
+import { confirmToast } from '@/lib/confirmToast'
 import { useSearchParams, useRouter } from 'next/navigation'
 import {resolveImageUrl, avatarUrl, getInitials} from '@/lib/data'
 import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
@@ -18,6 +20,10 @@ type HostEvent = CheckInPromptEvent
 interface Attendee {
   userId: string
   checkedIn: boolean
+  // 'unknown' | 'attended' | 'no_show' (lib/constants Attendance)
+  attendance?: string
+  // Runs the event or is staff: never a no-show, never in "mark the rest".
+  exempt?: boolean
   user: { id: string; name: string; color: string; email?: string; profilePhoto?: string | null }
 }
 
@@ -91,6 +97,7 @@ function CheckInScanner() {
   const searchParams = useSearchParams()
   const router       = useRouter()
   const eventId      = searchParams.get('event') ?? ''
+  const tz           = useCurrentCity()?.timezone ?? DEFAULT_TZ
 
   const [attendees,   setAttendees]   = useState<Attendee[]>([])
   const [loading,     setLoading]     = useState(true)
@@ -98,6 +105,8 @@ function CheckInScanner() {
   const [eventName,   setEventName]   = useState('')
   const [toggling,    setToggling]    = useState<string | null>(null)
   const [toggleError, setToggleError] = useState<string | null>(null)
+  const [eventDate,   setEventDate]   = useState('')
+  const [closing,     setClosing]     = useState(false)
 
   // useScanCheckin owns scan parse + look-up + optimistic PATCH with
   // rollback + vibrate + toast lifecycle. Same hook /admin/checkin
@@ -115,6 +124,7 @@ function CheckInScanner() {
     ]).then(([att, ev]) => {
       setAttendees(Array.isArray(att) ? att : [])
       if (ev?.title) setEventName(ev.title)
+      if (typeof ev?.date === 'string') setEventDate(ev.date)
     }).finally(() => setLoading(false))
   }, [eventId])
 
@@ -122,7 +132,8 @@ function CheckInScanner() {
     setToggling(userId)
     setToggleError(null)
     const next = !current
-    setAttendees(prev => prev.map(a => a.userId === userId ? { ...a, checkedIn: next } : a))
+    const prevAttendance = attendees.find(a => a.userId === userId)?.attendance
+    setAttendees(prev => prev.map(a => a.userId === userId ? { ...a, checkedIn: next, attendance: next ? 'attended' : 'unknown' } : a))
     // The server's reason is shown as it is: "attendance settled — clear the
     // card instead" can't be fixed by retrying, and a generic "try again" sent
     // hosts round in circles. A dropped connection rolls back too, instead of
@@ -144,7 +155,7 @@ function CheckInScanner() {
       failure = 'No connection — the check-in was not saved. Please try again.'
     }
     if (failure) {
-      setAttendees(prev => prev.map(a => a.userId === userId ? { ...a, checkedIn: current } : a))
+      setAttendees(prev => prev.map(a => a.userId === userId ? { ...a, checkedIn: current, attendance: prevAttendance } : a))
       vibrate.error()
       setToggleError(failure)
     }
@@ -153,6 +164,69 @@ function CheckInScanner() {
 
 
   const checkedInCount = attendees.filter(a => a.checkedIn).length
+  const noShowCount    = attendees.filter(a => !a.checkedIn && a.attendance === 'no_show').length
+  // "The rest": what POST close-out would mark (lib/attendanceCloseOut). The
+  // day is the gate here; the server holds the exact start.
+  const rest    = attendees.filter(a => !a.checkedIn && a.attendance !== 'no_show' && !a.exempt)
+  const started = !!eventDate && todayInTz(tz) >= eventDate
+
+  async function undoNoShows(userIds: string[]) {
+    try {
+      const res = await fetch(`/app/api/events/${eventId}/checkin/close-out`, {
+        method: 'DELETE', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userIds }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => null)
+        toast.error(typeof d?.error === 'string' ? d.error : "Couldn't undo. Please try again.")
+        return
+      }
+      setAttendees(prev => prev.map(a =>
+        userIds.includes(a.userId) && !a.checkedIn && a.attendance === 'no_show' ? { ...a, attendance: 'unknown' } : a))
+      toast.success('No-shows cleared')
+    } catch {
+      toast.error('No connection — nothing was undone.')
+    }
+  }
+
+  // End of the night: everyone not checked in and not running the event is a
+  // no-show, because the host says so — never because a scan is missing.
+  async function markRestNoShow() {
+    const n = rest.length
+    if (n === 0 || closing) return
+    const roomCheckedIn = attendees.filter(a => a.checkedIn && !a.exempt).length
+    const ok = await confirmToast(
+      roomCheckedIn === 0
+        ? `Nobody is checked in yet. Mark all ${n} as no-show? Only if the room really was empty.`
+        : `Mark the ${n} ${n === 1 ? 'person' : 'people'} not checked in as no-show? Anyone who turns up later can still be checked in.`,
+      { confirmLabel: 'Mark no-show' },
+    )
+    if (!ok) return
+    setClosing(true)
+    setToggleError(null)
+    try {
+      const res = await fetch(`/app/api/events/${eventId}/checkin/close-out`, { method: 'POST', credentials: 'include' })
+      const d = await res.json().catch(() => null)
+      if (!res.ok) {
+        vibrate.error()
+        setToggleError(typeof d?.error === 'string' ? d.error : "Couldn't mark no-shows. Please try again.")
+        return
+      }
+      const marked: string[] = Array.isArray(d?.marked) ? d.marked : []
+      setAttendees(prev => prev.map(a => marked.includes(a.userId) ? { ...a, attendance: 'no_show' } : a))
+      if (marked.length > 0) {
+        toast.success(`${marked.length} marked as no-show`, {
+          duration: 10_000,
+          action: { label: 'Undo', onClick: () => { undoNoShows(marked) } },
+        })
+      }
+    } catch {
+      setToggleError('No connection — no-shows were not marked. Please try again.')
+    } finally {
+      setClosing(false)
+    }
+  }
   const visible = attendees.filter(a =>
     !search || a.user.name.toLowerCase().includes(search.toLowerCase())
   )
@@ -186,7 +260,7 @@ function CheckInScanner() {
         </button>
         <div className="flex-1 min-w-0">
           <h2 className="text-base font-bold text-white truncate">{eventName}</h2>
-          <p className="text-xs text-zinc-400">{checkedInCount} / {attendees.length} checked in</p>
+          <p className="text-xs text-zinc-400">{checkedInCount} / {attendees.length} checked in{noShowCount > 0 ? ` · ${noShowCount} no-show` : ''}</p>
         </div>
         <button
           onClick={() => setScanning(true)}
@@ -236,7 +310,9 @@ function CheckInScanner() {
               >
                 <div
                   className={`flex items-center gap-3 p-3 rounded-xl border transition-colors ${
-                    a.checkedIn ? 'bg-green-900/20 border-green-800' : 'bg-zinc-900 border-zinc-800'
+                    a.checkedIn ? 'bg-green-900/20 border-green-800'
+                      : a.attendance === 'no_show' ? 'bg-red-950/30 border-red-900/60'
+                      : 'bg-zinc-900 border-zinc-800'
                   }`}
                 >
                   {photo ? (
@@ -249,6 +325,7 @@ function CheckInScanner() {
                   )}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-white truncate">{a.user.name}</p>
+                    {!a.checkedIn && a.attendance === 'no_show' && <p className="text-xs font-semibold text-red-400">No-show</p>}
                     {a.user.email && <p className="text-xs text-zinc-400 truncate">{a.user.email}</p>}
                   </div>
                   <button
@@ -274,6 +351,22 @@ function CheckInScanner() {
               </SwipeRow>
             )
           })}
+        </div>
+      )}
+
+      {/* Close out the door. Counts the whole roster, not the search. */}
+      {started && rest.length > 0 && (
+        <div className="pt-2">
+          <button
+            onClick={markRestNoShow}
+            disabled={closing}
+            className="w-full py-3 rounded-xl border border-red-900/60 bg-red-950/30 text-sm font-semibold text-red-300 hover:bg-red-950/50 transition-colors disabled:opacity-50"
+          >
+            {closing ? 'Marking…' : `Mark the other ${rest.length} as no-show`}
+          </button>
+          <p className="text-xs text-zinc-500 text-center mt-2">
+            For the end of the event. Nothing is sent to anyone, and a late arrival can still be checked in.
+          </p>
         </div>
       )}
     </div>

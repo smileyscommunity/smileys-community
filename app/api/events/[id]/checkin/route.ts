@@ -7,6 +7,8 @@ import { rateLimit, claimOnce } from '@/lib/rateLimit'
 import { Attendance } from '@/lib/constants'
 import { eventStartsAt } from '@/lib/eventTime'
 import { getCityTz } from '@/lib/city'
+import { eventRunners } from '@/lib/noShowPolicy'
+import { isExemptFromNoShow } from '@/lib/attendanceCloseOut'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -28,20 +30,32 @@ export async function GET(_: NextRequest, { params }: Params) {
 
     const attendees = await prisma.eventAttendee.findMany({
       where: { eventId, status: 'approved' },
-      include: { user: { select: { id: true, name: true, color: true, email: true, profilePhoto: true } } },
+      include: { user: { select: { id: true, name: true, color: true, email: true, profilePhoto: true, role: true } } },
       orderBy: { joinedAt: 'asc' },
     })
 
     // Privacy Masking: Only Admins and the Primary Host see emails. 
     // Co-hosts and Club Hosts only see Name/Photo for check-in.
-    const event = await prisma.event.findUnique({ where: { id: eventId }, select: { hostId: true } })
+    const event = await prisma.event.findUnique({
+      where:  { id: eventId },
+      select: {
+        hostId:  true,
+        cohosts: { select: { userId: true } },
+        club:    { select: { memberships: { where: { role: 'host', status: 'approved' }, select: { userId: true } } } },
+      },
+    })
     const canSeeEmail = isAdmin(session) || event?.hostId === session.id
 
+    // `exempt`: runs the event or is staff, so never a no-show — the roster
+    // leaves them out of "mark the rest" (lib/attendanceCloseOut). The role
+    // it is read from stays on the server.
+    const runners = eventRunners(event)
     const mapped = attendees.map(a => {
-      const { email, ...publicUser } = a.user
+      const { email, role, ...publicUser } = a.user
       return {
         ...a,
-        user: canSeeEmail ? a.user : publicUser
+        exempt: isExemptFromNoShow(a.userId, role, runners),
+        user:   canSeeEmail ? { ...publicUser, email } : publicUser,
       }
     })
 

@@ -167,6 +167,7 @@ describe('event reviews (item 25)', () => {
     expect(res.status).toBe(400)
   })
   it('a settled no-show cannot review the event', async () => {
+    p.event.findUnique.mockResolvedValue({ id: 'e1', cityId: 'c1', date: '2026-09-01', noShowProcessedAt: new Date('2026-09-02') })
     p.eventAttendee.findUnique.mockResolvedValue({ status: 'approved', attendance: 'no_show' })
     const res = await call(reviewPOST, { rating: 5 })
     expect(res.status).toBe(403)

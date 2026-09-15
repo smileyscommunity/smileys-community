@@ -80,7 +80,13 @@ export async function POST(req: NextRequest, { params }: Params) {
     // was later cleared did come — the host waived it ("was there, the scanner
     // missed them") or an admin overturned it. The attendee row keeps its
     // no_show mark as the trail (lib/noShow waiveCard), so the card decides.
-    let noShow = attended?.attendance === Attendance.NoShow
+    //
+    // Only a SETTLED no-show blocks (noShowProcessedAt: the sweep issued a
+    // card on it). A no_show mark can also be a host's close-out
+    // (lib/attendanceCloseOut) — a declaration no card backs and nobody can
+    // appeal — and a host who skipped scanning must not be able to close out
+    // the room and so silence its reviews.
+    let noShow = attended?.attendance === Attendance.NoShow && !!event.noShowProcessedAt
     if (attended && noShow) {
       const cleared = await prisma.noShowCard.findFirst({
         where:  { attendeeId: attended.id, status: { in: [CardStatus.Waived, CardStatus.Overturned] } },
