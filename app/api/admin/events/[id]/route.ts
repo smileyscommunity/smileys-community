@@ -295,6 +295,23 @@ export async function PUT(req: NextRequest, { params }: Params) {
       }
     }
 
+    // An event stays in the city it was filed in, so it may only move to a club
+    // of that city or a global one (cityId null). Moving it under another
+    // city's club would re-file it there — start time read in another zone,
+    // prices in another currency, gone from its city's listings — under people
+    // who already joined. Refused for everyone, staff included: to hold it in
+    // another city, create it there.
+    if (rest.clubId && rest.clubId !== before.clubId) {
+      const targetClub = await prisma.club.findUnique({ where: { id: rest.clubId as string }, select: { cityId: true } })
+      if (!targetClub) return NextResponse.json({ error: 'That club no longer exists' }, { status: 400 })
+      if (targetClub.cityId && targetClub.cityId !== before.cityId) {
+        return NextResponse.json(
+          { error: 'That club is in another city. Create the event there instead — moving it would change its time zone, currency and listings for people who already joined.', code: 'club_other_city' },
+          { status: 409 },
+        )
+      }
+    }
+
     const data: Record<string, unknown> = { ...rest }
 
     // #3 fix: same numeric + range validation as the POST handler.

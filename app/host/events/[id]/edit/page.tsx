@@ -47,7 +47,10 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
   // already-published event published), so nothing is loosened.
   const [loadedStatus,  setLoadedStatus]  = useState('')
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
-  const [clubs,         setClubs]         = useState<{ id: string; name: string; emoji: string }[]>([])
+  // `city` rides along from /api/host/clubs; the picker below offers only
+  // clubs in the event's own city (or global ones) — the PUT route refuses
+  // moving an event under another city's club.
+  const [clubs,         setClubs]         = useState<{ id: string; name: string; emoji: string; city?: { id: string } | null }[]>([])
   const { user: viewer } = useAuth()
   // /api/auth/me says whether the viewer hosts a club. /api/host/clubs is
   // not the signal: it also lists every club in a city host's cities (so
@@ -467,7 +470,8 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
               <div>
                 <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Club</label>
                 <select value={form.clubId} onChange={e => set('clubId', e.target.value)} className={inputCls}>
-                  {clubs.map(c => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
+                  {clubs.filter(c => !eventCityId || !c.city || c.city.id === eventCityId || c.id === form.clubId)
+                    .map(c => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
                 </select>
               </div>
             )}

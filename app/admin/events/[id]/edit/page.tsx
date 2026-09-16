@@ -50,7 +50,11 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
   // Status as loaded, so save can tell a move INTO cancelled from a resave.
   const [loadedStatus,  setLoadedStatus]  = useState('')
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
-  const [clubs,         setClubs]         = useState<{ id: string; name: string; emoji: string; city?: { name: string; slug: string; country: string } }[]>([])
+  const [clubs,         setClubs]         = useState<{ id: string; name: string; emoji: string; city?: { id: string; name: string; slug: string; country: string } | null }[]>([])
+  // The city the event is filed in. The club picker offers only that city's
+  // clubs and global ones: the PUT route refuses a move under another city's
+  // club (it would re-file the event under people who already joined).
+  const [eventCityId,   setEventCityId]   = useState('')
   const [hostSearch,    setHostSearch]    = useState('')
   const [loading,       setLoading]       = useState(true)
   const [saving,        setSaving]        = useState(false)
@@ -167,6 +171,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
           cancelCutoffHours: event.cancelCutoffHours != null ? String(event.cancelCutoffHours) : '',
         })
         setLoadedStatus(event.status ?? 'published')
+        if (typeof event.cityId === 'string') setEventCityId(event.cityId)
         if (Array.isArray(event.tags) && event.tags.length) setSelectedTagIds(event.tags)
         if (event.seriesId) setSeriesId(event.seriesId)
       }
@@ -550,7 +555,8 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
           <div>
             <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Club</label>
             <select value={form.clubId} onChange={e => set('clubId', e.target.value)} className={inputCls}>
-              {clubs.map(c => <option key={c.id} value={c.id}>{clubOptionLabel(c)}</option>)}
+              {clubs.filter(c => !eventCityId || !c.city || c.city.id === eventCityId || c.id === form.clubId)
+                .map(c => <option key={c.id} value={c.id}>{clubOptionLabel(c)}</option>)}
             </select>
           </div>
           <div className="relative">
