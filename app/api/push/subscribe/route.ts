@@ -8,6 +8,10 @@ import { getSession } from '@/lib/session'
 // silently failing — and so the server never POSTs to an arbitrary host.
 const PUSH_HOSTS         = ['fcm.googleapis.com', 'web.push.apple.com', 'updates.push.services.mozilla.com']
 const PUSH_HOST_SUFFIXES = ['.notify.windows.com', '.push.samsungosp.com']
+// Chrome also hands out Google push endpoints on numbered jmtN.google.com hosts
+// (three live subscriptions predate the allowlist; a 2026-09-16 subscribe from
+// jmt17 was refused). Pinned to that exact shape, not all of *.google.com.
+const PUSH_HOST_PATTERNS = [/^jmt\d{1,3}\.google\.com$/]
 const MAX_SUBSCRIPTIONS_PER_USER = 10
 
 function isPushServiceEndpoint(raw: unknown): raw is string {
@@ -16,7 +20,7 @@ function isPushServiceEndpoint(raw: unknown): raw is string {
   try { u = new URL(raw) } catch { return false }
   if (u.protocol !== 'https:' || u.username || u.password || u.port || u.pathname.length < 2) return false
   const host = u.hostname.toLowerCase()
-  const known = PUSH_HOSTS.includes(host) || PUSH_HOST_SUFFIXES.some(s => host.endsWith(s))
+  const known = PUSH_HOSTS.includes(host) || PUSH_HOST_SUFFIXES.some(s => host.endsWith(s)) || PUSH_HOST_PATTERNS.some(re => re.test(host))
   if (!known) console.warn('[push/subscribe] endpoint host not on the allowlist', { host })
   return known
 }

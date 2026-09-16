@@ -107,6 +107,17 @@ function Flag({ app }: { app: Application }) {
   return null
 }
 
+// An applicant's photo can point at a file that never finished uploading (a
+// rejected application from 2026-09-08 had no file on disk), which showed a
+// broken-image icon. Fall back to the same placeholder as "no photo".
+function ApplicantPhoto({ src, alt, box, emoji }: { src: string | null; alt: string; box: string; emoji: string }) {
+  const [failed, setFailed] = useState(false)
+  if (!src || failed) {
+    return <div className={`${box} rounded-xl bg-zinc-800 flex items-center justify-center ${emoji} shrink-0`}>👤</div>
+  }
+  return <img src={resolveImageUrl(src)} alt={alt} onError={() => setFailed(true)} className={`${box} rounded-xl object-cover shrink-0`} />
+}
+
 function QA({ q, a }: { q: string; a: string | null }) {
   if (!a) return null
   return (
@@ -905,10 +916,7 @@ function AdminApplicationsPageInner() {
                 className="w-4 h-4 rounded accent-amber-500 shrink-0" />
 
               {/* Avatar */}
-              {app.profilePhoto
-                ? <img src={resolveImageUrl(app.profilePhoto)} alt={app.fullName} className="w-12 h-12 rounded-xl object-cover shrink-0" />
-                : <div className="w-12 h-12 rounded-xl bg-zinc-800 flex items-center justify-center text-xl shrink-0">👤</div>
-              }
+              <ApplicantPhoto key={app.profilePhoto ?? 'none'} src={app.profilePhoto} alt={app.fullName} box="w-12 h-12" emoji="text-xl" />
 
               {/* Info */}
               <div className="flex-1 min-w-0">
@@ -1085,10 +1093,7 @@ function AdminApplicationsPageInner() {
               {/* Left — identity */}
               <div className="md:w-64 shrink-0 border-b md:border-b-0 md:border-r border-zinc-800 md:overflow-y-auto p-5 space-y-4">
                 <div className="flex flex-col items-center text-center">
-                  {selected.profilePhoto
-                    ? <img src={resolveImageUrl(selected.profilePhoto)} alt={selected.fullName} className="w-24 h-24 rounded-xl object-cover" />
-                    : <div className="w-24 h-24 rounded-xl bg-zinc-800 flex items-center justify-center text-4xl">👤</div>
-                  }
+                  <ApplicantPhoto key={selected.profilePhoto ?? 'none'} src={selected.profilePhoto} alt={selected.fullName} box="w-24 h-24" emoji="text-4xl" />
                   <h2 className="font-bold text-white mt-3">{selected.fullName}</h2>
                   <p className="text-xs text-zinc-500 mt-0.5">
                     {[selected.birthdate && new Date(selected.birthdate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }), selected.gender?.replace('_', ' '), selected.country, selected.city].filter(Boolean).join(' · ')}
