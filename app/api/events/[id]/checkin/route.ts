@@ -6,7 +6,7 @@ import { createNotification } from '@/lib/notify'
 import { rateLimit, claimOnce } from '@/lib/rateLimit'
 import { Attendance } from '@/lib/constants'
 import { eventStartsAt, eventEndsAt } from '@/lib/eventTime'
-import { ATTENDANCE_AUTO_RESOLVE_HOURS } from '@/lib/standingPolicy'
+import { attendanceSettlesAt } from '@/lib/standingPolicy'
 import { getCityTz } from '@/lib/city'
 import { eventRunners } from '@/lib/noShowPolicy'
 import { isExemptFromNoShow } from '@/lib/attendanceCloseOut'
@@ -113,13 +113,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       }, { status: 409 })
     }
 
-    // Standing resolves the room a day after the end (lib/standing). Past that
-    // line attendance is settled both ways, and a correction is a dispute a
-    // moderator decides — not a scan, days later, by whoever runs the door.
+    // Standing settles the room when the host's review day ends (lib/standing:
+    // midnight, the day after the event). Past that line attendance is settled
+    // both ways, and a correction is a dispute a moderator decides — not a
+    // scan, days later, by whoever runs the door.
     const tz = await getCityTz(event.cityId)
-    if (Date.now() > eventEndsAt(event, tz).getTime() + ATTENDANCE_AUTO_RESOLVE_HOURS * 60 * 60_000) {
+    if (Date.now() >= attendanceSettlesAt(event, tz).getTime()) {
       return NextResponse.json({
-        error: 'Attendance for this event is settled — check-in closed a day after it ended.',
+        error: "Attendance for this event is settled — check-in closed at the end of the day after it.",
         code:  'attendance_settled',
       }, { status: 409 })
     }
@@ -158,7 +159,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       where: { userId_eventId: { userId, eventId } },
     })
 
-    if (checkedIn) {
+    // A check-in made in the morning-after review is a correction, not an
+    // arrival: no "welcome", no live count, no "doors are open".
+    if (checkedIn && Date.now() < eventEndsAt(event, tz).getTime()) {
       const [event, checkedInUser, checkedInCount, totalCount] = await Promise.all([
         prisma.event.findUnique({
           where:  { id: eventId },

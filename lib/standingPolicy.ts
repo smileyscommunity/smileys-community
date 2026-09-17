@@ -1,12 +1,17 @@
 import { Attendance, AttendeeStatus } from '@/lib/constants'
-import { noShowExemptionReason, RECONFIRM_RELEASE_HOURS_BEFORE, type EventRunners } from '@/lib/noShowPolicy'
+import { noShowExemptionReason, checkInIsCredible, RECONFIRM_RELEASE_HOURS_BEFORE, type EventRunners } from '@/lib/noShowPolicy'
+import { eventEndsAt, type EventClock } from '@/lib/eventTime'
+import { dayInTz, shiftDay, fromWallClockInTz } from '@/lib/cityTime'
 
 // ── Standing: every tunable value and every pure rule ───────────────────────
 //
 // Standing measures one thing: can Smileys rely on you when you commit. It
-// replaces the v1 no-show cards, which read an unscanned seat as a no-show and
-// issued 95 cards that were all reversed. Here a no-show is only what a host
-// declares (lib/attendanceCloseOut); an RSVP nobody resolved is attended.
+// replaces the v1 no-show cards, which read an unscanned seat as a no-show the
+// moment half the room was scanned, and issued 95 cards that were all
+// reversed. Here the host sees the list first: the morning after, they get
+// who wasn't checked in and the rest of that day to check anyone in or excuse
+// them. Only then does an unmarked seat count as a no-show, and only where the
+// host ran check-in at all (attendanceSettlesAt, checkInRan).
 //
 //   - An offence is a no-show or a late cancellation. It is carded only on a
 //     SCARCE event (a lost seat, or a promise to a venue), and not in a city's
@@ -31,10 +36,13 @@ export const RED_REVIEW_AT_ATTENDANCES     = 3
 export const MAX_CONTRIBUTIONS_PER_YELLOW  = 1
 export const CARD_LAPSE_DAYS               = 90
 export const NEW_CITY_GRACE_DAYS           = 90
-// An RSVP nobody marked is resolved as attended this long after the end. It is
-// also when a host's close-out and the check-in prompt stop: after it the
-// room's attendance is settled.
-export const ATTENDANCE_AUTO_RESOLVE_HOURS = 24
+// The morning-after review (attendanceReviewOpensAt): the hour, on the city's
+// clock, the host is sent who wasn't checked in.
+export const ATTENDANCE_REVIEW_NOTICE_HOUR = 10
+// Unmarked-means-absent started on 2026-09-17. Events whose own review day
+// was earlier (the 16 September ones) get this day instead, so their hosts
+// have the same full day as everyone after them.
+export const DEFAULT_ABSENT_FIRST_REVIEW_DAY = '2026-09-18'
 export const DISPUTE_WINDOW_DAYS           = 30
 // How far back the sweep reads events. Wider than the resolve delay so a
 // missed run (or a week-long outage) catches up.
@@ -116,6 +124,55 @@ export function lateCancelLine(startsAt: Date, e: TierFields): Date {
   return new Date(startsAt.getTime() - cancelCutoffHours(e) * HOUR)
 }
 
+// ── When a room settles ─────────────────────────────────────────────────────
+//
+// The day after the event, on the city's clock, belongs to the host. At
+// ATTENDANCE_REVIEW_NOTICE_HOUR they're sent everyone who wasn't checked in;
+// until that day ends they can check someone in, excuse them, or mark them
+// absent. At midnight the room settles: check-in and close-out close, and the
+// sweep resolves whatever is still unmarked (checkInRan decides which way).
+
+/** The host's review day: the day after the event, never before the day it ends. */
+export function attendanceReviewDay(e: EventClock, tz: string): string {
+  return [shiftDay(e.date, 1), dayInTz(eventEndsAt(e, tz), tz), DEFAULT_ABSENT_FIRST_REVIEW_DAY].sort()[2]
+}
+
+/** When the host is sent the list: the review morning, or the end if it runs later. */
+export function attendanceReviewOpensAt(e: EventClock, tz: string): Date {
+  const hour   = String(ATTENDANCE_REVIEW_NOTICE_HOUR).padStart(2, '0')
+  const notice = fromWallClockInTz(`${attendanceReviewDay(e, tz)}T${hour}:00`, tz)
+  return new Date(Math.max(notice.getTime(), eventEndsAt(e, tz).getTime()))
+}
+
+/** Midnight at the end of the review day: after it, attendance is settled. */
+export function attendanceSettlesAt(e: EventClock, tz: string): Date {
+  return fromWallClockInTz(`${shiftDay(attendanceReviewDay(e, tz), 1)}T00:00`, tz)
+}
+
+export interface RoomRow {
+  checkedIn:  boolean
+  attendance: string
+  // Runs the event or is staff (noShowExemptionReason).
+  exempt:     boolean
+}
+
+/**
+ * Did the host run check-in? At least half the room scanned, where the room is
+ * the approved guests who aren't running it. Only then is an unmarked seat a
+ * no-show: an event nobody scanned (a coworking morning, a café table) settles
+ * as attended, as it always did. Excused guests stay in the room: excusing
+ * must never be what tips it over half and turns the rest into no-shows.
+ */
+export function checkInRan(rows: RoomRow[]): boolean {
+  const room = rows.filter(r => !r.exempt)
+  return checkInIsCredible(room.filter(r => r.checkedIn).length, room.length)
+}
+
+/** Who the review is about: not scanned, not marked either way, not running the event. */
+export function unmarkedGuests<R extends RoomRow>(rows: R[]): R[] {
+  return rows.filter(r => !r.exempt && !r.checkedIn && r.attendance === Attendance.Unknown)
+}
+
 // ── What an RSVP row was ────────────────────────────────────────────────────
 
 export interface StandingRow {
@@ -148,7 +205,8 @@ export function isLateCancel(cancelledAt: Date, startsAt: Date, e: TierFields, r
  * The offence this row is, once the event has resolved — or null.
  *
  *   - checked in, or running the event / staff          → nothing
- *   - approved and declared a no-show by the host        → no_show
+ *   - approved and marked a no-show (by the host, or left
+ *     unmarked after the host's review, lib/standing)   → no_show
  *   - cancelled BY THE MEMBER after the tier's cutoff    → late_cancel, unless
  *     it answered the day-before "still coming?" before the release point:
  *     that ask comes after a scarce event's 24h cutoff, and saying no is

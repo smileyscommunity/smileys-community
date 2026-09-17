@@ -213,7 +213,7 @@ describe('3. check-in is closed on cancelled and settled events', () => {
     new NextRequest('http://localhost/api/events/e1/checkin', { method: 'PATCH', body: JSON.stringify(body) }),
     { params: Promise.resolve({ id: 'e1' }) },
   )
-  const live = { status: 'published', cancelledAt: null, noShowProcessedAt: null }
+  const live = { status: 'published', cancelledAt: null, noShowProcessedAt: null, date: '2099-01-01', time: '19:00' }
 
   it('a cancelled event refuses both directions with 400 and writes nothing', async () => {
     p.event.findUnique.mockResolvedValue({ ...live, cancelledAt: new Date() })

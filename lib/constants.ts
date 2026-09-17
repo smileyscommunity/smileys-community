@@ -77,6 +77,9 @@ export const Attendance = {
   Unknown:  'unknown',
   Attended: 'attended',
   NoShow:   'no_show',
+  // The host cleared an unscanned seat in the morning-after review: neither
+  // came nor a no-show (a WhatsApp cancel, an emergency). Never an offence.
+  Excused:  'excused',
 } as const
 export type Attendance = typeof Attendance[keyof typeof Attendance]
 

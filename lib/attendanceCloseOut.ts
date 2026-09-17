@@ -1,5 +1,4 @@
 import { noShowExemptionReason, type EventRunners } from '@/lib/noShowPolicy'
-import { ATTENDANCE_AUTO_RESOLVE_HOURS } from '@/lib/standingPolicy'
 import { Attendance, AttendeeStatus } from '@/lib/constants'
 
 // ── Closing out the door: "mark the rest as no-show" ───────────────────────
@@ -14,24 +13,22 @@ import { Attendance, AttendeeStatus } from '@/lib/constants'
 // Client-safe on purpose: the check-in page counts the same "rest" the
 // route (app/api/events/[id]/checkin/close-out) marks.
 
-const HOUR = 60 * 60 * 1000
-
 export type CloseOutBlock = 'not_started' | 'too_late'
 
 export const CLOSE_OUT_BLOCK_MESSAGE: Record<CloseOutBlock, string> = {
   not_started: "The event hasn't started yet — no-shows can be marked once it has.",
-  too_late:    `This event ended more than ${ATTENDANCE_AUTO_RESOLVE_HOURS} hours ago — its attendance is settled.`,
+  too_late:    "This event's attendance is settled — the host's review day is over.",
 }
 
 /**
- * Why no-shows can't be marked right now, or null when they can. Not before
- * the start — nobody is late yet — and not once the standing sweep has
- * resolved the room (ATTENDANCE_AUTO_RESOLVE_HOURS after the end): after that
- * an unmarked RSVP is attended, and a correction is a dispute.
+ * Why attendance can't be marked right now (no-show, excused), or null when it
+ * can. Not before the start — nobody is late yet — and not once the host's
+ * review day is over (attendanceSettlesAt): the sweep has settled the room,
+ * and a correction is a dispute.
  */
-export function closeOutBlock(startsAt: Date, endsAt: Date, now: Date): CloseOutBlock | null {
+export function closeOutBlock(startsAt: Date, settlesAt: Date, now: Date): CloseOutBlock | null {
   if (now.getTime() < startsAt.getTime()) return 'not_started'
-  if (now.getTime() > endsAt.getTime() + ATTENDANCE_AUTO_RESOLVE_HOURS * HOUR) return 'too_late'
+  if (now.getTime() >= settlesAt.getTime()) return 'too_late'
   return null
 }
 
@@ -63,6 +60,19 @@ export function noShowCandidates<R extends CloseOutRow>(rows: R[], runners: Even
  * GET returns (`exempt` is decided on the server, where the roles are).
  */
 export function restToClose<R extends { checkedIn: boolean; attendance?: string; exempt?: boolean }>(rows: R[]): R[] {
-  // An RSVP the sweep already resolved as attended isn't "the rest" either.
-  return rows.filter(r => !r.checkedIn && r.attendance !== Attendance.NoShow && r.attendance !== Attendance.Attended && !r.exempt)
+  // An RSVP the sweep already resolved, or one the host excused, isn't "the rest" either.
+  return rows.filter(r => !r.checkedIn && (r.attendance ?? Attendance.Unknown) === Attendance.Unknown && !r.exempt)
+}
+
+/**
+ * Can the host excuse this row in the review (POST ../checkin/excuse)? An
+ * approved guest who wasn't scanned: still unmarked, or marked a no-show the
+ * host now knows had a reason. Excusing is never offered for someone running
+ * the event — they can't be a no-show to begin with.
+ */
+export function canExcuse(row: CloseOutRow, runners: EventRunners): boolean {
+  return row.status === AttendeeStatus.Approved
+    && !row.checkedIn
+    && (row.attendance === Attendance.Unknown || row.attendance === Attendance.NoShow)
+    && !isExemptFromNoShow(row.userId, row.user?.role, runners)
 }

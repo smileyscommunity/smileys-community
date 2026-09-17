@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 
 vi.mock('@/lib/notify', () => ({ createNotification: vi.fn().mockResolvedValue(true) }))
 vi.mock('@/lib/audit',  () => ({ writeAudit: vi.fn().mockResolvedValue(undefined) }))
+vi.mock('@/lib/rateLimit', () => ({ claimOnce: vi.fn(), releaseClaim: vi.fn() }))
 vi.mock('@/lib/prisma', () => ({ prisma: {
   $transaction:     vi.fn(),
   $queryRaw:        vi.fn(),
@@ -11,14 +12,17 @@ vi.mock('@/lib/prisma', () => ({ prisma: {
   standingOffence:  { findMany: vi.fn(), findUnique: vi.fn(), createMany: vi.fn(), updateMany: vi.fn() },
   standingRecovery: { createMany: vi.fn(), findMany: vi.fn() },
   eventAttendee:    { findMany: vi.fn(), findFirst: vi.fn(), updateMany: vi.fn() },
-  event:            { findMany: vi.fn() },
+  event:            { findMany: vi.fn(), findUnique: vi.fn() },
+  rateLimit:        { findUnique: vi.fn() },
 } }))
 
 import { prisma } from '@/lib/prisma'
 import { writeAudit } from '@/lib/audit'
+import { createNotification } from '@/lib/notify'
+import { claimOnce, releaseClaim } from '@/lib/rateLimit'
 import {
-  standingEnforcement, setStandingEnforced, standingLevelsFor, autoResolveAttendance, recordOffences,
-  evaluateMember, overturnOffence, disputeOffence, type SweepEvent,
+  standingEnforcement, setStandingEnforced, standingLevelsFor, settleAttendance, sendAttendanceReviews, notifyNoShows,
+  resolvedEvents, reviewingEvents, recordOffences, evaluateMember, overturnOffence, disputeOffence, type SweepEvent,
 } from '@/lib/standing'
 
 // The standing sweep and interventions against a mocked database: what the
@@ -49,6 +53,11 @@ beforeEach(() => {
   p.eventAttendee.findMany.mockResolvedValue([])
   p.eventAttendee.findFirst.mockResolvedValue({ joinedAt: NOW })
   p.eventAttendee.updateMany.mockResolvedValue({ count: 0 })
+  p.event.findUnique.mockResolvedValue({ emoji: '⛵' })
+  ;(claimOnce as any).mockResolvedValue(true)
+  // The review went out: its claim is live.
+  p.rateLimit.findUnique.mockResolvedValue({ resetAt: new Date(NOW.getTime() + D) })
+  ;(createNotification as any).mockResolvedValue(true)
   let n = 0
   p.standingCard.create.mockImplementation(async ({ data }: any) => ({ id: `card${++n}`, status: 'active', issuedAt: NOW, ...data }))
 })
@@ -123,12 +132,50 @@ describe('resolving and recording an event', () => {
   const cancelled = (id: string, hoursBefore: number) =>
     row(id, { status: 'cancelled', cancelledBy: 'member', cancelledAt: new Date(START.getTime() - hoursBefore * H) })
 
-  it('resolves only unmarked, unscanned, approved RSVPs — as attended, stamped', async () => {
-    await autoResolveAttendance('e1', NOW)
-    expect(p.eventAttendee.updateMany).toHaveBeenCalledWith({
-      where: { eventId: 'e1', status: 'approved', checkedIn: false, attendance: 'unknown' },
-      data:  { attendance: 'attended', attendanceAutoResolvedAt: NOW },
-    })
+  const room = (checked: number, unmarked: string[], extra: ReturnType<typeof row>[] = []) => [
+    ...Array.from({ length: checked }, (_, i) => row(`in${i}`, { checkedIn: true, attendance: 'attended', user: { role: 'member', name: `In ${i}` } })),
+    ...unmarked.map(id => row(id, { user: { role: 'member', name: `Guest ${id}` } })),
+    ...extra,
+  ]
+  const updates = () => p.eventAttendee.updateMany.mock.calls.map((c: any) => c[0])
+
+  it('check-in ran: the unmarked guests become no-shows, stamped; the people running it attended', async () => {
+    p.eventAttendee.findMany.mockResolvedValue(room(6, ['a', 'b'], [row('host'), row('ex', { attendance: 'excused' })]))
+    await settleAttendance(EVENT, NOW)
+    const still = { status: 'approved', checkedIn: false, attendance: 'unknown' }
+    expect(updates()).toContainEqual({ where: { id: { in: ['a', 'b'] }, ...still }, data: { attendance: 'no_show', attendanceAutoResolvedAt: NOW } })
+    expect(updates()).toContainEqual({ where: { id: { in: ['host'] }, ...still }, data: { attendance: 'attended', attendanceAutoResolvedAt: NOW } })
+    // An excused guest is left as the host left it.
+    expect(JSON.stringify(updates())).not.toContain('"ex"')
+  })
+
+  it('check-in not run (under half the room scanned): nobody is penalised, the room is attended', async () => {
+    p.eventAttendee.findMany.mockResolvedValue(room(2, ['a', 'b', 'c']))
+    await settleAttendance(EVENT, NOW)
+    expect(updates()).toHaveLength(1)
+    expect(updates()[0]).toMatchObject({ where: { id: { in: ['a', 'b', 'c'] } }, data: { attendance: 'attended' } })
+  })
+
+  it('excusing guests never tips the room over half', async () => {
+    // 3 scanned of 7 with 2 excused is still 3 of 7.
+    p.eventAttendee.findMany.mockResolvedValue(room(3, ['a', 'b'], [row('x1', { attendance: 'excused' }), row('x2', { attendance: 'excused' })]))
+    await settleAttendance(EVENT, NOW)
+    expect(JSON.stringify(updates())).not.toContain('no_show')
+  })
+
+  it('no review ever went out: the room settles as attended', async () => {
+    p.rateLimit.findUnique.mockResolvedValue(null)
+    p.eventAttendee.findMany.mockResolvedValue(room(6, ['a', 'b']))
+    await settleAttendance(EVENT, NOW)
+    expect(JSON.stringify(updates())).not.toContain('no_show')
+    expect(p.rateLimit.findUnique).toHaveBeenCalledWith({ where: { key: 'attendance-review-sent:e1' }, select: { resetAt: true } })
+  })
+
+  it('settles to no-show once: a guest added after the room settled is attended', async () => {
+    ;(claimOnce as any).mockResolvedValue(false)
+    p.eventAttendee.findMany.mockResolvedValue(room(6, ['late']))
+    await settleAttendance(EVENT, NOW)
+    expect(updates()).toEqual([expect.objectContaining({ where: expect.objectContaining({ id: { in: ['late'] } }), data: { attendance: 'attended', attendanceAutoResolvedAt: NOW } })])
   })
 
   it('records declared no-shows and late cancels; forgives a refilled seat; never the people running it', async () => {
@@ -161,6 +208,86 @@ describe('resolving and recording an event', () => {
     p.eventAttendee.findMany.mockResolvedValue([row('came', { checkedIn: true, attendance: 'attended' }), row('quiet', { attendance: 'attended' })])
     expect((await recordOffences(EVENT)).size).toBe(0)
     expect(p.standingOffence.createMany).not.toHaveBeenCalled()
+  })
+})
+
+describe('the host review', () => {
+  // Sunset Sailing, Sat 10 Oct 18:00–20:00 Istanbul: the list goes Sun 11 Oct
+  // 10:00 (07:00Z), the room settles Mon 12 Oct 00:00 (Sun 21:00Z).
+  const EVENT = {
+    id: 'e1', title: 'Sunset Sailing', date: '2026-10-10', time: '18:00', endTime: '20:00',
+    limitedSpots: true, totalSpots: 8, tierOverride: null, cancelCutoffHours: null, hostId: 'host', cityId: 'c1',
+    city: { timezone: 'Europe/Istanbul', createdAt: new Date('2026-01-01T00:00:00Z') },
+    cohosts: [{ userId: 'co' }], club: null,
+  }
+  const guest = (id: string, over: Record<string, unknown> = {}) =>
+    ({ id, userId: id, checkedIn: false, attendance: 'unknown', user: { role: 'member', name: id }, ...over })
+  const scanned = (id: string) => guest(id, { checkedIn: true, attendance: 'attended' })
+
+  it('reviews from 10:00 the day after until midnight, then settles', async () => {
+    p.event.findMany.mockResolvedValue([EVENT])
+    expect(await reviewingEvents(new Date('2026-10-11T06:59:00Z'))).toHaveLength(0)
+    expect(await reviewingEvents(new Date('2026-10-11T07:00:00Z'))).toHaveLength(1)
+    expect(await resolvedEvents(new Date('2026-10-11T20:59:00Z'))).toHaveLength(0)
+    expect(await reviewingEvents(new Date('2026-10-11T21:00:00Z'))).toHaveLength(0)
+    expect(await resolvedEvents(new Date('2026-10-11T21:00:00Z'))).toHaveLength(1)
+  })
+
+  it('gives the 16 September events their review on 18 September', async () => {
+    const wed = { ...EVENT, date: '2026-09-16', time: '19:30', endTime: null }
+    p.event.findMany.mockResolvedValue([wed])
+    expect(await resolvedEvents(new Date('2026-09-17T21:50:00Z'))).toHaveLength(0)
+    expect(await reviewingEvents(new Date('2026-09-17T21:50:00Z'))).toHaveLength(0)
+    expect(await reviewingEvents(new Date('2026-09-18T07:50:00Z'))).toHaveLength(1)
+    expect(await resolvedEvents(new Date('2026-09-18T21:50:00Z'))).toHaveLength(1)
+  })
+
+  it('sends everyone running the door, club hosts included, and records that it went', async () => {
+    p.eventAttendee.findMany.mockResolvedValue([scanned('s1'), guest('a')])
+    await sendAttendanceReviews({ ...EVENT, cohosts: [], club: { memberships: [{ userId: 'clubhost' }] } } as unknown as SweepEvent)
+    expect((createNotification as any).mock.calls.map((c: any) => c[0])).toEqual(['host', 'clubhost'])
+    expect((claimOnce as any).mock.calls.map((c: any) => c[0])).toContain('attendance-review-sent:e1')
+  })
+
+  it('sends the host and co-host the unmarked names, once each', async () => {
+    p.eventAttendee.findMany.mockResolvedValue([scanned('s1'), scanned('s2'), scanned('s3'), guest('Emir'), guest('Beto'), guest('host')])
+    expect(await sendAttendanceReviews(EVENT as unknown as SweepEvent)).toBe(2)
+    const calls = (createNotification as any).mock.calls
+    expect(calls.map((c: any) => c[0])).toEqual(['host', 'co'])
+    expect(calls[0][1]).toBe('attendance_review')
+    expect(calls[0][2]).toBe('⛵ 2 not checked in at Sunset Sailing')
+    expect(calls[0][3]).toContain('Emir and Beto')
+    expect(calls[0][4]).toBe('/host/checkin?event=e1')
+    expect((claimOnce as any).mock.calls.map((c: any) => c[0])).toEqual(['attendance-review:e1:host', 'attendance-review:e1:co', 'attendance-review-sent:e1'])
+  })
+
+  it('sends nothing where check-in was not run, or everyone is marked', async () => {
+    p.eventAttendee.findMany.mockResolvedValueOnce([scanned('s1'), guest('a'), guest('b')])
+    expect(await sendAttendanceReviews(EVENT as unknown as SweepEvent)).toBe(0)
+    p.eventAttendee.findMany.mockResolvedValueOnce([scanned('s1'), guest('a', { attendance: 'excused' })])
+    expect(await sendAttendanceReviews(EVENT as unknown as SweepEvent)).toBe(0)
+    expect(createNotification).not.toHaveBeenCalled()
+  })
+
+  it('hands the claim back when a send fails', async () => {
+    p.eventAttendee.findMany.mockResolvedValue([scanned('s1'), guest('a')])
+    ;(createNotification as any).mockResolvedValue(false)
+    await sendAttendanceReviews({ ...EVENT, cohosts: [] } as unknown as SweepEvent)
+    expect(releaseClaim).toHaveBeenCalledWith('attendance-review:e1:host')
+  })
+
+  it('tells a member about a counting no-show once, and says which kind', async () => {
+    p.standingOffence.findMany.mockResolvedValue([
+      { id: 'o1', userId: 'm1', event: { title: 'Sunset Sailing', emoji: '⛵' }, attendee: { attendanceAutoResolvedAt: NOW } },
+      { id: 'o2', userId: 'm2', event: { title: 'Sunset Sailing', emoji: '⛵' }, attendee: { attendanceAutoResolvedAt: null } },
+    ])
+    expect(await notifyNoShows(['e1'], OFF)).toBe(0)
+    expect(await notifyNoShows(['e1'], ON)).toBe(2)
+    expect(p.standingOffence.findMany.mock.calls[0][0].where).toMatchObject({ kind: 'no_show', counts: true, status: 'open', occurredAt: { gte: ON.since } })
+    const calls = (createNotification as any).mock.calls
+    expect(calls[0][3]).toMatch(/^You weren't checked in/)
+    expect(calls[1][3]).toMatch(/^The host marked you absent/)
+    expect(calls[0][4]).toBe('/standing')
   })
 })
 

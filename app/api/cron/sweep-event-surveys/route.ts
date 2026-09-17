@@ -172,7 +172,8 @@ async function eligibleTargets(eventId: string, hostId: string): Promise<string[
       // Settled events only: a host's close-out mark (lib/attendanceCloseOut)
       // is a declaration no card backs, and must not be a way to keep a room
       // out of the survey that reports on the host.
-      where:  { eventId, status: 'approved', NOT: { attendance: 'no_show', event: { noShowProcessedAt: { not: null } } } },
+      // Excused (the host's morning-after waiver) means they weren't there either.
+      where:  { eventId, status: 'approved', NOT: [{ attendance: 'no_show', event: { noShowProcessedAt: { not: null } } }, { attendance: 'excused' }] },
       select: { userId: true },
     }),
     prisma.eventCoHost.findMany({

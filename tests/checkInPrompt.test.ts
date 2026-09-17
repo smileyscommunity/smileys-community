@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest'
 import { awaitingCheckIn, doorEventsWhere, type CheckInPromptEvent } from '@/lib/checkInPrompt'
-import { ATTENDANCE_AUTO_RESOLVE_HOURS } from '@/lib/standingPolicy'
 
 // Which finished events the host is chased about. The guard this mirrors
 // (checkInIsCredible) is what kept the sweeper from carding a whole room on
@@ -9,11 +8,11 @@ import { ATTENDANCE_AUTO_RESOLVE_HOURS } from '@/lib/standingPolicy'
 
 const TZ  = 'Europe/Istanbul'
 const HOUR = 60 * 60 * 1000
-const now = new Date('2026-09-12T18:00:00Z')          // 21:00 Istanbul
+const now = new Date('2026-10-12T18:00:00Z')          // 21:00 Istanbul
 
 const event = (over: Partial<CheckInPromptEvent> = {}): CheckInPromptEvent => ({
   id: 'e1', title: 'Coworking', emoji: '💻',
-  date: '2026-09-12', time: '12:00', endTime: '14:00',
+  date: '2026-10-12', time: '12:00', endTime: '14:00',
   status: 'published', price: 0, memberPrice: null,
   noShowProcessedAt: null, checkedInCount: 0,
   _count: { attendees: 8 },
@@ -61,22 +60,23 @@ describe('awaitingCheckIn', () => {
   })
 
   it('ignores an event the sweeper already settled', () => {
-    expect(awaitingCheckIn([event({ noShowProcessedAt: '2026-09-12T17:00:00Z' })], TZ, now)).toEqual([])
+    expect(awaitingCheckIn([event({ noShowProcessedAt: '2026-10-12T17:00:00Z' })], TZ, now)).toEqual([])
   })
 
-  it('stops once the standing sweep has resolved the room', () => {
-    const resolved = new Date(now.getTime() + ATTENDANCE_AUTO_RESOLVE_HOURS * HOUR)
-    expect(awaitingCheckIn([event()], TZ, resolved)).toEqual([])
+  it('stops once the room settles, at midnight the day after', () => {
+    // 2026-10-14 00:00 Istanbul
+    expect(awaitingCheckIn([event()], TZ, new Date('2026-10-13T21:00:00Z'))).toEqual([])
+    expect(awaitingCheckIn([event()], TZ, new Date('2026-10-13T20:59:00Z'))).toHaveLength(1)
   })
 
-  it('counts the days left down to the sweeper deadline', () => {
-    // Ended 11:00Z; resolved 24h later. At 18:00Z that is 17 hours away.
-    expect(awaitingCheckIn([event()], TZ, now)[0].hoursLeft).toBe(17)
-    expect(awaitingCheckIn([event()], TZ, new Date('2026-09-13T10:30:00Z'))[0].hoursLeft).toBe(1)
+  it('counts the hours left down to the end of the review day', () => {
+    // Settles 2026-10-13 21:00Z. At 10-12 18:00Z that is 27 hours away.
+    expect(awaitingCheckIn([event()], TZ, now)[0].hoursLeft).toBe(27)
+    expect(awaitingCheckIn([event()], TZ, new Date('2026-10-13T20:30:00Z'))[0].hoursLeft).toBe(1)
   })
 
   it('puts the most urgent event first', () => {
-    const older = event({ id: 'e0', endTime: '12:30' })
+    const older = event({ id: 'e0', date: '2026-10-11' })
     const ids = awaitingCheckIn([event(), older], TZ, now).map(p => p.event.id)
     expect(ids).toEqual(['e0', 'e1'])
   })
@@ -84,7 +84,7 @@ describe('awaitingCheckIn', () => {
   it('treats a missing endTime as end of day, so it waits for midnight', () => {
     const noEnd = event({ endTime: null })
     expect(awaitingCheckIn([noEnd], TZ, now)).toEqual([])
-    const midnight = new Date('2026-09-12T21:30:00Z')   // 00:30 Istanbul, next day
+    const midnight = new Date('2026-10-12T21:30:00Z')   // 00:30 Istanbul, next day
     expect(awaitingCheckIn([noEnd], TZ, midnight)).toHaveLength(1)
   })
 })
@@ -99,6 +99,6 @@ describe('doorEventsWhere', () => {
   })
 
   it('is bounded to two days behind and tomorrow ahead', () => {
-    expect(doorEventsWhere('u1', now).date).toEqual({ gte: '2026-09-10', lte: '2026-09-13' })
+    expect(doorEventsWhere('u1', now).date).toEqual({ gte: '2026-10-10', lte: '2026-10-13' })
   })
 })

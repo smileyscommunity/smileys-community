@@ -432,6 +432,7 @@ function CheckInPageInner() {
               <div className="flex-1 min-w-0">
                 <div className="font-semibold text-base text-white">{a.user.name}</div>
                 {!isIn && a.attendance === 'no_show' && <div className="text-xs font-semibold text-red-400 mt-0.5">No-show</div>}
+                {!isIn && a.attendance === 'excused' && <div className="text-xs font-semibold text-zinc-400 mt-0.5">Excused</div>}
                 {pendingIds.has(a.userId) && <div className="text-[11px] text-amber-400 mt-0.5">Not sent yet</div>}
                 <div className="text-xs text-zinc-500 truncate mt-0.5">{a.user.email}</div>
               </div>
@@ -468,7 +469,7 @@ function CheckInPageInner() {
           <p className="text-xs text-zinc-500 text-center mt-2">
             {pending.length > 0
               ? 'Waiting for the check-ins on this device to send first.'
-              : 'For the end of the event. Nothing is sent to anyone, and a late arrival can still be checked in.'}
+              : "For the end of the event. Anyone not checked in or excused by midnight the day after counts as a no-show anyway, if most of the room was checked in. A late arrival can still be checked in."}
           </p>
         </div>
       )}

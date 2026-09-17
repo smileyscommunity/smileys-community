@@ -36,6 +36,7 @@ export const FILTER_TYPES: Record<Filter, string[]> = {
     'no_show_yellow', 'no_show_red', 'no_show_restriction_active', 'no_show_waived',
     'no_show_downgraded', 'no_show_waitlist_removed', 'no_show_cards_issued', 'no_show_appeal_resolved',
     'standing_yellow', 'standing_red', 'standing_cleared', 'standing_review', 'standing_restored', 'standing_dispute_resolved',
+    'standing_no_show', 'attendance_review',
   ],
   Social: [
     'connection_request', 'connection_accepted', 'connection_suggestion',
@@ -82,6 +83,8 @@ export const TYPE_ICON: Record<string, string> = {
   standing_review:     '🔎',
   standing_restored:   '✅',
   standing_dispute_resolved: '⚖️',
+  standing_no_show:    '🎟️',
+  attendance_review:   '📋',
   checkin:             '✅',
   checkin_started:     '📲',
   checkin_count:       '🔢',

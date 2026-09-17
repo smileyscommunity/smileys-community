@@ -3,6 +3,7 @@ import {
   eventTier, cancelCutoffHours, lateCancelLine, classifyRow, refilledLateCancels, offenceCounts,
   decideIssuance, isSuccessfulCommitment, countedCommitments, recoveryOutcome, cardLapsed,
   standingLevel, needsHostApproval, orderWaitlist, canDispute,
+  attendanceReviewDay, attendanceReviewOpensAt, attendanceSettlesAt, checkInRan, unmarkedGuests,
   CANCEL_CUTOFF_HOURS, NEW_CITY_GRACE_DAYS, STANDING_WINDOW_DAYS, CARD_LAPSE_DAYS, DISPUTE_WINDOW_DAYS,
   type StandingRow, type LedgerOffence,
 } from '@/lib/standingPolicy'
@@ -218,5 +219,44 @@ describe('effects', () => {
     // Upheld and back to open: not a second time.
     expect(canDispute({ kind: 'no_show', status: 'open', occurredAt: START, disputedAt: START }, NOW)).toBe(false)
     expect(canDispute({ kind: 'no_show', status: 'open', occurredAt: START }, new Date(START.getTime() + (DISPUTE_WINDOW_DAYS + 1) * D))).toBe(false)
+  })
+})
+
+describe('the host review day', () => {
+  const TZ = 'Europe/Istanbul'
+  it('is the day after the event: list at 10:00, settled at midnight', () => {
+    const e = { date: '2026-10-10', time: '18:00', endTime: '20:00' }
+    expect(attendanceReviewDay(e, TZ)).toBe('2026-10-11')
+    expect(attendanceReviewOpensAt(e, TZ).toISOString()).toBe('2026-10-11T07:00:00.000Z')
+    expect(attendanceSettlesAt(e, TZ).toISOString()).toBe('2026-10-11T21:00:00.000Z')
+  })
+  it('an event running past midnight still gets the next morning and the whole day', () => {
+    const e = { date: '2026-10-10', time: '22:00', endTime: '03:00' }
+    expect(attendanceReviewDay(e, TZ)).toBe('2026-10-11')
+    expect(attendanceSettlesAt(e, TZ).toISOString()).toBe('2026-10-11T21:00:00.000Z')
+  })
+  it('never opens before the event has ended', () => {
+    const e = { date: '2026-10-10', time: '22:00', endTime: '11:00' }  // an all-nighter to 11:00
+    expect(attendanceReviewOpensAt(e, TZ).toISOString()).toBe('2026-10-11T08:00:00.000Z')
+  })
+  it('events before the rule get 18 September', () => {
+    expect(attendanceReviewDay({ date: '2026-09-16', time: '19:30' }, TZ)).toBe('2026-09-18')
+    expect(attendanceReviewDay({ date: '2026-09-17', time: '10:00', endTime: '13:00' }, TZ)).toBe('2026-09-18')
+  })
+})
+
+describe('checkInRan / unmarkedGuests', () => {
+  const r = (checkedIn: boolean, attendance = checkedIn ? 'attended' : 'unknown', exempt = false) => ({ checkedIn, attendance, exempt })
+  it('needs half the room scanned, not counting the people running it; excusing never tips it', () => {
+    expect(checkInRan([r(true), r(false)])).toBe(true)
+    expect(checkInRan([r(true), r(false), r(false)])).toBe(false)
+    expect(checkInRan([r(true), r(false), r(false, 'excused')])).toBe(false)
+    expect(checkInRan([r(false, 'unknown', true), r(false, 'unknown', true), r(true), r(false)])).toBe(true)
+    expect(checkInRan([r(false), r(false)])).toBe(false)
+    expect(checkInRan([])).toBe(false)
+  })
+  it('lists only guests nobody has marked either way', () => {
+    const rows = [r(true), r(false), r(false, 'no_show'), r(false, 'excused'), r(false, 'unknown', true)]
+    expect(unmarkedGuests(rows)).toEqual([rows[1]])
   })
 })

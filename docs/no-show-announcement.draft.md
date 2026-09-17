@@ -1,6 +1,9 @@
 # Standing — announcement drafts
 
-Two messages, one per audience. Nothing here has been sent. Standing has been
+Two messages, one per audience. The member message went out as a board post
+(scripts/post-standing-announcement.ts); the host message has not been sent.
+Updated 2026-09-17 for the morning-after review (unmarked = absent where the
+host ran check-in). Standing has been
 switched on since 2026-09-15 17:57 UTC and counts events starting from
 16 September. Numbers come from `lib/standingPolicy.ts` (and the reconfirm
 timings from `lib/noShowPolicy.ts`) as of 2026-09-15; if a constant changes,
@@ -30,9 +33,11 @@ host has promised to a venue. Events with no cap on who comes never affect your
 standing.
 
 **What counts**
-- **Not coming.** Only when the host marks you absent at the end of the event.
-  If nobody marks you, you count as having come. You can't get a mark against
-  you because someone forgot to check people in.
+- **Not coming.** When the host marks you absent, or when the host checked
+  people in and you weren't checked in. The host gets that list the next
+  morning and can excuse you until the end of that day. If nobody was checked
+  in at all, nothing counts against anyone: you can't get a mark because a
+  host skipped the door.
 - **Cancelling late.** Cancelling less than **24 hours** before a limited event
   starts counts the same as not coming, because the seat usually can't be
   filled by then. Two exceptions:
@@ -109,9 +114,12 @@ who came. Here's everything from your side.
   the roster. Only press it when you know who didn't come. It marks everyone
   not checked in, never you or your co-hosts. You get 10 seconds to undo, and
   anyone who turns up late can still be checked in.
-- **You have one day.** A day after the event ends, check-in closes, and
-  anyone you didn't mark counts as having come. Nobody is penalised because a
-  door wasn't checked, so if you don't mark people, nothing counts against them.
+- **The morning after is yours.** At 10:00 the day after, you get a list of
+  everyone who wasn't checked in. Until midnight that day you can check in
+  anyone who came, or tap **Excuse** for someone who had a reason (cancelled
+  on WhatsApp, an emergency). At midnight, anyone still unmarked counts as a
+  no-show. This only happens if you checked in at least half the room; if
+  you didn't run check-in, nobody is marked.
 - **Mistakes after that** go through the member: they tap "I was there", and
   a moderator asks you what happened. You're never the one who decides a
   dispute about your own event.
@@ -130,6 +138,6 @@ who came. Here's everything from your side.
 **What it asks of you**
 1. Check people in as they arrive, every time.
 2. At the end, mark the rest as no-show, but only if you're sure.
-3. Do it within a day of the event.
+3. Look at the list the morning after, and excuse anyone who had a reason, by midnight.
 
 Questions, or something that looks wrong: message Nate.

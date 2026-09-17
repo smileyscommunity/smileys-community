@@ -66,6 +66,8 @@ function attendedRows<T extends AttendanceRow>(
     if (why === 'event_host' || why === 'event_cohost') return true
     if (why) return false
     if (a.attendance === 'no_show') return false
+    // Excused by the host in the morning-after review: they weren't there.
+    if (a.attendance === 'excused') return false
     return !(credible && isNoShow(a, startsAt))
   })
 }

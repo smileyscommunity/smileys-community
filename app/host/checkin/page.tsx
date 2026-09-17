@@ -22,7 +22,7 @@ type HostEvent = CheckInPromptEvent
 interface Attendee {
   userId: string
   checkedIn: boolean
-  // 'unknown' | 'attended' | 'no_show' (lib/constants Attendance)
+  // 'unknown' | 'attended' | 'no_show' | 'excused' (lib/constants Attendance)
   attendance?: string
   // Runs the event or is staff: never a no-show, never in "mark the rest".
   exempt?: boolean
@@ -159,6 +159,29 @@ function CheckInScanner() {
   }
 
 
+  // The host's waiver: a guest who wasn't scanned but shouldn't count as a
+  // no-show (cancelled on WhatsApp, had a reason). POST ../checkin/excuse.
+  async function excuse(userId: string, next: boolean) {
+    setToggling(userId)
+    setToggleError(null)
+    try {
+      const res = await fetch(`/app/api/events/${eventId}/checkin/excuse`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, excused: next }),
+      })
+      const d = await res.json().catch(() => null)
+      if (!res.ok) { setToggleError(typeof d?.error === 'string' ? d.error : "Couldn't save that. Please try again."); return }
+      if (typeof d?.attendance === 'string') {
+        setAttendees(prev => prev.map(a => a.userId === userId ? { ...a, attendance: d.attendance } : a))
+      }
+    } catch {
+      setToggleError('No connection — nothing was changed.')
+    } finally {
+      setToggling(null)
+    }
+  }
+
   const checkedInCount = attendees.filter(a => a.checkedIn).length
   // "Mark the rest" (hooks/useCloseOut). The day is the gate here; the
   // server holds the exact start.
@@ -271,9 +294,19 @@ function CheckInScanner() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-white truncate">{a.user.name}</p>
                     {!a.checkedIn && a.attendance === 'no_show' && <p className="text-xs font-semibold text-red-400">No-show</p>}
+                    {!a.checkedIn && a.attendance === 'excused' && <p className="text-xs font-semibold text-zinc-400">Excused</p>}
                     {pendingIds.has(a.userId) && <p className="text-[11px] text-amber-400">Not sent yet</p>}
                     {a.user.email && <p className="text-xs text-zinc-400 truncate">{a.user.email}</p>}
                   </div>
+                  {started && !a.checkedIn && !a.exempt && a.attendance !== 'attended' && (
+                    <button
+                      onClick={() => excuse(a.userId, a.attendance !== 'excused')}
+                      disabled={toggling === a.userId || pendingIds.has(a.userId)}
+                      className="shrink-0 px-2.5 h-10 rounded-xl text-xs font-semibold text-zinc-300 bg-zinc-800 hover:bg-zinc-700 transition-colors disabled:opacity-50"
+                    >
+                      {a.attendance === 'excused' ? 'Undo' : 'Excuse'}
+                    </button>
+                  )}
                   <button
                     onClick={() => toggleCheckin(a.userId, a.checkedIn)}
                     disabled={toggling === a.userId}
@@ -313,7 +346,7 @@ function CheckInScanner() {
           <p className="text-xs text-zinc-500 text-center mt-2">
             {pending.length > 0
               ? 'Waiting for the check-ins on this phone to send first.'
-              : 'For the end of the event. Nothing is sent to anyone, and a late arrival can still be checked in.'}
+              : "For the end of the event. Anyone not checked in or excused by midnight the day after counts as a no-show anyway, if most of the room was checked in. A late arrival can still be checked in."}
           </p>
         </div>
       )}

@@ -1,6 +1,6 @@
 import { eventEndsAt } from '@/lib/eventTime'
 import { checkInIsCredible } from '@/lib/noShowPolicy'
-import { ATTENDANCE_AUTO_RESOLVE_HOURS } from '@/lib/standingPolicy'
+import { attendanceSettlesAt } from '@/lib/standingPolicy'
 import { DEFAULT_TZ } from '@/lib/cityTime'
 
 // ── "You haven't checked anyone in" ─────────────────────────────────────────
@@ -14,8 +14,8 @@ import { DEFAULT_TZ } from '@/lib/cityTime'
 //
 // So: after an event ends, if the room went unchecked, say so where the host
 // will see it, and link straight to the scanner. There is a real deadline —
-// ATTENDANCE_AUTO_RESOLVE_HOURS after the end the standing sweep records every
-// unmarked RSVP as attended — so the prompt counts down instead of nagging.
+// at the end of the day after the event (attendanceSettlesAt) the standing
+// sweep settles the room — so the prompt counts down instead of nagging.
 //
 // Factual, not scolding: a host who checked nobody in may simply have run a
 // small event where it wasn't worth it, and skipping is a legitimate choice.
@@ -75,7 +75,7 @@ export function awaitingCheckIn(
     const endsAt = eventEndsAt(e, tz).getTime()
     if (endsAt > now.getTime()) return []                       // still running
     // Past the resolution the room is settled: nothing left to check in.
-    const deadline = endsAt + ATTENDANCE_AUTO_RESOLVE_HOURS * HOUR
+    const deadline = attendanceSettlesAt(e, tz).getTime()
     if (deadline <= now.getTime()) return []
     return [{
       event: e, approved, checked,

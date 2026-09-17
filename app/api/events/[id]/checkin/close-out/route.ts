@@ -5,7 +5,8 @@ import { canManageEventOps } from '@/lib/access'
 import { rateLimit } from '@/lib/rateLimit'
 import { writeAudit } from '@/lib/audit'
 import { Attendance, AttendeeStatus } from '@/lib/constants'
-import { eventStartsAt, eventEndsAt } from '@/lib/eventTime'
+import { eventStartsAt } from '@/lib/eventTime'
+import { attendanceSettlesAt } from '@/lib/standingPolicy'
 import { getCityTz } from '@/lib/city'
 import { eventRunners } from '@/lib/noShowPolicy'
 import { closeOutBlock, noShowCandidates, CLOSE_OUT_BLOCK_MESSAGE } from '@/lib/attendanceCloseOut'
@@ -15,8 +16,8 @@ type Params = { params: Promise<{ id: string }> }
 // POST: mark the rest of the room as no-show. DELETE: undo it for the rows
 // a close-out named. Who counts and when is lib/attendanceCloseOut.
 //
-// A record and nothing more: no card, no notification — what a no-show costs
-// is the standing rework's decision. A marked row misses the review ask, but
+// A record and nothing more here: the standing sweep turns a no-show into an
+// offence when the room settles, at the end of the host's review day. A marked row misses the review ask, but
 // the member can still review and still gets the post-event survey: only a
 // settled no-show withholds those, so a host can't close out a room to keep
 // its feedback away. A late arrival is checked in the normal way (PATCH
@@ -59,7 +60,7 @@ export async function POST(_: NextRequest, { params }: Params) {
     if (event.noShowProcessedAt) return NextResponse.json(SETTLED, { status: 409 })
 
     const tz    = await getCityTz(event.cityId)
-    const block = closeOutBlock(eventStartsAt(event, tz), eventEndsAt(event, tz), new Date())
+    const block = closeOutBlock(eventStartsAt(event, tz), attendanceSettlesAt(event, tz), new Date())
     if (block) return NextResponse.json({ error: CLOSE_OUT_BLOCK_MESSAGE[block], code: block }, { status: 409 })
 
     const rows = await prisma.eventAttendee.findMany({
@@ -120,7 +121,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     if (event.noShowProcessedAt) return NextResponse.json(SETTLED, { status: 409 })
     // The same window as marking: once it closes, attendance stays as it was left.
     const tz    = await getCityTz(event.cityId)
-    const block = closeOutBlock(eventStartsAt(event, tz), eventEndsAt(event, tz), new Date())
+    const block = closeOutBlock(eventStartsAt(event, tz), attendanceSettlesAt(event, tz), new Date())
     if (block) return NextResponse.json({ error: CLOSE_OUT_BLOCK_MESSAGE[block], code: block }, { status: 409 })
 
     // Only marks still standing: a row checked in since is 'attended' and

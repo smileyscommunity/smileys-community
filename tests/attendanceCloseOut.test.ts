@@ -11,7 +11,7 @@ vi.mock('@/lib/prisma', () => ({ prisma: {
   eventAttendee: { findMany: vi.fn(), updateMany: vi.fn() },
 } }))
 
-import { closeOutBlock, noShowCandidates, restToClose } from '@/lib/attendanceCloseOut'
+import { closeOutBlock, noShowCandidates, restToClose, canExcuse } from '@/lib/attendanceCloseOut'
 import { POST as closeOut, DELETE as undoCloseOut } from '@/app/api/events/[id]/checkin/close-out/route'
 import { GET as roster } from '@/app/api/events/[id]/checkin/route'
 import { getSession } from '@/lib/session'
@@ -52,14 +52,15 @@ afterEach(() => { vi.useRealTimers() })
 
 describe('closeOutBlock', () => {
   const start = new Date('2026-09-13T15:00:00Z')
-  const end   = new Date('2026-09-13T17:00:00Z')
+  // The room settles at the end of the host's review day (attendanceSettlesAt).
+  const settles = new Date('2026-09-14T21:00:00Z')
   it('waits for the start', () => {
-    expect(closeOutBlock(start, end, new Date('2026-09-13T14:59:00Z'))).toBe('not_started')
-    expect(closeOutBlock(start, end, new Date('2026-09-13T15:00:00Z'))).toBeNull()
+    expect(closeOutBlock(start, settles, new Date('2026-09-13T14:59:00Z'))).toBe('not_started')
+    expect(closeOutBlock(start, settles, new Date('2026-09-13T15:00:00Z'))).toBeNull()
   })
-  it('stays open until the room is resolved a day after the end, then closes', () => {
-    expect(closeOutBlock(start, end, new Date('2026-09-14T16:59:00Z'))).toBeNull()
-    expect(closeOutBlock(start, end, new Date('2026-09-14T17:01:00Z'))).toBe('too_late')
+  it('stays open through the review day, then closes', () => {
+    expect(closeOutBlock(start, settles, new Date('2026-09-14T20:59:00Z'))).toBeNull()
+    expect(closeOutBlock(start, settles, new Date('2026-09-14T21:00:00Z'))).toBe('too_late')
   })
 })
 
@@ -208,6 +209,19 @@ describe('restToClose (the page\'s count)', () => {
       { userId: 'e', checkedIn: false, attendance: 'unknown', exempt: true },
       { userId: 'f', checkedIn: false, attendance: 'attended' },
     ]
-    expect(restToClose(rows).map(r => r.userId)).toEqual(['a', 'b'])
+    expect(restToClose([...rows, { userId: 'g', checkedIn: false, attendance: 'excused' }]).map(r => r.userId)).toEqual(['a', 'b'])
+  })
+})
+
+describe('canExcuse (the review waiver)', () => {
+  it('excuses an unscanned guest, unmarked or marked no-show — never a scan, a runner or staff', () => {
+    expect(canExcuse(row('m1'), runners)).toBe(true)
+    expect(canExcuse(row('m2', 'member', { attendance: 'no_show' }), runners)).toBe(true)
+    expect(canExcuse(row('in', 'member', { checkedIn: true, attendance: 'attended' }), runners)).toBe(false)
+    expect(canExcuse(row('x', 'member', { attendance: 'excused' }), runners)).toBe(false)
+    expect(canExcuse(row('h1'), runners)).toBe(false)
+    expect(canExcuse(row('co1'), runners)).toBe(false)
+    expect(canExcuse(row('mod', 'moderator'), runners)).toBe(false)
+    expect(canExcuse(row('p', 'member', { status: 'pending' }), runners)).toBe(false)
   })
 })

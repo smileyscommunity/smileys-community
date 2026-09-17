@@ -169,7 +169,7 @@ export default function StandingPage() {
             <h2 className="font-bold text-gray-900 mb-2">How it works</h2>
             <ul className="list-disc pl-5 space-y-1.5 leading-relaxed">
               <li>It only concerns <strong>limited events</strong>: any event with limited spots, whatever its size, or a booking the host has promised a venue. Events with no cap on who comes never affect your standing.</li>
-              <li>You&apos;re only marked absent when the host marks you. If nobody does, you count as having come.</li>
+              <li>Not coming counts when the host marks you absent, or when the host checked people in and you weren&apos;t. The host sees that list the next day and can excuse you; events where nobody was checked in never count against anyone.</li>
               <li>Cancelling a limited event less than {CANCEL_CUTOFF_HOURS.scarce} hours before it starts counts the same as not coming — unless someone from the waitlist takes your seat and comes, or you&apos;re answering the day-before &ldquo;still coming?&rdquo; message.</li>
               <li>Two of those within {STANDING_WINDOW_DAYS} days is a yellow card. One more while on yellow is a red card.</li>
               <li>A yellow card clears after {YELLOW_CLEARS_AT_COMMITMENTS} successful commitments — being checked in at any event. A red card needs {RED_REVIEW_AT_ATTENDANCES}, then an admin&apos;s review.</li>

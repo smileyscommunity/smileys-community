@@ -35,14 +35,14 @@ const TITLE = 'Keeping seats for the people who come 🎟️'
 const BODY = `From 16 September, Smileys keeps a simple record of whether you turn up for the seats you take: your standing. It covers any event with limited spots, any size, or a booking promised to a venue. Uncapped events never count.
 
 What counts:
-• Not coming, but only when the host marks you absent. If nobody marks you, you came.
+• Not coming. If the host checked people in and you weren't, you're absent unless they excuse you the day after.
 • Cancelling less than 24h before a limited event, unless someone from the waitlist takes your seat and comes, or you're answering the "still coming?" message.
 
-• 2 in 90 days → yellow card: back of limited waitlists. It clears after 2 events where you're checked in (any event).
+• 2 in 90 days → yellow card: back of limited waitlists. Clears after 2 events where you're checked in.
 • 1 more → red card: the host approves your seat at limited events. After 3 check-ins, an admin restores your standing.
 • Open events are never blocked. Cards lapse after 90 days with no RSVPs.
 
-Marked absent by mistake? Tap "I was there" on Your standing within 30 days; a moderator decides, never that event's host. It's private, new cities get a 90-day head start, and everyone starts clean.`
+Missed at the door? Tap "I was there" on Your standing within 30 days; a moderator decides, not the host. It's private, new cities get a 90-day head start, and everyone starts clean.`
 
 async function main() {
   console.log(APPLY ? 'APPLY — posting\n' : 'DRY RUN — nothing is written. APPLY=1 posts.\n')

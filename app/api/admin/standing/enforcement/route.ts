@@ -30,7 +30,7 @@ export async function GET() {
       prisma.standingCard.count({ where: { level: CardLevel.Yellow, status: { in: LIVE_CARD_STATUSES }, shadow: false } }),
       prisma.standingCard.count({ where: { level: CardLevel.Red,    status: { in: LIVE_CARD_STATUSES }, shadow: false } }),
       prisma.standingCard.count({ where: { status: { in: LIVE_CARD_STATUSES }, shadow: true } }),
-      prisma.eventAttendee.count({ where: { attendanceAutoResolvedAt: { gte: since30 } } }),
+      prisma.eventAttendee.count({ where: { attendanceAutoResolvedAt: { gte: since30 }, attendance: 'attended' } }),
       prisma.standingOffence.count({ where: { recordedAt: { gte: since30 }, status: OffenceStatus.Forgiven } }),
     ])
     return NextResponse.json({

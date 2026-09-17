@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notify'
+import { claimOnce, releaseClaim } from '@/lib/rateLimit'
 import { writeAudit } from '@/lib/audit'
 import { eventStartsAt, eventEndsAt } from '@/lib/eventTime'
 import { DEFAULT_TZ } from '@/lib/cityTime'
@@ -8,10 +9,11 @@ import { Attendance, AttendeeStatus } from '@/lib/constants'
 import { eventRunners, noShowExemptionReason } from '@/lib/noShowPolicy'
 import { standingEnforcement, type StandingEnforcement } from '@/lib/standingRead'
 import {
-  ATTENDANCE_AUTO_RESOLVE_HOURS, STANDING_SWEEP_LOOKBACK_DAYS, STANDING_STARTS_AT, STANDING_ENFORCE_SETTING,
+  STANDING_SWEEP_LOOKBACK_DAYS, DISPUTE_WINDOW_DAYS, STANDING_STARTS_AT, STANDING_ENFORCE_SETTING,
   RECOVERY_REQUIRES_CHECKIN, LIVE_CARD_STATUSES, OffenceKind, OffenceStatus, CardLevel, StandingCardStatus,
   eventTier, classifyRow, refilledLateCancels, offenceCounts, decideIssuance, isSuccessfulCommitment,
   recoveryOutcome, cardLapsed, standingLevel, countedCommitments, commitmentsNeeded, canDispute, windowStart,
+  attendanceReviewOpensAt, attendanceSettlesAt, checkInRan, unmarkedGuests,
   type LedgerOffence,
 } from '@/lib/standingPolicy'
 
@@ -76,38 +78,126 @@ const SWEEP_EVENT_SELECT = {
 
 export type SweepEvent = Prisma.EventGetPayload<{ select: typeof SWEEP_EVENT_SELECT }>
 
-/**
- * Events whose attendance is ready to settle: started on or after
- * STANDING_STARTS_AT, ended at least ATTENDANCE_AUTO_RESOLVE_HOURS ago, and
- * within the lookback. Every pass over them is idempotent, so reading the
- * same event on each run for two weeks costs a few indexed queries.
- */
-export async function resolvedEvents(now: Date): Promise<SweepEvent[]> {
+async function standingEvents(now: Date): Promise<SweepEvent[]> {
   const floor = new Date(Math.max(STANDING_STARTS_AT.getTime(), now.getTime() - (STANDING_SWEEP_LOOKBACK_DAYS + 2) * DAY))
   const events = await prisma.event.findMany({
     where:  { date: { gte: isoDay(floor), lte: isoDay(now) }, cancelledAt: null, status: { in: ['published', 'archived'] } },
     select: SWEEP_EVENT_SELECT,
   })
   return events.filter(e => {
-    const tz    = e.city?.timezone ?? DEFAULT_TZ
-    const start = eventStartsAt(e, tz).getTime()
-    const end   = eventEndsAt(e, tz).getTime()
-    return start >= STANDING_STARTS_AT.getTime()
-      && end + ATTENDANCE_AUTO_RESOLVE_HOURS * HOUR <= now.getTime()
-      && end >= now.getTime() - STANDING_SWEEP_LOOKBACK_DAYS * DAY
+    const tz = e.city?.timezone ?? DEFAULT_TZ
+    return eventStartsAt(e, tz).getTime() >= STANDING_STARTS_AT.getTime()
+      && eventEndsAt(e, tz).getTime() >= now.getTime() - STANDING_SWEEP_LOOKBACK_DAYS * DAY
   })
 }
 
+const tzOf = (e: SweepEvent) => e.city?.timezone ?? DEFAULT_TZ
+
 /**
- * An RSVP nobody resolved is attended. Never manufacture a penalty from host
- * inaction; the stamp is how to see which hosts aren't checking in.
+ * Events whose attendance is ready to settle: started on or after
+ * STANDING_STARTS_AT, past the end of the host's review day
+ * (attendanceSettlesAt), and within the lookback. Every pass over them is
+ * idempotent, so reading the same event on each run for two weeks costs a few
+ * indexed queries.
  */
-export async function autoResolveAttendance(eventId: string, now: Date): Promise<number> {
-  const { count } = await prisma.eventAttendee.updateMany({
-    where: { eventId, status: AttendeeStatus.Approved, checkedIn: false, attendance: Attendance.Unknown },
-    data:  { attendance: Attendance.Attended, attendanceAutoResolvedAt: now },
+export async function resolvedEvents(now: Date): Promise<SweepEvent[]> {
+  return (await standingEvents(now)).filter(e => attendanceSettlesAt(e, tzOf(e)).getTime() <= now.getTime())
+}
+
+/** Events in their host's review day: the list has gone (or is due), the room hasn't settled. */
+export async function reviewingEvents(now: Date): Promise<SweepEvent[]> {
+  return (await standingEvents(now)).filter(e => {
+    const tz = tzOf(e)
+    return attendanceReviewOpensAt(e, tz).getTime() <= now.getTime() && now.getTime() < attendanceSettlesAt(e, tz).getTime()
   })
-  return count
+}
+
+async function roomOf(event: SweepEvent) {
+  const runners = eventRunners(event)
+  const rows = await prisma.eventAttendee.findMany({
+    where:   { eventId: event.id, status: AttendeeStatus.Approved },
+    orderBy: { joinedAt: 'asc' },
+    select:  { id: true, userId: true, checkedIn: true, attendance: true, user: { select: { name: true, role: true } } },
+  })
+  return rows.map(r => ({ ...r, exempt: noShowExemptionReason(r.userId, r.user?.role, runners) !== null }))
+}
+
+/**
+ * Settle what the host left unmarked. Where they ran check-in (checkInRan),
+ * an unmarked guest is a no-show: they had the morning-after list and a whole
+ * day to check them in or excuse them. Where nobody ran the door, nobody is
+ * penalised for it and the room counts as attended. The stamp tells a
+ * defaulted row from one a person marked.
+ */
+export async function settleAttendance(event: SweepEvent, now: Date): Promise<{ attended: number; absent: number }> {
+  const room = await roomOf(event)
+  // Only once, and only if the list reached someone. The sweep reads the event
+  // for two weeks: a guest added after it settled (an admin restoring a row)
+  // was never on anyone's list, and neither was a room whose review never
+  // went out (the ratio crossed half only late in the day, a sweep outage).
+  // Both settle as attended — the safe side.
+  const first    = await claimOnce(`attendance-settled:${event.id}`, 30 * DAY)
+  const reviewed = first && await hasClaim(reviewSentKey(event.id), now)
+  const absentee = new Set(reviewed && checkInRan(room) ? unmarkedGuests(room).map(r => r.id) : [])
+  const unmarked = room.filter(r => !r.checkedIn && r.attendance === Attendance.Unknown)
+  const still    = { status: AttendeeStatus.Approved, checkedIn: false, attendance: Attendance.Unknown }
+  const [absent, attended] = await Promise.all([
+    absentee.size === 0 ? { count: 0 } : prisma.eventAttendee.updateMany({
+      where: { id: { in: [...absentee] }, ...still },
+      data:  { attendance: Attendance.NoShow, attendanceAutoResolvedAt: now },
+    }),
+    prisma.eventAttendee.updateMany({
+      where: { id: { in: unmarked.filter(r => !absentee.has(r.id)).map(r => r.id) }, ...still },
+      data:  { attendance: Attendance.Attended, attendanceAutoResolvedAt: now },
+    }),
+  ])
+  return { attended: attended.count, absent: absent.count }
+}
+
+const reviewSentKey = (eventId: string) => `attendance-review-sent:${eventId}`
+
+async function hasClaim(key: string, now: Date): Promise<boolean> {
+  const row = await prisma.rateLimit.findUnique({ where: { key }, select: { resetAt: true } })
+  return !!row && row.resetAt.getTime() > now.getTime()
+}
+
+const names = (list: { user: { name: string } | null }[]) => {
+  const shown = list.slice(0, 4).map(r => r.user?.name ?? 'a guest')
+  const more  = list.length - shown.length
+  return more > 0 ? `${shown.join(', ')} and ${more} more` : shown.length > 1
+    ? `${shown.slice(0, -1).join(', ')} and ${shown[shown.length - 1]}` : shown[0]
+}
+
+/**
+ * The morning-after list, once per event and person, to everyone who runs the
+ * door (host, co-hosts, the club's hosts): who wasn't checked in, and that the
+ * rest of the day is theirs to fix it. Only where check-in ran — anywhere else
+ * nothing will count, so there is nothing to review. A room settles to no-show
+ * only after this reached someone (settleAttendance), so it goes out whether
+ * or not enforcement is on.
+ */
+export async function sendAttendanceReviews(event: SweepEvent): Promise<number> {
+  const room = await roomOf(event)
+  if (!checkInRan(room)) return 0
+  const missing = unmarkedGuests(room)
+  if (missing.length === 0) return 0
+  const e = await prisma.event.findUnique({ where: { id: event.id }, select: { emoji: true } })
+  const runners    = eventRunners(event)
+  const recipients = [...new Set([runners.hostId, ...runners.cohostIds, ...runners.clubHostIds].filter((u): u is string => !!u))]
+  const n = missing.length
+  let sent = 0
+  for (const userId of recipients) {
+    const key = `attendance-review:${event.id}:${userId}`
+    if (!await claimOnce(key, 7 * DAY)) continue
+    const ok = await createNotification(userId, 'attendance_review',
+      `${e?.emoji ?? '📋'} ${n} not checked in at ${event.title}`,
+      `${names(missing)}. Check in anyone who came, or excuse them, by midnight tonight. After that ${n === 1 ? 'it counts' : 'each counts'} as a no-show.`,
+      `/host/checkin?event=${event.id}`)
+    if (ok) sent++
+    else await releaseClaim(key)
+  }
+  if (sent > 0) await claimOnce(reviewSentKey(event.id), 30 * DAY)
+  return sent
 }
 
 /**
@@ -350,6 +440,33 @@ export async function overturnCorrected(eventIds: string[], now: Date): Promise<
 
 // ── Notifications (enforcement only) ────────────────────────────────────────
 
+/**
+ * Tell a member about a no-show that counts, once: whether the host marked
+ * it or it was left unmarked after the review, with the way to say they came.
+ */
+export async function notifyNoShows(eventIds: string[], enforcement: StandingEnforcement): Promise<number> {
+  if (!enforcement.enforced || eventIds.length === 0) return 0
+  const offences = await prisma.standingOffence.findMany({
+    where:  {
+      eventId: { in: eventIds }, kind: OffenceKind.NoShow, counts: true, status: OffenceStatus.Open,
+      ...(enforcement.since ? { occurredAt: { gte: enforcement.since } } : {}),
+    },
+    select: { id: true, userId: true, event: { select: { title: true, emoji: true } }, attendee: { select: { attendanceAutoResolvedAt: true } } },
+  })
+  let sent = 0
+  for (const o of offences) {
+    const key = `standing-no-show:${o.id}`
+    if (!await claimOnce(key, 120 * DAY)) continue
+    const how = o.attendee?.attendanceAutoResolvedAt ? "You weren't checked in" : 'The host marked you absent'
+    const ok = await createNotification(o.userId, 'standing_no_show', `${o.event.emoji} Missed: ${o.event.title}`,
+      `${how}, so it counts as a no-show on your standing. Were you there? Tap "I was there" within ${DISPUTE_WINDOW_DAYS} days.`,
+      '/standing')
+    if (ok) sent++
+    else await releaseClaim(key)
+  }
+  return sent
+}
+
 /** Tell members about real cards issued since the last run. Stamped after the send. */
 export async function notifyStandingCards(enforcement: StandingEnforcement): Promise<number> {
   if (!enforcement.enforced) return 0
@@ -383,13 +500,24 @@ export async function sweepStanding(now: Date = new Date()) {
   const events = await resolvedEvents(now)
   const touched = new Set<string>()
   const errors: string[] = []
-  let autoResolved = 0
+  let autoResolved = 0, defaultedAbsent = 0, reviewsSent = 0
+
+  for (const e of await reviewingEvents(now)) {
+    try {
+      reviewsSent += await sendAttendanceReviews(e)
+    } catch (err) {
+      console.error('[standing] review notice failed', { eventId: e.id, err: String(err) })
+      errors.push(`review:${e.id}`)
+    }
+  }
 
   // One event's failure must not take the others, or the card pass, with it.
   for (const e of events) {
     try {
-      // Resolve first: after it, the only no-shows left are the declared ones.
-      autoResolved += await autoResolveAttendance(e.id, now)
+      // Settle first: after it, every no-show is on the row for recordOffences.
+      const settled = await settleAttendance(e, now)
+      autoResolved    += settled.attended
+      defaultedAbsent += settled.absent
       for (const userId of await recordOffences(e)) touched.add(userId)
     } catch (err) {
       console.error('[standing] event pass failed', { eventId: e.id, err: String(err) })
@@ -425,8 +553,12 @@ export async function sweepStanding(now: Date = new Date()) {
       errors.push(`user:${userId}`)
     }
   }
+  const noShowsNotified = await notifyNoShows(events.map(e => e.id), enforcement)
   const notified = await notifyStandingCards(enforcement)
-  return { now: now.toISOString(), enforced: enforcement.enforced, events: events.length, autoResolved, members: touched.size, ...totals, notified, errors }
+  return {
+    now: now.toISOString(), enforced: enforcement.enforced, events: events.length, reviewsSent,
+    autoResolved, defaultedAbsent, members: touched.size, ...totals, noShowsNotified, notified, errors,
+  }
 }
 
 // ── Interventions ───────────────────────────────────────────────────────────
