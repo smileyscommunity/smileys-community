@@ -321,17 +321,23 @@ describe('the host review', () => {
 
   it('tells a member about a counting no-show once, and says which kind', async () => {
     p.standingOffence.findMany.mockResolvedValue([
-      { id: 'o1', userId: 'm1', event: { title: 'Sunset Sailing', emoji: '⛵' }, attendee: { attendanceAutoResolvedAt: NOW }, user: { name: 'M One', email: 'm1@x' } },
-      { id: 'o2', userId: 'm2', event: { title: 'Sunset Sailing', emoji: '⛵' }, attendee: { attendanceAutoResolvedAt: null }, user: { name: 'M Two', email: null } },
+      { id: 'o1', userId: 'm1', kind: 'no_show', event: { title: 'Sunset Sailing', emoji: '⛵' }, attendee: { attendanceAutoResolvedAt: NOW }, user: { name: 'M One', email: 'm1@x' } },
+      { id: 'o2', userId: 'm2', kind: 'no_show', event: { title: 'Sunset Sailing', emoji: '⛵' }, attendee: { attendanceAutoResolvedAt: null }, user: { name: 'M Two', email: null } },
+      { id: 'o3', userId: 'm3', kind: 'late_cancel', event: { title: 'Sunset Sailing', emoji: '⛵' }, attendee: { attendanceAutoResolvedAt: null }, user: { name: 'M Three', email: 'm3@x' } },
     ])
     expect(await notifyNoShows(['e1'], OFF)).toBe(0)
-    expect(await notifyNoShows(['e1'], ON)).toBe(2)
-    expect(p.standingOffence.findMany.mock.calls[0][0].where).toMatchObject({ kind: 'no_show', counts: true, status: 'open', occurredAt: { gte: ON.since } })
+    expect(await notifyNoShows(['e1'], ON)).toBe(3)
+    expect(p.standingOffence.findMany.mock.calls[0][0].where).toMatchObject({ counts: true, status: 'open', occurredAt: { gte: ON.since } })
     const calls = (createNotification as any).mock.calls
     expect(calls[0][3]).toMatch(/^You weren't checked in/)
     expect(calls[1][3]).toMatch(/^The host marked you absent/)
+    expect(calls[2][1]).toBe('standing_late_cancel')
+    expect(calls[2][3]).toMatch(/^You cancelled after the cutoff and nobody took your seat/)
     expect(calls[0][4]).toBe('/standing')
-    expect((sendNoShowRecordedEmail as any).mock.calls).toEqual([['m1@x', 'M One', 'Sunset Sailing', '⛵', true]])
+    expect((sendNoShowRecordedEmail as any).mock.calls).toEqual([
+      ['m1@x', 'M One', 'Sunset Sailing', '⛵', 'defaulted'],
+      ['m3@x', 'M Three', 'Sunset Sailing', '⛵', 'late_cancel'],
+    ])
   })
 })
 

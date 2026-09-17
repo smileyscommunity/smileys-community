@@ -2,7 +2,7 @@ import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notify'
 import { claimOnce, releaseClaim } from '@/lib/rateLimit'
-import { sendAttendanceCheckEmail, sendNoShowRecordedEmail } from '@/lib/email'
+import { sendAttendanceCheckEmail, sendNoShowRecordedEmail, type OffenceHow } from '@/lib/email'
 import { writeAudit } from '@/lib/audit'
 import { eventStartsAt, eventEndsAt } from '@/lib/eventTime'
 import { DEFAULT_TZ } from '@/lib/cityTime'
@@ -10,7 +10,7 @@ import { Attendance, AttendeeStatus } from '@/lib/constants'
 import { eventRunners, noShowExemptionReason } from '@/lib/noShowPolicy'
 import { standingEnforcement, type StandingEnforcement } from '@/lib/standingRead'
 import {
-  STANDING_SWEEP_LOOKBACK_DAYS, DISPUTE_WINDOW_DAYS, STANDING_STARTS_AT, STANDING_ENFORCE_SETTING,
+  STANDING_SWEEP_LOOKBACK_DAYS, DISPUTE_WINDOW_DAYS, STANDING_WINDOW_DAYS, STANDING_STARTS_AT, STANDING_ENFORCE_SETTING,
   RECOVERY_REQUIRES_CHECKIN, LIVE_CARD_STATUSES, OffenceKind, OffenceStatus, CardLevel, StandingCardStatus,
   eventTier, classifyRow, refilledLateCancels, offenceCounts, decideIssuance, isSuccessfulCommitment,
   recoveryOutcome, cardLapsed, disputeHolds, standingLevel, countedCommitments, commitmentsNeeded, canDispute, windowStart,
@@ -268,7 +268,9 @@ export async function recordOffences(event: SweepEvent): Promise<Set<string>> {
 
   const lateCancels = classified.filter(c => c.kind === OffenceKind.LateCancel).map(c => ({ id: c.row.id, cancelledAt: c.row.cancelledAt! }))
   const arrivals    = rows.filter(r => r.status === AttendeeStatus.Approved && !noShowExemptionReason(r.userId, r.user?.role, runners))
-  const forgiven    = refilledLateCancels(lateCancels, arrivals)
+  // Where the door wasn't run, a later joiner is taken to have come (refilledLateCancels).
+  const ran         = checkInRan(rows.filter(r => r.status === AttendeeStatus.Approved).map(r => ({ ...r, exempt: !!noShowExemptionReason(r.userId, r.user?.role, runners) })))
+  const forgiven    = refilledLateCancels(lateCancels, arrivals, ran)
   const tier        = eventTier(event)
   const { counts, loggedReason } = offenceCounts(tier, event.city?.createdAt ?? null, startsAt)
 
@@ -485,18 +487,20 @@ export async function overturnCorrected(eventIds: string[], now: Date): Promise<
 // ── Notifications (enforcement only) ────────────────────────────────────────
 
 /**
- * Tell a member about a no-show that counts, once: whether the host marked
- * it or it was left unmarked after the review, with the way to say they came.
+ * Tell a member about an offence that counts, once. A no-show: whether the
+ * host marked it or it was left unmarked after the review, with the way to
+ * say they came. A late cancel: that it counted, because nobody took the
+ * seat — a member must not reach a yellow card from two of them unheard.
  */
 export async function notifyNoShows(eventIds: string[], enforcement: StandingEnforcement): Promise<number> {
   if (!enforcement.enforced || eventIds.length === 0) return 0
   const offences = await prisma.standingOffence.findMany({
     where:  {
-      eventId: { in: eventIds }, kind: OffenceKind.NoShow, counts: true, status: OffenceStatus.Open,
+      eventId: { in: eventIds }, counts: true, status: OffenceStatus.Open,
       ...(enforcement.since ? { occurredAt: { gte: enforcement.since } } : {}),
     },
     select: {
-      id: true, userId: true, event: { select: { title: true, emoji: true } },
+      id: true, userId: true, kind: true, event: { select: { title: true, emoji: true } },
       attendee: { select: { attendanceAutoResolvedAt: true } }, user: { select: { name: true, email: true } },
     },
   })
@@ -504,14 +508,19 @@ export async function notifyNoShows(eventIds: string[], enforcement: StandingEnf
   for (const o of offences) {
     const key = `standing-no-show:${o.id}`
     if (!await claimOnce(key, 120 * DAY)) continue
-    const how = o.attendee?.attendanceAutoResolvedAt ? "You weren't checked in" : 'The host marked you absent'
-    const ok = await createNotification(o.userId, 'standing_no_show', `${o.event.emoji} Missed: ${o.event.title}`,
-      `${how}, so it counts as a no-show on your standing. Were you there? Tap "I was there" within ${DISPUTE_WINDOW_DAYS} days.`,
-      '/standing')
+    const how: OffenceHow = o.kind === OffenceKind.LateCancel ? 'late_cancel'
+      : o.attendee?.attendanceAutoResolvedAt ? 'defaulted' : 'marked'
+    const ok = how === 'late_cancel'
+      ? await createNotification(o.userId, 'standing_late_cancel', `${o.event.emoji} Late cancellation: ${o.event.title}`,
+          `You cancelled after the cutoff and nobody took your seat, so it counts on your standing. Two in ${STANDING_WINDOW_DAYS} days is a yellow card. Cancelling earlier hands the seat to someone waiting.`,
+          '/standing')
+      : await createNotification(o.userId, 'standing_no_show', `${o.event.emoji} Missed: ${o.event.title}`,
+          `${how === 'defaulted' ? "You weren't checked in" : 'The host marked you absent'}, so it counts as a no-show on your standing. Were you there? Tap "I was there" within ${DISPUTE_WINDOW_DAYS} days.`,
+          '/standing')
     if (!ok) { await releaseClaim(key); continue }
     sent++
     if (o.user?.email) {
-      await sendNoShowRecordedEmail(o.user.email, o.user.name, o.event.title, o.event.emoji, !!o.attendee?.attendanceAutoResolvedAt)
+      await sendNoShowRecordedEmail(o.user.email, o.user.name, o.event.title, o.event.emoji, how)
         .catch(err => console.error('[standing] no-show email failed', { offenceId: o.id, err: String(err) }))
       await pause()
     }

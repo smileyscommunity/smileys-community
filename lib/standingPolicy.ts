@@ -279,12 +279,17 @@ export function classifyRow(row: StandingRow, startsAt: Date, e: TierFields, run
  * prices is the lost seat, and if a member who joined after the cancel came,
  * there was none. One arrival covers one cancel, earliest first. Without this
  * a late cancel costs exactly what silence costs, and nobody would cancel.
+ *
+ * "Came" is the check-in — where the host ran one. Where they didn't, a
+ * later joiner counts as having come, as every unmarked seat there does: the
+ * member who gave a seat back must not do worse than the one who never came.
  */
 export function refilledLateCancels(
   lateCancels: { id: string; cancelledAt: Date }[],
   arrivals:    { joinedAt: Date; checkedIn: boolean }[],
+  checkInRan:  boolean = true,
 ): Set<string> {
-  const joins = arrivals.filter(a => a.checkedIn).map(a => a.joinedAt.getTime()).sort((a, b) => a - b)
+  const joins = arrivals.filter(a => a.checkedIn || !checkInRan).map(a => a.joinedAt.getTime()).sort((a, b) => a - b)
   const forgiven = new Set<string>()
   let j = 0
   for (const lc of [...lateCancels].sort((a, b) => a.cancelledAt.getTime() - b.cancelledAt.getTime())) {

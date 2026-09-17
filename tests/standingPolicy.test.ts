@@ -233,6 +233,16 @@ describe('effects', () => {
   })
 })
 
+describe('a late cancel where the door was not run', () => {
+  it('is forgiven by any later joiner, checked in or not — the room counts as having come', () => {
+    const lc  = [{ id: 'lc', cancelledAt: new Date(START.getTime() - 5 * H) }]
+    const arr = [{ joinedAt: new Date(START.getTime() - 4 * H), checkedIn: false }]
+    expect(refilledLateCancels(lc, arr, true).has('lc')).toBe(false)
+    expect(refilledLateCancels(lc, arr, false).has('lc')).toBe(true)
+    expect(refilledLateCancels(lc, [{ joinedAt: new Date(START.getTime() - 6 * H), checkedIn: false }], false).has('lc')).toBe(false)  // joined before the cancel
+  })
+})
+
 describe('a seat taken at the last minute', () => {
   it('is never an offence, whether left empty or given back', () => {
     expect(seatTakenLate(new Date(START.getTime() - 2 * H), START)).toBe(true)

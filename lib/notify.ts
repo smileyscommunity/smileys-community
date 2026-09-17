@@ -44,6 +44,7 @@ const PREF_KEY: Record<string, 'newEvents' | 'reminders' | 'eventUpdates' | 'joi
   standing_restored:         null,
   standing_dispute_resolved: null,
   standing_no_show:          null,
+  standing_late_cancel:      null,
   attendance_review:         null,
   attendance_check:          null,  // the guest's side of the morning-after review
   attendance_claim:          null,  // a guest says "I was there" to the door

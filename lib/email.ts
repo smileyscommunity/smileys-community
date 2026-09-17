@@ -750,24 +750,34 @@ export async function sendAttendanceCheckEmail(email: string, name: string, even
   })
 }
 
-// Standing: a no-show that counts was recorded (lib/standing notifyNoShows).
-export async function sendNoShowRecordedEmail(email: string, name: string, eventTitle: string, eventEmoji: string, defaulted: boolean) {
-  const url = `${APP_URL}/standing`
+// Standing: an offence that counts was recorded (lib/standing notifyNoShows).
+// 'defaulted' — not checked in after the host's review; 'marked' — the host
+// marked them absent; 'late_cancel' — cancelled after the cutoff, seat unused.
+export type OffenceHow = 'defaulted' | 'marked' | 'late_cancel'
+
+export async function sendNoShowRecordedEmail(email: string, name: string, eventTitle: string, eventEmoji: string, how: OffenceHow) {
+  const url  = `${APP_URL}/standing`
+  const late = how === 'late_cancel'
   await send('sendNoShowRecordedEmail', {
     from: FROM, to: email,
-    subject: safeSubject(`A no-show for "${eventTitle}" is on your standing`),
+    subject: safeSubject(late ? `Your late cancellation for "${eventTitle}" counted` : `A no-show for "${eventTitle}" is on your standing`),
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
         <div style="text-align:center;margin-bottom:24px">
           <span style="font-size:48px">${esc(eventEmoji)}</span>
-          <h1 style="font-size:22px;font-weight:800;color:#111;margin:12px 0 4px">Missed: ${esc(eventTitle)}</h1>
+          <h1 style="font-size:22px;font-weight:800;color:#111;margin:12px 0 4px">${late ? 'Late cancellation' : 'Missed'}: ${esc(eventTitle)}</h1>
         </div>
         <p style="color:#374151;font-size:14px;line-height:1.6">
-          Hi ${esc(firstNameOf(name))}, ${defaulted ? "you weren't checked in" : 'the host marked you absent'}, so it counts as a no-show on your standing.
+          Hi ${esc(firstNameOf(name))}, ${
+            late ? 'you cancelled after the cutoff and nobody took your seat, so it counts on your standing'
+            : how === 'defaulted' ? "you weren't checked in, so it counts as a no-show on your standing"
+            : 'the host marked you absent, so it counts as a no-show on your standing'}.
           Two within 90 days is a yellow card.
         </p>
         <p style="color:#374151;font-size:14px;line-height:1.6">
-          Were you there? Tap <strong>I was there</strong> on Your standing within 30 days. A moderator decides, never the host of that event.
+          ${late
+            ? 'Cancelling earlier hands the seat to someone waiting, and never counts. If someone from the waitlist takes your seat and comes, a late cancel is forgiven.'
+            : 'Were you there? Tap <strong>I was there</strong> on Your standing within 30 days. A moderator decides, never the host of that event.'}
         </p>
         <a href="${url}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin:20px 0 0">
           Your standing →
