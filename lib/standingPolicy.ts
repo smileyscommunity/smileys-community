@@ -1,5 +1,5 @@
 import { Attendance, AttendeeStatus } from '@/lib/constants'
-import { noShowExemptionReason, checkInIsCredible, RECONFIRM_RELEASE_HOURS_BEFORE, type EventRunners } from '@/lib/noShowPolicy'
+import { noShowExemptionReason, RECONFIRM_RELEASE_HOURS_BEFORE, type EventRunners } from '@/lib/noShowPolicy'
 import { eventEndsAt, type EventClock } from '@/lib/eventTime'
 import { dayInTz, shiftDay, fromWallClockInTz } from '@/lib/cityTime'
 
@@ -44,6 +44,12 @@ export const ATTENDANCE_REVIEW_NOTICE_HOUR = 10
 // have the same full day as everyone after them.
 export const DEFAULT_ABSENT_FIRST_REVIEW_DAY = '2026-09-18'
 export const DISPUTE_WINDOW_DAYS           = 30
+// "The host ran check-in": at least this share of the room scanned. An
+// unchecked seat is a no-show only past it; below it the room settles as
+// attended. v1 used half (NO_SHOW_MIN_CHECKIN_RATIO); a door worked for the
+// first half hour and then abandoned passed that, and the 50–69% band held a
+// third of the unchecked guests in the month before this rule.
+export const CHECK_IN_RAN_RATIO            = 0.7
 // A seat taken this close to the start is never an offence: a waitlist claim
 // or a late join the member may not have seen in time is not a commitment
 // anyone else lost a seat to.
@@ -168,7 +174,7 @@ export interface RoomRow {
 }
 
 /**
- * Did the host run check-in? At least half the room scanned, where the room is
+ * Did the host run check-in? At least CHECK_IN_RAN_RATIO of the room scanned, where the room is
  * the approved guests who aren't running it. Only then is an unmarked seat a
  * no-show: an event nobody scanned (a coworking morning, a café table) settles
  * as attended, as it always did. Excused guests stay in the room: excusing
@@ -176,7 +182,13 @@ export interface RoomRow {
  */
 export function checkInRan(rows: RoomRow[]): boolean {
   const room = rows.filter(r => !r.exempt)
-  return checkInIsCredible(room.filter(r => r.checkedIn).length, room.length)
+  return checkInReached(room.filter(r => r.checkedIn).length, room.length)
+}
+
+/** The same line from counts: at least one scan, and CHECK_IN_RAN_RATIO of the room. */
+export function checkInReached(scanned: number, room: number): boolean {
+  if (scanned < 1 || room < 1) return false
+  return scanned / room >= CHECK_IN_RAN_RATIO
 }
 
 /** Who the review is about: not scanned, not marked either way, not running the event. */

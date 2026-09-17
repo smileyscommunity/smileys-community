@@ -82,7 +82,9 @@ describe('check-in prompt counts the room the sweeper counts (item 20)', () => {
     expect(pending).toMatchObject({ approved: 3, checked: 1 })
   })
   it('falls back to the raw counts for a payload without room fields', () => {
-    expect(awaitingCheckIn([ev({ _count: { attendees: 4 }, checkedInCount: 2 })], 'Europe/Istanbul', now)).toEqual([])
+    // 3 of 4: past the 70% line (lib/standingPolicy CHECK_IN_RAN_RATIO); 2 of 4 would be chased.
+    expect(awaitingCheckIn([ev({ _count: { attendees: 4 }, checkedInCount: 3 })], 'Europe/Istanbul', now)).toEqual([])
+    expect(awaitingCheckIn([ev({ _count: { attendees: 4 }, checkedInCount: 2 })], 'Europe/Istanbul', now)).toHaveLength(1)
   })
   it('the host events API derives the room without host and co-hosts', () => {
     const src = read('app/api/host/events/route.ts')

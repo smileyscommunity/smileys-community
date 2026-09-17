@@ -270,11 +270,13 @@ describe('the host review day', () => {
 
 describe('checkInRan / unmarkedGuests', () => {
   const r = (checkedIn: boolean, attendance = checkedIn ? 'attended' : 'unknown', exempt = false) => ({ checkedIn, attendance, exempt })
-  it('needs half the room scanned, not counting the people running it; excusing never tips it', () => {
-    expect(checkInRan([r(true), r(false)])).toBe(true)
-    expect(checkInRan([r(true), r(false), r(false)])).toBe(false)
-    expect(checkInRan([r(true), r(false), r(false, 'excused')])).toBe(false)
-    expect(checkInRan([r(false, 'unknown', true), r(false, 'unknown', true), r(true), r(false)])).toBe(true)
+  it('needs 70% of the room scanned, not counting the people running it; excusing never tips it', () => {
+    expect(checkInRan([r(true), r(true), r(true), r(true), r(true), r(true), r(true), r(false), r(false), r(false)])).toBe(true)
+    expect(checkInRan([r(true), r(false)])).toBe(false)
+    expect(checkInRan([r(true), r(true), r(false)])).toBe(false)
+    expect(checkInRan([r(true), r(true), r(true), r(false)])).toBe(true)
+    expect(checkInRan([r(true), r(true), r(false), r(false, 'excused')])).toBe(false)
+    expect(checkInRan([r(false, 'unknown', true), r(false, 'unknown', true), r(true), r(true), r(true), r(false)])).toBe(true)
     expect(checkInRan([r(false), r(false)])).toBe(false)
     expect(checkInRan([])).toBe(false)
   })

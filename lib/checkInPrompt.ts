@@ -1,13 +1,12 @@
 import { eventEndsAt } from '@/lib/eventTime'
-import { checkInIsCredible } from '@/lib/noShowPolicy'
-import { attendanceSettlesAt } from '@/lib/standingPolicy'
+import { attendanceSettlesAt, checkInReached } from '@/lib/standingPolicy'
 import { DEFAULT_TZ } from '@/lib/cityTime'
 
 // ── "You haven't checked anyone in" ─────────────────────────────────────────
 //
-// The host-facing counterpart to NoShowBanner. The no-show sweeper reads an
+// The host-facing counterpart to NoShowBanner. The standing sweep reads an
 // unchecked seat as a no-show only on events where the host actually ran
-// check-in (checkInIsCredible); with nobody scanned it skips the event
+// check-in (checkInReached); with nobody scanned it skips the event
 // entirely rather than hand cards to the whole room. That guard is right,
 // but it also means the cards, the appeals and the waiver never fire for a
 // host who forgets — the feature quietly does nothing.
@@ -71,7 +70,7 @@ export function awaitingCheckIn(
     // their runs. Attendance is the record of who came, whatever the price.
     const approved = e.roomApproved  ?? e._count?.attendees ?? 0
     const checked  = e.roomCheckedIn ?? e.checkedInCount    ?? 0
-    if (approved < 1 || checkInIsCredible(checked, approved)) return []
+    if (approved < 1 || checkInReached(checked, approved)) return []
     const endsAt = eventEndsAt(e, tz).getTime()
     if (endsAt > now.getTime()) return []                       // still running
     // Past the resolution the room is settled: nothing left to check in.

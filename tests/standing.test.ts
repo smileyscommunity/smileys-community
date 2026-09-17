@@ -147,7 +147,8 @@ describe('resolving and recording an event', () => {
   const updates = () => p.eventAttendee.updateMany.mock.calls.map((c: any) => c[0])
 
   it('check-in ran: the unmarked guests become no-shows, stamped; the people running it attended', async () => {
-    p.eventAttendee.findMany.mockResolvedValue(room(6, ['a', 'b'], [row('host'), row('ex', { attendance: 'excused' })]))
+    // 8 scanned of 11 non-exempt (the excused stay in the room): 73%, past the 70% line.
+    p.eventAttendee.findMany.mockResolvedValue(room(8, ['a', 'b'], [row('host'), row('ex', { attendance: 'excused' })]))
     await settleAttendance(EVENT, NOW)
     const still = { status: 'approved', checkedIn: false, attendance: 'unknown' }
     expect(updates()).toContainEqual({ where: { id: { in: ['a', 'b'] }, ...still }, data: { attendance: 'no_show', attendanceAutoResolvedAt: NOW } })
@@ -250,7 +251,7 @@ describe('the host review', () => {
   })
 
   it('sends everyone running the door, club hosts and admins who checked people in included, and records that it went', async () => {
-    p.eventAttendee.findMany.mockResolvedValue([scanned('s1'), guest('a')])
+    p.eventAttendee.findMany.mockResolvedValue([scanned('s1'), scanned('s2'), scanned('s3'), guest('a')])
     p.rateLimit.findMany.mockResolvedValue([{ key: 'checkin-door:e1:admin1' }, { key: 'checkin-door:e1:host' }])
     await sendAttendanceReviews({ ...EVENT, cohosts: [], club: { isActive: true, memberships: [{ userId: 'clubhost' }] } } as unknown as SweepEvent)
     expect(p.rateLimit.findMany.mock.calls[0][0].where).toEqual({ key: { startsWith: 'checkin-door:e1:' } })
@@ -263,7 +264,7 @@ describe('the host review', () => {
   })
 
   it('sends the host and co-host the unmarked names, once each', async () => {
-    p.eventAttendee.findMany.mockResolvedValue([scanned('s1'), scanned('s2'), scanned('s3'), guest('Emir'), guest('Beto'), guest('host')])
+    p.eventAttendee.findMany.mockResolvedValue([scanned('s1'), scanned('s2'), scanned('s3'), scanned('s4'), scanned('s5'), guest('Emir'), guest('Beto'), guest('host')])
     expect(await sendAttendanceReviews(EVENT as unknown as SweepEvent)).toBe(2)
     const calls = (createNotification as any).mock.calls
     expect(calls.map((c: any) => c[0])).toEqual(['host', 'co', 'Emir', 'Beto'])
@@ -282,14 +283,14 @@ describe('the host review', () => {
   })
 
   it('a later sweep still reaches a guest the first one missed, once the host list has gone', async () => {
-    p.eventAttendee.findMany.mockResolvedValue([scanned('s1'), guest('a')])
+    p.eventAttendee.findMany.mockResolvedValue([scanned('s1'), scanned('s2'), scanned('s3'), guest('a')])
     ;(claimOnce as any).mockImplementation(async (k: string) => k.startsWith('attendance-review-guest:'))
     await sendAttendanceReviews(EVENT as unknown as SweepEvent)
     expect((createNotification as any).mock.calls.map((c: any) => c[0])).toEqual(['a'])
   })
 
   it('where the no-show would not count, the host still gets the list, worded for what will happen, and no guest is told', async () => {
-    p.eventAttendee.findMany.mockResolvedValue([scanned('s1'), guest('a')])
+    p.eventAttendee.findMany.mockResolvedValue([scanned('s1'), scanned('s2'), scanned('s3'), guest('a')])
     await sendAttendanceReviews({ ...EVENT, limitedSpots: false } as unknown as SweepEvent)
     await sendAttendanceReviews({ ...EVENT, id: 'e2', city: { timezone: 'Europe/Istanbul', createdAt: new Date('2026-09-01T00:00:00Z') } } as unknown as SweepEvent)
     const calls = (createNotification as any).mock.calls
@@ -304,13 +305,13 @@ describe('the host review', () => {
   it('sends nothing where check-in was not run, or everyone is marked', async () => {
     p.eventAttendee.findMany.mockResolvedValueOnce([scanned('s1'), guest('a'), guest('b')])
     expect(await sendAttendanceReviews(EVENT as unknown as SweepEvent)).toBe(0)
-    p.eventAttendee.findMany.mockResolvedValueOnce([scanned('s1'), guest('a', { attendance: 'excused' })])
+    p.eventAttendee.findMany.mockResolvedValueOnce([scanned('s1'), scanned('s2'), scanned('s3'), guest('a', { attendance: 'excused' })])
     expect(await sendAttendanceReviews(EVENT as unknown as SweepEvent)).toBe(0)
     expect(createNotification).not.toHaveBeenCalled()
   })
 
   it('hands the claim back when a send fails, and tells no guest when no host heard', async () => {
-    p.eventAttendee.findMany.mockResolvedValue([scanned('s1'), guest('a')])
+    p.eventAttendee.findMany.mockResolvedValue([scanned('s1'), scanned('s2'), scanned('s3'), guest('a')])
     ;(createNotification as any).mockResolvedValue(false)
     p.rateLimit.findUnique.mockResolvedValue(null)
     await sendAttendanceReviews({ ...EVENT, cohosts: [] } as unknown as SweepEvent)

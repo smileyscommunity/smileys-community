@@ -121,7 +121,7 @@ who came. Here's everything from your side.
   everyone who wasn't checked in. Until midnight that day you can check in
   anyone who came, or tap **Excuse** for someone who had a reason (cancelled
   on WhatsApp, an emergency). At midnight, anyone still unmarked counts as a
-  no-show. This only happens if you checked in at least half the room; if
+  no-show. This only happens if you checked in at least 70% of the room; if
   you didn't run check-in, nobody is marked.
 - **Mistakes after that** go through the member: they tap "I was there", and
   a moderator asks you what happened. You're never the one who decides a

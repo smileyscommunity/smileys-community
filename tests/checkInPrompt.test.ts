@@ -39,11 +39,12 @@ describe('awaitingCheckIn', () => {
   })
 
   it('leaves a credibly checked-in event alone', () => {
-    expect(awaitingCheckIn([event({ checkedInCount: 4 })], TZ, now)).toEqual([])
+    expect(awaitingCheckIn([event({ checkedInCount: 6 })], TZ, now)).toEqual([])
   })
 
-  it('still chases a half-hearted check-in below the ratio', () => {
-    expect(awaitingCheckIn([event({ checkedInCount: 3 })], TZ, now)).toHaveLength(1)
+  it('still chases a half-hearted check-in below the ratio — half the room is not enough', () => {
+    expect(awaitingCheckIn([event({ checkedInCount: 4 })], TZ, now)).toHaveLength(1)
+    expect(awaitingCheckIn([event({ checkedInCount: 5 })], TZ, now)).toHaveLength(1)
   })
 
   it('chases paid and prepaid events too — attendance is not only for cards', () => {
