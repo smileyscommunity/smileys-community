@@ -9,6 +9,7 @@ import { vibrate, useScanCheckin } from '@/lib/checkin'
 import { applyPending, loadQueue, pendingFor } from '@/lib/checkinQueue'
 import { useCheckinSync } from '@/hooks/useCheckinSync'
 import { useExcuse, excusable } from '@/hooks/useExcuse'
+import WalkInAdd from '@/components/WalkInAdd'
 import { useCloseOut } from '@/hooks/useCloseOut'
 import QRScanner from '@/components/QRScanner'
 import ScanResultToast from '@/components/ScanResultToast'
@@ -221,6 +222,17 @@ function CheckInPageInner() {
   const { rest, closing, markRest } = useCloseOut({ eventId: selectedId, attendees, setAttendees })
   const started = !!event && todayInTz(tz) >= event.date
   const { excusing, excuse } = useExcuse({ eventId: selectedId, setAttendees })
+
+  // A walk-in was just seated (components/WalkInAdd): reload the roster so
+  // the row exists here with its server-decided fields, then check them in.
+  async function seatedWalkIn(userId: string) {
+    const data = await fetch(`/app/api/events/${selectedId}/checkin`, { credentials: 'include' }).then(r => r.json())
+    if (!Array.isArray(data)) return
+    const rows: Attendee[] = applyPending(data, pendingFor(loadQueue(), selectedId))
+    setAttendees(rows)
+    const row = rows.find(a => a.userId === userId)
+    if (row && !row.checkedIn) await toggle(row)
+  }
 
   async function toggle(a: Attendee) {
     if (toggling.has(a.id)) return  // ignore double-taps while inflight
@@ -469,6 +481,12 @@ function CheckInPageInner() {
           )
         })}
       </div>
+
+      {started && selectedId && !loadingAtts && (
+        <div className="px-4 pt-5">
+          <WalkInAdd eventId={selectedId} exclude={new Set(attendees.map(a => a.userId))} onAdded={seatedWalkIn} />
+        </div>
+      )}
 
       {/* Close out the door. Counts the whole roster, not the search or tile filter. */}
       {started && !loadingAtts && rest.length > 0 && (

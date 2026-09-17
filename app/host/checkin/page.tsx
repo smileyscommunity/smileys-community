@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { useCheckinSync } from '@/hooks/useCheckinSync'
 import { useCloseOut } from '@/hooks/useCloseOut'
 import { useExcuse, excusable } from '@/hooks/useExcuse'
+import WalkInAdd from '@/components/WalkInAdd'
 import { applyPending, loadQueue, pendingFor } from '@/lib/checkinQueue'
 import { useSearchParams, useRouter } from 'next/navigation'
 import {resolveImageUrl, avatarUrl, getInitials} from '@/lib/data'
@@ -164,6 +165,14 @@ function CheckInScanner() {
 
   const { excusing, excuse } = useExcuse({ eventId, setAttendees, onError: setToggleError })
 
+  // A walk-in was just seated (components/WalkInAdd): reload the roster so
+  // the row exists here with its server-decided fields, then check them in.
+  async function seatedWalkIn(userId: string) {
+    const att = await fetch(`/app/api/events/${eventId}/checkin`, { credentials: 'include' }).then(r => r.json())
+    if (Array.isArray(att)) setAttendees(applyPending(att, pendingFor(loadQueue(), eventId)))
+    await toggleCheckin(userId, false)
+  }
+
   const checkedInCount = attendees.filter(a => a.checkedIn).length
   // "Mark the rest" (hooks/useCloseOut). The day is the gate here; the
   // server holds the exact start.
@@ -314,6 +323,10 @@ function CheckInScanner() {
             )
           })}
         </div>
+      )}
+
+      {started && (
+        <WalkInAdd eventId={eventId} exclude={new Set(attendees.map(a => a.userId))} onAdded={seatedWalkIn} />
       )}
 
       {/* Close out the door. Counts the whole roster, not the search. */}
