@@ -277,6 +277,13 @@ describe('the host review', () => {
     expect((createNotification as any).mock.calls.map((c: any) => c[0])).toEqual(['a'])
   })
 
+  it('tells no guest where the no-show would not count: an open event, or a new city', async () => {
+    p.eventAttendee.findMany.mockResolvedValue([scanned('s1'), guest('a')])
+    await sendAttendanceReviews({ ...EVENT, limitedSpots: false } as unknown as SweepEvent)
+    await sendAttendanceReviews({ ...EVENT, id: 'e2', city: { timezone: 'Europe/Istanbul', createdAt: new Date('2026-09-01T00:00:00Z') } } as unknown as SweepEvent)
+    expect((createNotification as any).mock.calls.map((c: any) => c[1])).not.toContain('attendance_check')
+  })
+
   it('sends nothing where check-in was not run, or everyone is marked', async () => {
     p.eventAttendee.findMany.mockResolvedValueOnce([scanned('s1'), guest('a'), guest('b')])
     expect(await sendAttendanceReviews(EVENT as unknown as SweepEvent)).toBe(0)

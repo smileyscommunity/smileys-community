@@ -207,6 +207,11 @@ export async function sendAttendanceReviews(event: SweepEvent): Promise<number> 
   // tell the host while one tap still fixes it, instead of finding out from a
   // no-show and waiting on a moderator. Only once the host's list has gone,
   // so a guest is never told the host can fix what the host wasn't told about.
+  // Only where the no-show would count (a limited event, a city past its first
+  // 90 days): elsewhere it is only noted, and "it counts on your standing"
+  // would be untrue.
+  const tz = tzOf(event)
+  if (!offenceCounts(eventTier(event), event.city?.createdAt ?? null, eventStartsAt(event, tz)).counts) return sent
   for (const g of missing) {
     const key = `attendance-review-guest:${event.id}:${g.userId}`
     if (!await claimOnce(key, 7 * DAY)) continue
