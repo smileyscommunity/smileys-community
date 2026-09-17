@@ -77,6 +77,8 @@ interface Props {
   viewerIsLocal:  boolean
   /** Past the list's cap of 100, how many there really are. */
   totalCount:     number
+  /** Where "post your visit" goes: the page's city, or the viewer's own card. */
+  newVisitHref:   string
 }
 
 type FilterKey = 'all' | 'now' | 'week' | 'month' | 'later'
@@ -109,6 +111,8 @@ function bucketOf(a: Announcement, todayUTC: number): Exclude<FilterKey, 'all'> 
   const [ey, em, ed] = a.endsOn.split('-').map(Number)
   const startsUTC = Date.UTC(sy, sm - 1, sd)
   const endsUTC   = Date.UTC(ey, em - 1, ed)
+  // A guest's dates are the month's edges: "this month" is as close as it gets.
+  if (a.approximate) return startsUTC <= todayUTC && endsUTC >= todayUTC ? 'month' : 'later'
   if (startsUTC <= todayUTC && endsUTC >= todayUTC) return 'now'
   const daysFromNow = Math.floor((startsUTC - todayUTC) / 86_400_000)
   if (daysFromNow <= 7)  return 'week'
@@ -128,6 +132,11 @@ function arrivalStatus(a: Announcement, todayUTC: number): ArrivalStatus {
   const startUTC = Date.UTC(sy, sm - 1, sd)
   const endUTC   = Date.UTC(ey, em - 1, ed)
 
+  if (a.approximate) {
+    // Month edges, not days: never "here now", never a countdown.
+    if (startUTC <= todayUTC && endUTC >= todayUTC) return { label: 'Around now', tone: 'soon' }
+    return { label: `Visiting in ${new Date(startUTC).toLocaleDateString('en-GB', { month: 'long', timeZone: 'UTC' })}`, tone: 'later' }
+  }
   if (startUTC <= todayUTC && endUTC >= todayUTC) return { label: 'Here now', tone: 'now' }
 
   const days = Math.round((startUTC - todayUTC) / 86_400_000)
@@ -310,7 +319,7 @@ function LocalsStrip({ locals, viewerId }: { locals: FeaturedLocal[]; viewerId: 
 
 const CHECKLIST_KEY = 'visiting-checklist-dismissed'
 
-function FirstTimeChecklist({ hasPosted, viewerId, isLocal }: { hasPosted: boolean; viewerId: string | null; isLocal: boolean }) {
+function FirstTimeChecklist({ hasPosted, viewerId, isLocal, postHref }: { hasPosted: boolean; viewerId: string | null; isLocal: boolean; postHref: string }) {
   // Read after mount: a server render can't know the dismissal, and reading
   // it in the initialiser made the server and the client disagree.
   const [dismissed, setDismissed] = useState(false)
@@ -321,7 +330,7 @@ function FirstTimeChecklist({ hasPosted, viewerId, isLocal }: { hasPosted: boole
   if (!viewerId || isLocal || dismissed) return null
 
   const steps = [
-    { label: 'Post your visit',    href: '/visiting/new', done: hasPosted },
+    { label: 'Post your visit',    href: postHref,        done: hasPosted },
     { label: 'Join a hangout',     href: '/hangouts',     done: false },
     { label: 'Join a club',        href: '/clubs',        done: false },
     { label: 'RSVP to an event',   href: '/events',       done: false },
@@ -400,11 +409,12 @@ function AnnouncementCard({ a, viewerId, viewerInterests, viewerLanguages, viewe
     { interests: viewerInterests, languages: viewerLanguages, neighborhood: viewerNeighborhood },
     { interests: a.interests,     languages: a.languages,     neighborhood: a.neighborhood ?? null },
   )
-  const eventsInWindow  = events.filter(e => e.date >= a.startsOn && e.date <= a.endsOn)
+  // A guest's month-wide window would match every event and every visitor that month.
+  const eventsInWindow  = a.approximate ? [] : events.filter(e => e.date >= a.startsOn && e.date <= a.endsOn)
   // Overlapping visitors ranked by shared "looking for" tags first (e.g. two
   // people who both want a coworking buddy during the same week are a much
   // better match than two people who merely happen to overlap in dates).
-  const overlapping = allAnnouncements
+  const overlapping = (a.approximate ? [] : allAnnouncements)
     .filter(o => o.id !== a.id && !(o.user && a.user && o.user.id === a.user.id) && o.startsOn <= a.endsOn && o.endsOn >= a.startsOn)
     .map(o => ({ o, shared: o.lookingFor.filter(v => a.lookingFor.includes(v)) }))
     .sort((x, y) => y.shared.length - x.shared.length)
@@ -547,7 +557,7 @@ function AnnouncementCard({ a, viewerId, viewerInterests, viewerLanguages, viewe
   )
 }
 
-export default function VisitingClient({ announcements: all, events, cityCount, featuredLocals, cityName, today, viewerIsLocal, totalCount }: Props) {
+export default function VisitingClient({ announcements: all, events, cityCount, featuredLocals, cityName, today, viewerIsLocal, totalCount, newVisitHref }: Props) {
   const { user, isLoggedIn } = useAuth()
   // ?neighborhood= — the neighbourhood page's "See all" lands here with it.
   const searchParams  = useSearchParams()
@@ -695,7 +705,7 @@ export default function VisitingClient({ announcements: all, events, cityCount, 
       </div>
 
       {/* First time checklist — supplementary, below the fold */}
-      <FirstTimeChecklist hasPosted={hasPosted} viewerId={viewerId} isLocal={viewerIsLocal} />
+      <FirstTimeChecklist hasPosted={hasPosted} viewerId={viewerId} isLocal={viewerIsLocal} postHref={newVisitHref} />
     </>
   )
 }

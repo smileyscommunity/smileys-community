@@ -29,7 +29,9 @@ export default function Visitors({ city, visitors, visitorTotal, isDefaultCity }
                 <p className="font-bold text-gray-900 truncate">{firstNameOf(v.name)}</p>
                 <p className="text-xs text-gray-500 mt-0.5">{v.fromCity ? `from ${v.fromCity}` : 'traveling'}</p>
                 <p className="text-xs font-semibold text-amber-600 mt-2">
-                  {formatShortDate(v.startsOn)} – {formatShortDate(v.endsOn)}
+                  {v.approximate
+                    ? new Date(v.startsOn + 'T12:00:00Z').toLocaleDateString('en-GB', { month: 'long', timeZone: 'UTC' })
+                    : <>{formatShortDate(v.startsOn)} – {formatShortDate(v.endsOn)}</>}
                 </p>
               </div>
             ))}

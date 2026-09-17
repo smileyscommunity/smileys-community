@@ -7,6 +7,7 @@ vi.mock('@/lib/audit',    () => ({ writeAudit: vi.fn(async () => undefined) }))
 vi.mock('@/lib/city',     () => ({ todayInCity: vi.fn(async () => '2026-09-18') }))
 vi.mock('@/lib/neighborhoodsDb', () => ({ safeNeighborhoodFor: vi.fn(async (_c: string, n: unknown) => (typeof n === 'string' && n ? n : null)) }))
 vi.mock('next/cache',     () => ({ revalidateTag: vi.fn() }))
+vi.mock('@/lib/visitorNotify', () => ({ notifyLocalsOfVisit: vi.fn(async () => 0) }))
 vi.mock('@/lib/prisma', () => ({ prisma: {
   visitorAnnouncement: { findUnique: vi.fn(), updateMany: vi.fn() },
 } }))
@@ -55,6 +56,16 @@ describe('PATCH', () => {
     expect((await PATCH(req({ ...body, endsOn: '2026-09-01' }), params)).status).toBe(400)
     expect((await PATCH(req({ ...body, endsOn: '2027-06-01' }), params)).status).toBe(400)
   })
+  it("a visit doesn't move city: a different city in the body is refused before anything is written", async () => {
+    expect((await PATCH(req({ ...body, city: 'istanbul' }), params)).status).toBe(400)
+    expect((await PATCH(req({ ...body, city: 'izmir' }), params)).status).toBe(200)
+    expect(p.visitorAnnouncement.updateMany).toHaveBeenCalledTimes(1)
+  })
+
+  it('a null body is a 400, not a 500', async () => {
+    expect((await PATCH(req(null), params)).status).toBe(400)
+  })
+
   it('only the owner, only while active', async () => {
     ;(getSession as any).mockResolvedValue({ id: 'other', name: 'O', role: 'member' })
     expect((await PATCH(req(body), params)).status).toBe(404)

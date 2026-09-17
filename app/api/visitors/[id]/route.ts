@@ -9,6 +9,7 @@ import { todayInCity } from '@/lib/city'
 import { VISITOR_TRAVELER_TYPES, VISITOR_LOOKING_FOR } from '@/lib/data'
 import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
 import { visitDatesError, cleanEmail } from '@/lib/visitorPolicy'
+import { notifyLocalsOfVisit } from '@/lib/visitorNotify'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -37,22 +38,28 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   try {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    if (!await rateLimit(`visitor-edit:${session.id}`, 20, 60 * 60_000)) {
-      return NextResponse.json({ error: 'Too many changes — try again in an hour' }, { status: 429 })
-    }
     const { id } = await params
-    const row = await prisma.visitorAnnouncement.findUnique({ where: { id }, select: { userId: true, cityId: true, status: true } })
+    const row = await prisma.visitorAnnouncement.findUnique({ where: { id }, select: { userId: true, cityId: true, status: true, city: { select: { slug: true } } } })
     if (!row || row.userId !== session.id) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     if (row.status !== 'active') return NextResponse.json({ error: 'This visit is no longer active — post a new one' }, { status: 409 })
 
-    const body = await req.json().catch(() => ({}))
+    const body = (await req.json().catch(() => null)) ?? {}
     const { name, email, fromCity, intro, startsOn, endsOn, neighborhood, contact, travelerType, languages, lookingFor, visibility } = body
-    if (!name?.trim() || !intro?.trim() || !startsOn || !endsOn) {
+    if (typeof name !== 'string' || typeof intro !== 'string' || !name.trim() || !intro.trim() || !startsOn || !endsOn) {
       return NextResponse.json({ error: 'Name, intro, and dates are required' }, { status: 400 })
     }
     if (name.length > 80 || intro.length > 1000) return NextResponse.json({ error: 'Name or intro too long' }, { status: 400 })
+    // A visit doesn't move city: its neighbourhood, its locals and its card
+    // are that city's. Post a new one for another.
+    if (typeof body.city === 'string' && body.city.trim() && body.city.trim() !== row.city.slug) {
+      return NextResponse.json({ error: 'A visit can\'t move to another city — withdraw it and post a new one' }, { status: 400 })
+    }
     const dateError = visitDatesError(startsOn, endsOn, await todayInCity(row.cityId))
     if (dateError) return NextResponse.json({ error: dateError }, { status: 400 })
+    // After the checks: a bad date must not spend the hour's edits.
+    if (!await rateLimit(`visitor-edit:${session.id}`, 20, 60 * 60_000)) {
+      return NextResponse.json({ error: 'Too many changes — try again in an hour' }, { status: 429 })
+    }
 
     const LOOKING_FOR_VALUES = new Set((VISITOR_LOOKING_FOR as readonly { value: string }[]).map(t => t.value))
     const data = {
@@ -76,6 +83,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const { count } = await prisma.visitorAnnouncement.updateMany({ where: { id, userId: session.id, status: 'active' }, data })
     if (count === 0) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     revalidateTag('visitor-announcements')
+    // A neighbourhood this visit hasn't pinged yet hears about it; one it
+    // already pinged doesn't hear twice (lib/visitorNotify).
+    notifyLocalsOfVisit({
+      id, userId: session.id, cityId: row.cityId, citySlug: row.city.slug, neighborhood: data.neighborhood,
+      name: data.name, fromCity: data.fromCity, startsOn, endsOn,
+    }).catch(e => console.error('[visitors PATCH] fan-out failed', { err: String(e) }))
     return NextResponse.json({ ok: true })
   } catch (e) {
     console.error('[visitors PATCH]', e)

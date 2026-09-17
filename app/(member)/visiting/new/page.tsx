@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
@@ -41,6 +41,8 @@ function NewVisitingPageInner() {
   const viewerCity    = useCurrentCity()?.slug
   const [neighborhoods, setNeighborhoods] = useState<string[]>([])
   const [loadError,    setLoadError]    = useState('')
+  // The edited visit's neighbourhood, applied once that city's options have loaded.
+  const pendingNeighborhood = useRef<string | null>(null)
   const [existingId,   setExistingId]   = useState<string | null>(null)
 
   const [name,         setName]         = useState('')
@@ -95,7 +97,15 @@ function NewVisitingPageInner() {
     setNeighborhood('')
     fetch(`/app/api/neighborhoods?city=${encodeURIComponent(destination)}`)
       .then(r => r.json())
-      .then(d => { if (!cancelled) setNeighborhoods((d.neighborhoods ?? []).map((n: { name: string }) => n.name)) })
+      .then(d => {
+        if (cancelled) return
+        const names: string[] = (d.neighborhoods ?? []).map((n: { name: string }) => n.name)
+        setNeighborhoods(names)
+        if (pendingNeighborhood.current !== null) {
+          if (names.includes(pendingNeighborhood.current)) setNeighborhood(pendingNeighborhood.current)
+          pendingNeighborhood.current = null
+        }
+      })
       .catch(() => { if (!cancelled) setNeighborhoods([]) })
     return () => { cancelled = true }
   }, [destination])
@@ -109,8 +119,8 @@ function NewVisitingPageInner() {
         setName(v.name ?? ''); setFromCity(v.fromCity ?? ''); setStartsOn(v.startsOn ?? ''); setEndsOn(v.endsOn ?? '')
         setIntro(v.intro ?? ''); setContact(v.contact ?? ''); setTravelerType(v.travelerType ?? '')
         setLanguages((v.languages ?? []).join(', ')); setLookingFor(v.lookingFor ?? []); setVisibility(v.visibility ?? 'members')
-        // Neighbourhood options load per destination; set it once they have.
-        setTimeout(() => setNeighborhood(v.neighborhood ?? ''), 0)
+        // Neighbourhood options load per destination; applied once they have.
+        pendingNeighborhood.current = v.neighborhood ?? ''
       })
       .catch(() => setLoadError("That visit isn't yours to edit, or it's already gone."))
   }, [editId])
@@ -245,7 +255,8 @@ function NewVisitingPageInner() {
           {cities.length > 1 && (
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">Where are you visiting?</label>
-              <select value={destination} onChange={e => setDestination(e.target.value)} className="input bg-white">
+              {/* A visit doesn't move city (the API refuses): withdraw and post a new one. */}
+              <select value={destination} onChange={e => setDestination(e.target.value)} className="input bg-white" disabled={!!editId}>
                 {cities.map(c => <option key={c.slug} value={c.slug}>{c.name}</option>)}
               </select>
             </div>
@@ -254,7 +265,8 @@ function NewVisitingPageInner() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">From</label>
-              <input type="date" value={startsOn} min={todayStr} onChange={e => setStartsOn(e.target.value)} className="input" />
+              {/* An ongoing visit started before today; the browser must not refuse the edit. */}
+              <input type="date" value={startsOn} min={editId && startsOn && startsOn < todayStr ? undefined : todayStr} onChange={e => setStartsOn(e.target.value)} className="input" />
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">To</label>

@@ -27,31 +27,56 @@ import StickyVisitCta from './StickyVisitCta'
 // Cached per (day, viewer-class) rather than per viewer: `forMembers` only
 // ever takes two values, so this stays two shared cache entries instead of
 // forking per session. Guests get the public-only subset.
+interface CachedVisit {
+  id: string; userId: string | null; name: string; startsOn: string; endsOn: string; approximate: boolean
+  fromCity: string | null; neighborhood: string | null; intro: string; contact: string | null; email: string | null
+  travelerType: string | null; languages: string[]; lookingFor: string[]
+  user: { id: string; name: string; color: string; profilePhoto: string | null; interests: string[]; profileVisibility: string } | null
+}
+
+const VISIT_WHERE = (today: string, cityId: string, forMembers: boolean) => ({
+  status: 'active' as const,
+  cityId,
+  endsOn: { gte: today },
+  ...(forMembers ? {} : { visibility: 'public' }),
+  // A banned, suspended or admin-hidden author's card goes with them.
+  OR: [{ userId: null }, { user: { status: 'approved', hiddenFromMembers: false } }],
+})
+
 const getAnnouncements = unstable_cache(
   // cityId is an ARGUMENT, not a closure read: unstable_cache keys on its args,
   // so taking it from the enclosing request would have served one city's
   // visitors to every city for the full 120s window.
-  async (today: string, forMembers: boolean, cityId: string) => prisma.visitorAnnouncement.findMany({
-    where: {
-      status: 'active',
-      cityId,
-      endsOn: { gte: today },
-      ...(forMembers ? {} : { visibility: 'public' }),
-      // A banned, suspended or admin-hidden author's card goes with them.
-      OR: [{ userId: null }, { user: { status: 'approved', hiddenFromMembers: false } }],
-    },
-    orderBy: { startsOn: 'asc' },
-    take:    100,
-    // Rendered fields only, and the private columns only in the members'
-    // entry: unstable_cache values stream to the browser in the RSC payload,
-    // so the guest entry must be safe by construction, not by a later strip.
-    select: {
-      id: true, userId: true, name: true, startsOn: true, endsOn: true, fromCity: true, neighborhood: true, intro: true,
-      travelerType: true, languages: true, lookingFor: true,
-      ...(forMembers ? { contact: true, email: true } : {}),
-      user: { select: { id: true, name: true, color: true, profilePhoto: true, interests: true, profileVisibility: true } },
-    },
-  }),
+  //
+  // The guest entry is made safe INSIDE the cache: unstable_cache values
+  // stream to the browser in the RSC payload, so a guest's entry must never
+  // hold exact dates, a full name, a neighbourhood or an author — it holds
+  // what a guest is shown (lib/visitorPolicy guestView) and nothing else.
+  async (today: string, forMembers: boolean, cityId: string): Promise<CachedVisit[]> => {
+    if (!forMembers) {
+      const rows = await prisma.visitorAnnouncement.findMany({
+        where:   VISIT_WHERE(today, cityId, false),
+        orderBy: { startsOn: 'asc' },
+        take:    100,
+        select:  { id: true, name: true, startsOn: true, endsOn: true, fromCity: true, intro: true, travelerType: true, languages: true, lookingFor: true },
+      })
+      return rows.map(r => ({
+        id: r.id, userId: null, ...guestView(r), fromCity: r.fromCity, neighborhood: null, intro: r.intro,
+        contact: null, email: null, travelerType: r.travelerType, languages: r.languages, lookingFor: r.lookingFor, user: null,
+      }))
+    }
+    const rows = await prisma.visitorAnnouncement.findMany({
+      where:   VISIT_WHERE(today, cityId, true),
+      orderBy: { startsOn: 'asc' },
+      take:    100,
+      select: {
+        id: true, userId: true, name: true, startsOn: true, endsOn: true, fromCity: true, neighborhood: true, intro: true,
+        contact: true, email: true, travelerType: true, languages: true, lookingFor: true,
+        user: { select: { id: true, name: true, color: true, profilePhoto: true, interests: true, profileVisibility: true } },
+      },
+    })
+    return rows.map(r => ({ ...r, approximate: false }))
+  },
   ['visitor-announcements'],
   { revalidate: 120, tags: ['visitor-announcements'] },
 )
@@ -211,39 +236,33 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
   const restrictedAuthors = session
     ? await restrictedSetFor(session, announcements.flatMap(a => a.user ? [a.user] : []))
     : new Set<string>()
+  // The guest entry is already a guest's view (see getAnnouncements); a
+  // member's card is the card as posted, minus a restricted author.
   const serialised = announcements
     .filter(a => !a.userId || !blockedIds.has(a.userId))
     .map(a => {
       const author = a.user && !restrictedAuthors.has(a.user.id) ? a.user : null
-      const shared = {
-        id:           a.id,
-        fromCity:     a.fromCity     ?? null,
-        intro:        a.intro,
-        travelerType: a.travelerType ?? null,
-        languages:    a.languages,
-        lookingFor:   a.lookingFor,
-      }
-      // A guest gets a first name, the months and no neighbourhood or author
-      // (lib/visitorPolicy guestView): exact dates beside a home neighbourhood
-      // from /neighborhoods would say whose flat is empty when.
-      if (!isMember) return {
-        ...shared, ...guestView(a), neighborhood: null, contact: null, email: null, interests: [] as string[], user: null,
-      }
       return {
-        ...shared,
+        id:           a.id,
         name:         a.name,
         startsOn:     a.startsOn,
         endsOn:       a.endsOn,
-        neighborhood: a.neighborhood ?? null,
-        contact:      'contact' in a ? (a.contact ?? null) : null,
-        email:        'email'   in a ? (a.email   ?? null) : null,
-        interests:    (author?.interests ?? []) as string[],
+        approximate:  a.approximate,
+        fromCity:     a.fromCity,
+        neighborhood: a.neighborhood,
+        intro:        a.intro,
+        contact:      a.contact,
+        email:        a.email,
+        interests:    author?.interests ?? [],
+        travelerType: a.travelerType,
+        languages:    a.languages,
+        lookingFor:   a.lookingFor,
         user:         author ? { id: author.id, name: author.name, color: author.color, profilePhoto: author.profilePhoto } : null,
       }
     })
   // Past the cap the latest-starting visits fall off silently; say so.
   const totalCount = announcements.length >= 100
-    ? await prisma.visitorAnnouncement.count({ where: { status: 'active', cityId, endsOn: { gte: today }, ...(isMember ? {} : { visibility: 'public' }) } })
+    ? await prisma.visitorAnnouncement.count({ where: VISIT_WHERE(today, cityId, isMember) })
     : serialised.length
   const viewerIsLocal = !!session && session.cityId === cityId
   // Where the CTAs go: a member with a visit edits it; a member on another
@@ -474,7 +493,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
             its own reading width so it doesn't stretch into a banner. */}
         <div id="visitors" className="scroll-mt-20">
 
-        <VisitingClient announcements={serialised} events={eventsForCards} today={today} viewerIsLocal={viewerIsLocal} totalCount={totalCount} cityCount={cityCount} featuredLocals={localsForViewer} cityName={city.name} />
+        <VisitingClient announcements={serialised} events={eventsForCards} today={today} viewerIsLocal={viewerIsLocal} totalCount={totalCount} newVisitHref={isMember ? newVisitHref : '/apply'} cityCount={cityCount} featuredLocals={localsForViewer} cityName={city.name} />
 
         {/* Cross-link to /handbook — visitors landing here are the exact
             audience for the long-form survival reads. Closes the loop

@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { guestView } from '@/lib/visitorPolicy'
 import { jsonLdHtml } from '@/lib/jsonLd'
 import Image from 'next/image'
 import { readFileSync } from 'fs'
@@ -335,12 +336,13 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
           ],
         },
         select: {
-          id: true, name: true, fromCity: true, startsOn: true,
+          id: true, name: true, fromCity: true, startsOn: true, endsOn: true,
           user: { select: { id: true, name: true, color: true, profilePhoto: true } },
         },
         orderBy: { startsOn: 'asc' },
         take: 4,
-      })
+      // A guest gets a first name and the month, no author (lib/visitorPolicy).
+      }).then(rows => session ? rows.map(r => ({ ...r, approximate: false })) : rows.map(r => ({ ...r, ...guestView(r), user: null })))
     : []
 
   // §8 — local picks. Every approved+active listing has a cover image, but
@@ -701,7 +703,9 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
                     color={v.user?.color ?? '#f59e0b'} size="w-12 h-12" textSize="text-base" className="mb-3" />
                   <p className="font-bold text-gray-900">{v.name}</p>
                   {v.fromCity && <p className="text-xs text-gray-500 mt-0.5">{v.fromCity}</p>}
-                  <p className="text-xs font-semibold text-amber-700 mt-1">Arriving {fmtEventDate(v.startsOn)}</p>
+                  <p className="text-xs font-semibold text-amber-700 mt-1">
+                    {v.approximate ? `Visiting in ${new Date(v.startsOn + 'T12:00:00Z').toLocaleDateString('en-GB', { month: 'long', timeZone: 'UTC' })}` : `Arriving ${fmtEventDate(v.startsOn)}`}
+                  </p>
                   {session && v.user && (
                     <div className="mt-3">
                       <SayHiButton targetId={v.user.id} targetName={v.user.name} />

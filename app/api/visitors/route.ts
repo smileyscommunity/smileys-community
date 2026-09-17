@@ -3,12 +3,12 @@ import { resolvePublicCityIdFromSlug } from '@/lib/cities'
 import { revalidateTag } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { resolveCityId, todayInCity, DEFAULT_CITY_SLUG } from '@/lib/city'
+import { resolveCityId, todayInCity } from '@/lib/city'
 import { rateLimit, getIp } from '@/lib/rateLimit'
-import { createNotification } from '@/lib/notify'
-import { VISITOR_TRAVELER_TYPES, VISITOR_LOOKING_FOR, firstNameOf } from '@/lib/data'
+import { VISITOR_TRAVELER_TYPES, VISITOR_LOOKING_FOR } from '@/lib/data'
 import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
-import { visitDatesError, cleanEmail, guestView, notifyText } from '@/lib/visitorPolicy'
+import { visitDatesError, cleanEmail, guestView } from '@/lib/visitorPolicy'
+import { notifyLocalsOfVisit } from '@/lib/visitorNotify'
 
 // "I'm visiting Istanbul" announcements. Members only: anonymous posting was
 // tried and reverted on the form (see app/(member)/visiting/new), and an API
@@ -89,11 +89,11 @@ export async function POST(req: NextRequest) {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'Sign in to post a visit' }, { status: 401 })
 
-    const body = await req.json()
+    const body = (await req.json().catch(() => null)) ?? {}
     const { name, email, fromCity, intro, startsOn, endsOn, neighborhood, contact,
       travelerType, languages, lookingFor, visibility } = body
 
-    if (!name?.trim() || !intro?.trim() || !startsOn || !endsOn) {
+    if (typeof name !== 'string' || typeof intro !== 'string' || !name.trim() || !intro.trim() || !startsOn || !endsOn) {
       return NextResponse.json({ error: 'Name, intro, and dates are required' }, { status: 400 })
     }
     if (name.length > 80 || intro.length > 1000) {
@@ -121,16 +121,6 @@ export async function POST(req: NextRequest) {
     const today = await todayInCity(destCityId)
     const dateError = visitDatesError(startsOn, endsOn, today)
     if (dateError) return NextResponse.json({ error: dateError }, { status: 400 })
-
-    // One live visit per member per city: a second post duplicated the card
-    // and re-pinged every local. To change dates, edit the existing one.
-    const existing = await prisma.visitorAnnouncement.findFirst({
-      where:  { userId: session.id, cityId: destCityId, status: 'active', endsOn: { gte: today } },
-      select: { id: true },
-    })
-    if (existing) {
-      return NextResponse.json({ error: 'You already have a visit posted for this city — edit it instead.', existingId: existing.id }, { status: 409 })
-    }
 
     // After the checks: a form with a bad date three times over must not
     // spend the day's posts. Per member, and per address as a backstop for
@@ -163,7 +153,18 @@ export async function POST(req: NextRequest) {
       ? [...new Set(languages.filter((v): v is string => typeof v === 'string' && v.trim().length > 0).map(v => v.trim().slice(0, 30)))].slice(0, 8)
       : []
 
-    const created = await prisma.visitorAnnouncement.create({
+    // One live visit per member per city: a second post duplicated the card
+    // and re-pinged every local. To change dates, edit the existing one.
+    // Checked and written under one lock per (member, city), so two posts
+    // sent together can't both pass the check.
+    const created = await prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT 1 AS locked FROM (SELECT pg_advisory_xact_lock(hashtext(${`visitor:${session.id}:${destCityId}`}))) AS l`
+      const existing = await tx.visitorAnnouncement.findFirst({
+        where:  { userId: session.id, cityId: destCityId, status: 'active', endsOn: { gte: today } },
+        select: { id: true },
+      })
+      if (existing) return { existingId: existing.id }
+      return tx.visitorAnnouncement.create({
       data: {
         userId:       session.id,
         cityId:       destCityId,
@@ -180,47 +181,20 @@ export async function POST(req: NextRequest) {
         lookingFor:   safeLookingFor,
         visibility:   safeVisibility,
       },
+      })
     })
+    if ('existingId' in created) {
+      return NextResponse.json({ error: 'You already have a visit posted for this city — edit it instead.', existingId: created.existingId }, { status: 409 })
+    }
 
     // Bust /visiting's 2-minute list cache so the new post (and the
     // poster's own "events during your visit" view) shows up immediately.
     revalidateTag('visitor-announcements')
 
-    // Push members in the relevant neighborhood — high-intent, low-volume signal.
-    // Skip if no neighborhood (avoid spamming everyone).
-    if (safeNeighborhood) (async () => {
-      // A blocked pair sees nothing of each other — hangouts, availability
-      // pulses, listings and mentions all drop them, and this "come meet me"
-      // ping went to every local regardless. Both directions, as in the pulse
-      // route.
-      const blocked = new Set((await prisma.memberBlock.findMany({
-        where:  { OR: [{ blockerId: session.id }, { blockedId: session.id }] },
-        select: { blockerId: true, blockedId: true },
-      })).map(b => (b.blockerId === session.id ? b.blockedId : b.blockerId)))
-      const locals = await prisma.user.findMany({
-        // Destination city's locals — neighborhood names are only unique
-        // per city, and an Istanbul 'Moda' ping about an Izmir visit would
-        // be noise even if the names collide.
-        where:  { neighborhood: safeNeighborhood, status: 'approved', hiddenFromMembers: false, cityId: destCityId },
-        select: { id: true },
-      })
-      // The push reads the member's own words: a first name and a place,
-      // one line, no links (lib/visitorPolicy notifyText).
-      const from  = notifyText(fromCity)
-      const day   = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
-      const when  = `${day(startsOn)} – ${day(endsOn)}`
-      const link  = dest.slug === DEFAULT_CITY_SLUG ? '/visiting' : `/visiting?city=${dest.slug}`
-      for (const u of locals) {
-        if (u.id === session.id || blocked.has(u.id)) continue
-        createNotification(
-          u.id,
-          'visitor_announced',
-          `👋 Visitor coming to ${safeNeighborhood}`,
-          `${firstNameOf(String(name).trim())}${from ? ` from ${from}` : ''} — ${when}`,
-          link,
-        ).catch(() => {})
-      }
-    })().catch(e => console.error('[visitors POST] fan-out failed', { err: String(e) }))
+    notifyLocalsOfVisit({
+      id: created.id, userId: session.id, cityId: destCityId, citySlug: dest.slug, neighborhood: safeNeighborhood,
+      name: created.name, fromCity: created.fromCity, startsOn, endsOn,
+    }).catch(e => console.error('[visitors POST] fan-out failed', { err: String(e) }))
 
     return NextResponse.json({ id: created.id }, { status: 201 })
   } catch (e) {

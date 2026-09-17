@@ -15,7 +15,7 @@ const read = (p: string) => readFileSync(p, 'utf-8')
 
 const session = vi.hoisted(() => ({ current: null as null | { id: string; name?: string } }))
 vi.mock('@/lib/session', () => ({ getSession: vi.fn(async () => session.current) }))
-vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn(async () => true), getIp: vi.fn(() => '1.2.3.4') }))
+vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn(async () => true), claimOnce: vi.fn(async () => true), getIp: vi.fn(() => '1.2.3.4') }))
 vi.mock('@/lib/turnstile', () => ({ verifyTurnstile: vi.fn(async () => true) }))
 vi.mock('@/lib/notify', () => ({ createNotification: vi.fn(async () => {}) }))
 vi.mock('@/lib/city', () => ({ resolveCityId: vi.fn(async () => 'c-ist'), todayInCity: vi.fn(async () => '2026-09-01'), DEFAULT_CITY_SLUG: 'istanbul' }))
@@ -24,6 +24,8 @@ vi.mock('@/lib/neighborhoodsDb', () => ({ safeNeighborhoodFor: vi.fn(async (_c: 
 vi.mock('next/cache', () => ({ revalidateTag: vi.fn() }))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
+    $transaction: vi.fn(async (fn: any) => fn(p)),
+    $queryRaw: vi.fn(async () => []),
     pushSubscription:    { findUnique: vi.fn(), upsert: vi.fn(async () => ({})), findMany: vi.fn(async () => []), deleteMany: vi.fn(async () => ({})) },
     city:                { findUnique: vi.fn() },
     visitorAnnouncement: { findFirst: vi.fn(async () => null), create: vi.fn() },

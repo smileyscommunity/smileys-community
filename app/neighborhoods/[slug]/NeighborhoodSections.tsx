@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { guestView } from '@/lib/visitorPolicy'
 import { jsonLdHtml } from '@/lib/jsonLd'
 import Image from 'next/image'
 import { prisma } from '@/lib/prisma'
@@ -175,7 +176,7 @@ export default async function NeighborhoodSections({
         ? (await prisma.memberBlock.findMany({ where: { OR: [{ blockerId: myId }, { blockedId: myId }] }, select: { blockerId: true, blockedId: true } }))
             .map(b => (b.blockerId === myId ? b.blockedId : b.blockerId))
         : []
-      return prisma.visitorAnnouncement.findMany({
+      const rows = await prisma.visitorAnnouncement.findMany({
         where:   {
           neighborhood: name, cityId, status: 'active', endsOn: { gte: today },
           ...(myId ? {} : { visibility: 'public' }),
@@ -190,6 +191,8 @@ export default async function NeighborhoodSections({
           id: true, name: true, fromCity: true, startsOn: true, endsOn: true, intro: true,
         },
       })
+      // A guest gets a first name and the month, not the days (lib/visitorPolicy).
+      return myId ? rows.map(r => ({ ...r, approximate: false })) : rows.map(r => ({ ...r, ...guestView(r) }))
     })(),
     // Active hangouts in this neighborhood — sweeper flips them to 'expired'
     // when endsAt passes, but we also filter by endsAt >= now so a missed
@@ -648,17 +651,22 @@ export default async function NeighborhoodSections({
         <div className="pt-6 border-t border-gray-100">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">Visitors heading to {name}</h2>
-            <Link href={`/visiting?neighborhood=${encodeURIComponent(name)}&city=${encodeURIComponent(city.slug)}`}
-              className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
-              See all →
-            </Link>
+            {/* Members only: a guest's cards carry no neighbourhood to filter on. */}
+            {myId && (
+              <Link href={`/visiting?neighborhood=${encodeURIComponent(name)}&city=${encodeURIComponent(city.slug)}`}
+                className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
+                See all →
+              </Link>
+            )}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {upcomingVisitors.map(v => {
               const s = new Date(v.startsOn + 'T00:00:00')
               const e = new Date(v.endsOn + 'T00:00:00')
               const sameMonth = s.getMonth() === e.getMonth() && s.getFullYear() === e.getFullYear()
-              const fmtRange = sameMonth
+              const fmtRange = v.approximate
+                ? (sameMonth ? s.toLocaleDateString('en-GB', { month: 'long' }) : `${s.toLocaleDateString('en-GB', { month: 'long' })} – ${e.toLocaleDateString('en-GB', { month: 'long' })}`)
+                : sameMonth
                 ? `${s.toLocaleDateString('en-GB', { day: 'numeric' })}–${e.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`
                 : `${s.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${e.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`
               return (

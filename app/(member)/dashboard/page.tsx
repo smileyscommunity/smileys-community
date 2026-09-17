@@ -514,7 +514,7 @@ export default async function DashboardPage() {
         cityId,
         status:   'active',
         userId:   { notIn: notMeOrBlocked },
-        user:     { status: 'approved', hiddenFromMembers: false },
+        OR:       [{ userId: null }, { user: { status: 'approved', hiddenFromMembers: false } }],
         endsOn:   { gte: today },
         startsOn: { lte: fourteenDaysOut },
       },
