@@ -333,7 +333,7 @@ export default async function DashboardPage() {
   // arrays are small), so all 25 queries can run as a single fan-out.
   const [
     // formerly batch 2
-    recommendedCandidates, recentActivity, waitlisted, wallActivity, whosGoingRaw, spotlightUser, activePoll, featuredEvents, runningLow, recentClubEvents, referralStats,
+    recommendedCandidates, recentActivity, waitlisted, wallActivity, whosGoingRaw, spotlightUser, activePoll, featuredEvents, newThisWeek, runningLow, recentClubEvents, referralStats,
     // formerly standalone awaits
     upcomingVisitors, latestHandbook,
     // formerly batch 3 — trendingEventsRaw is deduped against featuredEvents post-fetch
@@ -441,6 +441,17 @@ export default async function DashboardPage() {
       where: { cityId, featured: true, date: { gte: today }, status: 'published', id: { notIn: joinedEventIds } },
       orderBy: { date: 'asc' }, take: 3,
       select: { id: true, title: true, date: true, time: true, emoji: true, neighborhood: true, price: true, currency: true, spotsLeft: true, limitedSpots: true, coverImage: true },
+    }),
+    // New this week: events added in the last seven days, newest first,
+    // whatever the recommendation scoring makes of them. "Recommended" shows
+    // four picks by club, interest and neighbourhood, so a fresh event with
+    // none of those signals for the viewer never surfaced — a member had to
+    // browse to learn a ride had been posted. (No publishedAt column: an
+    // event drafted early and published later counts from its creation.)
+    prisma.event.findMany({
+      where: { cityId, date: { gte: today }, status: 'published', id: { notIn: joinedEventIds }, createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60_000) } },
+      orderBy: { createdAt: 'desc' }, take: 4,
+      select: { id: true, title: true, date: true, emoji: true, neighborhood: true, price: true, currency: true },
     }),
     // Spots running low: upcoming events with ≤5 spots left that user hasn't
     // joined. Ordered soonest-first (date is text 'YYYY-MM-DD', so asc = chrono)
@@ -1744,6 +1755,36 @@ export default async function DashboardPage() {
                         <p className="text-xs text-gray-400 truncate">
                           {s.items.map(it => it.name).join(', ')}
                         </p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* New this week — everything just posted, unranked */}
+            {newThisWeek.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900">New this week ✨</h2>
+                    <p className="text-xs text-gray-400 mt-0.5">Just posted in your city</p>
+                  </div>
+                  <Link href="/events" className="text-sm text-amber-600 font-semibold hover:underline">Browse all →</Link>
+                </div>
+                <div className="space-y-2">
+                  {newThisWeek.map((event) => (
+                    <Link key={event.id} href={`/events/${event.id}`}
+                      className="group flex gap-3 bg-white rounded-xl shadow-card p-3 hover:-translate-y-0.5 transition-transform duration-200">
+                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-100 to-teal-100 flex items-center justify-center text-xl shrink-0">
+                        {event.emoji}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="text-sm font-semibold text-gray-900 group-hover:text-amber-600 transition-colors truncate">{event.title}</h3>
+                        <p className="text-xs text-gray-400 mt-0.5">{formatDate(event.date)} · 📍 {event.neighborhood}</p>
+                      </div>
+                      <div className="text-right shrink-0 self-center">
+                        <span className="text-sm font-bold text-gray-900">{event.price === 0 ? 'Free' : formatPrice(event.price, event.currency)}</span>
                       </div>
                     </Link>
                   ))}
