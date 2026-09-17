@@ -44,7 +44,8 @@ const PREF_KEY: Record<string, 'newEvents' | 'reminders' | 'eventUpdates' | 'joi
   standing_restored:         null,
   standing_dispute_resolved: null,
   standing_no_show:          null,
-  attendance_review:         null,  // the morning-after list to the event's host and co-hosts
+  attendance_review:         null,
+  attendance_check:          null,  // the guest's side of the morning-after review  // the morning-after list to the event's host and co-hosts
   message:            null,
   club_wall_post:       'wallPosts',
   club_post_reply:      'wallReplies',

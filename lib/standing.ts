@@ -201,6 +201,21 @@ export async function sendAttendanceReviews(event: SweepEvent): Promise<number> 
     else await releaseClaim(key)
   }
   if (sent > 0) await claimOnce(reviewSentKey(event.id), 30 * DAY)
+  else if (!await hasClaim(reviewSentKey(event.id), new Date())) return 0
+
+  // And each guest on the list, the same morning: someone who was there can
+  // tell the host while one tap still fixes it, instead of finding out from a
+  // no-show and waiting on a moderator. Only once the host's list has gone,
+  // so a guest is never told the host can fix what the host wasn't told about.
+  for (const g of missing) {
+    const key = `attendance-review-guest:${event.id}:${g.userId}`
+    if (!await claimOnce(key, 7 * DAY)) continue
+    const ok = await createNotification(g.userId, 'attendance_check',
+      `${e?.emoji ?? '🎟️'} You weren't checked in at ${event.title}`,
+      "If you were there, let the host know today — they can still check you in. After midnight it counts as a no-show on your standing.",
+      `/events/${event.id}`)
+    if (!ok) await releaseClaim(key)
+  }
   return sent
 }
 
