@@ -269,7 +269,7 @@ describe('the host review', () => {
     expect(calls[2][4]).toBe('/events/e1')
     expect(calls[0][1]).toBe('attendance_review')
     expect(calls[0][2]).toBe('⛵ 2 not checked in at Sunset Sailing')
-    expect(calls[0][3]).toContain('Emir and Beto')
+    expect(calls[0][3]).toBe('Emir and Beto. Check in anyone who came, or excuse them, by midnight tonight. After that each counts as a no-show.')
     expect(calls[0][4]).toBe('/host/checkin?event=e1')
     expect((claimOnce as any).mock.calls.map((c: any) => c[0])).toEqual([
       'attendance-review:e1:host', 'attendance-review:e1:co', 'attendance-review-sent:e1',
@@ -284,11 +284,17 @@ describe('the host review', () => {
     expect((createNotification as any).mock.calls.map((c: any) => c[0])).toEqual(['a'])
   })
 
-  it('tells no guest where the no-show would not count: an open event, or a new city', async () => {
+  it('where the no-show would not count, the host still gets the list, worded for what will happen, and no guest is told', async () => {
     p.eventAttendee.findMany.mockResolvedValue([scanned('s1'), guest('a')])
     await sendAttendanceReviews({ ...EVENT, limitedSpots: false } as unknown as SweepEvent)
     await sendAttendanceReviews({ ...EVENT, id: 'e2', city: { timezone: 'Europe/Istanbul', createdAt: new Date('2026-09-01T00:00:00Z') } } as unknown as SweepEvent)
-    expect((createNotification as any).mock.calls.map((c: any) => c[1])).not.toContain('attendance_check')
+    const calls = (createNotification as any).mock.calls
+    expect(calls.map((c: any) => c[1])).not.toContain('attendance_check')
+    expect([...new Set(calls.filter((c: any) => c[1] === 'attendance_review').map((c: any) => c[3]))]).toEqual([
+      "a. Check in anyone who came, or excuse them, by midnight tonight. After that it goes on the record as a no-show, though it doesn't count on an open event.",
+      'a. Check in anyone who came, or excuse them, by midnight tonight. After that it goes on the record as a no-show, though nothing counts against anyone in a new city yet.',
+    ])
+    expect(calls.filter((c: any) => c[1] === 'attendance_review')).toHaveLength(4)
   })
 
   it('sends nothing where check-in was not run, or everyone is marked', async () => {

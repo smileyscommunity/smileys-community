@@ -193,14 +193,22 @@ export async function sendAttendanceReviews(event: SweepEvent): Promise<number> 
   const door    = (await prisma.rateLimit.findMany({ where: { key: { startsWith: prefix } }, select: { key: true } }))
     .map(r => r.key.slice(prefix.length))
   const recipients = [...new Set([runners.hostId, ...runners.cohostIds, ...runners.clubHostIds, ...door].filter((u): u is string => !!u))]
-  const n = missing.length
+  const n  = missing.length
+  const tz = tzOf(event)
+  // Where a no-show only gets noted (an open event, a city in its first 90
+  // days) the list still goes — the record is the point — but it must not
+  // threaten what won't happen.
+  const { counts, loggedReason } = offenceCounts(eventTier(event), event.city?.createdAt ?? null, eventStartsAt(event, tz))
+  const consequence = counts
+    ? `After that ${n === 1 ? 'it counts' : 'each counts'} as a no-show.`
+    : `After that ${n === 1 ? 'it goes' : 'each goes'} on the record as a no-show, though ${loggedReason === 'new_city' ? 'nothing counts against anyone in a new city yet' : "it doesn't count on an open event"}.`
   let sent = 0
   for (const userId of recipients) {
     const key = `attendance-review:${event.id}:${userId}`
     if (!await claimOnce(key, 7 * DAY)) continue
     const ok = await createNotification(userId, 'attendance_review',
       `${e?.emoji ?? '📋'} ${n} not checked in at ${event.title}`,
-      `${names(missing)}. Check in anyone who came, or excuse them, by midnight tonight. After that ${n === 1 ? 'it counts' : 'each counts'} as a no-show.`,
+      `${names(missing)}. Check in anyone who came, or excuse them, by midnight tonight. ${consequence}`,
       `/host/checkin?event=${event.id}`)
     if (ok) sent++
     else await releaseClaim(key)
@@ -212,11 +220,9 @@ export async function sendAttendanceReviews(event: SweepEvent): Promise<number> 
   // tell the host while one tap still fixes it, instead of finding out from a
   // no-show and waiting on a moderator. Only once the host's list has gone,
   // so a guest is never told the host can fix what the host wasn't told about.
-  // Only where the no-show would count (a limited event, a city past its first
-  // 90 days): elsewhere it is only noted, and "it counts on your standing"
-  // would be untrue.
-  const tz = tzOf(event)
-  if (!offenceCounts(eventTier(event), event.city?.createdAt ?? null, eventStartsAt(event, tz)).counts) return sent
+  // Only where the no-show would count: elsewhere it is only noted, and "it
+  // counts on your standing" would be untrue.
+  if (!counts) return sent
   for (const g of missing) {
     const key = `attendance-review-guest:${event.id}:${g.userId}`
     if (!await claimOnce(key, 7 * DAY)) continue
