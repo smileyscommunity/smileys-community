@@ -18,7 +18,7 @@ vi.mock('@/lib/session', () => ({ getSession: vi.fn(async () => session.current)
 vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn(async () => true), getIp: vi.fn(() => '1.2.3.4') }))
 vi.mock('@/lib/turnstile', () => ({ verifyTurnstile: vi.fn(async () => true) }))
 vi.mock('@/lib/notify', () => ({ createNotification: vi.fn(async () => {}) }))
-vi.mock('@/lib/city', () => ({ resolveCityId: vi.fn(async () => 'c-ist'), todayInCity: vi.fn(async () => '2026-09-01') }))
+vi.mock('@/lib/city', () => ({ resolveCityId: vi.fn(async () => 'c-ist'), todayInCity: vi.fn(async () => '2026-09-01'), DEFAULT_CITY_SLUG: 'istanbul' }))
 vi.mock('@/lib/cities', () => ({ resolvePublicCityIdFromSlug: vi.fn(async () => 'c-ist') }))
 vi.mock('@/lib/neighborhoodsDb', () => ({ safeNeighborhoodFor: vi.fn(async (_c: string, n: unknown) => (typeof n === 'string' ? n : null)) }))
 vi.mock('next/cache', () => ({ revalidateTag: vi.fn() }))
@@ -26,7 +26,7 @@ vi.mock('@/lib/prisma', () => ({
   prisma: {
     pushSubscription:    { findUnique: vi.fn(), upsert: vi.fn(async () => ({})), findMany: vi.fn(async () => []), deleteMany: vi.fn(async () => ({})) },
     city:                { findUnique: vi.fn() },
-    visitorAnnouncement: { create: vi.fn() },
+    visitorAnnouncement: { findFirst: vi.fn(async () => null), create: vi.fn() },
     memberBlock:         { findMany: vi.fn(async () => []) },
     user:                { findMany: vi.fn(async () => []) },
   },
@@ -114,10 +114,10 @@ describe('60 visitor announcement ping skips blocked pairs and other cities', ()
   // One population across two cities with a same-named neighborhood; the
   // mock applies the route's own where clause, so a dropped cityId shows up.
   const users = [
-    { id: 'u-ok',      neighborhood: 'Moda', status: 'approved', cityId: 'c-ist' },
-    { id: 'u-blocker', neighborhood: 'Moda', status: 'approved', cityId: 'c-ist' },  // blocked the visitor
-    { id: 'u-blocked', neighborhood: 'Moda', status: 'approved', cityId: 'c-ist' },  // visitor blocked them
-    { id: 'u-izmir',   neighborhood: 'Moda', status: 'approved', cityId: 'c-izm' },
+    { id: 'u-ok',      neighborhood: 'Moda', status: 'approved', hiddenFromMembers: false, cityId: 'c-ist' },
+    { id: 'u-blocker', neighborhood: 'Moda', status: 'approved', hiddenFromMembers: false, cityId: 'c-ist' },  // blocked the visitor
+    { id: 'u-blocked', neighborhood: 'Moda', status: 'approved', hiddenFromMembers: false, cityId: 'c-ist' },  // visitor blocked them
+    { id: 'u-izmir',   neighborhood: 'Moda', status: 'approved', hiddenFromMembers: false, cityId: 'c-izm' },
   ]
 
   beforeEach(() => {
@@ -146,11 +146,11 @@ describe('60 visitor announcement ping skips blocked pairs and other cities', ()
     expect(p.user.findMany.mock.calls[0][0].where).toMatchObject({ cityId: 'c-ist', neighborhood: 'Moda' })
   })
 
-  it('an anonymous visitor has no blocks to apply and still reaches the locals', async () => {
+  it('a visitor without an account cannot post — the API took what the form no longer offered', async () => {
     session.current = null
     const res = await call()
-    expect(res.status).toBe(201)
-    await vi.waitFor(() => expect(notified()).toEqual(['u-blocked', 'u-blocker', 'u-ok']))
-    expect(p.memberBlock.findMany).not.toHaveBeenCalled()
+    expect(res.status).toBe(401)
+    expect(notified()).toEqual([])
+    expect(p.visitorAnnouncement.create).not.toHaveBeenCalled()
   })
 })

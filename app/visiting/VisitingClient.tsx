@@ -1,5 +1,9 @@
 'use client'
 
+import { useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { confirmToast } from '@/lib/confirmToast'
+
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -34,6 +38,8 @@ interface Announcement {
   languages:    string[]
   lookingFor:   string[]
   user:         VisitorUser | null
+  /** A guest's view: first name and the months only (lib/visitorPolicy). */
+  approximate?: boolean
 }
 
 interface EventSummary {
@@ -65,13 +71,23 @@ interface Props {
   featuredLocals: FeaturedLocal[]
   /** The city being viewed — this heading said Istanbul to every city. */
   cityName:       string
+  /** The city's calendar day, from the server: the browser's date could be a day off and put a card in the wrong bucket. */
+  today:          string
+  /** A member of this city: the "first time here?" checklist is not for them. */
+  viewerIsLocal:  boolean
+  /** Past the list's cap of 100, how many there really are. */
+  totalCount:     number
 }
 
 type FilterKey = 'all' | 'now' | 'week' | 'month' | 'later'
 
-function formatRange(startsOn: string, endsOn: string) {
+function formatRange(startsOn: string, endsOn: string, approximate = false) {
   const s = new Date(startsOn + 'T00:00:00')
   const e = new Date(endsOn + 'T00:00:00')
+  if (approximate) {
+    const month = (d: Date) => d.toLocaleDateString('en-GB', { month: 'long' })
+    return month(s) === month(e) && s.getFullYear() === e.getFullYear() ? month(s) : `${month(s)} – ${month(e)}`
+  }
   const sameMonth = s.getMonth() === e.getMonth() && s.getFullYear() === e.getFullYear()
   const fmt = (d: Date, withMonth: boolean) => d.toLocaleDateString('en-GB', withMonth
     ? { day: 'numeric', month: 'short' }
@@ -294,17 +310,19 @@ function LocalsStrip({ locals, viewerId }: { locals: FeaturedLocal[]; viewerId: 
 
 const CHECKLIST_KEY = 'visiting-checklist-dismissed'
 
-function FirstTimeChecklist({ hasPosted, viewerId }: { hasPosted: boolean; viewerId: string | null }) {
-  const [dismissed, setDismissed] = useState(() => {
-    if (typeof window === 'undefined') return false
-    return localStorage.getItem(CHECKLIST_KEY) === '1'
-  })
+function FirstTimeChecklist({ hasPosted, viewerId, isLocal }: { hasPosted: boolean; viewerId: string | null; isLocal: boolean }) {
+  // Read after mount: a server render can't know the dismissal, and reading
+  // it in the initialiser made the server and the client disagree.
+  const [dismissed, setDismissed] = useState(false)
+  useEffect(() => {
+    try { if (localStorage.getItem(CHECKLIST_KEY) === '1') setDismissed(true) } catch {}
+  }, [])
 
-  if (!viewerId || dismissed) return null
+  if (!viewerId || isLocal || dismissed) return null
 
   const steps = [
     { label: 'Post your visit',    href: '/visiting/new', done: hasPosted },
-    { label: 'Wave to a local',    href: '#locals',       done: false },
+    { label: 'Join a hangout',     href: '/hangouts',     done: false },
     { label: 'Join a club',        href: '/clubs',        done: false },
     { label: 'RSVP to an event',   href: '/events',       done: false },
   ]
@@ -314,7 +332,7 @@ function FirstTimeChecklist({ hasPosted, viewerId }: { hasPosted: boolean; viewe
     <div className="bg-white border border-gray-200 rounded-2xl p-5 mb-6">
       <div className="flex items-center justify-between mb-3">
         <p className="text-xs font-bold uppercase tracking-wide text-gray-500">First time here?</p>
-        <button onClick={() => { localStorage.setItem(CHECKLIST_KEY, '1'); setDismissed(true) }}
+        <button onClick={() => { try { localStorage.setItem(CHECKLIST_KEY, '1') } catch {} setDismissed(true) }}
           className="text-[10px] text-gray-400 hover:text-gray-600 transition-colors">
           Dismiss
         </button>
@@ -356,8 +374,27 @@ function AnnouncementCard({ a, viewerId, viewerInterests, viewerLanguages, viewe
   todayUTC:         number
 }) {
   const [coffeeOpen, setCoffeeOpen] = useState(false)
+  const [withdrawing, setWithdrawing] = useState(false)
+  const router          = useRouter()
   const status          = arrivalStatus(a, todayUTC)
   const isSelf          = !!(viewerId && a.user && viewerId === a.user.id)
+
+  // The owner's card: change it, or take it down (app/api/visitors/[id]).
+  async function withdraw() {
+    const ok = await confirmToast('Take your visit down? Members will no longer see it. You can post again any time.', { confirmLabel: 'Withdraw' })
+    if (!ok) return
+    setWithdrawing(true)
+    try {
+      const res = await fetch(`/app/api/visitors/${a.id}`, { method: 'DELETE', credentials: 'include' })
+      if (!res.ok) { toast.error("Couldn't withdraw it. Please try again."); return }
+      toast.success('Your visit is withdrawn')
+      router.refresh()
+    } catch {
+      toast.error('No connection — nothing was changed.')
+    } finally {
+      setWithdrawing(false)
+    }
+  }
   // Why a local might say hi — see lib/visitorMatch.
   const { interests: sharedInterests, languages: sharedLanguages, sameNeighborhood } = sharedSignals(
     { interests: viewerInterests, languages: viewerLanguages, neighborhood: viewerNeighborhood },
@@ -368,7 +405,7 @@ function AnnouncementCard({ a, viewerId, viewerInterests, viewerLanguages, viewe
   // people who both want a coworking buddy during the same week are a much
   // better match than two people who merely happen to overlap in dates).
   const overlapping = allAnnouncements
-    .filter(o => o.id !== a.id && o.startsOn <= a.endsOn && o.endsOn >= a.startsOn)
+    .filter(o => o.id !== a.id && !(o.user && a.user && o.user.id === a.user.id) && o.startsOn <= a.endsOn && o.endsOn >= a.startsOn)
     .map(o => ({ o, shared: o.lookingFor.filter(v => a.lookingFor.includes(v)) }))
     .sort((x, y) => y.shared.length - x.shared.length)
     .slice(0, 3)
@@ -401,7 +438,7 @@ function AnnouncementCard({ a, viewerId, viewerInterests, viewerLanguages, viewe
             {a.fromCity && <span className="text-xs text-gray-600">from {a.fromCity}</span>}
           </div>
           <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-600 flex-wrap">
-            <span className="font-semibold text-amber-700">{formatRange(a.startsOn, a.endsOn)}</span>
+            <span className="font-semibold text-amber-700">{formatRange(a.startsOn, a.endsOn, a.approximate)}</span>
             {a.neighborhood && <span><span aria-hidden="true">· 📍 </span>{a.neighborhood}</span>}
             {a.travelerType && TRAVELER_LABEL[a.travelerType] && (
               <span><span aria-hidden="true">· </span>{TRAVELER_LABEL[a.travelerType]}</span>
@@ -490,6 +527,19 @@ function AnnouncementCard({ a, viewerId, viewerInterests, viewerLanguages, viewe
         </div>
       )}
 
+      {isSelf && (
+        <div className="flex flex-wrap items-center gap-3 mt-auto pt-4">
+          <Link href={`/visiting/new?edit=${a.id}`}
+            className="shrink-0 text-xs font-bold px-3 py-1.5 rounded-full bg-gray-900 hover:bg-gray-700 text-white transition-colors whitespace-nowrap">
+            Edit my visit
+          </Link>
+          <button onClick={withdraw} disabled={withdrawing}
+            className="text-xs font-semibold text-gray-500 hover:text-red-600 transition-colors whitespace-nowrap disabled:opacity-50">
+            {withdrawing ? 'Withdrawing…' : 'Withdraw'}
+          </button>
+        </div>
+      )}
+
       {coffeeOpen && a.user && (
         <CoffeeInviteModal target={a.user} onClose={() => setCoffeeOpen(false)} />
       )}
@@ -497,23 +547,30 @@ function AnnouncementCard({ a, viewerId, viewerInterests, viewerLanguages, viewe
   )
 }
 
-export default function VisitingClient({ announcements, events, cityCount, featuredLocals, cityName }: Props) {
+export default function VisitingClient({ announcements: all, events, cityCount, featuredLocals, cityName, today, viewerIsLocal, totalCount }: Props) {
   const { user, isLoggedIn } = useAuth()
+  // ?neighborhood= — the neighbourhood page's "See all" lands here with it.
+  const searchParams  = useSearchParams()
+  const neighborhood  = searchParams.get('neighborhood')
+  const announcements = neighborhood ? all.filter(a => a.neighborhood === neighborhood) : all
+  const clearHref     = (() => { const q = new URLSearchParams(searchParams.toString()); q.delete('neighborhood'); const qs = q.toString(); return qs ? `/visiting?${qs}` : '/visiting' })()
   const viewerId        = isLoggedIn ? user.id        : null
   const viewerInterests = isLoggedIn ? (user.interests ?? []) as string[] : []
   const viewerLanguages = isLoggedIn ? (user.languages ?? []) as string[] : []
   const viewerNeighborhood = isLoggedIn ? (user.neighborhood ?? null) : null
-  const hasPosted       = isLoggedIn && announcements.some(a => a.user?.id === user.id)
+  const hasPosted       = isLoggedIn && all.some(a => a.user?.id === user.id)
 
   const [filter, setFilter] = useState<FilterKey>('all')
 
   // Today at UTC midnight — anchor for DST-safe day arithmetic in
   // bucketOf (the local-midnight version had a ±1 day drift on
   // clock-change days).
+  // The day itself is the city's, from the server: the browser's could be a
+  // day ahead or behind and showed "Visit ended" on a card the server still lists.
   const todayUTC = useMemo(() => {
-    const d = new Date()
-    return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())
-  }, [])
+    const [y, m, d] = today.split('-').map(Number)
+    return Date.UTC(y, m - 1, d)
+  }, [today])
 
   const buckets = useMemo(() => {
     const out = { now: 0, week: 0, month: 0, later: 0 }
@@ -559,7 +616,7 @@ export default function VisitingClient({ announcements, events, cityCount, featu
           Who&apos;s Coming to {cityName}?
         </h2>
         <p className="text-gray-600 mt-2">
-          Meet Smileys members arriving soon and help them feel at home.
+          Meet people arriving soon and help them feel at home.
         </p>
         {/* Stats banner */}
         {(buckets.now > 0 || upcomingCount > 0) && (
@@ -571,6 +628,16 @@ export default function VisitingClient({ announcements, events, cityCount, featu
           </p>
         )}
       </div>
+
+      {neighborhood && (
+        <p className="text-sm text-gray-600 mb-4">
+          Showing visitors heading to <span className="font-semibold text-gray-900">{neighborhood}</span>
+          {' · '}<Link href={clearHref} className="font-semibold text-amber-600 hover:underline">Show everyone</Link>
+        </p>
+      )}
+      {totalCount > all.length && (
+        <p className="text-xs text-gray-500 mb-4">Showing the first {all.length} of {totalCount} visits, soonest first.</p>
+      )}
 
       {/* Filter chips */}
       {announcements.length > 0 && (
@@ -628,7 +695,7 @@ export default function VisitingClient({ announcements, events, cityCount, featu
       </div>
 
       {/* First time checklist — supplementary, below the fold */}
-      <FirstTimeChecklist hasPosted={hasPosted} viewerId={viewerId} />
+      <FirstTimeChecklist hasPosted={hasPosted} viewerId={viewerId} isLocal={viewerIsLocal} />
     </>
   )
 }

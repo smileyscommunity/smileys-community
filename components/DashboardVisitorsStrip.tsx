@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { getInitials } from '@/lib/data'
+import { avatarUrl, getInitials } from '@/lib/data'
 
 interface VisitorUser {
   id:           string
@@ -57,7 +57,7 @@ export default function DashboardVisitorsStrip({ visitors, cityName }: Props) {
     <div className="bg-white rounded-2xl shadow-card p-5">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h2 className="text-sm font-bold text-gray-900">Visitors this week 👋</h2>
+          <h2 className="text-sm font-bold text-gray-900">Visitors coming soon 👋</h2>
           <p className="text-xs text-gray-400 mt-0.5">Members passing through {cityName} — say hello before they arrive.</p>
         </div>
         <Link href="/visiting" className="text-xs font-bold text-amber-600 hover:underline shrink-0">View all →</Link>
@@ -68,7 +68,7 @@ export default function DashboardVisitorsStrip({ visitors, cityName }: Props) {
           <div key={v.id} className="flex items-center gap-3">
             {v.user?.profilePhoto ? (
               /* eslint-disable-next-line @next/next/no-img-element */
-              <img src={v.user.profilePhoto} alt={v.name}
+              <img src={avatarUrl(v.user.profilePhoto, 128) ?? undefined} alt={v.name}
                 className="w-9 h-9 rounded-full object-cover shrink-0" />
             ) : (
               <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"

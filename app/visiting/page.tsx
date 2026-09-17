@@ -12,7 +12,8 @@ import { redirect } from 'next/navigation'
 import { DEFAULT_CITY_SLUG } from '@/lib/city'
 import { resolveCityForPage, type CitySearch } from '@/lib/cityPageParam'
 import { shareCover } from '@/lib/shareCover'
-import { resolveImageUrl, firstNameOf} from '@/lib/data'
+import { resolveImageUrl, firstNameOf } from '@/lib/data'
+import { guestView } from '@/lib/visitorPolicy'
 import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
 import { loadExperiences } from '@/lib/guideContent'
 import VisitingClient from './VisitingClient'
@@ -36,10 +37,20 @@ const getAnnouncements = unstable_cache(
       cityId,
       endsOn: { gte: today },
       ...(forMembers ? {} : { visibility: 'public' }),
+      // A banned, suspended or admin-hidden author's card goes with them.
+      OR: [{ userId: null }, { user: { status: 'approved', hiddenFromMembers: false } }],
     },
     orderBy: { startsOn: 'asc' },
     take:    100,
-    include: { user: { select: { id: true, name: true, color: true, profilePhoto: true, interests: true } } },
+    // Rendered fields only, and the private columns only in the members'
+    // entry: unstable_cache values stream to the browser in the RSC payload,
+    // so the guest entry must be safe by construction, not by a later strip.
+    select: {
+      id: true, userId: true, name: true, startsOn: true, endsOn: true, fromCity: true, neighborhood: true, intro: true,
+      travelerType: true, languages: true, lookingFor: true,
+      ...(forMembers ? { contact: true, email: true } : {}),
+      user: { select: { id: true, name: true, color: true, profilePhoto: true, interests: true, profileVisibility: true } },
+    },
   }),
   ['visitor-announcements'],
   { revalidate: 120, tags: ['visitor-announcements'] },
@@ -126,7 +137,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
     return ['ferry-at-sunset', 'balat-fener-walk', 'kadikoy-market-graze', 'meyhane-night']
   }
 
-  const [announcements, viewerVisit, upcomingEvents, localCandidates, neighborhoodCounts] = await Promise.all([
+  const [announcements, viewerVisit, upcomingEvents, localCandidates, neighborhoodCounts, blockedIds] = await Promise.all([
     getAnnouncements(today, !!session, cityId),
     // The viewer's own visit is queried directly rather than fished out of
     // the cached list above: that cache lags mutations by up to 2 minutes
@@ -138,7 +149,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
           // not drive Istanbul's "events during your stay" sections.
           where:   { userId: session.id, status: 'active', endsOn: { gte: today }, cityId: cityId },
           orderBy: { startsOn: 'asc' },
-          select:  { startsOn: true, endsOn: true, neighborhood: true },
+          select:  { id: true, startsOn: true, endsOn: true, neighborhood: true },
         })
       : null,
     prisma.event.findMany({
@@ -178,6 +189,14 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
       where:   { ...ACTIVATED_MEMBER_WHERE, neighborhood: { not: null }, cityId: cityId },
       _count:  { _all: true },
     }),
+    // A blocked pair sees nothing of each other. The list above is a shared
+    // cache entry, so the block is applied after it, per viewer.
+    session
+      ? prisma.memberBlock.findMany({
+          where:  { OR: [{ blockerId: session.id }, { blockedId: session.id }] },
+          select: { blockerId: true, blockedId: true },
+        }).then(rows => new Set(rows.map(b => (b.blockerId === session.id ? b.blockedId : b.blockerId))))
+      : new Set<string>(),
   ])
 
   // This page is public (anonymous visitors are the point — it's a growth
@@ -186,22 +205,51 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
   // GET /api/visitors — a signed-out request must never see a member's raw
   // contact/email, only that they exist and how to reach them (sign up).
   const isMember = !!session
-  const serialised = announcements.map(a => ({
-    id:           a.id,
-    name:         a.name,
-    startsOn:     typeof a.startsOn === 'string' ? a.startsOn : new Date(a.startsOn).toISOString().split('T')[0],
-    endsOn:       typeof a.endsOn   === 'string' ? a.endsOn   : new Date(a.endsOn).toISOString().split('T')[0],
-    fromCity:     a.fromCity     ?? null,
-    neighborhood: a.neighborhood ?? null,
-    intro:        a.intro,
-    contact:      isMember ? (a.contact ?? null) : null,
-    email:        isMember ? (a.email   ?? null) : null,
-    interests:    (a.user?.interests ?? []) as string[],
-    travelerType: a.travelerType ?? null,
-    languages:    a.languages,
-    lookingFor:   a.lookingFor,
-    user:         a.user ? { id: a.user.id, name: a.user.name, color: a.user.color, profilePhoto: a.user.profilePhoto } : null,
-  }))
+  // Authors whose profile is connections-only and who aren't connected to
+  // the viewer keep their profile (photo, link, interests) off the card —
+  // the /api/members rule, which the card used to skip.
+  const restrictedAuthors = session
+    ? await restrictedSetFor(session, announcements.flatMap(a => a.user ? [a.user] : []))
+    : new Set<string>()
+  const serialised = announcements
+    .filter(a => !a.userId || !blockedIds.has(a.userId))
+    .map(a => {
+      const author = a.user && !restrictedAuthors.has(a.user.id) ? a.user : null
+      const shared = {
+        id:           a.id,
+        fromCity:     a.fromCity     ?? null,
+        intro:        a.intro,
+        travelerType: a.travelerType ?? null,
+        languages:    a.languages,
+        lookingFor:   a.lookingFor,
+      }
+      // A guest gets a first name, the months and no neighbourhood or author
+      // (lib/visitorPolicy guestView): exact dates beside a home neighbourhood
+      // from /neighborhoods would say whose flat is empty when.
+      if (!isMember) return {
+        ...shared, ...guestView(a), neighborhood: null, contact: null, email: null, interests: [] as string[], user: null,
+      }
+      return {
+        ...shared,
+        name:         a.name,
+        startsOn:     a.startsOn,
+        endsOn:       a.endsOn,
+        neighborhood: a.neighborhood ?? null,
+        contact:      'contact' in a ? (a.contact ?? null) : null,
+        email:        'email'   in a ? (a.email   ?? null) : null,
+        interests:    (author?.interests ?? []) as string[],
+        user:         author ? { id: author.id, name: author.name, color: author.color, profilePhoto: author.profilePhoto } : null,
+      }
+    })
+  // Past the cap the latest-starting visits fall off silently; say so.
+  const totalCount = announcements.length >= 100
+    ? await prisma.visitorAnnouncement.count({ where: { status: 'active', cityId, endsOn: { gte: today }, ...(isMember ? {} : { visibility: 'public' }) } })
+    : serialised.length
+  const viewerIsLocal = !!session && session.cityId === cityId
+  // Where the CTAs go: a member with a visit edits it; a member on another
+  // city's page posts to THAT city (the form used to default to Istanbul).
+  const newVisitHref = viewerVisit ? `/visiting/new?edit=${viewerVisit.id}` : pinned ? `/visiting/new?city=${city.slug}` : '/visiting/new'
+  const ctaLabel     = viewerVisit ? 'Edit your visit' : "Tell Us You're Coming"
 
   // The "open to…" flags live on the members-only directory. Hiding them in
   // the render is not enough — props reach the browser in the RSC payload, so
@@ -214,14 +262,30 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
     : featuredLocals.map(({ id, name, color, profilePhoto, neighborhood }) =>
         ({ id, name, color, profilePhoto, neighborhood }))
 
-  const cityCount = new Set(serialised.map(a => a.fromCity).filter(Boolean)).size
+  const cityCount = new Set(serialised.map(a => a.fromCity?.trim().toLowerCase()).filter(Boolean)).size
 
   // viewerVisit (fetched above) drives the date-matched events and
   // neighborhood picks below. Without it those sections fall back to a
-  // general upcoming list rather than guessing.
+  // general upcoming list rather than guessing. Queried on the visit's own
+  // dates: the 60-day list above told a December visitor "nothing scheduled
+  // yet" while December's events existed.
   const eventsDuringVisit = viewerVisit
-    ? upcomingEvents.filter(e => e.date >= viewerVisit.startsOn && e.date <= viewerVisit.endsOn).slice(0, 6)
+    ? await prisma.event.findMany({
+        where:   { status: 'published', cityId, date: { gte: viewerVisit.startsOn, lte: viewerVisit.endsOn } },
+        select:  { id: true, title: true, emoji: true, date: true, location: true, neighborhood: true, _count: { select: { attendees: { where: { status: 'approved' } } } } },
+        orderBy: { date: 'asc' },
+        take:    6,
+      })
     : []
+  // The cards' "N events while you're here" chip counts against every
+  // listed visit's window, not the next 60 days.
+  const lastEndsOn     = serialised.reduce((m, a) => (a.endsOn > m ? a.endsOn : m), sixtyDaysOut)
+  const eventsForCards = await prisma.event.findMany({
+    where:   { status: 'published', cityId, date: { gte: today, lte: lastEndsOn } },
+    select:  { id: true, title: true, emoji: true, date: true },
+    orderBy: { date: 'asc' },
+    take:    200,
+  })
 
   // §20 of the hangouts plan — spontaneous plans surfaced to visitors.
   // Members only (hangouts are member content); date-matched to the
@@ -232,7 +296,12 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
       status: 'active',
       cityId,
       endsAt: { gte: new Date() },
-      ...(viewerVisit ? { startsAt: { lte: new Date(fromWallClockInTz(viewerVisit.endsOn + 'T23:59', city.timezone).getTime() + 59_999) } } : {}),
+      // Inside the visit, both ends: tonight's hangout is not "while you're
+      // here" for someone arriving next month.
+      ...(viewerVisit ? { startsAt: {
+        gte: fromWallClockInTz(viewerVisit.startsOn + 'T00:00', city.timezone),
+        lte: new Date(fromWallClockInTz(viewerVisit.endsOn + 'T23:59', city.timezone).getTime() + 59_999),
+      } } : {}),
     },
     select: {
       id: true, title: true, activity: true, neighborhood: true, startsAt: true, maxPeople: true,
@@ -256,6 +325,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
   const clubEventsDuringVisit = (session && viewerVisit) ? await prisma.event.findMany({
     where: {
       status: 'published',
+      cityId,   // the viewed city's — an Istanbul club's events are not "while you're here" in Izmir
       date:   { gte: viewerVisit.startsOn, lte: viewerVisit.endsOn },
       club:   { memberships: { some: { userId: session.id, status: 'approved' } } },
     },
@@ -295,7 +365,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className={`min-h-screen bg-white ${viewerVisit ? '' : 'pb-24 md:pb-0'}`}>
       {/* Hero — full-bleed cinematic photo with the copy overlaid. The
           gradient is what makes white text legible over a bright sunset
           photo: without it the headline sits on the blown-out sky at the
@@ -335,9 +405,9 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
                     reverted — see app/(member)/visiting/new/page.tsx), so a
                     logged-out visitor is sent to /apply rather than into a
                     form that would just bounce them to login. */}
-                <Link href={isMember ? '/visiting/new' : '/apply'}
+                <Link href={isMember ? newVisitHref : '/apply'}
                   className="inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-amber-500 hover:bg-amber-600 text-white text-base font-bold rounded-xl transition-colors shadow-lg">
-                  Tell Us You&apos;re Coming
+                  {ctaLabel}
                   <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                   </svg>
@@ -404,7 +474,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
             its own reading width so it doesn't stretch into a banner. */}
         <div id="visitors" className="scroll-mt-20">
 
-        <VisitingClient announcements={serialised} events={upcomingEvents} cityCount={cityCount} featuredLocals={localsForViewer} cityName={city.name} />
+        <VisitingClient announcements={serialised} events={eventsForCards} today={today} viewerIsLocal={viewerIsLocal} totalCount={totalCount} cityCount={cityCount} featuredLocals={localsForViewer} cityName={city.name} />
 
         {/* Cross-link to /handbook — visitors landing here are the exact
             audience for the long-form survival reads. Closes the loop
@@ -501,7 +571,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
           ) : upcomingEvents.length === 0 ? (
             <div className="mt-4">
               <p className="text-gray-600 mb-5">Add your travel dates to see what&apos;s happening during your stay.</p>
-              <Link href={isMember ? '/visiting/new' : '/apply'}
+              <Link href={isMember ? newVisitHref : '/apply'}
                 className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
                 Add my dates
               </Link>
@@ -531,7 +601,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
                   </Link>
                 ))}
               </div>
-              <Link href={isMember ? '/visiting/new' : '/apply'}
+              <Link href={isMember ? newVisitHref : '/apply'}
                 className="inline-flex items-center justify-center gap-2 mt-8 px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
                 Add my dates
               </Link>
@@ -547,13 +617,16 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
         const picks = seasonalPicks(viewerVisit.startsOn)
           .map(sl => bySlug.get(sl))
           .filter((e): e is NonNullable<typeof e> => !!e)
-        if (picks.length === 0) return null
+        // The seasonal picks are Istanbul's guide; elsewhere the section
+        // still carries the viewer's club events, which it used to take down with it.
+        if (picks.length === 0 && clubEventsDuringVisit.length === 0) return null
         return (
           <section className="bg-white border-t border-gray-100">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
               <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">
                 Perfect for your stay
               </h2>
+              {picks.length > 0 && (<>
               <p className="text-gray-600 mt-2 mb-8">
                 Experiences that suit the season you&apos;ll be here — from the {city.name} Guide.
               </p>
@@ -567,6 +640,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
                   </Link>
                 ))}
               </div>
+              </>)}
 
               {/* §32 (Clubs) — your clubs while you're here. */}
               {clubEventsDuringVisit.length > 0 && (
@@ -679,9 +753,9 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
             Tell the community you&apos;re coming and start making connections before you arrive.
           </p>
           <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
-            <Link href={isMember ? '/visiting/new' : '/apply'}
+            <Link href={isMember ? newVisitHref : '/apply'}
               className="inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-amber-500 hover:bg-amber-600 text-white text-base font-bold rounded-xl transition-colors">
-              Tell Us You&apos;re Coming
+              {ctaLabel}
               <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
               </svg>
@@ -696,7 +770,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
         </div>
       </section>
 
-      <StickyVisitCta hasPosted={!!viewerVisit} />
+      <StickyVisitCta hasPosted={!!viewerVisit} href={isMember ? newVisitHref : '/apply'} />
     </div>
   )
 }

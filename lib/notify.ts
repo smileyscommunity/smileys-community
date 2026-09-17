@@ -26,9 +26,15 @@ const PREF_KEY: Record<string, 'newEvents' | 'reminders' | 'eventUpdates' | 'joi
   host_assigned:      null,
   application:        null,
   report:             null,
+  // The moderators' ping when a post-event survey flags an anomaly — the
+  // staff-queue side of `report`, fired from the event feedback route.
+  report_alert:       null,
   event_cancelled:    null,
   warning:            null,
   system_alert:       null,
+  // A directory submitter's own approve/reject outcome. Same class as
+  // club_approved / club_rejected: they asked, this is the answer.
+  system:             null,
   announcement:       null,
   connection_request:    null,
   connection_accepted:   null,

@@ -38,6 +38,11 @@ describe('/neighborhoods/[slug] sections', () => {
     expect(src).toMatch(/myId \? prisma\.hangout\.findMany\(/)
   })
 
+  it("members-only visits stay off the public neighbourhood page, and a banned author's card goes with them", () => {
+    expect(src).toMatch(/neighborhood: name, cityId, status: 'active', endsOn: \{ gte: today \},\s*\.\.\.\(myId \? \{\} : \{ visibility: 'public' \}\)/)
+    expect(src).toMatch(/\{ OR: \[\{ userId: null \}, \{ user: \{ status: 'approved', hiddenFromMembers: false \} \}\] \}/)
+  })
+
   it('never selects listing authors it does not render', () => {
     const block  = src.slice(src.indexOf('prisma.listing.findMany'), src.indexOf('prisma.visitorAnnouncement.findMany'))
     const select = block.slice(block.indexOf('select:'))

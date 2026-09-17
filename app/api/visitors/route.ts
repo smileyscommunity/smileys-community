@@ -3,16 +3,21 @@ import { resolvePublicCityIdFromSlug } from '@/lib/cities'
 import { revalidateTag } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { resolveCityId, todayInCity } from '@/lib/city'
+import { resolveCityId, todayInCity, DEFAULT_CITY_SLUG } from '@/lib/city'
 import { rateLimit, getIp } from '@/lib/rateLimit'
-import { verifyTurnstile } from '@/lib/turnstile'
 import { createNotification } from '@/lib/notify'
-import { VISITOR_TRAVELER_TYPES, VISITOR_LOOKING_FOR, firstNameOf} from '@/lib/data'
+import { VISITOR_TRAVELER_TYPES, VISITOR_LOOKING_FOR, firstNameOf } from '@/lib/data'
 import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
+import { visitDatesError, cleanEmail, guestView, notifyText } from '@/lib/visitorPolicy'
 
-// "I'm visiting Istanbul" announcements. Anonymous posting allowed to capture
-// visitors before they sign up (the whole growth lever); Turnstile + 3/day/IP
-// rate limit guard the open POST endpoint.
+// "I'm visiting Istanbul" announcements. Members only: anonymous posting was
+// tried and reverted on the form (see app/(member)/visiting/new), and an API
+// that still took it let anyone put a member's name and a stranger's phone
+// number on a public card nobody could take down. Edits and withdrawals are
+// app/api/visitors/[id].
+
+/** Only approved, unhidden authors are listed; a card without an account has no author to check. */
+const AUTHOR_OK = { OR: [{ userId: null }, { user: { status: 'approved', hiddenFromMembers: false } }] }
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -44,6 +49,7 @@ export async function GET(req: NextRequest) {
       // Members get contact details below; a blocked pair gets nothing of
       // each other, like every other member surface.
       ...(blockedIds.length ? { OR: [{ userId: null }, { userId: { notIn: blockedIds } }] } : {}),
+      AND: [AUTHOR_OK],
       // "Still ongoing" is judged on the visited city's calendar, not UTC —
       // a visit "ends today" until that city's midnight, not three hours early.
       endsOn: { gte: await todayInCity(cityId) },
@@ -55,16 +61,24 @@ export async function GET(req: NextRequest) {
     },
     orderBy: { startsOn: 'asc' },
     take: 100,
-    include: { user: { select: { id: true, name: true, color: true, profilePhoto: true } } },
+    select: {
+      id: true, name: true, startsOn: true, endsOn: true, fromCity: true, neighborhood: true, intro: true,
+      contact: true, email: true, travelerType: true, languages: true, lookingFor: true,
+      user: { select: { id: true, name: true, color: true, profilePhoto: true } },
+    },
   })
 
-  // Strip contact info for anonymous viewers — sign-up gate is the conversion
-  // funnel and discourages scraping for outreach lists.
+  // An allow-list, not the row: a guest gets a first name, the months and no
+  // neighbourhood (lib/visitorPolicy guestView) and no author to follow to a
+  // profile; a member gets the card as posted. Nothing else on the row —
+  // not its ids, status or visibility — leaves this route.
   const isMember = !!session
   const cleaned = announcements.map(a => ({
-    ...a,
-    email:   isMember ? a.email   : null,
-    contact: isMember ? a.contact : null,
+    id: a.id,
+    ...(isMember
+      ? { name: a.name, startsOn: a.startsOn, endsOn: a.endsOn, neighborhood: a.neighborhood, contact: a.contact, email: a.email, user: a.user }
+      : { ...guestView(a), neighborhood: null, contact: null, email: null, user: null }),
+    fromCity: a.fromCity, intro: a.intro, travelerType: a.travelerType, languages: a.languages, lookingFor: a.lookingFor,
   }))
 
   return NextResponse.json({ announcements: cleaned, isMember })
@@ -72,36 +86,18 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const ip = getIp(req)
-    if (!await rateLimit(`visitor:${ip}`, 3, 24 * 60 * 60_000)) {
-      return NextResponse.json({ error: 'Too many posts from this IP. Try again later.' }, { status: 429 })
-    }
-
     const session = await getSession()
-    const body = await req.json()
-    const { name, email, fromCity, intro, startsOn, endsOn, neighborhood, contact, _cf,
-      travelerType, languages, lookingFor, visibility } = body
+    if (!session) return NextResponse.json({ error: 'Sign in to post a visit' }, { status: 401 })
 
-    // Turnstile required for anonymous posts; members are already gated by login.
-    if (!session) {
-      if (!await verifyTurnstile(_cf ?? '', ip)) {
-        return NextResponse.json({ error: 'Human verification failed.' }, { status: 400 })
-      }
-    }
+    const body = await req.json()
+    const { name, email, fromCity, intro, startsOn, endsOn, neighborhood, contact,
+      travelerType, languages, lookingFor, visibility } = body
 
     if (!name?.trim() || !intro?.trim() || !startsOn || !endsOn) {
       return NextResponse.json({ error: 'Name, intro, and dates are required' }, { status: 400 })
     }
     if (name.length > 80 || intro.length > 1000) {
       return NextResponse.json({ error: 'Name or intro too long' }, { status: 400 })
-    }
-
-    // ISO date sanity
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(startsOn) || !/^\d{4}-\d{2}-\d{2}$/.test(endsOn)) {
-      return NextResponse.json({ error: 'Dates must be YYYY-MM-DD' }, { status: 400 })
-    }
-    if (endsOn < startsOn) {
-      return NextResponse.json({ error: 'End date must be after start' }, { status: 400 })
     }
 
     // Destination city — the city being VISITED, chosen on the form. Only
@@ -119,10 +115,30 @@ export async function POST(req: NextRequest) {
     }
     const destCityId = dest.id
 
-    // "Ends in the past" is judged on the DESTINATION city's calendar —
-    // the trip happens on that city's clock, not UTC's.
-    if (endsOn < await todayInCity(destCityId)) {
-      return NextResponse.json({ error: 'Trip ends in the past' }, { status: 400 })
+    // Judged on the DESTINATION city's calendar — the trip happens on that
+    // city's clock, not UTC's. Real days, in order, not past, not a
+    // residency, not a wish (lib/visitorPolicy).
+    const today = await todayInCity(destCityId)
+    const dateError = visitDatesError(startsOn, endsOn, today)
+    if (dateError) return NextResponse.json({ error: dateError }, { status: 400 })
+
+    // One live visit per member per city: a second post duplicated the card
+    // and re-pinged every local. To change dates, edit the existing one.
+    const existing = await prisma.visitorAnnouncement.findFirst({
+      where:  { userId: session.id, cityId: destCityId, status: 'active', endsOn: { gte: today } },
+      select: { id: true },
+    })
+    if (existing) {
+      return NextResponse.json({ error: 'You already have a visit posted for this city — edit it instead.', existingId: existing.id }, { status: 409 })
+    }
+
+    // After the checks: a form with a bad date three times over must not
+    // spend the day's posts. Per member, and per address as a backstop for
+    // a member on many accounts — not the other way round, since a whole
+    // block of flats can share one mobile-carrier address.
+    if (!await rateLimit(`visitor:user:${session.id}`, 3, 24 * 60 * 60_000)
+      || !await rateLimit(`visitor:${getIp(req)}`, 10, 24 * 60 * 60_000)) {
+      return NextResponse.json({ error: 'Too many posts today. Try again tomorrow.' }, { status: 429 })
     }
 
     const safeNeighborhood = await safeNeighborhoodFor(destCityId, neighborhood)
@@ -149,10 +165,10 @@ export async function POST(req: NextRequest) {
 
     const created = await prisma.visitorAnnouncement.create({
       data: {
-        userId:       session?.id ?? null,
+        userId:       session.id,
         cityId:       destCityId,
         name:         name.trim().slice(0, 80),
-        email:        typeof email === 'string' ? email.trim().slice(0, 200) || null : null,
+        email:        cleanEmail(email),
         fromCity:     typeof fromCity === 'string' ? fromCity.trim().slice(0, 80) || null : null,
         intro:        intro.trim().slice(0, 1000),
         startsOn,
@@ -176,33 +192,35 @@ export async function POST(req: NextRequest) {
       // A blocked pair sees nothing of each other — hangouts, availability
       // pulses, listings and mentions all drop them, and this "come meet me"
       // ping went to every local regardless. Both directions, as in the pulse
-      // route. Anonymous visitors have no account for anyone to block.
-      const blocked = new Set(session
-        ? (await prisma.memberBlock.findMany({
-            where:  { OR: [{ blockerId: session.id }, { blockedId: session.id }] },
-            select: { blockerId: true, blockedId: true },
-          })).map(b => (b.blockerId === session.id ? b.blockedId : b.blockerId))
-        : [])
+      // route.
+      const blocked = new Set((await prisma.memberBlock.findMany({
+        where:  { OR: [{ blockerId: session.id }, { blockedId: session.id }] },
+        select: { blockerId: true, blockedId: true },
+      })).map(b => (b.blockerId === session.id ? b.blockedId : b.blockerId)))
       const locals = await prisma.user.findMany({
         // Destination city's locals — neighborhood names are only unique
         // per city, and an Istanbul 'Moda' ping about an Izmir visit would
         // be noise even if the names collide.
-        where:  { neighborhood: safeNeighborhood, status: 'approved', cityId: destCityId },
+        where:  { neighborhood: safeNeighborhood, status: 'approved', hiddenFromMembers: false, cityId: destCityId },
         select: { id: true },
       })
+      // The push reads the member's own words: a first name and a place,
+      // one line, no links (lib/visitorPolicy notifyText).
+      const from  = notifyText(fromCity)
+      const day   = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+      const when  = `${day(startsOn)} – ${day(endsOn)}`
+      const link  = dest.slug === DEFAULT_CITY_SLUG ? '/visiting' : `/visiting?city=${dest.slug}`
       for (const u of locals) {
-        if (u.id === session?.id || blocked.has(u.id)) continue
+        if (u.id === session.id || blocked.has(u.id)) continue
         createNotification(
           u.id,
           'visitor_announced',
           `👋 Visitor coming to ${safeNeighborhood}`,
-          `${firstNameOf(created.name)} from ${created.fromCity ?? 'abroad'} — ${created.startsOn} to ${created.endsOn}`,
-          // City-aware link: the default city's visitors live on /visiting,
-          // any other city's on its own landing page.
-          dest.slug === 'istanbul' ? '/visiting' : `/${dest.slug}`,
+          `${firstNameOf(String(name).trim())}${from ? ` from ${from}` : ''} — ${when}`,
+          link,
         ).catch(() => {})
       }
-    })().catch(() => {})
+    })().catch(e => console.error('[visitors POST] fan-out failed', { err: String(e) }))
 
     return NextResponse.json({ id: created.id }, { status: 201 })
   } catch (e) {

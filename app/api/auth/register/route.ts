@@ -153,6 +153,14 @@ export async function POST(req: NextRequest) {
         openToCoffee:   application?.openToCoffee   ?? false,
         openToLanguage: application?.openToLanguage ?? false,
         openToHosting:  application?.openToHosting  ?? false,
+        // The applicant's own choices, not the schema's defaults — the same
+        // carry-over the approval path does. users.emailMarketing defaults to
+        // true, so omitting it here opted a member into marketing mail whose
+        // application said otherwise, and left no record of the terms they
+        // accepted. Approval normally creates the account (and this create
+        // never runs), but when that fails this is the path that creates it.
+        emailMarketing:  application.emailMarketing  ?? false,
+        termsAcceptedAt: application.termsAcceptedAt ?? null,
         // City inherits from the approved application's targetCityId
         // — the applicant told us which community they were joining
         // when they applied.

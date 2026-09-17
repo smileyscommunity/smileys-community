@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { snapshotUserHistory } from '@/lib/admin/userHistory'
 import { prisma } from '@/lib/prisma'
 import { getSession, deleteSession } from '@/lib/session'
@@ -168,7 +169,12 @@ export async function POST(req: NextRequest) {
     // Visitor cards carry their own name/email/contact COLUMNS (they support
     // anonymous posting) — scrubbing only the intro left the member's name
     // and WhatsApp string on a card that can be visibility='public'.
-    await tx.visitorAnnouncement.updateMany({ where: { userId: id }, data: { intro: DELETED_BODY, name: 'Deleted Member', email: null, contact: null } })
+    await tx.visitorAnnouncement.updateMany({ where: { userId: id }, data: {
+      intro: DELETED_BODY, name: 'Deleted Member', email: null, contact: null,
+      // And off the list: a "Deleted Member" card stayed listed (publicly, if
+      // it was public) with a link to a banned account until its end date.
+      status: 'withdrawn', fromCity: null, neighborhood: null, languages: [], lookingFor: [], travelerType: null,
+    } })
     // Post-2025 surfaces the original scrub list predates — same policy:
     // the containing surface stays readable, the user's words go.
     await tx.boardReply.updateMany({ where: { userId: id }, data: { body: DELETED_BODY } })
@@ -329,5 +335,7 @@ export async function POST(req: NextRequest) {
   )
 
   await deleteSession()
+  // The withdrawn visit card leaves the cached /visiting list at once.
+  try { revalidateTag('visitor-announcements') } catch { /* outside a request (tests) */ }
   return NextResponse.json({ ok: true })
 }

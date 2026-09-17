@@ -167,14 +167,30 @@ export default async function NeighborhoodSections({
     // Visitors with active trips ending today or later, tagged to this
     // neighborhood. Local members get the "someone's coming to your area"
     // signal alongside events + listings.
-    prisma.visitorAnnouncement.findMany({
-      where:   { neighborhood: name, cityId, status: 'active', endsOn: { gte: today } },
-      orderBy: { startsOn: 'asc' },
-      take:    3,
-      select:  {
-        id: true, name: true, fromCity: true, startsOn: true, endsOn: true, intro: true,
-      },
-    }),
+    // Members-only visits are for members (the form promises "off the
+    // public web"); a banned or hidden author's card goes with them; a
+    // blocked pair sees nothing of each other.
+    (async () => {
+      const blockedIds = myId
+        ? (await prisma.memberBlock.findMany({ where: { OR: [{ blockerId: myId }, { blockedId: myId }] }, select: { blockerId: true, blockedId: true } }))
+            .map(b => (b.blockerId === myId ? b.blockedId : b.blockerId))
+        : []
+      return prisma.visitorAnnouncement.findMany({
+        where:   {
+          neighborhood: name, cityId, status: 'active', endsOn: { gte: today },
+          ...(myId ? {} : { visibility: 'public' }),
+          AND: [
+            { OR: [{ userId: null }, { user: { status: 'approved', hiddenFromMembers: false } }] },
+            ...(blockedIds.length ? [{ OR: [{ userId: null }, { userId: { notIn: blockedIds } }] }] : []),
+          ],
+        },
+        orderBy: { startsOn: 'asc' },
+        take:    3,
+        select:  {
+          id: true, name: true, fromCity: true, startsOn: true, endsOn: true, intro: true,
+        },
+      })
+    })(),
     // Active hangouts in this neighborhood — sweeper flips them to 'expired'
     // when endsAt passes, but we also filter by endsAt >= now so a missed
     // sweeper run can't show stale ones. Same shape the /hangouts feed uses
@@ -632,7 +648,7 @@ export default async function NeighborhoodSections({
         <div className="pt-6 border-t border-gray-100">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">Visitors heading to {name}</h2>
-            <Link href={`/visiting?neighborhood=${encodeURIComponent(name)}`}
+            <Link href={`/visiting?neighborhood=${encodeURIComponent(name)}&city=${encodeURIComponent(city.slug)}`}
               className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
               See all →
             </Link>

@@ -23,7 +23,7 @@ import { isBottomNavRoute } from '@/lib/bottomNav'
 // above nothing for logged-out visitors, who are most of this page's
 // audience. z-40 keeps it under both the nav (z-50) and the cookie banner
 // (z-60), so neither is ever blocked by it.
-export default function StickyVisitCta({ hasPosted }: { hasPosted: boolean }) {
+export default function StickyVisitCta({ hasPosted, href }: { hasPosted: boolean; href: string }) {
   const { isLoggedIn } = useAuth()
   const pathname       = usePathname()
   const [scrolled, setScrolled] = useState(false)
@@ -44,7 +44,7 @@ export default function StickyVisitCta({ hasPosted }: { hasPosted: boolean }) {
   return (
     <div className={`fixed bottom-0 left-0 right-0 z-40 md:hidden pb-[env(safe-area-inset-bottom)] ${clearsBottomNav ? 'mb-16' : ''}`}>
       <div className="bg-white/95 backdrop-blur-md border-t border-gray-200 px-4 py-3">
-        <Link href={isLoggedIn ? '/visiting/new' : '/apply'}
+        <Link href={href}
           className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-amber-500 hover:bg-amber-600 text-white text-base font-bold rounded-xl transition-colors shadow-sm">
           Tell Us You&apos;re Coming
           <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

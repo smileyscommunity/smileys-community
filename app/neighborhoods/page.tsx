@@ -317,6 +317,10 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
   // §13 — visitors heading for the focus neighborhood. Renders only when
   // there are real ones; an empty "coming to your neighborhood" block is
   // worse than no block. Contact details are never selected here.
+  const visitorBlocks = session && focusNeighborhood
+    ? (await prisma.memberBlock.findMany({ where: { OR: [{ blockerId: session.id }, { blockedId: session.id }] }, select: { blockerId: true, blockedId: true } }))
+        .map(b => (b.blockerId === session.id ? b.blockedId : b.blockerId))
+    : []
   const visitorsNearby = focusNeighborhood
     ? await prisma.visitorAnnouncement.findMany({
         where:  {
@@ -325,6 +329,10 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
           neighborhood: focusNeighborhood,
           endsOn: { gte: today },
           ...(session ? {} : { visibility: 'public' }),
+          AND: [
+            { OR: [{ userId: null }, { user: { status: 'approved', hiddenFromMembers: false } }] },
+            ...(visitorBlocks.length ? [{ OR: [{ userId: null }, { userId: { notIn: visitorBlocks } }] }] : []),
+          ],
         },
         select: {
           id: true, name: true, fromCity: true, startsOn: true,

@@ -35,7 +35,13 @@ function NewVisitingPageInner() {
   // your visit" arrives here. Applied only once the live-city list confirms
   // the slug, so a junk param can't select an unpostable destination.
   const requestedCity = useSearchParams().get('city')
+  // ?edit=<id> — the member's own visit, loaded from GET /api/visitors/[id]
+  // and saved with PATCH instead of a second POST.
+  const editId        = useSearchParams().get('edit')
+  const viewerCity    = useCurrentCity()?.slug
   const [neighborhoods, setNeighborhoods] = useState<string[]>([])
+  const [loadError,    setLoadError]    = useState('')
+  const [existingId,   setExistingId]   = useState<string | null>(null)
 
   const [name,         setName]         = useState('')
   const [fromCity,     setFromCity]     = useState('')
@@ -72,7 +78,10 @@ function NewVisitingPageInner() {
       .then((rows: PublicCity[]) => {
         const live = rows.filter(c => c.status === 'live')
         setCities(live)
-        if (requestedCity && live.some(c => c.slug === requestedCity)) setDestination(requestedCity)
+        // The city asked for, else the viewer's own — never Istanbul by
+        // default for a member reading Izmir's page.
+        const wanted = requestedCity ?? viewerCity
+        if (!editId && wanted && live.some(c => c.slug === wanted)) setDestination(wanted)
       })
       .catch(() => {})
   }, [])
@@ -91,7 +100,23 @@ function NewVisitingPageInner() {
     return () => { cancelled = true }
   }, [destination])
 
+  useEffect(() => {
+    if (!editId) return
+    fetch(`/app/api/visitors/${editId}`, { credentials: 'include' })
+      .then(async r => { if (!r.ok) throw new Error('gone'); return r.json() })
+      .then(v => {
+        setDestination(v.city?.slug ?? 'istanbul')
+        setName(v.name ?? ''); setFromCity(v.fromCity ?? ''); setStartsOn(v.startsOn ?? ''); setEndsOn(v.endsOn ?? '')
+        setIntro(v.intro ?? ''); setContact(v.contact ?? ''); setTravelerType(v.travelerType ?? '')
+        setLanguages((v.languages ?? []).join(', ')); setLookingFor(v.lookingFor ?? []); setVisibility(v.visibility ?? 'members')
+        // Neighbourhood options load per destination; set it once they have.
+        setTimeout(() => setNeighborhood(v.neighborhood ?? ''), 0)
+      })
+      .catch(() => setLoadError("That visit isn't yours to edit, or it's already gone."))
+  }, [editId])
+
   const cityName = cities.find(c => c.slug === destination)?.name ?? 'Istanbul'
+  const visitingHref = destination === 'istanbul' ? '/visiting' : `/visiting?city=${destination}`
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -102,8 +127,8 @@ function NewVisitingPageInner() {
     }
     setSubmitting(true)
     try {
-      const res = await fetch('/app/api/visitors', {
-        method:  'POST',
+      const res = await fetch(editId ? `/app/api/visitors/${editId}` : '/app/api/visitors', {
+        method:  editId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name, city: destination, fromCity: fromCity || undefined,
@@ -116,7 +141,11 @@ function NewVisitingPageInner() {
         }),
       })
       const data = await res.json()
-      if (!res.ok) { setError(data.error ?? 'Could not post'); return }
+      if (!res.ok) {
+        setError(data.error ?? 'Could not post')
+        setExistingId(typeof data.existingId === 'string' ? data.existingId : null)
+        return
+      }
       setPosted(true)
     } catch {
       setError('Network error')
@@ -128,7 +157,7 @@ function NewVisitingPageInner() {
   const todayStr = new Date().toISOString().split('T')[0]
 
   async function shareVisit() {
-    const url = `${window.location.origin}/app/visiting`
+    const url = `${window.location.origin}/app${visitingHref}`
     // Native share sheet on mobile, clipboard everywhere else. A cancelled
     // share rejects, which is not an error worth surfacing.
     if (navigator.share) {
@@ -149,21 +178,21 @@ function NewVisitingPageInner() {
         <div className="max-w-xl mx-auto px-4 sm:px-6 py-16 sm:py-24 text-center">
           <div aria-hidden="true" className="text-6xl mb-6">👋</div>
           <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">
-            {cityName} knows you&apos;re coming.
+            {editId ? 'Your visit is updated.' : `${cityName} knows you're coming.`}
           </h1>
           <p className="text-base text-gray-700 mt-4">
-            Your visit is now visible to the Smileys community.
+            Your visit is {editId ? 'up to date' : 'now visible'} for the Smileys community.
           </p>
           <p className="text-sm text-gray-600 mt-2 leading-relaxed">
             Members can welcome you, share recommendations and invite you to join them while you&apos;re here.
           </p>
           {visibility === 'members' && (
             <p className="text-xs text-gray-500 mt-4 bg-white border border-gray-200 rounded-xl px-4 py-3 inline-block">
-              🔒 Only signed-in Smileys members can see your visit. You can change this any time.
+              🔒 Only signed-in Smileys members can see your visit. You can change or withdraw it any time from your card.
             </p>
           )}
           <div className="flex flex-col sm:flex-row gap-3 mt-8">
-            <Link href="/visiting"
+            <Link href={visitingHref}
               className="flex-1 inline-flex items-center justify-center px-6 py-3.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl transition-colors">
               See my visitor card
             </Link>
@@ -185,10 +214,11 @@ function NewVisitingPageInner() {
     <div className="min-h-screen bg-warm pb-16">
       <div className="bg-white border-b border-gray-100">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 pt-8 pb-6">
-          <Link href="/visiting" className="text-sm text-gray-400 hover:text-gray-600 mb-4 inline-flex items-center gap-1 transition-colors">
+          <Link href={visitingHref} className="text-sm text-gray-400 hover:text-gray-600 mb-4 inline-flex items-center gap-1 transition-colors">
             ← All visitors
           </Link>
-          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">Coming to {cities.length > 1 ? cityName : 'Istanbul'}?</h1>
+          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">{editId ? 'Edit your visit' : `Coming to ${cities.length > 1 ? cityName : 'Istanbul'}?`}</h1>
+          {loadError && <p className="text-sm text-red-600 mt-3">{loadError}</p>}
           <p className="text-base text-gray-600 mt-1">
             Put yourself on the Smileys radar and start making connections before you arrive.
           </p>
@@ -322,6 +352,9 @@ function NewVisitingPageInner() {
           </fieldset>
 
           {error && <p className="text-sm text-red-600 bg-red-50 px-4 py-3 rounded-xl">{error}</p>}
+          {existingId && (
+            <p className="text-sm"><Link href={`/visiting/new?edit=${existingId}`} className="font-semibold text-amber-600 hover:underline">Edit your existing visit →</Link></p>
+          )}
 
           <button type="submit" disabled={submitting}
             className="w-full inline-flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition-colors">
