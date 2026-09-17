@@ -2,6 +2,7 @@ import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notify'
 import { claimOnce, releaseClaim } from '@/lib/rateLimit'
+import { sendAttendanceCheckEmail, sendNoShowRecordedEmail } from '@/lib/email'
 import { writeAudit } from '@/lib/audit'
 import { eventStartsAt, eventEndsAt } from '@/lib/eventTime'
 import { DEFAULT_TZ } from '@/lib/cityTime'
@@ -12,7 +13,7 @@ import {
   STANDING_SWEEP_LOOKBACK_DAYS, DISPUTE_WINDOW_DAYS, STANDING_STARTS_AT, STANDING_ENFORCE_SETTING,
   RECOVERY_REQUIRES_CHECKIN, LIVE_CARD_STATUSES, OffenceKind, OffenceStatus, CardLevel, StandingCardStatus,
   eventTier, classifyRow, refilledLateCancels, offenceCounts, decideIssuance, isSuccessfulCommitment,
-  recoveryOutcome, cardLapsed, standingLevel, countedCommitments, commitmentsNeeded, canDispute, windowStart,
+  recoveryOutcome, cardLapsed, disputeHolds, standingLevel, countedCommitments, commitmentsNeeded, canDispute, windowStart,
   attendanceReviewOpensAt, attendanceSettlesAt, checkInRan, unmarkedGuests, doorKey,
   type LedgerOffence,
 } from '@/lib/standingPolicy'
@@ -117,7 +118,7 @@ async function roomOf(event: SweepEvent) {
   const rows = await prisma.eventAttendee.findMany({
     where:   { eventId: event.id, status: AttendeeStatus.Approved },
     orderBy: { joinedAt: 'asc' },
-    select:  { id: true, userId: true, checkedIn: true, attendance: true, user: { select: { name: true, role: true } } },
+    select:  { id: true, userId: true, checkedIn: true, attendance: true, user: { select: { name: true, email: true, role: true } } },
   })
   return rows.map(r => ({ ...r, exempt: noShowExemptionReason(r.userId, r.user?.role, runners) !== null }))
 }
@@ -155,6 +156,10 @@ export async function settleAttendance(event: SweepEvent, now: Date): Promise<{ 
 }
 
 const reviewSentKey = (eventId: string) => `attendance-review-sent:${eventId}`
+// A guest said "I was there" during the review (POST /api/events/[id]/attendance-claim).
+export const saysCameKey = (eventId: string, userId: string) => `attendance-says-came:${eventId}:${userId}`
+// Resend allows 10 sends a second; the sweeps that ignored it got 429s.
+const pause = () => new Promise(r => setTimeout(r, 150))
 
 async function hasClaim(key: string, now: Date): Promise<boolean> {
   const row = await prisma.rateLimit.findUnique({ where: { key }, select: { resetAt: true } })
@@ -217,9 +222,15 @@ export async function sendAttendanceReviews(event: SweepEvent): Promise<number> 
     if (!await claimOnce(key, 7 * DAY)) continue
     const ok = await createNotification(g.userId, 'attendance_check',
       `${e?.emoji ?? '🎟️'} You weren't checked in at ${event.title}`,
-      "If you were there, let the host know today — they can still check you in. After midnight it counts as a no-show on your standing.",
+      'If you were there, tap "I was there" on the event page today — the host can still check you in. After midnight it counts as a no-show on your standing.',
       `/events/${event.id}`)
-    if (!ok) await releaseClaim(key)
+    if (!ok) { await releaseClaim(key); continue }
+    // Most members have no push: the email is what actually reaches them.
+    if (g.user?.email) {
+      await sendAttendanceCheckEmail(g.user.email, g.user.name, event.title, e?.emoji ?? '🎟️', event.id)
+        .catch(err => console.error('[standing] attendance check email failed', { eventId: event.id, err: String(err) }))
+      await pause()
+    }
   }
   return sent
 }
@@ -298,12 +309,12 @@ export async function evaluateMember(userId: string, now: Date): Promise<Evaluat
 
     const offences = await tx.standingOffence.findMany({
       where:  { userId, status: { in: [OffenceStatus.Open, OffenceStatus.Disputed] } },
-      select: { id: true, occurredAt: true, counts: true, status: true, cardId: true },
+      select: { id: true, occurredAt: true, counts: true, status: true, cardId: true, disputedAt: true },
     })
     // Offences from before enforcement was switched on never make a real card.
     const ledger: LedgerOffence[] = offences.filter(o =>
       !enforcement.enforced || !enforcement.since || o.occurredAt.getTime() >= enforcement.since.getTime())
-    const disputePending = ledger.some(o => o.status === OffenceStatus.Disputed)
+    const disputePending = disputeHolds(offences.filter(o => ledger.includes(o)), now)
 
     const liveCards = await tx.standingCard.findMany({
       // Each side of the switch works on its own cards only: while it is off a
@@ -384,9 +395,9 @@ export async function evaluateMember(userId: string, now: Date): Promise<Evaluat
     }
 
     if (live && live.status === StandingCardStatus.Active) {
-      const last = await tx.eventAttendee.findFirst({ where: { userId }, orderBy: { joinedAt: 'desc' }, select: { joinedAt: true } })
-      if (cardLapsed(live, last?.joinedAt ?? null, now)) {
-        await tx.standingCard.update({ where: { id: live.id }, data: { status: StandingCardStatus.Lapsed, resolvedAt: now, resolutionNote: 'No RSVP activity' } })
+      const lastOffence = ledger.filter(o => o.counts).reduce<Date | null>((m, o) => !m || o.occurredAt > m ? o.occurredAt : m, null)
+      if (cardLapsed(live, lastOffence, now)) {
+        await tx.standingCard.update({ where: { id: live.id }, data: { status: StandingCardStatus.Lapsed, resolvedAt: now, resolutionNote: 'No new missed commitment' } })
         result.lapsed.push(live.id)
       }
     }
@@ -475,7 +486,10 @@ export async function notifyNoShows(eventIds: string[], enforcement: StandingEnf
       eventId: { in: eventIds }, kind: OffenceKind.NoShow, counts: true, status: OffenceStatus.Open,
       ...(enforcement.since ? { occurredAt: { gte: enforcement.since } } : {}),
     },
-    select: { id: true, userId: true, event: { select: { title: true, emoji: true } }, attendee: { select: { attendanceAutoResolvedAt: true } } },
+    select: {
+      id: true, userId: true, event: { select: { title: true, emoji: true } },
+      attendee: { select: { attendanceAutoResolvedAt: true } }, user: { select: { name: true, email: true } },
+    },
   })
   let sent = 0
   for (const o of offences) {
@@ -485,8 +499,13 @@ export async function notifyNoShows(eventIds: string[], enforcement: StandingEnf
     const ok = await createNotification(o.userId, 'standing_no_show', `${o.event.emoji} Missed: ${o.event.title}`,
       `${how}, so it counts as a no-show on your standing. Were you there? Tap "I was there" within ${DISPUTE_WINDOW_DAYS} days.`,
       '/standing')
-    if (ok) sent++
-    else await releaseClaim(key)
+    if (!ok) { await releaseClaim(key); continue }
+    sent++
+    if (o.user?.email) {
+      await sendNoShowRecordedEmail(o.user.email, o.user.name, o.event.title, o.event.emoji, !!o.attendee?.attendanceAutoResolvedAt)
+        .catch(err => console.error('[standing] no-show email failed', { offenceId: o.id, err: String(err) }))
+      await pause()
+    }
   }
   return sent
 }
@@ -592,14 +611,29 @@ export type DisputeOutcome = 'ok' | 'not_found' | 'not_allowed' | 'not_enforced'
 /** A member's "I was there". Only while standing is switched on — before, members see nothing to dispute. */
 export async function disputeOffence(offenceId: string, userId: string, note: string, now: Date = new Date()): Promise<DisputeOutcome> {
   if (!(await standingEnforcement()).enforced) return 'not_enforced'
-  const o = await prisma.standingOffence.findUnique({ where: { id: offenceId }, select: { userId: true, kind: true, status: true, occurredAt: true, disputedAt: true } })
+  const o = await prisma.standingOffence.findUnique({
+    where:  { id: offenceId },
+    select: { userId: true, kind: true, status: true, occurredAt: true, disputedAt: true, event: { select: { title: true, cityId: true } } },
+  })
   if (!o || o.userId !== userId) return 'not_found'
   if (!canDispute(o, now)) return 'not_allowed'
   const { count } = await prisma.standingOffence.updateMany({
     where: { id: offenceId, userId, status: OffenceStatus.Open, disputedAt: null },
     data:  { status: OffenceStatus.Disputed, disputedAt: now, disputeNote: note.trim().slice(0, 1000) || null },
   })
-  return count > 0 ? 'ok' : 'not_allowed'
+  if (count === 0) return 'not_allowed'
+  // The inbox ping: admins, and the moderators of the event's city. Without it
+  // a dispute only sat on /admin/standing, holding that member's cards for as
+  // long as nobody happened to look (DISPUTE_HOLD_DAYS bounds that now).
+  const staff = await prisma.user.findMany({
+    where:  { status: 'approved', OR: [{ role: 'admin' }, { role: 'moderator', cityId: o.event.cityId }] },
+    select: { id: true },
+  })
+  for (const s of staff) {
+    await createNotification(s.id, 'standing_dispute', '⚖️ "I was there" to review',
+      `A member disputes a no-show at "${o.event.title}". Decide it on the standing page.`, '/admin/standing')
+  }
+  return 'ok'
 }
 
 export type ResolveOutcome = 'ok' | 'not_found' | 'not_disputed'

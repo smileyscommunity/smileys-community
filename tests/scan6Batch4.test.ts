@@ -90,6 +90,7 @@ const h = vi.hoisted(() => {
       delete:     vi.fn(async () => ({})),
     },
     clubPhoto: { findUnique: vi.fn(), delete: vi.fn(async () => ({})) },
+    rateLimit: { findMany: vi.fn(async () => []) },
     $transaction: vi.fn(),
   }
   return { prisma, session: { current: null as any }, clubs }

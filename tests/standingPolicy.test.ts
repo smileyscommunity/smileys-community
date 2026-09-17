@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   eventTier, cancelCutoffHours, lateCancelLine, classifyRow, refilledLateCancels, offenceCounts,
   decideIssuance, isSuccessfulCommitment, countedCommitments, recoveryOutcome, cardLapsed,
-  standingLevel, needsHostApproval, orderWaitlist, canDispute,
+  standingLevel, needsHostApproval, orderWaitlist, canDispute, disputeHolds,
   attendanceReviewDay, attendanceReviewOpensAt, attendanceSettlesAt, checkInRan, unmarkedGuests,
   CANCEL_CUTOFF_HOURS, NEW_CITY_GRACE_DAYS, STANDING_WINDOW_DAYS, CARD_LAPSE_DAYS, DISPUTE_WINDOW_DAYS,
   type StandingRow, type LedgerOffence,
@@ -185,6 +185,17 @@ describe('recovery', () => {
     const late = new Date(issuedAt.getTime() + (CARD_LAPSE_DAYS + 1) * D)
     expect(cardLapsed({ issuedAt }, null, late)).toBe(true)
     expect(cardLapsed({ issuedAt }, new Date(late.getTime() - 10 * D), late)).toBe(false)
+  })
+})
+
+describe('disputeHolds', () => {
+  it('holds cards for a week from the dispute, then lets the ledger stand', () => {
+    const NOW = new Date('2026-10-20T12:00:00Z')
+    const at = (d: number) => new Date(NOW.getTime() - d * D)
+    expect(disputeHolds([{ status: 'disputed', disputedAt: at(6) }], NOW)).toBe(true)
+    expect(disputeHolds([{ status: 'disputed', disputedAt: at(8) }], NOW)).toBe(false)
+    expect(disputeHolds([{ status: 'disputed' }], NOW)).toBe(true)
+    expect(disputeHolds([{ status: 'open', disputedAt: at(1) }], NOW)).toBe(false)
   })
 })
 

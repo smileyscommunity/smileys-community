@@ -44,6 +44,10 @@ export const ATTENDANCE_REVIEW_NOTICE_HOUR = 10
 // have the same full day as everyone after them.
 export const DEFAULT_ABSENT_FIRST_REVIEW_DAY = '2026-09-18'
 export const DISPUTE_WINDOW_DAYS           = 30
+// While a dispute waits, no new card is issued for that member — for this
+// long. After it the ledger stands as it is: an unread dispute must not hold
+// cards off indefinitely, nor be a way to.
+export const DISPUTE_HOLD_DAYS             = 7
 // How far back the sweep reads events. Wider than the resolve delay so a
 // missed run (or a week-long outage) catches up.
 export const STANDING_SWEEP_LOOKBACK_DAYS  = 14
@@ -80,7 +84,7 @@ export const StandingCardStatus = {
   Review:    'review',      // red with its commitments done: waiting on an admin
   Cleared:   'cleared',     // yellow recovered
   Restored:  'restored',    // red restored by an admin
-  Lapsed:    'lapsed',      // no RSVP activity for CARD_LAPSE_DAYS
+  Lapsed:    'lapsed',      // CARD_LAPSE_DAYS without a new counting offence
   Escalated: 'escalated',   // yellow that became a red
   Withdrawn: 'withdrawn',   // the offence under it was overturned
 } as const
@@ -300,6 +304,12 @@ export function windowStart(now: Date): Date {
  * Offences already on a card never count again. A member with a dispute
  * waiting is not carded until it is resolved.
  */
+/** A dispute recent enough to hold new cards back (DISPUTE_HOLD_DAYS). */
+export function disputeHolds(offences: { status: string; disputedAt?: Date | null }[], now: Date): boolean {
+  return offences.some(o => o.status === OffenceStatus.Disputed
+    && (!o.disputedAt || now.getTime() - o.disputedAt.getTime() < DISPUTE_HOLD_DAYS * DAY))
+}
+
 export function decideIssuance(offences: LedgerOffence[], live: LiveCard | null, now: Date, disputePending: boolean): IssueDecision {
   if (disputePending) return { kind: 'none' }
   const loose = offences
@@ -357,11 +367,13 @@ export function recoveryOutcome(card: { level: string; status: string }, t: Reco
 }
 
 /**
- * A card with no RSVP activity for CARD_LAPSE_DAYS lapses. Without an expiry,
- * penalised and dormant look the same, and going quiet keeps a card forever.
+ * A card lapses CARD_LAPSE_DAYS after it was issued, or after the member's
+ * latest counting offence if that is later. It used to wait for 90 days with no
+ * RSVPs, and clearing needs scanned check-ins: a member who kept coming to
+ * events nobody checked in (most small events) could neither clear nor lapse.
  */
-export function cardLapsed(card: { issuedAt: Date }, lastActivityAt: Date | null, now: Date): boolean {
-  const since = Math.max(card.issuedAt.getTime(), lastActivityAt?.getTime() ?? 0)
+export function cardLapsed(card: { issuedAt: Date }, lastOffenceAt: Date | null, now: Date): boolean {
+  const since = Math.max(card.issuedAt.getTime(), lastOffenceAt?.getTime() ?? 0)
   return now.getTime() - since > CARD_LAPSE_DAYS * DAY
 }
 

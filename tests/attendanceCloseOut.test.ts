@@ -9,6 +9,7 @@ vi.mock('@/lib/city',      () => ({ getCityTz: vi.fn().mockResolvedValue('Europe
 vi.mock('@/lib/prisma', () => ({ prisma: {
   event:         { findUnique: vi.fn() },
   eventAttendee: { findMany: vi.fn(), updateMany: vi.fn() },
+  rateLimit:     { findMany: vi.fn(async () => []) },
 } }))
 
 import { closeOutBlock, noShowCandidates, restToClose, canExcuse } from '@/lib/attendanceCloseOut'

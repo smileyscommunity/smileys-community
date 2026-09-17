@@ -36,6 +36,8 @@ interface Attendee {
   attendance?: string
   // Runs the event or is staff: never a no-show, never in "mark the rest".
   exempt?: boolean
+  // Said "I was there" in the morning-after review (the checkin GET).
+  saysCame?: boolean
   // email is absent for co-hosts and club hosts — the check-in GET only
   // sends it to admins and the primary host.
   user: { id: string; name: string; color: string; email?: string | null }
@@ -433,6 +435,7 @@ function CheckInPageInner() {
                 <div className="font-semibold text-base text-white">{a.user.name}</div>
                 {!isIn && a.attendance === 'no_show' && <div className="text-xs font-semibold text-red-400 mt-0.5">No-show</div>}
                 {!isIn && a.attendance === 'excused' && <div className="text-xs font-semibold text-zinc-400 mt-0.5">Excused</div>}
+                {!isIn && a.saysCame && <div className="text-xs font-semibold text-amber-300 mt-0.5">🙋 Says they were there</div>}
                 {pendingIds.has(a.userId) && <div className="text-[11px] text-amber-400 mt-0.5">Not sent yet</div>}
                 <div className="text-xs text-zinc-500 truncate mt-0.5">{a.user.email}</div>
               </div>

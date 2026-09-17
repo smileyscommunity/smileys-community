@@ -722,6 +722,61 @@ export async function sendReviewRequestEmail(email: string, name: string, eventT
   })
 }
 
+// Standing, the morning after (lib/standing sendAttendanceReviews): the
+// guest's side of the host's review. Most members have no push, so the bell
+// alone reached 3 of 8 on the first room it was for.
+export async function sendAttendanceCheckEmail(email: string, name: string, eventTitle: string, eventEmoji: string, eventId: string) {
+  const url = `${APP_URL}/events/${eventId}`
+  await send('sendAttendanceCheckEmail', {
+    from: FROM, to: email,
+    subject: safeSubject(`You weren't checked in at "${eventTitle}"`),
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <div style="text-align:center;margin-bottom:24px">
+          <span style="font-size:48px">${esc(eventEmoji)}</span>
+          <h1 style="font-size:22px;font-weight:800;color:#111;margin:12px 0 4px">Were you there, ${esc(firstNameOf(name))}?</h1>
+          <p style="color:#6b7280;font-size:14px;margin:0">You weren't checked in at <strong>${esc(eventTitle)}</strong>.</p>
+        </div>
+        <p style="color:#374151;font-size:14px;line-height:1.6">
+          If you came, tap <strong>I was there</strong> on the event page today. The host can still check you in until midnight.
+          After that it counts as a no-show on your standing.
+        </p>
+        <a href="${url}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin:20px 0 16px">
+          I was there →
+        </a>
+        <p style="color:#9ca3af;font-size:12px;text-align:center">If you didn't make it, there's nothing to do.</p>
+      </div>
+    `,
+  })
+}
+
+// Standing: a no-show that counts was recorded (lib/standing notifyNoShows).
+export async function sendNoShowRecordedEmail(email: string, name: string, eventTitle: string, eventEmoji: string, defaulted: boolean) {
+  const url = `${APP_URL}/standing`
+  await send('sendNoShowRecordedEmail', {
+    from: FROM, to: email,
+    subject: safeSubject(`A no-show for "${eventTitle}" is on your standing`),
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <div style="text-align:center;margin-bottom:24px">
+          <span style="font-size:48px">${esc(eventEmoji)}</span>
+          <h1 style="font-size:22px;font-weight:800;color:#111;margin:12px 0 4px">Missed: ${esc(eventTitle)}</h1>
+        </div>
+        <p style="color:#374151;font-size:14px;line-height:1.6">
+          Hi ${esc(firstNameOf(name))}, ${defaulted ? "you weren't checked in" : 'the host marked you absent'}, so it counts as a no-show on your standing.
+          Two within 90 days is a yellow card.
+        </p>
+        <p style="color:#374151;font-size:14px;line-height:1.6">
+          Were you there? Tap <strong>I was there</strong> on Your standing within 30 days. A moderator decides, never the host of that event.
+        </p>
+        <a href="${url}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin:20px 0 0">
+          Your standing →
+        </a>
+      </div>
+    `,
+  })
+}
+
 // Sent to every waitlist member when an approved attendee cancels and
 // frees up a spot. First-come-first-served — whoever taps the CTA and
 // hits Join first gets in (race-safety lives in the POST /rsvp route,

@@ -6,7 +6,8 @@ import type { Metadata } from 'next'
 import { getEventById, redactEventForGuest, canSeeEvent, PUBLIC_EVENT_STATUSES } from '@/lib/db'
 import { getCityConfig } from '@/lib/city'
 import { DEFAULT_TZ, todayInTz, fromWallClockInTz } from '@/lib/cityTime'
-import { eventPhase } from '@/lib/eventTime'
+import { eventPhase, eventEndsAt } from '@/lib/eventTime'
+import { attendanceSettlesAt } from '@/lib/standingPolicy'
 import { joinBlock, joinBlockLabel } from '@/lib/eventJoinState'
 import { formatDate, formatTime, formatPrice, vibeConfig, resolveImageUrl, avatarUrl, getInitials, type Event, firstNameOf} from '@/lib/data'
 import { countryFlag } from '@/lib/countries'
@@ -27,6 +28,7 @@ import SocialShare from '@/components/SocialShare'
 import EventSaveButton from '@/components/EventSaveButton'
 import EventInviteButton from '@/components/EventInviteButton'
 import AddToCalendar from '@/components/AddToCalendar'
+import AttendanceClaim from '@/components/AttendanceClaim'
 import EventLocationMap from '@/components/EventLocationMap'
 import EventBadges from '@/components/EventBadges'
 import { sanitize } from '@/lib/sanitize'
@@ -166,6 +168,8 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
   const cityCountry  = eventCity?.country ?? 'TR'
   const today  = todayInTz(eventTz)
   const isPast = event.date < today
+  // Between the event's end and the end of the host's review day (lib/standingPolicy).
+  const inReview = Date.now() >= eventEndsAt(event, eventTz).getTime() && Date.now() < attendanceSettlesAt(event, eventTz).getTime()
   // One rule for the banner, the capacity strip, the RSVP button and the
   // structured data — they contradicted each other the moment any of them
   // was computed separately.
@@ -598,6 +602,12 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
               </span>
               <span className="text-sm font-bold text-amber-700 shrink-0">Open →</span>
             </Link>
+          )}
+          {/* The guest's side of the morning-after review: not checked in, and
+              the host can still fix it (components/AttendanceClaim). */}
+          {myAttendance?.status === 'approved' && !myAttendance.checkedIn && myAttendance.attendance !== 'attended' && myAttendance.attendance !== 'excused'
+            && event.status !== 'cancelled' && inReview && (
+            <AttendanceClaim eventId={event.id} />
           )}
           {/* A full-width banner rather than another pill in the badge row:
               this is the one fact that changes what you can do on the page, and

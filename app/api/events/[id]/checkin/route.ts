@@ -11,6 +11,7 @@ import { getCityTz } from '@/lib/city'
 import { eventRunners } from '@/lib/noShowPolicy'
 import { isExemptFromNoShow } from '@/lib/attendanceCloseOut'
 import { doorKey } from '@/lib/standingPolicy'
+import { saysCameKey } from '@/lib/standing'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -47,6 +48,11 @@ export async function GET(_: NextRequest, { params }: Params) {
       },
     })
     const canSeeEmail = isAdmin(session) || event?.hostId === session.id
+    // Guests who said "I was there" during the morning-after review.
+    const claimPrefix = saysCameKey(eventId, '')
+    const saysCame = new Set((await prisma.rateLimit.findMany({
+      where: { key: { startsWith: claimPrefix }, resetAt: { gt: new Date() } }, select: { key: true },
+    })).map(r => r.key.slice(claimPrefix.length)))
 
     // `exempt`: runs the event or is staff, so never a no-show — the roster
     // leaves them out of "mark the rest" (lib/attendanceCloseOut). The role
@@ -57,6 +63,7 @@ export async function GET(_: NextRequest, { params }: Params) {
       return {
         ...a,
         exempt: isExemptFromNoShow(a.userId, role, runners),
+        saysCame: saysCame.has(a.userId),
         user:   canSeeEmail ? { ...publicUser, email } : publicUser,
       }
     })

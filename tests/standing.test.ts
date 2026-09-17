@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 vi.mock('@/lib/notify', () => ({ createNotification: vi.fn().mockResolvedValue(true) }))
 vi.mock('@/lib/audit',  () => ({ writeAudit: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('@/lib/rateLimit', () => ({ claimOnce: vi.fn(), releaseClaim: vi.fn() }))
+vi.mock('@/lib/email', () => ({ sendAttendanceCheckEmail: vi.fn().mockResolvedValue(undefined), sendNoShowRecordedEmail: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('@/lib/prisma', () => ({ prisma: {
   $transaction:     vi.fn(),
   $queryRaw:        vi.fn(),
@@ -14,12 +15,14 @@ vi.mock('@/lib/prisma', () => ({ prisma: {
   eventAttendee:    { findMany: vi.fn(), findFirst: vi.fn(), updateMany: vi.fn() },
   event:            { findMany: vi.fn(), findUnique: vi.fn() },
   rateLimit:        { findUnique: vi.fn(), findMany: vi.fn() },
+  user:             { findMany: vi.fn() },
 } }))
 
 import { prisma } from '@/lib/prisma'
 import { writeAudit } from '@/lib/audit'
 import { createNotification } from '@/lib/notify'
 import { claimOnce, releaseClaim } from '@/lib/rateLimit'
+import { sendAttendanceCheckEmail, sendNoShowRecordedEmail } from '@/lib/email'
 import {
   standingEnforcement, setStandingEnforced, standingLevelsFor, settleAttendance, sendAttendanceReviews, notifyNoShows,
   resolvedEvents, reviewingEvents, recordOffences, evaluateMember, overturnOffence, disputeOffence, type SweepEvent,
@@ -58,6 +61,9 @@ beforeEach(() => {
   // The review went out: its claim is live.
   p.rateLimit.findUnique.mockResolvedValue({ resetAt: new Date(NOW.getTime() + D) })
   p.rateLimit.findMany.mockResolvedValue([])
+  p.user.findMany.mockResolvedValue([])
+  ;(sendAttendanceCheckEmail as any).mockResolvedValue(undefined)
+  ;(sendNoShowRecordedEmail as any).mockResolvedValue(undefined)
   ;(createNotification as any).mockResolvedValue(true)
   let n = 0
   p.standingCard.create.mockImplementation(async ({ data }: any) => ({ id: `card${++n}`, status: 'active', issuedAt: NOW, ...data }))
@@ -222,7 +228,7 @@ describe('the host review', () => {
     cohosts: [{ userId: 'co' }], club: null,
   }
   const guest = (id: string, over: Record<string, unknown> = {}) =>
-    ({ id, userId: id, checkedIn: false, attendance: 'unknown', user: { role: 'member', name: id }, ...over })
+    ({ id, userId: id, checkedIn: false, attendance: 'unknown', user: { role: 'member', name: id, email: `${id}@x` }, ...over })
   const scanned = (id: string) => guest(id, { checkedIn: true, attendance: 'attended' })
 
   it('reviews from 10:00 the day after until midnight, then settles', async () => {
@@ -258,6 +264,7 @@ describe('the host review', () => {
     const calls = (createNotification as any).mock.calls
     expect(calls.map((c: any) => c[0])).toEqual(['host', 'co', 'Emir', 'Beto'])
     expect(calls[2][1]).toBe('attendance_check')
+    expect((sendAttendanceCheckEmail as any).mock.calls.map((c: any) => c[0])).toEqual(['Emir@x', 'Beto@x'])
     expect(calls[2][2]).toBe("⛵ You weren't checked in at Sunset Sailing")
     expect(calls[2][4]).toBe('/events/e1')
     expect(calls[0][1]).toBe('attendance_review')
@@ -303,8 +310,8 @@ describe('the host review', () => {
 
   it('tells a member about a counting no-show once, and says which kind', async () => {
     p.standingOffence.findMany.mockResolvedValue([
-      { id: 'o1', userId: 'm1', event: { title: 'Sunset Sailing', emoji: '⛵' }, attendee: { attendanceAutoResolvedAt: NOW } },
-      { id: 'o2', userId: 'm2', event: { title: 'Sunset Sailing', emoji: '⛵' }, attendee: { attendanceAutoResolvedAt: null } },
+      { id: 'o1', userId: 'm1', event: { title: 'Sunset Sailing', emoji: '⛵' }, attendee: { attendanceAutoResolvedAt: NOW }, user: { name: 'M One', email: 'm1@x' } },
+      { id: 'o2', userId: 'm2', event: { title: 'Sunset Sailing', emoji: '⛵' }, attendee: { attendanceAutoResolvedAt: null }, user: { name: 'M Two', email: null } },
     ])
     expect(await notifyNoShows(['e1'], OFF)).toBe(0)
     expect(await notifyNoShows(['e1'], ON)).toBe(2)
@@ -313,6 +320,7 @@ describe('the host review', () => {
     expect(calls[0][3]).toMatch(/^You weren't checked in/)
     expect(calls[1][3]).toMatch(/^The host marked you absent/)
     expect(calls[0][4]).toBe('/standing')
+    expect((sendNoShowRecordedEmail as any).mock.calls).toEqual([['m1@x', 'M One', 'Sunset Sailing', '⛵', true]])
   })
 })
 
@@ -384,14 +392,40 @@ describe('evaluateMember', () => {
     expect(r.cleared).toEqual([])
   })
 
-  it('a card with no RSVP activity for the quiet period lapses', async () => {
-    p.standingCard.findMany.mockResolvedValue([
-      { id: 'y1', level: 'yellow', status: 'active', triggeredAt: new Date(NOW.getTime() - 101 * D), issuedAt: new Date(NOW.getTime() - 100 * D), shadow: false },
-    ])
-    p.eventAttendee.findFirst.mockResolvedValue({ joinedAt: new Date(NOW.getTime() - 95 * D) })
+  it('a card lapses 90 days after its last counting offence, however many unchecked events they came to', async () => {
+    const card = { id: 'y1', level: 'yellow', status: 'active', triggeredAt: new Date(NOW.getTime() - 101 * D), issuedAt: new Date(NOW.getTime() - 100 * D), shadow: false }
+    p.standingCard.findMany.mockResolvedValue([card])
+    p.standingOffence.findMany.mockResolvedValue([{ id: 'o1', occurredAt: new Date(NOW.getTime() - 95 * D), counts: true, status: 'open', cardId: 'y1', disputedAt: null }])
+    // Coming to events nobody checked in is no RSVP activity the old rule saw
+    // either way; it must not matter.
+    p.eventAttendee.findFirst.mockResolvedValue({ joinedAt: new Date(NOW.getTime() - 2 * D) })
     const r = (switchedOn(), await evaluateMember('m1', NOW))
     expect(r.lapsed).toEqual(['y1'])
     expect(p.standingCard.update).toHaveBeenCalledWith({ where: { id: 'y1' }, data: expect.objectContaining({ status: 'lapsed' }) })
+  })
+
+  it('a newer counting offence keeps the card from lapsing', async () => {
+    p.standingCard.findMany.mockResolvedValue([
+      { id: 'y1', level: 'yellow', status: 'active', triggeredAt: new Date(NOW.getTime() - 101 * D), issuedAt: new Date(NOW.getTime() - 100 * D), shadow: false },
+    ])
+    p.standingOffence.findMany.mockResolvedValue([{ id: 'o2', occurredAt: new Date(NOW.getTime() - 10 * D), counts: true, status: 'open', cardId: 'y1', disputedAt: null }])
+    const r = (switchedOn(), await evaluateMember('m1', NOW))
+    expect(r.lapsed).toEqual([])
+  })
+
+  it('a dispute holds a new card for a week, then the ledger stands', async () => {
+    const off = (id: string, daysAgo: number, disputed: number | null) =>
+      ({ id, occurredAt: new Date(NOW.getTime() - daysAgo * D), counts: true, status: disputed === null ? 'open' : 'disputed', cardId: null, disputedAt: disputed === null ? null : new Date(NOW.getTime() - disputed * D) })
+    switchedOn()
+    // Two open offences would be a yellow; a third, disputed two days ago, holds it.
+    p.standingOffence.findMany.mockResolvedValue([off('a', 10, null), off('b', 5, null), off('c', 3, 2)])
+    expect((await evaluateMember('m1', NOW)).issued).toEqual([])
+    // A week on, nobody has decided: the two open ones card as they would have.
+    // The disputed one itself still doesn't count until it is decided.
+    p.standingOffence.findMany.mockResolvedValue([off('a', 10, null), off('b', 5, null), off('c', 3, 8)])
+    const r = await evaluateMember('m1', NOW)
+    expect(r.issued).toHaveLength(1)
+    expect(p.standingOffence.updateMany).toHaveBeenCalledWith({ where: { id: { in: ['a', 'b'] } }, data: { cardId: 'card1' } })
   })
 })
 
@@ -433,18 +467,21 @@ describe('disputeOffence', () => {
 
   it('opens a dispute on the member\'s own recent no-show only', async () => {
     p.appSetting.findUnique.mockResolvedValue({ value: 'true', updatedAt: ON.since })
-    p.standingOffence.findUnique.mockResolvedValueOnce({ userId: 'm1', kind: 'no_show', status: 'open', occurredAt: new Date(NOW.getTime() - 2 * D) })
+    p.standingOffence.findUnique.mockResolvedValueOnce({ userId: 'm1', kind: 'no_show', status: 'open', occurredAt: new Date(NOW.getTime() - 2 * D), event: { title: 'Sunset Sailing', cityId: 'c1' } })
+    p.user.findMany.mockResolvedValueOnce([{ id: 'adm' }, { id: 'mod' }])
     expect(await disputeOffence('o1', 'm1', '  I was at the back  ', NOW)).toBe('ok')
+    expect(p.user.findMany.mock.calls[0][0].where).toEqual({ status: 'approved', OR: [{ role: 'admin' }, { role: 'moderator', cityId: 'c1' }] })
+    expect((createNotification as any).mock.calls.map((c: any) => [c[0], c[1], c[4]])).toEqual([['adm', 'standing_dispute', '/admin/standing'], ['mod', 'standing_dispute', '/admin/standing']])
     expect(p.standingOffence.updateMany).toHaveBeenCalledWith({
       where: { id: 'o1', userId: 'm1', status: 'open', disputedAt: null },
       data:  { status: 'disputed', disputedAt: NOW, disputeNote: 'I was at the back' },
     })
     // Upheld once already: not a second time.
-    p.standingOffence.findUnique.mockResolvedValueOnce({ userId: 'm1', kind: 'no_show', status: 'open', occurredAt: NOW, disputedAt: new Date(NOW.getTime() - D) })
+    p.standingOffence.findUnique.mockResolvedValueOnce({ userId: 'm1', kind: 'no_show', status: 'open', occurredAt: NOW, disputedAt: new Date(NOW.getTime() - D), event: { title: 'x', cityId: 'c1' } })
     expect(await disputeOffence('o1', 'm1', 'x', NOW)).toBe('not_allowed')
-    p.standingOffence.findUnique.mockResolvedValueOnce({ userId: 'someone', kind: 'no_show', status: 'open', occurredAt: NOW })
+    p.standingOffence.findUnique.mockResolvedValueOnce({ userId: 'someone', kind: 'no_show', status: 'open', occurredAt: NOW, event: { title: 'x', cityId: 'c1' } })
     expect(await disputeOffence('o1', 'm1', 'x', NOW)).toBe('not_found')
-    p.standingOffence.findUnique.mockResolvedValueOnce({ userId: 'm1', kind: 'late_cancel', status: 'open', occurredAt: NOW })
+    p.standingOffence.findUnique.mockResolvedValueOnce({ userId: 'm1', kind: 'late_cancel', status: 'open', occurredAt: NOW, event: { title: 'x', cityId: 'c1' } })
     expect(await disputeOffence('o1', 'm1', 'x', NOW)).toBe('not_allowed')
   })
 })

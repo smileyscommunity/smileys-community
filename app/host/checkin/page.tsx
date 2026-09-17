@@ -27,6 +27,8 @@ interface Attendee {
   attendance?: string
   // Runs the event or is staff: never a no-show, never in "mark the rest".
   exempt?: boolean
+  // Said "I was there" in the morning-after review (the checkin GET).
+  saysCame?: boolean
   user: { id: string; name: string; color: string; email?: string; profilePhoto?: string | null }
 }
 
@@ -275,6 +277,7 @@ function CheckInScanner() {
                     <p className="text-sm font-semibold text-white truncate">{a.user.name}</p>
                     {!a.checkedIn && a.attendance === 'no_show' && <p className="text-xs font-semibold text-red-400">No-show</p>}
                     {!a.checkedIn && a.attendance === 'excused' && <p className="text-xs font-semibold text-zinc-400">Excused</p>}
+                    {!a.checkedIn && a.saysCame && <p className="text-xs font-semibold text-amber-300">🙋 Says they were there</p>}
                     {pendingIds.has(a.userId) && <p className="text-[11px] text-amber-400">Not sent yet</p>}
                     {a.user.email && <p className="text-xs text-zinc-400 truncate">{a.user.email}</p>}
                   </div>
