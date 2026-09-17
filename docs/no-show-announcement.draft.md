@@ -24,9 +24,10 @@ record of whether you turn up for the seats you take. We call it your
 **standing**. Here's all of it, so nothing surprises you.
 
 **It only concerns limited events**
-That means events with **20 seats or fewer**, or a bigger booking the host has
-promised to a venue (the event says so). Open events, the big socials and
-picnics, never affect your standing.
+That means any event with **limited spots**, whatever its size: a dinner
+table, a boat, a Let's Get Social with a waitlist. It also covers a booking the
+host has promised to a venue. Events with no cap on who comes never affect your
+standing.
 
 **What counts**
 - **Not coming.** Only when the host marks you absent at the end of the event.
@@ -88,7 +89,8 @@ you. Thanks for keeping our tables full of people who actually come.
 Hosts,
 
 From 16 September, whether members turn up is recorded on **limited events**
-(20 seats or fewer, or ones you mark as a promised booking). It's called
+(any event with limited spots, whatever its size, or one you mark as a promised
+booking). It's called
 standing. You don't hand out cards; the system does. What you do decide is
 who came. Here's everything from your side.
 
@@ -115,10 +117,10 @@ who came. Here's everything from your side.
   dispute about your own event.
 
 **On your event form**
-- **Seat commitment:** *Automatic* (20 seats or fewer counts as limited),
-  *Limited* (a bigger table or a headcount promised to a venue), or *Open*
-  (nobody loses a seat if someone doesn't come). Pick *Limited* for a 40-cover
-  restaurant booking. You can't change it once the event has started.
+- **Seat commitment:** *Automatic* (an event with limited spots counts as
+  limited), *Limited* (a headcount promised to a venue, even without a spot
+  cap), or *Open* (nobody loses a seat if someone doesn't come). You can't change
+  it once the event has started.
 
 **In your approval queue**
 - A 🟨 or 🟥 badge next to a request tells you the member currently has a card.

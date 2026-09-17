@@ -699,7 +699,7 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
           <div>
             <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Seat commitment</label>
             <select value={form.tierOverride} onChange={e => set('tierOverride', e.target.value)} className={inputCls}>
-              <option value="">Automatic — 20 seats or fewer counts as limited</option>
+              <option value="">Automatic — events with limited spots count as limited</option>
               <option value="scarce">Limited — a booked table or a headcount promised to a venue</option>
               <option value="open">Open — nobody loses a seat if someone doesn&apos;t come</option>
             </select>

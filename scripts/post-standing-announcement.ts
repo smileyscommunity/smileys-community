@@ -32,7 +32,7 @@ const V1_POST_IDS = [
 ]
 
 const TITLE = 'Keeping seats for the people who come 🎟️'
-const BODY = `From 16 September, Smileys keeps a simple record of whether you turn up for the seats you take: your standing. It only covers limited events: 20 seats or fewer, or a booking promised to a venue. Open events never count.
+const BODY = `From 16 September, Smileys keeps a simple record of whether you turn up for the seats you take: your standing. It covers any event with limited spots, any size, or a booking promised to a venue. Uncapped events never count.
 
 What counts:
 • Not coming, but only when the host marks you absent. If nobody marks you, you came.

@@ -673,7 +673,7 @@ export default function NewEventPage() {
           <div>
             <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Seat commitment</label>
             <select value={form.tierOverride} onChange={e => set('tierOverride', e.target.value)} className={inputCls}>
-              <option value="">Automatic — 20 seats or fewer counts as limited</option>
+              <option value="">Automatic — events with limited spots count as limited</option>
               <option value="scarce">Limited — booked table / headcount promised</option>
               <option value="open">Open — no seat lost on a no-show</option>
             </select>

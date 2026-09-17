@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { formatDay } from '@/lib/cityTime'
 import {
-  CANCEL_CUTOFF_HOURS, SCARCE_MAX_CAPACITY, STANDING_WINDOW_DAYS, YELLOW_CLEARS_AT_COMMITMENTS,
+  CANCEL_CUTOFF_HOURS, STANDING_WINDOW_DAYS, YELLOW_CLEARS_AT_COMMITMENTS,
   RED_REVIEW_AT_ATTENDANCES, CARD_LAPSE_DAYS, DISPUTE_WINDOW_DAYS,
 } from '@/lib/standingPolicy'
 
@@ -168,7 +168,7 @@ export default function StandingPage() {
           <div className="rounded-2xl bg-white shadow-card p-5 text-sm text-gray-700">
             <h2 className="font-bold text-gray-900 mb-2">How it works</h2>
             <ul className="list-disc pl-5 space-y-1.5 leading-relaxed">
-              <li>It only concerns <strong>limited events</strong>: {SCARCE_MAX_CAPACITY} seats or fewer, or a booking the host has promised a venue. Open events never affect your standing.</li>
+              <li>It only concerns <strong>limited events</strong>: any event with limited spots, whatever its size, or a booking the host has promised a venue. Events with no cap on who comes never affect your standing.</li>
               <li>You&apos;re only marked absent when the host marks you. If nobody does, you count as having come.</li>
               <li>Cancelling a limited event less than {CANCEL_CUTOFF_HOURS.scarce} hours before it starts counts the same as not coming — unless someone from the waitlist takes your seat and comes, or you&apos;re answering the day-before &ldquo;still coming?&rdquo; message.</li>
               <li>Two of those within {STANDING_WINDOW_DAYS} days is a yellow card. One more while on yellow is a red card.</li>

@@ -23,7 +23,6 @@ import { noShowExemptionReason, RECONFIRM_RELEASE_HOURS_BEFORE, type EventRunner
 const HOUR = 60 * 60 * 1000
 const DAY  = 24 * HOUR
 
-export const SCARCE_MAX_CAPACITY           = 20
 export const STANDING_WINDOW_DAYS          = 90
 export const YELLOW_AFTER_OFFENCES         = 2
 export const YELLOW_CLEARS_AT_COMMITMENTS  = 2
@@ -96,11 +95,15 @@ export function isTier(v: unknown): v is Tier {
   return v === Tier.Scarce || v === Tier.Open
 }
 
-/** Scarce when a host flagged it, or when seats are capped at 20 or fewer. */
+/**
+ * Scarce when the event has limited spots, at any size, or when a host flagged
+ * it. It used to need 20 seats or fewer too, which left every Let's Get Social
+ * (50–76 seats, full, with a waitlist) as open: a no-show there costs someone a
+ * seat all the same. The override still wins both ways.
+ */
 export function eventTier(e: TierFields): Tier {
   if (isTier(e.tierOverride)) return e.tierOverride
-  return e.limitedSpots && typeof e.totalSpots === 'number' && e.totalSpots <= SCARCE_MAX_CAPACITY
-    ? Tier.Scarce : Tier.Open
+  return e.limitedSpots ? Tier.Scarce : Tier.Open
 }
 
 export function cancelCutoffHours(e: TierFields): number {

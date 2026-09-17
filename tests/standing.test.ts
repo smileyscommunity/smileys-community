@@ -153,7 +153,7 @@ describe('resolving and recording an event', () => {
 
   it('an open event\'s offences are logged, not counted', async () => {
     p.eventAttendee.findMany.mockResolvedValue([row('ns', { attendance: 'no_show' })])
-    await recordOffences({ ...EVENT, totalSpots: 60 } as SweepEvent)
+    await recordOffences({ ...EVENT, limitedSpots: false, totalSpots: 60 } as SweepEvent)
     expect(p.standingOffence.createMany.mock.calls[0][0].data[0]).toMatchObject({ tier: 'open', counts: false, loggedReason: 'open_tier' })
   })
 

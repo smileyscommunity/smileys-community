@@ -22,13 +22,14 @@ const row = (over: Partial<StandingRow> = {}): StandingRow => ({
 })
 
 describe('tier and cutoff', () => {
-  it('limited and 20 or fewer seats is scarce; anything else is open', () => {
-    expect(eventTier({ limitedSpots: true,  totalSpots: 20 })).toBe('scarce')
-    expect(eventTier({ limitedSpots: true,  totalSpots: 21 })).toBe('open')
+  it('limited spots is scarce at any size; no cap is open', () => {
+    expect(eventTier({ limitedSpots: true,  totalSpots: 8 })).toBe('scarce')
+    // Let's Get Social: 50–76 seats, fills up, has a waitlist.
+    expect(eventTier({ limitedSpots: true,  totalSpots: 60 })).toBe('scarce')
     expect(eventTier({ limitedSpots: false, totalSpots: 8 })).toBe('open')
   })
   it('a host override wins both ways', () => {
-    expect(eventTier({ limitedSpots: true, totalSpots: 60, tierOverride: 'scarce' })).toBe('scarce')
+    expect(eventTier({ limitedSpots: false, totalSpots: 60, tierOverride: 'scarce' })).toBe('scarce')
     expect(eventTier({ limitedSpots: true, totalSpots: 8,  tierOverride: 'open' })).toBe('open')
     expect(eventTier({ limitedSpots: true, totalSpots: 8,  tierOverride: 'bogus' })).toBe('scarce')
   })
