@@ -8,6 +8,7 @@ import {getInitials} from '@/lib/data'
 import { vibrate, useScanCheckin } from '@/lib/checkin'
 import { applyPending, loadQueue, pendingFor } from '@/lib/checkinQueue'
 import { useCheckinSync } from '@/hooks/useCheckinSync'
+import { useExcuse, excusable } from '@/hooks/useExcuse'
 import { useCloseOut } from '@/hooks/useCloseOut'
 import QRScanner from '@/components/QRScanner'
 import ScanResultToast from '@/components/ScanResultToast'
@@ -31,7 +32,7 @@ interface Attendee {
   id: string
   userId: string
   checkedIn: boolean
-  // 'unknown' | 'attended' | 'no_show' (lib/constants Attendance)
+  // 'unknown' | 'attended' | 'no_show' | 'excused' (lib/constants Attendance)
   attendance?: string
   // Runs the event or is staff: never a no-show, never in "mark the rest".
   exempt?: boolean
@@ -217,6 +218,7 @@ function CheckInPageInner() {
   // "Mark the rest" — the same action as /host/checkin (hooks/useCloseOut).
   const { rest, closing, markRest } = useCloseOut({ eventId: selectedId, attendees, setAttendees })
   const started = !!event && todayInTz(tz) >= event.date
+  const { excusing, excuse } = useExcuse({ eventId: selectedId, setAttendees })
 
   async function toggle(a: Attendee) {
     if (toggling.has(a.id)) return  // ignore double-taps while inflight
@@ -415,13 +417,11 @@ function CheckInPageInner() {
           const isBusy   = toggling.has(a.id)
 
           return (
+            <div key={a.id} className={`flex items-center ${isIn ? 'bg-green-950/40' : 'bg-black'}`}>
             <button
-              key={a.id}
               onClick={() => toggle(a)}
               disabled={isBusy}
-              className={`w-full flex items-center gap-4 px-4 py-4 active:opacity-70 transition-colors text-left disabled:opacity-60 ${
-                isIn ? 'bg-green-950/40' : 'bg-black'
-              }`}
+              className="flex-1 min-w-0 flex items-center gap-4 px-4 py-4 active:opacity-70 transition-colors text-left disabled:opacity-60"
             >
               <div
                 className="w-11 h-11 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0"
@@ -452,6 +452,17 @@ function CheckInPageInner() {
                 )}
               </div>
             </button>
+            {/* The morning-after waiver (hooks/useExcuse): a sibling, not inside the row's button. */}
+            {excusable(a, started) && (
+              <button
+                onClick={() => excuse(a.userId, a.attendance !== 'excused')}
+                disabled={excusing === a.userId || isBusy || pendingIds.has(a.userId)}
+                className="shrink-0 mr-4 px-3 h-10 rounded-xl text-xs font-semibold text-zinc-300 bg-zinc-800 hover:bg-zinc-700 transition-colors disabled:opacity-50"
+              >
+                {a.attendance === 'excused' ? 'Undo' : 'Excuse'}
+              </button>
+            )}
+            </div>
           )
         })}
       </div>

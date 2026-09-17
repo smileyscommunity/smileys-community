@@ -13,7 +13,7 @@ vi.mock('@/lib/prisma', () => ({ prisma: {
   standingRecovery: { createMany: vi.fn(), findMany: vi.fn() },
   eventAttendee:    { findMany: vi.fn(), findFirst: vi.fn(), updateMany: vi.fn() },
   event:            { findMany: vi.fn(), findUnique: vi.fn() },
-  rateLimit:        { findUnique: vi.fn() },
+  rateLimit:        { findUnique: vi.fn(), findMany: vi.fn() },
 } }))
 
 import { prisma } from '@/lib/prisma'
@@ -57,6 +57,7 @@ beforeEach(() => {
   ;(claimOnce as any).mockResolvedValue(true)
   // The review went out: its claim is live.
   p.rateLimit.findUnique.mockResolvedValue({ resetAt: new Date(NOW.getTime() + D) })
+  p.rateLimit.findMany.mockResolvedValue([])
   ;(createNotification as any).mockResolvedValue(true)
   let n = 0
   p.standingCard.create.mockImplementation(async ({ data }: any) => ({ id: `card${++n}`, status: 'active', issuedAt: NOW, ...data }))
@@ -242,10 +243,12 @@ describe('the host review', () => {
     expect(await resolvedEvents(new Date('2026-09-18T21:50:00Z'))).toHaveLength(1)
   })
 
-  it('sends everyone running the door, club hosts included, and records that it went', async () => {
+  it('sends everyone running the door, club hosts and admins who checked people in included, and records that it went', async () => {
     p.eventAttendee.findMany.mockResolvedValue([scanned('s1'), guest('a')])
+    p.rateLimit.findMany.mockResolvedValue([{ key: 'checkin-door:e1:admin1' }, { key: 'checkin-door:e1:host' }])
     await sendAttendanceReviews({ ...EVENT, cohosts: [], club: { memberships: [{ userId: 'clubhost' }] } } as unknown as SweepEvent)
-    expect((createNotification as any).mock.calls.map((c: any) => c[0])).toEqual(['host', 'clubhost'])
+    expect(p.rateLimit.findMany.mock.calls[0][0].where).toEqual({ key: { startsWith: 'checkin-door:e1:' } })
+    expect((createNotification as any).mock.calls.map((c: any) => c[0])).toEqual(['host', 'clubhost', 'admin1'])
     expect((claimOnce as any).mock.calls.map((c: any) => c[0])).toContain('attendance-review-sent:e1')
   })
 

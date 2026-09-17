@@ -149,6 +149,9 @@ export function attendanceSettlesAt(e: EventClock, tz: string): Date {
   return fromWallClockInTz(`${shiftDay(attendanceReviewDay(e, tz), 1)}T00:00`, tz)
 }
 
+/** rate_limits key marking that someone checked people in at an event (the check-in PATCH). */
+export const doorKey = (eventId: string, userId: string) => `checkin-door:${eventId}:${userId}`
+
 export interface RoomRow {
   checkedIn:  boolean
   attendance: string

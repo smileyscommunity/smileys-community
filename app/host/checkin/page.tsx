@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense, useMemo } from 'react'
 import { toast } from 'sonner'
 import { useCheckinSync } from '@/hooks/useCheckinSync'
 import { useCloseOut } from '@/hooks/useCloseOut'
+import { useExcuse, excusable } from '@/hooks/useExcuse'
 import { applyPending, loadQueue, pendingFor } from '@/lib/checkinQueue'
 import { useSearchParams, useRouter } from 'next/navigation'
 import {resolveImageUrl, avatarUrl, getInitials} from '@/lib/data'
@@ -159,28 +160,7 @@ function CheckInScanner() {
   }
 
 
-  // The host's waiver: a guest who wasn't scanned but shouldn't count as a
-  // no-show (cancelled on WhatsApp, had a reason). POST ../checkin/excuse.
-  async function excuse(userId: string, next: boolean) {
-    setToggling(userId)
-    setToggleError(null)
-    try {
-      const res = await fetch(`/app/api/events/${eventId}/checkin/excuse`, {
-        method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, excused: next }),
-      })
-      const d = await res.json().catch(() => null)
-      if (!res.ok) { setToggleError(typeof d?.error === 'string' ? d.error : "Couldn't save that. Please try again."); return }
-      if (typeof d?.attendance === 'string') {
-        setAttendees(prev => prev.map(a => a.userId === userId ? { ...a, attendance: d.attendance } : a))
-      }
-    } catch {
-      setToggleError('No connection — nothing was changed.')
-    } finally {
-      setToggling(null)
-    }
-  }
+  const { excusing, excuse } = useExcuse({ eventId, setAttendees, onError: setToggleError })
 
   const checkedInCount = attendees.filter(a => a.checkedIn).length
   // "Mark the rest" (hooks/useCloseOut). The day is the gate here; the
@@ -298,10 +278,10 @@ function CheckInScanner() {
                     {pendingIds.has(a.userId) && <p className="text-[11px] text-amber-400">Not sent yet</p>}
                     {a.user.email && <p className="text-xs text-zinc-400 truncate">{a.user.email}</p>}
                   </div>
-                  {started && !a.checkedIn && !a.exempt && a.attendance !== 'attended' && (
+                  {excusable(a, started) && (
                     <button
-                      onClick={() => excuse(a.userId, a.attendance !== 'excused')}
-                      disabled={toggling === a.userId || pendingIds.has(a.userId)}
+                      onClick={() => { setToggleError(null); excuse(a.userId, a.attendance !== 'excused') }}
+                      disabled={excusing === a.userId || toggling === a.userId || pendingIds.has(a.userId)}
                       className="shrink-0 px-2.5 h-10 rounded-xl text-xs font-semibold text-zinc-300 bg-zinc-800 hover:bg-zinc-700 transition-colors disabled:opacity-50"
                     >
                       {a.attendance === 'excused' ? 'Undo' : 'Excuse'}

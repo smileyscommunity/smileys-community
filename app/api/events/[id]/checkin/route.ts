@@ -10,6 +10,7 @@ import { attendanceSettlesAt } from '@/lib/standingPolicy'
 import { getCityTz } from '@/lib/city'
 import { eventRunners } from '@/lib/noShowPolicy'
 import { isExemptFromNoShow } from '@/lib/attendanceCloseOut'
+import { doorKey } from '@/lib/standingPolicy'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -158,6 +159,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const updated = await prisma.eventAttendee.findUnique({
       where: { userId_eventId: { userId, eventId } },
     })
+
+    // Who ran the door: an admin or moderator checking people in isn't on the
+    // event, and gets the morning-after list with its hosts (lib/standing
+    // sendAttendanceReviews). A claim, so a busy door writes one row.
+    if (checkedIn) await claimOnce(doorKey(eventId, session.id), 30 * 86_400_000).catch(() => {})
 
     // A check-in made in the morning-after review is a correction, not an
     // arrival: no "welcome", no live count, no "doors are open".

@@ -13,7 +13,7 @@ import {
   RECOVERY_REQUIRES_CHECKIN, LIVE_CARD_STATUSES, OffenceKind, OffenceStatus, CardLevel, StandingCardStatus,
   eventTier, classifyRow, refilledLateCancels, offenceCounts, decideIssuance, isSuccessfulCommitment,
   recoveryOutcome, cardLapsed, standingLevel, countedCommitments, commitmentsNeeded, canDispute, windowStart,
-  attendanceReviewOpensAt, attendanceSettlesAt, checkInRan, unmarkedGuests,
+  attendanceReviewOpensAt, attendanceSettlesAt, checkInRan, unmarkedGuests, doorKey,
   type LedgerOffence,
 } from '@/lib/standingPolicy'
 
@@ -170,7 +170,7 @@ const names = (list: { user: { name: string } | null }[]) => {
 
 /**
  * The morning-after list, once per event and person, to everyone who runs the
- * door (host, co-hosts, the club's hosts): who wasn't checked in, and that the
+ * door (host, co-hosts, the club's hosts, and any admin who checked people in): who wasn't checked in, and that the
  * rest of the day is theirs to fix it. Only where check-in ran — anywhere else
  * nothing will count, so there is nothing to review. A room settles to no-show
  * only after this reached someone (settleAttendance), so it goes out whether
@@ -182,8 +182,12 @@ export async function sendAttendanceReviews(event: SweepEvent): Promise<number> 
   const missing = unmarkedGuests(room)
   if (missing.length === 0) return 0
   const e = await prisma.event.findUnique({ where: { id: event.id }, select: { emoji: true } })
-  const runners    = eventRunners(event)
-  const recipients = [...new Set([runners.hostId, ...runners.cohostIds, ...runners.clubHostIds].filter((u): u is string => !!u))]
+  const runners = eventRunners(event)
+  // And whoever else checked people in — an admin running the door.
+  const prefix  = doorKey(event.id, '')
+  const door    = (await prisma.rateLimit.findMany({ where: { key: { startsWith: prefix } }, select: { key: true } }))
+    .map(r => r.key.slice(prefix.length))
+  const recipients = [...new Set([runners.hostId, ...runners.cohostIds, ...runners.clubHostIds, ...door].filter((u): u is string => !!u))]
   const n = missing.length
   let sent = 0
   for (const userId of recipients) {
