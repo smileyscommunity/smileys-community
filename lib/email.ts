@@ -722,31 +722,6 @@ export async function sendReviewRequestEmail(email: string, name: string, eventT
   })
 }
 
-// "Check-in is open", at the start (lib/checkInNudge via the reminders sweep):
-// the email twin of the push, for the hosts who have none.
-export async function sendCheckInOpenEmail(email: string, name: string, eventTitle: string, time: string, confirmed: number, eventId: string) {
-  const url = `${APP_URL}/host/checkin?event=${eventId}`
-  await send('sendCheckInOpenEmail', {
-    from: FROM, to: email,
-    subject: safeSubject(`Check-in is open: "${eventTitle}" at ${time}`),
-    html: `
-      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
-        <div style="text-align:center;margin-bottom:24px">
-          <span style="font-size:48px">📋</span>
-          <h1 style="font-size:22px;font-weight:800;color:#111;margin:12px 0 4px">Check-in is open, ${esc(firstNameOf(name))}</h1>
-          <p style="color:#6b7280;font-size:14px;margin:0"><strong>${esc(eventTitle)}</strong> starts at ${esc(time)}. ${confirmed} ${confirmed === 1 ? 'person is' : 'people are'} confirmed.</p>
-        </div>
-        <p style="color:#374151;font-size:14px;line-height:1.6">
-          Tap each guest in as they arrive. Tomorrow morning you'll get the list of anyone who wasn't checked in, and until midnight you can check them in or excuse them; after that they count as no-shows if most of the room was checked in.
-        </p>
-        <a href="${url}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin:20px 0 0">
-          Open the roster →
-        </a>
-      </div>
-    `,
-  })
-}
-
 // Standing, the morning after (lib/standing sendAttendanceReviews): the
 // guest's side of the host's review. Most members have no push, so the bell
 // alone reached 3 of 8 on the first room it was for.

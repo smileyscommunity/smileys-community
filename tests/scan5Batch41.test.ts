@@ -162,7 +162,7 @@ describe('a. reminders sweep: the no-show exemption rule, and who is nudged', ()
   it('reads club hosts and roles in the two event queries — no per-event or per-attendee lookups', async () => {
     setup([event([person('m1', { checkedIn: true }), person('clubhost', { role: 'host' })], 'e1'), event([person('m2', { checkedIn: true })], 'e2')])
     await remindersGET(cronReq())
-    const clubHosts = { select: { isActive: true, memberships: { where: { role: 'host', status: 'approved' }, select: { userId: true } } } }
+    const clubHosts = { select: { memberships: { where: { role: 'host', status: 'approved' }, select: { userId: true } } } }
     const calls = p.event.findMany.mock.calls.map((c: any) => c[0])
     expect(calls).toHaveLength(3)
     const connections = calls.find((a: any) => a.where.status === 'archived')
