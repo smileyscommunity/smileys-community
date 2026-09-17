@@ -107,7 +107,8 @@ describe('30. approvals are counted and seated under a lock on the event', () =>
     const res = await participantsPATCH(req({ userId: 'u1', action: 'approve' }), params)
     expect(res.status).toBe(200)
     expect(p.$queryRaw).toHaveBeenCalledTimes(1)
-    expect(p.eventAttendee.update).toHaveBeenCalledWith({ where: { userId_eventId: { userId: 'u1', eventId: 'e1' } }, data: { status: 'approved' } })
+    // The seat dates from the approval (standing's late-seat rule reads joinedAt).
+    expect(p.eventAttendee.update).toHaveBeenCalledWith({ where: { userId_eventId: { userId: 'u1', eventId: 'e1' } }, data: { status: 'approved', joinedAt: expect.any(Date) } })
   })
 })
 

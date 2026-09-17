@@ -69,7 +69,7 @@ describe('participants PATCH on a withdrawn request', () => {
     expect(res.status).toBe(200)
     expect(p.eventAttendee.update).toHaveBeenCalledWith({
       where: { userId_eventId: { userId: 'u1', eventId: 'e1' } },
-      data:  { status: 'approved' },
+      data:  { status: 'approved', joinedAt: expect.any(Date) },
     })
   })
 

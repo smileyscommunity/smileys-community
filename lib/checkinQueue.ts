@@ -82,14 +82,15 @@ export async function flushQueue(
 }
 
 /** One door tap, classified: saved, no network (queue it), or refused by the server. */
-export async function patchCheckin(eventId: string, userId: string, checkedIn: boolean): Promise<SendOutcome> {
+/** `scannedAt`: the tap time, sent with a REPLAY so a check-in that waited past the settle point is still taken. */
+export async function patchCheckin(eventId: string, userId: string, checkedIn: boolean, scannedAt?: number): Promise<SendOutcome> {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return { kind: 'offline' }
   let res: Response
   try {
     res = await fetch(`/app/api/events/${eventId}/checkin`, {
       method: 'PATCH', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, checkedIn }),
+      body: JSON.stringify({ userId, checkedIn, ...(scannedAt ? { scannedAt } : {}) }),
     })
   } catch {
     return { kind: 'offline' }

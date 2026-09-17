@@ -689,6 +689,33 @@ export async function resolveDispute(opts: {
   return 'ok'
 }
 
+/**
+ * A moderator's or admin's own "they were there" on an open offence — one
+ * never disputed, or one whose dispute was rejected by mistake. The member
+ * can dispute only once; this is how a wrong rejection is put right without
+ * an admin's database access.
+ */
+export async function overturnByStaff(opts: { offenceId: string; resolver: { id: string; name: string }; note: string; now?: Date }): Promise<'ok' | 'not_found' | 'not_open'> {
+  const now = opts.now ?? new Date()
+  const o = await prisma.standingOffence.findUnique({
+    where:  { id: opts.offenceId },
+    select: { id: true, userId: true, status: true, eventId: true, event: { select: { title: true } } },
+  })
+  if (!o) return 'not_found'
+  if (o.status !== OffenceStatus.Open) return 'not_open'
+  const note = opts.note.trim().slice(0, 1000) || 'Overturned by a moderator'
+  if (!await overturnOffence(o.id, { byId: opts.resolver.id, note, now })) return 'not_open'
+  await writeAudit(opts.resolver.id, opts.resolver.name, 'standing_offence_overturned', o.userId, 'user', { offenceId: o.id, eventId: o.eventId, note })
+  const enforcement = await standingEnforcement()
+  await evaluateMember(o.userId, now)
+  if (enforcement.enforced) {
+    await createNotification(o.userId, 'standing_dispute_resolved', '✅ No-show removed',
+      `A moderator removed the no-show for "${o.event.title}" from your record.`, '/standing')
+    await notifyStandingCards(enforcement)
+  }
+  return 'ok'
+}
+
 export type RestoreOutcome = 'ok' | 'not_found' | 'not_live'
 
 /** An admin's review of a red card. The review is the clearance: it stays a human decision. */

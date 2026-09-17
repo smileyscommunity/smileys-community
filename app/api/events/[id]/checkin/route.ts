@@ -6,7 +6,8 @@ import { createNotification } from '@/lib/notify'
 import { rateLimit, claimOnce } from '@/lib/rateLimit'
 import { Attendance } from '@/lib/constants'
 import { eventStartsAt, eventEndsAt } from '@/lib/eventTime'
-import { attendanceSettlesAt } from '@/lib/standingPolicy'
+import { attendanceSettlesAt, lateReplayAllowed } from '@/lib/standingPolicy'
+import { writeAudit } from '@/lib/audit'
 import { getCityTz } from '@/lib/city'
 import { eventRunners } from '@/lib/noShowPolicy'
 import { isExemptFromNoShow } from '@/lib/attendanceCloseOut'
@@ -89,7 +90,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const { userId, checkedIn } = await req.json()
+    const { userId, checkedIn, scannedAt } = await req.json()
     if (!userId || typeof userId !== 'string') {
       return NextResponse.json({ error: 'userId must be a non-empty string' }, { status: 400 })
     }
@@ -125,8 +126,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // midnight, the day after the event). Past that line attendance is settled
     // both ways, and a correction is a dispute a moderator decides — not a
     // scan, days later, by whoever runs the door.
+    // Except a check-in tapped before that line on a phone with no signal and
+    // sent after it (lib/checkinQueue carries the tap time): the scan was
+    // real, the network wasn't. Audited, and the next sweep overturns any
+    // no-show the settle wrote for that seat (overturnCorrected).
     const tz = await getCityTz(event.cityId)
-    if (Date.now() >= attendanceSettlesAt(event, tz).getTime()) {
+    const settlesAt  = attendanceSettlesAt(event, tz)
+    const lateReplay = checkedIn === true && lateReplayAllowed(scannedAt, settlesAt, new Date())
+    if (Date.now() >= settlesAt.getTime() && !lateReplay) {
       return NextResponse.json({
         error: "Attendance for this event is settled — check-in closed at the end of the day after it.",
         code:  'attendance_settled',
@@ -171,6 +178,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // event, and gets the morning-after list with its hosts (lib/standing
     // sendAttendanceReviews). A claim, so a busy door writes one row.
     if (checkedIn) await claimOnce(doorKey(eventId, session.id), 30 * 86_400_000).catch(() => {})
+    if (lateReplay) {
+      await writeAudit(session.id, session.name, 'checkin_late_replay', eventId, 'event',
+        { userId, scannedAt: new Date(scannedAt).toISOString(), settledAt: settlesAt.toISOString() },
+        `Check-in tapped ${new Date(scannedAt).toISOString()} arrived after the room settled`)
+    }
 
     // A check-in made in the morning-after review is a correction, not an
     // arrival: no "welcome", no live count, no "doors are open".

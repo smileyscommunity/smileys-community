@@ -44,7 +44,7 @@ export function useCheckinSync(
         loadQueue().some(q => q.eventId === item.eventId && q.userId === item.userId && q.at === item.at)
       const { sent, refused } = await flushQueue(items, item =>
         // A newer tap for the same person was sent directly meanwhile: this one is stale.
-        stillQueued(item) ? patchCheckin(item.eventId, item.userId, item.checkedIn) : Promise.resolve<SendOutcome>({ kind: 'saved' }))
+        stillQueued(item) ? patchCheckin(item.eventId, item.userId, item.checkedIn, item.at) : Promise.resolve<SendOutcome>({ kind: 'saved' }))
       const done = [...sent, ...refused.map(r => r.item)]
       update(queue => queue.filter(q => !done.some(d => d.eventId === q.eventId && d.userId === q.userId && d.at === q.at)))
       for (const r of refused) onRefusedRef.current?.(r.item, r.error)

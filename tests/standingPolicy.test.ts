@@ -3,7 +3,7 @@ import {
   eventTier, cancelCutoffHours, lateCancelLine, classifyRow, refilledLateCancels, offenceCounts,
   decideIssuance, isSuccessfulCommitment, countedCommitments, recoveryOutcome, cardLapsed,
   standingLevel, needsHostApproval, orderWaitlist, canDispute, disputeHolds,
-  attendanceReviewDay, attendanceReviewOpensAt, attendanceSettlesAt, checkInRan, unmarkedGuests, seatTakenLate,
+  attendanceReviewDay, attendanceReviewOpensAt, attendanceSettlesAt, checkInRan, unmarkedGuests, seatTakenLate, lateReplayAllowed,
   CANCEL_CUTOFF_HOURS, NEW_CITY_GRACE_DAYS, STANDING_WINDOW_DAYS, CARD_LAPSE_DAYS, DISPUTE_WINDOW_DAYS,
   type StandingRow, type LedgerOffence,
 } from '@/lib/standingPolicy'
@@ -242,6 +242,19 @@ describe('a seat taken at the last minute', () => {
     expect(classifyRow(row({ attendance: 'no_show', joinedAt: new Date(START.getTime() - 4 * H) }), START, e, runners)).toBe('no_show')
     const lateCancel = row({ status: 'cancelled', cancelledBy: 'member', cancelledLate: true, cancelledAt: new Date(START.getTime() - H), joinedAt: new Date(START.getTime() - 2 * H) })
     expect(classifyRow(lateCancel, START, e, runners)).toBeNull()
+  })
+})
+
+describe('a check-in replayed after the room settled', () => {
+  const settles = new Date('2026-10-11T21:00:00Z')
+  const tapped  = settles.getTime() - 5 * H
+  it('is taken when tapped before the line and sent within the grace, and not otherwise', () => {
+    expect(lateReplayAllowed(tapped, settles, new Date(settles.getTime() + 6 * H))).toBe(true)
+    expect(lateReplayAllowed(tapped, settles, new Date(settles.getTime() + 49 * H))).toBe(false)   // grace over
+    expect(lateReplayAllowed(settles.getTime() + H, settles, new Date(settles.getTime() + 2 * H))).toBe(false)  // tapped after the line
+    expect(lateReplayAllowed(undefined, settles, new Date(settles.getTime() + H))).toBe(false)     // a live tap carries no time
+    expect(lateReplayAllowed('yesterday', settles, new Date(settles.getTime() + H))).toBe(false)
+    expect(lateReplayAllowed(tapped, settles, new Date(settles.getTime() - H))).toBe(false)         // not settled yet: the normal path
   })
 })
 

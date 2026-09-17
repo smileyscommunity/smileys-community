@@ -25,7 +25,7 @@ import { claimOnce, releaseClaim } from '@/lib/rateLimit'
 import { sendAttendanceCheckEmail, sendNoShowRecordedEmail } from '@/lib/email'
 import {
   standingEnforcement, setStandingEnforced, standingLevelsFor, settleAttendance, sendAttendanceReviews, notifyNoShows,
-  resolvedEvents, reviewingEvents, recordOffences, evaluateMember, overturnOffence, disputeOffence, type SweepEvent,
+  resolvedEvents, reviewingEvents, recordOffences, evaluateMember, overturnOffence, disputeOffence, overturnByStaff, type SweepEvent,
 } from '@/lib/standing'
 
 // The standing sweep and interventions against a mocked database: what the
@@ -467,6 +467,28 @@ describe('overturnOffence', () => {
     p.standingOffence.updateMany.mockResolvedValue({ count: 0 })
     expect(await overturnOffence('o1', { byId: 'mod', note: 'x', now: NOW })).toBeNull()
     expect(p.standingCard.findUnique).not.toHaveBeenCalled()
+  })
+})
+
+describe('overturnByStaff', () => {
+  it('overturns an open offence — never disputed, or a dispute rejected by mistake — and tells the member', async () => {
+    switchedOn()
+    p.standingOffence.findUnique
+      .mockResolvedValueOnce({ id: 'o1', userId: 'm1', status: 'open', eventId: 'e1', event: { title: 'Sunset Sailing' } })
+      .mockResolvedValueOnce({ id: 'o1', userId: 'm1', attendeeId: 'att1', kind: 'no_show', status: 'open', cardId: null })
+    expect(await overturnByStaff({ offenceId: 'o1', resolver: { id: 'mod', name: 'Mod' }, note: '', now: NOW })).toBe('ok')
+    expect(p.standingOffence.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'o1', status: { in: ['open', 'disputed'] } },
+      data:  expect.objectContaining({ status: 'overturned', resolvedById: 'mod', resolutionNote: 'Overturned by a moderator' }),
+    }))
+    expect(writeAudit).toHaveBeenCalledWith('mod', 'Mod', 'standing_offence_overturned', 'm1', 'user', expect.objectContaining({ offenceId: 'o1' }))
+    expect((createNotification as any).mock.calls.map((c: any) => [c[0], c[1]])).toContainEqual(['m1', 'standing_dispute_resolved'])
+  })
+  it('leaves a disputed or already-decided offence to the dispute path', async () => {
+    p.standingOffence.findUnique.mockResolvedValueOnce({ id: 'o1', userId: 'm1', status: 'disputed', eventId: 'e1', event: { title: 'x' } })
+    expect(await overturnByStaff({ offenceId: 'o1', resolver: { id: 'mod', name: 'Mod' }, note: '', now: NOW })).toBe('not_open')
+    p.standingOffence.findUnique.mockResolvedValueOnce(null)
+    expect(await overturnByStaff({ offenceId: 'o9', resolver: { id: 'mod', name: 'Mod' }, note: '', now: NOW })).toBe('not_found')
   })
 })
 

@@ -176,7 +176,8 @@ describe('a. staff approve: refused past the cap unless explicitly overridden', 
     expect((await participantsPATCH(req({ userId: 'u1', action: 'approve', allowOverCapacity: 'true' }), params)).status).toBe(409)
     const res = await participantsPATCH(req({ userId: 'u1', action: 'approve', allowOverCapacity: true }), params)
     expect(res.status).toBe(200)
-    expect(p.eventAttendee.update).toHaveBeenCalledWith({ where: { userId_eventId: { userId: 'u1', eventId: 'e1' } }, data: { status: 'approved' } })
+    // The seat dates from the approval (standing's late-seat rule reads joinedAt).
+    expect(p.eventAttendee.update).toHaveBeenCalledWith({ where: { userId_eventId: { userId: 'u1', eventId: 'e1' } }, data: { status: 'approved', joinedAt: expect.any(Date) } })
     expect(h.recompute).toHaveBeenCalledWith('e1', 10, p)
   })
 

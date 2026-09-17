@@ -506,9 +506,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           capacity = verdict
           return 'over_capacity'
         }
+        // The seat dates from now, not from the request: standing's "a seat
+        // taken inside the last hours never counts" reads joinedAt, and a
+        // request approved an hour before the start is such a seat.
         await tx.eventAttendee.update({
           where: { userId_eventId: { userId, eventId } },
-          data: { status: 'approved' },
+          data: { status: 'approved', joinedAt: new Date() },
         })
         // Approval relied on the row written at request time, which can be
         // gone by now (moved to the waitlist and back, collection switched on

@@ -54,6 +54,11 @@ export const CHECK_IN_RAN_RATIO            = 0.7
 // or a late join the member may not have seen in time is not a commitment
 // anyone else lost a seat to.
 export const LATE_SEAT_HOURS               = 3
+// A check-in tapped before the room settled but sent after it (a door phone
+// with no signal, lib/checkinQueue) is still taken for this long after the
+// settle point. Only a check-IN, only with the tap time before the line: an
+// un-check or a fresh scan days later stays refused.
+export const LATE_REPLAY_GRACE_HOURS       = 48
 // While a dispute waits, no new card is issued for that member — for this
 // long. After it the ledger stands as it is: an unread dispute must not hold
 // cards off indefinitely, nor be a way to.
@@ -156,6 +161,14 @@ export function attendanceReviewOpensAt(e: EventClock, tz: string): Date {
   const hour   = String(ATTENDANCE_REVIEW_NOTICE_HOUR).padStart(2, '0')
   const notice = fromWallClockInTz(`${attendanceReviewDay(e, tz)}T${hour}:00`, tz)
   return new Date(Math.max(notice.getTime(), eventEndsAt(e, tz).getTime()))
+}
+
+/** A queued check-in replayed after the room settled: tapped before the line, arriving within the grace. */
+export function lateReplayAllowed(scannedAt: unknown, settlesAt: Date, now: Date): boolean {
+  if (typeof scannedAt !== 'number' || !Number.isFinite(scannedAt)) return false
+  return scannedAt < settlesAt.getTime()
+    && now.getTime() >= settlesAt.getTime()
+    && now.getTime() < settlesAt.getTime() + LATE_REPLAY_GRACE_HOURS * HOUR
 }
 
 /** Midnight at the end of the review day: after it, attendance is settled. */

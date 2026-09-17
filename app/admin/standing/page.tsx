@@ -196,7 +196,7 @@ export default function AdminStandingPage() {
                   {o.resolutionNote && <p className="text-xs text-zinc-500 mt-1">{o.resolutionNote}</p>}
                 </div>
               </div>
-              {o.status === 'disputed' && (
+              {(o.status === 'disputed' || o.status === 'open') && (
                 o.conflict ? (
                   <p className="text-xs text-zinc-500 mt-3">{REVIEW_CONFLICT_MESSAGE[o.conflict]}</p>
                 ) : (
@@ -205,9 +205,13 @@ export default function AdminStandingPage() {
                       placeholder="Note (what the host said)" maxLength={1000}
                       className="flex-1 min-w-[12rem] bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-zinc-500" />
                     <button onClick={() => decide(o, 'overturn')} disabled={busy === o.id}
-                      className="px-3 py-1.5 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 text-xs font-semibold disabled:opacity-50">Overturn</button>
-                    <button onClick={() => decide(o, 'uphold')} disabled={busy === o.id}
-                      className="px-3 py-1.5 rounded-lg bg-zinc-700 text-zinc-200 hover:bg-zinc-600 text-xs font-semibold disabled:opacity-50">Uphold</button>
+                      className="px-3 py-1.5 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 text-xs font-semibold disabled:opacity-50">
+                      {o.status === 'disputed' ? 'Overturn' : 'They were there'}
+                    </button>
+                    {o.status === 'disputed' && (
+                      <button onClick={() => decide(o, 'uphold')} disabled={busy === o.id}
+                        className="px-3 py-1.5 rounded-lg bg-zinc-700 text-zinc-200 hover:bg-zinc-600 text-xs font-semibold disabled:opacity-50">Uphold</button>
+                    )}
                   </div>
                 )
               )}
