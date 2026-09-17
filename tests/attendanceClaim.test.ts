@@ -24,9 +24,9 @@ const params = { params: Promise.resolve({ id: 'e1' }) }
 const req    = {} as any
 // Sat 10 Oct 18:00–20:00 Istanbul (15:00–17:00Z); settles Sun 21:00Z.
 const EVENT  = {
-  title: 'Sunset Sailing', emoji: '⛵', cancelledAt: null, cityId: 'c1',
+  title: 'Sunset Sailing', emoji: '⛵', status: 'archived', cancelledAt: null, cityId: 'c1',
   date: '2026-10-10', time: '18:00', endTime: '20:00', hostId: 'h1',
-  cohosts: [{ userId: 'co1' }], club: { memberships: [{ userId: 'ch1' }] },
+  cohosts: [{ userId: 'co1' }], club: { isActive: true, memberships: [{ userId: 'ch1' }] },
 }
 const at = (iso: string) => vi.setSystemTime(new Date(iso))
 
@@ -97,5 +97,14 @@ describe('POST /api/events/[id]/attendance-claim', () => {
     expect((await claim(req, params)).status).toBe(403)
     p.event.findUnique.mockResolvedValueOnce({ ...EVENT, cancelledAt: new Date() })
     expect((await claim(req, params)).status).toBe(404)
+    // Postponed keeps its rows and a null cancelledAt; the sweep never reviews it, so neither does this.
+    p.event.findUnique.mockResolvedValueOnce({ ...EVENT, status: 'postponed' })
+    expect((await claim(req, params)).status).toBe(404)
+  })
+
+  it("an inactive club's hosts are not told — they can't open the roster", async () => {
+    p.event.findUnique.mockResolvedValueOnce({ ...EVENT, club: { isActive: false, memberships: [{ userId: 'ch1' }] } })
+    await claim(req, params)
+    expect((createNotification as any).mock.calls.map((c: any) => c[0])).toEqual(['h1', 'co1'])
   })
 })

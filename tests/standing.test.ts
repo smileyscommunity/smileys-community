@@ -252,7 +252,11 @@ describe('the host review', () => {
   it('sends everyone running the door, club hosts and admins who checked people in included, and records that it went', async () => {
     p.eventAttendee.findMany.mockResolvedValue([scanned('s1'), guest('a')])
     p.rateLimit.findMany.mockResolvedValue([{ key: 'checkin-door:e1:admin1' }, { key: 'checkin-door:e1:host' }])
-    await sendAttendanceReviews({ ...EVENT, cohosts: [], club: { memberships: [{ userId: 'clubhost' }] } } as unknown as SweepEvent)
+    await sendAttendanceReviews({ ...EVENT, cohosts: [], club: { isActive: true, memberships: [{ userId: 'clubhost' }] } } as unknown as SweepEvent)
+    // An inactive club's host can't open the roster, so isn't told.
+    ;(claimOnce as any).mockClear()
+    await sendAttendanceReviews({ ...EVENT, id: 'e9', cohosts: [], club: { isActive: false, memberships: [{ userId: 'exhost' }] } } as unknown as SweepEvent)
+    expect((createNotification as any).mock.calls.map((c: any) => c[0])).not.toContain('exhost')
     expect(p.rateLimit.findMany.mock.calls[0][0].where).toEqual({ key: { startsWith: 'checkin-door:e1:' } })
     expect((createNotification as any).mock.calls.map((c: any) => c[0])).toEqual(['host', 'clubhost', 'admin1', 'a'])
     expect((claimOnce as any).mock.calls.map((c: any) => c[0])).toContain('attendance-review-sent:e1')

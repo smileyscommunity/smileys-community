@@ -29,12 +29,16 @@ export async function POST(_: NextRequest, { params }: Params) {
     const event = await prisma.event.findUnique({
       where:  { id: eventId },
       select: {
-        title: true, emoji: true, cancelledAt: true, cityId: true, date: true, time: true, endTime: true, hostId: true,
+        title: true, emoji: true, status: true, cancelledAt: true, cityId: true, date: true, time: true, endTime: true, hostId: true,
         cohosts: { select: { userId: true } },
-        club:    { select: { memberships: { where: { role: 'host', status: 'approved' }, select: { userId: true } } } },
+        // An inactive club's hosts can't open the roster (lib/access), so they aren't told either.
+        club:    { select: { isActive: true, memberships: { where: { role: 'host', status: 'approved' }, select: { userId: true } } } },
       },
     })
-    if (!event || event.cancelledAt) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
+    // The events the sweep reviews, and no other: a postponed one keeps its rows and a null cancelledAt.
+    if (!event || event.cancelledAt || !['published', 'archived'].includes(event.status)) {
+      return NextResponse.json({ error: 'Event not found' }, { status: 404 })
+    }
 
     const tz  = await getCityTz(event.cityId)
     const now = Date.now()
@@ -56,7 +60,7 @@ export async function POST(_: NextRequest, { params }: Params) {
     // Once: the claim is what the roster reads, and the second tap tells nobody twice.
     if (!await claimOnce(saysCameKey(eventId, session.id), 7 * 86_400_000)) return NextResponse.json({ ok: true, already: 'said' })
 
-    const runners = eventRunners(event)
+    const runners = eventRunners({ ...event, club: event.club?.isActive ? event.club : null })
     const door    = [...new Set([runners.hostId, ...runners.cohostIds, ...runners.clubHostIds].filter((u): u is string => !!u))]
     for (const userId of door) {
       createNotification(userId, 'attendance_claim', `${event.emoji} ${session.name} says they were at ${event.title}`,

@@ -74,7 +74,7 @@ const SWEEP_EVENT_SELECT = {
   hostId: true, cityId: true,
   city:    { select: { timezone: true, createdAt: true } },
   cohosts: { select: { userId: true } },
-  club:    { select: { memberships: { where: { role: 'host', status: 'approved' }, select: { userId: true } } } },
+  club:    { select: { isActive: true, memberships: { where: { role: 'host', status: 'approved' }, select: { userId: true } } } },
 } satisfies Prisma.EventSelect
 
 export type SweepEvent = Prisma.EventGetPayload<{ select: typeof SWEEP_EVENT_SELECT }>
@@ -93,6 +93,9 @@ async function standingEvents(now: Date): Promise<SweepEvent[]> {
 }
 
 const tzOf = (e: SweepEvent) => e.city?.timezone ?? DEFAULT_TZ
+// Who runs the event. An inactive club's hosts can't open its roster
+// (lib/access canManageEventOps), so they are guests here: not exempt, not told.
+const runnersOf = (e: SweepEvent) => eventRunners({ ...e, club: e.club?.isActive ? e.club : null })
 
 /**
  * Events whose attendance is ready to settle: started on or after
@@ -114,7 +117,7 @@ export async function reviewingEvents(now: Date): Promise<SweepEvent[]> {
 }
 
 async function roomOf(event: SweepEvent) {
-  const runners = eventRunners(event)
+  const runners = runnersOf(event)
   const rows = await prisma.eventAttendee.findMany({
     where:   { eventId: event.id, status: AttendeeStatus.Approved },
     orderBy: { joinedAt: 'asc' },
@@ -187,7 +190,7 @@ export async function sendAttendanceReviews(event: SweepEvent): Promise<number> 
   const missing = unmarkedGuests(room)
   if (missing.length === 0) return 0
   const e = await prisma.event.findUnique({ where: { id: event.id }, select: { emoji: true } })
-  const runners = eventRunners(event)
+  const runners = runnersOf(event)
   // And whoever else checked people in — an admin running the door.
   const prefix  = doorKey(event.id, '')
   const door    = (await prisma.rateLimit.findMany({ where: { key: { startsWith: prefix } }, select: { key: true } }))
@@ -249,7 +252,7 @@ export async function sendAttendanceReviews(event: SweepEvent): Promise<number> 
 export async function recordOffences(event: SweepEvent): Promise<Set<string>> {
   const tz       = event.city?.timezone ?? DEFAULT_TZ
   const startsAt = eventStartsAt(event, tz)
-  const runners  = eventRunners(event)
+  const runners  = runnersOf(event)
   const rows = await prisma.eventAttendee.findMany({
     where:  { eventId: event.id, OR: [{ status: AttendeeStatus.Approved }, { status: AttendeeStatus.Cancelled, cancelledBy: 'member' }] },
     select: {
