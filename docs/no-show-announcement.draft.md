@@ -44,6 +44,9 @@ standing.
   - if someone from the waitlist takes your seat and comes, it doesn't count;
   - if you're answering the day-before "still coming?" message, it doesn't count.
 
+A seat you took less than **3 hours** before the start never counts against
+you either way: a last-minute waitlist claim isn't a seat anyone else lost.
+
 Cancelling earlier than that is exactly what we want you to do. It hands the
 seat to someone waiting.
 

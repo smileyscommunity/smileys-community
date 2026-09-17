@@ -3,7 +3,7 @@ import {
   eventTier, cancelCutoffHours, lateCancelLine, classifyRow, refilledLateCancels, offenceCounts,
   decideIssuance, isSuccessfulCommitment, countedCommitments, recoveryOutcome, cardLapsed,
   standingLevel, needsHostApproval, orderWaitlist, canDispute, disputeHolds,
-  attendanceReviewDay, attendanceReviewOpensAt, attendanceSettlesAt, checkInRan, unmarkedGuests,
+  attendanceReviewDay, attendanceReviewOpensAt, attendanceSettlesAt, checkInRan, unmarkedGuests, seatTakenLate,
   CANCEL_CUTOFF_HOURS, NEW_CITY_GRACE_DAYS, STANDING_WINDOW_DAYS, CARD_LAPSE_DAYS, DISPUTE_WINDOW_DAYS,
   type StandingRow, type LedgerOffence,
 } from '@/lib/standingPolicy'
@@ -230,6 +230,18 @@ describe('effects', () => {
     // Upheld and back to open: not a second time.
     expect(canDispute({ kind: 'no_show', status: 'open', occurredAt: START, disputedAt: START }, NOW)).toBe(false)
     expect(canDispute({ kind: 'no_show', status: 'open', occurredAt: START }, new Date(START.getTime() + (DISPUTE_WINDOW_DAYS + 1) * D))).toBe(false)
+  })
+})
+
+describe('a seat taken at the last minute', () => {
+  it('is never an offence, whether left empty or given back', () => {
+    expect(seatTakenLate(new Date(START.getTime() - 2 * H), START)).toBe(true)
+    expect(seatTakenLate(new Date(START.getTime() - 4 * H), START)).toBe(false)
+    const e = { limitedSpots: true }
+    expect(classifyRow(row({ attendance: 'no_show', joinedAt: new Date(START.getTime() - 2 * H) }), START, e, runners)).toBeNull()
+    expect(classifyRow(row({ attendance: 'no_show', joinedAt: new Date(START.getTime() - 4 * H) }), START, e, runners)).toBe('no_show')
+    const lateCancel = row({ status: 'cancelled', cancelledBy: 'member', cancelledLate: true, cancelledAt: new Date(START.getTime() - H), joinedAt: new Date(START.getTime() - 2 * H) })
+    expect(classifyRow(lateCancel, START, e, runners)).toBeNull()
   })
 })
 

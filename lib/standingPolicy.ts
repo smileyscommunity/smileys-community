@@ -44,6 +44,10 @@ export const ATTENDANCE_REVIEW_NOTICE_HOUR = 10
 // have the same full day as everyone after them.
 export const DEFAULT_ABSENT_FIRST_REVIEW_DAY = '2026-09-18'
 export const DISPUTE_WINDOW_DAYS           = 30
+// A seat taken this close to the start is never an offence: a waitlist claim
+// or a late join the member may not have seen in time is not a commitment
+// anyone else lost a seat to.
+export const LATE_SEAT_HOURS               = 3
 // While a dispute waits, no new card is issued for that member — for this
 // long. After it the ledger stands as it is: an unread dispute must not hold
 // cards off indefinitely, nor be a way to.
@@ -208,10 +212,17 @@ export function isLateCancel(cancelledAt: Date, startsAt: Date, e: TierFields, r
   return true
 }
 
+/** Was the seat taken inside LATE_SEAT_HOURS of the start? Such a row is never an offence. */
+export function seatTakenLate(joinedAt: Date, startsAt: Date): boolean {
+  return joinedAt.getTime() >= startsAt.getTime() - LATE_SEAT_HOURS * HOUR
+}
+
 /**
  * The offence this row is, once the event has resolved — or null.
  *
  *   - checked in, or running the event / staff          → nothing
+ *   - the seat was taken inside LATE_SEAT_HOURS of the
+ *     start (a late waitlist claim, a last-minute join)  → nothing
  *   - approved and marked a no-show (by the host, or left
  *     unmarked after the host's review, lib/standing)   → no_show
  *   - cancelled BY THE MEMBER after the tier's cutoff    → late_cancel, unless
@@ -223,6 +234,7 @@ export function isLateCancel(cancelledAt: Date, startsAt: Date, e: TierFields, r
 export function classifyRow(row: StandingRow, startsAt: Date, e: TierFields, runners: EventRunners): OffenceKind | null {
   if (row.checkedIn) return null
   if (noShowExemptionReason(row.userId, row.user?.role, runners)) return null
+  if (seatTakenLate(row.joinedAt, startsAt)) return null
   if (row.status === AttendeeStatus.Approved) {
     return row.attendance === Attendance.NoShow ? OffenceKind.NoShow : null
   }
