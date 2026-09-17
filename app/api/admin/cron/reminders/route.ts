@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { timingSafeEqual } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notify'
-import { sendReviewRequestEmail, sendListingExpiryEmail, recordEmailFailure } from '@/lib/email'
+import { sendReviewRequestEmail, sendListingExpiryEmail, sendCheckInOpenEmail, recordEmailFailure } from '@/lib/email'
 import { checkInIsCredible, isNoShow, eventRunners, noShowExemptionReason } from '@/lib/noShowPolicy'
 import { eventTier, cancelCutoffHours } from '@/lib/standingPolicy'
 import { getSession } from '@/lib/session'
@@ -33,7 +33,7 @@ type AttendanceRow = {
 
 // The event's approved club hosts — the same select lib/noShow settleEvent
 // feeds to eventRunners.
-const CLUB_HOSTS = { select: { memberships: { where: { role: 'host', status: 'approved' }, select: { userId: true } } } }
+const CLUB_HOSTS = { select: { isActive: true, memberships: { where: { role: 'host', status: 'approved' }, select: { userId: true } } } }
 
 /**
  * The approved rows that actually came — the only ones a "you attended"
@@ -271,6 +271,7 @@ async function runSweep() {
       include: {
         attendees: { where: { status: 'approved' }, select: { userId: true, checkedIn: true } },
         cohosts:   { select: { userId: true } },
+        club:      CLUB_HOSTS,
       },
     }),
     prisma.event.findMany({
@@ -342,16 +343,24 @@ async function runSweep() {
     }
   }
 
-  // "Check-in is open" — to the host and co-hosts, at the run nearest the
-  // start, linked to the roster (lib/checkInNudge). Claimed per person per
-  // event; a failed write hands the claim back, though the window has
-  // usually closed by the next tick.
+  // "Check-in is open" — to the host, co-hosts and the club's hosts, at the
+  // run nearest the start, linked to the roster (lib/checkInNudge). Claimed
+  // per person per event; a failed write hands the claim back, though the
+  // window has usually closed by the next tick. The email rides on the claim:
+  // most members have no push, and a bell entry at start time is not seen.
   for (const nudge of checkInNudges(upcomingEvents, now, startsAtOf)) {
+    const people = await prisma.user.findMany({ where: { id: { in: nudge.userIds } }, select: { id: true, name: true, email: true } })
     for (const userId of nudge.userIds) {
       const nudgeClaim = `checkin-nudge:${userId}:${nudge.eventId}`
       if (!await claimOnce(nudgeClaim, 2 * 24 * 60 * 60 * 1000)) continue
-      if (await createNotification(userId, 'checkin_nudge', nudge.title, nudge.body, `/host/checkin?event=${nudge.eventId}`)) sentCheckInNudges++
-      else await releaseClaim(nudgeClaim)
+      if (!await createNotification(userId, 'checkin_nudge', nudge.title, nudge.body, `/host/checkin?event=${nudge.eventId}`)) { await releaseClaim(nudgeClaim); continue }
+      sentCheckInNudges++
+      const person = people.find(u => u.id === userId)
+      if (person?.email) {
+        await sendCheckInOpenEmail(person.email, person.name, nudge.eventTitle, nudge.time, nudge.confirmed, nudge.eventId)
+          .catch(err => console.error('[reminders] check-in open email failed', { eventId: nudge.eventId, err: String(err) }))
+        await new Promise(r => setTimeout(r, 150))
+      }
     }
   }
 

@@ -55,6 +55,11 @@ describe('checkInNudges', () => {
   })
 
   it('pings a host listed as their own co-host once', () => {
+    // The club's hosts run the door too; an inactive club's don't.
+    const [withClub] = checkInNudges([ev({ club: { isActive: true, memberships: [{ userId: 'k' }] } })], at('19:00'), startsAtOf)
+    expect(withClub.userIds).toEqual(['h', 'c', 'k'])
+    const [inactive] = checkInNudges([ev({ club: { isActive: false, memberships: [{ userId: 'k' }] } })], at('19:00'), startsAtOf)
+    expect(inactive.userIds).toEqual(['h', 'c'])
     const [n] = checkInNudges([ev({ cohosts: [{ userId: 'h' }] })], at('19:00'), startsAtOf)
     expect(n.userIds).toEqual(['h'])
   })

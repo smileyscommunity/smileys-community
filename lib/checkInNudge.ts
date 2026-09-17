@@ -2,6 +2,8 @@ import { checkInIsCredible } from '@/lib/noShowPolicy'
 
 // ── "Check-in is open" ──────────────────────────────────────────────────────
 //
+// (Sent to the host, co-hosts and the club's hosts — as a bell entry, a push
+// and, since most members have no push, an email.)
 // The 2026-09-15 gate query: 37% of events had any check-in, 15% had most of
 // the room. The only prompt a host ever got was the dashboard banner after
 // the event (components/CheckInPrompt) — somewhere they have to go looking,
@@ -24,15 +26,21 @@ export interface NudgeEvent {
   cancelledAt: Date | null
   hostId:      string | null
   cohosts:     { userId: string }[]
+  /** The club's approved hosts run the door too (lib/access canManageEventOps) — unless the club is inactive. */
+  club?:       { isActive?: boolean; memberships: { userId: string }[] } | null
   /** Approved rows only. */
   attendees:   { userId: string; checkedIn: boolean }[]
 }
 
 export interface CheckInNudge {
-  eventId: string
-  userIds: string[]
-  title:   string
-  body:    string
+  eventId:   string
+  userIds:   string[]
+  title:     string
+  body:      string
+  /** For the email (app/api/admin/cron/reminders). */
+  eventTitle: string
+  time:       string
+  confirmed:  number
 }
 
 export function checkInNudges<E extends NudgeEvent>(
@@ -50,7 +58,8 @@ export function checkInNudges<E extends NudgeEvent>(
     // The room without the people running it — the same room the prompt and
     // the no-show sweep count. Nobody to check in, nothing to nudge; a door
     // that is already half scanned doesn't need telling.
-    const staff = new Set([e.hostId, ...e.cohosts.map(c => c.userId)].filter((id): id is string => !!id))
+    const clubHosts = e.club && e.club.isActive !== false ? e.club.memberships.map(m => m.userId) : []
+    const staff = new Set([e.hostId, ...e.cohosts.map(c => c.userId), ...clubHosts].filter((id): id is string => !!id))
     const room  = e.attendees.filter(a => !staff.has(a.userId))
     if (room.length === 0) return []
     if (checkInIsCredible(room.filter(a => a.checkedIn).length, room.length)) return []
@@ -61,6 +70,7 @@ export function checkInNudges<E extends NudgeEvent>(
       userIds: [...staff],
       title:   'Check-in is open 📋',
       body:    `"${e.title}" starts at ${e.time}. ${n} ${n === 1 ? 'person is' : 'people are'} confirmed — tap each one in as they arrive.`,
+      eventTitle: e.title, time: e.time, confirmed: n,
     }]
   })
 }
