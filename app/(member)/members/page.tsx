@@ -806,7 +806,10 @@ const MemberCard = memo(function MemberCard({ m, onSelect, connectionStatus, han
             </span>
           )}
           <span className="ml-auto text-[10px] text-gray-300">
-            {new Date(m.joinedAt).toLocaleDateString('en-GB', { month: 'short', year: '2-digit' })}
+            {/* 'numeric', not '2-digit': "Sep 26" reads as the 26th of
+                September, not September 2026. Matches the joined date
+                everywhere else it's shown. */}
+            {new Date(m.joinedAt).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}
           </span>
         </div>
       </div>
