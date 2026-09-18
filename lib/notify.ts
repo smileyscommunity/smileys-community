@@ -23,6 +23,7 @@ const PREF_KEY: Record<string, 'newEvents' | 'reminders' | 'eventUpdates' | 'joi
   waitlist_promoted:  null,
   club_approved:      null,
   club_rejected:      null,
+  club_request:       null,  // to a private club's hosts: someone asked to join
   host_assigned:      null,
   application:        null,
   report:             null,

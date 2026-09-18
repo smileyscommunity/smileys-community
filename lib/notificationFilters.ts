@@ -52,7 +52,7 @@ export const FILTER_TYPES: Record<Filter, string[]> = {
     'visitor_announced', 'visitor_tip',
   ],
   Admin:  [
-    'club_approved', 'club_rejected', 'host_assigned', 'announcement',
+    'club_approved', 'club_rejected', 'club_request', 'host_assigned', 'announcement',
     'warning', 'system_alert', 'alert', 'system', 'application',
     'report', 'report_alert', 'report_reviewed', 'membership_upgraded',
     'nps_survey', 'listing_expiry', 'no_show_appeal',
@@ -100,6 +100,7 @@ export const TYPE_ICON: Record<string, string> = {
   waitlist_promoted:   '✅',
   spot_opened:         '🎟️',
   club_approved:       '🏛️',
+  club_request:        '📨',
   club_rejected:       '❌',
   new_event:           '📣',
   attendee_joined:     '🙌',

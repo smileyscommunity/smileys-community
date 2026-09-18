@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import posthog from 'posthog-js'
 
 interface Props {
@@ -14,6 +15,9 @@ export default function ClubJoinWidget({ club, initialStatus, isHost = false }: 
   const [host,    setHost]    = useState(isHost)
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState('')
+  // Membership changes what the server rendered (tabs, the invite link, the
+  // count): refresh it, or the page kept saying "Join this club to see photos".
+  const router = useRouter()
 
   async function join() {
     setLoading(true); setError('')
@@ -24,6 +28,7 @@ export default function ClubJoinWidget({ club, initialStatus, isHost = false }: 
     if (res.ok) {
       const data = await res.json()
       setStatus(data.status)
+      router.refresh()
       posthog.capture('club_joined', {
         club_id:    club.id,
         club_name:  club.name,
@@ -56,6 +61,7 @@ export default function ClubJoinWidget({ club, initialStatus, isHost = false }: 
         previous_status: status,
       })
       setStatus(null)
+      router.refresh()
     } else {
       const d = await res.json().catch(() => ({}))
       setError(d.error ?? 'Could not leave')

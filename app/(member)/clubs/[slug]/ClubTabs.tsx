@@ -27,6 +27,7 @@ interface Props {
   canAnnounce: boolean
   canUpload: boolean
   isMember: boolean
+  clubId: string
   // Private clubs keep their roster for members and staff; the tab goes too.
   isPrivate?: boolean
   memberAttendeesByEvent: Record<string, MemberAttendee[]>
@@ -72,7 +73,7 @@ const TAB_KEYS: readonly Tab[] = ['events', 'wall', 'photos', 'past', 'reviews',
 
 export default function ClubTabs({
   slug, clubEvents, canPost, currentUserId, isAdmin, canPin,
-  canAnnounce, canUpload, isMember, isPrivate = false, memberAttendeesByEvent,
+  canAnnounce, canUpload, isMember, clubId, isPrivate = false, memberAttendeesByEvent,
   cityTimeZones = {}, memberCount, reviewCount, reviewAvg,
 }: Props) {
   // Tab state lives in ?tab= rather than useState: the phone's Back
@@ -150,7 +151,7 @@ export default function ClubTabs({
           </div>
         )}
         {/* §17 — spontaneous plans shared with this club. */}
-        <ClubHangouts slug={slug} isMember={isMember} />
+        <ClubHangouts slug={slug} clubId={clubId} isMember={isMember} />
       </div>
       ) : tab === 'wall' ? (
         <div className="space-y-10">
@@ -162,7 +163,7 @@ export default function ClubTabs({
               slug={slug}
               canAnnounce={canAnnounce}
               currentUserId={currentUserId}
-              isAdmin={isAdmin}
+              isAdmin={isAdmin || canAnnounce}
             />
           </section>
 

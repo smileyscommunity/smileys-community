@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { todayInTz, DEFAULT_TZ, formatDay } from '@/lib/cityTime'
 import { todayInCity } from '@/lib/city'
 import { classifyClubs } from '@/lib/clubHealth'
+import { canActInCity } from '@/lib/access'
 import { CLUB_FILTER_GROUPS, HEALTH_RANK } from '@/lib/clubDiscovery'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -79,7 +80,9 @@ async function relatedClubsFor(club: { id: string; category: string; cityId?: st
       // cities (an Izmir clone of this club isn't a suggestion, it's
       // noise). cityId is always set on DB rows; the fallback only
       // covers the Club interface's legacy-fixture optionality.
-      ...(club.cityId ? { cityId: club.cityId } : {}),
+      // A global club (cityId null) relates to other global clubs — without
+      // this it listed the same template club from every city.
+      cityId: club.cityId ?? null,
       id: { not: club.id },
       category: { in: group ? group.categories : [club.category] },
     },
@@ -104,6 +107,10 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
 
   const clubEvents = await getEventsByClub(club.id)
 
+  // getEventsByClub keeps cancelled rows for the tab's banner; "next event" and the counts are the live ones.
+
+  const upcomingEvents = clubEvents.filter(e => e.status !== 'cancelled')
+
   // The club's city day — UTC put "Last event" and the next-event label on
   // the server's clock.
   const today = club.cityId ? await todayInCity(club.cityId) : todayInTz(DEFAULT_TZ)
@@ -119,7 +126,7 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
     // count + avg in the tab badge match what the Reviews tab shows
     // once opened.
     prisma.review.aggregate({
-      where: { event: { clubId: club.id } },
+      where: { event: { clubId: club.id }, user: { status: 'approved' } },
       _count: { _all: true },
       _avg:   { rating: true },
     }),
@@ -169,7 +176,10 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
     isClubHost = m?.role === 'host' && m?.status === 'approved'
   }
 
-  const isPrivileged = session?.role === 'admin' || session?.role === 'moderator'
+  // Staff of THIS city (lib/access canActInCity): a moderator browsing from
+  // another city was rendered the hosts' bios and the invite link that the
+  // roster route would refuse them.
+  const isPrivileged = !!session && (session.role === 'admin' || canActInCity(session, club.cityId ?? null))
   const canSeeMemberContent = membershipStatus === 'approved' || isPrivileged
   const canPost = membershipStatus === 'approved' || isPrivileged
   const canPin  = isClubHost || isPrivileged
@@ -285,13 +295,13 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
-                    {club.memberCount} members
+                    {club.memberCount} member{club.memberCount === 1 ? '' : 's'}
                   </span>
                   <span className="flex items-center gap-1.5">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
-                    {clubEvents.length} upcoming events
+                    {upcomingEvents.length} upcoming event{upcomingEvents.length === 1 ? '' : 's'}
                   </span>
                 </div>
               </div>
@@ -362,7 +372,7 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
                 in lib/db.ts). Silently absent when the club has no
                 upcoming events. */}
             {(() => {
-              const next = clubEvents[0] as { id: string; title: string; date: string; time: string; location: string; neighborhood: string; price: number; currency?: string } | undefined
+              const next = upcomingEvents[0] as { id: string; title: string; date: string; time: string; location: string; neighborhood: string; price: number; currency?: string } | undefined
               if (!next) return null
               // Calendar arithmetic on the two day strings — no process zone involved.
               const dayDelta = Math.round((Date.parse(next.date + 'T00:00:00Z') - Date.parse(today + 'T00:00:00Z')) / 86_400_000)
@@ -474,7 +484,8 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
               canPin={canPin}
               canAnnounce={canAnnounce}
               canUpload={canUpload}
-              isMember={membershipStatus === 'approved'}
+              isMember={membershipStatus === 'approved' || isPrivileged}
+              clubId={club.id}
               isPrivate={club.isPrivate ?? false}
               memberAttendeesByEvent={memberAttendeesByEvent}
               cityTimeZones={cityTimeZones}
@@ -484,13 +495,16 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
             />
           </div>
 
-          {/* Sidebar */}
+          {/* Sidebar — the join widget here is the desktop one; below lg the
+              hero's own widget stands, and a second live one 409'd after it. */}
           <div className="space-y-6">
+            <div className="hidden lg:block">
             <ClubJoinWidget
               club={{ id: club.id, name: club.name, slug: club.slug, isPrivate: club.isPrivate ?? false }}
               initialStatus={membershipStatus}
               isHost={isClubHost}
               />
+            </div>
 
             <SocialShare
               title={club.name}
@@ -576,7 +590,7 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
                 </div>
                 <div className="flex justify-between">
                   <dt className="text-gray-600">Events</dt>
-                  <dd className="font-medium text-gray-900">{totalEventCount} total · {clubEvents.length} upcoming</dd>
+                  <dd className="font-medium text-gray-900">{totalEventCount} total · {upcomingEvents.length} upcoming</dd>
                 </div>
                 {lastEvent && (
                   <div className="flex justify-between">

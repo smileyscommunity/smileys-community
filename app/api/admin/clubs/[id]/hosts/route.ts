@@ -31,17 +31,29 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (!session || !canManageClubs(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { id: clubId } = await params
-  const { userId, role } = await req.json()
-  if (!userId || !role) return NextResponse.json({ error: 'userId and role required' }, { status: 400 })
+  const { userId, role } = await req.json().catch(() => ({}))
+  if (typeof userId !== 'string' || !userId || (role !== 'member' && role !== 'host')) {
+    return NextResponse.json({ error: 'userId and a role of member or host are required' }, { status: 400 })
+  }
+  const [user, club] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId }, select: { id: true } }),
+    prisma.club.findUnique({ where: { id: clubId }, select: { name: true, slug: true } }),
+  ])
+  if (!user || !club) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const [membership, club] = await Promise.all([
-    prisma.clubMembership.upsert({
+  // The memberships route's invariant: an approved row and memberCount move
+  // together. This upsert created approved rows on every event save with a
+  // club and host, and the count drifted by one each time.
+  const membership = await prisma.$transaction(async tx => {
+    const prior = await tx.clubMembership.findUnique({ where: { userId_clubId: { userId, clubId } }, select: { status: true } })
+    const row = await tx.clubMembership.upsert({
       where: { userId_clubId: { userId, clubId } },
       create: { userId, clubId, role, status: 'approved' },
       update: { role, status: 'approved' },
-    }),
-    prisma.club.findUnique({ where: { id: clubId }, select: { name: true, slug: true } }),
-  ])
+    })
+    if (prior?.status !== 'approved') await tx.club.update({ where: { id: clubId }, data: { memberCount: { increment: 1 } } })
+    return row
+  })
 
   if (role === 'host' && club) {
     createNotification(

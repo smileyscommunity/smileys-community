@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { authorProjector } from '@/lib/authorProjection'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator, canActInCity } from '@/lib/access'
 import { rateLimit } from '@/lib/rateLimit'
@@ -43,11 +44,12 @@ export async function GET(req: NextRequest, { params }: Params) {
   const { slug } = await params
   const type = req.nextUrl.searchParams.get('type') ?? 'post'
 
-  const club = await prisma.club.findUnique({ where: { slug }, select: { id: true, isPrivate: true } })
+  const club = await prisma.club.findUnique({ where: { slug }, select: { id: true, isPrivate: true, cityId: true } })
   if (!club) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  // Private clubs: only members, hosts, admins, or moderators can read the wall
-  if (club.isPrivate && !isAdminOrModerator(session)) {
+  // Private clubs: only members, hosts and the CITY's staff can read the wall
+  // (the roster's rule — a moderator of another city read it too).
+  if (club.isPrivate && !canActInCity(session, club.cityId)) {
     const membership = await prisma.clubMembership.findUnique({
       where: { userId_clubId: { userId: session.id, clubId: club.id } },
       select: { status: true },
@@ -62,11 +64,11 @@ export async function GET(req: NextRequest, { params }: Params) {
     orderBy: [{ isPinned: 'desc' }, { createdAt: 'desc' }],
     take: 50,
     include: {
-      user:    { select: { id: true, name: true, color: true, profilePhoto: true, role: true } },
+      user:    { select: { id: true, name: true, color: true, profilePhoto: true, role: true, profileVisibility: true, hiddenFromMembers: true, status: true } },
       likes:   { select: { userId: true, emoji: true } },
       replies: {
         orderBy: { createdAt: 'asc' },
-        include: { user: { select: { id: true, name: true, color: true, profilePhoto: true, role: true } } },
+        include: { user: { select: { id: true, name: true, color: true, profilePhoto: true, role: true, profileVisibility: true, hiddenFromMembers: true, status: true } } },
       },
       poll: {
         include: {
@@ -87,8 +89,12 @@ export async function GET(req: NextRequest, { params }: Params) {
   })
   const clubRoleMap = new Map(memberships.map(m => [m.userId, m.role]))
 
-  function buildAuthor(u: { id: string; name: string; color: string; profilePhoto: string | null; role: string }) {
-    return { id: u.id, name: u.name, color: u.color, photo: u.profilePhoto, role: u.role, clubRole: clubRoleMap.get(u.id) ?? null }
+  // A connections-only author keeps their full name and photo to their
+  // connections here as on the roster and in reviews (lib/authorProjection).
+  const show = await authorProjector(session, [...posts.map(p => p.user), ...posts.flatMap(p => p.replies.map(r => r.user))])
+  function buildAuthor(u: { id: string; name: string; color: string; profilePhoto: string | null; role: string; profileVisibility: string | null; hiddenFromMembers: boolean; status: string }) {
+    const shown = show(u)
+    return { id: shown.id, name: shown.name, color: shown.color, photo: shown.profilePhoto, role: u.role, clubRole: clubRoleMap.get(u.id) ?? null }
   }
 
   return NextResponse.json(posts.map(p => ({
@@ -112,7 +118,9 @@ async function notifyAllMembers(
   type: string, title: string, body: string, link: string,
 ) {
   const members = await prisma.clubMembership.findMany({
-    where: { clubId, status: 'approved', userId: { not: excludeUserId } },
+    // Approved members with a live account: a banned member's row is kept,
+    // and got a notification for every post.
+    where: { clubId, status: 'approved', userId: { not: excludeUserId }, user: { status: 'approved' } },
     select: { userId: true },
   })
   if (!members.length) return
@@ -191,6 +199,9 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   // An inactive club's host announces nothing (lib/access isClubHost).
+  // Nothing new on a wound-down club — plain posts too, not only announcements
+  // (which the host check below already refuses there).
+  if (club.isActive === false && type !== 'announcement') return NextResponse.json({ error: 'This club is no longer active' }, { status: 409 })
   const isHost = membership?.role === 'host' && club.isActive
   if (type === 'announcement' && !isHost && !isPrivileged) {
     return NextResponse.json({ error: 'Only hosts, admins, or moderators can post announcements' }, { status: 403 })
@@ -264,7 +275,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     club.id, session.id, 'wallPosts', 'club_wall_post',
     `${session.name} posted in ${club.name}`,
     trimmed.slice(0, 120) + (trimmed.length > 120 ? '…' : ''),
-    `/clubs/${slug}`,
+    `/clubs/${slug}?tab=wall`,
   ).catch(err => console.error('[clubs posts] notifyAllMembers failed', { clubId: club.id, userId: session.id, err: String(err) }))
 
   if (trimmed) {
@@ -273,7 +284,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       club.id,
       session.id,
       `${session.name} mentioned you in ${club.name}`,
-      `/clubs/${slug}`,
+      `/clubs/${slug}?tab=wall`,
     ).catch(err => console.error('[clubs posts] notifyMentions failed', { clubId: club.id, userId: session.id, err: String(err) }))
   }
 

@@ -219,6 +219,8 @@ function AppClubsPageInner() {
   const [tab,            setTab]            = useState<Tab>(() =>
     searchParams.get('tab') === 'mine' ? 'mine' : 'explore'
   )
+  // The chip's words, not the internal value ("No food clubs yet").
+  const categoryLabel = (v: string) => groups.find(g => g.value === v)?.label ?? v
   const [activeCategory, setActiveCategory] = useState<string>(() => searchParams.get('category') ?? 'All')
   const [search,         setSearch]         = useState('')
   // CMS overrides land in this state on mount via /api/content. The
@@ -297,7 +299,9 @@ function AppClubsPageInner() {
         // Join / request
         const res = await fetch(`/app/api/clubs/${club.slug}/membership`, { method: 'POST', credentials: 'include' })
         if (!res.ok) {
-          toast.error(club.isPrivate ? 'Could not request to join' : `Could not join ${club.name}`)
+          // The server's reason ("join the city first") beats a shrug.
+          const d = await res.json().catch(() => null)
+          toast.error(typeof d?.error === 'string' ? d.error : (club.isPrivate ? 'Could not request to join' : `Could not join ${club.name}`))
           return
         }
         const data = await res.json()
@@ -600,7 +604,7 @@ function AppClubsPageInner() {
             <p className="text-sm text-gray-600 mb-6">
               {tab === 'mine'
                 ? 'Join clubs to meet people who share your interests.'
-                : activeCategory !== 'All' ? `No ${activeCategory} clubs yet.` : 'Check back soon.'}
+                : activeCategory !== 'All' ? `No ${categoryLabel(activeCategory)} clubs yet.` : 'Check back soon.'}
             </p>
             <div className="flex flex-col gap-2 items-center">
               {tab === 'mine' && (
@@ -623,7 +627,7 @@ function AppClubsPageInner() {
               <p className="text-sm text-gray-600 mb-5">
                 <strong className="text-gray-900 font-bold">{displayClubs.length}</strong>{' '}
                 club{displayClubs.length !== 1 ? 's' : ''}
-                {activeCategory !== 'All' && ` in ${activeCategory}`}
+                {activeCategory !== 'All' && ` in ${categoryLabel(activeCategory)}`}
               </p>
             )}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">

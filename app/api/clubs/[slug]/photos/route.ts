@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdmin } from '@/lib/access'
+import { isAdmin, canActInCity } from '@/lib/access'
+import { authorProjector } from '@/lib/authorProjection'
 import { rateLimit } from '@/lib/rateLimit'
 
 type Params = { params: Promise<{ slug: string }> }
@@ -13,24 +14,36 @@ export async function GET(_: NextRequest, { params }: Params) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { slug } = await params
-  const club = await prisma.club.findUnique({ where: { slug }, select: { id: true } })
+  const club = await prisma.club.findUnique({ where: { slug }, select: { id: true, cityId: true } })
   if (!club) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  // The gallery is for the club's approved members and the city's staff —
+  // the page hides it from everyone else, and this route didn't.
+  if (!canActInCity(session, club.cityId)) {
+    const membership = await prisma.clubMembership.findUnique({
+      where: { userId_clubId: { userId: session.id, clubId: club.id } },
+      select: { status: true },
+    })
+    if (membership?.status !== 'approved') return NextResponse.json({ error: 'Members only' }, { status: 403 })
+  }
 
+  const AUTHOR = { select: { id: true, name: true, color: true, profilePhoto: true, profileVisibility: true, hiddenFromMembers: true, status: true } }
   const [clubPhotos, eventPhotos] = await Promise.all([
     prisma.clubPhoto.findMany({
       where: { clubId: club.id },
       orderBy: { createdAt: 'desc' },
-      include: { user: { select: { id: true, name: true, color: true, profilePhoto: true } } },
+      include: { user: AUTHOR },
     }),
     prisma.eventPhoto.findMany({
       where: { event: { clubId: club.id } },
       orderBy: { createdAt: 'desc' },
       include: {
-        user:  { select: { id: true, name: true, color: true, profilePhoto: true } },
+        user:  AUTHOR,
         event: { select: { title: true } },
       },
     }),
   ])
+  // Connections-only and hidden uploaders are shown the way the roster shows them.
+  const show = await authorProjector(session, [...clubPhotos.map(p => p.user), ...eventPhotos.map(p => p.user)])
 
   const merged = [
     ...clubPhotos.map(p => ({
@@ -39,7 +52,7 @@ export async function GET(_: NextRequest, { params }: Params) {
       caption:   p.caption,
       createdAt: p.createdAt,
       source:    'club' as const,
-      author:    { id: p.user.id, name: p.user.name, color: p.user.color, photo: p.user.profilePhoto },
+      author:    (() => { const u = show(p.user); return { id: u.id, name: u.name, color: u.color, photo: u.profilePhoto } })(),
     })),
     ...eventPhotos.map(p => ({
       id:        p.id,
@@ -65,8 +78,9 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   const { slug } = await params
-  const club = await prisma.club.findUnique({ where: { slug }, select: { id: true } })
+  const club = await prisma.club.findUnique({ where: { slug }, select: { id: true, isActive: true } })
   if (!club) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (club.isActive === false) return NextResponse.json({ error: 'This club is no longer active' }, { status: 409 })
 
   if (!isAdmin(session)) {
     const membership = await prisma.clubMembership.findUnique({

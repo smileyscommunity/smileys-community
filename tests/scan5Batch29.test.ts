@@ -198,7 +198,7 @@ describe('93c. club fetches surface failure', () => {
   })
   it('club hangouts and the spotlight picker say when they failed', () => {
     const hang = read('components/ClubHangouts.tsx')
-    expect(hang).toMatch(/if \(!id \|\| !hs\) \{ setFailed\(true\); return \}/)
+    expect(hang).toMatch(/if \(!hs\) \{ setFailed\(true\); return \}/)
     expect(hang).toMatch(/\{failed \? \(/)
     const spot = read('components/ClubSpotlight.tsx')
     expect(spot).toMatch(/\.catch\(\(\) => setError\("Couldn't load club members[^"]*"\)\)\s*\.finally\(\(\) => setLoadingMembers\(false\)\)/)

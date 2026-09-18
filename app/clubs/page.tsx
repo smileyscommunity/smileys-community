@@ -98,7 +98,8 @@ export default async function ClubsPage({ searchParams }: Props) {
   // public-surface gate; private clubs are still included since they're still
   // visible in the grid (just gated on Join → Request).
   const clubs = await prisma.club.findMany({
-    where: { isActive: true, cityId },
+    // Global clubs (cityId null) are on the grid too.
+    where: { isActive: true, OR: [{ cityId }, { cityId: null }] },
     orderBy: { name: 'asc' },
     select: { name: true, slug: true, description: true, coverImage: true },
   })

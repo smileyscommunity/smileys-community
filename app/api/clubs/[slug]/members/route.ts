@@ -4,7 +4,7 @@ import { getSession } from '@/lib/session'
 import { canActInCity } from '@/lib/access'
 import { restrictedSetFor } from '@/lib/memberPrivacy'
 import { createNotification } from '@/lib/notify'
-import { rateLimit } from '@/lib/rateLimit'
+import { rateLimit, claimOnce } from '@/lib/rateLimit'
 import { firstNameOf } from '@/lib/data'
 
 type Params = { params: Promise<{ slug: string }> }
@@ -66,9 +66,17 @@ export async function GET(req: NextRequest, { params }: Params) {
     })))
   }
 
+  // A blocked pair sees nothing of each other, on the roster as on /members.
+  const blockedIds = (await prisma.memberBlock.findMany({
+    where:  { OR: [{ blockerId: session.id }, { blockedId: session.id }] },
+    select: { blockerId: true, blockedId: true },
+  })).map(b => (b.blockerId === session.id ? b.blockedId : b.blockerId))
   const [memberships, connections] = await Promise.all([
     prisma.clubMembership.findMany({
-      where: { clubId: club.id, status: 'approved', user: { status: { not: 'banned' }, hiddenFromMembers: false } },
+      where: {
+        clubId: club.id, status: 'approved', user: { status: { not: 'banned' }, hiddenFromMembers: false },
+        ...(blockedIds.length ? { userId: { notIn: blockedIds } } : {}),
+      },
       orderBy: [{ role: 'desc' }, { joinedAt: 'asc' }],
       select: {
         role: true,
@@ -175,8 +183,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       where: { userId, clubId: club.id, status: 'pending' },
     })
     if (count === 0) return NextResponse.json({ error: 'No pending request found' }, { status: 404 })
+    // A week before the same person can ask again: a rejection re-requested
+    // at once pinged every host again, without end.
+    await claimOnce(`club-rejected:${userId}:${club.id}`, 7 * 24 * 60 * 60_000)
     await createNotification(
-      userId, 'club_approved', 'Club request update',
+      userId, 'club_rejected', 'Club request update',
       `Your request to join "${club.name}" was not approved this time.`, `/clubs`
     )
   }

@@ -63,7 +63,8 @@ export async function classifyClubs(
     }),
     prisma.event.groupBy({
       by: ['clubId'],
-      where: { clubId: { in: clubIds }, date: { gte: cutoffDay, lt: today }, ...inCity },
+      // Published only: a cancelled or draft event is not activity ("Do not fake activity").
+      where: { clubId: { in: clubIds }, status: { in: ['published', 'archived'] }, date: { gte: cutoffDay, lt: today }, ...inCity },
       _count: { _all: true },
     }),
     prisma.boardPost.groupBy({
@@ -73,7 +74,7 @@ export async function classifyClubs(
     }),
     prisma.hangout.groupBy({
       by: ['clubId'],
-      where: { clubId: { in: clubIds }, createdAt: { gte: cutoff }, ...inCity },
+      where: { clubId: { in: clubIds }, status: { not: 'cancelled' }, createdAt: { gte: cutoff }, ...inCity },
       _count: { _all: true },
     }),
   ])

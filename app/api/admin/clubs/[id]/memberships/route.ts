@@ -1,6 +1,7 @@
 import { canManageClubs } from '@/lib/access'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { claimOnce } from '@/lib/rateLimit'
 import { getSession } from '@/lib/session'
 import { createNotification } from '@/lib/notify'
 import { writeAudit } from '@/lib/audit'
@@ -156,6 +157,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const ops: Promise<unknown>[] = []
     if (isReject) {
       ops.push(prisma.clubMembership.delete({ where: { userId_clubId: { userId, clubId: id } } }))
+      // A week before the same person can ask again (see the host route).
+      ops.push(claimOnce(`club-rejected:${userId}:${id}`, 7 * 24 * 60 * 60_000))
     } else {
       const data: Record<string, string> = {}
       if (status) data.status = status

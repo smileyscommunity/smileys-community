@@ -1,6 +1,7 @@
 import { canManageClubs, isAdminOrModerator, isAdmin, canActInCity } from '@/lib/access'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { isUploadedImageUrl } from '@/lib/uploadedImageUrl'
 import { getSession } from '@/lib/session'
 import { requireStepUp } from '@/lib/stepUp'
 import { writeAudit, getDiff } from '@/lib/audit'
@@ -190,6 +191,18 @@ export async function PUT(req: NextRequest, { params }: Params) {
     //   • A hex code (#rgb or #rrggbb) for the inline-style path
     // Anything else is rejected loudly so the admin can correct
     // before the DB receives a value that won't render.
+    // Links render as <a href> for every member: https only. The cover is
+    // one of our uploads, as the photo routes require.
+    for (const key of ['whatsappUrl', 'instagramUrl'] as const) {
+      if (allowed[key] !== undefined && allowed[key] !== null && allowed[key] !== '') {
+        if (typeof allowed[key] !== 'string' || !/^https:\/\/[^\s]+$/i.test(allowed[key] as string) || (allowed[key] as string).length > 500) {
+          return NextResponse.json({ error: `${key} must be an https:// link` }, { status: 400 })
+        }
+      }
+    }
+    if (allowed.coverImage !== undefined && allowed.coverImage !== null && allowed.coverImage !== '' && (typeof allowed.coverImage !== 'string' || !isUploadedImageUrl(allowed.coverImage))) {
+      return NextResponse.json({ error: 'coverImage must be an uploaded image' }, { status: 400 })
+    }
     if (typeof allowed.color === 'string' && !isValidColorString(allowed.color, 'text')) {
       return NextResponse.json({ error: 'color must be like text-amber-600 or a #hex code' }, { status: 400 })
     }

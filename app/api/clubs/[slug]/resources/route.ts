@@ -46,8 +46,9 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   const { slug } = await params
-  const club = await prisma.club.findUnique({ where: { slug }, select: { id: true, cityId: true } })
+  const club = await prisma.club.findUnique({ where: { slug }, select: { id: true, cityId: true, isActive: true } })
   if (!club) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (club.isActive === false) return NextResponse.json({ error: 'This club is no longer active' }, { status: 409 })
 
   // Staff override is city-scoped like the rules/description/members PATCH
   // siblings — a moderator from another city is not staff for this club.

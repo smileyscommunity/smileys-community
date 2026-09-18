@@ -119,9 +119,13 @@ export async function GET(req: NextRequest) {
   // matching /api/clubs/[slug].
   // Guests get the faces as coloured initials: that a club has people in it
   // is public, who they are is for members.
-  return NextResponse.json(session ? clubs : clubs.map(c => ({
+  // Nothing member-only leaves the list, for anyone: the grid never reads
+  // the WhatsApp link, the spotlight, the rules or the membership rows, and
+  // one call handed a signed-in member every private club's invite link.
+  const MEMBER_ONLY = ['whatsappUrl', 'memberships', '_count', 'spotlightUserId', 'spotlightNote', 'spotlightUpdatedAt', 'rules', 'templateKey']
+  const strip = (c: Record<string, unknown>) => { const o = { ...c }; for (const k of MEMBER_ONLY) delete o[k]; return o }
+  return NextResponse.json(clubs.map(c => strip(session ? c : {
     ...c,
-    whatsappUrl: null,
     faces: c.faces.map(f => ({ name: f.name.trim().charAt(0), color: f.color, profilePhoto: null })),
   })))
 }

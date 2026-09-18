@@ -23,6 +23,10 @@ export async function autoJoinClub(userId: string, eventId: string): Promise<voi
     select: { isPrivate: true, name: true, slug: true, isActive: true, cityId: true },
   })
   if (!club || !club.isActive) return
+  // A private club needs the member's own ask: filing a request in their
+  // name from an RSVP put "Pending" on a club they never touched and pinged
+  // its hosts about it.
+  if (club.isPrivate) return
   // Same rule as joining from the club page: a city club is for members of
   // that city (home, or joined). A visitor RSVPing to an event abroad keeps
   // their seat but isn't signed up to that city's club behind their back.

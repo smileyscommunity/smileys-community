@@ -216,7 +216,8 @@ export default function ClubManagementTabs({
 
       {tab === 'members' && (
         <div className="space-y-8">
-          {isPrivate && <MemberRequests slug={slug} />}
+          {/* Pending rows exist whether or not the club is private today (it may have been). */}
+          <MemberRequests slug={slug} />
           <MemberList slug={slug} />
         </div>
       )}

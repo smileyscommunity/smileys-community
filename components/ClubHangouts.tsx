@@ -15,7 +15,7 @@ interface ClubHangout {
 // Spontaneous plans shared with this club (Clubs brief §17) — canonical
 // Hangout records filtered by clubId. Empty state invites members to
 // start one instead of showing a bare "no hangouts".
-export default function ClubHangouts({ slug, isMember }: { slug: string; isMember: boolean }) {
+export default function ClubHangouts({ slug, clubId: clubIdProp, isMember }: { clubId: string; slug: string; isMember: boolean }) {
   // Times belong to the city the content is in, not the reader's device.
   const tz = useCurrentCity()?.timezone ?? DEFAULT_TZ
   const [clubId,   setClubId]   = useState<string | null>(null)
@@ -25,17 +25,16 @@ export default function ClubHangouts({ slug, isMember }: { slug: string; isMembe
 
   // Either fetch failing used to land on "Nothing spontaneous right now." —
   // a failed load isn't an empty one. null marks the failure.
+  // The parent knows the club id: re-fetching the whole club payload (every
+  // event, host enrichment) to learn it cost each page view the events query twice.
   useEffect(() => {
-    Promise.all([
-      fetch(`/app/api/clubs/${slug}`, { credentials: 'include' }).then(r => r.ok ? r.json() : null).catch(() => null),
-      fetch('/app/api/hangouts', { credentials: 'include' }).then(r => r.ok ? r.json() : null).catch(() => null),
-    ]).then(([club, hs]) => {
-      const id = club?.id ?? club?.club?.id ?? null
-      setClubId(id)
-      if (!id || !hs) { setFailed(true); return }
-      setHangouts(((hs.hangouts ?? []) as ClubHangout[]).filter(h => h.clubId === id).slice(0, 3))
-    }).finally(() => setLoaded(true))
-  }, [slug])
+    setClubId(clubIdProp)
+    fetch('/app/api/hangouts', { credentials: 'include' }).then(r => r.ok ? r.json() : null).catch(() => null)
+      .then(hs => {
+        if (!hs) { setFailed(true); return }
+        setHangouts(((hs.hangouts ?? []) as ClubHangout[]).filter(h => h.clubId === clubIdProp).slice(0, 3))
+      }).finally(() => setLoaded(true))
+  }, [slug, clubIdProp])
 
   if (!loaded) return null
 

@@ -41,6 +41,12 @@ export async function POST(_: NextRequest, { params }: Params) {
     }
 
     const status = club.isPrivate ? 'pending' : 'approved'
+    if (club.isPrivate) {
+      const cooling = await prisma.rateLimit.findUnique({ where: { key: `club-rejected:${session.id}:${club.id}` }, select: { resetAt: true } })
+      if (cooling && cooling.resetAt > new Date()) {
+        return NextResponse.json({ error: "Your last request wasn't approved — you can ask again in a week." }, { status: 429 })
+      }
+    }
 
     // Membership write + counter in one transaction (the admin memberships
     // route's rule) — a crash between them left memberCount drifted with
@@ -64,7 +70,7 @@ export async function POST(_: NextRequest, { params }: Params) {
         select: { userId: true },
       })
       await Promise.all(hosts.map(h =>
-        createNotification(h.userId, 'club_approved', 'New join request',
+        createNotification(h.userId, 'club_request', 'New join request',
           `${requester?.name ?? 'A member'} wants to join "${club.name}"`, `/host/clubs/${club.slug}`)
       ))
     }

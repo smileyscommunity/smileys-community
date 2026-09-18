@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { authorProjector } from '@/lib/authorProjection'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
 import { todayInCity, resolveCityId } from '@/lib/city'
@@ -40,11 +41,13 @@ export async function GET() {
     }),
     prisma.clubPost.findMany({
       where: { clubId: { in: clubIds }, createdAt: { gte: cutoff }, type: { in: ['post', 'announcement'] } },
-      include: { user: { select: { id: true, name: true, color: true, profilePhoto: true } } },
+      include: { user: { select: { id: true, name: true, color: true, profilePhoto: true, profileVisibility: true, hiddenFromMembers: true, status: true } } },
       orderBy: { createdAt: 'desc' },
       take: 20,
     }),
   ])
+
+  const showAuthor = await authorProjector(session, posts.map(p => p.user))
 
   const items = [
     ...events.map(e => ({
@@ -64,7 +67,7 @@ export async function GET() {
       createdAt: p.createdAt.toISOString(),
       sortDate: p.createdAt.toISOString().split('T')[0],
       content: p.content, isPinned: p.isPinned,
-      author: { id: p.user.id, name: p.user.name, color: p.user.color, photo: p.user.profilePhoto },
+      author: (() => { const u = showAuthor(p.user); return { id: u.id, name: u.name, color: u.color, photo: u.profilePhoto } })(),
     })),
   ].sort((a, b) => {
     // Events by event date asc, posts by createdAt desc — interleave with posts first
