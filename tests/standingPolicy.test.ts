@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import {
   eventTier, cancelCutoffHours, lateCancelLine, classifyRow, refilledLateCancels, offenceCounts,
-  decideIssuance, isSuccessfulCommitment, countedCommitments, recoveryOutcome, cardLapsed,
+  decideIssuance, isSuccessfulCommitment, countedCommitments, recoveryOutcome,
   standingLevel, needsHostApproval, orderWaitlist, canDispute, disputeHolds,
   attendanceReviewDay, attendanceReviewOpensAt, attendanceSettlesAt, checkInRan, unmarkedGuests, seatTakenLate, lateReplayAllowed,
-  CANCEL_CUTOFF_HOURS, NEW_CITY_GRACE_DAYS, STANDING_WINDOW_DAYS, CARD_LAPSE_DAYS, DISPUTE_WINDOW_DAYS,
+  CANCEL_CUTOFF_HOURS, NEW_CITY_GRACE_DAYS, STANDING_WINDOW_DAYS, DISPUTE_WINDOW_DAYS,
   type StandingRow, type LedgerOffence,
 } from '@/lib/standingPolicy'
 
@@ -164,13 +164,15 @@ describe('recovery', () => {
     expect(isSuccessfulCommitment({ status: 'cancelled', checkedIn: true, attendance: 'attended' }, after, ends, card, NOW)).toBe(false)
   })
 
-  it('yellow clears at two, at most one of them a contribution', () => {
+  it('yellow clears at two check-ins, and only check-ins', () => {
     const active = { level: 'yellow', status: 'active' }
     expect(recoveryOutcome(active, { attendance: 1, contributions: 0 })).toBeNull()
     expect(recoveryOutcome(active, { attendance: 2, contributions: 0 })).toBe('cleared')
-    expect(recoveryOutcome(active, { attendance: 1, contributions: 1 })).toBe('cleared')
-    expect(recoveryOutcome(active, { attendance: 0, contributions: 2 })).toBeNull()
-    expect(countedCommitments('yellow', { attendance: 0, contributions: 2 })).toBe(1)
+    // Hosting and volunteering are still tallied and still shown on the card,
+    // but they no longer buy one off: the card is about turning up.
+    expect(recoveryOutcome(active, { attendance: 1, contributions: 1 })).toBeNull()
+    expect(recoveryOutcome(active, { attendance: 0, contributions: 5 })).toBeNull()
+    expect(countedCommitments('yellow', { attendance: 0, contributions: 5 })).toBe(0)
   })
 
   it('red is up for review after three attendances; contributions do not substitute', () => {
@@ -180,12 +182,10 @@ describe('recovery', () => {
     expect(recoveryOutcome({ level: 'red', status: 'review' }, { attendance: 9, contributions: 0 })).toBeNull()
   })
 
-  it('a card lapses after the quiet period, measured from the latest activity', () => {
-    const issuedAt = new Date('2026-01-01T00:00:00Z')
-    const late = new Date(issuedAt.getTime() + (CARD_LAPSE_DAYS + 1) * D)
-    expect(cardLapsed({ issuedAt }, null, late)).toBe(true)
-    expect(cardLapsed({ issuedAt }, new Date(late.getTime() - 10 * D), late)).toBe(false)
-  })
+  // Cards no longer lapse: sitting still used to clear one, so a member who
+  // stopped coming was pardoned by the calendar while one who kept turning up
+  // had to earn it. Turning up is the only way out now.
+
 })
 
 describe('disputeHolds', () => {

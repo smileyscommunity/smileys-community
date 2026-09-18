@@ -13,7 +13,7 @@ import {
   STANDING_SWEEP_LOOKBACK_DAYS, DISPUTE_WINDOW_DAYS, STANDING_WINDOW_DAYS, STANDING_STARTS_AT, STANDING_ENFORCE_SETTING,
   RECOVERY_REQUIRES_CHECKIN, LIVE_CARD_STATUSES, OffenceKind, OffenceStatus, CardLevel, StandingCardStatus,
   eventTier, classifyRow, refilledLateCancels, offenceCounts, decideIssuance, isSuccessfulCommitment,
-  recoveryOutcome, cardLapsed, disputeHolds, standingLevel, countedCommitments, commitmentsNeeded, canDispute, windowStart,
+  recoveryOutcome, disputeHolds, standingLevel, countedCommitments, commitmentsNeeded, canDispute, windowStart,
   attendanceReviewOpensAt, attendanceSettlesAt, checkInRan, unmarkedGuests, doorKey, CHECK_IN_RAN_RATIO,
   type LedgerOffence,
 } from '@/lib/standingPolicy'
@@ -442,13 +442,10 @@ export async function evaluateMember(userId: string, now: Date): Promise<Evaluat
       }
     }
 
-    if (live && live.status === StandingCardStatus.Active) {
-      const lastOffence = ledger.filter(o => o.counts).reduce<Date | null>((m, o) => !m || o.occurredAt > m ? o.occurredAt : m, null)
-      if (cardLapsed(live, lastOffence, now)) {
-        await tx.standingCard.update({ where: { id: live.id }, data: { status: StandingCardStatus.Lapsed, resolvedAt: now, resolutionNote: 'No new missed commitment' } })
-        result.lapsed.push(live.id)
-      }
-    }
+    // A card no longer expires by sitting still. Lapsing meant a member who
+    // simply stopped coming was cleared by the calendar, while one who kept
+    // turning up had to earn it — the wrong way round, and a rule nobody
+    // could recite. A card is cleared by showing up, or retired by an admin.
   })
   return result
 }

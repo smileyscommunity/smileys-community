@@ -450,25 +450,17 @@ describe('evaluateMember', () => {
     expect(r.cleared).toEqual([])
   })
 
-  it('a card lapses 90 days after its last counting offence, however many unchecked events they came to', async () => {
+  it('an old card does not clear itself by sitting still: only turning up clears it', async () => {
+    // 100 days since it was issued, 95 since the last offence. The old rule
+    // retired it here — the calendar pardoning a member who simply stopped
+    // coming, while one who kept turning up had to earn it back.
     const card = { id: 'y1', level: 'yellow', status: 'active', triggeredAt: new Date(NOW.getTime() - 101 * D), issuedAt: new Date(NOW.getTime() - 100 * D), shadow: false }
     p.standingCard.findMany.mockResolvedValue([card])
     p.standingOffence.findMany.mockResolvedValue([{ id: 'o1', occurredAt: new Date(NOW.getTime() - 95 * D), counts: true, status: 'open', cardId: 'y1', disputedAt: null }])
-    // Coming to events nobody checked in is no RSVP activity the old rule saw
-    // either way; it must not matter.
     p.eventAttendee.findFirst.mockResolvedValue({ joinedAt: new Date(NOW.getTime() - 2 * D) })
     const r = (switchedOn(), await evaluateMember('m1', NOW))
-    expect(r.lapsed).toEqual(['y1'])
-    expect(p.standingCard.update).toHaveBeenCalledWith({ where: { id: 'y1' }, data: expect.objectContaining({ status: 'lapsed' }) })
-  })
-
-  it('a newer counting offence keeps the card from lapsing', async () => {
-    p.standingCard.findMany.mockResolvedValue([
-      { id: 'y1', level: 'yellow', status: 'active', triggeredAt: new Date(NOW.getTime() - 101 * D), issuedAt: new Date(NOW.getTime() - 100 * D), shadow: false },
-    ])
-    p.standingOffence.findMany.mockResolvedValue([{ id: 'o2', occurredAt: new Date(NOW.getTime() - 10 * D), counts: true, status: 'open', cardId: 'y1', disputedAt: null }])
-    const r = (switchedOn(), await evaluateMember('m1', NOW))
     expect(r.lapsed).toEqual([])
+    expect(p.standingCard.update).not.toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'lapsed' }) }))
   })
 
   it('a dispute holds a new card for a week, then the ledger stands', async () => {

@@ -32,9 +32,10 @@ export const STANDING_WINDOW_DAYS          = 90
 export const YELLOW_AFTER_OFFENCES         = 2
 export const YELLOW_CLEARS_AT_COMMITMENTS  = 2
 export const RED_REVIEW_AT_ATTENDANCES     = 3
-// At most one of a yellow card's commitments may be hosting or volunteering.
-export const MAX_CONTRIBUTIONS_PER_YELLOW  = 1
-export const CARD_LAPSE_DAYS               = 90
+// Commitments are check-ins and nothing else. Hosting or volunteering used to
+// count for one of a yellow's two, which meant the rule could not be stated
+// without a footnote about which kinds of credit were worth how much.
+// Turning up is the thing the card is about; it is the only thing that clears it.
 export const NEW_CITY_GRACE_DAYS           = 90
 // The morning-after review (attendanceReviewOpensAt): the hour, on the city's
 // clock, the host is sent who wasn't checked in.
@@ -108,7 +109,7 @@ export const StandingCardStatus = {
   Review:    'review',      // red with its commitments done: waiting on an admin
   Cleared:   'cleared',     // yellow recovered
   Restored:  'restored',    // red restored by an admin
-  Lapsed:    'lapsed',      // CARD_LAPSE_DAYS without a new counting offence
+  Lapsed:    'lapsed',      // retired by hand, or by an enforcement switch-off
   Escalated: 'escalated',   // yellow that became a red
   Withdrawn: 'withdrawn',   // the offence under it was overturned
 } as const
@@ -435,10 +436,13 @@ export function isSuccessfulCommitment(
   return RECOVERY_REQUIRES_CHECKIN ? row.checkedIn : (row.checkedIn || row.attendance === Attendance.Attended)
 }
 
-/** Commitments that count, with contributions capped for a yellow. */
-export function countedCommitments(level: string, t: RecoveryTally): number {
-  if (level === CardLevel.Red) return t.attendance
-  return t.attendance + Math.min(t.contributions, MAX_CONTRIBUTIONS_PER_YELLOW)
+/**
+ * Commitments that count: check-ins, at either level. `contributions` is still
+ * tallied and still shown, so hosting and volunteering stay visible on the
+ * card — they just don't buy it off any more.
+ */
+export function countedCommitments(_level: string, t: RecoveryTally): number {
+  return t.attendance
 }
 
 export function commitmentsNeeded(level: string): number {
@@ -452,16 +456,6 @@ export function recoveryOutcome(card: { level: string; status: string }, t: Reco
   return card.level === CardLevel.Red ? 'review' : 'cleared'
 }
 
-/**
- * A card lapses CARD_LAPSE_DAYS after it was issued, or after the member's
- * latest counting offence if that is later. It used to wait for 90 days with no
- * RSVPs, and clearing needs scanned check-ins: a member who kept coming to
- * events nobody checked in (most small events) could neither clear nor lapse.
- */
-export function cardLapsed(card: { issuedAt: Date }, lastOffenceAt: Date | null, now: Date): boolean {
-  const since = Math.max(card.issuedAt.getTime(), lastOffenceAt?.getTime() ?? 0)
-  return now.getTime() - since > CARD_LAPSE_DAYS * DAY
-}
 
 // ── Effects ─────────────────────────────────────────────────────────────────
 
