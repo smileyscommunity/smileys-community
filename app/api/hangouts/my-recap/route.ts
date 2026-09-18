@@ -65,7 +65,8 @@ export async function GET() {
       myRefs,
       outstandingCount: outstanding.length,
     }
-  })
+  // Nobody else there: nothing to rate, nothing to list.
+  }).filter(h => h.participants.length > 0)
 
   return NextResponse.json({ hangouts: shaped })
 }

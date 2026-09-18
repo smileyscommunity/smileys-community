@@ -9,7 +9,10 @@ import { todayInTz } from '@/lib/cityTime'
 import { rateLimit } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
 import { HANGOUT_ACTIVITIES } from '@/lib/hangoutActivities'
+import { MAX_HANGOUT_LEAD_DAYS } from '@/lib/hangoutTime'
 import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
+import { restrictedSetFor } from '@/lib/memberPrivacy'
+import { canActInCity } from '@/lib/access'
 
 // Members-only — hangouts are real-time, contact-required, and we don't want
 // random scrapers seeing "someone alone at this cafe in 30 min."
@@ -45,6 +48,9 @@ export async function GET(req: NextRequest) {
       endsAt: { gte: now },
       ...(neighborhood ? { neighborhood } : {}),
       ...(blockedHostIds.length ? { userId: { notIn: blockedHostIds } } : {}),
+      // A banned, suspended or admin-hidden host's plan goes with them: they
+      // can't hear a join or a message, so members would be joining nobody.
+      user: { status: 'approved', hiddenFromMembers: false },
     },
     orderBy: { startsAt: 'asc' },
     take: 100,
@@ -53,7 +59,7 @@ export async function GET(req: NextRequest) {
       // host name on each card. languages drives the "Speaks my language"
       // filter — overlap with caller's languages is computed client-side
       // so we don't have to denormalize a derived field.
-      user:  { select: { id: true, name: true, color: true, profilePhoto: true, goodHangouts: true, languages: true, nationality: true } },
+      user:  { select: { id: true, name: true, color: true, profilePhoto: true, goodHangouts: true, languages: true, nationality: true, profileVisibility: true } },
       joins: {
         select: { userId: true, user: { select: { id: true, name: true, color: true, profilePhoto: true } } },
         orderBy: { createdAt: 'asc' },
@@ -111,8 +117,16 @@ export async function GET(req: NextRequest) {
     select: { userId: true },
   })).map(v => v.userId))
 
+  // A connections-only host keeps their flag to their connections, as the
+  // event page does (names and photos are the roster's rule, shown to all).
+  const restrictedHosts = await restrictedSetFor(session, hangouts.map(h => h.user))
+
   const shaped = hangouts.map(h => ({
     id:           h.id,
+    // Who may edit or cancel from the feed: the host, or staff of the
+    // hangout's own city (lib/access canActInCity) — the same rule the
+    // PATCH/DELETE routes enforce, so no button leads to a 403.
+    canManage:    h.userId === session.id || canActInCity(session, h.cityId),
     title:        h.title,
     description:  h.description,
     location:     h.location,
@@ -128,6 +142,8 @@ export async function GET(req: NextRequest) {
     hostIsVisitor: visitorHosts.has(h.userId),
     user:         {
       ...h.user,
+      profileVisibility: undefined,
+      nationality:       restrictedHosts.has(h.user.id) ? null : h.user.nationality,
       // Number of caller's friends who are also friends with this host.
       // Zero is normal for new members — only render the badge when > 0.
       mutualConnections: mutualsByHost[h.userId] ?? 0,
@@ -152,7 +168,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { title, description, location, neighborhood, startsAt, endsAt, meetMode, photo, activity, maxPeople } = body
 
-    if (!title?.trim() || !location?.trim() || !startsAt || !endsAt) {
+    if (typeof title !== 'string' || typeof location !== 'string' || !title.trim() || !location.trim() || !startsAt || !endsAt) {
       return NextResponse.json({ error: 'Title, location, and times are required' }, { status: 400 })
     }
     if (title.length > 120 || location.length > 200) {
@@ -176,6 +192,9 @@ export async function POST(req: NextRequest) {
     }
     if (endDate < new Date()) {
       return NextResponse.json({ error: 'End is in the past' }, { status: 400 })
+    }
+    if (startDate.getTime() > Date.now() + MAX_HANGOUT_LEAD_DAYS * 86_400_000) {
+      return NextResponse.json({ error: `Hangouts are for the next ${MAX_HANGOUT_LEAD_DAYS} days — for something further out, create an event` }, { status: 400 })
     }
 
     // The member's own city, not the one they're browsing: an Istanbul member
@@ -270,7 +289,7 @@ export async function POST(req: NextRequest) {
           // a shared name must not cross-ping another city's members.
           const [locals, pastJoiners] = await Promise.all([
             prisma.user.findMany({
-              where:  { neighborhood: safeNeighborhood, cityId: created.cityId, status: 'approved', id: { not: session.id } },
+              where:  { neighborhood: safeNeighborhood, cityId: created.cityId, status: 'approved', hiddenFromMembers: false, id: { not: session.id } },
               select: { id: true },
             }),
             prisma.hangoutJoin.findMany({

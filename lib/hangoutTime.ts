@@ -3,7 +3,11 @@
 // day/hour maths on the VIEWED city's wall clock, passed in by the caller
 // (useCurrentCity().timezone); the default city's zone is only the
 // fallback while that resolves.
-import { DEFAULT_TZ } from './cityTime'
+import { DEFAULT_TZ, shiftDay } from './cityTime'
+
+// A plan, not a calendar: spontaneous means within the fortnight (the API
+// refuses a start further out on create and edit).
+export const MAX_HANGOUT_LEAD_DAYS = 14
 
 export type TimeFilter = 'all' | 'now' | 'today' | 'tonight' | 'tomorrow' | 'week'
 
@@ -20,7 +24,8 @@ export function matchesTimeFilter(h: { startsAt: string; endsAt: string }, f: Ti
   const live = s <= now && e > now
   if (f === 'now') return live || (s > now && s.getTime() - now.getTime() <= 60 * 60_000)
   const startsToday    = cityDay(s, tz) === cityDay(now, tz)
-  const startsTomorrow = cityDay(s, tz) === cityDay(new Date(now.getTime() + 86_400_000), tz)
+  // On the calendar (shiftDay), not +24h: on a clock-change night +24h lands on the same day.
+  const startsTomorrow = cityDay(s, tz) === shiftDay(cityDay(now, tz), 1)
   if (f === 'today')    return live || startsToday
   if (f === 'tomorrow') return startsTomorrow
   if (f === 'week')     return live || (s > now && s.getTime() - now.getTime() <= 7 * 86_400_000)
@@ -39,7 +44,7 @@ export function statusBadge(startsAt: string, endsAt: string, now = new Date(), 
   if (mins <= 60) return { label: `Starting in ${mins}m`, cls: 'bg-yellow-100 text-yellow-800 border-yellow-200' }
   const startsToday = cityDay(s, tz) === cityDay(now, tz)
   if (startsToday && cityHour(s, tz) >= 17) return { label: 'Tonight', cls: 'bg-blue-100 text-blue-800 border-blue-200' }
-  if (cityDay(s, tz) === cityDay(new Date(now.getTime() + 86_400_000), tz))
+  if (cityDay(s, tz) === shiftDay(cityDay(now, tz), 1))
     return { label: 'Tomorrow', cls: 'bg-gray-100 text-gray-600 border-gray-200' }
   return null
 }

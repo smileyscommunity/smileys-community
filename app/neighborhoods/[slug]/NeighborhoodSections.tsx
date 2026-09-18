@@ -89,6 +89,13 @@ export default async function NeighborhoodSections({
 
   const now = new Date()
 
+  // A blocked pair sees nothing of each other, on every card below that names
+  // a member — the visits and the hangouts both read this list.
+  const blockedIds = myId
+    ? (await prisma.memberBlock.findMany({ where: { OR: [{ blockerId: myId }, { blockedId: myId }] }, select: { blockerId: true, blockedId: true } }))
+        .map(b => (b.blockerId === myId ? b.blockedId : b.blockerId))
+    : []
+
   const [
     upcomingRaw, localCandidates, hostCounts,
     totalLocals, allEventCounts, communityPhotos, wallPostCount,
@@ -172,10 +179,6 @@ export default async function NeighborhoodSections({
     // public web"); a banned or hidden author's card goes with them; a
     // blocked pair sees nothing of each other.
     (async () => {
-      const blockedIds = myId
-        ? (await prisma.memberBlock.findMany({ where: { OR: [{ blockerId: myId }, { blockedId: myId }] }, select: { blockerId: true, blockedId: true } }))
-            .map(b => (b.blockerId === myId ? b.blockedId : b.blockerId))
-        : []
       const rows = await prisma.visitorAnnouncement.findMany({
         where:   {
           neighborhood: name, cityId, status: 'active', endsOn: { gte: today },
@@ -201,7 +204,12 @@ export default async function NeighborhoodSections({
     // Member-only, like the pulses: the /hangouts feed gates on session and
     // this card names the host.
     myId ? prisma.hangout.findMany({
-      where:   { neighborhood: name, cityId, status: 'active', endsAt: { gte: now }, user: { status: 'approved' } },
+      // Blocked pairs see nothing of each other — the feed hides the card,
+      // this card handed out the permalink.
+      where:   {
+        neighborhood: name, cityId, status: 'active', endsAt: { gte: now }, user: { status: 'approved', hiddenFromMembers: false },
+        ...(blockedIds.length ? { userId: { notIn: blockedIds } } : {}),
+      },
       orderBy: { startsAt: 'asc' },
       take:    3,
       select:  {

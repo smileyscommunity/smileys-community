@@ -315,6 +315,9 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
       status: 'active',
       cityId,
       endsAt: { gte: new Date() },
+      // A blocked host's plan, or a banned one's, is not "while you're here".
+      ...(blockedIds.size ? { userId: { notIn: [...blockedIds] } } : {}),
+      user: { status: 'approved', hiddenFromMembers: false },
       // Inside the visit, both ends: tonight's hangout is not "while you're
       // here" for someone arriving next month.
       ...(viewerVisit ? { startsAt: {

@@ -19,6 +19,8 @@ export async function GET() {
         status:  'expired',
         cityId:  await resolveCityId(session),
         endsAt:  { gte: cutoff },
+        // "Just happened" is social proof: a hangout nobody joined isn't.
+        joins:   { some: {} },
       },
       orderBy: { endsAt: 'desc' },
       take: 5,

@@ -615,9 +615,9 @@ export default async function DashboardPage() {
       take: 3,
       select: { id: true, title: true, slug: true, excerpt: true, coverImage: true, body: true, category: true, publishedAt: true },
     }),
-    // Active hangouts happening now
+    // Active hangouts happening now — started, not merely posted.
     prisma.hangout.findMany({
-      where: { status: 'active', cityId, endsAt: { gt: new Date() } },
+      where: { status: 'active', cityId, startsAt: { lte: new Date() }, endsAt: { gt: new Date() } },
       select: { id: true, neighborhood: true },
       orderBy: { startsAt: 'asc' },
       take: 10,

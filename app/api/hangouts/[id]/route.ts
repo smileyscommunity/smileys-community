@@ -6,6 +6,8 @@ import { getSession } from '@/lib/session'
 import { canActInCity } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
 import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
+import { HANGOUT_ACTIVITIES } from '@/lib/hangoutActivities'
+import { MAX_HANGOUT_LEAD_DAYS } from '@/lib/hangoutTime'
 
 // Edit a hangout. Host or staff only, active hangouts only.
 //
@@ -37,14 +39,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'Only active hangouts can be edited' }, { status: 400 })
   }
 
-  const { title, description, location, neighborhood, startsAt, endsAt, meetMode, photo } = await req.json()
+  const body = (await req.json().catch(() => null)) ?? {}
+  const { title, description, location, neighborhood, startsAt, endsAt, meetMode, photo, activity, maxPeople } = body
 
   // Same validation rules as POST /api/hangouts — a field arrives either
   // absent (keep current) or valid (replace).
   const data: Record<string, unknown> = {}
 
   if (title !== undefined) {
-    if (!title?.trim() || title.length > 120) return NextResponse.json({ error: 'Invalid title' }, { status: 400 })
+    if (typeof title !== 'string' || !title.trim() || title.length > 120) return NextResponse.json({ error: 'Invalid title' }, { status: 400 })
     data.title = title.trim().slice(0, 120)
   }
   if (description !== undefined) {
@@ -54,7 +57,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     data.description = typeof description === 'string' ? description.trim().slice(0, 500) || null : null
   }
   if (location !== undefined) {
-    if (!location?.trim() || location.length > 200) return NextResponse.json({ error: 'Invalid location' }, { status: 400 })
+    if (typeof location !== 'string' || !location.trim() || location.length > 200) return NextResponse.json({ error: 'Invalid location' }, { status: 400 })
     data.location = location.trim().slice(0, 200)
   }
   if (neighborhood !== undefined) {
@@ -74,6 +77,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ error: 'Max 24 hours per hangout' }, { status: 400 })
     }
     if (endDate < new Date()) return NextResponse.json({ error: 'End is in the past' }, { status: 400 })
+    if (startDate.getTime() > Date.now() + MAX_HANGOUT_LEAD_DAYS * 86_400_000) {
+      return NextResponse.json({ error: `Hangouts are for the next ${MAX_HANGOUT_LEAD_DAYS} days` }, { status: 400 })
+    }
     data.startsAt = startDate
     data.endsAt   = endDate
     // A moved start gets its own 30-minute ping: the sweeper only pings
@@ -84,6 +90,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   if (meetMode !== undefined) {
     data.meetMode = meetMode === 'solo' ? 'solo' : 'group'
+  }
+  if (activity !== undefined) {
+    data.activity = typeof activity === 'string' && (HANGOUT_ACTIVITIES as readonly { value: string }[]).some(a => a.value === activity) ? activity : null
+  }
+  if (maxPeople !== undefined) {
+    // null / 0 lifts the cap. A cap under the people already in is refused —
+    // nobody is thrown out by an edit.
+    const cap = maxPeople === null || maxPeople === 0 ? null : maxPeople
+    if (cap !== null && (!Number.isInteger(cap) || cap < 2 || cap > 10)) return NextResponse.json({ error: 'Capacity is 2–10, or none' }, { status: 400 })
+    if (cap !== null && cap < hangout.joins.length + 1) return NextResponse.json({ error: `${hangout.joins.length + 1} people are already in — the cap can't go below that` }, { status: 400 })
+    data.maxPeople = cap
   }
 
   if (photo !== undefined) {
@@ -102,9 +119,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   // "Show-up relevant" changes → tell everyone who joined, so nobody
   // arrives at the old time or place.
+  // A title tweak is not a reason to leave the house; where and when are.
   const materialChange =
-    (data.title    !== undefined && data.title    !== hangout.title) ||
     (data.location !== undefined && data.location !== hangout.location) ||
+    (data.neighborhood !== undefined && data.neighborhood !== hangout.neighborhood) ||
     (data.startsAt !== undefined && (data.startsAt as Date).getTime() !== hangout.startsAt.getTime()) ||
     (data.endsAt   !== undefined && (data.endsAt   as Date).getTime() !== hangout.endsAt.getTime())
   if (materialChange) {
@@ -143,8 +161,16 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   })
   if (!hangout) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  if (hangout.userId !== session.id && !canActInCity(session, hangout.cityId)) {
+  const isStaff = canActInCity(session, hangout.cityId)
+  if (hangout.userId !== session.id && !isStaff) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  // A hangout that already ran its course stays on the record: a cancel
+  // after the fact erased its no-show references from the recount. Staff can
+  // still take one down.
+  if (hangout.status === 'active' && hangout.endsAt < new Date() && !isStaff) {
+    return NextResponse.json({ error: 'This hangout has already ended and can no longer be cancelled' }, { status: 409 })
   }
 
   // Only notify if hangout was actually active — re-cancellation noop should

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { getSession } from '@/lib/session'
 import { createNotification } from '@/lib/notify'
+import { rateLimit } from '@/lib/rateLimit'
 
 // Hangout references — the trust signal that makes spontaneous meetups
 // safe to scale past close friends. See HangoutReference model in
@@ -126,6 +127,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   const newVibe = body.vibe as Vibe
+  // The only hangout write without a budget: a loop of "good" re-notified
+  // the recipient each time.
+  if (!await rateLimit(`hangout-ref:${session.id}`, 20, 60_000)) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+  }
 
   try {
     // One SERIALIZABLE transaction: upsert the reference + adjust toUser's
@@ -182,7 +188,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         })
       }
 
-      return ref
+      return { ...ref, wasGood: existing?.vibe === 'good' }
     }, { isolationLevel: 'Serializable' })
 
     let result: Awaited<ReturnType<typeof runOnce>> | undefined
@@ -195,7 +201,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     // Notify the recipient when they receive a good reference — it's the
     // primary trust signal and people love seeing it.
-    if (newVibe === 'good') {
+    // Once, when it becomes good — not on every re-save of the same verdict.
+    if (newVibe === 'good' && !result.wasGood) {
       const hangout = await prisma.hangout.findUnique({
         where:  { id },
         select: { title: true },

@@ -16,14 +16,17 @@ interface Msg {
 // Interactive discussion for a hangout. Chat is host+joiner-only (the API
 // gates read + post), so non-members see the thread read-only with a nudge to
 // join; members get a composer and live refresh.
-export default function HangoutDiscussion({ hangoutId, initialMessages, canPost, isJoinable }: {
+export default function HangoutDiscussion({ hangoutId, initialMessages, canPost, isJoinable, timeZone }: {
   hangoutId: string
   initialMessages: Msg[]
   canPost: boolean
   isJoinable: boolean
+  /** The hangout's own city's zone; the viewer's cookie city is the fallback. */
+  timeZone?: string
 }) {
   // Times belong to the city the content is in, not the reader's device.
-  const tz = useCurrentCity()?.timezone ?? DEFAULT_TZ
+  const viewerTz = useCurrentCity()?.timezone ?? DEFAULT_TZ
+  const tz = timeZone ?? viewerTz
   const [messages, setMessages] = useState<Msg[]>(initialMessages)
   const [draft,    setDraft]    = useState('')
   const [sending,  setSending]  = useState(false)

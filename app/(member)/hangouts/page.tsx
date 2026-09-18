@@ -47,6 +47,8 @@ interface Hangout {
   user:         JoinerSummary
   joiners:      JoinerSummary[]
   joinedByMe:   boolean
+  // Host, or staff of the hangout's own city — decided by the API (canActInCity).
+  canManage?:   boolean
   messageCount: number
 }
 
@@ -113,7 +115,9 @@ function formatWindow(startsAt: string, endsAt: string, TZ: string) {
   else if (istDay(s) === istDay(now)) prefix = 'Today · '
   else                        prefix = s.toLocaleDateString('en-GB', { timeZone: TZ, weekday: 'short', day: 'numeric', month: 'short' }) + ' · '
 
-  return `${prefix}${fmtTime(s)}–${fmtTime(e)}`
+  // Past midnight, say so: "23:00–01:00" alone reads as two hours ago.
+  const nextDay = istDay(e) !== istDay(s) ? ' (next day)' : ''
+  return `${prefix}${fmtTime(s)}–${fmtTime(e)}${nextDay}`
 }
 
 // Live/upcoming split + human label. Once a hangout is running, the raw
@@ -451,7 +455,8 @@ export default function HangoutsPage() {
     try {
       const res = await fetch(`/app/api/hangouts/${id}`, { method: 'DELETE', credentials: 'include' })
       if (!res.ok) {
-        toast.error('Could not cancel')
+        const d = await res.json().catch(() => null)
+        toast.error(typeof d?.error === 'string' ? d.error : 'Could not cancel')
         return
       }
       setHangouts(prev => prev.filter(h => h.id !== id))
@@ -834,7 +839,10 @@ export default function HangoutsPage() {
                 { v: 'walk',     label: '🚶 Walk' },
                 { v: 'cowork',   label: '💻 Cowork' },
                 { v: 'exercise', label: '🏃 Active' },
+                { v: 'outdoors', label: '🌳 Outdoors' },
                 { v: 'music',    label: '🎶 Music' },
+                { v: 'games',    label: '🎲 Games' },
+                { v: 'other',    label: '✨ Other' },
               ] as { v: string | null; label: string }[]).map(opt => (
                 <button
                   key={opt.label}
@@ -870,6 +878,16 @@ export default function HangoutsPage() {
                 </button>
               ))}
             </div>
+
+            {/* A filter that arrived by link or from the tiles below may have no
+                chip of its own; this is the one control that always clears it. */}
+            {(modeFilter !== 'all' || timeFilter !== 'all' || activityFilter !== null || neighborhoodFilter !== null || languageOnly) && (
+              <button
+                onClick={() => { setModeFilter('all'); setTimeFilter('all'); setActivityFilter(null); setNeighborhoodFilter(null); setLanguageOnly(false) }}
+                className="text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap bg-gray-900 text-white hover:bg-gray-700 transition-colors">
+                ✕ Clear filters{neighborhoodFilter ? ` · ${neighborhoodFilter}` : ''}
+              </button>
+            )}
 
             {/* Neighborhood pills — one per distinct neighborhood in the
                 current feed, sorted alphabetically. Hidden when every
@@ -953,6 +971,11 @@ export default function HangoutsPage() {
                   <div aria-hidden="true" className="text-5xl mb-3">☕</div>
                   <p className="text-base font-bold text-gray-900 mb-1">Nothing matches your filters</p>
                   <p className="text-sm text-gray-600 max-w-md mx-auto">Clear a filter or two — or start something yourself.</p>
+                  <button
+                    onClick={() => { setModeFilter('all'); setTimeFilter('all'); setActivityFilter(null); setNeighborhoodFilter(null); setLanguageOnly(false) }}
+                    className="mt-4 text-xs font-bold px-4 py-2 rounded-full bg-gray-900 text-white hover:bg-gray-700 transition-colors">
+                    Clear filters
+                  </button>
                 </div>
               )
             }
@@ -1239,8 +1262,9 @@ function HangoutCard({ h, currentUser, onCancel, onMutated, neighborhoods }: {
   // moderator"). Surface the same Edit/Cancel controls to them here so
   // they can act on a bad hangout straight from the feed. Joining stays
   // owner-gated (isOwner) — staff still join others' hangouts normally.
-  const isStaff   = currentUser.role === 'admin' || currentUser.role === 'moderator'
-  const canManage = isOwner || isStaff
+  // The API decides (host, or staff of THIS city — canActInCity): a
+  // moderator browsing another city no longer gets buttons that 403.
+  const canManage = h.canManage ?? isOwner
   // Weather chip: outdoor-keyword hangouts happening today get a live temp.
   const isOutdoor = OUTDOOR_RE.test(`${h.title} ${h.description ?? ''}`)
   const isToday   = dayInTz(new Date(h.startsAt), tz) === todayInTz(tz)
@@ -1520,7 +1544,8 @@ function HangoutCard({ h, currentUser, onCancel, onMutated, neighborhoods }: {
             </div>
           ) : (
             <div className="flex items-center gap-2 shrink-0">
-              {!editing && !status.live && (
+              {/* Live too: "we moved tables" and "extending to 21:00" are the edits that matter. */}
+              {!editing && (
                 <button onClick={openEdit}
                   className="text-xs text-gray-400 hover:text-gray-700">Edit</button>
               )}

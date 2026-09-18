@@ -64,6 +64,9 @@ async function withLock(key: string, work: () => Promise<void>): Promise<void> {
 async function runSweep() {
   const now              = new Date()
   const thirtyMinFromNow = new Date(now.getTime() + 30 * 60 * 1000)
+  // Back to the last tick too: a hangout created inside the last fifteen
+  // minutes for a start already past "now" was never pinged at all.
+  const lastTick         = new Date(now.getTime() - 15 * 60 * 1000)
 
   // ── Pass 1: starting-soon pings ─────────────────────────────────────────
   // Window: [now, now + 30min]. Cron runs every 15 min, so a hangout
@@ -73,7 +76,7 @@ async function runSweep() {
     where: {
       status:             'active',
       notifiedStartingAt: null,
-      startsAt:           { gte: now, lte: thirtyMinFromNow },
+      startsAt:           { gte: lastTick, lte: thirtyMinFromNow },
     },
     include: {
       user:  { select: { id: true, name: true } },
@@ -84,6 +87,9 @@ async function runSweep() {
   let startingCount = 0
   for (const h of startingSoon) await withLock(`hangout-starting-run:${h.id}`, async () => {
     const joinerCount = h.joins.length
+    // The real lead time, not a hard-coded 30: the window is 0–30 minutes.
+    const mins = Math.max(0, Math.round((h.startsAt.getTime() - now.getTime()) / 60_000))
+    const soon = mins > 0 ? `starts in ${mins} min` : 'is starting now'
     // Keyed on startsAt too: a moved start clears notifiedStartingAt to
     // re-arm the ping, and the claim for the old time must not swallow it.
     const keyFor = (userId: string) => `hangout-starting:${h.id}:${h.startsAt.getTime()}:${userId}`
@@ -95,11 +101,11 @@ async function runSweep() {
       keyFor(h.userId),
       h.userId,
       'hangout_starting',
-      `🚀 Your hangout starts in 30 min`,
+      `🚀 Your hangout ${soon}`,
       joinerCount > 0
         ? `${h.title} — ${joinerCount} joiner${joinerCount === 1 ? '' : 's'} confirmed`
         : `${h.title} — no joiners yet, but you might still meet someone`,
-      `/hangouts`,
+      `/hangouts/${h.id}`,
     ) === 'failed') failed = true
 
     // Each joiner gets a "leave now" nudge. This is the single highest-value
@@ -110,9 +116,9 @@ async function runSweep() {
         keyFor(j.userId),
         j.userId,
         'hangout_starting',
-        `⏰ Hangout starts in 30 min`,
+        `⏰ Hangout ${soon}`,
         `${h.title} — ${h.location}`,
-        `/hangouts`,
+        `/hangouts/${h.id}`,
       ) === 'failed') failed = true
     }
 

@@ -30,6 +30,7 @@ interface TagGroup { id: string; name: string; emoji: string; tags: TagItem[] }
 interface HangoutSummary {
   id:           string
   neighborhood: string | null
+  startsAt:     string
 }
 
 import AdBannerStrip from '@/components/AdBannerStrip'
@@ -158,7 +159,8 @@ function AppEventsPageInner() {
         : Promise.resolve(null),
     ]).then(([content, hg]) => {
       if (content?.events)             setHero(h => ({ ...h, ...content.events }))
-      if (Array.isArray(hg?.hangouts)) setHangouts(hg.hangouts)
+      // "Happening now" means started: the feed also carries tomorrow's plans.
+      if (Array.isArray(hg?.hangouts)) setHangouts(hg.hangouts.filter((h: HangoutSummary) => new Date(h.startsAt) <= new Date()))
     })
   }, [isLoggedIn])
 

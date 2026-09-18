@@ -8,6 +8,7 @@ import { randomBytes } from 'crypto'
 import { rateLimit } from '@/lib/rateLimit'
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 import { writeAudit } from '@/lib/audit'
+import { createNotification } from '@/lib/notify'
 import { todayInCity, resolveCityId } from '@/lib/city'
 import { applicationScrubData, TOMBSTONE_EMAIL_SUFFIX } from '@/lib/applicationScrub'
 
@@ -85,6 +86,13 @@ export async function POST(req: NextRequest) {
   // Moderation history (reports, no-show cards, admin notes) cascades with
   // the row; it is kept in the admin-only audit row below.
   const retained = await snapshotUserHistory(id)
+  // The hosted plans still to come, and who joined them: cancelled below,
+  // and those people are told (they'd otherwise turn up to nothing).
+  const hostedUpcoming = await prisma.hangout.findMany({
+    where:  { userId: id, status: 'active', endsAt: { gt: new Date() } },
+    select: { id: true, title: true, joins: { select: { userId: true } } },
+  })
+
   await prisma.$transaction(async tx => {
     // ── 0. Decrement club memberCount for each approved membership ─────────
     // Must run before the membership rows are deleted below, or the cached
@@ -335,6 +343,12 @@ export async function POST(req: NextRequest) {
   )
 
   await deleteSession()
+  for (const h of hostedUpcoming) {
+    for (const j of h.joins) {
+      createNotification(j.userId, 'hangout_cancelled', '❌ Hangout cancelled',
+        `"${h.title}" is off — the host left Smileys. Check the feed for other plans`, `/hangouts/${h.id}`).catch(() => {})
+    }
+  }
   // The withdrawn visit card leaves the cached /visiting list at once.
   try { revalidateTag('visitor-announcements') } catch { /* outside a request (tests) */ }
   return NextResponse.json({ ok: true })

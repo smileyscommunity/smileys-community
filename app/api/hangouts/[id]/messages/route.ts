@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
+import { claimOnce } from '@/lib/rateLimit'
 
 // Comment thread on a hangout — coordination chat ("running 10min late",
 // "we're at the back table"). Host + everyone who tapped "I'm in" gets a
@@ -83,16 +84,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   prisma.hangoutJoin.findMany({
     where:  { hangoutId, userId: { not: session.id } },
     select: { userId: true },
-  }).then(joins => {
+  }).then(async joins => {
     const recipientIds = new Set(joins.map(j => j.userId))
     if (hangout.userId !== session.id) recipientIds.add(hangout.userId)
     for (const uid of recipientIds) {
+      // One ping per person per ten minutes of chatter, not one per message:
+      // a ten-person hangout with one chatty member was hundreds of pushes.
+      if (!await claimOnce(`hangout-msg-ping:${hangoutId}:${uid}`, 10 * 60_000)) continue
       createNotification(
         uid,
         'hangout_message',
         `💬 ${session.name} in "${hangout.title}"`,
         body.trim().slice(0, 120),
-        '/hangouts',
+        `/hangouts/${hangoutId}`,
       ).catch(() => {})
     }
   }).catch(() => {})

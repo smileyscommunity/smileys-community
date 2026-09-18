@@ -19,7 +19,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   const { id: hangoutId } = await params
   const hangout = await prisma.hangout.findUnique({
     where:  { id: hangoutId },
-    select: { id: true, userId: true, title: true, status: true, endsAt: true, maxPeople: true },
+    select: { id: true, userId: true, title: true, location: true, status: true, startsAt: true, endsAt: true, maxPeople: true, notifiedStartingAt: true },
   })
   if (!hangout) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (hangout.status !== 'active' || hangout.endsAt < new Date()) {
@@ -86,8 +86,17 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     'hangout_join',
     '👋 Someone joined your hangout',
     `${session.name} is in for "${hangout.title}"`,
-    '/hangouts',
+    `/hangouts/${hangoutId}`,
   ).catch(() => {})
+
+  // The "starting soon" ping already went out before this person joined:
+  // they get their own, now, or they'd be the one joiner never told to leave.
+  if (hangout.notifiedStartingAt) {
+    const mins = Math.max(0, Math.round((hangout.startsAt.getTime() - Date.now()) / 60_000))
+    createNotification(session.id, 'hangout_starting',
+      mins > 0 ? `⏰ Hangout starts in ${mins} min` : '⏰ Hangout is starting now',
+      `${hangout.title} — ${hangout.location}`, `/hangouts/${hangoutId}`).catch(() => {})
+  }
 
   return NextResponse.json({ joined: true })
 }

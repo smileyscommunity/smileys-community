@@ -16,7 +16,8 @@ export async function GET() {
 
     const counts = await prisma.hangout.groupBy({
       by:      ['userId'],
-      where:   { status: 'expired', endsAt: { gte: since }, cityId: await resolveCityId(session) },
+      // Hangouts somebody came to: hosting five that nobody joined is not being a regular.
+      where:   { status: 'expired', endsAt: { gte: since }, cityId: await resolveCityId(session), joins: { some: {} } },
       _count:  { _all: true },
       orderBy: { _count: { userId: 'desc' } },
       take:    5,

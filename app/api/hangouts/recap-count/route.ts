@@ -40,7 +40,8 @@ export async function GET() {
     ].filter(p => p.id !== session.id)
 
     const rated = new Set(h.references.map(r => r.toUserId))
-    pending += participants.filter(p => !rated.has(p.id)).length
+    // Hangouts with someone still to rate — the nudge says "N hangouts".
+    if (participants.some(p => !rated.has(p.id))) pending++
   }
 
   return NextResponse.json({ pending })
