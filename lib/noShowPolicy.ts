@@ -11,7 +11,13 @@
 // banner read the same rules the job applies. Anything that needs Prisma
 // lives in lib/noShow.ts.
 
-export const NO_SHOW_CANCELLATION_CUTOFF_HOURS = 12
+// Kept equal to CANCEL_CUTOFF_HOURS.scarce in lib/standingPolicy, which is
+// what actually judges a late cancel. It cannot import that (standingPolicy
+// imports this file), so standingPolicy asserts the two agree — see its test.
+// It was 12 while v1 ran, which left the RSVP modal and two emails promising
+// members that cancelling 12 hours ahead "keeps you clear" long after standing
+// started counting anything inside 24.
+export const NO_SHOW_CANCELLATION_CUTOFF_HOURS = 24
 export const NO_SHOW_ROLLING_WINDOW_DAYS       = 90
 export const RED_CARD_BLOCK_DAYS               = 30
 export const RED_CARD_APPEAL_WINDOW_HOURS      = 48
@@ -34,9 +40,15 @@ export const NO_SHOW_MIN_CHECKIN_RATIO         = 0.5
 // cutoff — the same line after which a cancel would count as a no-show —
 // and only when someone is actually waiting for it. Below the minimum
 // lead nobody is asked: too little time to answer fairly.
-export const RECONFIRM_ASK_HOURS_BEFORE        = 24
+// Asked far enough out that a member can still answer "no" BEFORE the cutoff.
+// While this was 24 the question arrived exactly on the cancellation line, so
+// answering it honestly was already late and only a special exemption stopped
+// that costing them — the one rule where silence beat a straight answer.
+export const RECONFIRM_ASK_HOURS_BEFORE        = 48
 export const RECONFIRM_RELEASE_HOURS_BEFORE    = NO_SHOW_CANCELLATION_CUTOFF_HOURS
-export const RECONFIRM_MIN_LEAD_HOURS          = 14
+// The floor of the ask window: inside this there isn't enough time to answer
+// fairly, so nobody new is asked. Sits between the release point and the ask.
+export const RECONFIRM_MIN_LEAD_HOURS          = 30
 
 // Where the rules are written out for members. The card emails, the member's
 // standing page and the article-publishing script all read this one constant:

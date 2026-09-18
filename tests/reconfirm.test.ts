@@ -159,9 +159,9 @@ describe('sweepReconfirm', () => {
   })
   it('asks in the ask window and releases inside the cutoff; skips paid/unlimited', async () => {
     p.event.findMany.mockResolvedValue([
-      { ...EVENT, id: 'ask',     date: '2026-09-13', time: '19:00' },          // 24h away at now
+      { ...EVENT, id: 'ask',     date: '2026-09-14', time: '15:00' },          // 44h away at now: inside the ask window
       { ...EVENT, id: 'release', date: '2026-09-13', time: '02:00' },          // 7h away
-      { ...EVENT, id: 'paid',    date: '2026-09-13', time: '19:00', price: 50 },
+      { ...EVENT, id: 'paid',    date: '2026-09-14', time: '15:00', price: 50 },
     ])
     p.eventAttendee.findMany.mockResolvedValue([row('a', { reconfirmAskedAt: at(30) })])
     p.waitlistEntry.count.mockResolvedValue(1)
@@ -187,8 +187,8 @@ describe('sweepReconfirm', () => {
   })
   it('one broken event does not stop the others', async () => {
     p.event.findMany.mockResolvedValue([
-      { ...EVENT, id: 'bad',  date: '2026-09-13', time: '19:00' },
-      { ...EVENT, id: 'good', date: '2026-09-13', time: '19:00' },
+      { ...EVENT, id: 'bad',  date: '2026-09-14', time: '15:00' },
+      { ...EVENT, id: 'good', date: '2026-09-14', time: '15:00' },
     ])
     p.eventAttendee.findMany.mockImplementation(async ({ where }: any) => {
       if (where.eventId === 'bad') throw new Error('boom')

@@ -7,6 +7,10 @@ import {
   CANCEL_CUTOFF_HOURS, NEW_CITY_GRACE_DAYS, STANDING_WINDOW_DAYS, DISPUTE_WINDOW_DAYS,
   type StandingRow, type LedgerOffence,
 } from '@/lib/standingPolicy'
+import {
+  NO_SHOW_CANCELLATION_CUTOFF_HOURS, RECONFIRM_ASK_HOURS_BEFORE,
+  RECONFIRM_MIN_LEAD_HOURS, RECONFIRM_RELEASE_HOURS_BEFORE,
+} from '@/lib/noShowPolicy'
 
 // The standing rules on their own: tiers, what an RSVP row counts as, when a
 // card is issued, escalated, cleared or lapses, and what it changes.
@@ -68,9 +72,14 @@ describe('classifyRow', () => {
     expect(classifyRow(cancel(1),  START, open,   runners)).toBe('late_cancel')
   })
 
-  it('answering the day-before ask with a cancel is on time, up to the release point', () => {
-    const asked = { status: 'cancelled', cancelledBy: 'member', reconfirmAskedAt: new Date(START.getTime() - 24 * H) }
-    expect(classifyRow(row({ ...asked, cancelledAt: new Date(START.getTime() - 20 * H) }), START, scarce, runners)).toBeNull()
+  it('the day-before ask buys no extra time: the cutoff is the cutoff', () => {
+    // Asked at 48h, which is the point of moving it there — a member can
+    // answer "no" well before the 24h line and be clear on the ordinary rule,
+    // with no special grace. It used to be asked AT 24h and forgiven down to
+    // 12h, so a straight answer cost more than saying nothing.
+    const asked = { status: 'cancelled', cancelledBy: 'member', reconfirmAskedAt: new Date(START.getTime() - 48 * H) }
+    expect(classifyRow(row({ ...asked, cancelledAt: new Date(START.getTime() - 30 * H) }), START, scarce, runners)).toBeNull()
+    expect(classifyRow(row({ ...asked, cancelledAt: new Date(START.getTime() - 20 * H) }), START, scarce, runners)).toBe('late_cancel')
     expect(classifyRow(row({ ...asked, cancelledAt: new Date(START.getTime() - 6 * H) }), START, scarce, runners)).toBe('late_cancel')
   })
 
@@ -186,6 +195,22 @@ describe('recovery', () => {
   // stopped coming was pardoned by the calendar while one who kept turning up
   // had to earn it. Turning up is the only way out now.
 
+})
+
+describe('the cancellation cutoff is one number', () => {
+  it('noShowPolicy and standingPolicy agree on it', () => {
+    // They cannot share an import (standingPolicy imports noShowPolicy), and
+    // while they disagreed the RSVP modal and two emails told members that
+    // cancelling 12 hours ahead kept them clear while standing counted 24.
+    expect(NO_SHOW_CANCELLATION_CUTOFF_HOURS).toBe(CANCEL_CUTOFF_HOURS.scarce)
+  })
+  it('leaves room to answer "still coming?" before the cutoff bites', () => {
+    // Asked at 48h, nobody new asked inside 30h, seats released at 24h. If the
+    // ask ever lands at or inside the release point, answering honestly is
+    // already a late cancel and silence becomes the better move.
+    expect(RECONFIRM_ASK_HOURS_BEFORE).toBeGreaterThan(RECONFIRM_MIN_LEAD_HOURS)
+    expect(RECONFIRM_MIN_LEAD_HOURS).toBeGreaterThan(RECONFIRM_RELEASE_HOURS_BEFORE)
+  })
 })
 
 describe('disputeHolds', () => {

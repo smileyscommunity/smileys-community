@@ -79,7 +79,8 @@ describe('settleEvent — who is a no-show', () => {
       row('present', { checkedIn: true }),
       row('absent'),
       row('late',    { status: 'cancelled', cancelledBy: 'member', cancelledAt: new Date(startsAt.getTime() - 3 * H) }),
-      row('timely',  { status: 'cancelled', cancelledBy: 'member', cancelledAt: new Date(startsAt.getTime() - 20 * H) }),
+      // 30h out: clear of the cutoff, which is 24h now rather than 12.
+      row('timely',  { status: 'cancelled', cancelledBy: 'member', cancelledAt: new Date(startsAt.getTime() - 30 * H) }),
       row('kicked',  { status: 'cancelled', cancelledBy: 'host',   cancelledAt: new Date(startsAt.getTime() - 1 * H) }),
       row('cohost'),
     ])
