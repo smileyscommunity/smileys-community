@@ -12,7 +12,7 @@ export function isKind(s: unknown): s is Kind {
   return typeof s === 'string' && (KINDS as readonly string[]).includes(s)
 }
 
-export const CATEGORIES = ['Community', 'Club Stories', 'Events', 'Istanbul Guide', 'Tips'] as const
+export const CATEGORIES = ['Community', 'Club Stories', 'Events', 'Istanbul Guide', 'Antalya Guide', 'Tips'] as const
 export type Category = (typeof CATEGORIES)[number]
 export function isCategory(s: unknown): s is Category {
   return typeof s === 'string' && (CATEGORIES as readonly string[]).includes(s)

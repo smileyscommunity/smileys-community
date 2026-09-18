@@ -74,6 +74,8 @@ const categoryColors: Record<string, string> = {
   'Community':     'bg-amber-100 text-amber-700',
   'Club Stories':  'bg-violet-100 text-violet-700',
   'Events':        'bg-blue-100 text-blue-700',
+  'Istanbul Guide':'bg-green-100 text-green-700',
+  'Antalya Guide': 'bg-teal-100 text-teal-700',
   'Tips':          'bg-pink-100 text-pink-700',
 }
 
