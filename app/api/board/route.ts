@@ -8,15 +8,18 @@ import { getPublicCity } from '@/lib/cities'
 import { rateLimit } from '@/lib/rateLimit'
 import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
 import { BOARD_POST_TYPES, QUESTION_TAGS } from '@/lib/board'
+import { readablePostWhere, blockedPairIds, SHOWN_REPLY, LIVE_BOARD_AUTHOR, redactBoardTextForGuest } from '@/lib/boardAccess'
+import { canActInCity } from '@/lib/access'
 
-// Istanbul Board conversation feed. Publicly readable (the Board is a
-// public growth surface like /visiting and /neighborhoods) — but posts
-// carry no contact fields, and the member data exposed here (name, photo)
-// matches what public listing cards already show. All writes are
-// member-only.
+// Community board conversation feed. Publicly readable (the board is a
+// public growth surface like /visiting and /neighborhoods). Guests get
+// authors as a first name (lib/authorProjection) and post text with invite
+// links, numbers and emails cut out (lib/boardAccess redactBoardTextForGuest).
+// All writes are member-only.
 
 const TYPE_VALUES = new Set(BOARD_POST_TYPES.map(t => t.value))
 const TAG_VALUES  = new Set(QUESTION_TAGS.map(t => t.value))
+const PAGE = 15
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -29,19 +32,22 @@ export async function GET(req: NextRequest) {
   // a shared link shows the city it names (lib/cityPageParam), and the client
   // passes it through. An unknown slug falls back to the viewer's city.
   const citySlug     = searchParams.get('city')?.trim()
+  // ?saved=1: the viewer's saved posts, every city — a member's own list.
+  const savedOnly    = searchParams.get('saved') === '1'
 
   const session = await getSession()
+  if (savedOnly && !session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const blocked = await blockedPairIds(session?.id ?? null)
 
   const select = {
     id: true, type: true, title: true, body: true, neighborhood: true,
-    tag: true, whenLabel: true, expiresAt: true, pinned: true, createdAt: true,
+    tag: true, pinned: true, createdAt: true, editedAt: true, cityId: true,
     user: { select: { id: true, name: true, color: true, profilePhoto: true, profileVisibility: true } },
-    _count: { select: { replies: true, interests: true, saves: true } },
-    // The viewer's own reactions, so buttons render in the right state.
-    ...(session ? {
-      interests: { where: { userId: session.id }, select: { userId: true as const } },
-      saves:     { where: { userId: session.id }, select: { userId: true as const } },
-    } : {}),
+    // Counted as shown: a banned member's reply isn't in the thread, so it
+    // isn't in "3 replies" either.
+    _count: { select: { replies: { where: SHOWN_REPLY }, saves: { where: { user: LIVE_BOARD_AUTHOR } } } },
+    // The viewer's own save, so the button renders in the right state.
+    ...(session ? { saves: { where: { userId: session.id }, select: { userId: true as const } } } : {}),
   }
 
   const clubSlug = searchParams.get('club') || undefined
@@ -50,76 +56,70 @@ export async function GET(req: NextRequest) {
   const eventId = searchParams.get('event') || undefined
 
   // Private-club scoping: the club feed of a private club is member-only.
-  // (The general feed already excludes private-club posts entirely.)
+  // (The general feed already excludes private-club posts entirely.) An
+  // unknown club and a private one a guest can't read answer the same, so
+  // the status can't confirm a private slug exists.
   if (clubSlug) {
     const club = await prisma.club.findUnique({ where: { slug: clubSlug }, select: { id: true, isPrivate: true } })
-    if (!club) return NextResponse.json({ error: 'Club not found' }, { status: 404 })
-    if (club.isPrivate) {
-      const s = await getSession()
-      const member = s ? await prisma.clubMembership.findUnique({
-        where: { userId_clubId: { userId: s.id, clubId: club.id } },
-        select: { status: true },
-      }) : null
-      if (member?.status !== 'approved') {
-        return NextResponse.json({ error: 'Members only' }, { status: 403 })
-      }
+    const member = club?.isPrivate && session ? await prisma.clubMembership.findUnique({
+      where: { userId_clubId: { userId: session.id, clubId: club.id } },
+      select: { status: true },
+    }) : null
+    if (!club || (club.isPrivate && member?.status !== 'approved')) {
+      return NextResponse.json({ error: 'Club not found' }, { status: 404 })
     }
   }
+  // An event's conversation is readable where the event is: published, and a
+  // private club's event only by its members.
+  if (eventId && !await canReadEventConversation(eventId, session?.id ?? null)) {
+    return NextResponse.json({ posts: [], isMember: !!session, prependedPostId: null })
+  }
 
+  const readable = readablePostWhere(session?.id ?? null)
   let posts = await prisma.boardPost.findMany({
     where: {
-      status: 'active',
-      // §48 (Members brief): posts by deactivated/banned members leave
-      // the public feed.
-      user: { status: 'approved' },
-      // Two OR groups must AND together (spreading them as sibling keys
-      // would silently overwrite one another): expiry — expired plans
-      // drop out of the feed but stay reachable at their own URL — and
-      // club scoping (Clubs brief §18/§30): ?club=<slug> narrows to that
-      // club's conversations, while the general feed excludes posts
-      // tagged to PRIVATE clubs (those render only inside the club,
-      // where membership is enforced).
+      status: readable.status,
+      user:   readable.user,
+      ...(blocked.length ? { userId: { notIn: blocked } } : {}),
+      // The OR groups must AND together (sibling keys would overwrite one
+      // another). ?club=<slug> narrows to that club's conversations; saved
+      // and event lists take any post the viewer may read; the general feed
+      // excludes posts tagged to PRIVATE clubs (those render only inside
+      // the club, where membership is enforced).
       AND: [
-        { OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] },
         clubSlug
           ? { club: { slug: clubSlug } }
-          : { OR: [{ clubId: null }, { club: { isPrivate: false } }] },
+          : savedOnly || eventId
+            ? { OR: readable.OR }
+            : { OR: [{ clubId: null }, { club: { isPrivate: false } }] },
         ...(eventId ? [{ eventId }] : []),
-        // General feed is city-scoped; club and event feeds inherit their
-        // club's/event's city implicitly and stay reachable cross-city.
-        ...(clubSlug || eventId ? [] : [{ cityId: (citySlug ? (await getPublicCity(citySlug))?.id : undefined) ?? await resolveCityId(session) }]),
+        ...(savedOnly && session ? [{ saves: { some: { userId: session.id } } }] : []),
+        // General feed is city-scoped; club, event and saved lists cross
+        // city lines.
+        ...(clubSlug || eventId || savedOnly ? [] : [{ cityId: (citySlug ? (await getPublicCity(citySlug))?.id : undefined) ?? await resolveCityId(session) }]),
       ],
       ...(type && TYPE_VALUES.has(type as never) ? { type } : {}),
       ...(neighborhood ? { neighborhood } : {}),
     },
-    orderBy: [{ pinned: 'desc' }, { createdAt: 'desc' }],
+    orderBy: savedOnly ? [{ createdAt: 'desc' }] : [{ pinned: 'desc' }, { createdAt: 'desc' }],
     skip: offset,
-    take: 15,
+    take: PAGE,
     select,
   })
 
   // Deep-linked post (?post=<id>, from reply notifications and the
   // neighborhood pages): prepend it when the first page doesn't already
-  // contain it — this is what keeps expired plans "reachable at their own
-  // URL" per the comment above. Only the EXPIRY and CITY gates are waived:
-  // the banned-author and private-club gates must hold here too, or a
-  // shared/forwarded link would read a private club's conversation (or a
-  // banned member's post) straight off this public endpoint.
+  // contain it. Only the CITY and filter gates are waived: the read gate
+  // (removed, banned author, private club) and blocks hold here too, or a
+  // forwarded link would read a private club's conversation straight off
+  // this public endpoint.
   // Said out loud in the response: the prepended post makes page 1 sixteen
   // items, and a client that counted those as the page thought there was no
   // next page (16 !== 15) and offset its "Load more" by one, skipping a post.
   let prependedPostId: string | null = null
   if (postId && !posts.some(p => p.id === postId)) {
     const single = await prisma.boardPost.findFirst({
-      where: {
-        id: postId, status: 'active',
-        user: { status: 'approved' },
-        OR: [
-          { clubId: null },
-          { club: { isPrivate: false } },
-          ...(session ? [{ club: { memberships: { some: { userId: session.id, status: 'approved' } } } }] : []),
-        ],
-      },
+      where: { id: postId, ...readable, ...(blocked.length ? { userId: { notIn: blocked } } : {}) },
       select,
     })
     if (single) { posts = [single, ...posts]; prependedPostId = single.id }
@@ -128,21 +128,39 @@ export async function GET(req: NextRequest) {
   // Authors: a first name for guests, and for members viewing a
   // connections-only author they aren't connected to (lib/authorProjection).
   const project = await authorProjector(session, posts.map(p => p.user))
+  const text = (t: string) => (session ? t : redactBoardTextForGuest(t))
   return NextResponse.json({
     posts: posts.map(p => ({
-      id: p.id, type: p.type, title: p.title, body: p.body,
-      neighborhood: p.neighborhood, tag: p.tag, whenLabel: p.whenLabel,
-      pinned: p.pinned, createdAt: p.createdAt,
+      id: p.id, type: p.type, title: text(p.title), body: text(p.body),
+      neighborhood: p.neighborhood, tag: p.tag,
+      pinned: p.pinned, createdAt: p.createdAt, editedAt: p.editedAt,
       user: project(p.user),
-      replyCount:    p._count.replies,
-      interestCount: p._count.interests,
-      saveCount:     p._count.saves,
-      viewerInterested: session ? (p as { interests?: unknown[] }).interests!.length > 0 : false,
-      viewerSaved:      session ? (p as { saves?: unknown[] }).saves!.length > 0 : false,
+      replyCount: p._count.replies,
+      saveCount:  p._count.saves,
+      viewerSaved: session ? (p as { saves?: unknown[] }).saves!.length > 0 : false,
+      // Staff of the post's city can remove and pin it (the ••• menu).
+      canModerate: !!session && canActInCity(session, p.cityId),
     })),
     isMember: !!session,
     prependedPostId,
   })
+}
+
+// Whether a viewer may read an event's conversation: the event is published,
+// and a private club's event is its members' (the event page's own rule).
+async function canReadEventConversation(eventId: string, viewerId: string | null): Promise<boolean> {
+  const ev = await prisma.event.findUnique({
+    where:  { id: eventId },
+    select: { status: true, membersOnly: true, clubId: true, club: { select: { isPrivate: true } } },
+  })
+  if (!ev || ev.status !== 'published') return false
+  if (ev.membersOnly && !viewerId) return false
+  if (ev.club?.isPrivate) {
+    if (!viewerId || !ev.clubId) return false
+    const m = await prisma.clubMembership.findUnique({ where: { userId_clubId: { userId: viewerId, clubId: ev.clubId } }, select: { status: true } })
+    return m?.status === 'approved'
+  }
+  return true
 }
 
 export async function POST(req: NextRequest) {
@@ -185,8 +203,9 @@ export async function POST(req: NextRequest) {
   // POSTING city (lib/cityMembership), not whichever board they're browsing,
   // which is what resolveCityId used to file it to.
   let postCityId: string | null = null
+  let privateClub = false
   if (typeof body.club === 'string' && body.club) {
-    const club = await prisma.club.findUnique({ where: { slug: body.club }, select: { id: true, isActive: true, cityId: true } })
+    const club = await prisma.club.findUnique({ where: { slug: body.club }, select: { id: true, isActive: true, cityId: true, isPrivate: true } })
     if (!club || !club.isActive) return NextResponse.json({ error: 'Club not found' }, { status: 404 })
     const member = await prisma.clubMembership.findUnique({
       where: { userId_clubId: { userId: session.id, clubId: club.id } },
@@ -196,24 +215,38 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Join the club to post in it' }, { status: 403 })
     }
     clubId = club.id
+    privateClub = club.isPrivate
     // Global clubs (cityId null) have no city of their own — the post
     // lives in the author's city instead. BoardPost.cityId stays required.
     postCityId = club.cityId ?? await resolvePostingCityId(session)
   }
 
   // Optional event tie (§31) — the post stays canonical on the Board and
-  // also surfaces on the event page. Validated so a bad id can't orphan.
+  // also shows in the event page's Conversation. Only for someone on the
+  // event (host, co-host, a confirmed guest) or staff of its city, and only
+  // an event they can read: any member could push posts onto any event's
+  // page, a private club's included. The post files to the event's city.
   let eventTie: string | null = null
   if (typeof body.event === 'string' && body.event) {
-    const ev = await prisma.event.findUnique({ where: { id: body.event }, select: { id: true, status: true } })
-    if (ev && ev.status === 'published') eventTie = ev.id
+    const ev = await prisma.event.findUnique({ where: { id: body.event }, select: { id: true, cityId: true, hostId: true } })
+    if (!ev || !await canReadEventConversation(ev.id, session.id)) {
+      return NextResponse.json({ error: 'Event not found' }, { status: 404 })
+    }
+    const onEvent = ev.hostId === session.id || canActInCity(session, ev.cityId) || !!(await prisma.eventAttendee.findFirst({
+      where: { eventId: ev.id, userId: session.id, status: 'approved' }, select: { id: true },
+    })) || !!(await prisma.eventCoHost.findFirst({ where: { eventId: ev.id, userId: session.id }, select: { id: true } }))
+    if (!onEvent) return NextResponse.json({ error: 'Only people going can post in this event\'s conversation' }, { status: 403 })
+    eventTie = ev.id
+    postCityId = postCityId ?? ev.cityId
   }
 
   const cityId = postCityId ?? await resolvePostingCityId(session)
   // Validated against the city the post actually files to — neighborhood
   // names are per city, and checking the browsed city's registry dropped a
   // real home neighborhood (or kept a name the post's city doesn't have).
-  const neighborhood = await safeNeighborhoodFor(cityId, body.neighborhood)
+  // A private club's post names no neighbourhood: it must never be what a
+  // public neighbourhood page lists.
+  const neighborhood = privateClub ? null : await safeNeighborhoodFor(cityId, body.neighborhood)
 
   const created = await prisma.boardPost.create({
     data: { userId: session.id, cityId, type, title, body: text, neighborhood, tag, clubId, eventId: eventTie },

@@ -50,7 +50,7 @@ describe('/neighborhoods/[slug] sections', () => {
   })
 
   it('shows a guest the board question, not who asked', () => {
-    expect(src).toContain("{myId ? firstNameOf(bp.user.name) : 'Smileys member'}")
+    expect(src).toContain("{myId ? firstNameOf(shown.name) : 'Smileys member'}")
   })
 
   it('receives the session so restrictedSetFor can run', () => {

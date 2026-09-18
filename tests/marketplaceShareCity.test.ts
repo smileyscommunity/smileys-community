@@ -41,7 +41,9 @@ describe('the marketplace share names the city the sharer had on screen', () => 
     expect(hub).toMatch(/useCityNeighborhoods\(pinnedCity \|\| undefined\)/)
     expect(hub).toMatch(/\/app\/api\/city\/current\?city=\$\{encodeURIComponent\(pinnedCity\)\}/)
     expect(hub).toMatch(/const cityName = \(pinnedCity \? pinnedName : cookieCity\?\.name\) \?\? ''/)
-    expect(hub).toMatch(/if \(pinnedCity\)\s+params\.set\('city',\s+pinnedCity\)\n\s*if \(category !== 'ALL'\)/)
+    // The URL sync writes the city on both views; the market filters only on
+    // the marketplace (the board's filters live in BoardFeed).
+    expect(hub).toMatch(/if \(pinnedCity\)\s+params\.set\('city',\s+pinnedCity\)[\s\S]{0,300}if \(view === 'market'\) \{\s*if \(category !== 'ALL'\)/)
   })
 
   it('the listings API scopes the browse feed by ?city= and falls back to the viewer\'s city', () => {

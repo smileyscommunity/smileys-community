@@ -100,7 +100,6 @@ describe('once-only broadcasts and reports claim in rate_limits (item 21)', () =
     expect(src).not.toContain('prisma.notification.count')
   })
   it.each([
-    ['app/api/board/[id]/report/route.ts',                          'report-board',   'boardPostId'],
     ['app/api/listings/[id]/report/route.ts',                       'report-listing', 'listingId'],
     ['app/api/neighborhoods/[slug]/posts/[postId]/report/route.ts', 'report-wall',    'postId'],
   ])('%s claims the (reporter, target) pair before creating the report', (file, key, idVar) => {
@@ -110,6 +109,17 @@ describe('once-only broadcasts and reports claim in rate_limits (item 21)', () =
     expect(claim).toBeGreaterThan(-1)
     expect(claim).toBeLessThan(create)
   })
+})
+
+// The board route reports a post or one of its replies: the key names the
+// target (post or reply), built before the claim.
+it('app/api/board/[id]/report/route.ts claims the (reporter, target) pair before creating the report', () => {
+  const src = read('app/api/board/[id]/report/route.ts')
+  expect(src).toContain('`report-board:${session.id}:${boardPostId}`')
+  expect(src).toContain('`report-board-reply:${session.id}:${target.replyId}`')
+  const claim = src.indexOf('claimOnce(claimKey')
+  expect(claim).toBeGreaterThan(-1)
+  expect(claim).toBeLessThan(src.indexOf('prisma.report.create('))
 })
 
 describe('unbounded tables (item 22)', () => {

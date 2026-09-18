@@ -7,6 +7,7 @@ import { resolveCityId, getCityTz } from '@/lib/city'
 import { getPublicCity } from '@/lib/cities'
 import { todayInTz } from '@/lib/cityTime'
 import { classifyClubs } from '@/lib/clubHealth'
+import { LIVE_BOARD_AUTHOR } from '@/lib/boardAccess'
 
 // Discovery payload (Clubs brief phase 3): the base club list enriched
 // with computed health, this-week activity, upcoming-event counts and a
@@ -44,7 +45,7 @@ const getDiscoveryClubs = unstable_cache(
       }),
       prisma.boardPost.groupBy({
         by: ['clubId'],
-        where: { clubId: { in: ids }, status: 'active', createdAt: { gte: weekCutoff }, cityId },
+        where: { clubId: { in: ids }, status: 'active', user: LIVE_BOARD_AUTHOR, createdAt: { gte: weekCutoff }, cityId },
         _count: { _all: true },
       }),
       prisma.hangout.groupBy({

@@ -3,14 +3,12 @@ import { prisma } from '@/lib/prisma'
 import { isBlockedEitherWay } from '@/lib/memberPrivacy'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
-import { createNotification } from '@/lib/notify'
-import { firstNameOf } from '@/lib/data'
 
 type Params = { params: Promise<{ id: string }> }
 
-// Toggle "interested" or "save" on a post. One endpoint because they're the
-// same shape: unique-per-member toggles with no free text, so the abuse
-// surface is a notification ping at most — hence a light rate limit.
+// Toggle "save" on a post. "Interested" went with board plans (2026-08-02):
+// nothing in the app offered it, but the endpoint still took it, and each
+// off→on cycle pinged the author again — a script could push ~15 a minute.
 export async function POST(req: NextRequest, { params }: Params) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -19,8 +17,8 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   const { id } = await params
-  const { kind } = await req.json()
-  if (kind !== 'interest' && kind !== 'save') {
+  const { kind } = (await req.json().catch(() => null)) ?? {}
+  if (kind !== 'save') {
     return NextResponse.json({ error: 'Invalid reaction' }, { status: 400 })
   }
 
@@ -50,27 +48,6 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   const where = { postId_userId: { postId: id, userId: session.id } }
-
-  if (kind === 'interest') {
-    const existing = await prisma.boardInterest.findUnique({ where })
-    if (existing) {
-      await prisma.boardInterest.delete({ where })
-      return NextResponse.json({ active: false })
-    }
-    await prisma.boardInterest.create({ data: { postId: id, userId: session.id } })
-    // Only the first toggle-on notifies — the delete/create cycle above means
-    // repeated toggling can't be used to ping the author.
-    if (post.userId !== session.id) {
-      createNotification(
-        post.userId,
-        'board_interest',
-        `👋 ${firstNameOf(session.name)} is interested`,
-        `"${post.title.slice(0, 80)}"`,
-        `/board?post=${id}`,
-      ).catch(() => {})
-    }
-    return NextResponse.json({ active: true })
-  }
 
   const existing = await prisma.boardSave.findUnique({ where })
   if (existing) {

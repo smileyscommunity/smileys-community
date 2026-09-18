@@ -14,6 +14,8 @@ import { APP_URL } from '@/lib/env'
 import { absoluteOgImage } from '@/lib/og'
 import { isSoldOut } from '@/lib/soldOut'
 import type { Event } from '@/lib/data'
+import { LIVE_BOARD_AUTHOR, SHOWN_REPLY } from '@/lib/boardAccess'
+import { firstNameOf } from '@/lib/data'
 
 // Everything the city shopfront reads, in one place, with the one boundary
 // that matters drawn explicitly:
@@ -298,32 +300,41 @@ export const getCityDirectoryHub = unstable_cache(
 )
 
 /**
- * A city's newest live listings for the board hub, and how many there are.
+ * A city's newest board conversations for the board hub, and how many there
+ * are. The hub listed marketplace LISTINGS from before the board and the
+ * marketplace split: /izmir/board said "Nothing posted yet" while İzmir's
+ * board had posts, and /board?city= named it canonical.
  *
- * A strict public projection, on purpose: contact, contactEmail and the
- * gallery are member-only and are never selected here, so the cached value
- * — which Next streams to the browser as part of the page — can't carry
- * them whoever is looking. Safe by construction, not by stripping (the same
- * rule the visitors query on the city page follows). What still differs
- * for a guest — poster name, description length — the page handles per
- * request, outside this cache.
+ * A strict public projection, on purpose: the board's read gate (live
+ * authors, no private club — lib/boardAccess) and a first name only, so the
+ * cached value holds nothing a guest may not see. What still differs per
+ * viewer — guest text redaction, blocked pairs (hence userId) — the page
+ * applies per request, outside this cache.
  */
 export const getCityBoardHub = unstable_cache(
   async (cityId: string) => {
-    const where = { status: 'active', cityId }
-    const [listings, total] = await Promise.all([
-      prisma.listing.findMany({
-        where, orderBy: { createdAt: 'desc' }, take: HUB_LIMIT,
+    const where = {
+      status: 'active', cityId,
+      user: LIVE_BOARD_AUTHOR,
+      OR: [{ clubId: null }, { club: { isPrivate: false } }],
+    }
+    const [rows, total] = await Promise.all([
+      prisma.boardPost.findMany({
+        where, orderBy: [{ pinned: 'desc' }, { createdAt: 'desc' }], take: HUB_LIMIT,
         select: {
-          id: true, category: true, title: true, description: true, price: true,
-          neighborhood: true, createdAt: true,
+          id: true, type: true, title: true, body: true, neighborhood: true, createdAt: true, userId: true,
           user: { select: { name: true } },
+          _count: { select: { replies: { where: SHOWN_REPLY } } },
         },
       }),
-      prisma.listing.count({ where }),
+      prisma.boardPost.count({ where }),
     ])
-    return { listings, total }
+    const posts = rows.map(p => ({
+      id: p.id, type: p.type, title: p.title, body: p.body, neighborhood: p.neighborhood,
+      createdAt: p.createdAt, userId: p.userId, author: firstNameOf(p.user.name), replies: p._count.replies,
+    }))
+    return { posts, total }
   },
-  ['city-board-hub'],
+  ['city-board-hub-posts'],
   { revalidate: 60, tags: ['home'] },
 )

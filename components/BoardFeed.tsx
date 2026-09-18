@@ -12,21 +12,35 @@ import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { DEFAULT_TZ } from '@/lib/cityTime'
 import { BOARD_POST_TYPES, QUESTION_TAGS, TAG_LABEL, type BoardPostType } from '@/lib/board'
+import { confirmToast } from '@/lib/confirmToast'
 
 interface PostUser { id: string; name: string; color: string; profilePhoto: string | null }
 interface Post {
   id: string; type: BoardPostType; title: string; body: string
-  neighborhood: string | null; tag: string | null; whenLabel: string | null
-  pinned: boolean; createdAt: string; user: PostUser
-  replyCount: number; interestCount: number; saveCount: number
-  viewerInterested: boolean; viewerSaved: boolean
+  neighborhood: string | null; tag: string | null
+  pinned: boolean; createdAt: string; editedAt: string | null; user: PostUser
+  replyCount: number; saveCount: number
+  viewerSaved: boolean
+  // Staff of the post's city: pin and remove from the ••• menu.
+  canModerate: boolean
 }
-interface Reply { id: string; body: string; parentId: string | null; createdAt: string; user: PostUser }
+interface Reply { id: string; body: string; parentId: string | null; createdAt: string; user: PostUser; canRemove?: boolean }
 interface Visitor { id: string; name: string; fromCity: string | null; startsOn: string; neighborhood: string | null }
 interface ShownCity { name: string; slug: string; timezone: string }
 interface FeedHangout { id: string; title: string; neighborhood: string | null; location: string; startsAt: string; joinCount: number; host: string }
 
-const TYPE_META = Object.fromEntries(BOARD_POST_TYPES.map(t => [t.value, t]))
+const TYPE_META: Record<string, (typeof BOARD_POST_TYPES)[number]> = Object.fromEntries(BOARD_POST_TYPES.map(t => [t.value, t]))
+// A type the board no longer offers (plans, 2026-08) renders as a plain post
+// rather than crashing the card on an undefined badge.
+const metaOf = (type: string) => TYPE_META[type] ?? TYPE_META.share
+
+// Guests get authors as a first name and a placeholder id (lib/authorProjection);
+// that id isn't a profile, so the name isn't a link.
+function AuthorLink({ user, className, children }: { user: PostUser; className: string; children: React.ReactNode }) {
+  const { isLoggedIn } = useAuth()
+  if (!isLoggedIn || user.id === 'member') return <span className={className}>{children}</span>
+  return <Link href={`/members/${user.id}`} className={className}>{children}</Link>
+}
 
 function timeAgo(iso: string) {
   const mins = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60_000))
@@ -111,7 +125,7 @@ function VisitorsModule({ visitors, cityName }: { visitors: Visitor[]; cityName:
 }
 
 // ── Composer ────────────────────────────────────────────────────────────────
-function Composer({ onPosted, prefillNeighborhood, shownCity }: { onPosted: () => void; prefillNeighborhood?: string | null; shownCity: ShownCity | null }) {
+function Composer({ onPosted, prefillNeighborhood, shownCity, eventId }: { onPosted: () => void; prefillNeighborhood?: string | null; shownCity: ShownCity | null; eventId?: string | null }) {
   const { user, isLoggedIn } = useAuth()
   // The city this post will file to — the POSTING city (api/board POST uses
   // resolvePostingCityId: the browsed city only if you belong to it), not the
@@ -141,10 +155,16 @@ function Composer({ onPosted, prefillNeighborhood, shownCity }: { onPosted: () =
   // carry none at all, which leaves the neighborhood filter and every
   // "On the Board in X" section with nothing to show — an opt-in field
   // nobody opts into. Still freely changeable, including back to none.
+  // Only when they show it (neighborhoodVisible) and it's in the city the
+  // post files to — otherwise a hidden home got published, or a name the
+  // posting city doesn't have was silently dropped on save.
   const [neighborhood, setNeighborhood] = useState('')
+  const homeShown = (user as { neighborhoodVisible?: boolean }).neighborhoodVisible !== false
   useEffect(() => {
-    if (isLoggedIn && user.neighborhood) setNeighborhood(user.neighborhood)
-  }, [isLoggedIn, user.neighborhood])
+    if (isLoggedIn && homeShown && user.neighborhood && neighborhoods.includes(user.neighborhood)) {
+      setNeighborhood(n => n || user.neighborhood!)
+    }
+  }, [isLoggedIn, homeShown, user.neighborhood, neighborhoods])
   const [posting,      setPosting]      = useState(false)
 
   // Compose intent from a neighborhood page ("Ask about Moda →"): open the
@@ -155,6 +175,12 @@ function Composer({ onPosted, prefillNeighborhood, shownCity }: { onPosted: () =
     setOpen(true)
     if (prefillNeighborhood) setNeighborhood(prefillNeighborhood)
   }, [prefillNeighborhood])
+  // A neighbourhood link from another city ("Ask about Alsancak" while your
+  // posting city is Istanbul) names a place this post can't carry: say so
+  // instead of dropping it on save.
+  const foreignHood = !!neighborhood && neighborhoods.length > 0 && !neighborhoods.includes(neighborhood)
+  // Opened from an event page: the post joins that event's conversation.
+  useEffect(() => { if (eventId) setOpen(true) }, [eventId])
 
   const PLACEHOLDER: Record<BoardPostType, string> = {
     question: 'What would you like help with?',
@@ -184,8 +210,9 @@ function Composer({ onPosted, prefillNeighborhood, shownCity }: { onPosted: () =
         body: JSON.stringify({
           type, title, body,
           tag: tag || undefined,
-          neighborhood: neighborhood || undefined,
+          neighborhood: neighborhood && !foreignHood ? neighborhood : undefined,
           club: postClub || undefined,
+          event: eventId || undefined,
         }),
       })
       const data = await res.json().catch(() => ({}))
@@ -195,20 +222,22 @@ function Composer({ onPosted, prefillNeighborhood, shownCity }: { onPosted: () =
       // from? Without this the phase can't answer its own question.
       posthog.capture('board_post_created', {
         type,
-        hasNeighborhood: !!neighborhood,
+        hasNeighborhood: !!neighborhood && !foreignHood,
         hasClub: !!postClub,
         fromPrefill: !!prefillNeighborhood,
       })
       // A post filed somewhere other than the board on screen won't appear in
       // the reload below — say where it went rather than let it vanish. Club
       // posts file to the club's city, so they're left out.
-      if (!postClub && postingCity && shownCity && postingCity.slug !== shownCity.slug) {
+      if (!postClub && !eventId && postingCity && shownCity && postingCity.slug !== shownCity.slug) {
         toast.success(`Posted to ${postingCity.name}'s board — you're viewing ${shownCity.name}, so it won't show here`)
       } else {
         toast.success('Posted!')
       }
       setTitle(''); setBody(''); setTag(''); setPostClub(''); setOpen(false)
       onPosted()
+    } catch {
+      toast.error('Network error — your post wasn\'t sent')
     } finally {
       setPosting(false)
     }
@@ -266,26 +295,36 @@ function Composer({ onPosted, prefillNeighborhood, shownCity }: { onPosted: () =
           )}
 
 
+          {foreignHood && (
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mb-2">
+              {neighborhood} isn&apos;t in {postingCity?.name ?? 'the city you post to'} — this post goes to {postingCity?.name ?? 'your city'}&apos;s board without a neighborhood.
+            </p>
+          )}
+          {eventId && (
+            <p className="text-xs text-gray-600 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2 mb-2">
+              📅 Posting in this event&apos;s conversation — it shows on the event page too.
+            </p>
+          )}
           <div className="flex items-center gap-2 flex-wrap">
-            <select value={neighborhood} onChange={e => setNeighborhood(e.target.value)}
+            <select value={foreignHood ? '' : neighborhood} onChange={e => setNeighborhood(e.target.value)}
               className="border border-gray-200 rounded-xl px-3 py-2 text-xs bg-white focus:outline-none">
               <option value="">📍 No neighborhood</option>
               {neighborhoods.map(n => <option key={n} value={n}>{n}</option>)}
             </select>
-            {myClubs.length > 0 && (
+            {myClubs.length > 0 && !eventId && (
               <select value={postClub} onChange={e => setPostClub(e.target.value)}
                 className="border border-gray-200 rounded-xl px-3 py-2 text-xs bg-white focus:outline-none">
                 <option value="">🏛️ Post to a club (optional)</option>
                 {myClubs.map(c => <option key={c.id} value={c.slug}>{c.emoji} {c.name}</option>)}
               </select>
             )}
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ml-auto flex items-center gap-2 flex-wrap justify-end">
               {/* Which board this lands on: the POSTING city, which follows
                   membership like listings do, so browsing a city you haven't
                   joined files the post back home. Visible on phones too — it
                   was sm:-only, so phone users never saw where a post went.
                   Empty until /api/city/current answers, never a guessed name. */}
-              {postingCity && !postClub && (
+              {postingCity && !postClub && !eventId && (
                 <span className="text-xs text-gray-500 mr-1">
                   Posting to <span className="font-semibold text-gray-700">{postingCity.name}</span>
                 </span>
@@ -308,19 +347,26 @@ function Composer({ onPosted, prefillNeighborhood, shownCity }: { onPosted: () =
 
 // ── Replies ─────────────────────────────────────────────────────────────────
 function RepliesBlock({ postId, onCount }: { postId: string; onCount: (n: number) => void }) {
-  const { isLoggedIn } = useAuth()
+  const { user: me, isLoggedIn } = useAuth()
   const [replies, setReplies] = useState<Reply[] | null>(null)
+  const [failed,  setFailed]  = useState(false)
   const [text,    setText]    = useState('')
   const [replyTo, setReplyTo] = useState<Reply | null>(null)
   const [sending, setSending] = useState(false)
 
-  const load = useCallback(async () => {
+  // Returns the list it loaded, so a caller counts what is actually shown.
+  const load = useCallback(async (): Promise<Reply[] | null> => {
     try {
       const res = await fetch(`/app/api/board/${postId}/replies`, { credentials: 'include' })
-      const data = await res.json().catch(() => ({ replies: [] }))
-      setReplies(data.replies ?? [])
+      if (!res.ok) throw new Error(String(res.status))
+      const data = await res.json()
+      const list: Reply[] = data.replies ?? []
+      setReplies(list); setFailed(false)
+      return list
     } catch {
-      setReplies([])   // not "Loading…" forever
+      // Said, not shown as an empty thread (and not "Loading…" forever).
+      setFailed(true); setReplies(r => r ?? [])
+      return null
     }
   }, [postId])
 
@@ -339,10 +385,39 @@ function RepliesBlock({ postId, onCount }: { postId: string; onCount: (n: number
       const data = await res.json().catch(() => ({}))
       if (!res.ok) { toast.error(data.error ?? 'Could not reply'); return }
       setText(''); setReplyTo(null)
-      await load()
-      onCount((replies?.length ?? 0) + 1)
+      const list = await load()
+      if (list) onCount(list.length)
+    } catch {
+      toast.error('Network error — your reply wasn\'t sent')
     } finally {
       setSending(false)
+    }
+  }
+
+  async function removeReply(r: Reply) {
+    if (!(await confirmToast(r.user.id === me.id ? 'Delete your reply?' : 'Remove this reply?', { confirmLabel: 'Remove', cancelLabel: 'Keep' }))) return
+    try {
+      const res = await fetch(`/app/api/board/${postId}/replies/${r.id}`, { method: 'DELETE', credentials: 'include' })
+      if (!res.ok) { toast.error('Could not remove the reply'); return }
+      const list = await load()
+      if (list) onCount(list.length)
+    } catch {
+      toast.error('Network error — try again')
+    }
+  }
+
+  async function reportReply(r: Reply) {
+    try {
+      const res = await fetch(`/app/api/board/${postId}/report`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: 'inappropriate', replyId: r.id }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { toast.error(data.error ?? 'Could not report'); return }
+      toast.success('Reported — our moderators will take a look')
+    } catch {
+      toast.error('Network error — try again')
     }
   }
 
@@ -351,8 +426,26 @@ function RepliesBlock({ postId, onCount }: { postId: string; onCount: (n: number
   const top = replies.filter(r => !r.parentId)
   const childrenOf = (id: string) => replies.filter(r => r.parentId === id)
 
+  const actions = (r: Reply) => isLoggedIn && (
+    <span className="inline-flex gap-3 mt-0.5">
+      {r.canRemove && (
+        <button onClick={() => removeReply(r)} className="text-[11px] font-semibold text-gray-400 hover:text-red-600">
+          {r.user.id === me.id ? 'Delete' : 'Remove'}
+        </button>
+      )}
+      {r.user.id !== me.id && (
+        <button onClick={() => reportReply(r)} className="text-[11px] font-semibold text-gray-400 hover:text-gray-600">Report</button>
+      )}
+    </span>
+  )
+
   return (
     <div className="mt-3 pt-3 border-t border-gray-100 space-y-3">
+      {failed && (
+        <p className="text-xs text-gray-500">
+          Couldn&apos;t load replies. <button onClick={() => load()} className="font-semibold text-amber-600 hover:underline">Try again</button>
+        </p>
+      )}
       {top.map(r => (
         <div key={r.id}>
           <div className="flex items-start gap-2.5">
@@ -360,25 +453,29 @@ function RepliesBlock({ postId, onCount }: { postId: string; onCount: (n: number
               size="w-7 h-7" textSize="text-[10px]" className="shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
               <p className="text-xs">
-                <Link href={`/members/${r.user.id}`} className="font-bold text-gray-900 hover:text-amber-600">{firstNameOf(r.user.name)}</Link>
+                <AuthorLink user={r.user} className="font-bold text-gray-900 hover:text-amber-600">{firstNameOf(r.user.name)}</AuthorLink>
                 <span className="text-gray-400 ml-1.5">{timeAgo(r.createdAt)}</span>
               </p>
               <p className="text-sm text-gray-700 mt-0.5 whitespace-pre-wrap">{r.body}</p>
-              {isLoggedIn && (
-                <button onClick={() => setReplyTo(r)} className="text-[11px] font-semibold text-gray-400 hover:text-amber-600 mt-0.5">
-                  Reply
-                </button>
-              )}
+              <span className="inline-flex gap-3">
+                {isLoggedIn && (
+                  <button onClick={() => setReplyTo(r)} className="text-[11px] font-semibold text-gray-400 hover:text-amber-600 mt-0.5">
+                    Reply
+                  </button>
+                )}
+                {actions(r)}
+              </span>
               {childrenOf(r.id).map(c => (
                 <div key={c.id} className="flex items-start gap-2 mt-2 ml-1 pl-3 border-l-2 border-gray-100">
                   <AvatarImg src={avatarUrl(c.user.profilePhoto, 64)} name={c.user.name} color={c.user.color}
                     size="w-6 h-6" textSize="text-[9px]" className="shrink-0 mt-0.5" />
                   <div className="min-w-0">
                     <p className="text-xs">
-                      <Link href={`/members/${c.user.id}`} className="font-bold text-gray-900 hover:text-amber-600">{firstNameOf(c.user.name)}</Link>
+                      <AuthorLink user={c.user} className="font-bold text-gray-900 hover:text-amber-600">{firstNameOf(c.user.name)}</AuthorLink>
                       <span className="text-gray-400 ml-1.5">{timeAgo(c.createdAt)}</span>
                     </p>
                     <p className="text-sm text-gray-700 mt-0.5 whitespace-pre-wrap">{c.body}</p>
+                    {actions(c)}
                   </div>
                 </div>
               ))}
@@ -399,7 +496,7 @@ function RepliesBlock({ postId, onCount }: { postId: string; onCount: (n: number
             <input value={text} onChange={e => setText(e.target.value)} maxLength={500}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
               placeholder="Write a reply…"
-              className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
+              className="flex-1 min-w-0 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
             <button onClick={send} disabled={sending || !text.trim()}
               className="px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-colors">
               {sending ? '…' : 'Reply'}
@@ -416,9 +513,11 @@ function RepliesBlock({ postId, onCount }: { postId: string; onCount: (n: number
 }
 
 // ── Post card ───────────────────────────────────────────────────────────────
-function PostCard({ p, onRemoved, defaultOpen }: { p: Post; onRemoved: (id: string) => void; defaultOpen?: boolean }) {
+function PostCard({ p, onRemoved, onChanged, defaultOpen }: {
+  p: Post; onRemoved: (id: string) => void; onChanged: (p: Post) => void; defaultOpen?: boolean
+}) {
   const { user, isLoggedIn } = useAuth()
-  const meta = TYPE_META[p.type]
+  const meta = metaOf(p.type)
   const [showReplies, setShowReplies] = useState(!!defaultOpen)
   // Deep-linked post (/board?post=<id> — reply notifications, neighborhood
   // pages): scroll it into view with its replies open.
@@ -429,7 +528,22 @@ function PostCard({ p, onRemoved, defaultOpen }: { p: Post; onRemoved: (id: stri
   const [replyCount,  setReplyCount]  = useState(p.replyCount)
   const [saved,       setSaved]       = useState(p.viewerSaved)
   const [menuOpen,    setMenuOpen]    = useState(false)
+  const [editing,     setEditing]     = useState(false)
+  const [draftTitle,  setDraftTitle]  = useState(p.title)
+  const [draftBody,   setDraftBody]   = useState(p.body)
+  const [savingEdit,  setSavingEdit]  = useState(false)
   const isOwn = isLoggedIn && user.id === p.user.id
+
+  // The ••• menu closes on an outside tap or Escape, like every other menu.
+  const menuRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!menuOpen) return
+    const onDown = (e: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false) }
+    const onKey  = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuOpen(false) }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey) }
+  }, [menuOpen])
 
   const reacting = useRef(false)
   async function react(kind: 'save') {
@@ -455,36 +569,77 @@ function PostCard({ p, onRemoved, defaultOpen }: { p: Post; onRemoved: (id: stri
 
   async function report(reason: string) {
     setMenuOpen(false)
-    const res = await fetch(`/app/api/board/${p.id}/report`, {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reason }),
-    })
-    const data = await res.json().catch(() => ({}))
-    if (!res.ok) { toast.error(data.error ?? 'Could not report'); return }
-    toast.success('Reported — our moderators will take a look')
+    try {
+      const res = await fetch(`/app/api/board/${p.id}/report`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { toast.error(data.error ?? 'Could not report'); return }
+      toast.success('Reported — our moderators will take a look')
+    } catch {
+      toast.error('Network error — try again')
+    }
   }
 
   async function remove() {
     setMenuOpen(false)
-    const res = await fetch(`/app/api/board/${p.id}`, { method: 'DELETE', credentials: 'include' })
-    if (!res.ok) { toast.error('Could not delete'); return }
-    toast.success('Post removed')
-    onRemoved(p.id)
+    // One tap used to delete the post and its whole thread.
+    if (!(await confirmToast(isOwn ? 'Delete your post and its replies?' : 'Remove this post from the board?', { confirmLabel: isOwn ? 'Delete' : 'Remove', cancelLabel: 'Keep' }))) return
+    try {
+      const res = await fetch(`/app/api/board/${p.id}`, { method: 'DELETE', credentials: 'include' })
+      if (!res.ok) { toast.error('Could not delete'); return }
+      toast.success('Post removed')
+      onRemoved(p.id)
+    } catch {
+      toast.error('Network error — try again')
+    }
   }
+
+  async function patch(body: Record<string, unknown>): Promise<boolean> {
+    try {
+      const res = await fetch(`/app/api/board/${p.id}`, {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { toast.error(data.error ?? 'Could not save'); return false }
+      onChanged({ ...p, ...data })
+      return true
+    } catch {
+      toast.error('Network error — try again')
+      return false
+    }
+  }
+
+  async function saveEdit() {
+    if (!draftTitle.trim() || savingEdit) return
+    setSavingEdit(true)
+    if (await patch({ title: draftTitle, body: draftBody })) setEditing(false)
+    setSavingEdit(false)
+  }
+
+  async function togglePin() {
+    setMenuOpen(false)
+    if (await patch({ pinned: !p.pinned })) toast.success(p.pinned ? 'Unpinned' : 'Pinned to the top of the board')
+  }
+
+  const item = 'w-full text-left px-4 py-2 text-sm hover:bg-gray-50'
 
   return (
     <div ref={cardRef} className={`bg-white border rounded-2xl p-5 shadow-sm ${defaultOpen ? 'border-amber-300 ring-1 ring-amber-200' : 'border-gray-100'}`}>
       <div className="flex items-start gap-3">
-        <Link href={`/members/${p.user.id}`}>
+        <AuthorLink user={p.user} className="shrink-0">
           <AvatarImg src={avatarUrl(p.user.profilePhoto, 96)} name={p.user.name} color={p.user.color}
             size="w-11 h-11" textSize="text-sm" className="shrink-0" />
-        </Link>
+        </AuthorLink>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <Link href={`/members/${p.user.id}`} className="text-sm font-bold text-gray-900 hover:text-amber-600">
+            <AuthorLink user={p.user} className="text-sm font-bold text-gray-900 hover:text-amber-600">
               {p.user.name}
-            </Link>
+            </AuthorLink>
             <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ${meta.badgeCls}`}>
               {meta.emoji} {meta.label}
             </span>
@@ -493,20 +648,28 @@ function PostCard({ p, onRemoved, defaultOpen }: { p: Post; onRemoved: (id: stri
           <p className="text-xs text-gray-500 mt-0.5">
             {p.neighborhood && <><span aria-hidden="true">📍 </span>{p.neighborhood} · </>}
             {timeAgo(p.createdAt)}
+            {p.editedAt && <> · edited</>}
           </p>
         </div>
         {isLoggedIn && (
-          <div className="relative shrink-0">
-            <button onClick={() => setMenuOpen(v => !v)} aria-label="Post options"
+          <div ref={menuRef} className="relative shrink-0">
+            <button onClick={() => setMenuOpen(v => !v)} aria-label="Post options" aria-expanded={menuOpen}
               className="text-gray-400 hover:text-gray-600 px-2 py-1 rounded-lg hover:bg-gray-50">•••</button>
             {menuOpen && (
-              <div className="absolute right-0 top-8 z-10 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-44">
-                {isOwn ? (
-                  <button onClick={remove} className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50">Delete post</button>
-                ) : (
+              <div className="absolute right-0 top-8 z-10 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-48">
+                {isOwn && (
+                  <button onClick={() => { setMenuOpen(false); setDraftTitle(p.title); setDraftBody(p.body); setEditing(true) }} className={`${item} text-gray-700`}>Edit post</button>
+                )}
+                {p.canModerate && (
+                  <button onClick={togglePin} className={`${item} text-gray-700`}>{p.pinned ? 'Unpin' : 'Pin to top'}</button>
+                )}
+                {(isOwn || p.canModerate) && (
+                  <button onClick={remove} className={`${item} text-red-600 hover:bg-red-50`}>{isOwn ? 'Delete post' : 'Remove post'}</button>
+                )}
+                {!isOwn && (
                   <>
-                    <button onClick={() => report('spam')} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Report as spam</button>
-                    <button onClick={() => report('inappropriate')} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Report as inappropriate</button>
+                    <button onClick={() => report('spam')} className={`${item} text-gray-700`}>Report as spam</button>
+                    <button onClick={() => report('inappropriate')} className={`${item} text-gray-700`}>Report as inappropriate</button>
                   </>
                 )}
               </div>
@@ -515,26 +678,37 @@ function PostCard({ p, onRemoved, defaultOpen }: { p: Post; onRemoved: (id: stri
         )}
       </div>
 
-      <h3 className="font-bold text-gray-900 mt-3 leading-snug">{p.title}</h3>
-      {p.body && <p className="text-sm text-gray-700 mt-1.5 leading-relaxed whitespace-pre-wrap">{p.body}</p>}
+      {editing ? (
+        <div className="mt-3">
+          <input value={draftTitle} onChange={e => setDraftTitle(e.target.value)} maxLength={120} autoFocus
+            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-semibold mb-2 focus:outline-none focus:ring-2 focus:ring-amber-400" />
+          <textarea value={draftBody} onChange={e => setDraftBody(e.target.value)} maxLength={1000} rows={3}
+            className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400" />
+          <div className="flex justify-end gap-2 mt-2">
+            <button onClick={() => setEditing(false)} className="px-4 py-2 text-xs font-bold text-gray-500 hover:text-gray-700">Cancel</button>
+            <button onClick={saveEdit} disabled={savingEdit || !draftTitle.trim()}
+              className="px-5 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-colors">
+              {savingEdit ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <h3 className="font-bold text-gray-900 mt-3 leading-snug">{p.title}</h3>
+          {p.body && <p className="text-sm text-gray-700 mt-1.5 leading-relaxed whitespace-pre-wrap">{p.body}</p>}
+        </>
+      )}
 
-      {(p.tag || p.whenLabel) && (
+      {p.tag && TAG_LABEL[p.tag] && (
         <div className="flex gap-1.5 flex-wrap mt-2.5">
-          {p.tag && TAG_LABEL[p.tag] && (
-            <span className="text-[11px] font-semibold bg-gray-50 text-gray-600 border border-gray-200 px-2 py-0.5 rounded-full">
-              {TAG_LABEL[p.tag].emoji} {TAG_LABEL[p.tag].label}
-            </span>
-          )}
-          {p.whenLabel && (
-            <span className="text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-100 px-2 py-0.5 rounded-full">
-              🕐 {p.whenLabel}
-            </span>
-          )}
+          <span className="text-[11px] font-semibold bg-gray-50 text-gray-600 border border-gray-200 px-2 py-0.5 rounded-full">
+            {TAG_LABEL[p.tag].emoji} {TAG_LABEL[p.tag].label}
+          </span>
         </div>
       )}
 
       <div className="flex items-center gap-2 mt-4 flex-wrap">
-        {p.type === 'reco' && !isOwn && (
+        {!isOwn && (
           <button onClick={() => react('save')}
             className={`text-xs font-bold px-3 py-1.5 rounded-full border transition-colors ${
               saved ? 'bg-red-50 text-red-700 border-red-200' : 'bg-white text-gray-700 border-gray-200 hover:border-red-200'
@@ -570,6 +744,10 @@ export default function BoardFeed() {
   const [composeHood, setComposeHood] = useState<string | null>(null)
   const [loading,  setLoading]  = useState(true)
   const [hasMore,  setHasMore]  = useState(false)
+  // A failed load, said as one — it rendered as "It's quiet right now".
+  const [loadError, setLoadError] = useState(false)
+  // ?compose=1&event=<id> from an event page: post into its conversation.
+  const [composeEvent, setComposeEvent] = useState<string | null>(null)
   const [visitors, setVisitors] = useState<Visitor[]>([])
   const [hangouts, setHangouts] = useState<FeedHangout[]>([])
 
@@ -644,8 +822,12 @@ export default function BoardFeed() {
     if (post) setDeepPost(post)
     const n = searchParams.get('neighborhood')
     if (n) setHood(n)
-    // ?compose=1 opens the composer, with ?neighborhood= preset when given.
-    if (searchParams.get('compose') === '1') setComposeHood(n ?? '')
+    // ?compose=1 opens the composer, with ?neighborhood= preset when given,
+    // and ?event= tying the post to that event's conversation.
+    if (searchParams.get('compose') === '1') {
+      setComposeHood(n ?? '')
+      setComposeEvent(searchParams.get('event'))
+    }
   }, [searchParams])
 
   // Offset of the next server page, counting only real page items. posts
@@ -671,14 +853,17 @@ export default function BoardFeed() {
     setLoading(true)
     try {
       const params = new URLSearchParams()
-      if (type) params.set('type', type)
+      if (type === 'saved') params.set('saved', '1')
+      else if (type) params.set('type', type)
       if (offset) params.set('offset', String(offset))
       if (hood) params.set('neighborhood', hood)
       if (deepPost && !append) params.set('post', deepPost)
       if (pinnedCity) params.set('city', pinnedCity)
       const res = await fetch(`/app/api/board?${params}`, { credentials: 'include' })
-      const data = await res.json().catch(() => ({ posts: [] }))
+      if (!res.ok) throw new Error(String(res.status))
+      const data = await res.json()
       if (!isCurrent()) return
+      setLoadError(false)
       const next: Post[] = data.posts ?? []
       const prepended = !append && typeof data.prependedPostId === 'string' ? data.prependedPostId : null
       if (!append) { prependedId.current = prepended; prependedPaged.current = false }
@@ -692,12 +877,30 @@ export default function BoardFeed() {
         return [...prev, ...next.filter(p => !seen.has(p.id))]
       })
       setHasMore(pageLength >= 15)
+      // A link to a post that's gone (removed, or not yours to read) landed
+      // on the plain feed with nothing said.
+      if (!append && deepPost && !next.some(p => p.id === deepPost)) {
+        toast.info('That post is no longer on the board')
+        setDeepPost(null)
+      }
+    } catch {
+      if (!isCurrent()) return
+      // A failed first page is an error with a retry, not an empty board; a
+      // failed "Load more" keeps the button (hasMore untouched) and says so.
+      if (append) toast.error('Couldn\'t load more posts — try again')
+      else setLoadError(true)
     } finally {
       if (isCurrent()) setLoading(false)
     }
   }, [hood, deepPost, pinnedCity])
 
   useEffect(() => { load(filter, false) }, [filter, load])
+
+  // A deep-linked post is for the view it was opened in: changing a filter
+  // dropped it on top of every later list (and above your own new post).
+  const pickFilter = (f: string) => { setDeepPost(null); setFilter(f) }
+  const clearHood  = () => { setDeepPost(null); setHood('') }
+  const changePost = useCallback((next: Post) => setPosts(prev => prev.map(x => x.id === next.id ? next : x)), [])
 
   // A deleted post is gone server-side too, so the next page starts one
   // earlier — unless it was the prepended post and no appended page counted
@@ -710,11 +913,11 @@ export default function BoardFeed() {
 
   return (
     <div className="max-w-2xl">
-      <Composer onPosted={() => load(filter, false)} prefillNeighborhood={composeHood} shownCity={shownCity} />
+      <Composer onPosted={() => { setDeepPost(null); load(filter, false) }} prefillNeighborhood={composeHood} shownCity={shownCity} eventId={composeEvent} />
 
       <div className="flex flex-wrap gap-1.5 pb-3">
-        {FEED_CHIPS.map(c => (
-          <button key={c.id} onClick={() => setFilter(c.id)}
+        {[...FEED_CHIPS, ...(viewerIsMember ? [{ id: 'saved', label: '❤️ Saved' }] : [])].map(c => (
+          <button key={c.id} onClick={() => pickFilter(c.id)}
             className={`px-3.5 py-1.5 rounded-full text-xs font-bold border whitespace-nowrap transition-colors ${
               filter === c.id ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-gray-600 border-gray-200 hover:border-amber-300'
             }`}>
@@ -722,7 +925,7 @@ export default function BoardFeed() {
           </button>
         ))}
         {hood && (
-          <button onClick={() => setHood('')} title="Clear neighborhood filter"
+          <button onClick={clearHood} title="Clear neighborhood filter"
             className="shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold border bg-amber-50 border-amber-300 text-amber-700 whitespace-nowrap">
             <span aria-hidden="true">📍 </span>{hood} <span aria-hidden="true">×</span>
           </button>
@@ -739,6 +942,18 @@ export default function BoardFeed() {
               <div className="h-3 bg-gray-100 rounded w-1/2 mt-2" />
             </div>
           ))}
+        </div>
+      ) : loadError && posts.length === 0 ? (
+        <div className="bg-gray-50 border border-gray-200 rounded-2xl p-8 text-center mt-3">
+          <p className="font-bold text-gray-900">Couldn&apos;t load the board.</p>
+          <button onClick={() => load(filter, false)} className="mt-3 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
+            Try again
+          </button>
+        </div>
+      ) : posts.length === 0 && filter === 'saved' ? (
+        <div className="bg-gray-50 border border-gray-200 rounded-2xl p-8 text-center mt-3">
+          <p className="font-bold text-gray-900">Nothing saved yet.</p>
+          <p className="text-sm text-gray-600 mt-1">Tap 🤍 Save on a post to keep it here.</p>
         </div>
       ) : posts.length === 0 ? (
         /* Actionable empty state — never a bare "no posts". The visitors
@@ -761,11 +976,11 @@ export default function BoardFeed() {
         <div className="space-y-4 mt-3">
           <HangoutsModule hangouts={hangouts} tz={shownCity?.timezone ?? DEFAULT_TZ} />
           {posts.slice(0, 3).map(p => (
-            <PostCard key={p.id} p={p} defaultOpen={p.id === deepPost} onRemoved={removePost} />
+            <PostCard key={p.id} p={p} defaultOpen={p.id === deepPost} onRemoved={removePost} onChanged={changePost} />
           ))}
           <VisitorsModule visitors={visitors} cityName={shownCity?.name ?? ''} />
           {posts.slice(3).map(p => (
-            <PostCard key={p.id} p={p} defaultOpen={p.id === deepPost} onRemoved={removePost} />
+            <PostCard key={p.id} p={p} defaultOpen={p.id === deepPost} onRemoved={removePost} onChanged={changePost} />
           ))}
           {hasMore && (
             <button onClick={() => load(filter, true)} disabled={loading}

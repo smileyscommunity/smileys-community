@@ -64,12 +64,16 @@ describe('7. the attendee CSV drops the Email column when emails were withheld',
 describe('8. a failed report write hands its claim back', () => {
   it.each([
     ['app/api/reports/route.ts',                                    'report:${session.id}:${reportedId}'],
-    ['app/api/board/[id]/report/route.ts',                          'report-board:${session.id}:${boardPostId}'],
     ['app/api/listings/[id]/report/route.ts',                       'report-listing:${session.id}:${listingId}'],
     ['app/api/neighborhoods/[slug]/posts/[postId]/report/route.ts', 'report-wall:${session.id}:${postId}'],
   ])('%s releases its claim when report.create throws', (file, key) => {
     const src = read(file)
     expect(src).toContain('.catch(async (e: unknown) => { await releaseClaim(`' + key + '`); throw e })')
+    expect(src.indexOf('prisma.report.create(')).toBeLessThan(src.indexOf('await releaseClaim('))
+  })
+  it('app/api/board/[id]/report/route.ts releases its claim (post or reply) when report.create throws', () => {
+    const src = read('app/api/board/[id]/report/route.ts')
+    expect(src).toContain('.catch(async (e: unknown) => { await releaseClaim(claimKey); throw e })')
     expect(src.indexOf('prisma.report.create(')).toBeLessThan(src.indexOf('await releaseClaim('))
   })
   it('the survey anomaly report releases its claim and skips the push when it fails', () => {

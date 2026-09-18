@@ -62,7 +62,7 @@ describe('18. directory reviews API follows the business page rule', () => {
 describe('19. board posts, replies and guide tips project their authors', () => {
   it.each([
     ['app/api/board/route.ts',             'user: project(p.user),'],
-    ['app/api/board/[id]/replies/route.ts', 'replies: replies.map(r => ({ ...r, user: project(r.user) }))'],
+    ['app/api/board/[id]/replies/route.ts', 'user: project(r.user),'],
     ['app/api/guide/[slug]/tips/route.ts',  'user: project(t.user),'],
   ])('%s', (file, snippet) => {
     const src = read(file)

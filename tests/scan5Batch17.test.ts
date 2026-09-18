@@ -128,7 +128,7 @@ describe('66. moving sales clients carry the page city and the posting city', ()
     expect(sales).toContain('fetch(`/app/api/moving-sales${city ? `?city=${encodeURIComponent(city)}` : \'\'}`')
     expect(sales).toMatch(/setSales\(data\.sales \?\? \[\]\)\n\s*\}, \[city\]\)/)
     expect(hub).toContain('fetch(`/app/api/moving-sales${pinnedCity ? `?city=${encodeURIComponent(pinnedCity)}` : \'\'}`')
-    expect(hub).toMatch(/setMovingPreview\([^\n]*\n\s*\.catch\(\(\) => \{\}\)\n\s*\}, \[pinnedCity\]\)/)
+    expect(hub).toMatch(/setMovingPreview\([^\n]*\n\s*\.catch\(\(\) => \{\}\)\n\s*\}, \[pinnedCity, view\]\)/)
     expect(hub).toContain('<MovingSales cityName={cityName} city={pinnedCity} />')
   })
 

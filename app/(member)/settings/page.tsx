@@ -390,7 +390,7 @@ export default function SettingsPage() {
             <Toggle label="Event updates" description="Changes to events you're attending" checked={prefs.eventUpdates} onChange={v => savePref('eventUpdates', v)} />
             <Toggle label="New attendees" description="When someone joins your event or hangout" checked={prefs.joinedEvents} onChange={v => savePref('joinedEvents', v)} />
             <Toggle label="Club wall posts" description="New posts in clubs you've joined" checked={prefs.wallPosts} onChange={v => savePref('wallPosts', v)} />
-            <Toggle label="Wall replies" description="Replies to your club posts" checked={prefs.wallReplies} onChange={v => savePref('wallReplies', v)} />
+            <Toggle label="Wall replies" description="Replies to your club and board posts" checked={prefs.wallReplies} onChange={v => savePref('wallReplies', v)} />
             <Toggle label="Quiet hours" description={`Mute notifications from ${prefs.quietFrom}:00 to ${prefs.quietTo}:00`} checked={prefs.quietHours} onChange={v => savePref('quietHours', v)} />
             {prefs.quietHours && (
               <div className="flex flex-wrap gap-3 py-2 pl-1">

@@ -32,6 +32,7 @@ interface Report {
   reportedBlockCount?: number
   event?: { id: string; title: string } | null
   boardPost?: { id: string; title: string; body: string; status: string } | null
+  boardReply?: { id: string; body: string; removed: boolean } | null
   listing?: { id: string; title: string; category: string; status: string } | null
   neighborhoodPost?: { id: string; content: string; neighborhood: string; slug: string } | null
 }
@@ -143,6 +144,7 @@ function ModerationPageInner() {
   const [selected,   setSelected]   = useState<Report | null>(null)
   const [reviewNote, setReviewNote] = useState('')
   const [banReason,  setBanReason]  = useState('')
+  const [removeContent, setRemoveContent] = useState(true)
   const [saving,     setSaving]     = useState(false)
 
   // Blacklist form
@@ -276,7 +278,11 @@ function ModerationPageInner() {
     return `Updated ${Math.floor(s / 3600)}h ago`
   })()
 
-  async function handleAction(action: 'dismiss' | 'warn' | 'ban') {
+  // A reported board post or reply still up: staff can take it down with
+  // the review (the checkbox) or on its own ("Remove").
+  const boardContentLive = !!selected?.boardPost && (selected.boardReply ? !selected.boardReply.removed : selected.boardPost.status === 'active')
+
+  async function handleAction(action: 'dismiss' | 'warn' | 'ban' | 'remove') {
     if (!selected) return
     if (action === 'ban' && !banReason.trim()) return
     setSaving(true)
@@ -285,13 +291,17 @@ function ModerationPageInner() {
       const res = await fetch(`/app/api/admin/moderation/${selected.id}`, {
         method: 'PATCH', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, reviewNote: note }),
+        body: JSON.stringify({ action, reviewNote: note, removeContent: boardContentLive && removeContent }),
       })
       if (res.ok) {
         const newStatus = action === 'dismiss' ? 'dismissed' : 'actioned'
+        const tookDown = boardContentLive && (action === 'remove' || (action !== 'dismiss' && removeContent))
         setReports(prev => prev.map(r => r.id === selected.id
           ? { ...r, status: newStatus, reviewNote: note,
-              reported: action === 'ban' ? { ...r.reported, status: 'banned' } : r.reported }
+              reported: action === 'ban' ? { ...r.reported, status: 'banned' } : r.reported,
+              ...(tookDown && r.boardPost ? r.boardReply
+                ? { boardReply: { ...r.boardReply, removed: true } }
+                : { boardPost: { ...r.boardPost, status: 'removed' } } : {}) }
           : r
         ))
         if (action === 'ban') {
@@ -621,8 +631,14 @@ function ModerationPageInner() {
                       <Link href={`/board?post=${r.boardPost.id}`} target="_blank" rel="noopener noreferrer"
                         className="text-xs text-amber-500 hover:underline mb-1 block">
                         📋 {r.boardPost.title}
-                        {r.boardPost.status === 'removed' && <span className="text-zinc-500"> (already removed)</span>}
+                        {!r.boardReply && r.boardPost.status === 'removed' && <span className="text-zinc-500"> (already removed)</span>}
                       </Link>
+                    )}
+                    {r.boardReply && (
+                      <p className="text-xs text-zinc-400 mb-1 line-clamp-2">
+                        💬 Reply: &ldquo;{r.boardReply.body.slice(0, 120)}&rdquo;
+                        {r.boardReply.removed && <span className="text-zinc-500"> (already removed)</span>}
+                      </p>
                     )}
                     {r.listing && (
                       <Link href={`/admin/listings/${r.listing.id}`}
@@ -1030,6 +1046,22 @@ function ModerationPageInner() {
                 <input value={banReason} onChange={e => setBanReason(e.target.value)}
                   placeholder="e.g. Harassment after repeated warnings"
                   className="w-full px-3 py-2 text-sm border border-zinc-700 rounded-xl bg-zinc-800 text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-red-500" />
+              </div>
+            )}
+
+            {boardContentLive && (
+              <div className="mb-4 bg-zinc-800/60 border border-zinc-700 rounded-xl p-3">
+                {selected.boardReply
+                  ? <p className="text-sm text-zinc-300 mb-2">&ldquo;{selected.boardReply.body}&rdquo;</p>
+                  : <p className="text-sm text-zinc-300 mb-2"><span className="font-semibold">{selected.boardPost!.title}</span>{selected.boardPost!.body && <> — {selected.boardPost!.body.slice(0, 200)}</>}</p>}
+                <label className="flex items-center gap-2 text-xs text-zinc-400">
+                  <input type="checkbox" checked={removeContent} onChange={e => setRemoveContent(e.target.checked)} />
+                  Also remove this {selected.boardReply ? 'reply' : 'post'} when warning or banning
+                </label>
+                <button onClick={() => handleAction('remove')} disabled={saving}
+                  className="mt-2 w-full py-2 text-sm font-semibold bg-zinc-700 hover:bg-zinc-600 text-white rounded-xl transition-colors disabled:opacity-50">
+                  Remove {selected.boardReply ? 'reply' : 'post'} only
+                </button>
               </div>
             )}
 

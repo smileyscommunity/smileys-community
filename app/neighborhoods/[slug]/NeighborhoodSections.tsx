@@ -8,6 +8,8 @@ import type { NeighborhoodView } from '@/lib/neighborhoodsDb'
 import type { CityConfig } from '@/lib/city'
 import type { SessionUser } from '@/lib/session'
 import { restrictedSetFor } from '@/lib/memberPrivacy'
+import { authorProjector } from '@/lib/authorProjection'
+import { LIVE_BOARD_AUTHOR, SHOWN_REPLY, redactBoardTextForGuest } from '@/lib/boardAccess'
 import { formatShortDate, formatTime, formatPrice, BLUR_PLACEHOLDER, resolveImageUrl, avatarUrl, firstNameOf} from '@/lib/data'
 import { SITE_URL, APP_URL } from '@/lib/env'
 import NeighborhoodWall from '@/components/NeighborhoodWall'
@@ -249,21 +251,30 @@ export default async function NeighborhoodSections({
     // Board conversations tagged to this neighborhood — same records as the
     // /board Community feed, filtered. This page is the reason board posts
     // carry a neighborhood at all.
+    // The board's own read gate (lib/boardAccess), with private clubs out
+    // for everyone: this page is public and indexed. It had only
+    // neighbourhood and city, so a private club's post, a banned member's
+    // and a blocked member's all showed here.
     prisma.boardPost.findMany({
       where: {
         neighborhood: name, cityId, status: 'active',
-        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+        user: LIVE_BOARD_AUTHOR,
+        OR: [{ clubId: null }, { club: { isPrivate: false } }],
+        ...(blockedIds.length ? { userId: { notIn: blockedIds } } : {}),
       },
       orderBy: { createdAt: 'desc' },
       take: 4,
       select: {
-        id: true, type: true, title: true, whenLabel: true, createdAt: true,
-        user: { select: { id: true, name: true, color: true, profilePhoto: true } },
-        _count: { select: { replies: true, interests: true } },
+        id: true, type: true, title: true, createdAt: true,
+        user: { select: { id: true, name: true, color: true, profilePhoto: true, profileVisibility: true } },
+        _count: { select: { replies: { where: SHOWN_REPLY } } },
       },
     }),
   ])
 
+  // Board authors as the board shows them (a connections-only author is a
+  // first name, no photo, to a stranger — lib/authorProjection).
+  const showBoardAuthor = await authorProjector(viewer, boardPosts.map(bp => bp.user))
   const restrictedLocals = viewer ? await restrictedSetFor(viewer, localCandidates) : new Set<string>()
   const locals = localCandidates.filter(m => !restrictedLocals.has(m.id)).slice(0, 12)
 
@@ -763,7 +774,7 @@ export default async function NeighborhoodSections({
               Ask something, or share a place worth knowing about.
             </p>
           </div>
-          <Link href={`/board?compose=1&neighborhood=${encodeURIComponent(name)}`}
+          <Link href={`/board?compose=1&neighborhood=${encodeURIComponent(name)}&city=${city.slug}`}
             className="shrink-0 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
             Start the conversation
           </Link>
@@ -775,40 +786,38 @@ export default async function NeighborhoodSections({
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">On the Board in {name}</h2>
             <div className="flex items-center gap-4">
-              <Link href={`/board?compose=1&neighborhood=${encodeURIComponent(name)}`}
+              <Link href={`/board?compose=1&neighborhood=${encodeURIComponent(name)}&city=${city.slug}`}
                 className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
                 Ask about {name} →
               </Link>
-              <Link href={`/board?neighborhood=${encodeURIComponent(name)}`} className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
+              <Link href={`/board?neighborhood=${encodeURIComponent(name)}&city=${city.slug}`} className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
                 See all →
               </Link>
             </div>
           </div>
           <div className="space-y-3">
-            {boardPosts.map(bp => (
-              <Link key={bp.id} href={`/board?post=${bp.id}`}
+            {boardPosts.map(bp => { const shown = showBoardAuthor(bp.user); return (
+              <Link key={bp.id} href={`/board?post=${bp.id}&city=${city.slug}`}
                 className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3.5 hover:border-amber-200 hover:shadow-md transition-all group">
                 {/* Board is member content: a guest sees the question, not who asked. */}
                 {myId ? (
-                  <AvatarImg src={avatarUrl(bp.user.profilePhoto, 64)} name={bp.user.name} color={bp.user.color}
+                  <AvatarImg src={avatarUrl(shown.profilePhoto, 64)} name={shown.name} color={shown.color}
                     size="w-9 h-9" textSize="text-xs" className="shrink-0" />
                 ) : (
                   <div className="w-9 h-9 rounded-full bg-amber-50 shrink-0" aria-hidden="true" />
                 )}
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900 leading-snug truncate group-hover:text-amber-700 transition-colors">
-                    <span aria-hidden="true">{bp.type === 'plan' ? '☕' : bp.type === 'question' ? '❓' : bp.type === 'reco' ? '💡' : '📣'} </span>{bp.title}
+                    <span aria-hidden="true">{bp.type === 'question' ? '❓' : bp.type === 'reco' ? '💡' : '📣'} </span>{myId ? bp.title : redactBoardTextForGuest(bp.title)}
                   </p>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    {myId ? firstNameOf(bp.user.name) : 'Smileys member'}
-                    {bp.whenLabel && <> · <span aria-hidden="true">🕐</span> {bp.whenLabel}</>}
+                    {myId ? firstNameOf(shown.name) : 'Smileys member'}
                     {bp._count.replies > 0 && <> · <span aria-hidden="true">💬</span> {bp._count.replies}</>}
-                    {bp._count.interests > 0 && <> · <span aria-hidden="true">👋</span> {bp._count.interests} interested</>}
                   </p>
                 </div>
                 <span className="shrink-0 text-gray-300 group-hover:text-amber-500 transition-colors">→</span>
               </Link>
-            ))}
+            ) })}
           </div>
         </div>
       )}
@@ -833,7 +842,7 @@ export default async function NeighborhoodSections({
         <div>
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">Marketplace in {name}</h2>
-            <Link href={`/board?neighborhood=${encodeURIComponent(name)}`}
+            <Link href={`/board?neighborhood=${encodeURIComponent(name)}&city=${city.slug}`}
               className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
               See all →
             </Link>

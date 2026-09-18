@@ -186,7 +186,7 @@ describe('67 the board reads, names and posts one city', () => {
   })
 
   it('a post filed to a different city than the one shown says where it went', () => {
-    expect(feed).toMatch(/if \(!postClub && postingCity && shownCity && postingCity\.slug !== shownCity\.slug\) \{\s*toast\.success\(`Posted to \$\{postingCity\.name\}'s board/)
+    expect(feed).toMatch(/if \(!postClub && !eventId && postingCity && shownCity && postingCity\.slug !== shownCity\.slug\) \{\s*toast\.success\(`Posted to \$\{postingCity\.name\}'s board/)
   })
 })
 

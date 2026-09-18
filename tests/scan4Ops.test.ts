@@ -294,7 +294,8 @@ describe('6 BoardFeed pin asserts code', () => {
   it('thirdScanFixes3 no longer matches the comment text', () => {
     const src = read('tests/thirdScanFixes3.test.ts')
     expect(src).not.toContain('not "Loading…" forever')
-    expect(src).toContain(String.raw`['components/BoardFeed.tsx', /\} catch \{\s*setReplies\(\[\]\)/],`)
+    // The replies load now records the failure for a "Try again" line.
+    expect(src).toContain(String.raw`['components/BoardFeed.tsx', /\} catch \{\s*\/\/[^\n]*\n\s*setFailed\(true\); setReplies\(r => r \?\? \[\]\)/],`)
   })
 })
 

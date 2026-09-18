@@ -60,6 +60,10 @@ const PREF_KEY: Record<string, 'newEvents' | 'reminders' | 'eventUpdates' | 'joi
   message:            null,
   club_wall_post:       'wallPosts',
   club_post_reply:      'wallReplies',
+  // Replies on the community board ride the same switch — they were in no
+  // pref at all, so they could be neither muted nor held for quiet hours.
+  board_reply:          'wallReplies',
+  board_interest:       'wallReplies',
   club_mention:         null,
   neighborhood_mention: null,
   // Hangout + visitor types — all transactional (high-signal, user-initiated).
@@ -267,6 +271,26 @@ export async function createNotification(
         await prisma.notification.update({
           where: { id: existing.id },
           data: { title: `📸 ${count} new photos`, body: `${count} photos were added to "${eventName}"` },
+        })
+        return true
+      }
+    }
+
+    // Bundle board replies within an hour: a busy thread is one evolving
+    // bell entry per post, and only its first reply pushes.
+    if (type === 'board_reply' && link) {
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000)
+      const existing = await prisma.notification.findFirst({
+        where: { userId, type: 'board_reply', link, isRead: false, createdAt: { gte: oneHourAgo } },
+        orderBy: { createdAt: 'desc' },
+      })
+      if (existing) {
+        const match = existing.title.match(/(\d+) new replies/)
+        const count = match ? parseInt(match[1]) + 1 : 2
+        const postTitle = existing.body.match(/"([^"]+)"/)?.[1] ?? 'your post'
+        await prisma.notification.update({
+          where: { id: existing.id },
+          data: { title: `💬 ${count} new replies`, body: `${count} new replies on "${postTitle}"` },
         })
         return true
       }

@@ -9,6 +9,7 @@
 import { prisma } from './prisma'
 import { getCityTz } from './city'
 import { dayInTz, DEFAULT_TZ } from './cityTime'
+import { LIVE_BOARD_AUTHOR } from '@/lib/boardAccess'
 
 export type ClubHealth = 'active' | 'new' | 'quiet' | 'archived'
 
@@ -69,7 +70,8 @@ export async function classifyClubs(
     }),
     prisma.boardPost.groupBy({
       by: ['clubId'],
-      where: { clubId: { in: clubIds }, status: 'active', createdAt: { gte: cutoff }, ...inCity },
+      // A banned or hidden member's posts aren't the club's activity.
+      where: { clubId: { in: clubIds }, status: 'active', user: LIVE_BOARD_AUTHOR, createdAt: { gte: cutoff }, ...inCity },
       _count: { _all: true },
     }),
     prisma.hangout.groupBy({

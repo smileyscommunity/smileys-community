@@ -18,9 +18,21 @@ export async function GET() {
     // Admins see every city; a moderator sees only reports about their own
     // city's members. A city-less moderator must fail CLOSED (match nothing),
     // not fall through to the admin all-cities view — the bug this replaces.
+    // A board report belongs to the city of the POST, which a moderator can
+    // act on (DELETE /api/board/[id] checks the post's city): a member from
+    // one city posting in another's club put the report in the queue of the
+    // moderator who couldn't remove it, and out of the one who could.
+    const modCity = failClosedCityId(session)
+    const cityBoardPostIds = isAdmin(session) ? [] : (await prisma.boardPost.findMany({
+      where:  { cityId: modCity, id: { in: (await prisma.report.findMany({ where: { boardPostId: { not: null } }, select: { boardPostId: true } })).map(r => r.boardPostId!) } },
+      select: { id: true },
+    })).map(p => p.id)
     const cityFilter = isAdmin(session)
       ? {}
-      : { reported: { is: { cityId: failClosedCityId(session) } } }
+      : { OR: [
+          { boardPostId: null, reported: { is: { cityId: modCity } } },
+          { boardPostId: { in: cityBoardPostIds } },
+        ] }
 
     // Nobody triages a report about themselves — and for survey-sourced
     // reports the responder was promised anonymity from the host, who may
@@ -49,6 +61,12 @@ export async function GET() {
       ? await prisma.boardPost.findMany({ where: { id: { in: boardPostIds } }, select: { id: true, title: true, body: true, status: true } })
       : []
     const boardPostMap = new Map(boardPosts.map(p => [p.id, p]))
+    // A reported reply: its text, and whether it's already down.
+    const boardReplyIds = [...new Set(reports.flatMap(r => r.boardReplyId ? [r.boardReplyId] : []))]
+    const boardReplies = boardReplyIds.length
+      ? await prisma.boardReply.findMany({ where: { id: { in: boardReplyIds } }, select: { id: true, body: true, removedAt: true } })
+      : []
+    const boardReplyMap = new Map(boardReplies.map(r => [r.id, { id: r.id, body: r.body, removed: !!r.removedAt }]))
 
     // Same gap, same fix, for Marketplace listing reports (Report.listingId,
     // created by /api/listings/[id]/report) — previously invisible in this
@@ -93,6 +111,7 @@ export async function GET() {
       reportedBlockCount: blockMap.get(r.reportedId) ?? 0,
       event:            r.eventId            ? (eventMap.get(r.eventId)                      ?? null) : null,
       boardPost:        r.boardPostId        ? (boardPostMap.get(r.boardPostId)              ?? null) : null,
+      boardReply:       r.boardReplyId       ? (boardReplyMap.get(r.boardReplyId)            ?? null) : null,
       listing:          r.listingId          ? (listingMap.get(r.listingId)                  ?? null) : null,
       neighborhoodPost: r.neighborhoodPostId ? (neighborhoodPostMap.get(r.neighborhoodPostId) ?? null) : null,
     }))

@@ -703,10 +703,13 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
   const SEARCH_HINTS = ['Room for rent', 'English teacher', 'Desk', 'Cat sitter', 'Photographer', 'Moving boxes']
   const [hintIdx, setHintIdx] = useState(0)
   useEffect(() => {
+    // The marketplace's search box only: on the board it re-rendered the
+    // whole feed every 3.5s for a box that isn't there.
+    if (view !== 'market') return
     const t = setInterval(() => setHintIdx(i => (i + 1) % SEARCH_HINTS.length), 3500)
     return () => clearInterval(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [view])
   const [search, setSearch]             = useState(searchParams.get('q') ?? '')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [listings, setListings] = useState<Listing[]>([])
@@ -739,12 +742,13 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
   // city's sales land last and preview the wrong city.
   const movingPreviewSeq = useRef(0)
   useEffect(() => {
+    if (view !== 'market') return  // the board shows no listings or sales
     const seq = ++movingPreviewSeq.current
     fetch(`/app/api/moving-sales${pinnedCity ? `?city=${encodeURIComponent(pinnedCity)}` : ''}`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (seq === movingPreviewSeq.current) setMovingPreview((data?.sales ?? []).slice(0, 3)) })
       .catch(() => {})
-  }, [pinnedCity])
+  }, [pinnedCity, view])
 
   // Debounce search
   useEffect(() => {
@@ -760,12 +764,17 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
   useEffect(() => {
     const params = new URLSearchParams()
     if (pinnedCity)           params.set('city',         pinnedCity)
-    if (category !== 'ALL')   params.set('tab',          category)
-    if (neighborhood)         params.set('neighborhood', neighborhood)
-    if (debouncedSearch)      params.set('q',            debouncedSearch)
+    // The board's own filters live in BoardFeed; writing this component's
+    // copy of ?neighborhood= back kept a filter the member had cleared, so a
+    // reload brought it back.
+    if (view === 'market') {
+      if (category !== 'ALL')   params.set('tab',          category)
+      if (neighborhood)         params.set('neighborhood', neighborhood)
+      if (debouncedSearch)      params.set('q',            debouncedSearch)
+    }
     const qs = params.toString()
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
-  }, [pinnedCity, category, neighborhood, debouncedSearch, pathname, router])
+  }, [pinnedCity, category, neighborhood, debouncedSearch, pathname, router, view])
 
   // Close alert menu on outside click OR Escape keypress so the
   // popover has keyboard parity with the click dismiss.
@@ -788,12 +797,12 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
   }, [showAlertMenu])
 
   useEffect(() => {
-    if (!isLoggedIn) return
+    if (!isLoggedIn || view !== 'market') return
     fetch('/app/api/me/listing-alerts', { credentials: 'include' })
       .then(r => r.json())
       .then(d => setAlertCategories(d.listingAlerts ?? []))
       .catch(() => {})
-  }, [isLoggedIn])
+  }, [isLoggedIn, view])
 
   // Throws on a non-2xx or malformed response — callers decide how to
   // surface that (full-page error state for the initial load, a toast for
@@ -844,10 +853,11 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
     }
   }, [category, neighborhood, debouncedSearch, fetchListings])
 
-  useEffect(() => { loadListings() }, [loadListings])
+  useEffect(() => { if (view === 'market') loadListings() }, [loadListings, view])
 
-  // Auto-open listing from ?l= legacy share link
-  const deepLinkId = searchParams.get('l')
+  // Auto-open a listing from a legacy share link: ?l=, or ?id= (the older
+  // form /board still forwards here — it was forwarded, then dropped).
+  const deepLinkId = searchParams.get('l') ?? searchParams.get('id')
   useEffect(() => {
     if (!deepLinkId) return
     fetch(`/app/api/listings/${deepLinkId}`, { credentials: 'include' })
@@ -1034,8 +1044,13 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
                 <SocialShare
                   compact
                   context="board"
-                  title={`Smileys Community Board — rooms, jobs, services & more${cityName ? ` in ${cityName}` : ''}`}
-                  url={`${APP_URL}/board`}
+                  title={view === 'market'
+                    ? `Smileys Marketplace — rooms, jobs, services & more${cityName ? ` in ${cityName}` : ''}`
+                    : `Smileys Community Board — questions, recommendations and local news${cityName ? ` in ${cityName}` : ''}`}
+                  // The page on screen, in the city on screen: this shared the
+                  // default city's board from every city, and the marketplace's
+                  // button shared the board.
+                  url={`${APP_URL}/${view === 'market' ? 'marketplace' : 'board'}${(pinnedCity || cookieCity?.slug) ? `?city=${encodeURIComponent(pinnedCity || cookieCity!.slug)}` : ''}`}
                   cacheKey="1"
                 />
               </div>

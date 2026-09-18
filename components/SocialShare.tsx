@@ -29,7 +29,7 @@ export default function SocialShare({ title, url, cacheKey, compact, context }: 
   }, [])
 
   // Append cacheKey so social crawlers that already cached an old preview are forced to re-scrape
-  const shareUrl    = cacheKey ? `${url}?v=${cacheKey}` : url
+  const shareUrl    = cacheKey ? `${url}${url.includes('?') ? '&' : '?'}v=${cacheKey}` : url
   const encodedUrl  = encodeURIComponent(shareUrl)
   const encodedText = encodeURIComponent(`${title} — ${shareUrl}`)
 

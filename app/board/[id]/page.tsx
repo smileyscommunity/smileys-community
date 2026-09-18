@@ -5,14 +5,15 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { resolveImageUrl, avatarUrl } from '@/lib/data'
 import { APP_URL, SITE_URL } from '@/lib/env'
-import { redactListingForGuest } from '@/lib/listingsPublic'
+import { redactListingForGuest, TEASER_DESCRIPTION_LIMIT } from '@/lib/listingsPublic'
+import { authorProjector } from '@/lib/authorProjection'
 
 export const dynamic = 'force-dynamic'
 
 async function getListing(id: string) {
   return prisma.listing.findUnique({
     where: { id, status: 'active' },
-    include: { user: { select: { id: true, name: true, color: true, profilePhoto: true } } },
+    include: { user: { select: { id: true, name: true, color: true, profilePhoto: true, profileVisibility: true } } },
   })
 }
 
@@ -29,7 +30,9 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const catLabel = CAT_LABELS[listing.category] ?? 'Listing'
   const title = `${listing.title} — Smileys Community`
   const pricePart = listing.price ? ` · ${listing.price}` : ''
-  const description = `${catLabel}${pricePart} — ${listing.description.slice(0, 130)}`
+  // The guest teaser's length: a link preview is read logged out, and it
+  // quoted 130 characters where the page shows a guest 80.
+  const description = `${catLabel}${pricePart} — ${listing.description.slice(0, TEASER_DESCRIPTION_LIMIT)}`
   const pageUrl = `${APP_URL}/board/${id}`
 
   const photo = listing.photo ? resolveImageUrl(listing.photo) : null
@@ -91,7 +94,13 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
   // Guests get the teaser projection (no contact, photo, full
   // description, or poster identity). The page is intentionally
   // public for SEO; details unlock on sign-in.
-  const listing = session ? raw : redactListingForGuest(raw)
+  // A member sees the poster as the board shows authors: a connections-only
+  // poster they aren't connected to is a first name with no photo or link.
+  const shownPoster = session ? (await authorProjector(session, [raw.user]))(raw.user) : null
+  const listing = session
+    ? { ...raw, user: { ...raw.user, name: shownPoster!.name, profilePhoto: shownPoster!.profilePhoto } }
+    : redactListingForGuest(raw)
+  const posterLinkable = !!session && shownPoster!.id === raw.user.id
 
   const cat    = CAT_META[listing.category]
   const emoji  = CAT_EMOJI[listing.category] ?? '📌'
@@ -117,14 +126,14 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
       {/* Back nav */}
       <div className="bg-white/90 backdrop-blur border-b border-gray-100 sticky top-0 z-10">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
-          <Link href="/board" className="p-1.5 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors">
+          <Link href="/marketplace" className="p-1.5 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </Link>
-          <span className="font-semibold text-gray-900 text-sm truncate flex-1">Community Board</span>
+          <span className="font-semibold text-gray-900 text-sm truncate flex-1">Marketplace</span>
           {isOwner && (
-            <Link href="/board" className="text-xs text-amber-600 font-semibold hover:underline">
+            <Link href="/marketplace?tab=MINE" className="text-xs text-amber-600 font-semibold hover:underline">
               Manage
             </Link>
           )}
@@ -187,7 +196,7 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
                 <p className="font-semibold text-gray-900 text-sm">{listing.user.name}</p>
                 <p className="text-xs text-gray-400">Posted {timeAgo(listing.createdAt)}</p>
               </div>
-              {session && (
+              {posterLinkable && (
                 <Link href={`/members/${listing.user.id}`}
                   className="text-xs text-amber-600 font-semibold hover:underline shrink-0">
                   View profile →

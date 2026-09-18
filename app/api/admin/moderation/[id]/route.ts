@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdmin, isAdminOrModerator } from '@/lib/access'
+import { isAdmin, isAdminOrModerator, canActInCity } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
 import { writeAudit } from '@/lib/audit'
 
@@ -15,11 +15,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     const { id } = await params
-    const { action, reviewNote } = await req.json()
+    const { action, reviewNote, removeContent } = await req.json()
     // An unknown or missing action used to fall through, mark the report
     // actioned and answer ok with nothing done.
-    if (action !== 'dismiss' && action !== 'warn' && action !== 'ban') {
-      return NextResponse.json({ error: 'action must be dismiss, warn or ban' }, { status: 400 })
+    if (action !== 'dismiss' && action !== 'warn' && action !== 'ban' && action !== 'remove') {
+      return NextResponse.json({ error: 'action must be dismiss, warn, ban or remove' }, { status: 400 })
     }
 
     if (action === 'ban' && !isAdmin(session)) {
@@ -39,10 +39,25 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // Fail closed: a missing user used to skip the city check, then `warn`
     // hit prisma.user.update on the missing id and 500'd — after the report
     // row had already been marked actioned.
-    if (!isAdmin(session) && (!reported || session.cityId !== reported.cityId)) {
+    // A board report is the post's city's to handle — the city the queue
+    // files it under (../route.ts) and the one DELETE /api/board/[id] checks.
+    const boardPost = report.boardPostId
+      ? await prisma.boardPost.findUnique({ where: { id: report.boardPostId }, select: { id: true, cityId: true, status: true } })
+      : null
+    const cityOk = boardPost
+      ? canActInCity(session, boardPost.cityId)
+      : !!reported && session.cityId === reported.cityId
+    if (!isAdmin(session) && !cityOk) {
       return NextResponse.json({ error: 'Cross-city moderation is admin-only' }, { status: 403 })
     }
-    if (!reported && action !== 'dismiss') {
+    // Taking the reported post or reply down — on its own ('remove') or with
+    // a warning or ban. Staff had no way to: the review actions never touched
+    // the content, and the board showed staff only "Report".
+    const takeDown = action === 'remove' || ((action === 'warn' || action === 'ban') && removeContent === true)
+    if (takeDown && !boardPost) {
+      return NextResponse.json({ error: 'Only board posts and replies can be removed from here' }, { status: 400 })
+    }
+    if (!reported && action !== 'dismiss' && action !== 'remove') {
       return NextResponse.json({ error: 'That member no longer exists — dismiss the report instead' }, { status: 404 })
     }
 
@@ -95,7 +110,20 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       )
     }
 
-    if (action === 'warn' || action === 'ban') {
+    if (takeDown && boardPost) {
+      if (report.boardReplyId) {
+        await prisma.boardReply.updateMany({ where: { id: report.boardReplyId, removedAt: null }, data: { removedAt: new Date() } })
+      } else {
+        await prisma.boardPost.updateMany({ where: { id: boardPost.id, status: 'active' }, data: { status: 'removed', pinned: false } })
+      }
+      writeAudit(session.id, session.name, report.boardReplyId ? 'board.reply_remove' : 'board.remove',
+        report.boardReplyId ?? boardPost.id, report.boardReplyId ? 'board_reply' : 'board_post',
+        { reportId: id, userId: report.reportedId, note: reviewNote },
+        `Removed a reported board ${report.boardReplyId ? 'reply' : 'post'} by ${reported?.name ?? report.reportedId}`,
+      )
+    }
+
+    if (action === 'warn' || action === 'ban' || action === 'remove') {
       // Notify reporter that action was taken (anonymously — no details)
       await createNotification(
         report.reporterId, 'report_reviewed',

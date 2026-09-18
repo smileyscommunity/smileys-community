@@ -280,6 +280,8 @@ model Report {
   escalatedAt        DateTime?
   listingId          String?
   boardPostId        String?
+  // A reported reply on a board post (boardPostId carries its post too).
+  boardReplyId       String?
   neighborhoodPostId String?
   // Set on reports auto-filed from a post-event survey (reason
   // 'post_event_survey') so dismissing the report can clear the survey's
@@ -295,6 +297,7 @@ model Report {
   @@index([listingId])
   @@index([neighborhoodPostId])
   @@index([boardPostId])
+  @@index([boardReplyId])
   @@index([surveyId])
   @@map("reports")
 }
@@ -2369,15 +2372,18 @@ model BoardPost {
   body         String          @default("")
   neighborhood String?
   tag          String?         // plan activity or question topic chip
-  whenLabel    String?         // plans: 'Today' | 'Tonight' | 'Tomorrow' | 'Sat 9 Aug'
-  // Plans go stale the moment the time passes: expired plans drop out of
-  // the default feed (an "anyone around tonight?" from last week reads as
-  // a dead community) but stay readable at their own URL marked ENDED.
+  // Plans were removed from the board on 2026-08-02 (lib/board.ts: plans are
+  // Hangouts). No row has whenLabel or expiresAt; kept only so dropping them
+  // is its own migration.
+  whenLabel    String?
   expiresAt    DateTime?
   status       String          @default("active") // 'active' | 'removed'
   pinned       Boolean         @default(false)
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
+  // When the author last changed the title or body — shown as "edited".
+  // updatedAt moves on pins and removals too, so it can't say this.
+  editedAt     DateTime?
   cityId       String
   city         City            @relation(fields: [cityId], references: [id])
   club         Club?           @relation("ClubBoardPosts", fields: [clubId], references: [id])
@@ -2406,6 +2412,9 @@ model BoardReply {
   parentId  String?
   body      String
   createdAt DateTime     @default(now())
+  // Taken down by its author, the post's author or staff. Soft, so a
+  // reported reply stays readable to moderation; readers skip it.
+  removedAt DateTime?
   post      BoardPost    @relation(fields: [postId], references: [id], onDelete: Cascade)
   user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   parent    BoardReply?  @relation("BoardReplyParent", fields: [parentId], references: [id])

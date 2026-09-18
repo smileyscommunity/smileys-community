@@ -33,7 +33,7 @@ const admin    = { id: 'adm', name: 'Adm', role: 'admin',     cityId: 'izmir' }
 
 beforeEach(() => {
   vi.clearAllMocks()
-  p.boardPost.findUnique.mockResolvedValue({ userId: 'author', cityId: 'istanbul' })
+  p.boardPost.findUnique.mockResolvedValue({ userId: 'author', cityId: 'istanbul', title: 'A post', status: 'active' })
   p.movingSale.findUnique.mockResolvedValue({ userId: 'author', cityId: 'istanbul' })
   p.club.findUnique.mockResolvedValue({ id: 'c1', cityId: 'istanbul' })
   p.guideTip.findUnique.mockResolvedValue({ userId: 'author', slug: 'g', cityId: 'istanbul' })

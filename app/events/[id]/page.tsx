@@ -991,7 +991,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
 
           {/* §30/§31 — plans and conversation around this event, both
               canonical records elsewhere. Silent when there are none. */}
-          <EventConnections eventId={id} />
+          <EventConnections eventId={id} citySlug={eventCity?.slug ?? null} tz={eventTz} canPost={canSeeInside} />
 
           {/* Attendees — full list only for attendees/host/admin; count only for others */}
           {totalAttendeeCount > 0 && (
