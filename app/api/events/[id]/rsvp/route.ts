@@ -14,7 +14,7 @@ import { activateAttendee, cancelAttendeeOp, withdrawPendingOp, isActiveAttendee
 import { checkRsvpAllowed, gateErrorBody, getRsvpGate, recordYellowAcknowledgement } from '@/lib/noShow'
 import { formatMoney } from '@/lib/data'
 import { standingLevelFor } from '@/lib/standingRead'
-import { eventTier, needsHostApproval, isLateCancel } from '@/lib/standingPolicy'
+import { eventTier, blocksRsvp, isLateCancel } from '@/lib/standingPolicy'
 import { todayInCity, getCityTz } from '@/lib/city'
 // Has the event begun, on its city's clock? Shared with the staff removal
 // path, which must hold back a promotion by the same rule (lib/eventTime).
@@ -120,10 +120,16 @@ export async function POST(req: NextRequest, { params }: Params) {
     }
 
     // Standing (lib/standing — nothing changes while it is switched off). A red
-    // card makes a seat on a scarce event the host's call: the join below goes
-    // through the approval path, and a waitlist claim becomes a request. Open
-    // events are never touched: recovery needs attending things.
-    const hostApprovalForStanding = needsHostApproval(await standingLevelFor(session.id), eventTier(event))
+    // card cannot take a seat on a limited event: the request is refused here
+    // rather than handed to the host, who should not have to personally turn
+    // someone away. Open events are never touched — they are how the card is
+    // cleared, since a recovery is a check-in at any event.
+    if (blocksRsvp(await standingLevelFor(session.id), eventTier(event))) {
+      return NextResponse.json({
+        error: 'Your standing is paused for events with limited spots. Three check-ins at any event — including the ones with no cap — restores it.',
+        code:  'red_card_blocked',
+      }, { status: 403 })
+    }
 
 
     // Check if already attending or pending. A cancelled/removed row is
@@ -138,41 +144,6 @@ export async function POST(req: NextRequest, { params }: Params) {
       where: { userId_eventId: { userId: session.id, eventId } },
     })
     if (onWaitlist) {
-      if (hostApprovalForStanding) {
-        // A request still needs a request slot, exactly as on the approval path below.
-        if (event.limitedSpots) {
-          const coHosts  = await prisma.eventCoHost.findMany({ where: { eventId }, select: { userId: true } })
-          const staffIds = [...new Set([...(event.hostId ? [event.hostId] : []), ...coHosts.map(c => c.userId)])]
-          const notStaff = staffIds.length ? { NOT: { userId: { in: staffIds } } } : {}
-          const [approvedCount, pendingCount] = await Promise.all([
-            prisma.eventAttendee.count({ where: { eventId, status: 'approved', ...notStaff } }),
-            prisma.eventAttendee.count({ where: { eventId, status: 'pending',  ...notStaff } }),
-          ])
-          if (approvedCount + pendingCount >= event.totalSpots) {
-            return NextResponse.json({
-              ok: true, status: 'waitlisted',
-              message: `No request slots are open for "${event.title}" right now — you're still on the waitlist.`,
-            })
-          }
-        }
-        await prisma.$transaction(async (tx) => {
-          // Event row first: same lock order as every seat path (lib/rsvpConfirmed).
-          await tx.$queryRaw`SELECT id FROM events WHERE id = ${eventId} FOR UPDATE`
-          await tx.waitlistEntry.delete({ where: { id: onWaitlist.id } })
-          await activateAttendee(tx, { userId: session.id, eventId, status: 'pending', stealth })
-          await createSeatPayment(tx, eventId, event, session.id)
-        })
-        createNotification(session.id, 'rsvp_pending', 'RSVP submitted ⏳',
-          `Your request to join "${event.title}" is waiting on the host. You'll be notified once it's reviewed.`,
-          `/events/${eventId}`)
-        if (event.hostId) {
-          createNotification(event.hostId, 'attendee_joined', 'New RSVP awaiting approval ⏳',
-            `Someone just requested to join "${event.title}".`,
-            `/host/events/${eventId}/participants?tab=pending`)
-        }
-        trackRsvp('pending', { via: 'standing' })
-        ackAfterJoin(); return NextResponse.json({ ok: true, status: 'pending' })
-      }
       // The user is on the waitlist. If a spot is currently open (an
       // approved attendee just cancelled and triggered the "spot
       // opened" fanout), this is a claim attempt — promote them.
@@ -272,7 +243,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     // slots, plenty to pick from, without an unbounded pending stack. Male
     // 21 goes to waitlist with a "male spots are full" message so they
     // have honest signal.
-    if (event.approvalRequired || hostApprovalForStanding) {
+    if (event.approvalRequired) {
       // Helper that pushes the caller onto the waitlist with the right
       // reason text and returns the response. Used by both the over-capacity
       // and the quota-pool blocks below so the wording stays consistent.

@@ -46,7 +46,7 @@ const BODY = [
     `<strong>At the end of that day</strong>, anything still unresolved is recorded as a no-show.`,
     `Your host can undo it for <strong>${HOST_WINDOW} days</strong> afterwards, and you can contest it for <strong>${DISPUTE} days</strong>.`,
   ]),
-  p(`If that message never reached you — a muted setting, an address that bounced, our own mistake — <strong>nothing is recorded at all</strong>. You are never marked absent on a warning you didn't get.`),
+  p(`And if we never sent you that message, <strong>nothing is recorded</strong>. Being marked absent depends on our having actually told you, in time to do something about it. That part is on us.`),
 
   h2('What is never recorded'),
   ul([
@@ -69,7 +69,7 @@ const BODY = [
   ul([
     `<strong>The first time in ${WINDOW} days: nothing but a message.</strong> No card.`,
     `<strong>The second: a yellow card.</strong> You join waitlists for limited events at the back.`,
-    `<strong>One more after that: a red card.</strong> On limited events your spot needs the host's approval. Everything else on Smileys is unaffected, and any RSVP you already hold stays valid.`,
+    `<strong>One more after that: a red card.</strong> You can't take a spot on an event with limited places until it's cleared. Events with no cap are unaffected — and they are how you clear it. Any RSVP you already hold stays valid.`,
   ]),
   p(`Cards are cleared by turning up: <strong>${YELLOW_CLEARS} check-ins</strong> clears a yellow, <strong>${RED_CLEARS}</strong> clears a red once an admin has reviewed it. A card does not expire on its own — showing up is what clears it.`),
 

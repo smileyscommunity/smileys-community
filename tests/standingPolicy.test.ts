@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   eventTier, cancelCutoffHours, lateCancelLine, classifyRow, refilledLateCancels, offenceCounts,
   decideIssuance, isSuccessfulCommitment, countedCommitments, recoveryOutcome,
-  standingLevel, needsHostApproval, orderWaitlist, canDispute, disputeHolds,
+  standingLevel, blocksRsvp, orderWaitlist, canDispute, disputeHolds,
   attendanceReviewDay, attendanceReviewOpensAt, attendanceSettlesAt, checkInRan, unmarkedGuests, seatTakenLate, lateReplayAllowed,
   CANCEL_CUTOFF_HOURS, NEW_CITY_GRACE_DAYS, STANDING_WINDOW_DAYS, DISPUTE_WINDOW_DAYS,
   type StandingRow, type LedgerOffence,
@@ -235,9 +235,11 @@ describe('effects', () => {
   })
 
   it('only a red card on a scarce event needs the host', () => {
-    expect(needsHostApproval('red', 'scarce')).toBe(true)
-    expect(needsHostApproval('red', 'open')).toBe(false)
-    expect(needsHostApproval('yellow', 'scarce')).toBe(false)
+    expect(blocksRsvp('red', 'scarce')).toBe(true)
+    // Open events stay open on purpose: a recovery is a check-in at ANY event,
+    // so blocking those too would take away the only way out of the card.
+    expect(blocksRsvp('red', 'open')).toBe(false)
+    expect(blocksRsvp('yellow', 'scarce')).toBe(false)
   })
 
   it('scarce waitlists put good standing first, first-come within each group', () => {

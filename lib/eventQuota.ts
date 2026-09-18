@@ -21,7 +21,7 @@ import type { Prisma, PrismaClient } from '@prisma/client'
 type Db = PrismaClient | Prisma.TransactionClient
 import { getRsvpGate } from './noShow'
 import { standingLevelsFor } from './standingRead'
-import { eventTier, needsHostApproval, orderWaitlist } from './standingPolicy'
+import { eventTier, blocksRsvp, orderWaitlist } from './standingPolicy'
 
 // Gender and nationality are free text on the user record, so compare against
 // the spellings actually seen rather than assuming a canonical case.
@@ -153,7 +153,7 @@ export async function findPromotableFromWaitlist(
   const levels = await standingLevelsFor(queue.map(q => q.userId))
 
   for (const entry of orderWaitlist(queue, levels, tier)) {
-    if (needsHostApproval(levels.get(entry.userId) ?? 'good', tier)) continue
+    if (blocksRsvp(levels.get(entry.userId) ?? 'good', tier)) continue
     const user = byId.get(entry.userId)
     // A waitlist row whose user has vanished is not promotable; skip rather
     // than treating unknown as eligible.
@@ -214,7 +214,7 @@ export async function countSeatableFromWaitlist(eventId: string, event: QuotaEve
   // event can't take a seat without the host, so it covers none.
   const tier     = eventTier(event)
   const levels   = await standingLevelsFor(queue.map(q => q.userId))
-  const seatable = orderWaitlist(queue, levels, tier).filter(q => !needsHostApproval(levels.get(q.userId) ?? 'good', tier))
+  const seatable = orderWaitlist(queue, levels, tier).filter(q => !blocksRsvp(levels.get(q.userId) ?? 'good', tier))
 
   let seated = 0
   for (const entry of seatable) {

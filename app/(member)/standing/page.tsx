@@ -174,7 +174,7 @@ export default function StandingPage() {
               <li>Cancelling a limited event less than {CANCEL_CUTOFF_HOURS.scarce} hours before it starts counts the same as not coming — unless someone from the waitlist takes your seat and comes, or you&apos;re answering the day-before &ldquo;still coming?&rdquo; message.</li>
               <li>Two of those within {STANDING_WINDOW_DAYS} days is a yellow card. One more while on yellow is a red card.</li>
               <li>A yellow card clears after {YELLOW_CLEARS_AT_COMMITMENTS} check-ins at any event. A red card needs {RED_REVIEW_AT_ATTENDANCES}, then an admin&apos;s review. Turning up is the only thing that clears a card.</li>
-              <li>With either card you join limited waitlists at the back; with a red card the host approves your seat at limited events.</li>
+              <li>With a yellow card you join waitlists for limited events at the back. With a red card you can&apos;t take a spot on a limited event at all until it&apos;s cleared — events with no cap are unaffected, and they&apos;re how you clear it.</li>
               <li>Marked absent by mistake? Tap &ldquo;I was there&rdquo; within {DISPUTE_WINDOW_DAYS} days.</li>
             </ul>
           </div>

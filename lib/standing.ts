@@ -575,7 +575,7 @@ export async function notifyStandingCards(enforcement: StandingEnforcement): Pro
   for (const c of cards) {
     const ok = c.level === CardLevel.Red
       ? await createNotification(c.userId, 'standing_red', '🟥 Red card',
-          "Another missed commitment on a small event while on a yellow card. Seats at small events now need the host's approval — open events are unaffected. Three successful commitments make you eligible for review.",
+          "Another missed commitment on a small event while on a yellow card. You can't take a spot on an event with limited places until this is cleared — events with no cap are unaffected, and they're how you clear it. Three check-ins make you eligible for review.",
           '/standing')
       : await createNotification(c.userId, 'standing_yellow', '🟨 Yellow card',
           'Two missed commitments on small events in 90 days. Two successful commitments clear it — being checked in at any event counts.',

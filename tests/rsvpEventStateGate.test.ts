@@ -13,6 +13,7 @@ vi.mock('@/lib/posthog-server', () => ({ trackServer: vi.fn() }))
 vi.mock('@/lib/eventQuota',     () => ({ hasQuotaRoomFor: vi.fn() }))
 vi.mock('@/lib/noShow', () => ({ checkRsvpAllowed: vi.fn().mockResolvedValue({ ok: true }), getRsvpGate: vi.fn().mockResolvedValue({ ok: true }), gateErrorBody: vi.fn() }))
 vi.mock('@/lib/city',   () => ({ todayInCity: vi.fn().mockResolvedValue('2026-09-10'), getCityTz: vi.fn().mockResolvedValue('Europe/Istanbul') }))
+vi.mock('@/lib/standingRead', () => ({ standingLevelFor: vi.fn().mockResolvedValue('good') }))
 vi.mock('@/lib/prisma', () => ({ prisma: {
   $transaction:  vi.fn(),
   event:         { findUnique: vi.fn() },
@@ -28,6 +29,7 @@ import { POST } from '@/app/api/events/[id]/rsvp/route'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notify'
+import { standingLevelFor } from '@/lib/standingRead'
 
 // The event page hides the RSVP button on cancelled, draft, pending and past
 // events; the API never checked any of it. A direct POST created an approved
@@ -38,6 +40,11 @@ import { createNotification } from '@/lib/notify'
 const params = { params: Promise.resolve({ id: 'e1' }) }
 const req = (body: any = {}) => ({ json: async () => body }) as any
 const p = prisma as any
+
+const limitedEvent = { id: 'e1', title: 'T', hostId: 'h1', cityId: 'c1', status: 'published', cancelledAt: null,
+  date: '2026-09-12', registrationDeadline: null, totalSpots: 10, spotsLeft: 5, limitedSpots: true,
+  approvalRequired: false, price: 0, memberPrice: null, soldOut: false }
+const uncappedEvent = { ...limitedEvent, limitedSpots: false, totalSpots: 0 }
 
 const openEvent = {
   id: 'e1', title: 'T', hostId: 'h1', cityId: 'c1', status: 'published', cancelledAt: null,
@@ -103,5 +110,32 @@ describe('POST /events/[id]/rsvp — event must actually be open', () => {
     const res = await POST(req(), params)
     expect(res.status).toBe(500)
     expect(p.$transaction).toHaveBeenCalled()
+  })
+})
+
+describe('a red card and a limited event', () => {
+  it('is refused outright, not handed to the host to turn down', async () => {
+    ;(standingLevelFor as any).mockResolvedValue('red')
+    p.event.findUnique.mockResolvedValue(limitedEvent)
+    const res = await POST(req(), params)
+    expect(res.status).toBe(403)
+    const body = await res.json()
+    expect(body.code).toBe('red_card_blocked')
+    // No seat, no request, and the host is not pinged to decide anything.
+    expect(p.$transaction).not.toHaveBeenCalled()
+    expect(createNotification).not.toHaveBeenCalled()
+  })
+
+  it('leaves events with no cap open — they are how the card is cleared', async () => {
+    ;(standingLevelFor as any).mockResolvedValue('red')
+    p.event.findUnique.mockResolvedValue(uncappedEvent)
+    const res = await POST(req(), params)
+    expect(res.status).not.toBe(403)
+  })
+
+  it('does not touch a yellow card', async () => {
+    ;(standingLevelFor as any).mockResolvedValue('yellow')
+    p.event.findUnique.mockResolvedValue(limitedEvent)
+    expect((await POST(req(), params)).status).not.toBe(403)
   })
 })

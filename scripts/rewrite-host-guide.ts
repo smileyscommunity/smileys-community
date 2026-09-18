@@ -64,7 +64,7 @@ const BODY = [
   ul([
     `<strong>First absence in ${WINDOW} days: a message, no card.</strong>`,
     `<strong>${YELLOW_AT === 2 ? 'Second' : `${YELLOW_AT}th`}: a yellow card.</strong> They join limited waitlists at the back.`,
-    `<strong>One more while the yellow is live: a red card.</strong> On limited events their seat becomes the host's call — yours.`,
+    `<strong>One more while the yellow is live: a red card.</strong> They can't take a spot on a limited event until it's cleared. You are not asked to turn anyone away — the system does it, and events with no cap stay open to them.`,
   ]),
   p(`Cards are cleared by turning up and by nothing else. A yellow goes after <strong>${YELLOW_CLEARS} check-ins</strong> at any event; a red needs <strong>${RED_CLEARS}</strong>, then an admin reviews it. A card does not expire by waiting, and hosting or volunteering does not buy one off — those are counted and shown, but the card is about turning up, so turning up is what clears it.`),
   p(`Anyone marked absent by mistake can tap <strong>"I was there"</strong> within ${DISPUTE} days, which sends it to an admin. You can also just fix it yourself, which is faster for everyone.`),

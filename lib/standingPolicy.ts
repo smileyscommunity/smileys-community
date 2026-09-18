@@ -468,8 +468,20 @@ export function standingLevel(cards: { level: string; status: string; shadow: bo
   return 'good'
 }
 
-/** A red card's seat on a scarce event is the host's call. */
-export function needsHostApproval(level: StandingLevel, tier: Tier): boolean {
+/**
+ * A red card cannot take a seat on a limited event at all.
+ *
+ * It used to route the request to the host instead, which put the host in the
+ * chair: they had to personally refuse someone standing in front of them, or
+ * wave it through and carry the seat. A red card is the community's answer,
+ * not theirs.
+ *
+ * Open events are untouched, deliberately — they are also how the card is
+ * cleared, since a recovery is a check-in at any event. Somebody carrying a
+ * red card can still come to everything without a cap on numbers, and three
+ * of those turn it around.
+ */
+export function blocksRsvp(level: StandingLevel, tier: Tier): boolean {
   return level === CardLevel.Red && tier === Tier.Scarce
 }
 
