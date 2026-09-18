@@ -12,7 +12,7 @@
 import { prisma } from '@/lib/prisma'
 
 const APPLY = process.env.APPLY === '1'
-const PATTERN = /— has hosted \d+ Smileys events? since ([A-Z][a-z]+ \d{4})\./
+const PATTERN = / — has hosted \d+ Smileys events? since ([A-Z][a-z]+ \d{4})\./
 
 async function main() {
   console.log(APPLY ? 'APPLY — writing\n' : 'DRY RUN — nothing is written. APPLY=1 writes.\n')
