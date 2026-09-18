@@ -19,7 +19,8 @@ const APPLY = process.env.APPLY === '1'
 const MAP: Record<string, Record<string, string>> = {
   istanbul: {
     'dozze':                               'Dozze Kadıköy',
-    'dozze kadıköy':                       'Dozze Kadıköy',
+    // "DOZZE KADIKÖY" lowercases to a dotted i: toLowerCase isn't Turkish.
+    'dozze kadiköy':                       'Dozze Kadıköy',
     'roastary coffee':                     'Roastory Coffee',
     'roastory coffee co istiklal caddesi': 'Roastory Coffee',
     'spice corner':                        'Spice Corner Indian Restaurant',
