@@ -50,6 +50,12 @@ export const DISPUTE_WINDOW_DAYS           = 30
 // first half hour and then abandoned passed that, and the 50–69% band held a
 // third of the unchecked guests in the month before this rule.
 export const CHECK_IN_RAN_RATIO            = 0.7
+// The small-room relief on that ratio (checkInReached): a door that left at
+// most this many seats unscanned ran, whatever the ratio says.
+export const SMALL_ROOM_MAX_UNSCANNED      = 1
+// ...as long as it was worked at all. One scan out of two is half a room, not
+// a rounding error, so the relief needs a second scan behind it.
+export const SMALL_ROOM_MIN_SCANNED        = 2
 // A seat taken this close to the start is never an offence: a waitlist claim
 // or a late join the member may not have seen in time is not a commitment
 // anyone else lost a seat to.
@@ -65,7 +71,10 @@ export const LATE_REPLAY_GRACE_HOURS       = 48
 export const DISPUTE_HOLD_DAYS             = 7
 // How far back the sweep reads events. Wider than the resolve delay so a
 // missed run (or a week-long outage) catches up.
-export const STANDING_SWEEP_LOOKBACK_DAYS  = 14
+// Long enough to still be reading an event when a host marks it late: the
+// sweep is what turns a mark into an offence, so this must outlive
+// HOST_MARKING_WINDOW_DAYS or a close-out on day 20 would record nothing.
+export const STANDING_SWEEP_LOOKBACK_DAYS  = 32
 // Standing starts clean. Events that started before this are never read for
 // offences, so nothing from v1 — whose every card was reversed — carries over.
 export const STANDING_STARTS_AT            = new Date('2026-09-16T00:00:00Z')
@@ -171,9 +180,32 @@ export function lateReplayAllowed(scannedAt: unknown, settlesAt: Date, now: Date
     && now.getTime() < settlesAt.getTime() + LATE_REPLAY_GRACE_HOURS * HOUR
 }
 
-/** Midnight at the end of the review day: after it, attendance is settled. */
+/**
+ * Midnight at the end of the review day. After it the room stops being shown
+ * as pending and every unmarked seat reads as attended — but nothing becomes
+ * a no-show here, and the host is not locked out. See
+ * attendanceMarkingClosesAt: midnight decides when we stop asking, not who
+ * came.
+ */
 export function attendanceSettlesAt(e: EventClock, tz: string): Date {
   return fromWallClockInTz(`${shiftDay(attendanceReviewDay(e, tz), 1)}T00:00`, tz)
+}
+
+/**
+ * How long a host can still say who didn't come.
+ *
+ * It used to be midnight of the review day — some 24 to 30 hours — while the
+ * GUEST had DISPUTE_WINDOW_DAYS to contest. The person who stood at the door
+ * was timed out in a day; the person contesting got a month. The window is now
+ * the same length for both, because the truth of who walked in doesn't expire
+ * on a schedule and a host reading the list on Sunday knows exactly what they
+ * knew on Friday.
+ */
+export const HOST_MARKING_WINDOW_DAYS = DISPUTE_WINDOW_DAYS
+
+/** The last moment a host can mark an absence or excuse one. */
+export function attendanceMarkingClosesAt(e: EventClock, tz: string): Date {
+  return new Date(attendanceSettlesAt(e, tz).getTime() + HOST_MARKING_WINDOW_DAYS * DAY)
 }
 
 /** rate_limits key marking that someone checked people in at an event (the check-in PATCH). */
@@ -198,9 +230,21 @@ export function checkInRan(rows: RoomRow[]): boolean {
   return checkInReached(room.filter(r => r.checkedIn).length, room.length)
 }
 
-/** The same line from counts: at least one scan, and CHECK_IN_RAN_RATIO of the room. */
+/**
+ * The same line from counts: at least one scan, and CHECK_IN_RAN_RATIO of the
+ * room — except that a flat ratio is arithmetic no small room can pass. Three
+ * guests need all three scanned to clear 70%, so a host who worked the door
+ * and missed one person is treated as never having opened it. Where at most
+ * SMALL_ROOM_MAX_UNSCANNED seat is unscanned and the door was plainly worked
+ * (SMALL_ROOM_MIN_SCANNED scans or more), the room counts as run.
+ *
+ * Deliberately narrow: it forgives the rounding, not the judgement. A room
+ * where a third or more went unscanned still does not count, however small —
+ * that is the v1 mistake (unscanned = absent) the host close-out replaced.
+ */
 export function checkInReached(scanned: number, room: number): boolean {
   if (scanned < 1 || room < 1) return false
+  if (scanned >= SMALL_ROOM_MIN_SCANNED && room - scanned <= SMALL_ROOM_MAX_UNSCANNED) return true
   return scanned / room >= CHECK_IN_RAN_RATIO
 }
 

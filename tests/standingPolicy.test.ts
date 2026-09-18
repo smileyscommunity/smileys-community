@@ -296,12 +296,27 @@ describe('checkInRan / unmarkedGuests', () => {
   it('needs 70% of the room scanned, not counting the people running it; excusing never tips it', () => {
     expect(checkInRan([r(true), r(true), r(true), r(true), r(true), r(true), r(true), r(false), r(false), r(false)])).toBe(true)
     expect(checkInRan([r(true), r(false)])).toBe(false)
-    expect(checkInRan([r(true), r(true), r(false)])).toBe(false)
+    // Three guests, one missed: 67% is under the bar on paper, but a flat
+    // ratio is arithmetic no small room can pass, and the host plainly ran
+    // the door. The small-room relief takes it (SMALL_ROOM_MAX_UNSCANNED).
+    expect(checkInRan([r(true), r(true), r(false)])).toBe(true)
     expect(checkInRan([r(true), r(true), r(true), r(false)])).toBe(true)
     expect(checkInRan([r(true), r(true), r(false), r(false, 'excused')])).toBe(false)
     expect(checkInRan([r(false, 'unknown', true), r(false, 'unknown', true), r(true), r(true), r(true), r(false)])).toBe(true)
     expect(checkInRan([r(false), r(false)])).toBe(false)
     expect(checkInRan([])).toBe(false)
+  })
+  it('forgives the rounding on a small room, never the judgement', () => {
+    // One unscanned seat, and the door was worked: it ran.
+    expect(checkInRan([r(true), r(true), r(false)])).toBe(true)
+    // Two unscanned out of five is a third of the room — still not a door.
+    // This is Edip's bowling night: 3 of 5 stays under the bar.
+    expect(checkInRan([r(true), r(true), r(true), r(false), r(false)])).toBe(false)
+    // One scan out of three is not a rounding error, it is a door opened and
+    // abandoned. Roberta's caffè: nothing here settles as a no-show.
+    expect(checkInRan([r(true), r(false), r(false)])).toBe(false)
+    // A single scan never carries a room on its own, however small.
+    expect(checkInRan([r(true), r(false)])).toBe(false)
   })
   it('lists only guests nobody has marked either way', () => {
     const rows = [r(true), r(false), r(false, 'no_show'), r(false, 'excused'), r(false, 'unknown', true)]

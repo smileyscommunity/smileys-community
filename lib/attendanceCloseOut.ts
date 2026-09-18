@@ -17,18 +17,22 @@ export type CloseOutBlock = 'not_started' | 'too_late'
 
 export const CLOSE_OUT_BLOCK_MESSAGE: Record<CloseOutBlock, string> = {
   not_started: "The event hasn't started yet — no-shows can be marked once it has.",
-  too_late:    "This event's attendance is settled — the host's review day is over.",
+  too_late:    'This event is too old to mark now — attendance closed a month after it ran.',
 }
 
 /**
  * Why attendance can't be marked right now (no-show, excused), or null when it
- * can. Not before the start — nobody is late yet — and not once the host's
- * review day is over (attendanceSettlesAt): the sweep has settled the room,
- * and a correction is a dispute.
+ * can. Not before the start — nobody is late yet — and not past
+ * attendanceMarkingClosesAt.
+ *
+ * The deadline used to be midnight of the review day, which locked the host
+ * out roughly a day after the event while the guest kept a month to contest.
+ * The only person who was at the door had the shortest say in what happened
+ * there. Both windows are the same length now.
  */
-export function closeOutBlock(startsAt: Date, settlesAt: Date, now: Date): CloseOutBlock | null {
+export function closeOutBlock(startsAt: Date, marksCloseAt: Date, now: Date): CloseOutBlock | null {
   if (now.getTime() < startsAt.getTime()) return 'not_started'
-  if (now.getTime() >= settlesAt.getTime()) return 'too_late'
+  if (now.getTime() >= marksCloseAt.getTime()) return 'too_late'
   return null
 }
 
@@ -43,15 +47,32 @@ export interface CloseOutRow {
   status:     string
   checkedIn:  boolean
   attendance: string
+  /** Set when the sweep defaulted this row rather than a person deciding it. */
+  attendanceAutoResolvedAt?: Date | string | null
   user:       { role: string } | null
 }
 
-/** The rows a close-out marks: approved, unscanned, unmarked, not exempt. */
+/**
+ * A seat the sweep defaulted to attended because nobody said otherwise. It
+ * reads as attended everywhere, and it is still the host's to correct: the
+ * stamp is the difference between "someone decided this" and "the clock ran
+ * out". A row a person checked in, excused or marked is never in here.
+ */
+export function wasDefaulted(r: CloseOutRow): boolean {
+  return !r.checkedIn && r.attendance === Attendance.Attended && !!r.attendanceAutoResolvedAt
+}
+
+/**
+ * The rows a close-out marks: approved, unscanned, not exempt, and either
+ * never marked or only defaulted by the sweep. Nothing auto-settles to a
+ * no-show any more, so a host closing out late is correcting a default, not
+ * overriding a decision.
+ */
 export function noShowCandidates<R extends CloseOutRow>(rows: R[], runners: EventRunners): R[] {
   return rows.filter(r =>
     r.status === AttendeeStatus.Approved
     && !r.checkedIn
-    && r.attendance === Attendance.Unknown
+    && (r.attendance === Attendance.Unknown || wasDefaulted(r))
     && !isExemptFromNoShow(r.userId, r.user?.role, runners))
 }
 

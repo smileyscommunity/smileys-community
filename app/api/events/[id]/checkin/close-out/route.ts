@@ -6,7 +6,7 @@ import { rateLimit } from '@/lib/rateLimit'
 import { writeAudit } from '@/lib/audit'
 import { Attendance, AttendeeStatus } from '@/lib/constants'
 import { eventStartsAt } from '@/lib/eventTime'
-import { attendanceSettlesAt } from '@/lib/standingPolicy'
+import { attendanceMarkingClosesAt } from '@/lib/standingPolicy'
 import { getCityTz } from '@/lib/city'
 import { eventRunners } from '@/lib/noShowPolicy'
 import { closeOutBlock, noShowCandidates, CLOSE_OUT_BLOCK_MESSAGE } from '@/lib/attendanceCloseOut'
@@ -60,12 +60,22 @@ export async function POST(_: NextRequest, { params }: Params) {
     if (event.noShowProcessedAt) return NextResponse.json(SETTLED, { status: 409 })
 
     const tz    = await getCityTz(event.cityId)
-    const block = closeOutBlock(eventStartsAt(event, tz), attendanceSettlesAt(event, tz), new Date())
+    const block = closeOutBlock(eventStartsAt(event, tz), attendanceMarkingClosesAt(event, tz), new Date())
     if (block) return NextResponse.json({ error: CLOSE_OUT_BLOCK_MESSAGE[block], code: block }, { status: 409 })
 
+    // Unmarked, or defaulted to attended by the sweep because the review day
+    // ran out. The second kind is why a host can still close out a week later:
+    // nothing auto-settles to a no-show any more, so the only thing standing
+    // between a late host and the truth is a default nobody chose.
     const rows = await prisma.eventAttendee.findMany({
-      where:  { eventId, status: AttendeeStatus.Approved, checkedIn: false, attendance: Attendance.Unknown },
-      select: { id: true, userId: true, status: true, checkedIn: true, attendance: true, user: { select: { role: true } } },
+      where:  {
+        eventId, status: AttendeeStatus.Approved, checkedIn: false,
+        OR: [
+          { attendance: Attendance.Unknown },
+          { attendance: Attendance.Attended, attendanceAutoResolvedAt: { not: null } },
+        ],
+      },
+      select: { id: true, userId: true, status: true, checkedIn: true, attendance: true, attendanceAutoResolvedAt: true, user: { select: { role: true } } },
     })
     const ids = noShowCandidates(rows, eventRunners(event)).map(r => r.id)
     if (ids.length === 0) return NextResponse.json({ marked: [] })
@@ -74,10 +84,15 @@ export async function POST(_: NextRequest, { params }: Params) {
     // read and here keeps their check-in, and a settlement can't be overwritten.
     await prisma.eventAttendee.updateMany({
       where: {
-        id: { in: ids }, status: AttendeeStatus.Approved, checkedIn: false, attendance: Attendance.Unknown,
+        id: { in: ids }, status: AttendeeStatus.Approved, checkedIn: false,
+        OR: [
+          { attendance: Attendance.Unknown },
+          { attendance: Attendance.Attended, attendanceAutoResolvedAt: { not: null } },
+        ],
         event: { noShowProcessedAt: null, cancelledAt: null },
       },
-      data:  { attendance: Attendance.NoShow },
+      // The stamp goes with it: this is now a person's decision, not a default.
+      data:  { attendance: Attendance.NoShow, attendanceAutoResolvedAt: null },
     })
     const marked = (await prisma.eventAttendee.findMany({
       where:  { id: { in: ids }, eventId, checkedIn: false, attendance: Attendance.NoShow },
@@ -121,7 +136,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     if (event.noShowProcessedAt) return NextResponse.json(SETTLED, { status: 409 })
     // The same window as marking: once it closes, attendance stays as it was left.
     const tz    = await getCityTz(event.cityId)
-    const block = closeOutBlock(eventStartsAt(event, tz), attendanceSettlesAt(event, tz), new Date())
+    const block = closeOutBlock(eventStartsAt(event, tz), attendanceMarkingClosesAt(event, tz), new Date())
     if (block) return NextResponse.json({ error: CLOSE_OUT_BLOCK_MESSAGE[block], code: block }, { status: 409 })
 
     // Only marks still standing: a row checked in since is 'attended' and

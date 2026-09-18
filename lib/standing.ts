@@ -14,7 +14,7 @@ import {
   RECOVERY_REQUIRES_CHECKIN, LIVE_CARD_STATUSES, OffenceKind, OffenceStatus, CardLevel, StandingCardStatus,
   eventTier, classifyRow, refilledLateCancels, offenceCounts, decideIssuance, isSuccessfulCommitment,
   recoveryOutcome, cardLapsed, disputeHolds, standingLevel, countedCommitments, commitmentsNeeded, canDispute, windowStart,
-  attendanceReviewOpensAt, attendanceSettlesAt, checkInRan, unmarkedGuests, doorKey,
+  attendanceReviewOpensAt, attendanceSettlesAt, checkInRan, unmarkedGuests, doorKey, CHECK_IN_RAN_RATIO,
   type LedgerOffence,
 } from '@/lib/standingPolicy'
 
@@ -79,7 +79,7 @@ const SWEEP_EVENT_SELECT = {
 
 export type SweepEvent = Prisma.EventGetPayload<{ select: typeof SWEEP_EVENT_SELECT }>
 
-async function standingEvents(now: Date): Promise<SweepEvent[]> {
+export async function standingEvents(now: Date): Promise<SweepEvent[]> {
   const floor = new Date(Math.max(STANDING_STARTS_AT.getTime(), now.getTime() - (STANDING_SWEEP_LOOKBACK_DAYS + 2) * DAY))
   const events = await prisma.event.findMany({
     where:  { date: { gte: isoDay(floor), lte: isoDay(now) }, cancelledAt: null, status: { in: ['published', 'archived'] } },
@@ -116,7 +116,7 @@ export async function reviewingEvents(now: Date): Promise<SweepEvent[]> {
   })
 }
 
-async function roomOf(event: SweepEvent) {
+export async function roomOf(event: SweepEvent) {
   const runners = runnersOf(event)
   const rows = await prisma.eventAttendee.findMany({
     where:   { eventId: event.id, status: AttendeeStatus.Approved },
@@ -127,11 +127,24 @@ async function roomOf(event: SweepEvent) {
 }
 
 /**
- * Settle what the host left unmarked. Where they ran check-in (checkInRan),
- * an unmarked guest is a no-show: they had the morning-after list and a whole
- * day to check them in or excuse them. Where nobody ran the door, nobody is
- * penalised for it and the room counts as attended. The stamp tells a
- * defaulted row from one a person marked.
+ * Settle what the host left unmarked: a no-show for anyone who was TOLD they
+ * weren't checked in, attended for anyone who wasn't.
+ *
+ * The ratio is gone from this decision. It used to mean a badly-scanned room
+ * penalised nobody, which read to hosts as "the system did nothing" and let
+ * every absence at a thin door go unrecorded while a well-scanned room's
+ * guests took cards for the same conduct.
+ *
+ * What replaces it is the warning, which is a far better test than a
+ * percentage: a seat only defaults to absent if that member got the "you
+ * weren't checked in" notice, with a link to say "I was there", and neither
+ * they nor the host acted on it. Where the notice never reached them — a
+ * muted account, a skipped recipient, a sweep that never ran — the seat
+ * settles as attended, because nobody can be marked absent on a message they
+ * never received. That is the Ahmet Öztekin case (2026-09-16) made structural.
+ *
+ * The host can still undo any of it for HOST_MARKING_WINDOW_DAYS: waiving is
+ * the excuse route, and overturnCorrected withdraws the offence with it.
  */
 export async function settleAttendance(event: SweepEvent, now: Date): Promise<{ attended: number; absent: number }> {
   const room = await roomOf(event)
@@ -140,25 +153,36 @@ export async function settleAttendance(event: SweepEvent, now: Date): Promise<{ 
   // was never on anyone's list, and neither was a room whose review never
   // went out (the ratio crossed half only late in the day, a sweep outage).
   // Both settle as attended — the safe side.
-  const first    = await claimOnce(`attendance-settled:${event.id}`, 30 * DAY)
-  const reviewed = first && await hasClaim(reviewSentKey(event.id), now)
-  const absentee = new Set(reviewed && checkInRan(room) ? unmarkedGuests(room).map(r => r.id) : [])
+  if (!await claimOnce(`attendance-settled:${event.id}`, 30 * DAY)) return { attended: 0, absent: 0 }
   const unmarked = room.filter(r => !r.checkedIn && r.attendance === Attendance.Unknown)
+  if (unmarked.length === 0) return { attended: 0, absent: 0 }
+
+  // Who actually received the warning. Read from the notification rows, never
+  // from the claim that was supposed to produce one: a claim can be taken and
+  // burned without a notice ever being written, and treating that as "warned"
+  // is what let a guest be defaulted absent having been told nothing.
+  const warned = new Set((await prisma.notification.findMany({
+    where:  { type: 'attendance_check', link: { contains: event.id } },
+    select: { userId: true },
+  })).map(n => n.userId))
+
+  const absentee = unmarked.filter(r => warned.has(r.userId)).map(r => r.id)
+  const silent   = unmarked.filter(r => !warned.has(r.userId)).map(r => r.id)
   const still    = { status: AttendeeStatus.Approved, checkedIn: false, attendance: Attendance.Unknown }
   const [absent, attended] = await Promise.all([
-    absentee.size === 0 ? { count: 0 } : prisma.eventAttendee.updateMany({
-      where: { id: { in: [...absentee] }, ...still },
+    absentee.length === 0 ? { count: 0 } : prisma.eventAttendee.updateMany({
+      where: { id: { in: absentee }, ...still },
       data:  { attendance: Attendance.NoShow, attendanceAutoResolvedAt: now },
     }),
-    prisma.eventAttendee.updateMany({
-      where: { id: { in: unmarked.filter(r => !absentee.has(r.id)).map(r => r.id) }, ...still },
+    silent.length === 0 ? { count: 0 } : prisma.eventAttendee.updateMany({
+      where: { id: { in: silent }, ...still },
       data:  { attendance: Attendance.Attended, attendanceAutoResolvedAt: now },
     }),
   ])
   return { attended: attended.count, absent: absent.count }
 }
 
-const reviewSentKey = (eventId: string) => `attendance-review-sent:${eventId}`
+export const reviewSentKey = (eventId: string) => `attendance-review-sent:${eventId}`
 // A guest said "I was there" during the review (POST /api/events/[id]/attendance-claim).
 export const saysCameKey = (eventId: string, userId: string) => `attendance-says-came:${eventId}:${userId}`
 // Resend allows 10 sends a second; the sweeps that ignored it got 429s.
@@ -178,17 +202,22 @@ const names = (list: { user: { name: string } | null }[]) => {
 
 /**
  * The morning-after list, once per event and person, to everyone who runs the
- * door (host, co-hosts, the club's hosts, and any admin who checked people in): who wasn't checked in, and that the
- * rest of the day is theirs to fix it. Only where check-in ran — anywhere else
- * nothing will count, so there is nothing to review. A room settles to no-show
- * only after this reached someone (settleAttendance), so it goes out whether
- * or not enforcement is on.
+ * door (host, co-hosts, the club's hosts, and any admin who checked people
+ * in): who wasn't checked in, and that it is theirs to settle. Sent for every
+ * room, at any ratio — nothing counts against a guest unless a host marks it,
+ * so there is no room where the host's account doesn't matter. Goes out
+ * whether or not enforcement is on.
  */
 export async function sendAttendanceReviews(event: SweepEvent): Promise<number> {
   const room = await roomOf(event)
-  if (!checkInRan(room)) return 0
   const missing = unmarkedGuests(room)
   if (missing.length === 0) return 0
+  // Below the bar the room still gets its list. The ratio decides what may be
+  // imposed on a guest, never whether the host is told: a door that scanned a
+  // third of the room is exactly where the host's own account is the only
+  // evidence there is, and staying silent let every no-show at those events
+  // walk while a well-scanned room's guests took cards for the same conduct.
+  const ran = checkInRan(room)
   const e = await prisma.event.findUnique({ where: { id: event.id }, select: { emoji: true } })
   const runners = runnersOf(event)
   // And whoever else checked people in — an admin running the door.
@@ -202,16 +231,21 @@ export async function sendAttendanceReviews(event: SweepEvent): Promise<number> 
   // days) the list still goes — the record is the point — but it must not
   // threaten what won't happen.
   const { counts, loggedReason } = offenceCounts(eventTier(event), event.city?.createdAt ?? null, eventStartsAt(event, tz))
+  const caveat = loggedReason === 'new_city' ? 'nothing counts against anyone in a new city yet' : "it doesn't count on an open event"
+  // What is left at the end of the review day counts, so the host's line is
+  // about the seats they DON'T act on. The scan ratio is a hint about how
+  // much the door's record is worth, not a gate on any of this.
   const consequence = counts
-    ? `After that ${n === 1 ? 'it counts' : 'each counts'} as a no-show.`
-    : `After that ${n === 1 ? 'it goes' : 'each goes'} on the record as a no-show, though ${loggedReason === 'new_city' ? 'nothing counts against anyone in a new city yet' : "it doesn't count on an open event"}.`
+    ? 'Anyone still on this list at the end of tomorrow counts as a no-show on their standing. You can waive that for a month afterwards.'
+    : `Anyone still on this list at the end of tomorrow goes on the record, though ${caveat}.`
+  const doorNote = ran ? '' : ` Only ${Math.round(room.filter(r => !r.exempt && r.checkedIn).length / Math.max(1, room.filter(r => !r.exempt).length) * 100)}% of the room was scanned, so check this list carefully — plenty of them may simply have been missed at the door.`
   let sent = 0
   for (const userId of recipients) {
     const key = `attendance-review:${event.id}:${userId}`
     if (!await claimOnce(key, 7 * DAY)) continue
     const ok = await createNotification(userId, 'attendance_review',
       `${e?.emoji ?? '📋'} ${n} not checked in at ${event.title}`,
-      `${names(missing)}. Check in anyone who came, or excuse them, by midnight tonight. ${consequence}`,
+      `${names(missing)}. Check in anyone who came, or waive them.${doorNote} ${consequence}`,
       `/host/checkin?event=${event.id}`)
     if (ok) sent++
     else await releaseClaim(key)
@@ -223,15 +257,18 @@ export async function sendAttendanceReviews(event: SweepEvent): Promise<number> 
   // tell the host while one tap still fixes it, instead of finding out from a
   // no-show and waiting on a moderator. Only once the host's list has gone,
   // so a guest is never told the host can fix what the host wasn't told about.
-  // Only where the no-show would count: elsewhere it is only noted, and "it
-  // counts on your standing" would be untrue.
-  if (!counts) return sent
+  // Every room, including the ones where an absence is only noted: the notice
+  // is also the thing that makes a seat defaultable at all (settleAttendance
+  // only defaults a guest who got one), so withholding it from a whole class
+  // of events silently exempted them.
   for (const g of missing) {
     const key = `attendance-review-guest:${event.id}:${g.userId}`
     if (!await claimOnce(key, 7 * DAY)) continue
     const ok = await createNotification(g.userId, 'attendance_check',
       `${e?.emoji ?? '🎟️'} You weren't checked in at ${event.title}`,
-      'If you were there, tap "I was there" on the event page today — the host can still check you in. After midnight it counts as a no-show on your standing.',
+      counts
+        ? 'If you were there, tap "I was there" on the event page — your host can still check you in. Left as it is, it counts as a no-show on your standing at the end of tomorrow.'
+        : 'If you were there, tap "I was there" on the event page — your host can still check you in. Left as it is, it goes on the record, though it doesn\'t count against your standing.',
       `/events/${event.id}`)
     if (!ok) { await releaseClaim(key); continue }
     // Most members have no push: the email is what actually reaches them.

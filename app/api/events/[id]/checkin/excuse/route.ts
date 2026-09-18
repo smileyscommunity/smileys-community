@@ -8,7 +8,7 @@ import { Attendance, AttendeeStatus } from '@/lib/constants'
 import { eventStartsAt } from '@/lib/eventTime'
 import { getCityTz } from '@/lib/city'
 import { eventRunners } from '@/lib/noShowPolicy'
-import { attendanceSettlesAt } from '@/lib/standingPolicy'
+import { attendanceMarkingClosesAt } from '@/lib/standingPolicy'
 import { canExcuse, closeOutBlock, CLOSE_OUT_BLOCK_MESSAGE } from '@/lib/attendanceCloseOut'
 
 type Params = { params: Promise<{ id: string }> }
@@ -17,7 +17,7 @@ type Params = { params: Promise<{ id: string }> }
 // Excused is neither attended nor a no-show — a guest who cancelled on
 // WhatsApp, or had a reason the host accepts — and never becomes an offence.
 // `excused: false` puts the row back to unmarked. Open from the start of the
-// event until the room settles (attendanceSettlesAt), like close-out.
+// event until marking closes (attendanceMarkingClosesAt), like close-out.
 
 export async function POST(req: NextRequest, { params }: Params) {
   try {
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Attendance for this event is already settled.', code: 'attendance_settled' }, { status: 409 })
     }
     const tz    = await getCityTz(event.cityId)
-    const block = closeOutBlock(eventStartsAt(event, tz), attendanceSettlesAt(event, tz), new Date())
+    const block = closeOutBlock(eventStartsAt(event, tz), attendanceMarkingClosesAt(event, tz), new Date())
     if (block) return NextResponse.json({ error: CLOSE_OUT_BLOCK_MESSAGE[block], code: block }, { status: 409 })
 
     const row = await prisma.eventAttendee.findUnique({

@@ -41,7 +41,8 @@
 /** Every page under app/, route groups removed. tests/scan5Batch37 fails when this drifts from the filesystem. */
 export const PAGE_ROUTES = [
   '/', '/[city]', '/[city]/board', '/[city]/clubs', '/[city]/directory', '/[city]/events',
-  '/about', '/activate', '/admin', '/admin/analytics', '/admin/announcements', '/admin/applications', '/admin/audit',
+  '/about', '/activate', '/admin', '/admin/analytics', '/admin/announcements', '/admin/applications',
+  '/admin/attendance-review', '/admin/audit',
   '/admin/banners', '/admin/campaigns', '/admin/campaigns/[id]', '/admin/checkin', '/admin/cities', '/admin/club-requests', '/admin/clubs',
   '/admin/clubs/[id]', '/admin/content', '/admin/directory', '/admin/engagement', '/admin/events',
   '/admin/events/[id]/edit', '/admin/events/[id]/participants', '/admin/events/new', '/admin/feedback', '/admin/guide',
@@ -58,6 +59,7 @@ export const PAGE_ROUTES = [
   '/get-involved', '/guide', '/guide/[slug]', '/guide/routes/[slug]', '/guidelines', '/handbook', '/handbook/[slug]',
   '/handbook/category/[key]', '/hangouts', '/hangouts/[id]', '/hangouts/recap', '/host', '/host/checkin', '/host/clubs',
   '/host/clubs/[slug]', '/host/events', '/host/events/[id]/edit', '/host/events/[id]/participants', '/host/events/new',
+  '/host/review',
   '/hosts', '/invite', '/login', '/marketplace', '/members', '/members/[id]', '/messages', '/messages/[userId]',
   '/moving-sales/[id]', '/my-events', '/neighborhoods', '/neighborhoods/[slug]', '/no-show', '/notifications',
   '/notifications/settings', '/partner', '/partner/settings', '/pending', '/perks', '/posts', '/posts/[slug]', '/privacy',

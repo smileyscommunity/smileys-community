@@ -16,6 +16,7 @@ vi.mock('@/lib/prisma', () => ({ prisma: {
   event:            { findMany: vi.fn(), findUnique: vi.fn() },
   rateLimit:        { findUnique: vi.fn(), findMany: vi.fn() },
   user:             { findMany: vi.fn() },
+  notification:     { findMany: vi.fn(async () => []) },
 } }))
 
 import { prisma } from '@/lib/prisma'
@@ -146,44 +147,61 @@ describe('resolving and recording an event', () => {
   ]
   const updates = () => p.eventAttendee.updateMany.mock.calls.map((c: any) => c[0])
 
-  it('check-in ran: the unmarked guests become no-shows, stamped; the people running it attended', async () => {
-    // 8 scanned of 11 non-exempt (the excused stay in the room): 73%, past the 70% line.
+  // Everyone unmarked was warned, unless a test says otherwise.
+  const warnedAll = (...ids: string[]) => p.notification.findMany.mockResolvedValue(ids.map(userId => ({ userId })))
+
+  it('a warned guest who is left unmarked becomes a no-show, whatever the door did', async () => {
+    // 8 scanned of 11 non-exempt: 73%. The same result at 20% — the ratio no
+    // longer decides anything here; the warning does.
+    warnedAll('a', 'b', 'host')
     p.eventAttendee.findMany.mockResolvedValue(room(8, ['a', 'b'], [row('host'), row('ex', { attendance: 'excused' })]))
     await settleAttendance(EVENT, NOW)
     const still = { status: 'approved', checkedIn: false, attendance: 'unknown' }
-    expect(updates()).toContainEqual({ where: { id: { in: ['a', 'b'] }, ...still }, data: { attendance: 'no_show', attendanceAutoResolvedAt: NOW } })
-    expect(updates()).toContainEqual({ where: { id: { in: ['host'] }, ...still }, data: { attendance: 'attended', attendanceAutoResolvedAt: NOW } })
+    expect(updates()).toContainEqual({ where: { id: { in: ['a', 'b', 'host'] }, ...still }, data: { attendance: 'no_show', attendanceAutoResolvedAt: NOW } })
     // An excused guest is left as the host left it.
     expect(JSON.stringify(updates())).not.toContain('"ex"')
   })
 
-  it('check-in not run (under half the room scanned): nobody is penalised, the room is attended', async () => {
+  it('a thin door no longer exempts the room: 2 of 5 scanned still settles the warned ones', async () => {
+    // Edip's bowling night. Under the old ratio nothing here counted at all,
+    // which is what let every absence at a badly-scanned event go unrecorded.
+    warnedAll('a', 'b', 'c')
     p.eventAttendee.findMany.mockResolvedValue(room(2, ['a', 'b', 'c']))
     await settleAttendance(EVENT, NOW)
-    expect(updates()).toHaveLength(1)
-    expect(updates()[0]).toMatchObject({ where: { id: { in: ['a', 'b', 'c'] } }, data: { attendance: 'attended' } })
+    expect(updates()[0]).toMatchObject({ where: { id: { in: ['a', 'b', 'c'] } }, data: { attendance: 'no_show' } })
   })
 
-  it('excusing guests never tips the room over half', async () => {
-    // 3 scanned of 7 with 2 excused is still 3 of 7.
+  it('never defaults a guest the warning did not reach — it settles them as attended', async () => {
+    // Ahmet Öztekin, 2026-09-16: his claim was taken, his notice never
+    // written, and 14 sweeps skipped him. Nobody is marked absent on a
+    // message they never got, so the silent seat goes the safe way.
+    warnedAll('a')
+    p.eventAttendee.findMany.mockResolvedValue(room(8, ['a', 'silent']))
+    await settleAttendance(EVENT, NOW)
+    const still = { status: 'approved', checkedIn: false, attendance: 'unknown' }
+    expect(updates()).toContainEqual({ where: { id: { in: ['a'] }, ...still }, data: { attendance: 'no_show', attendanceAutoResolvedAt: NOW } })
+    expect(updates()).toContainEqual({ where: { id: { in: ['silent'] }, ...still }, data: { attendance: 'attended', attendanceAutoResolvedAt: NOW } })
+  })
+
+  it('excusing guests is left alone whatever the room did', async () => {
+    warnedAll('a', 'b')
     p.eventAttendee.findMany.mockResolvedValue(room(3, ['a', 'b'], [row('x1', { attendance: 'excused' }), row('x2', { attendance: 'excused' })]))
     await settleAttendance(EVENT, NOW)
-    expect(JSON.stringify(updates())).not.toContain('no_show')
+    expect(JSON.stringify(updates())).not.toContain('"x1"')
   })
 
-  it('no review ever went out: the room settles as attended', async () => {
-    p.rateLimit.findUnique.mockResolvedValue(null)
+  it('no warning ever went out: the whole room settles as attended', async () => {
+    p.notification.findMany.mockResolvedValue([])
     p.eventAttendee.findMany.mockResolvedValue(room(6, ['a', 'b']))
     await settleAttendance(EVENT, NOW)
     expect(JSON.stringify(updates())).not.toContain('no_show')
-    expect(p.rateLimit.findUnique).toHaveBeenCalledWith({ where: { key: 'attendance-review-sent:e1' }, select: { resetAt: true } })
   })
 
-  it('settles to no-show once: a guest added after the room settled is attended', async () => {
+  it('settles once: a room already settled is left alone', async () => {
     ;(claimOnce as any).mockResolvedValue(false)
     p.eventAttendee.findMany.mockResolvedValue(room(6, ['late']))
-    await settleAttendance(EVENT, NOW)
-    expect(updates()).toEqual([expect.objectContaining({ where: expect.objectContaining({ id: { in: ['late'] } }), data: { attendance: 'attended', attendanceAutoResolvedAt: NOW } })])
+    expect(await settleAttendance(EVENT, NOW)).toEqual({ attended: 0, absent: 0 })
+    expect(updates()).toEqual([])
   })
 
   it('records declared no-shows and late cancels; forgives a refilled seat; never the people running it', async () => {
@@ -274,7 +292,7 @@ describe('the host review', () => {
     expect(calls[2][4]).toBe('/events/e1')
     expect(calls[0][1]).toBe('attendance_review')
     expect(calls[0][2]).toBe('⛵ 2 not checked in at Sunset Sailing')
-    expect(calls[0][3]).toBe('Emir and Beto. Check in anyone who came, or excuse them, by midnight tonight. After that each counts as a no-show.')
+    expect(calls[0][3]).toBe('Emir and Beto. Check in anyone who came, or waive them. Anyone still on this list at the end of tomorrow counts as a no-show on their standing. You can waive that for a month afterwards.')
     expect(calls[0][4]).toBe('/host/checkin?event=e1')
     expect((claimOnce as any).mock.calls.map((c: any) => c[0])).toEqual([
       'attendance-review:e1:host', 'attendance-review:e1:co', 'attendance-review-sent:e1',
@@ -289,25 +307,48 @@ describe('the host review', () => {
     expect((createNotification as any).mock.calls.map((c: any) => c[0])).toEqual(['a'])
   })
 
-  it('where the no-show would not count, the host still gets the list, worded for what will happen, and no guest is told', async () => {
+  it('where the no-show would only be logged, everyone is still told — and told that it is only logged', async () => {
+    // The guest notice used to be withheld on these events. It is also what
+    // makes a seat defaultable at all (settleAttendance only defaults a guest
+    // who got one), so withholding it exempted open events and new cities
+    // from the record entirely rather than just from the penalty.
     p.eventAttendee.findMany.mockResolvedValue([scanned('s1'), scanned('s2'), scanned('s3'), guest('a')])
     await sendAttendanceReviews({ ...EVENT, limitedSpots: false } as unknown as SweepEvent)
     await sendAttendanceReviews({ ...EVENT, id: 'e2', city: { timezone: 'Europe/Istanbul', createdAt: new Date('2026-09-01T00:00:00Z') } } as unknown as SweepEvent)
     const calls = (createNotification as any).mock.calls
-    expect(calls.map((c: any) => c[1])).not.toContain('attendance_check')
     expect([...new Set(calls.filter((c: any) => c[1] === 'attendance_review').map((c: any) => c[3]))]).toEqual([
-      "a. Check in anyone who came, or excuse them, by midnight tonight. After that it goes on the record as a no-show, though it doesn't count on an open event.",
-      'a. Check in anyone who came, or excuse them, by midnight tonight. After that it goes on the record as a no-show, though nothing counts against anyone in a new city yet.',
+      "a. Check in anyone who came, or waive them. Anyone still on this list at the end of tomorrow goes on the record, though it doesn't count on an open event.",
+      'a. Check in anyone who came, or waive them. Anyone still on this list at the end of tomorrow goes on the record, though nothing counts against anyone in a new city yet.',
     ])
     expect(calls.filter((c: any) => c[1] === 'attendance_review')).toHaveLength(4)
+    const guestNotes = [...new Set(calls.filter((c: any) => c[1] === 'attendance_check').map((c: any) => c[3]))]
+    expect(guestNotes).toHaveLength(1)
+    expect(guestNotes[0]).toContain("it doesn't count against your standing")
   })
 
-  it('sends nothing where check-in was not run, or everyone is marked', async () => {
-    p.eventAttendee.findMany.mockResolvedValueOnce([scanned('s1'), guest('a'), guest('b')])
-    expect(await sendAttendanceReviews(EVENT as unknown as SweepEvent)).toBe(0)
+  it('sends nothing when everyone is already marked', async () => {
     p.eventAttendee.findMany.mockResolvedValueOnce([scanned('s1'), scanned('s2'), scanned('s3'), guest('a', { attendance: 'excused' })])
     expect(await sendAttendanceReviews(EVENT as unknown as SweepEvent)).toBe(0)
     expect(createNotification).not.toHaveBeenCalled()
+  })
+
+  it('still asks the host where the door did not clear the bar, and asks for a mark rather than threatening one', async () => {
+    // 1 of 3 scanned: under the ratio. The list used to be withheld here,
+    // which is how every no-show at a badly-scanned event walked free while a
+    // well-scanned room's guests took cards for the same conduct.
+    p.eventAttendee.findMany.mockResolvedValue([scanned('s1'), guest('a'), guest('b')])
+    expect(await sendAttendanceReviews(EVENT as unknown as SweepEvent)).toBeGreaterThan(0)
+
+    const host = (createNotification as any).mock.calls.find((c: any) => c[1] === 'attendance_review')
+    expect(host[3]).toContain('Check in anyone who came, or waive them')
+    expect(host[3]).toContain('counts as a no-show on their standing')
+    // A thin door is a caution about the list, not an exemption from it.
+    expect(host[3]).toContain('may simply have been missed at the door')
+
+    // The guest is told plainly, and given the tap that fixes it.
+    const g = (createNotification as any).mock.calls.find((c: any) => c[1] === 'attendance_check')
+    expect(g[3]).toContain('tap "I was there"')
+    expect(g[3]).toContain('counts as a no-show on your standing at the end of tomorrow')
   })
 
   it('hands the claim back when a send fails, and tells no guest when no host heard', async () => {

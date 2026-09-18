@@ -12,7 +12,7 @@ vi.mock('@/lib/prisma', () => ({ prisma: {
   rateLimit:     { findMany: vi.fn(async () => []) },
 } }))
 
-import { closeOutBlock, noShowCandidates, restToClose, canExcuse } from '@/lib/attendanceCloseOut'
+import { closeOutBlock, noShowCandidates, restToClose, canExcuse, wasDefaulted } from '@/lib/attendanceCloseOut'
 import { POST as closeOut, DELETE as undoCloseOut } from '@/app/api/events/[id]/checkin/close-out/route'
 import { GET as roster } from '@/app/api/events/[id]/checkin/route'
 import { getSession } from '@/lib/session'
@@ -81,6 +81,38 @@ describe('noShowCandidates', () => {
   })
 })
 
+describe('the host keeps the same window the guest gets', () => {
+  const started = new Date('2026-09-13T15:00:00Z')
+  const closes  = new Date('2026-10-14T21:00:00Z')   // attendanceMarkingClosesAt
+  it('lets a host mark a week late — the truth did not expire at midnight', () => {
+    expect(closeOutBlock(started, closes, new Date('2026-09-20T09:00:00Z'))).toBeNull()
+  })
+  it('still refuses before the start, and once the window is genuinely over', () => {
+    expect(closeOutBlock(started, closes, new Date('2026-09-13T10:00:00Z'))).toBe('not_started')
+    expect(closeOutBlock(started, closes, new Date('2026-10-20T09:00:00Z'))).toBe('too_late')
+  })
+})
+
+describe('wasDefaulted', () => {
+  const base = { id: 'r', userId: 'u', status: 'approved', user: null }
+  it('is true only for a seat the sweep defaulted, never one a person decided', () => {
+    expect(wasDefaulted({ ...base, checkedIn: false, attendance: 'attended', attendanceAutoResolvedAt: new Date() })).toBe(true)
+    // A real check-in: someone scanned them.
+    expect(wasDefaulted({ ...base, checkedIn: true, attendance: 'attended', attendanceAutoResolvedAt: new Date() })).toBe(false)
+    // Marked attended by a host, no stamp.
+    expect(wasDefaulted({ ...base, checkedIn: false, attendance: 'attended', attendanceAutoResolvedAt: null })).toBe(false)
+    expect(wasDefaulted({ ...base, checkedIn: false, attendance: 'excused', attendanceAutoResolvedAt: new Date() })).toBe(false)
+  })
+  it('puts a defaulted seat back in reach of a close-out', () => {
+    const rows = [
+      { ...base, id: 'd', userId: 'd', checkedIn: false, attendance: 'attended', attendanceAutoResolvedAt: new Date(), user: { role: 'member' } },
+      { ...base, id: 'k', userId: 'k', checkedIn: true,  attendance: 'attended', attendanceAutoResolvedAt: null, user: { role: 'member' } },
+    ]
+    const runners = { hostId: 'h1', cohostIds: [], clubHostIds: [] }
+    expect(noShowCandidates(rows, runners as never).map(r => r.id)).toEqual(['d'])
+  })
+})
+
 describe('POST /events/[id]/checkin/close-out', () => {
   it('refuses anyone who does not run the event, before reading or writing', async () => {
     ;(canManageEventOps as any).mockResolvedValue(false)
@@ -116,8 +148,15 @@ describe('POST /events/[id]/checkin/close-out', () => {
     expect(await res.json()).toEqual({ marked: ['m1', 'm2'] })
     const { where, data } = p.eventAttendee.updateMany.mock.calls[0][0]
     expect(where.id).toEqual({ in: ['r-m1', 'r-m2'] })
-    expect(where).toMatchObject({ status: 'approved', checkedIn: false, attendance: 'unknown', event: { noShowProcessedAt: null, cancelledAt: null } })
-    expect(data).toEqual({ attendance: 'no_show' })
+    expect(where).toMatchObject({ status: 'approved', checkedIn: false, event: { noShowProcessedAt: null, cancelledAt: null } })
+    // Unmarked, or defaulted to attended by the sweep — both are still the
+    // host's to correct, which is what makes a late close-out mean anything.
+    expect(where.OR).toEqual([
+      { attendance: 'unknown' },
+      { attendance: 'attended', attendanceAutoResolvedAt: { not: null } },
+    ])
+    // The stamp is cleared: a person decided this, it is no longer a default.
+    expect(data).toEqual({ attendance: 'no_show', attendanceAutoResolvedAt: null })
     expect(writeAudit).toHaveBeenCalledWith('co1', 'Co Host', 'event_no_shows_marked', 'e1', 'event',
       expect.objectContaining({ count: 2, userIds: ['m1', 'm2'] }), expect.any(String))
   })
@@ -159,7 +198,10 @@ describe('DELETE /events/[id]/checkin/close-out (undo)', () => {
     expect((await undoCloseOut(req({}), params)).status).toBe(400)
     p.event.findUnique.mockResolvedValueOnce({ ...EVENT, noShowProcessedAt: new Date() })
     expect((await undoCloseOut(req({ userIds: ['m1'] }), params)).status).toBe(409)
-    at('2026-09-25T12:00:00Z')
+    // A month and change after a 13 Sep event: past HOST_MARKING_WINDOW_DAYS.
+    // A week late is now perfectly in time — the host's window matches the
+    // guest's dispute window instead of expiring the next midnight.
+    at('2026-10-20T12:00:00Z')
     const late = await undoCloseOut(req({ userIds: ['m1'] }), params)
     expect(late.status).toBe(409)
     expect((await late.json()).code).toBe('too_late')

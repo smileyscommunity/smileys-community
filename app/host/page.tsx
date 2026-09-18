@@ -110,6 +110,17 @@ export default function HostDashboard() {
         </Link>
       )}
 
+      {/* Attendance review — the window where a missed check-in can still be
+          fixed. A link, not a count: the queue is one fetch and the dashboard
+          must not wait on it. */}
+      {canEvents && (
+        <Link href="/host/review" className="block bg-zinc-900 border border-zinc-800 hover:border-amber-500/50 rounded-xl p-5 mb-6 transition-colors group">
+          <div aria-hidden="true" className="text-2xl mb-2">📋</div>
+          <div className="text-white font-semibold group-hover:text-amber-400 transition-colors">Attendance review</div>
+          <div className="text-zinc-500 text-sm mt-0.5">Who wasn’t checked in at your events, who was told, and how long you have to fix it.</div>
+        </Link>
+      )}
+
       {/* Stats — events hosts only */}
       {canEvents && (
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 sm:gap-4 mb-6 sm:mb-8">
