@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import { loadFailure } from '@/lib/admin/useAdminLoad'
+import { useAuth } from '@/contexts/AuthContext'
+import { memberHref } from '@/lib/adminNav'
 
 interface Member {
   id: string; name: string; email: string; color: string
@@ -34,7 +36,7 @@ function Avatar({ m }: { m: Member }) {
   )
 }
 
-function MemberRow({ m, sub }: { m: Member; sub: string }) {
+function MemberRow({ m, sub, viewerRole }: { m: Member; sub: string; viewerRole: string | undefined }) {
   const [drafting, setDrafting] = useState(false)
   const [sending,  setSending]  = useState(false)
   const [sent,     setSent]     = useState(false)
@@ -50,9 +52,11 @@ function MemberRow({ m, sub }: { m: Member; sub: string }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: m.id }),
       })
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
       if (!res.ok) setError(data?.error ?? 'Could not draft')
       else if (data.message) setNudge(data.message)
+    } catch {
+      setError('Network error — could not draft')
     } finally {
       setDrafting(false)
     }
@@ -78,6 +82,8 @@ function MemberRow({ m, sub }: { m: Member; sub: string }) {
       }
       setSent(true); setNudge('')
       setTimeout(() => setSent(false), 4000)
+    } catch {
+      setError('Network error — could not send')
     } finally {
       setSending(false)
     }
@@ -89,7 +95,8 @@ function MemberRow({ m, sub }: { m: Member; sub: string }) {
         <Avatar m={m} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <Link href={`/admin/users/${m.id}`} className="text-sm font-semibold text-zinc-200 hover:text-amber-400 transition-colors">
+            {/* The admin member page bounces moderators; see memberHref. */}
+            <Link href={memberHref(m.id, viewerRole)} className="text-sm font-semibold text-zinc-200 hover:text-amber-400 transition-colors">
               {m.name}
             </Link>
             {m.neighborhood && (
@@ -146,6 +153,7 @@ function MemberRow({ m, sub }: { m: Member; sub: string }) {
 type Tab = 'never' | 'dormant'
 
 export default function RetentionPage() {
+  const { user: me } = useAuth()
   const [data, setData]     = useState<RetentionData | null>(null)
   const [loading, setLoading] = useState(true)
   const [tab, setTab]       = useState<Tab>('never')
@@ -236,6 +244,7 @@ export default function RetentionPage() {
                 <MemberRow
                   key={m.id}
                   m={m}
+                  viewerRole={me?.role}
                   sub={`Joined ${timeAgo(m.joinedAt!)} · ${m.interests?.slice(0, 3).join(', ') || 'No interests set'}`}
                 />
               ))}
@@ -253,6 +262,7 @@ export default function RetentionPage() {
                 <MemberRow
                   key={m.id}
                   m={m}
+                  viewerRole={me?.role}
                   sub={`Last event ${timeAgo(m.lastEventDate!)} · ${m.eventCount} event${m.eventCount !== 1 ? 's' : ''} total`}
                 />
               ))}

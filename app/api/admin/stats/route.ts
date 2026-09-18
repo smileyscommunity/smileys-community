@@ -8,6 +8,12 @@ import { listStaleSweepers } from '@/lib/cronHealth'
 import { stalledLiveCities, stalledSeverity, describeStalled } from '@/lib/cityOps'
 import { loadPostponedEvents, planPostponed } from '@/lib/postponedEvents'
 import { COMMUNITY_MEMBER_WHERE, NOT_ACTIVATED_MEMBER_WHERE, MEMBER_ROLE_FILTER } from '@/lib/memberCount'
+import { reportQueueWhere } from '@/lib/admin/reportScope'
+
+// The funnel follows one cohort: applications made in this many days. Recent
+// enough to describe the community as it is now, long enough that most
+// approved applicants have had an event to go to.
+const FUNNEL_DAYS = 90
 
 export async function GET(req: Request) {
   const session = await getSession()
@@ -33,7 +39,6 @@ export async function GET(req: Request) {
   const inCity       = cityId ? { cityId }                : {}
   const byUser       = cityId ? { user:     { cityId } }   : {}
   const viaEvent     = cityId ? { event:    { cityId } }   : {}
-  const viaReported  = cityId ? { reported: { cityId } }   : {}
   const viaHangout   = cityId ? { hangout:  { cityId } }   : {}
   const appCity      = cityId ? { targetCityId: cityId }   : {}
 
@@ -48,6 +53,7 @@ export async function GET(req: Request) {
   const monthAgo   = new Date(now - thirtyDays)
   const prevMonth  = new Date(now - (thirtyDays * 2))
   const weekAgo    = new Date(now - 7 * 24 * 60 * 60 * 1000)
+  const funnelFrom = new Date(now - FUNNEL_DAYS * 24 * 60 * 60 * 1000)
   // Midnight on the city's clock, not the server's (UTC): the "today"
   // bucket otherwise started at 03:00 Istanbul.
   const todayStart = fromWallClockInTz(`${todayStr}T00:00`, tz)
@@ -61,15 +67,33 @@ export async function GET(req: Request) {
     sevenDayBuckets.push({ start, end })
   }
 
+  // The Reports pill counts what the moderation queue lists: the same filter
+  // (lib/admin/reportScope) — content reports under the content's city, and
+  // never reports about the viewer. It used to scope by the reported member's
+  // city alone.
+  const reportsWhere = await reportQueueWhere(session, { cityId })
+
+  // The funnel cohort: applications to this city in the window, and which
+  // of them were approved. The later steps are counted from these people
+  // only, so each step is a subset of the one before it. It used to divide
+  // every approved account (admins, invited and imported members included)
+  // by every application ever, and count future RSVPs as a "first event" —
+  // with event city and member city mixed, it could pass 100%.
+  const cohort = await prisma.memberApplication.findMany({
+    where:  { createdAt: { gte: funnelFrom }, ...appCity },
+    select: { email: true, status: true },
+  }) as { email: string; status: string }[]
+  const approvedEmails = [...new Set(cohort.filter(a => a.status === 'approved').map(a => a.email))]
+
   const [
     totalAccounts, members, membersActivated, membersNotActivated, hosts, events, rsvps,
     pendingApplications, pendingReports, upcoming,
     newMembersThisMonth, prevMembersMonth,
     rsvpsThisMonth, prevRsvpsMonth,
-    payments, prevPayments,
+    paidNow, paidPrev, paidPending,
     hangoutsActive, hangoutsToday, hangoutReferencesWeek,
     topHostGroup, visitorsThisWeek,
-    appsTotal, appsApproved, rsvpUserGroups,
+    attendedGroups,
     survey30d, surveyPrev30d,
     pendingJoinRequests, todayEventsRaw,
     ...rsvpsByDayCounts
@@ -89,17 +113,24 @@ export async function GET(req: Request) {
     prisma.event.count({ where: { ...inCity } }),
     prisma.eventAttendee.count({ where: { status: 'approved', user: { role: { not: 'admin' } }, ...viaEvent } }),
     prisma.memberApplication.count({ where: { status: 'pending', ...appCity } }),
-    prisma.report.count({ where: { status: 'pending', ...viaReported } }),
-    prisma.event.count({ where: { date: { gte: todayStr }, ...inCity } }),
+    prisma.report.count({ where: { ...reportsWhere, status: 'pending' } }),
+    // Upcoming means on the calendar: published, from today on. Drafts,
+    // pending, postponed and cancelled events used to count too.
+    prisma.event.count({ where: { status: 'published', date: { gte: todayStr }, ...inCity } }),
     // Members growth
     prisma.user.count({ where: { status: 'approved', role: { not: 'admin' }, joinedAt: { gte: monthAgo }, ...inCity } }),
     prisma.user.count({ where: { status: 'approved', role: { not: 'admin' }, joinedAt: { gte: prevMonth, lt: monthAgo }, ...inCity } }),
     // RSVPs growth
     prisma.eventAttendee.count({ where: { status: 'approved', joinedAt: { gte: monthAgo }, ...viaEvent } }),
     prisma.eventAttendee.count({ where: { status: 'approved', joinedAt: { gte: prevMonth, lt: monthAgo }, ...viaEvent } }),
-    // Revenue
-    prisma.payment.groupBy({ by: ['status'], where: { ...viaEvent }, _sum: { amount: true }, _count: true }),
-    prisma.payment.groupBy({ by: ['status'], where: { createdAt: { gte: prevMonth, lt: monthAgo }, ...viaEvent }, _sum: { amount: true } }),
+    // Revenue, per currency — lira and euro don't add up to anything. Paid
+    // is compared like for like: the last 30 days against the 30 before. The
+    // trend used to set all-time revenue against one previous month, so it
+    // read hugely positive forever. Pending is everything still owed,
+    // whenever it was created.
+    prisma.payment.groupBy({ by: ['currency'], where: { status: 'paid', createdAt: { gte: monthAgo }, ...viaEvent }, _sum: { amount: true } }),
+    prisma.payment.groupBy({ by: ['currency'], where: { status: 'paid', createdAt: { gte: prevMonth, lt: monthAgo }, ...viaEvent }, _sum: { amount: true } }),
+    prisma.payment.groupBy({ by: ['currency'], where: { status: 'pending', ...viaEvent }, _sum: { amount: true }, _count: { _all: true } }),
     // Hangouts pulse — active (in-flight) hangouts, today's posts, and
     // references created in the last 7 days. References-this-week is the
     // best proxy for "is the trust loop actually firing?"
@@ -124,14 +155,18 @@ export async function GET(req: Request) {
         ...inCity,
       },
     }),
-    // Conversion funnel — applications → approved → first event → repeat.
-    // Distinct-attendees-by-RSVP-count gives us the last two steps from a
-    // single groupBy that we then filter in JS.
-    prisma.memberApplication.count({ where: { ...appCity } }),
-    prisma.user.count({ where: { status: 'approved', ...inCity } }),
-    prisma.eventAttendee.groupBy({
+    // Conversion funnel, last two steps: of the cohort's approved members,
+    // who has actually been to an event — one that has happened, in this
+    // city, where they were checked in or marked attended — and who has been
+    // to two. An RSVP to next week isn't a first event yet.
+    approvedEmails.length === 0 ? Promise.resolve([]) : prisma.eventAttendee.groupBy({
       by:     ['userId'],
-      where:  { status: 'approved', user: { role: { not: 'admin' } }, ...viaEvent },
+      where:  {
+        status: 'approved',
+        OR:     [{ checkedIn: true }, { attendance: 'attended' }],
+        user:   { email: { in: approvedEmails } },
+        event:  { date: { lt: todayStr }, status: { in: ['published', 'archived'] }, ...inCity },
+      },
       _count: { _all: true },
     }),
     // Post-event survey rollup — 30d window + previous-30d window
@@ -180,20 +215,28 @@ export async function GET(req: Request) {
 
   // groupBy return types got widened to any by the Promise.all<any> cast
   // needed to mix in the dynamic ...sevenDayBuckets spread; re-narrow here.
-  type PayBucket = { status: string; _sum: { amount: number | null }; _count?: number }
-  const payArr  = payments as PayBucket[]
-  const prevArr = prevPayments as PayBucket[]
-  const revenueCollected = payArr.find(p => p.status === 'paid')?._sum.amount ?? 0
-  const revenuePending   = payArr.find(p => p.status === 'pending')?._sum.amount ?? 0
-  const pendingPayments  = payArr.find(p => p.status === 'pending')?._count ?? 0
-
-  const prevRevenue = prevArr.find(p => p.status === 'paid')?._sum.amount ?? 0
+  type PayBucket = { currency: string; _sum: { amount: number | null }; _count?: { _all: number } }
+  const nowArr     = paidNow     as PayBucket[]
+  const prevArr    = paidPrev    as PayBucket[]
+  const pendingArr = paidPending as PayBucket[]
+  const pendingPayments = pendingArr.reduce((n, p) => n + (p._count?._all ?? 0), 0)
 
   // Trends (percentage growth)
   const calcTrend = (curr: number, prev: number) => {
     if (prev === 0) return curr > 0 ? 100 : 0
     return Math.round(((curr - prev) / prev) * 100)
   }
+
+  // One row per currency that has any paid or pending money, largest 30-day
+  // take first. Amounts are never summed across currencies.
+  const sumFor = (arr: PayBucket[], c: string) => arr.find(p => p.currency === c)?._sum.amount ?? 0
+  const revenue = [...new Set([...nowArr, ...prevArr, ...pendingArr].map(p => p.currency))]
+    .map(currency => {
+      const collected = sumFor(nowArr, currency)
+      const previous  = sumFor(prevArr, currency)
+      return { currency, collected, previous, trend: calcTrend(collected, previous), pending: sumFor(pendingArr, currency) }
+    })
+    .sort((a, b) => b.collected - a.collected || b.pending - a.pending)
 
   // Hydrate top hangout host's display fields (name + color) — separate
   // query because Prisma's groupBy can't include relations.
@@ -202,8 +245,8 @@ export async function GET(req: Request) {
     ? await prisma.user.findUnique({ where: { id: topHostId }, select: { id: true, name: true, color: true, profilePhoto: true } })
     : null
 
-  // Conversion funnel — derive distinct-counts from the rsvp groupBy.
-  const groups       = (rsvpUserGroups ?? []) as { userId: string; _count: { _all: number } }[]
+  // Conversion funnel — distinct attendees from the groupBy above.
+  const groups       = (attendedGroups ?? []) as { userId: string; _count: { _all: number } }[]
   const firstEvent   = groups.length
   const repeatEvent  = groups.filter(g => g._count._all >= 2).length
 
@@ -241,7 +284,7 @@ export async function GET(req: Request) {
     // for the platform total.
     city,
     totalAccounts, members, membersActivated, membersNotActivated, hosts, events, upcoming, rsvps,
-    newMembersThisMonth, revenueCollected, revenuePending, pendingPayments,
+    newMembersThisMonth, revenue, pendingPayments,
     pendingApplications, pendingReports, emailFailures24h,
     pendingJoinRequests: pendingJoinRequests as number,
     // Today's events with live door-ops counts, sorted by start time.
@@ -268,7 +311,6 @@ export async function GET(req: Request) {
     trends: {
       members: calcTrend(newMembersThisMonth, prevMembersMonth),
       rsvps:   calcTrend(rsvpsThisMonth, prevRsvpsMonth),
-      revenue: calcTrend(revenueCollected, prevRevenue),
     },
     hangouts: {
       active:         hangoutsActive,
@@ -283,8 +325,9 @@ export async function GET(req: Request) {
     },
     visitorsThisWeek,
     funnel: {
-      applications: appsTotal      as number,
-      approved:     appsApproved   as number,
+      windowDays:   FUNNEL_DAYS,
+      applications: cohort.length,
+      approved:     approvedEmails.length,
       firstEvent,
       repeat:       repeatEvent,
     },

@@ -33,7 +33,7 @@ vi.mock('@/lib/prisma', () => ({
   prisma: {
     club:     { findUnique: vi.fn(async () => ({ cityId: 'city_istanbul', name: 'Social' })) },
     tag:      { findMany: vi.fn(async () => []) },
-    user:     { findMany: vi.fn(async () => []) },
+    user:     { findMany: vi.fn(async () => []), findUnique: vi.fn(async () => ({ status: 'approved', suspendedUntil: null, cityId: null })) },
     business: { findFirst: vi.fn() },
     event:    {
       create: vi.fn(async ({ data }: any) => ({ id: 'e1', ...data })),

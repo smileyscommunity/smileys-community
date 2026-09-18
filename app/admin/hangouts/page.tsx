@@ -49,11 +49,17 @@ function Avatar({ name, color }: { name: string; color: string }) {
   )
 }
 
-function whenLabel(startsAt: string, endsAt: string) {
+// On the hangout city's clock, like the edit form below. It used to render in
+// the viewer's zone, so the list and the form disagreed about the same plan
+// for an admin anywhere but the city itself.
+function whenLabel(startsAt: string, endsAt: string, cityTz: string) {
+  // cities.timezone is admin-edited text; a bad value must not crash the list.
+  let tz = cityTz
+  try { new Intl.DateTimeFormat('en-GB', { timeZone: tz }) } catch { tz = DEFAULT_TZ }
   const s = new Date(startsAt)
   const e = new Date(endsAt)
-  const day = s.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
-  const t = (d: Date) => d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+  const day = s.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: tz })
+  const t = (d: Date) => d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: tz })
   return `${day}, ${t(s)}–${t(e)}`
 }
 
@@ -408,7 +414,7 @@ export default function AdminHangoutsPage() {
                         📍 {h.location}{h.neighborhood ? ` · ${h.neighborhood}` : ''}
                       </p>
                       {/* When on small screens where the dedicated column is hidden */}
-                      <p className="text-xs text-zinc-600 mt-0.5 lg:hidden">{whenLabel(h.startsAt, h.endsAt)}</p>
+                      <p className="text-xs text-zinc-600 mt-0.5 lg:hidden">{whenLabel(h.startsAt, h.endsAt, tzFor(h))}</p>
                     </Link>
                   </td>
 
@@ -426,7 +432,7 @@ export default function AdminHangoutsPage() {
 
                   {/* When */}
                   <td className="px-4 py-4 text-xs text-zinc-400 hidden lg:table-cell whitespace-nowrap">
-                    {whenLabel(h.startsAt, h.endsAt)}
+                    {whenLabel(h.startsAt, h.endsAt, tzFor(h))}
                   </td>
 
                   {/* Going (joins + host) + message count */}

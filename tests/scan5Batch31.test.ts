@@ -36,7 +36,8 @@ vi.mock('@/lib/prisma', () => ({
     $transaction:  vi.fn(async (ops: any) => Promise.all(ops)),
     club:          { findUnique: vi.fn(async () => ({ cityId: 'c1', name: 'Club' })) },
     tag:           { findMany: vi.fn(async () => []) },
-    user:          { findMany: vi.fn(async () => []), findUnique: vi.fn(async () => null) },
+    // The host check (lib/eventHostCheck) looks the host up: a live member.
+    user:          { findMany: vi.fn(async () => []), findUnique: vi.fn(async () => ({ status: 'approved', suspendedUntil: null, cityId: null })) },
     event: {
       findUnique: vi.fn(),
       create:     vi.fn(async ({ data }: any) => ({ id: 'copy1', ...data })),

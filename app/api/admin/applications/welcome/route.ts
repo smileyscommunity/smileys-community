@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { rateLimit } from '@/lib/rateLimit'
 import OpenAI from 'openai'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
@@ -11,6 +12,10 @@ export async function POST(req: NextRequest) {
   const session = await getSession()
   if (!session || !canReviewApplications(session)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+  // A paid model call per click, like the screening route beside it.
+  if (!await rateLimit(`ai-welcome:${session.id}`, 15, 60_000)) {
+    return NextResponse.json({ error: 'Too many requests — try again in a minute' }, { status: 429 })
   }
 
   const { id } = await req.json()

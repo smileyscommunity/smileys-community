@@ -6,14 +6,16 @@ import RichTextEditor from '@/components/RichTextEditor'
 import CitySelect, { useAdminCities } from '@/components/admin/CitySelect'
 import { confirmToast } from '@/lib/confirmToast'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
-import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
-import { firstNameOf } from '@/lib/data'
+import { todayInTz, wallClockInTz, fromWallClockInTz, DEFAULT_TZ, safeTz } from '@/lib/cityTime'
 
-// ISO timestamp → the 'YYYY-MM-DDTHH:MM' local format a datetime-local input
-// expects, so editing a scheduled newsletter prefills its send time correctly.
-function toLocalInput(iso: string): string {
-  const d = new Date(iso)
-  return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16)
+// One id per composed newsletter, sent with every attempt at it. The server
+// claims it before sending, so a retry after a timeout (or a second click
+// that beat the first response) answers 409 instead of mailing everyone
+// twice. randomUUID is missing outside secure contexts, hence the fallback
+// (still matches the server's id pattern).
+function newRequestId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`
 }
 
 type Segment = 'all' | 'new' | 'active' | 'inactive'
@@ -53,14 +55,21 @@ function timeAgo(iso: string): string {
   return new Date(iso).toLocaleDateString()
 }
 
-function formatScheduled(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
+// Every schedule time on this page — the picker, the confirm box, the toast,
+// the history — is shown on ONE clock, the city's, with the zone named. They
+// used to mix the admin's device clock (picker, confirm) with whatever the
+// browser made of the server's UTC instant (toast, history), so the three
+// disagreed by the offset whenever the admin wasn't on the city's clock.
+function formatScheduled(iso: string, tz: string): string {
+  return new Date(iso).toLocaleString('en-GB', {
     month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+    hourCycle: 'h23', timeZone: tz, timeZoneName: 'short',
   })
 }
 
-function NewsletterRow({ n, onDuplicate, onCancel, onEdit }: {
+function NewsletterRow({ n, tz, onDuplicate, onCancel, onEdit }: {
   n: SentNewsletter
+  tz: string
   onDuplicate: (subject: string, body: string, segment: string) => void
   onCancel: (id: string) => void
   onEdit: (n: SentNewsletter) => void
@@ -97,7 +106,7 @@ function NewsletterRow({ n, onDuplicate, onCancel, onEdit }: {
           <p className="text-xs text-zinc-500 mt-0.5">
             {n.sentBy.name} ·{' '}
             {isScheduled && n.scheduledFor
-              ? `Scheduled for ${formatScheduled(n.scheduledFor)}`
+              ? `Scheduled for ${formatScheduled(n.scheduledFor, tz)}`
               : timeAgo(n.sentAt)
             }
             {' · '}<span className="text-zinc-600">{segLabel}</span>
@@ -150,7 +159,7 @@ function NewsletterRow({ n, onDuplicate, onCancel, onEdit }: {
           {isScheduled && (
             <div className="flex items-center gap-2 flex-wrap px-4 py-3 bg-zinc-800/40">
               <p className="text-xs text-zinc-400 flex-1 min-w-full sm:min-w-0">
-                Will send to all <strong>{segLabel}</strong> members at {n.scheduledFor ? formatScheduled(n.scheduledFor) : '—'}
+                Will send to all <strong>{segLabel}</strong> members at {n.scheduledFor ? formatScheduled(n.scheduledFor, tz) : '—'}
               </p>
               <button
                 onClick={() => onEdit(n)}
@@ -191,12 +200,19 @@ export default function NewsletterPage() {
   const [scheduledFor,     setScheduledFor]     = useState('')
   const [sending,          setSending]          = useState(false)
   const [segmentCounts,    setSegmentCounts]    = useState<Record<Segment, number>>({ all: 0, new: 0, active: 0, inactive: 0 })
-  const [sampleRecipients, setSampleRecipients] = useState<string[]>([])
+  const [sampleRecipients, setSampleRecipients] = useState<Partial<Record<Segment, string[]>>>({})
+  const [requestId,        setRequestId]        = useState(newRequestId)
   const [history,          setHistory]          = useState<SentNewsletter[]>([])
   const [loading,          setLoading]          = useState(true)
   const [confirm,          setConfirm]          = useState(false)
   const [insertingEvents,  setInsertingEvents]  = useState(false)
-  const tz = cities.find(c => c.id === sendCityId)?.timezone ?? currentCity?.timezone ?? DEFAULT_TZ
+  // The city this issue goes to — none while scheduling, since a scheduled
+  // send can't be city-scoped yet. Counts, samples, the content inserts and
+  // the clock all follow it; with no city, the admin's own city's clock.
+  const targetCity = scheduleMode ? undefined : cities.find(c => c.id === sendCityId)
+  const homeTz     = currentCity?.timezone ?? DEFAULT_TZ
+  // A bad city timezone (admin-edited text) would throw in render.
+  const tz         = safeTz(targetCity?.timezone ?? homeTz)
   const [insertingClubs,   setInsertingClubs]   = useState(false)
   const [insertingCup,     setInsertingCup]     = useState(false)
   const [insertingMembers, setInsertingMembers] = useState(false)
@@ -253,12 +269,34 @@ export default function NewsletterPage() {
       .then(d => {
         setSegmentCounts(d.segmentCounts ?? { all: 0, new: 0, active: 0, inactive: 0 })
         setHistory(d.newsletters ?? [])
-        setSampleRecipients(d.sampleRecipients ?? [])
+        setSampleRecipients(d.sampleRecipients ?? {})
         setAutoWeekly(d.autoWeekly === true)
       })
       .catch(() => toast.error('Failed to load newsletter data'))
       .finally(() => setLoading(false))
   }, [])
+
+  // Picking a city re-counts the audience within it: the counts used to be
+  // network-wide whatever the picker said, so "Send to 1,234 members" went
+  // to Bodrum's 40. Skipped on mount, where the load above already counted
+  // every city.
+  const countCityId = targetCity?.id ?? ''
+  const countedCity = useRef(countCityId)
+  useEffect(() => {
+    if (countedCity.current === countCityId) return
+    countedCity.current = countCityId
+    let cancelled = false
+    const q = countCityId ? `&cityId=${encodeURIComponent(countCityId)}` : ''
+    fetch(`/app/api/admin/newsletter?scope=counts${q}`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : Promise.reject(new Error()))
+      .then(d => {
+        if (cancelled) return
+        setSegmentCounts(d.segmentCounts ?? { all: 0, new: 0, active: 0, inactive: 0 })
+        setSampleRecipients(d.sampleRecipients ?? {})
+      })
+      .catch(() => { if (!cancelled) toast.error("Couldn't count that city's members") })
+    return () => { cancelled = true }
+  }, [countCityId])
 
   function handleDuplicate(s: string, b: string, seg: string) {
     setSubject(s)
@@ -300,7 +338,9 @@ export default function NewsletterPage() {
     setBodyHtml(n.bodyHtml)
     setSegment((n.segment as Segment) in SEGMENT_LABELS ? n.segment as Segment : 'all')
     setScheduleMode(true)
-    setScheduledFor(n.scheduledFor ? toLocalInput(n.scheduledFor) : '')
+    // Back onto the same clock the picker is read on, so an untouched edit
+    // keeps its time instead of moving by the admin's offset every round.
+    setScheduledFor(n.scheduledFor ? wallClockInTz(new Date(n.scheduledFor), homeTz) : '')
     setConfirm(false)
     setEditingId(n.id)
     composerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -312,7 +352,9 @@ export default function NewsletterPage() {
   async function insertUpcomingEvents() {
     setInsertingEvents(true)
     try {
-      const res  = await fetch('/app/api/events?upcoming=1&limit=50', { credentials: 'include' })
+      // The mailed city's events, not the admin's view city's.
+      const cityQ = targetCity ? `&city=${encodeURIComponent(targetCity.slug)}` : ''
+      const res  = await fetch(`/app/api/events?upcoming=1&limit=50${cityQ}`, { credentials: 'include' })
       const data = await res.json()
       const all: Array<{ id: string; title: string; date: string; neighborhood?: string | null; emoji?: string; status?: string }> =
         Array.isArray(data.events) ? data.events : []
@@ -421,18 +463,18 @@ export default function NewsletterPage() {
   }
 
   // Welcome-the-new-members blurb — first names only (visible in-app to all
-  // members anyway), linking to the directory.
+  // members anyway), linking to the directory. The newsletter API answers
+  // for the mailed city; /api/members only knew the admin's view city.
   async function insertNewMembers() {
     setInsertingMembers(true)
     try {
-      const res  = await fetch('/app/api/members', { credentials: 'include' })
+      const cityQ = targetCity ? `&cityId=${encodeURIComponent(targetCity.id)}` : ''
+      const res  = await fetch(`/app/api/admin/newsletter?newMembers=1${cityQ}`, { credentials: 'include' })
       const data = await res.json()
-      const all: Array<{ name: string; joinedAt: string }> = Array.isArray(data.members) ? data.members : []
-      const weekAgo = Date.now() - 7 * 86_400_000
-      const fresh = all.filter(m => new Date(m.joinedAt).getTime() >= weekAgo)
+      const fresh: string[] = Array.isArray(data.names) ? data.names : []
       if (fresh.length === 0) { toast('No new members in the last 7 days'); return }
       const escapeHtml = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      const firstNames = fresh.map(m => escapeHtml(firstNameOf(m.name)))
+      const firstNames = fresh.map(n => escapeHtml(n))
       const shown = firstNames.slice(0, 3)
       const rest  = fresh.length - shown.length
       const who = rest > 0
@@ -478,24 +520,54 @@ export default function NewsletterPage() {
   async function send() {
     if (!subject.trim() || !bodyHtml.trim()) return
     if (scheduleMode && !scheduledFor) { toast.error('Pick a date and time to schedule'); return }
+    if (scheduleMode && !(fromWallClockInTz(scheduledFor, tz) > new Date())) { toast.error('That time has passed — pick a time in the future.'); return }
     setSending(true)
     setConfirm(false)
     try {
-      const res = await fetch('/app/api/admin/newsletter', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          subject:      subject.trim(),
-          bodyHtml:     bodyHtml.trim(),
-          segment,
-          cityId:       scheduleMode ? undefined : (sendCityId || undefined),
-          scheduledFor: scheduleMode ? scheduledFor : undefined,
-          replacesId:   editingId ?? undefined,
-        }),
-      })
-      const d = await res.json().catch(() => ({}))
+      let res: Response
+      try {
+        res = await fetch('/app/api/admin/newsletter', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            subject:      subject.trim(),
+            bodyHtml:     bodyHtml.trim(),
+            segment,
+            cityId:       scheduleMode ? undefined : (sendCityId || undefined),
+            // The wall-clock value plus the clock it was typed on; the server
+            // turns the pair into an instant.
+            scheduledFor: scheduleMode ? scheduledFor : undefined,
+            scheduleTz:   scheduleMode ? tz : undefined,
+            replacesId:   editingId ?? undefined,
+            requestId,
+          }),
+        })
+      } catch {
+        // No answer can't tell us whether it went out. The requestId is kept,
+        // so pressing send again is refused if the first attempt did land.
+        toast.error('Network error — it may have been sent. Check the history before sending again.')
+        return
+      }
+      const d = await res.json().catch(() => null)
+      if (!d) {
+        // A proxy timeout page, not our JSON: same uncertainty, same id.
+        toast.warning('No clear answer from the server — it may have been sent. Check the history before sending again.', { duration: 15_000 })
+        return
+      }
+      if (res.status === 409 && d.duplicate) {
+        // The earlier attempt did go out — this compose is finished.
+        toast.info(d.error ?? 'This newsletter was already sent')
+        setSubject(''); setBodyHtml(''); setScheduleMode(false); setScheduledFor(''); setEditingId(null)
+        setRequestId(newRequestId())
+        return
+      }
       if (!res.ok) {
+        // A definite answer: the server refused before claiming this id,
+        // handed it back, or (a send that failed partway) kept it and says to
+        // check the history first. Either way the next press is a deliberate
+        // new attempt, so it gets a fresh id.
+        setRequestId(newRequestId())
         // The original is gone either way here: already sent or cancelled
         // (409), or retired before a send-now that then failed. Stop editing
         // it, so a retry sends this draft as a new newsletter instead of
@@ -517,8 +589,9 @@ export default function NewsletterPage() {
         setHistory(prev => prev.filter(x => x.id !== originalId))
       }
 
+      setRequestId(newRequestId())
       if (d.scheduled) {
-        toast.success(`Scheduled for ${formatScheduled(d.scheduledFor)}`)
+        toast.success(`Scheduled for ${formatScheduled(d.scheduledFor, homeTz)}`)
         setHistory(prev => [{
           id: d.newsletterId, subject: subject.trim(), bodyHtml: bodyHtml.trim(),
           segment, status: 'scheduled', scheduledFor: d.scheduledFor,
@@ -544,8 +617,9 @@ export default function NewsletterPage() {
   const currentCount = segmentCounts[segment] ?? 0
   const canSend = subject.trim().length > 0 && bodyHtml.trim().length > 0 && !sending && currentCount > 0
 
+  const segmentSample = sampleRecipients[segment] ?? []
   function recipientPreview() {
-    const names = sampleRecipients.slice(0, 3)
+    const names = segmentSample.slice(0, 3)
     const rest  = currentCount - names.length
     if (names.length === 0) return `${currentCount} members`
     return rest > 0 ? `${names.join(', ')} and ${rest} others` : names.join(', ')
@@ -558,8 +632,12 @@ export default function NewsletterPage() {
     { key: 'inactive', desc: 'No event attendance in 180+ days' },
   ]
 
-  // Min datetime for the scheduler — 5 minutes from now
-  const minSchedule = new Date(Date.now() + 5 * 60 * 1000).toISOString().slice(0, 16)
+  // Min datetime for the scheduler — 5 minutes from now, on the picker's
+  // clock (toISOString was UTC, three hours behind an Istanbul picker).
+  const minSchedule = wallClockInTz(new Date(Date.now() + 5 * 60 * 1000), tz)
+  const scheduleCityName = currentCity?.name ?? tz
+  const scheduledInstant = scheduleMode && scheduledFor ? fromWallClockInTz(scheduledFor, tz) : null
+  const audienceLabel = `${SEGMENT_LABELS[segment]}${targetCity ? ` · ${targetCity.name}` : ''}`
 
   return (
     <div className="p-4 sm:p-8 max-w-4xl">
@@ -673,7 +751,9 @@ export default function NewsletterPage() {
 
         {scheduleMode && (
           <div>
-            <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-2">Send at</label>
+            <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-2">
+              Send at <span className="normal-case font-normal text-zinc-500">({scheduleCityName} time)</span>
+            </label>
             <input
               type="datetime-local"
               value={scheduledFor}
@@ -688,12 +768,12 @@ export default function NewsletterPage() {
         {confirm ? (
           <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-4 space-y-3">
             <p className="text-sm text-amber-300">
-              {scheduleMode && scheduledFor
-                ? <>Schedule for <strong>{formatScheduled(scheduledFor)}</strong> to <strong>{currentCount.toLocaleString()} members</strong> ({SEGMENT_LABELS[segment]})?</>
-                : <>Send to <strong>{currentCount.toLocaleString()} members</strong> ({SEGMENT_LABELS[segment]})? This cannot be undone.</>
+              {scheduledInstant && !isNaN(scheduledInstant.getTime())
+                ? <>Schedule for <strong>{formatScheduled(scheduledInstant.toISOString(), tz)}</strong> to <strong>{currentCount.toLocaleString()} members</strong> ({audienceLabel})?</>
+                : <>Send to <strong>{currentCount.toLocaleString()} members</strong> ({audienceLabel})? This cannot be undone.</>
               }
             </p>
-            {sampleRecipients.length > 0 && (
+            {segmentSample.length > 0 && (
               <p className="text-xs text-zinc-500">Includes: {recipientPreview()}</p>
             )}
             <div className="flex items-center gap-3">
@@ -713,7 +793,7 @@ export default function NewsletterPage() {
               className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-colors"
             >
               {currentCount > 0
-                ? scheduleMode ? 'Schedule newsletter' : `Send to ${currentCount.toLocaleString()} members`
+                ? scheduleMode ? 'Schedule newsletter' : `Send to ${currentCount.toLocaleString()} members${targetCity ? ` in ${targetCity.name}` : ''}`
                 : 'No recipients in this segment'}
             </button>
             <button
@@ -777,7 +857,7 @@ export default function NewsletterPage() {
           <p className="text-sm text-zinc-600">No newsletters sent yet.</p>
         ) : (
           <div className="space-y-2">
-            {history.map(n => <NewsletterRow key={n.id} n={n} onDuplicate={handleDuplicate} onCancel={cancelScheduled} onEdit={editScheduled} />)}
+            {history.map(n => <NewsletterRow key={n.id} n={n} tz={homeTz} onDuplicate={handleDuplicate} onCancel={cancelScheduled} onEdit={editScheduled} />)}
           </div>
         )}
       </div>

@@ -214,7 +214,8 @@ describe('b) admin CSV exports neutralise formula cells', () => {
 
   it('the three pages build through the helpers, with no hand-rolled escaping left', () => {
     const payments = read('app/admin/payments/page.tsx')
-    expect(payments).toContain('const csv  = paymentsCsv(filtered)')
+    // The export now fetches every matching row from the server first.
+    expect(payments).toContain('const csv  = paymentsCsv(rows)')
     expect(payments).not.toContain('const escape = (v: string)')
     const users = read('app/admin/users/page.tsx')
     expect(users).toContain('membersCsv(targets, isSuspended)')

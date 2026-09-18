@@ -241,7 +241,7 @@ export default function AdminNotificationsPage() {
   async function runCron() {
     setRunning(true)
     try {
-      const res  = await fetch('/app/api/admin/cron/reminders', { credentials: 'include' })
+      const res  = await fetch('/app/api/admin/cron/reminders', { method: 'POST', credentials: 'include' })
       const data = await res.json()
       if (!res.ok) {
         toast.error(data.error ?? `Cron failed (HTTP ${res.status})`)

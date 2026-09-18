@@ -24,7 +24,12 @@ export async function GET(req: NextRequest) {
         userId: { not: session.id },
         ...(isAdmin(session) ? {} : { user: { cityId: failClosedCityId(session) } }),
       },
-      orderBy: [{ appealedAt: 'desc' }, { issuedAt: 'desc' }],
+      // The appeals inbox is a queue: whoever has waited longest comes first,
+      // or a busy week buries the oldest appeal under every newer one. The
+      // other views are history, where newest-first is what you scan for.
+      orderBy: status === 'appeal_pending'
+        ? [{ appealedAt: 'asc' }, { issuedAt: 'asc' }]
+        : [{ appealedAt: 'desc' }, { issuedAt: 'desc' }],
       take: 200,
       include: {
         user:  { select: { id: true, name: true, email: true, cityId: true } },

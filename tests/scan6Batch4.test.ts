@@ -114,6 +114,7 @@ vi.mock('@/lib/rsvpConfirmed', () => ({ createSeatPayment: vi.fn() }))
 vi.mock('@/lib/audit', () => ({ writeAudit: vi.fn(async () => {}) }))
 vi.mock('@/lib/city', () => ({
   todayInCity: vi.fn(async () => '2026-09-15'), resolveCityId: vi.fn(async () => 'c1'),
+  citiesByToday: vi.fn(async () => [{ date: '2026-09-15', cityIds: ['c1'] }]),
   getCityTz: vi.fn(async () => 'Europe/Istanbul'), getDefaultCityId: vi.fn(async () => 'c1'),
   getCityConfig: vi.fn(async () => ({ name: 'Istanbul', timezone: 'Europe/Istanbul' })),
 }))

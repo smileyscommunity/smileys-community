@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { canManageClubs } from '@/lib/access'
+import { todayInTz, shiftDay, DEFAULT_TZ } from '@/lib/cityTime'
 
 // GET /api/admin/hosts
 //
@@ -11,13 +12,20 @@ import { canManageClubs } from '@/lib/access'
 // memberships fetch per club — N+1 against /api/admin/clubs/[id]/
 // memberships) with a single server-side query.
 //
-// Activity metrics:
-//   - eventCount: every event this user has ever hosted
-//   - eventCount90d: events hosted in the last 90 days. The
-//     primary "active vs inactive" signal for the page's filter.
-//   - totalAttendees: sum of attendee counts across all hosted
-//     events
-//   - lastEventAt: most recent event's startsAt (null if never)
+// Who counts as a host: an approved member holding an approved host
+// membership of an active club. Banned members and hosts of deactivated
+// clubs used to be listed as if they were still running something.
+//
+// Activity metrics, over events that actually happened — published or
+// archived, dated before today in the event's own city. Cancelled, draft
+// and future events used to count, so "Last event" could be next month.
+//   - eventCount: every such event this user has hosted
+//   - eventCount90d: those in the last 90 days. The primary "active vs
+//     inactive" signal for the page's filter.
+//   - totalAttendees: sum of attendee counts across them
+//   - lastEventDate: the most recent one's day, 'YYYY-MM-DD' (null if
+//     never). A bare day: event times are free text and an unusual one
+//     used to drop the event from every figure here.
 //
 // Auth: admin only (canManageClubs) — same gate as the
 // memberships PATCH endpoint that demote/promote actions hit.
@@ -31,7 +39,7 @@ export interface AdminHostEntry {
   eventCount:      number
   eventCount90d:   number
   totalAttendees:  number
-  lastEventAt:     string | null
+  lastEventDate:   string | null
 }
 
 export async function GET() {
@@ -43,11 +51,8 @@ export async function GET() {
   // One query for memberships, one for events. The events query
   // includes a per-row _count.attendees so we don't need a third
   // aggregation pass against Attendee.
-  const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000
-  const ninetyDaysAgo  = new Date(Date.now() - NINETY_DAYS_MS)
-
   const memberships = await prisma.clubMembership.findMany({
-    where:  { role: 'host', status: 'approved' },
+    where:  { role: 'host', status: 'approved', user: { status: 'approved' }, club: { isActive: true } },
     select: {
       userId: true,
       user:   { select: { id: true, name: true, email: true, color: true } },
@@ -68,7 +73,7 @@ export async function GET() {
         eventCount:     0,
         eventCount90d:  0,
         totalAttendees: 0,
-        lastEventAt:    null,
+        lastEventDate:  null,
       }
       byUser.set(m.userId, entry)
     }
@@ -77,31 +82,35 @@ export async function GET() {
 
   const userIds = Array.from(byUser.keys())
   if (userIds.length > 0) {
-    // Event stores date as 'YYYY-MM-DD' (String) and time as
-    // 'HH:MM' (String) rather than a Date — keep them both and
-    // combine in JS to get a comparable timestamp.
+    // Event.date is a 'YYYY-MM-DD' day in the event's city, so "before
+    // today" and "the last 90 days" are string comparisons against that
+    // city's today. Tz lookups are memoised — a handful of cities at most.
     const events = await prisma.event.findMany({
-      where:  { hostId: { in: userIds } },
+      where:  { hostId: { in: userIds }, status: { in: ['published', 'archived'] } },
       select: {
         hostId: true,
         date:   true,
-        time:   true,
+        city:   { select: { timezone: true } },
         _count: { select: { attendees: { where: { status: 'approved' } } } },
       },
     })
 
+    const todayFor = new Map<string, string>()
+    const todayIn = (tz: string) => {
+      let t = todayFor.get(tz)
+      if (t === undefined) { t = todayInTz(tz); todayFor.set(tz, t) }
+      return t
+    }
     for (const e of events) {
-      if (!e.hostId) continue
+      if (!e.hostId || !/^\d{4}-\d{2}-\d{2}$/.test(e.date ?? '')) continue
       const h = byUser.get(e.hostId)
       if (!h) continue
+      const today = todayIn(e.city?.timezone ?? DEFAULT_TZ)
+      if (e.date >= today) continue
       h.eventCount     += 1
       h.totalAttendees += e._count.attendees
-      const iso = e.date ? new Date(`${e.date}T${e.time || '00:00'}:00`) : null
-      const startMs = iso && !Number.isNaN(iso.getTime()) ? iso.getTime() : null
-      if (startMs !== null && startMs >= ninetyDaysAgo.getTime()) h.eventCount90d += 1
-      if (startMs !== null && (!h.lastEventAt || new Date(h.lastEventAt).getTime() < startMs)) {
-        h.lastEventAt = new Date(startMs).toISOString()
-      }
+      if (e.date >= shiftDay(today, -90)) h.eventCount90d += 1
+      if (!h.lastEventDate || h.lastEventDate < e.date) h.lastEventDate = e.date
     }
   }
 

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { writeAudit } from '@/lib/audit'
+import { requireStepUp } from '@/lib/stepUp'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -12,6 +13,10 @@ export async function DELETE(_: NextRequest, { params }: Params) {
     if (!session || !canManageBlacklist(session)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
+    // Lifting a ban is as sensitive as imposing one (lib/stepUp; a no-op
+    // while ADMIN_2FA_REQUIRED is off).
+    const stepUp = requireStepUp(session)
+    if (stepUp) return stepUp
     const { id } = await params
 
     // AD1 fix: snapshot the entry before deletion + write a

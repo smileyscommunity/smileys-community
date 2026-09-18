@@ -13,7 +13,7 @@ import WalkInAdd from '@/components/WalkInAdd'
 import { useCloseOut } from '@/hooks/useCloseOut'
 import QRScanner from '@/components/QRScanner'
 import ScanResultToast from '@/components/ScanResultToast'
-import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
+import { todayInTz, shiftDay, DEFAULT_TZ } from '@/lib/cityTime'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import { loadFailure } from '@/lib/admin/useAdminLoad'
@@ -43,6 +43,11 @@ interface Attendee {
   // sends it to admins and the primary host.
   user: { id: string; name: string; color: string; email?: string | null }
 }
+
+// The nightly job archives yesterday's events, but the morning after is when
+// doors get fixed up (the review day). Archived events this recent stay in the
+// picker under "Show all"; older ones only open from a direct ?event= link.
+const RECENT_ARCHIVED_DAYS = 3
 
 function CheckInPageInner() {
   // Admin surfaces follow the city being administered.
@@ -116,25 +121,32 @@ function CheckInPageInner() {
 
   useEffect(() => {
     setEventsError(null)
-    fetch('/app/api/admin/events', { credentials: 'include' })
+    // archived=1: the list used to drop archived events outright, so the
+    // event the nightly job had just archived couldn't be opened the next
+    // morning even under "Show all". The API already limits the list to the
+    // events this viewer may check in.
+    fetch('/app/api/admin/events?archived=1', { credentials: 'include' })
       .then(async r => { if (!r.ok) throw await loadFailure(r); return r.json() })
       .then(data => {
-        const list = Array.isArray(data) ? data.filter((e: Event) => e.status !== 'cancelled' && e.status !== 'archived') : []
+        const today       = todayInTz(tz)
+        const recentFloor = shiftDay(today, -RECENT_ARCHIVED_DAYS)
+        const list = Array.isArray(data) ? data.filter((e: Event) =>
+          e.status !== 'cancelled' &&
+          (e.status !== 'archived' || e.date >= recentFloor || e.id === defaultEventId)) : []
         setEvents(list)
-        // Snap a stale `?event=` to today's first (or next future)
-        // event. Without this a bookmark or kiosk URL captured during
-        // yesterday's event would re-open on a past event today —
-        // exactly the "expired events show up in check-in" complaint.
-        // The API returns events in date-asc order so list[0] is the
-        // OLDEST event in the DB; using it as the fallback is what made
-        // the kiosk land on ancient past events when nothing is today.
-        // Now we explicitly pick the first event that's today or later;
-        // if none exists the dropdown shows the empty-state copy.
-        // Admins fixing yesterday's data still get there via "Show all".
-        const today      = todayInTz(tz)
-        const fallback   = list.find((e: Event) => e.date >= today)?.id ?? ''
-        const stillValid = defaultEventId && list.some((e: Event) => e.id === defaultEventId && e.date >= today)
-        if (!stillValid) setSelectedId(fallback)
+        // A `?event=` link opens that event, past or not — it's how the
+        // review-day links and the participants page send people here, and
+        // snapping it to "the next event" put the operator on the wrong
+        // door. A past one opens with "Show all" on so the picker can show it.
+        // With no link (or one to an event this viewer can't check in),
+        // start on the first event today or later. The API returns events
+        // date-asc, so list[0] would be the OLDEST event, not the next one.
+        const linked = defaultEventId ? list.find((e: Event) => e.id === defaultEventId) : undefined
+        if (linked) {
+          if (linked.date < today) setShowAllEvents(true)
+        } else {
+          setSelectedId(list.find((e: Event) => e.date >= today)?.id ?? '')
+        }
       })
       .catch((e: Error) => setEventsError(e?.message ?? 'Failed to load'))
       .finally(() => setLoadingEvents(false))
@@ -316,7 +328,7 @@ function CheckInPageInner() {
             >
               {visibleEvents.length === 0 && (
                 <option value="">
-                  {showAllEvents ? 'No events' : 'No events today'}
+                  {showAllEvents ? 'No events' : 'No events today or coming up'}
                 </option>
               )}
               {visibleEvents.map(e => (
@@ -336,7 +348,7 @@ function CheckInPageInner() {
             {showAllEvents && (
               <button onClick={() => setShowAllEvents(false)}
                 className="mt-2 text-xs text-zinc-500 hover:text-amber-400 transition-colors">
-                ← Today only
+                ← Today and upcoming
               </button>
             )}
           </>

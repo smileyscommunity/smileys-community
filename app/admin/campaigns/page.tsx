@@ -11,6 +11,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
+import { useAuth } from '@/contexts/AuthContext'
 import { type AdminCampaign, CAMPAIGN_STATUS_PILL } from '@/lib/admin/campaigns'
 import { useAdminLoad } from '@/lib/admin/useAdminLoad'
 import { slugify } from '@/lib/slug'
@@ -19,6 +20,7 @@ import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 interface CampaignsResponse { campaigns: AdminCampaign[] }
 
 export default function AdminCampaignsPage() {
+  const isAdminViewer = useAuth().user.role === 'admin'
   const { data, loading, error: loadError, retry: load } = useAdminLoad<CampaignsResponse>(
     '/app/api/admin/campaigns',
     (v): v is CampaignsResponse =>
@@ -60,10 +62,11 @@ export default function AdminCampaignsPage() {
           <h1 className="text-2xl font-extrabold text-white tracking-tight">Campaigns</h1>
           <p className="text-sm text-zinc-500 mt-0.5">Sponsorship + fundraising drives. Each one carries its own prizes + donations queue.</p>
         </div>
-        <button onClick={() => setShowCreate(s => !s)}
+        {/* Campaigns run in every city, so creating one is an admin's. */}
+        {isAdminViewer && <button onClick={() => setShowCreate(s => !s)}
           className="bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl px-4 py-2">
           + New campaign
-        </button>
+        </button>}
       </div>
 
       {showCreate && (

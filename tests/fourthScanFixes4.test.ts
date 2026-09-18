@@ -50,7 +50,9 @@ describe('admin user page survives a non-2xx load (item 16)', () => {
   it('never calls .join on a field that may be missing', () => {
     expect(src).not.toContain('d.languages.join(')
     expect(src).not.toContain('d.interests.join(')
-    expect(src).toContain('(Array.isArray(d.languages) ? d.languages : []).join')
+    // 2026-09-19: the form is built by formFromUser, which guards the lists the same way.
+    expect(src).toContain('const list = (v: unknown) => (Array.isArray(v) ? v : []).join(\', \')')
+    expect(src).toContain('const form = formFromUser(d)')
   })
 })
 

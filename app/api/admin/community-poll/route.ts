@@ -4,14 +4,24 @@ import { getSession } from '@/lib/session'
 import { isAdmin, isAdminOrModerator } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
 
-export async function GET() {
+// A page of poll history, newest first. The list used to stop at the last
+// five, so older results were unreachable from the panel. `?after=<pollId>`
+// continues from that poll; the page asks again while a full page comes back.
+// The body stays a bare array, which is what every consumer already reads.
+// Mirrored in app/admin/polls/page.tsx (a route file can't export it).
+const POLL_PAGE_SIZE = 10
+
+export async function GET(req: NextRequest) {
   const session = await getSession()
   if (!session || !isAdminOrModerator(session)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
+  const after = req.nextUrl.searchParams.get('after')?.trim() || null
   const polls = await prisma.communityPoll.findMany({
-    orderBy: { createdAt: 'desc' },
-    take:    5,
+    // id breaks createdAt ties, so a cursor never skips or repeats a poll.
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    take:    POLL_PAGE_SIZE,
+    ...(after ? { cursor: { id: after }, skip: 1 } : {}),
     include: {
       options: { orderBy: { order: 'asc' }, include: { _count: { select: { votes: true } } } },
     },

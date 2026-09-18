@@ -8,13 +8,20 @@ import { toast } from 'sonner'
 // null there, which made "enter a reason" flows (warn/ban) impossible on
 // phones. Renders a sonner custom toast with a text input; resolves the
 // trimmed value on submit, null on cancel/dismiss.
-function PromptCard({ message, placeholder, confirmLabel, onDone }: {
+//
+// allowEmpty is for the optional-note prompts ("leave blank to skip"): the
+// confirm button used to stay disabled until something was typed, so the only
+// way to skip the note was Cancel — which aborts the whole action. With it,
+// confirming a blank field resolves '' and Cancel still means "don't do it".
+function PromptCard({ message, placeholder, confirmLabel, allowEmpty, onDone }: {
   message: string
   placeholder?: string
   confirmLabel: string
+  allowEmpty: boolean
   onDone: (v: string | null) => void
 }) {
   const [value, setValue] = useState('')
+  const canConfirm = allowEmpty || !!value.trim()
   return (
     <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-3 w-80 space-y-2">
       <p className="text-sm font-medium text-gray-800">{message}</p>
@@ -22,7 +29,7 @@ function PromptCard({ message, placeholder, confirmLabel, onDone }: {
         autoFocus
         value={value}
         onChange={e => setValue(e.target.value)}
-        onKeyDown={e => { if (e.key === 'Enter' && value.trim()) onDone(value.trim()) }}
+        onKeyDown={e => { if (e.key === 'Enter' && canConfirm) onDone(value.trim()) }}
         placeholder={placeholder}
         className="w-full px-3 py-2 text-sm text-gray-900 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400"
       />
@@ -31,7 +38,7 @@ function PromptCard({ message, placeholder, confirmLabel, onDone }: {
           className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
           Cancel
         </button>
-        <button onClick={() => onDone(value.trim())} disabled={!value.trim()}
+        <button onClick={() => onDone(value.trim())} disabled={!canConfirm}
           className="px-3 py-1.5 text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white rounded-lg disabled:opacity-50 transition-colors">
           {confirmLabel}
         </button>
@@ -42,7 +49,7 @@ function PromptCard({ message, placeholder, confirmLabel, onDone }: {
 
 export function promptToast(
   message: string,
-  opts: { placeholder?: string; confirmLabel?: string } = {},
+  opts: { placeholder?: string; confirmLabel?: string; allowEmpty?: boolean } = {},
 ): Promise<string | null> {
   return new Promise(resolve => {
     let settled = false
@@ -56,6 +63,7 @@ export function promptToast(
         message={message}
         placeholder={opts.placeholder}
         confirmLabel={opts.confirmLabel ?? 'Send'}
+        allowEmpty={opts.allowEmpty === true}
         onDone={v => { done(v); toast.dismiss(t) }}
       />
     ), {

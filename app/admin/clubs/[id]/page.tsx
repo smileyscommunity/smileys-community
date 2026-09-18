@@ -6,6 +6,10 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { resolveImageUrl } from '@/lib/data'
 import { useAdminMemberSearch } from '@/hooks/useAdminMemberSearch'
+// Event dates are bare days: formatDay renders the day itself, where
+// new Date('YYYY-MM-DD') read it as UTC midnight and showed the day before
+// west of Greenwich.
+import { formatDay } from '@/lib/cityTime'
 
 interface Member {
   id: string
@@ -276,7 +280,7 @@ export default function AdminClubDetailPage() {
                     <span className="text-base shrink-0">{e.emoji}</span>
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-semibold text-white truncate">{e.title}</p>
-                      <p className="text-[10px] text-zinc-600">{new Date(e.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</p>
+                      <p className="text-[10px] text-zinc-600">{formatDay(e.date, { day: 'numeric', month: 'short' })}</p>
                     </div>
                     <div className="text-right shrink-0 text-xs">
                       {e.wouldReturnRate !== null ? (
@@ -448,7 +452,7 @@ export default function AdminClubDetailPage() {
                 <span className="text-base shrink-0">{e.emoji}</span>
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-semibold text-white truncate">{e.title}</p>
-                  <p className="text-[10px] text-zinc-600">{new Date(e.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} · {e.totalSpots - e.spotsLeft}/{e.totalSpots} RSVPs</p>
+                  <p className="text-[10px] text-zinc-600">{formatDay(e.date, { day: 'numeric', month: 'short', year: 'numeric' })} · {e.totalSpots - e.spotsLeft}/{e.totalSpots} RSVPs</p>
                 </div>
                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
                   e.status === 'published' ? 'bg-emerald-500/15 text-emerald-400'

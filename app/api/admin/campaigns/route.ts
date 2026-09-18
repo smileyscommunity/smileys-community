@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator, isAdmin } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
+import { requireStepUp } from '@/lib/stepUp'
 
 // The campaign that carries the live cup data (fixtures, predictions,
 // sponsors, prizes). Referenced by slug from the public /cup pages.
@@ -70,7 +71,9 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const session = await getSession()
-  if (!session || !isAdminOrModerator(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  // Campaigns run across every city (the Cup), so creating and editing one is
+  // an admin's — the rule announcements, banners and polls already follow.
+  if (!session || !isAdmin(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await req.json().catch(() => ({}))
   const p = parsePayload(body)
@@ -101,7 +104,9 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   const session = await getSession()
-  if (!session || !isAdminOrModerator(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  // Campaigns run across every city (the Cup), so creating and editing one is
+  // an admin's — the rule announcements, banners and polls already follow.
+  if (!session || !isAdmin(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await req.json().catch(() => ({}))
   const id = typeof body.id === 'string' ? body.id : ''
@@ -146,8 +151,10 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const session = await getSession()
   // Deleting cascades every sponsor, prize and donation row of the campaign
-  // (schema onDelete: Cascade) — an admin decision; moderators archive.
+  // (schema onDelete: Cascade) — an admin decision, like every campaign edit.
   if (!session || !isAdmin(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const stepUp = requireStepUp(session)
+  if (stepUp) return stepUp
 
   const body = await req.json().catch(() => ({}))
   const id = typeof body.id === 'string' ? body.id : ''

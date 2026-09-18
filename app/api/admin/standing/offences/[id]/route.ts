@@ -25,7 +25,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (decision !== 'overturn' && decision !== 'uphold') {
       return NextResponse.json({ error: 'decision must be overturn or uphold' }, { status: 400 })
     }
-    const note = typeof body?.note === 'string' ? body.note : ''
+    const note = typeof body?.note === 'string' ? body.note.slice(0, 1000) : ''
 
     const offence = await prisma.standingOffence.findUnique({
       where:  { id },

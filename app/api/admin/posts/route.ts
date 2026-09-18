@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { pickWriter } from '@/lib/postWriter'
 import { toCountryCode } from '@/lib/country'
 import { getSession } from '@/lib/session'
-import { canManagePosts, canActInCity, isAdmin, failClosedCityId } from '@/lib/access'
+import { canManagePosts, canActOnCityContent, isAdmin, failClosedCityId } from '@/lib/access'
 import { slugify } from '@/lib/slug'
 import { writeAudit } from '@/lib/audit'
 import { notifyNewArticle } from '@/lib/notify'
@@ -19,9 +19,10 @@ export async function GET() {
   if (!session || !canManagePosts(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const posts = await prisma.post.findMany({
-    // Moderators: their own city's posts plus the global ones (cityId null —
-    // the set canActInCity lets them touch). Admins: all.
-    where:   isAdmin(session) ? {} : { OR: [{ cityId: failClosedCityId(session) }, { cityId: null }] },
+    // Moderators: their own city's posts — the only ones they may open or
+    // change (lib/access canActOnCityContent); network-wide and national
+    // articles are an admin's. Admins: all.
+    where:   isAdmin(session) ? {} : { cityId: failClosedCityId(session) },
     orderBy: { createdAt: 'desc' },
     include: { author: { select: { name: true } } },
   })
@@ -71,6 +72,10 @@ export async function POST(req: NextRequest) {
   // pins it to one city's Stories. Validate a provided id so a typo can't
   // orphan the post to a city that doesn't exist.
   let postCityId: string | null = null
+  // A moderator's article is their city's unless they pick it (they can't
+  // publish network-wide or national ones — lib/access canActOnCityContent);
+  // the form starts on "No single city", which answered them "Forbidden".
+  if (!cityId && !country && !isAdmin(session) && session.cityId) postCityId = session.cityId
   if (cityId) {
     const c = await prisma.city.findUnique({ where: { id: cityId }, select: { id: true } })
     if (!c) return NextResponse.json({ error: 'Unknown city' }, { status: 400 })
@@ -85,7 +90,7 @@ export async function POST(req: NextRequest) {
   }
   // Publishing fans a notification out to the target city's members; a
   // moderator may only aim that at their own city (or everywhere: null).
-  if (!canActInCity(session, postCityId)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!canActOnCityContent(session, postCityId)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   // Credited to the signed-in account unless an admin picked another writer.
   const writer = await pickWriter(session, authorId)

@@ -17,6 +17,8 @@ import CitySelect, { useAdminCities } from '@/components/admin/CitySelect'
 import { phonePlaceholder, dialCode } from '@/lib/country'
 import { clubOptionLabel } from '@/lib/clubLabel'
 import VenuePicker, { type LinkedVenue, type PickedVenue } from '@/components/VenuePicker'
+import { seriesDates } from '@/lib/seriesDates'
+import { formatDay } from '@/lib/cityTime'
 const inputCls = 'bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none px-3 py-2.5 w-full text-sm'
 
 
@@ -223,21 +225,11 @@ export default function NewEventPage() {
     toast.error('Could not extract coordinates — try pasting a Google Maps link with a visible location pin')
   }
 
+  // Day-string maths (lib/seriesDates): monthly keeps the day of the month
+  // and clamps it in shorter months, so a series from the 31st no longer
+  // skips February and runs twice in March.
   function buildDates(): string[] {
-    if (repeat === 'none' || !form.date) return [form.date]
-    const days = repeat === 'weekly' ? 7 : repeat === 'biweekly' ? 14 : 30
-    const dates: string[] = []
-    const base = new Date(form.date)
-    for (let i = 0; i < clampOccurrences(occurrences); i++) {
-      const d = new Date(base)
-      if (repeat === 'monthly') {
-        d.setMonth(d.getMonth() + i)
-      } else {
-        d.setDate(d.getDate() + days * i)
-      }
-      dates.push(d.toISOString().split('T')[0])
-    }
-    return dates
+    return seriesDates(form.date, repeat, clampOccurrences(occurrences))
   }
 
   async function handleSave() {
@@ -522,7 +514,7 @@ export default function NewEventPage() {
           </div>
           {repeat !== 'none' && form.date && (
             <p className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2">
-              Creates <strong>{clampOccurrences(occurrences)} events</strong> — {buildDates().map(d => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })).join(' · ')}
+              Creates <strong>{clampOccurrences(occurrences)} events</strong> — {buildDates().map(d => formatDay(d, { day: 'numeric', month: 'short' })).join(' · ')}
             </p>
           )}
 

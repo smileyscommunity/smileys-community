@@ -1123,6 +1123,10 @@ function ReportsList() {
   )
 }
 
+// Must match PAGE_SIZE in app/api/admin/directory/route.ts: a full page is
+// how the list knows there may be another.
+const DIRECTORY_PAGE = 100
+
 export default function AdminDirectoryPage() {
   const searchParams = useSearchParams()
   const router       = useRouter()
@@ -1143,12 +1147,55 @@ export default function AdminDirectoryPage() {
   const isClaims  = view === 'claims'
   const isReports = view === 'reports'
   const isAux     = isClaims || isReports
+  // City and search go to the server, which pages the list (newest first,
+  // DIRECTORY_PAGE rows at a time). Both used to filter the newest 200 rows
+  // client-side, so anything older couldn't be found or reached at all.
+  const listCities = useAdminCities()
+  const [cityFilter, setCityFilter] = useState('')
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 300)
+    return () => clearTimeout(t)
+  }, [search])
+  const listUrl = `/app/api/admin/directory?status=${isAux ? 'approved' : view}`
+    + (cityFilter ? `&city=${encodeURIComponent(cityFilter)}` : '')
+    + (debouncedSearch ? `&q=${encodeURIComponent(debouncedSearch)}` : '')
   const { data, loading, error, retry } = useAdminLoad<Business[]>(
-    `/app/api/admin/directory?status=${isAux ? 'approved' : view}`,
+    listUrl,
     (v): v is Business[] => Array.isArray(v),
     { enabled: !isAux },
   )
-  const allItems = data ?? []
+  // Later pages, appended under the first. Dropped whenever the first page
+  // is refetched (new filter, or a row action's retry) so the list never
+  // mixes pages from two different queries.
+  const [more, setMore] = useState<Business[]>([])
+  const [moreDone, setMoreDone] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  useEffect(() => { setMore([]); setMoreDone(false) }, [data])
+  const allItems = [...(data ?? []), ...more]
+  const hasMore = !moreDone && (data?.length ?? 0) >= DIRECTORY_PAGE
+  // A page that lands after the filter changed belongs to the old query.
+  const listUrlRef = useRef(listUrl)
+  listUrlRef.current = listUrl
+  async function loadMore() {
+    const last = allItems[allItems.length - 1]
+    if (!last || loadingMore) return
+    const forUrl = listUrl
+    setLoadingMore(true)
+    try {
+      const r = await fetch(`${forUrl}&cursor=${encodeURIComponent(last.id)}`, { credentials: 'include' })
+      if (!r.ok) { toast.error(`Couldn't load more (HTTP ${r.status})`); return }
+      const page = await r.json()
+      if (!Array.isArray(page) || listUrlRef.current !== forUrl) return
+      setMore(prev => [...prev, ...page])
+      if (page.length < DIRECTORY_PAGE) setMoreDone(true)
+    } catch {
+      toast.error('Network error — could not load more')
+    } finally {
+      setLoadingMore(false)
+    }
+  }
   const rowCitySlugs = Array.from(new Set(allItems.map(b => b.city?.slug).filter((x): x is string => !!x))).sort().join(',')
   useEffect(() => {
     if (!rowCitySlugs) return
@@ -1170,9 +1217,7 @@ export default function AdminDirectoryPage() {
   // hoodsByCity excluded — it only skips slugs already fetched.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rowCitySlugs])
-  const listCities = useAdminCities()
-  const [cityFilter, setCityFilter] = useState('')
-  const items = cityFilter ? allItems.filter(b => (b.city?.slug ?? '') === cityFilter) : allItems
+  const items = allItems
   const [showAdd, setShowAdd] = useState(false)
 
   function setView(v: View) {
@@ -1219,10 +1264,16 @@ export default function AdminDirectoryPage() {
           <select value={cityFilter} onChange={e => setCityFilter(e.target.value)}
             className="ml-2 text-xs px-3 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 focus:outline-none focus:ring-2 focus:ring-amber-500">
             <option value="">All cities</option>
-            {listCities.map(c => <option key={c.id} value={c.slug}>{c.name}</option>)}
+            {listCities.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         )}
       </div>
+
+      {!isAux && (
+        <input type="search" value={search} onChange={e => setSearch(e.target.value)}
+          placeholder="Search name, neighborhood, category, address…"
+          className="w-full mb-4 text-xs px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500" />
+      )}
 
       {isClaims ? (
         <ClaimsList />
@@ -1240,7 +1291,8 @@ export default function AdminDirectoryPage() {
         <div className="text-center py-14 text-zinc-500">
           <div className="text-3xl mb-2">🏢</div>
           <p className="text-sm">
-            {view === 'pending'  ? 'No pending submissions' :
+            {debouncedSearch     ? 'No listings match that search' :
+             view === 'pending'  ? 'No pending submissions' :
              view === 'approved' ? 'No approved listings yet' :
                                    'No rejected submissions'}
           </p>
@@ -1248,6 +1300,12 @@ export default function AdminDirectoryPage() {
       ) : (
         <div className="space-y-2">
           {items.map(b => <BusinessRow key={b.id} b={b} onAction={retry} neighborhoods={b.city?.slug ? (hoodsByCity[b.city.slug] ?? []) : neighborhoods} neighborhoodsFailed={!!(b.city?.slug && hoodsFailed[b.city.slug])} cities={listCities} />)}
+          {hasMore && (
+            <button onClick={loadMore} disabled={loadingMore}
+              className="w-full py-2.5 text-xs font-semibold rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700 transition-colors disabled:opacity-50">
+              {loadingMore ? 'Loading…' : `Load more (showing ${items.length})`}
+            </button>
+          )}
         </div>
       )}
     </div>

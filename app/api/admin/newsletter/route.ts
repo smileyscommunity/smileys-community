@@ -8,10 +8,30 @@ import { buildWeeklyDigest } from '@/lib/newsletterDigest'
 import { writeAudit } from '@/lib/audit'
 import { sanitizeNewsletter } from '@/lib/sanitize'
 import { firstNameOf } from '@/lib/data'
+import { claimOnce, releaseClaim } from '@/lib/rateLimit'
+import { resolveCityId, getCityTz } from '@/lib/city'
+import { fromWallClockInTz } from '@/lib/cityTime'
 
 export const dynamic = 'force-dynamic'
 
 type Segment = 'all' | 'new' | 'active' | 'inactive'
+const SEGMENTS: Segment[] = ['all', 'new', 'active', 'inactive']
+
+// Same shape the broadcast route takes: one id per composed newsletter,
+// sent with every attempt at it.
+const REQUEST_ID = /^[A-Za-z0-9-]{8,64}$/
+// What a datetime-local input sends: the wall clock, no zone.
+const WALL_CLOCK = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/
+// A full instant with its zone written in (API callers, scripts): nothing
+// to interpret, so it is taken as-is.
+const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/
+
+// A timezone the client says it showed the schedule picker in. Anything
+// Intl can't resolve is refused rather than guessed at.
+function validTz(tz: unknown): tz is string {
+  if (typeof tz !== 'string' || !tz || tz.length > 64) return false
+  try { new Intl.DateTimeFormat('en-US', { timeZone: tz }); return true } catch { return false }
+}
 
 const BASE_WHERE = { emailMarketing: true, emailVerified: true, status: 'approved' } as const
 
@@ -34,27 +54,69 @@ function recipientWhere(segment: Segment, cityId?: string) {
 }
 
 // GET /api/admin/newsletter — history + segment counts + sample recipients
-export async function GET() {
+//
+// `?cityId=` narrows the counts and samples to the city a send would be
+// scoped to. They used to be network-wide whatever the picker said, so the
+// button read "Send to 1,234 members" while only Bodrum's 40 would get it.
+// `?scope=counts` skips the history, for the refetch when the city changes.
+// `?newMembers=1` answers the "New members" insert instead (see below).
+export async function GET(req: NextRequest) {
   const session = await getSession()
   if (!session || !isAdmin(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const autoSetting = await prisma.appSetting.findUnique({ where: { key: 'autoWeeklyNewsletter' } })
+  const params    = req.nextUrl.searchParams
+  const rawCityId = params.get('cityId')?.trim() || null
+  let cityId: string | undefined
+  if (rawCityId) {
+    const c = await prisma.city.findUnique({ where: { id: rawCityId }, select: { id: true } })
+    if (!c) return NextResponse.json({ error: 'Unknown city' }, { status: 400 })
+    cityId = c.id
+  }
 
-  const [newsletters, allCount, newCount, activeCount, inactiveCount, sampleRecipients] = await Promise.all([
+  // First names of the last week's joiners, for the "New members" insert.
+  // It read /api/members, which lists the admin's VIEW city, so a Bodrum
+  // issue welcomed Istanbul's new members. Same visibility as the
+  // directory: approved, not admin-hidden. No city picked → the view city,
+  // which is what the insert has always used for an all-cities issue.
+  if (params.get('newMembers') === '1') {
+    const scopeCityId = cityId ?? await resolveCityId(session)
+    const fresh = await prisma.user.findMany({
+      where: {
+        cityId: scopeCityId, status: 'approved', hiddenFromMembers: false,
+        role: { in: ['member', 'moderator', 'admin'] },
+        joinedAt: { gte: new Date(Date.now() - 7 * 86_400_000) },
+      },
+      select:  { name: true },
+      orderBy: { joinedAt: 'desc' },
+      take:    200,
+    })
+    return NextResponse.json({ names: fresh.map(u => firstNameOf(u.name)) })
+  }
+
+  // Counts and a few sample names per segment, each within the city scope.
+  // The samples used to be the five newest opted-in members anywhere, so
+  // "Includes: …" named people the send would never reach.
+  const perSegment = await Promise.all(SEGMENTS.map(async seg => {
+    const where = recipientWhere(seg, cityId)
+    const [count, sample] = await Promise.all([
+      prisma.user.count({ where }),
+      prisma.user.findMany({ where, select: { name: true }, take: 3, orderBy: { joinedAt: 'desc' } }),
+    ])
+    return [seg, { count, sample: sample.map(u => firstNameOf(u.name)) }] as const
+  }))
+  const segmentCounts    = Object.fromEntries(perSegment.map(([seg, v]) => [seg, v.count])) as Record<Segment, number>
+  const sampleRecipients = Object.fromEntries(perSegment.map(([seg, v]) => [seg, v.sample])) as Record<Segment, string[]>
+
+  if (params.get('scope') === 'counts') {
+    return NextResponse.json({ segmentCounts, sampleRecipients })
+  }
+
+  const [autoSetting, newsletters] = await Promise.all([
+    prisma.appSetting.findUnique({ where: { key: 'autoWeeklyNewsletter' } }),
     prisma.newsletter.findMany({
       orderBy: { sentAt: 'desc' },
       take: 50,
       include: { sentBy: { select: { name: true } } },
-    }),
-    prisma.user.count({ where: recipientWhere('all') }),
-    prisma.user.count({ where: recipientWhere('new') }),
-    prisma.user.count({ where: recipientWhere('active') }),
-    prisma.user.count({ where: recipientWhere('inactive') }),
-    prisma.user.findMany({
-      where: BASE_WHERE,
-      select: { name: true },
-      take: 5,
-      orderBy: { joinedAt: 'desc' },
     }),
   ])
 
@@ -74,8 +136,8 @@ export async function GET() {
       sentAt:           n.sentAt,
       sentBy:           n.sentBy,
     })),
-    segmentCounts: { all: allCount, new: newCount, active: activeCount, inactive: inactiveCount },
-    sampleRecipients: sampleRecipients.map(u => firstNameOf(u.name)),
+    segmentCounts,
+    sampleRecipients,
   })
 }
 
@@ -98,9 +160,30 @@ export async function POST(req: NextRequest) {
     if (!c) return NextResponse.json({ error: 'Unknown city' }, { status: 400 })
     sendCityId = c.id
   }
-  const scheduledFor = body?.scheduledFor ? new Date(body.scheduledFor) : null
-  if (scheduledFor && isNaN(scheduledFor.getTime())) {
-    return NextResponse.json({ error: 'Invalid scheduledFor date' }, { status: 400 })
+  // The schedule is a wall-clock time ('YYYY-MM-DDTHH:MM', what the picker
+  // sends) on the clock of the city being mailed — `scheduleTz`, the zone the
+  // page showed the picker in. It used to go through new Date() on a UTC
+  // server, so "18:00" meant 18:00 UTC: three hours late for Istanbul, and
+  // every edit (prefilled on the admin's device clock) moved it again.
+  // Without a tz, the admin's own city decides.
+  let scheduledFor: Date | null = null
+  if (body?.scheduledFor) {
+    const raw = body.scheduledFor
+    if (typeof raw !== 'string' || !(WALL_CLOCK.test(raw) || INSTANT.test(raw))) {
+      return NextResponse.json({ error: 'Invalid scheduledFor date' }, { status: 400 })
+    }
+    if (body.scheduleTz !== undefined && !validTz(body.scheduleTz)) {
+      return NextResponse.json({ error: 'Invalid schedule timezone' }, { status: 400 })
+    }
+    if (INSTANT.test(raw)) {
+      scheduledFor = new Date(raw)
+    } else {
+      const tz = validTz(body.scheduleTz) ? body.scheduleTz : await getCityTz(await resolveCityId(session))
+      scheduledFor = fromWallClockInTz(raw, tz)
+    }
+    if (isNaN(scheduledFor.getTime())) {
+      return NextResponse.json({ error: 'Invalid scheduledFor date' }, { status: 400 })
+    }
   }
 
   // Auto-digest preview — compose exactly what Monday's automated issue
@@ -145,12 +228,31 @@ export async function POST(req: NextRequest) {
   const stepUp = requireStepUp(session)
   if (stepUp) return stepUp
 
+  // A schedule time that has already passed is a mistake, not "send now":
+  // it used to fall through to the immediate send below and mail the whole
+  // segment on the spot.
+  if (scheduledFor && scheduledFor <= new Date()) {
+    return NextResponse.json({ error: 'That time has passed — pick a time in the future.' }, { status: 400 })
+  }
+
   // The Newsletter row has no cityId column, so a scheduled send can't carry
   // the city scope — the sweeper would fire it to every city. Refuse the combo
   // until a Newsletter.cityId migration makes scheduling city-aware.
-  if (sendCityId && scheduledFor && scheduledFor > new Date()) {
+  if (sendCityId && scheduledFor) {
     return NextResponse.json({ error: "City-scoped newsletters can't be scheduled yet — send now, or schedule without a city scope." }, { status: 400 })
   }
+
+  // Required on every fan-out, like the broadcast route: a send that outlives
+  // nginx's timeout shows the admin an error while it keeps going, and the
+  // retry they naturally press used to mail everyone twice. Claimed below,
+  // only once every refusal has had its say, so a rejected attempt never
+  // burns the key its corrected retry needs. Scoped to the sender.
+  const requestId = body?.requestId
+  if (typeof requestId !== 'string' || !REQUEST_ID.test(requestId)) {
+    return NextResponse.json({ error: 'requestId required — reload the page and try again' }, { status: 400 })
+  }
+  const claimKey = `newsletter:${session.id}:${requestId}`
+  const DUPLICATE = { error: 'This newsletter was already sent or scheduled — check the history.', duplicate: true }
 
   // Editing a scheduled issue posts its replacement with replacesId, and the
   // original is retired in this same request. The page used to DELETE it in a
@@ -169,17 +271,32 @@ export async function POST(req: NextRequest) {
   }
 
   // For scheduled sends, persist and return early — the sweeper will fire it
-  if (scheduledFor && scheduledFor > new Date()) {
-    const newsletter = await prisma.$transaction(async tx => {
-      if (replacesId) {
-        const gone = await tx.newsletter.deleteMany({ where: { id: replacesId, status: 'scheduled' } })
-        if (gone.count === 0) return null
-      }
-      return tx.newsletter.create({
-        data: { subject, bodyHtml: safeBodyHtml, segment, recipientCount: 0, sentById: session.id, status: 'scheduled', scheduledFor },
+  if (scheduledFor) {
+    if (!(await claimOnce(claimKey, 60 * 60_000))) return NextResponse.json(DUPLICATE, { status: 409 })
+    // A database error here scheduled nothing (the transaction rolls back, the
+    // original with it): hand the key back and say so in JSON, or the page's
+    // retry is told "duplicate" and clears a draft that never went anywhere.
+    let newsletter: { id: string } | null
+    try {
+      newsletter = await prisma.$transaction(async tx => {
+        if (replacesId) {
+          const gone = await tx.newsletter.deleteMany({ where: { id: replacesId, status: 'scheduled' } })
+          if (gone.count === 0) return null
+        }
+        return tx.newsletter.create({
+          data: { subject, bodyHtml: safeBodyHtml, segment, recipientCount: 0, sentById: session.id, status: 'scheduled', scheduledFor },
+        })
       })
-    })
-    if (!newsletter) return NextResponse.json(REPLACED_GONE, { status: 409 })
+    } catch (err) {
+      console.error('[newsletter schedule]', err)
+      await releaseClaim(claimKey)
+      return NextResponse.json({ error: 'Couldn\'t save the schedule — nothing changed, try again.' }, { status: 500 })
+    }
+    if (!newsletter) {
+      // Nothing was scheduled — hand the key back.
+      await releaseClaim(claimKey)
+      return NextResponse.json(REPLACED_GONE, { status: 409 })
+    }
     await auditReplaced()
     return NextResponse.json({ ok: true, scheduled: true, newsletterId: newsletter.id, scheduledFor })
   }
@@ -195,23 +312,42 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No recipients match that segment/city' }, { status: 400 })
   }
 
+  if (!(await claimOnce(claimKey, 60 * 60_000))) return NextResponse.json(DUPLICATE, { status: 409 })
+
   // Sending an edited copy now: retire the original first, so the sweeper
   // can't also send it. Every failure after this point says so
   // (originalRetired), so the page stops treating the draft as a replacement
   // and a retry sends it as a new newsletter instead of 409ing forever.
-  if (replacesId) {
-    const gone = await prisma.newsletter.deleteMany({ where: { id: replacesId, status: 'scheduled' } })
-    if (gone.count === 0) return NextResponse.json(REPLACED_GONE, { status: 409 })
-    await auditReplaced()
+  // Retiring the original and recording the send happen together, before any
+  // email: a database error there sent nothing and deleted nothing, so the
+  // key goes back and the answer is JSON the page can act on.
+  let newsletter: { id: string }
+  try {
+    const made = await prisma.$transaction(async tx => {
+      if (replacesId) {
+        const gone = await tx.newsletter.deleteMany({ where: { id: replacesId, status: 'scheduled' } })
+        if (gone.count === 0) return null
+      }
+      // 'sending' until the batch returns: the row and the audit used to claim
+      // "sent to N" before a single email left, so a dead API key produced a
+      // success toast, a cleared composer and a sent-looking history row.
+      return tx.newsletter.create({
+        data: { subject, bodyHtml: safeBodyHtml, segment, recipientCount: recipients.length, sentById: session.id, status: 'sending' },
+        select: { id: true },
+      })
+    })
+    if (!made) {
+      await releaseClaim(claimKey)
+      return NextResponse.json(REPLACED_GONE, { status: 409 })
+    }
+    newsletter = made
+  } catch (err) {
+    console.error('[newsletter send]', err)
+    await releaseClaim(claimKey)
+    return NextResponse.json({ error: 'Couldn\'t start the send — nothing went out, try again.' }, { status: 500 })
   }
+  if (replacesId) await auditReplaced()
   const originalRetired = !!replacesId
-
-  // 'sending' until the batch returns: the row and the audit used to claim
-  // "sent to N" before a single email left, so a dead API key produced a
-  // success toast, a cleared composer and a sent-looking history row.
-  const newsletter = await prisma.newsletter.create({
-    data: { subject, bodyHtml: safeBodyHtml, segment, recipientCount: recipients.length, sentById: session.id, status: 'sending' },
-  })
 
   // Batch API send (≤100 per request) — stays under Resend's rate limit,
   // unlike the old 50-concurrent-per-second loop that 429'd ~80% of a 1k blast.
@@ -246,6 +382,8 @@ export async function POST(req: NextRequest) {
   )
 
   if (sent === 0) {
+    // Nothing left the building, so a retry of this same draft is safe.
+    await releaseClaim(claimKey)
     return NextResponse.json({ error: `Nothing was sent (${failed[0]?.error ?? 'delivery failed'}) — check the email provider and try again.`, sent, failed: failed.length, newsletterId: newsletter.id, originalRetired }, { status: 502 })
   }
   return NextResponse.json({ ok: true, sent, failed: failed.length, newsletterId: newsletter.id })

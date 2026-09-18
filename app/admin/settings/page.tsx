@@ -165,6 +165,7 @@ export default function AdminSettingsPage() {
               <div>
                 <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Instagram</label>
                 <input type="text" value={community.instagram} onChange={(e) => setCommunity((p) => ({ ...p, instagram: e.target.value }))}
+                  placeholder="@handle or instagram.com/handle"
                   className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
               </div>
               <div>
@@ -292,6 +293,10 @@ export default function AdminSettingsPage() {
                     body: JSON.stringify({ ...community, communityRules: rules }),
                   })
                   if (res.ok) {
+                    // The server normalises a pasted profile link to a
+                    // handle; show what was actually stored.
+                    const saved = await res.json().catch(() => null)
+                    if (typeof saved?.instagram === 'string') setCommunity(p => ({ ...p, instagram: saved.instagram }))
                     toast.success('Community info saved ✓')
                   } else {
                     const d = await res.json().catch(() => ({}))

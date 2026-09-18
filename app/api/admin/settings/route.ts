@@ -4,6 +4,7 @@ import { readFileSync, writeFileSync, renameSync } from 'fs'
 import { join } from 'path'
 import { getSession } from '@/lib/session'
 import { writeAudit } from '@/lib/audit'
+import { normalizeInstagramHandle } from '@/lib/directory-constants'
 
 const settingsPath = join(process.cwd(), 'data', 'settings.json')
 
@@ -212,6 +213,21 @@ export async function POST(req: NextRequest) {
     // Top-level community strings.
     for (const key of Object.keys(STRING_KEYS)) {
       if (key in body) patch[key] = str((body as Record<string, unknown>)[key], STRING_KEYS[key])
+    }
+
+    // Instagram is stored as a handle ("@smileyscommunity") and rendered
+    // through communityInstagramUrl, which accepts nothing else — a pasted
+    // profile link was saved as-is and the site quietly showed no link at
+    // all. Normalise here; refuse what isn't a handle or a profile link
+    // rather than saving something that will never render.
+    if (typeof patch.instagram === 'string' && patch.instagram.trim()) {
+      const handle = normalizeInstagramHandle(patch.instagram)
+      if (!handle) {
+        return NextResponse.json({ error: 'Instagram: enter a handle (@name) or a profile link (instagram.com/name)' }, { status: 400 })
+      }
+      patch.instagram = `@${handle}`
+    } else if ('instagram' in patch) {
+      patch.instagram = ''
     }
 
     // Structured house rules — separate path because it's an array

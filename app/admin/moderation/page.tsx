@@ -434,13 +434,22 @@ function ModerationPageInner() {
     if (fail)         toast.error(`${fail} delete${fail > 1 ? 's' : ''} failed`)
   }
 
-  async function handleEventStatus(id: string, status: string) {
-    const res = await fetch(`/app/api/admin/events/${id}`, {
+  // The queue holds pending events only, so a decision takes the event out of
+  // it: approve publishes it (and tells the host), reject parks it as flagged
+  // — off every public listing, and no longer waiting for anyone.
+  async function handleEventDecision(e: QueueEvent, decision: 'approve' | 'reject') {
+    if (decision === 'reject' && !(await confirmToast(`Reject "${e.title}"? It stays off the public listings.`))) return
+    const status = decision === 'approve' ? 'published' : 'flagged'
+    const res = await fetch(`/app/api/admin/events/${e.id}`, {
       method: 'PATCH', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status }),
     })
-    if (res.ok) { setQueue(prev => prev.map(e => e.id === id ? { ...e, status } : e)); notifyModerationChanged() }
+    if (res.ok) {
+      setQueue(prev => prev.filter(q => q.id !== e.id))
+      toast.success(decision === 'approve' ? `"${e.title}" published` : `"${e.title}" rejected`)
+      notifyModerationChanged()
+    }
     else await toastApiError(res, 'Could not update event')
   }
 
@@ -484,7 +493,10 @@ function ModerationPageInner() {
     // window the API returns, not "items needing attention". Surfacing
     // it as a badge implied actionable work and made the tab look noisy.
     { key: 'messages', label: 'Messages',     badge: 0, adminOnly: false },
-    { key: 'events',   label: 'Event Queue',  badge: queue.filter(e => e.status === 'published').length, adminOnly: false },
+    // Everything in the queue is pending review, so the badge is its length.
+    // It used to count the queue's published events — the ones needing
+    // nothing.
+    { key: 'events',   label: 'Event Queue',  badge: queue.length, adminOnly: false },
     { key: 'banned',   label: 'Banned',       badge: banned.length, adminOnly: true },
     { key: 'blacklist',label: 'Blacklist',    badge: blacklist.length, adminOnly: true },
   ] as const
@@ -788,8 +800,8 @@ function ModerationPageInner() {
       ) : tab === 'events' ? (
         <div className="space-y-4">
           <p className="text-xs text-zinc-500">
-            Events with "Approval required" enabled — these need manual vetting for quality and pricing.
-            Flag removes them from public listings; approve confirms they meet standards.
+            Events waiting for review before they go live — submitted by members, or free events scheduled more than a week out.
+            Approve publishes the event and tells the host; reject keeps it off the public listings.
           </p>
           {visibleQueue.length === 0 ? (
             <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-10 text-center">
@@ -836,18 +848,14 @@ function ModerationPageInner() {
                         className="text-xs border border-zinc-700 px-3 py-2 rounded-lg text-zinc-400 hover:text-white hover:border-zinc-500 transition-colors text-center">
                         Edit
                       </Link>
-                      {e.status !== 'published' && e.status !== 'cancelled' && e.status !== 'archived' && (
-                        <button onClick={() => handleEventStatus(e.id, 'published')}
-                          className="text-xs bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/20 px-3 py-2 rounded-lg transition-colors font-medium">
-                          Approve
-                        </button>
-                      )}
-                      {e.status !== 'flagged' && e.status !== 'cancelled' && e.status !== 'archived' && (
-                        <button onClick={() => handleEventStatus(e.id, 'flagged')}
-                          className="text-xs bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 px-3 py-2 rounded-lg transition-colors font-medium">
-                          Flag
-                        </button>
-                      )}
+                      <button onClick={() => handleEventDecision(e, 'approve')}
+                        className="text-xs bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/20 px-3 py-2 rounded-lg transition-colors font-medium">
+                        Approve
+                      </button>
+                      <button onClick={() => handleEventDecision(e, 'reject')}
+                        className="text-xs bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 px-3 py-2 rounded-lg transition-colors font-medium">
+                        Reject
+                      </button>
                     </div>
                   </div>
                 </div>

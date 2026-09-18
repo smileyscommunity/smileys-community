@@ -27,15 +27,22 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     const report = await prisma.report.findUnique({ where: { id } })
-    if (!report) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    // Nobody acts on a report about themselves — the queue already hides them
+    // (../route.ts), but a report id in hand could be dismissed.
+    if (!report || report.reportedId === session.id) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
     // Fetch reported user — name for audit descriptions, cityId for
     // cross-city scope check. Moderators can only action reports
     // against users in their own city; admins act globally.
     const reported = await prisma.user.findUnique({
       where:  { id: report.reportedId },
-      select: { name: true, cityId: true, status: true },
+      select: { name: true, cityId: true, status: true, role: true },
     })
+    // A report about an admin is another admin's call — dismissing it quietly
+    // buried it just as surely as acting on it.
+    if (!isAdmin(session) && reported?.role === 'admin') {
+      return NextResponse.json({ error: 'Reports about an admin are handled by another admin' }, { status: 403 })
+    }
     // Fail closed: a missing user used to skip the city check, then `warn`
     // hit prisma.user.update on the missing id and 500'd — after the report
     // row had already been marked actioned.

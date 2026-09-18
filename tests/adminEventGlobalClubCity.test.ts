@@ -44,7 +44,8 @@ vi.mock('@/lib/prisma', () => ({
   prisma: {
     club:  { findUnique: vi.fn() },
     tag:   { findMany: vi.fn(async () => []) },
-    user:  { findMany: vi.fn(async () => []) },
+    // The host check (lib/eventHostCheck) looks the host up: a live member.
+    user:  { findMany: vi.fn(async () => []), findUnique: vi.fn(async () => ({ status: 'approved', suspendedUntil: null, cityId: null })) },
     event: { create: vi.fn(async ({ data }: any) => ({ id: 'e1', ...data })) },
   },
 }))

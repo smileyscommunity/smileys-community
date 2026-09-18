@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
+import { AttendeeStatus, Attendance } from '@/lib/constants'
 
 export async function GET(req: NextRequest) {
   try {
@@ -79,21 +80,18 @@ export async function GET(req: NextRequest) {
       },
     })
 
-    // No-show count: approved attendees where checkedIn=false and event date is past.
-    // NO_SHOW_TRACKING_SINCE: update this date to reset all counts (only events on/after this date are counted).
-    const NO_SHOW_TRACKING_SINCE = '2026-06-18'
-    const today = new Date().toISOString().slice(0, 10)
-    const noShowRows = await prisma.$queryRaw<{ userId: string; count: bigint }[]>`
-      SELECT ea."userId", COUNT(*) AS count
-      FROM event_attendees ea
-      JOIN events e ON e.id = ea."eventId"
-      WHERE ea."checkedIn" = false
-        AND ea.status = 'approved'
-        AND e.date >= ${NO_SHOW_TRACKING_SINCE}
-        AND e.date < ${today}
-      GROUP BY ea."userId"
-    `
-    const noShowMap = new Map(noShowRows.map(r => [r.userId, Number(r.count)]))
+    // No-show count: settled no-shows only — an approved RSVP whose
+    // attendance the close-out or the standing sweep decided was 'no_show'.
+    // The old count read checkedIn=false against UTC today, so it also
+    // counted seats the close-out marked attended, seats the host excused,
+    // postponed events and tonight's events in the morning. The member
+    // detail page counts the same rows, so the two agree.
+    const noShowRows = await prisma.eventAttendee.groupBy({
+      by:     ['userId'],
+      where:  { status: AttendeeStatus.Approved, attendance: Attendance.NoShow },
+      _count: { _all: true },
+    })
+    const noShowMap = new Map(noShowRows.map(r => [r.userId, r._count._all]))
 
     const isAdmin = canManageUsers(session)
 

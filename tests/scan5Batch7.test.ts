@@ -78,11 +78,17 @@ describe('28. report actions act once, on a pending report, with a known action'
 })
 
 describe('29. the approval queue never offers a cancelled or archived event', () => {
-  it('the queue filters them and the page hides Approve and Flag for them', () => {
-    expect(read('app/api/admin/events/approval/route.ts')).toContain("status: { notIn: ['cancelled', 'archived'] }")
+  // The queue now holds pending events only (it used to select
+  // approvalRequired, the per-RSVP setting), so a cancelled or archived
+  // event can't reach it at all and the per-status button guards went away.
+  it('the queue selects pending events only, and a decision takes the event out of it', () => {
+    const route = read('app/api/admin/events/approval/route.ts')
+    expect(route).toContain("where: { status: 'pending', ...cityFilter },")
+    expect(route).not.toContain('where: { approvalRequired: true')
     const page = read('app/admin/moderation/page.tsx')
-    expect(page).toContain("{e.status !== 'published' && e.status !== 'cancelled' && e.status !== 'archived' && (")
-    expect(page).toContain("{e.status !== 'flagged' && e.status !== 'cancelled' && e.status !== 'archived' && (")
+    expect(page).toContain("const status = decision === 'approve' ? 'published' : 'flagged'")
+    expect(page).toContain('setQueue(prev => prev.filter(q => q.id !== e.id))')
+    expect(page).toContain("badge: queue.length")
   })
 })
 

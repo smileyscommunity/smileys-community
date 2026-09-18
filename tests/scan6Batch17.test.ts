@@ -31,7 +31,7 @@ const h = vi.hoisted(() => {
     recompute:          vi.fn(),
     writeAudit:         vi.fn(),
     createSeatPayment:  vi.fn(),
-    city: { citiesByToday: vi.fn(), getCityTz: vi.fn() },
+    city: { citiesByToday: vi.fn(), getCityTz: vi.fn(), resolveCityId: vi.fn(async () => 'c-ist') },
   }
 })
 
@@ -68,6 +68,7 @@ import { PATCH as participantsPATCH } from '@/app/api/admin/events/[id]/particip
 import { POST as sweepPOST } from '@/app/api/cron/sweep-payment-reminders/route'
 import { GET as paymentsGET } from '@/app/api/admin/payments/route'
 import { PAYMENT_HELD_CHECKED_IN } from '@/lib/constants'
+import { NextRequest } from 'next/server'
 
 const p = h.prisma as any
 const params = { params: Promise.resolve({ id: 'e1' }) } as any
@@ -292,7 +293,8 @@ describe('26. pass 3 holds a checked-in attendee\'s pending row once', () => {
     p.payment.groupBy.mockResolvedValue([])
     p.payment.count.mockImplementation(async (arg?: any) =>
       !arg ? 10 : arg.where.notes ? 2 : 5)
-    const body = await (await paymentsGET()).json()
+    h.city.getCityTz.mockResolvedValue('Europe/Istanbul')
+    const body = await (await paymentsGET(new NextRequest('https://x/app/api/admin/payments'))).json()
     expect(body.stats).toMatchObject({ pendingCount: 5, heldCount: 2 })
     expect(p.payment.count).toHaveBeenCalledWith({ where: { status: 'pending', notes: { contains: PAYMENT_HELD_CHECKED_IN } } })
   })

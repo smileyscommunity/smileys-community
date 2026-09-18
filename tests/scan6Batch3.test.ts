@@ -171,7 +171,8 @@ describe('c. admin email edit moves the application too', () => {
   it('updates the user and moves old-address applications in one transaction', async () => {
     const res = await patch({ email: ' New@Y.com ' })
     expect(res.status).toBe(200)
-    expect(all('user.update')[0]).toEqual({ where: { id: 'u1' }, data: { email: 'new@y.com' } })
+    // The update also carries a narrow `select` (never the password hash) — tests/adminUsersReviewFixes.
+    expect(all('user.update')[0]).toEqual({ where: { id: 'u1' }, data: { email: 'new@y.com' }, select: expect.any(Object) })
     expect(all('memberApplication.updateMany')).toEqual([
       { where: { email: { equals: 'old@x.com', mode: 'insensitive' } }, data: { email: 'new@y.com' } },
     ])

@@ -185,8 +185,14 @@ function AdminUsersPageInner() {
   const [cityFilter, setCityFilter] = useState('')
   const cities = useAdminCities()
 
+  // Every load (initial, city change, debounced search, 30s poll) races the
+  // others, and a slow response for an old search term could land after the
+  // new one and replace it. Only the latest request may write the list.
+  const loadSeq = useRef(0)
+
   const load = useCallback((background = false) => {
     if (!background) setLoading(true)
+    const seq = ++loadSeq.current
     const params = new URLSearchParams()
     if (searchRef.current.trim()) params.set('search', searchRef.current.trim())
     if (cityFilter)               params.set('city', cityFilter)
@@ -194,13 +200,14 @@ function AdminUsersPageInner() {
     fetch(`/app/api/admin/users${q}`, { credentials: 'include' })
       .then(async r => { if (!r.ok) throw await loadFailure(r); return r.json() })
       .then(data => {
+        if (seq !== loadSeq.current) return
         if (Array.isArray(data)) {
           setUsers(data)
           setLastRefresh(new Date())
           setLoadError(null)
         }
       })
-      .catch((e: Error) => setLoadError(e?.message ?? 'Failed to load'))
+      .catch((e: Error) => { if (seq === loadSeq.current) setLoadError(e?.message ?? 'Failed to load') })
       .finally(() => { if (!background) setLoading(false) })
   }, [cityFilter])
 
@@ -236,6 +243,10 @@ function AdminUsersPageInner() {
     const t = setInterval(() => setTick(n => n + 1), 1000)
     return () => clearInterval(t)
   }, [])
+
+  // A selection made on one tab or city must not ride along, unseen, into
+  // a bulk ban on the next one.
+  useEffect(() => { setSelected(new Set()) }, [tab, cityFilter])
 
   // Auto-pick the relevant sort when the admin clicks Warned or No-shows.
   useEffect(() => {
@@ -816,8 +827,11 @@ function AdminUsersPageInner() {
             Suspend 7d
           </button>}
           <button onClick={async () => {
+            // Cancelling the reason prompt cancels the ban. It used to fall
+            // through and ban everyone selected as "Banned by admin".
             const reason = await promptToast('Ban reason:', { placeholder: 'Ban reason', confirmLabel: 'Ban' })
-            bulkBan(reason ?? 'Banned by admin')
+            if (!reason?.trim()) return
+            bulkBan(reason.trim())
           }} disabled={bulkSaving} className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/30 disabled:opacity-50 transition-colors">
             Ban
           </button>
@@ -916,7 +930,9 @@ function AdminUsersPageInner() {
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
                   </button>
                 )}
-                {u.status === 'banned' && (
+                {/* A self-deleted account is status 'banned' only to end its
+                    sessions; "unbanning" one would revive an anonymised ghost. */}
+                {u.status === 'banned' && !isDeletedAccount(u) && (
                   <button onClick={() => unbanUser(u)} className="p-2 rounded-lg text-green-400 hover:bg-green-500/10 transition-colors" title="Unban">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
                   </button>

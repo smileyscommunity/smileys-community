@@ -32,3 +32,22 @@ export function maskRows<T extends Record<string, unknown>>(session: SessionUser
     return { ...row, [key]: { ...(person as Record<string, unknown>), email: maskEmail((person as { email?: string | null }).email) } }
   })
 }
+
+const EMAIL_IN_TEXT = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi
+const PHONE_IN_TEXT = /\+?\d[\d\s().-]{6,}\d/g
+// Dates and timestamps look like numbers too ("until 2026-09-25 (7 days)").
+const DATE_IN_TEXT  = /^\d{4}-\d{2}-\d{2}(?:[ T(].*)?$|^\d{1,2}[./-]\d{1,2}[./-]\d{2,4}/
+
+/**
+ * Free text (an audit description, a note) with the emails and phone
+ * numbers in it masked the same way — for a non-admin viewer. Audit
+ * descriptions like "Blacklisted ayse@…" and "old → new" email changes put
+ * full contact details in front of moderators whose lists mask them.
+ */
+export function maskContactsIn(session: SessionUser, text: string | null | undefined): string | null {
+  if (!text) return text ?? null
+  if (isAdmin(session)) return text
+  return text
+    .replace(EMAIL_IN_TEXT, m => maskEmail(m) ?? '')
+    .replace(PHONE_IN_TEXT, m => (m.replace(/\D/g, '').length >= 7 && !DATE_IN_TEXT.test(m.trim()) ? maskPhone(m.replace(/[\s().-]/g, '')) ?? '' : m))
+}

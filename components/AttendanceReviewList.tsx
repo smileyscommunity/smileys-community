@@ -11,7 +11,7 @@ import Link from 'next/link'
 // long is left before the room settles.
 
 interface Guest {
-  attendeeId: string; userId: string; name: string; email: string | null
+  attendeeId: string; userId: string; name: string
   warned: boolean; saysCame: boolean
 }
 interface Row {
@@ -44,7 +44,7 @@ export default function AttendanceReviewList({ heading, blurb }: { heading: stri
 
   useEffect(() => {
     let live = true
-    fetch('/api/attendance-review')
+    fetch('/app/api/attendance-review')
       .then(async r => {
         if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error ?? `HTTP ${r.status}`)
         return r.json()
@@ -65,7 +65,7 @@ export default function AttendanceReviewList({ heading, blurb }: { heading: stri
       </div>
 
       {rows.length === 0 && (
-        <p className="text-sm text-zinc-500">No events in the standing window. Rooms appear here from the day they run until the day after.</p>
+        <p className="text-sm text-zinc-500">No events in the standing window. Rooms appear here from the day they run until their attendance settles, and stay listed as settled for a few weeks after.</p>
       )}
 
       {STAGES.map(stage => {

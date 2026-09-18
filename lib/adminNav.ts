@@ -28,10 +28,10 @@ export const NAV_GROUPS: { label: string; items: AdminNavItem[] }[] = [
       // "Reports" used to point at a misnamed analytics page; the actual
       // member-reports queue lives at /admin/moderation (default tab).
       { label: 'Moderation',   href: '/admin/moderation',   exact: false, roles: ['admin', 'moderator'],  icon: 'moderation'   },
-      // Moderators get a Retention shortcut here since they can't see Analytics
-      // (admin-only API). Admins access the same data via Analytics > Members
-      // tab, where it's folded in alongside the engagement summary.
-      { label: 'Retention',    href: '/admin/retention',    exact: false, roles: ['moderator'],  icon: 'retention'    },
+      // Moderators get Retention because they can't see Analytics (admin-only
+      // API). Admins see the same data under Analytics > Members, but this is
+      // the page with the per-member Nudge, so it is listed for them too.
+      { label: 'Retention',    href: '/admin/retention',    exact: false, roles: ['admin', 'moderator'],  icon: 'retention'    },
       { label: 'Audit Log',    href: '/admin/audit',        exact: false, roles: ['admin', 'moderator'],  icon: 'audit'        },
     ],
   },
@@ -183,4 +183,14 @@ export const MODERATOR_ALLOWED_PATHS: string[] = Array.from(new Set([
 // `/admin/guide-entries` and `/admin/events` admits `/admin/events/123`.
 export function isModeratorPageAllowed(pathname: string): boolean {
   return MODERATOR_ALLOWED_PATHS.some(p => pathname.startsWith(p))
+}
+
+// Where a member's name links to from an admin page. The member detail page
+// (/admin/users/:id) is admin-only — the layout bounces moderators to Mod
+// Home — so Retention's and No-shows' name links were dead ends for the
+// moderators those pages are for. Moderators get the member profile, which
+// staff can open in full whatever the member's visibility setting
+// (api/members/[id]).
+export function memberHref(memberId: string, viewerRole: string | null | undefined): string {
+  return viewerRole === 'admin' ? `/admin/users/${memberId}` : `/members/${memberId}`
 }

@@ -323,6 +323,7 @@ export async function notifyNewArticle(post: {
   kind: string | null
   authorId: string | null
   cityId: string | null
+  country?: string | null
 }) {
   // Atomically claim the broadcast: only the caller that flips notifiedAt from
   // null proceeds. Closes the double-submit race (two concurrent publishes),
@@ -345,7 +346,9 @@ export async function notifyNewArticle(post: {
     // this, an İzmir-only article belled all 1,600 Istanbul members.
     where: {
       status: 'approved',
-      ...(post.cityId ? { cityId: post.cityId } : {}),
+      // A national article (no city, a country — lib/postScope) pings that
+      // country's members: a Georgian residence-permit guide belled Istanbul.
+      ...(post.cityId ? { cityId: post.cityId } : post.country ? { city: { country: post.country } } : {}),
       ...(post.authorId ? { id: { not: post.authorId } } : {}),
     },
     select: { id: true },

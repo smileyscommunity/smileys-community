@@ -8,6 +8,8 @@ import Avatar from '@/components/admin/Avatar'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import { loadFailure } from '@/lib/admin/useAdminLoad'
 import { firstNameOf } from '@/lib/data'
+import { nowInTz, formatDay, DEFAULT_TZ } from '@/lib/cityTime'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
 
 interface ModStats {
   pendingApplications: number
@@ -49,7 +51,10 @@ export default function ModeratorPage() {
   }, [reloadTick])
 
   const firstName = firstNameOf(user?.name) || 'Moderator'
-  const hour = new Date().getHours()
+  // The hour on the city's clock, not the device's — a moderator reading
+  // Mod Home from abroad was wished good morning at the city's midnight.
+  const tz = useCurrentCity()?.timezone ?? DEFAULT_TZ
+  const hour = nowInTz(tz).hour
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
 
   const totalPriority = (stats?.pendingApplications ?? 0) + (stats?.pendingReports ?? 0)
@@ -174,7 +179,9 @@ export default function ModeratorPage() {
               <span className="text-lg">🛡️</span>
               <span className="text-xs font-semibold text-zinc-400">Moderation</span>
             </Link>
-            <Link href="/admin/moderation"
+            {/* Straight to the queue tab — the moderation page opens on
+                Reports, which left the count here pointing at nothing. */}
+            <Link href="/admin/moderation?tab=events"
               className="flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 transition-colors text-center">
               <span className="text-lg">◈</span>
               <span className="text-xs font-semibold text-zinc-400">
@@ -253,7 +260,7 @@ export default function ModeratorPage() {
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-semibold text-white truncate">{e.title}</div>
                           <div className="text-xs text-zinc-500 mt-0.5">
-                            {new Date(e.date).toLocaleDateString()} · {e.time}
+                            {formatDay(e.date)} · {e.time}
                           </div>
                         </div>
                         <div className="text-right shrink-0">

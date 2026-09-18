@@ -72,23 +72,36 @@ function attendedRows<T extends AttendanceRow>(
   })
 }
 
+// GET is the cron's (scripts/sweep-reminders.sh), secret only. An admin runs
+// it by hand with POST: a GET that archives events and sends email, accepted
+// on an admin's session cookie, could be fired by a link on another site.
 export async function GET(req: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET
-  if (!cronSecret) {
-    console.error('CRON_SECRET is not set — cron endpoint disabled')
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+  if (!cronSecretOk(req)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  return run()
+}
 
-  const headerSecret = req.headers.get('x-cron-secret') ?? ''
-  const a = Buffer.from(headerSecret)
-  const b = Buffer.from(cronSecret)
-  const secretOk = a.length === b.length && timingSafeEqual(a, b)
-  if (!secretOk) {
+export async function POST(req: NextRequest) {
+  if (!cronSecretOk(req)) {
     const session = await getSession()
     if (!session || !isAdmin(session)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
   }
+  return run()
+}
+
+function cronSecretOk(req: NextRequest): boolean {
+  const cronSecret = process.env.CRON_SECRET
+  if (!cronSecret) {
+    console.error('CRON_SECRET is not set — cron endpoint disabled')
+    return false
+  }
+  const a = Buffer.from(req.headers.get('x-cron-secret') ?? '')
+  const b = Buffer.from(cronSecret)
+  return a.length === b.length && timingSafeEqual(a, b)
+}
+
+async function run() {
 
   // recordCronRun stamps the run either way so the admin-dashboard
   // staleness check (lib/cronHealth) notices when the hourly dispatch

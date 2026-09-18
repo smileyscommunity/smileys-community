@@ -48,7 +48,10 @@ vi.mock('@/lib/prisma', () => ({
     neighborhood: { count: vi.fn(async () => 9) },
     newsletter: { create: vi.fn(async () => ({ id: 'n1' })), update: vi.fn(async () => ({})) },
     appSetting: { findUnique: vi.fn(async () => null) },
-    $transaction: vi.fn(async (ops: any) => Promise.all(ops)),
+    // rate_limits upsert behind claimOnce: first claim of a key.
+    $queryRaw:  vi.fn(async () => [{ count: 1 }]),
+    // An array of queries, or an interactive callback handed the client.
+    $transaction: vi.fn(async (ops: any) => typeof ops === 'function' ? ops((await import('@/lib/prisma')).prisma) : Promise.all(ops)),
   },
 }))
 
@@ -115,7 +118,7 @@ describe('newsletter POST', () => {
 
   it('a TOTP-verified admin sends', async () => {
     ;(getSession as any).mockResolvedValue(verified)
-    const res = await send({})
+    const res = await send({ requestId: 'req-00000001' })
     expect(res.status).toBe(200)
     expect(prisma.newsletter.create).toHaveBeenCalledTimes(1)
     // The row is created as 'sending' and only marked 'sent' once the batch returns.

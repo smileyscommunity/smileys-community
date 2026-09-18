@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { canModerateReports, isAdmin, failClosedCityId } from '@/lib/access'
+import { canModerateReports } from '@/lib/access'
+import { reportQueueWhere } from '@/lib/admin/reportScope'
 import { neighborhoodToSlug } from '@/lib/neighborhoods'
 import { maskRows } from '@/lib/admin/maskContact'
 
@@ -12,33 +13,13 @@ export async function GET() {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // Reports don't carry cityId directly; they're scoped via the
-    // reported user's cityId. Moderators see only reports against
-    // users in their own city. Admins see everything.
-    // Admins see every city; a moderator sees only reports about their own
-    // city's members. A city-less moderator must fail CLOSED (match nothing),
-    // not fall through to the admin all-cities view — the bug this replaces.
-    // A board report belongs to the city of the POST, which a moderator can
-    // act on (DELETE /api/board/[id] checks the post's city): a member from
-    // one city posting in another's club put the report in the queue of the
-    // moderator who couldn't remove it, and out of the one who could.
-    const modCity = failClosedCityId(session)
-    const cityBoardPostIds = isAdmin(session) ? [] : (await prisma.boardPost.findMany({
-      where:  { cityId: modCity, id: { in: (await prisma.report.findMany({ where: { boardPostId: { not: null } }, select: { boardPostId: true } })).map(r => r.boardPostId!) } },
-      select: { id: true },
-    })).map(p => p.id)
-    const cityFilter = isAdmin(session)
-      ? {}
-      : { OR: [
-          { boardPostId: null, reported: { is: { cityId: modCity } } },
-          { boardPostId: { in: cityBoardPostIds } },
-        ] }
-
-    // Nobody triages a report about themselves — and for survey-sourced
-    // reports the responder was promised anonymity from the host, who may
-    // well hold the moderator role that opens this queue.
+    // Which reports this viewer may triage — city scope (content reports
+    // filed under the content's city, the rest under the reported member's)
+    // and never a report about themselves. Shared with every badge that
+    // counts this queue (lib/admin/reportScope), so the numbers agree.
+    const where = await reportQueueWhere(session)
     const reports = await prisma.report.findMany({
-      where:   { ...cityFilter, reportedId: { not: session.id } },
+      where,
       orderBy: { createdAt: 'desc' },
       include: {
         reporter: { select: { id: true, name: true, email: true, color: true } },

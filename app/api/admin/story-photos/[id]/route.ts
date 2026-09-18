@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator } from '@/lib/access'
-import { isSafeHref } from '@/lib/safeUrl'
+import { isAdmin } from '@/lib/access'
+import { isUploadedImageUrl } from '@/lib/uploadedImageUrl'
 import { writeAudit } from '@/lib/audit'
 
+// Admin only, like creating one (../route.ts): the /why page is every city's.
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
-  if (!session || !isAdminOrModerator(session)) {
+  if (!session || !isAdmin(session)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   const { id } = await params
@@ -21,8 +22,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const data: Record<string, unknown> = {}
   if ('url' in body) {
     const cleanUrl = String(body.url ?? '').trim().slice(0, 2000)
-    if (!cleanUrl || !isSafeHref(cleanUrl)) {
-      return NextResponse.json({ error: 'URL must be a relative path or https:// URL' }, { status: 400 })
+    if (!isUploadedImageUrl(cleanUrl)) {
+      return NextResponse.json({ error: 'Upload the photo — outside image links aren\'t allowed' }, { status: 400 })
     }
     data.url = cleanUrl
   }
@@ -36,12 +37,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   const item = await prisma.storyPhoto.update({ where: { id }, data })
+  writeAudit(session.id, session.name, 'story_photo.update', id, 'story_photo', data, `Edited a story photo (${item.url})`)
   return NextResponse.json(item)
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
-  if (!session || !isAdminOrModerator(session)) {
+  if (!session || !isAdmin(session)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   const { id } = await params

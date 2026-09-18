@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs'
 
 vi.mock('@/lib/session', () => ({ getSession: vi.fn() }))
 vi.mock('@/lib/access',  () => ({ isAdmin: vi.fn(), isClubHost: vi.fn(), canManageEventOps: vi.fn().mockResolvedValue(true) }))
-vi.mock('@/lib/city',    () => ({ todayInCity: vi.fn().mockResolvedValue('2026-09-14'), resolveCityId: vi.fn().mockResolvedValue('ist') }))
+vi.mock('@/lib/city',    () => ({ todayInCity: vi.fn().mockResolvedValue('2026-09-14'), resolveCityId: vi.fn().mockResolvedValue('ist'), citiesByToday: vi.fn().mockResolvedValue([{ date: '2026-09-14', cityIds: ['ist'] }]) }))
 vi.mock('@/lib/notify',  () => ({ createNotification: vi.fn() }))
 vi.mock('@/lib/email',   () => ({ sendEventApprovedEmail: vi.fn(), sendEventRejectedEmail: vi.fn(), recordEmailFailure: vi.fn() }))
 vi.mock('@/lib/autoJoinClub', () => ({ autoJoinClub: vi.fn() }))

@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin, isAdminOrModerator, failClosedCityId } from '@/lib/access'
 import { normalizeContactEmail } from '@/lib/contactEmail'
+import { writeAudit } from '@/lib/audit'
+import { isUploadedImageUrl } from '@/lib/uploadedImageUrl'
 
 const VALID_CATEGORIES = ['ROOMS','JOBS','SERVICES','BUY_SELL','FREE','LOST_FOUND','RECO','EXPERIENCES','PETS']
 
@@ -67,8 +69,12 @@ export async function POST(req: NextRequest) {
   if (!title?.trim()) return NextResponse.json({ error: 'Title required' }, { status: 400 })
   if (!description?.trim()) return NextResponse.json({ error: 'Description required' }, { status: 400 })
 
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, cityId: true } })
-  if (!user) return NextResponse.json({ error: 'Member not found' }, { status: 404 })
+  // Posted in a live member's name only (the bulk route's rule), and with a
+  // photo from our uploads: an outside URL ended up in the page and its
+  // og:image, seeing every visitor.
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, cityId: true, status: true, name: true } })
+  if (!user || user.status !== 'approved') return NextResponse.json({ error: 'Member not found' }, { status: 404 })
+  if (photo && !isUploadedImageUrl(photo)) return NextResponse.json({ error: 'Upload the photo — outside image links aren\'t allowed' }, { status: 400 })
 
   const days = Math.min(Math.max(parseInt(expiryDays) || 30, 1), 365)
   const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000)
@@ -92,5 +98,7 @@ export async function POST(req: NextRequest) {
     },
   })
 
+  writeAudit(session.id, session.name, 'listing.create', listing.id, 'listing',
+    { userId, cityId: listing.cityId, category }, `Posted "${listing.title}" on behalf of ${user.name}`)
   return NextResponse.json(listing, { status: 201 })
 }

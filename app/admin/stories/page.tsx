@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { resolveImageUrl } from '@/lib/data'
 import { downscaleImage } from '@/lib/image-resize'
+import { useAuth } from '@/contexts/AuthContext'
 
 // Server caps mirrored here for inline UI feedback. The actual writes
 // trim and re-cap server-side via the testimonials and story-photos
@@ -66,7 +67,10 @@ export default function StoriesPage() {
   const [tSaving,      setTSaving]      = useState(false)
   const [editId,       setEditId]       = useState<string | null>(null)
 
-  // Photos state
+  // Photos state. The /why photos are every city's page, so only an admin
+  // adds, hides or deletes them (api/admin/story-photos).
+  const { user: viewer } = useAuth()
+  const canEditPhotos = viewer.role === 'admin'
   const [photos,    setPhotos]    = useState<StoryPhoto[]>([])
   const [pLoading,  setPLoading]  = useState(true)
   const [pForm,     setPForm]     = useState({ url: '', caption: '', event: '' })
@@ -438,8 +442,13 @@ export default function StoriesPage() {
       {/* ── PHOTOS ── */}
       {tab === 'photos' && (
         <div className="space-y-5">
+          {!canEditPhotos && (
+            <p className="text-xs text-zinc-500 bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
+              These photos appear on every city&apos;s public /why page, so only admins change them.
+            </p>
+          )}
           {/* Upload form */}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
+          {canEditPhotos && <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
             <h2 className="text-sm font-bold text-white">Add event photo</h2>
 
             {/* Upload area */}
@@ -483,7 +492,7 @@ export default function StoriesPage() {
               className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm rounded-xl transition-colors disabled:opacity-40">
               {pSaving ? 'Saving…' : 'Add photo'}
             </button>
-          </div>
+          </div>}
 
           {/* Photo grid */}
           {pLoading ? (
@@ -507,7 +516,7 @@ export default function StoriesPage() {
                   <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity hidden md:flex flex-col items-center justify-center gap-2 p-3">
                     {p.caption && <p className="text-xs text-white text-center font-medium leading-snug">{p.caption}</p>}
                     {p.event   && <p className="text-xs text-amber-400 text-center">{p.event}</p>}
-                    <div className="flex gap-2 mt-1">
+                    {canEditPhotos && <div className="flex gap-2 mt-1">
                       <button onClick={() => togglePhoto(p)}
                         disabled={busyRowId === p.id}
                         className={`text-xs font-bold px-2.5 py-1 rounded-lg disabled:opacity-40 ${p.active ? 'bg-green-500/20 text-green-400 hover:bg-red-500/20 hover:text-red-400' : 'bg-white/10 text-zinc-400 hover:bg-green-500/20 hover:text-green-400'} transition-colors`}>
@@ -531,7 +540,7 @@ export default function StoriesPage() {
                           Delete
                         </button>
                       )}
-                    </div>
+                    </div>}
                   </div>
                   {/* Mobile always-visible action strip — bottom of the
                       tile, semi-transparent so the photo stays
@@ -545,7 +554,7 @@ export default function StoriesPage() {
                         {p.event   && <p className="text-amber-400 truncate">{p.event}</p>}
                       </div>
                     )}
-                    <div className="flex gap-1.5">
+                    {canEditPhotos && <div className="flex gap-1.5">
                       <button onClick={() => togglePhoto(p)}
                         disabled={busyRowId === p.id}
                         className={`flex-1 text-[10px] font-bold px-2 py-1 rounded-md disabled:opacity-40 ${p.active ? 'bg-green-500/30 text-green-300' : 'bg-white/20 text-zinc-200'}`}>
@@ -569,7 +578,7 @@ export default function StoriesPage() {
                           ✕
                         </button>
                       )}
-                    </div>
+                    </div>}
                   </div>
                 </div>
               ))}

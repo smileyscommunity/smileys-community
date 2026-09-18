@@ -4,6 +4,7 @@ import { getSession } from '@/lib/session'
 import { canViewModStats, isAdmin, failClosedCityId } from '@/lib/access'
 import { todayInCity, resolveCityId } from '@/lib/city'
 import { countHostlessClubRequests } from '@/lib/clubRequests'
+import { reportQueueWhere } from '@/lib/admin/reportScope'
 
 export async function GET() {
   try {
@@ -17,7 +18,10 @@ export async function GET() {
     // made a Bodrum moderator's sidebar say "3 reports" over an empty queue.
     // Admins keep the network view (their dashboard is the scoped stats route).
     const inCity        = isAdmin(session) ? {} : { cityId: failClosedCityId(session) }
-    const reportsInCity = isAdmin(session) ? {} : { reported: { is: { cityId: failClosedCityId(session) } } }
+    // Reports: the queue's own filter, so board, listing and wall reports are
+    // counted under the content's city and reports about the viewer aren't
+    // counted at all — the badge used to include both and outnumber the list.
+    const reportsWhere  = await reportQueueWhere(session)
     const msgInCity     = isAdmin(session) ? {} : { event: { is: { cityId: failClosedCityId(session) } } }
 
     const [
@@ -29,7 +33,7 @@ export async function GET() {
       myEvents,
     ] = await Promise.all([
       prisma.memberApplication.count({ where: { status: 'pending', ...(isAdmin(session) ? {} : { targetCityId: failClosedCityId(session) }) } }),
-      prisma.report.count({ where: { status: 'pending', ...reportsInCity } }),
+      prisma.report.count({ where: { ...reportsWhere, status: 'pending' } }),
       prisma.event.count({ where: { status: 'pending', ...inCity } }),
       // Visitors-this-week — mods see the same soft signal admins do so the
       // shared AlertsRow renders the same pill on both dashboards.

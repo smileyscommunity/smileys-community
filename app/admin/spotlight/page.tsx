@@ -24,14 +24,23 @@ interface User {
   color: string
   profilePhoto: string | null
   neighborhood: string | null
+  city?: { name: string } | null
 }
 
 interface Spotlight {
-  user:      { id: string; name: string; color: string; profilePhoto: string | null; neighborhood: string | null }
+  user:      { id: string; name: string; color: string; profilePhoto: string | null; neighborhood: string | null; city?: { name: string } | null }
   funFact:   string
   topSpots:  string[]
   updatedAt: string | null
+  // The featured member has since been suspended or hidden; members see no
+  // spotlight until it's changed or cleared.
+  unavailable?: boolean
 }
+
+// The label used to name Istanbul whoever was featured; the spots are the
+// featured member's city's, whichever that is.
+const spotsLabel = (city: { name: string } | null | undefined, prefix: string) =>
+  city?.name ? `${prefix} ${city.name} spots` : `${prefix} spots`
 
 function Avatar({ user }: { user: Pick<User, 'name' | 'color' | 'profilePhoto'> }) {
   const initials = user.name.trim().split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
@@ -122,7 +131,10 @@ export default function SpotlightPage() {
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ userId: selected.id, funFact, topSpots }),
       })
-      if (!res.ok) throw new Error()
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        throw new Error(d?.error)
+      }
       toast.success('Spotlight updated!')
       // Refresh through the shared hook so the response is
       // r.ok-gated + shape-validated like the initial load.
@@ -130,8 +142,8 @@ export default function SpotlightPage() {
       setSelected(null)
       setFunFact('')
       setTopSpots(['', '', ''])
-    } catch {
-      toast.error('Failed to update spotlight')
+    } catch (e) {
+      toast.error((e instanceof Error && e.message) || 'Failed to update spotlight')
     } finally { setSaving(false) }
   }
 
@@ -144,6 +156,7 @@ export default function SpotlightPage() {
       color:        current.user.color,
       profilePhoto: current.user.profilePhoto,
       neighborhood: current.user.neighborhood,
+      city:         current.user.city,
     })
     setFunFact(current.funFact)
     setTopSpots(current.topSpots.length === 3 ? current.topSpots : ['', '', ''])
@@ -188,6 +201,11 @@ export default function SpotlightPage() {
             </div>
             )}
           </div>
+          {current.unavailable && (
+            <p className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2 mb-4">
+              {current.user.name} is no longer an approved, visible member, so members aren&apos;t shown this spotlight. Change or clear it.
+            </p>
+          )}
           <div className="flex items-center gap-4 mb-4">
             <Avatar user={current.user} />
             <div>
@@ -203,7 +221,7 @@ export default function SpotlightPage() {
           {current.funFact && <p className="text-sm text-zinc-400 italic mb-3">"{current.funFact}"</p>}
           {current.topSpots.some(s => s) && (
             <div className="space-y-1">
-              <p className="text-xs font-bold text-zinc-500 uppercase tracking-wide mb-1">Top Istanbul spots</p>
+              <p className="text-xs font-bold text-zinc-500 uppercase tracking-wide mb-1">{spotsLabel(current.user.city, 'Top')}</p>
               {current.topSpots.filter(s => s).map((spot, i) => (
                 <p key={i} className="text-sm text-zinc-300"><span className="text-amber-500 font-bold">{i + 1}.</span> {spot}</p>
               ))}
@@ -269,7 +287,7 @@ export default function SpotlightPage() {
         </div>
 
         <div>
-          <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wide mb-1.5">Top 3 Istanbul spots</label>
+          <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wide mb-1.5">{spotsLabel(selected?.city, 'Top 3')}</label>
           <div className="space-y-2">
             {topSpots.map((spot, i) => (
               <div key={i} className="flex items-center gap-2">

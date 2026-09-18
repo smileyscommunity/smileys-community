@@ -18,6 +18,7 @@ import { geocodeFailureMessage } from '@/lib/geocodeError'
 import { neighborhoodIfListed } from '@/lib/postingNeighborhoods'
 import { clampOccurrences, seriesOutcomeMessage, MIN_SERIES_OCCURRENCES, MAX_SERIES_OCCURRENCES, type SeriesFailure } from '@/lib/seriesCreate'
 import VenuePicker, { type LinkedVenue, type PickedVenue } from '@/components/VenuePicker'
+import { seriesDates } from '@/lib/seriesDates'
 
 const inputCls = 'w-full px-4 py-3 rounded-xl border border-zinc-700 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500 bg-zinc-800 placeholder-zinc-500'
 
@@ -211,20 +212,11 @@ function HostNewEventForm() {
 
   function buildDates(): string[] {
     if (repeat === 'none' || !form.date) return [form.date]
-    const days = repeat === 'weekly' ? 7 : repeat === 'biweekly' ? 14 : 0
-    const dates: string[] = []
-    // Pure-UTC calendar math: parsing at UTC midnight but stepping with
-    // local setDate() shifted a series day across a DST boundary in the
-    // host's browser timezone. setUTCDate keeps it timezone-free.
-    const base = new Date(form.date + 'T00:00:00Z')
-    for (let i = 0; i < clampOccurrences(occurrences); i++) {
-      const d = new Date(base)
-      if (repeat === 'monthly') d.setUTCMonth(d.getUTCMonth() + i)
-      else d.setUTCDate(d.getUTCDate() + days * i)
-      dates.push(d.toISOString().split('T')[0])
-    }
-    return dates
+    // Day-string calendar maths (lib/seriesDates): setUTCMonth made a series
+    // started on the 31st skip February and run twice in March.
+    return seriesDates(form.date, repeat, clampOccurrences(occurrences))
   }
+
 
   async function writeWithAI() {
     setAiLoading(true)

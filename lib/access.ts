@@ -68,6 +68,17 @@ export function canActInCity(session: SessionUser, targetCityId?: string | null)
   return session.cityId === targetCityId
 }
 
+/**
+ * Content that belongs to one city — or, with no city, to every city. Admins
+ * act on any; a moderator only on their own city's, never the network-wide
+ * kind (canActInCity reads "no city" as admin/moderator parity, which let any
+ * moderator publish an article that notified every member everywhere).
+ */
+export function canActOnCityContent(session: SessionUser, cityId: string | null | undefined): boolean {
+  if (session.role === Role.Admin) return true
+  return !!cityId && canActInCity(session, cityId)
+}
+
 // ── Capability-based checks ────────────────────────────────────────────────
 // Finance
 export function canManagePayments(session: SessionUser): boolean {

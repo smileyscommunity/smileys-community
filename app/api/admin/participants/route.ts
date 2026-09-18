@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { activeAttendeeWhere } from '@/lib/attendance'
 import { getSession } from '@/lib/session'
 import { isAdmin, isClubHost } from '@/lib/access'
-import { todayInCity, resolveCityId } from '@/lib/city'
+import { citiesByToday } from '@/lib/city'
 
 // phone + nationality power the per-row WhatsApp deep link (admin-only
 // endpoint, same fields the per-event participants API exposes).
@@ -42,16 +42,18 @@ export async function GET() {
       eventIdFilter = { in: hostEvents.map(e => e.id) }
     }
 
-    // Istanbul "today", not UTC — with UTC the 00:00–03:00 local window
-    // still included yesterday's events in the future-events filter.
-    const today = await todayInCity(await resolveCityId(session))
+    // "Upcoming" is judged on each event's own city calendar. One today for
+    // the whole list — the admin's view city — dropped a city's events while
+    // its day was still running (or kept yesterday's) whenever the two
+    // cities' dates differ. Cities sharing a date share one clause.
+    const upcoming = { OR: (await citiesByToday()).map(d => ({ cityId: { in: d.cityIds }, date: { gte: d.date } })) }
 
     const [attendees, waitlistRaw] = await Promise.all([
       prisma.eventAttendee.findMany({
         where: {
           ...(eventIdFilter ? { eventId: eventIdFilter } : {}),
           ...activeAttendeeWhere,
-          event: { date: { gte: today } },
+          event: upcoming,
         },
         include: {
           user:  { select: userSelect },
@@ -70,7 +72,7 @@ export async function GET() {
 
     const [waitlistUsers, waitlistEvents] = waitlistUserIds.length ? await Promise.all([
       prisma.user.findMany({ where: { id: { in: waitlistUserIds } }, select: userSelect }),
-      prisma.event.findMany({ where: { id: { in: waitlistEventIds }, date: { gte: today } }, select: eventSelect }),
+      prisma.event.findMany({ where: { id: { in: waitlistEventIds }, ...upcoming }, select: eventSelect }),
     ]) : [[], []]
 
     const userMap  = Object.fromEntries(waitlistUsers.map(u => [u.id, u]))

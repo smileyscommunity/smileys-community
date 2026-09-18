@@ -22,6 +22,7 @@ import { loadFailure } from '@/lib/admin/useAdminLoad'
 import { useParams, useSearchParams, useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
+import { useAuth } from '@/contexts/AuthContext'
 
 import { type AdminCampaign, CAMPAIGN_STATUS_PILL, CAMPAIGN_STATUSES, type CampaignStatus } from '@/lib/admin/campaigns'
 import { type AdminDonation } from '@/lib/admin/donations'
@@ -42,6 +43,7 @@ export default function AdminCampaignDetailPage() {
   const [donations, setDonations] = useState<AdminDonation[] | null>(null)
   const [showResolved, setShowResolved] = useState(false)
   const [editing,   setEditing]   = useState(false)
+  const isAdminViewer = useAuth().user.role === 'admin'
   // A failed load used to leave the skeleton pulsing forever.
   const [loadError, setLoadError] = useState<string | null>(null)
 
@@ -191,10 +193,11 @@ export default function AdminCampaignDetailPage() {
               </p>
             )}
           </div>
-          <button onClick={() => setEditing(s => !s)}
+          {/* Editing a campaign is an admin's (it runs in every city). */}
+          {isAdminViewer && <button onClick={() => setEditing(s => !s)}
             className="text-xs px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold shrink-0">
             {editing ? 'Close' : 'Edit'}
-          </button>
+          </button>}
         </div>
         <div className="border-t border-zinc-800 pt-3 mt-3 flex flex-wrap gap-2">
           <Link href={`/${campaign.routeSlug}`} className="text-xs px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold">

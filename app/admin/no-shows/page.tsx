@@ -11,6 +11,8 @@ import { useAdminCities } from '@/components/admin/CitySelect'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { DEFAULT_TZ } from '@/lib/cityTime'
 import { REVIEW_CONFLICT_MESSAGE, type ReviewConflict } from '@/lib/noShowPolicy'
+import { useAuth } from '@/contexts/AuthContext'
+import { memberHref } from '@/lib/adminNav'
 
 // No-show cards inbox. Default view is what needs a decision: red cards
 // under appeal. Accept clears the card; reject re-arms the block (from the
@@ -43,6 +45,8 @@ const STATUS_PILL: Record<string, string> = {
 }
 
 export default function AdminNoShowsPage() {
+  // Moderators work this inbox but can't open /admin/users/:id (see memberHref).
+  const { user: me } = useAuth()
   const [view,  setView]  = useState<View>('appeal_pending')
   const [cards, setCards] = useState<Card[] | null>(null)
   const [busy,  setBusy]  = useState<string | null>(null)
@@ -67,7 +71,7 @@ export default function AdminNoShowsPage() {
     const note = action === 'overturn'
       ? await promptToast('Why is this card being cleared?', { placeholder: 'Reason (kept in the audit log)', confirmLabel: 'Overturn' })
       : action === 'reject'
-        ? await promptToast('Note to the member (optional — leave blank to skip)', { placeholder: 'e.g. Check-in list shows no scan', confirmLabel: 'Reject appeal' })
+        ? await promptToast('Note to the member (optional — leave blank to skip)', { placeholder: 'e.g. Check-in list shows no scan', confirmLabel: 'Reject appeal', allowEmpty: true })
         : (await confirmToast(`Accept ${card.user.name}'s appeal? The card is cleared.`, { confirmLabel: 'Accept' })) ? '' : null
     if (note === null) return
     setBusy(card.id)
@@ -112,7 +116,7 @@ export default function AdminNoShowsPage() {
                 <span className="text-xl" aria-hidden="true">{c.kind === 'red' ? '🟥' : '🟨'}</span>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <Link href={`/admin/users/${c.user.id}`} className="font-semibold text-white hover:underline">{c.user.name}</Link>
+                    <Link href={memberHref(c.user.id, me?.role)} className="font-semibold text-white hover:underline">{c.user.name}</Link>
                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase ${STATUS_PILL[c.status] ?? STATUS_PILL.active}`}>{c.status.replace('_', ' ')}</span>
                   </div>
                   <p className="text-xs text-zinc-400 mt-0.5">

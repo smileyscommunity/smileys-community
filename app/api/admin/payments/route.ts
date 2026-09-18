@@ -8,6 +8,9 @@ import { sendRefundEmail, recordEmailFailure } from '@/lib/email'
 import { rateLimit } from '@/lib/rateLimit'
 import { DEFAULT_CURRENCY, formatMoney } from '@/lib/data'
 import { PAYMENT_HELD_CHECKED_IN } from '@/lib/constants'
+import { resolveCityId, getCityTz } from '@/lib/city'
+import { fromWallClockInTz, shiftDay } from '@/lib/cityTime'
+import type { Prisma } from '@prisma/client'
 
 // Allowlist of statuses the API accepts on PATCH. Previously the
 // server took whatever string the client sent — admin tooling
@@ -42,7 +45,46 @@ const MAX_NOTES_LENGTH = 500
 // aggregates (see GET below) rather than recomputing from the
 // row window. If the cap is hit, the client surfaces a "showing
 // 500 of N" notice and admins can use search/filter to narrow.
+//
+// Search, status and dates filter HERE, not in the page: filtering the
+// 500-row window client-side meant a search for an older payment found
+// nothing and the CSV "export" silently stopped at the newest 500 rows.
 const ROW_CAP = 500
+// The CSV export runs the same filters with a far higher cap. Still a cap
+// (the whole table in one JSON body is not a plan), reported when hit.
+const EXPORT_CAP = 20_000
+
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/
+
+// The page's filters as a Prisma where. Dates are calendar days on the
+// admin's city clock — the same clock the rows are displayed on — so
+// "from 1 May" starts at midnight there, not at UTC midnight (03:00 in
+// Istanbul, which put the first three hours of a day on the day before).
+function paymentFilterWhere(
+  params: URLSearchParams,
+  tz: string,
+): Prisma.PaymentWhereInput {
+  const status = params.get('status') ?? ''
+  const q      = (params.get('search') ?? '').trim().slice(0, 200)
+  const from   = params.get('from') ?? ''
+  const to     = params.get('to')   ?? ''
+  const createdAt: Prisma.DateTimeFilter = {}
+  if (DAY_RE.test(from)) createdAt.gte = fromWallClockInTz(`${from}T00:00`, tz)
+  // Inclusive of the whole "to" day: everything before the next midnight.
+  if (DAY_RE.test(to))   createdAt.lt  = fromWallClockInTz(`${shiftDay(to, 1)}T00:00`, tz)
+  const contains = { contains: q, mode: 'insensitive' as const }
+  return {
+    ...(ALLOWED_STATUSES.has(status) && { status }),
+    ...(Object.keys(createdAt).length > 0 && { createdAt }),
+    ...(q && { OR: [
+      { user:  { name:  contains } },
+      { user:  { email: contains } },
+      { event: { title: contains } },
+      // The RSVP route links staff here with ?search=<userId>.
+      { userId: q },
+    ] }),
+  }
+}
 
 // Rate limits on mutations — admin endpoints, so windows are
 // generous but bounded. A compromised admin token can still
@@ -56,8 +98,27 @@ async function requireAdmin() {
   return session
 }
 
-export async function GET() {
-  if (!await requireAdmin()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+export async function GET(req: NextRequest) {
+  const session = await requireAdmin()
+  if (!session) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  // The admin's city clock (view city → home city → default), the same one
+  // useCurrentCity gives the page, which renders row dates in `tz`.
+  const tz     = await getCityTz(await resolveCityId(session))
+  const params = req.nextUrl.searchParams
+  const where  = paymentFilterWhere(params, tz)
+  const rowInclude = {
+    user:  { select: { name: true, email: true } },
+    event: { select: { title: true, emoji: true, city: { select: { name: true, slug: true } } } },
+  } as const
+
+  if (params.get('export') === '1') {
+    const [payments, matched] = await Promise.all([
+      prisma.payment.findMany({ where, orderBy: { createdAt: 'desc' }, take: EXPORT_CAP, include: rowInclude }),
+      prisma.payment.count({ where }),
+    ])
+    return NextResponse.json({ payments, matched, capped: matched > payments.length, exportCap: EXPORT_CAP, tz })
+  }
 
   // Pull the row window + the four aggregate stats in parallel.
   // Aggregates are computed over the FULL set so the summary
@@ -65,15 +126,14 @@ export async function GET() {
   // ROW_CAP. Previously the page derived all stats client-side
   // from the row list, which silently understated once the cap
   // kicked in.
-  const [payments, totalCount, paidByCurrency, pendingCount, heldCount, byEvent] = await Promise.all([
+  const [payments, matched, totalCount, paidByCurrency, pendingCount, heldCount, byEvent] = await Promise.all([
     prisma.payment.findMany({
+      where,
       orderBy: { createdAt: 'desc' },
       take:    ROW_CAP,
-      include: {
-        user:  { select: { name: true, email: true } },
-        event: { select: { title: true, emoji: true, city: { select: { name: true, slug: true } } } },
-      },
+      include: rowInclude,
     }),
+    prisma.payment.count({ where }),
     prisma.payment.count(),
     // Per currency: one sum across lira and lari is not an amount of anything.
     prisma.payment.groupBy({
@@ -134,8 +194,12 @@ export async function GET() {
       heldCount,
       byEvent:      byEventStats,
       rowCap:       ROW_CAP,
-      capped:       totalCount > ROW_CAP,
+      // Rows matching the current filters, and whether the list stops
+      // short of them. The cards above stay whole-table.
+      matched,
+      capped:       matched > payments.length,
     },
+    tz,
   })
 }
 
@@ -149,7 +213,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Too many requests — slow down' }, { status: 429 })
   }
 
-  const { id, status, notes } = await req.json()
+  const { id, status, notes, reason } = await req.json()
   if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
 
   // Status validation. Both branches are explicit so a malformed
@@ -164,17 +228,42 @@ export async function PATCH(req: NextRequest) {
     }
   }
 
-  // Length cap on notes. Schema column is unbounded text, so the
-  // gate has to live here.
-  if (notes !== undefined && typeof notes === 'string' && notes.length > MAX_NOTES_LENGTH) {
-    return NextResponse.json({ error: `Notes too long (max ${MAX_NOTES_LENGTH} chars)` }, { status: 400 })
-  }
-
   const current = await prisma.payment.findUnique({
     where: { id },
     select: { status: true, amount: true, currency: true, notes: true },
   })
   if (!current) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  const statusChanging = status !== undefined && status !== current.status
+
+  // A status change never rewrites the note. The refund reason used to be
+  // sent AS `notes`, so refunding a payment replaced whatever was written on
+  // it ("paid cash to Elif at the door") with the reason, and the audit only
+  // recorded the status. The reason is now appended to the existing note.
+  // Text arriving as `notes` alongside a status change (a tab loaded before
+  // this change) is treated the same way — nothing sends a note rewrite
+  // together with a status flip.
+  const rawReason = typeof reason === 'string' ? reason : (statusChanging && typeof notes === 'string' ? notes : '')
+  const changeReason = rawReason.trim()
+  if (changeReason.length > MAX_NOTES_LENGTH) {
+    return NextResponse.json({ error: `Reason too long (max ${MAX_NOTES_LENGTH} chars)` }, { status: 400 })
+  }
+
+  // Length cap on notes. Schema column is unbounded text, so the
+  // gate has to live here. A note that already runs past the cap (an
+  // appended refund reason) can still be edited down, just not grown.
+  const notesEdit = !statusChanging && notes !== undefined
+  if (notesEdit && typeof notes === 'string' && notes.length > Math.max(MAX_NOTES_LENGTH, (current.notes ?? '').length)) {
+    return NextResponse.json({ error: `Notes too long (max ${MAX_NOTES_LENGTH} chars)` }, { status: 400 })
+  }
+
+  const nextNotes: string | null | undefined =
+    statusChanging
+      ? (changeReason
+          ? [current.notes?.trim(), `${status === 'refunded' ? 'Refund' : `→ ${status}`}: ${changeReason}`].filter(Boolean).join(' · ')
+          : undefined)
+      : notes
+  const notesChanged = nextNotes !== undefined && (current.notes ?? '') !== (nextNotes ?? '')
 
   // Refunded is terminal — reject transitions away from it.
   // Defends against the un-refund-by-double-click pattern even if
@@ -190,7 +279,7 @@ export async function PATCH(req: NextRequest) {
     where: { id },
     data: {
       ...(status !== undefined && { status }),
-      ...(notes  !== undefined && { notes }),
+      ...(notesChanged && { notes: nextNotes }),
     },
     include: {
       user:  { select: { name: true, email: true } },
@@ -211,8 +300,14 @@ export async function PATCH(req: NextRequest) {
   // upgraded the swallow to a console.error, which is necessary
   // but not sufficient: admins still saw "Status → refunded" with
   // no signal that the member never heard.
+  //
+  // A status change that also changed the note carries the before/after
+  // in the same log row and audit entry, so the note's history survives
+  // the refund instead of only the new status.
   let refundEmailSent: boolean | undefined
-  if (status !== undefined && current.status !== status) {
+  if (statusChanging) {
+    const notesBefore = current.notes ?? ''
+    const notesAfter  = nextNotes ?? ''
     await prisma.paymentLog.create({
       data: {
         paymentId: id,
@@ -220,12 +315,14 @@ export async function PATCH(req: NextRequest) {
         adminName: session.name,
         fromStatus: current.status,
         toStatus:   status,
-        note:       notes ?? null,
+        note:       notesChanged
+          ? `${changeReason} (notes: "${notesBefore}" → "${notesAfter}")`
+          : (changeReason || null),
       },
     })
     writeAudit(session.id, session.name, 'payment.status', id, 'payment',
-      { from: current.status, to: status },
-      `Payment status changed from ${current.status} to ${status}${notes ? ` — ${notes}` : ''}`,
+      { from: current.status, to: status, ...(changeReason && { reason: changeReason }), ...(notesChanged && { notesBefore, notesAfter }) },
+      `Payment status changed from ${current.status} to ${status}${changeReason ? ` — ${changeReason}` : ''}`,
     )
 
     if (status === 'refunded') {
@@ -236,7 +333,7 @@ export async function PATCH(req: NextRequest) {
           updated.event.title,
           current.amount,
           current.currency ?? DEFAULT_CURRENCY,
-          notes,
+          changeReason || undefined,
         )
         refundEmailSent = true
       } catch (err) {
@@ -245,7 +342,7 @@ export async function PATCH(req: NextRequest) {
         await recordEmailFailure({ helper: 'sendRefundEmail', recipient: updated.user.email, error: err, context: { paymentId: id, userId: updated.user.email } })
       }
     }
-  } else if (notes !== undefined && (current.notes ?? '') !== (notes ?? '')) {
+  } else if (notesChanged) {
     // Notes-only edit. Use the existing PaymentLog shape — both
     // fromStatus/toStatus null signals "not a status change", the
     // note field carries the before/after diff so the audit row is

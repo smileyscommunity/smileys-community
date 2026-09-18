@@ -65,7 +65,10 @@ function ModPanel({ counts }: { counts: ModCounts | null }) {
       <div className="hidden sm:flex items-center gap-1">
         <AlertBadge count={counts.pendingApplications} label="Applications" href="/admin/applications" color="bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 border border-amber-500/20" />
         <AlertBadge count={counts.pendingReports}       label="Reports"      href="/admin/moderation"   color="bg-red-500/15 text-red-400 hover:bg-red-500/25 border border-red-500/20"     />
-        <AlertBadge count={counts.approvalQueueEvents}  label="Events"       href="/admin/events"       color="bg-violet-500/15 text-violet-400 hover:bg-violet-500/25 border border-violet-500/20" />
+        {/* Pending tab: the events page opens on Upcoming, which leaves
+            pending events out, so the badge used to land on a list that
+            didn't contain what it counted. */}
+        <AlertBadge count={counts.approvalQueueEvents}  label="Events"       href="/admin/events?tab=pending" color="bg-violet-500/15 text-violet-400 hover:bg-violet-500/25 border border-violet-500/20" />
       </div>
     </>
   )

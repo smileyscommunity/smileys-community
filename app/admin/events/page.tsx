@@ -206,10 +206,13 @@ function AdminEventsPageInner() {
   const loading = eventsLoading || clubsLoading
   const error   = eventsError || clubsError
   const load = useCallback(() => { retryEvents(); retryClubs() }, [retryEvents, retryClubs])
-  // setEvents bridges existing function-form mutations to the
-  // hook's value-only setData escape hatch.
+  // setEvents hands function-form mutations to the hook's functional
+  // updater, so each applies to the latest list. Resolving them against
+  // the render-time `eventsData` lost updates: two quick toggles (or a
+  // bulk run finishing after a single-row change) each started from the
+  // same stale snapshot and the later write undid the earlier one.
   const setEvents = (next: AdminEvent[] | ((prev: AdminEvent[]) => AdminEvent[])) => {
-    setEventsData(typeof next === 'function' ? next(eventsData ?? []) : next)
+    setEventsData(prev => typeof next === 'function' ? next(prev ?? []) : next)
   }
 
   const [search,     setSearch]     = useState(initialSearch)
@@ -221,10 +224,12 @@ function AdminEventsPageInner() {
   const [dateFrom,   setDateFrom]   = useState(initialFrom)
   const [dateTo,     setDateTo]     = useState(initialTo)
 
-  // Notify-attendees modal — opened from the ⋯ menu or auto-fired when
-  // status changes to cancelled / postponed so the admin never forgets
-  // to tell people. preset matches a key in NotifyAttendeesModal's
-  // PRESETS list and pre-fills the textarea with an editable template.
+  // Notify-attendees modal — opened from the ⋯ menu. preset matches a key
+  // in NotifyAttendeesModal's PRESETS list and pre-fills the textarea with
+  // an editable template. It no longer opens by itself after a cancel or
+  // postpone: the server already tells the people going in both cases, and
+  // after a cancel their seats are released, so the modal's send reached
+  // nobody ("Notified 0 attendees") while spending one of the hourly sends.
   const [notifyEvent,  setNotifyEvent]  = useState<AdminEvent | null>(null)
   const [notifyPreset, setNotifyPreset] = useState<string | undefined>(undefined)
   function openNotify(event: AdminEvent, preset?: string) {
@@ -345,7 +350,11 @@ function AdminEventsPageInner() {
   const PATCH_STATUSES = new Set(['published', 'flagged', 'unpublished', 'pending'])
 
   async function handleStatusChange(id: string, newStatus: string) {
-    if (newStatus === 'cancelled' && !(await confirmToast('Cancel event? You can notify attendees in the next step.'))) return
+    // The cancel itself emails and notifies everyone going and releases
+    // their seats, so the confirmation says that rather than promising a
+    // "next step" that could no longer reach them.
+    if (newStatus === 'cancelled' && !(await confirmToast('Cancel event? Everyone going is emailed and notified automatically, and their spots are released.'))) return
+    const before = events.find(e => e.id === id)
     const method = PATCH_STATUSES.has(newStatus) ? 'PATCH' : 'PUT'
     const res = await fetch(`/app/api/admin/events/${id}`, {
       method, credentials: 'include',
@@ -354,15 +363,13 @@ function AdminEventsPageInner() {
     })
     if (res.ok) {
       setEvents(prev => prev.map(e => e.id === id ? { ...e, status: newStatus } : e))
-      toast.success(`Status → ${newStatus}`)
+      // Say who was told, since nothing else on the page will. Postponing
+      // only notifies when the event was live; from any other state there
+      // was nobody expecting it.
+      if (newStatus === 'cancelled') toast.success('Cancelled — attendees were emailed and notified')
+      else if (newStatus === 'postponed' && before?.status === 'published') toast.success('Postponed — attendees were notified')
+      else toast.success(`Status → ${newStatus}`)
       notifyModerationChanged()
-      // Auto-open the notify modal for the two states whose business
-      // impact is on attendees, not on internal bookkeeping. Admin can
-      // edit or close — the status change is already committed.
-      if (newStatus === 'cancelled' || newStatus === 'postponed') {
-        const updated = events.find(e => e.id === id)
-        if (updated) openNotify({ ...updated, status: newStatus }, newStatus === 'cancelled' ? 'cancelled' : 'time_change')
-      }
     } else {
       const d = await res.json().catch(() => ({}))
       toast.error(d.error ?? 'Failed to update status')
@@ -399,10 +406,10 @@ function AdminEventsPageInner() {
   // only mutates the rows that really changed. Previously Promise.all
   // dropped per-request status entirely and the toast claimed full
   // success even on full failure.
-  async function bulkRun(label: string, work: (id: string) => Promise<boolean>, onSuccess: (ids: Set<string>) => void) {
-    if (selected.size === 0) return
+  async function bulkRun(label: string, ids: string[], work: (id: string) => Promise<boolean>, onSuccess: (ids: Set<string>) => void) {
+    if (ids.length === 0) return
     setBulkBusy(true)
-    const results = await Promise.all([...selected].map(async id => ({ id, ok: await work(id).catch(() => false) })))
+    const results = await Promise.all(ids.map(async id => ({ id, ok: await work(id).catch(() => false) })))
     const ok = new Set(results.filter(r => r.ok).map(r => r.id))
     const fail = results.length - ok.size
     if (ok.size) onSuccess(ok)
@@ -416,7 +423,7 @@ function AdminEventsPageInner() {
     // Only act on selected events that are actually pending. Passing
     // an already-published event through PATCH would still 200 but
     // the toast count would lie about how many were promoted.
-    const pendingIds = [...selected].filter(id => events.find(e => e.id === id)?.status === 'pending')
+    const pendingIds = selectedVisible.filter(e => e.status === 'pending').map(e => e.id)
     if (pendingIds.length === 0) { toast('No pending events selected'); return }
     if (!(await confirmToast(`Approve ${pendingIds.length} event${pendingIds.length === 1 ? '' : 's'}?`))) return
     setBulkBusy(true)
@@ -437,8 +444,9 @@ function AdminEventsPageInner() {
   }
 
   async function bulkCancel() {
-    if (!(await confirmToast(`Cancel ${selected.size} events? Attendees will be notified.`))) return
-    await bulkRun('Cancel', async (id) => {
+    const ids = selectedVisible.map(e => e.id)
+    if (!(await confirmToast(`Cancel ${ids.length} event${ids.length === 1 ? '' : 's'}? Everyone going is emailed and notified automatically.`))) return
+    await bulkRun('Cancel', ids, async (id) => {
       const res = await fetch(`/app/api/admin/events/${id}`, {
         method: 'PUT', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -451,11 +459,12 @@ function AdminEventsPageInner() {
   }
 
   async function bulkDelete() {
-    if (!(await confirmToast(`Delete ${selected.size} events?`))) return
+    const ids = selectedVisible.map(e => e.id)
+    if (!(await confirmToast(`Delete ${ids.length} event${ids.length === 1 ? '' : 's'}?`))) return
     // An event with attendees or paid payments is refused (409) with the
     // reason — show one, or "N failed" gives no hint to cancel instead.
     const refusals: string[] = []
-    await bulkRun('Delete', async (id) => {
+    await bulkRun('Delete', ids, async (id) => {
       const res = await fetch(`/app/api/admin/events/${id}`, { method: 'DELETE', credentials: 'include' })
       if (!res.ok) {
         const d = await res.json().catch(() => ({}))
@@ -512,6 +521,14 @@ function AdminEventsPageInner() {
     if (tabStatus === 'upcoming') return filtered
     return [...filtered].sort((a, b) => b.date.localeCompare(a.date))
   }, [baseFiltered, tabStatus, isUpcoming])
+
+  // Bulk actions only ever touch rows the admin can see. Selection used to
+  // survive a tab or filter change, so "Cancel all" on the Pending tab also
+  // cancelled the live events ticked earlier on Upcoming. Changing the view
+  // now clears the selection, and the bulk bar reads from this intersection
+  // as a second guard (a row can also drop out of view after a status change).
+  const selectedVisible = useMemo(() => visible.filter(e => selected.has(e.id)), [visible, selected])
+  useEffect(() => { setSelected(new Set()) }, [tabStatus, search, clubFilter, cityFilter, dateFrom, dateTo])
 
   const { upcomingCount, pendingCount, cancelledCount, archivedCount } = useMemo(() => ({
     upcomingCount:  baseFiltered.filter(isUpcoming).length,
@@ -617,14 +634,14 @@ function AdminEventsPageInner() {
       <LoadErrorBanner message={error} onRetry={load} title="Couldn't load events" />
 
       {/* Bulk bar */}
-      {selected.size > 0 && (
+      {selectedVisible.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 px-4 py-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
-          <span className="text-xs font-bold text-amber-400">{selected.size} selected</span>
+          <span className="text-xs font-bold text-amber-400">{selectedVisible.length} selected</span>
           {/* Bulk approve — only visible when at least one selected
               event is currently pending. Saves admin from clicking
               individual Approve buttons on a burst of new
               submissions. */}
-          {[...selected].some(id => events.find(e => e.id === id)?.status === 'pending') && (
+          {selectedVisible.some(e => e.status === 'pending') && (
             <button onClick={bulkApprove} disabled={bulkBusy}
               className="px-3 py-1.5 text-xs font-semibold bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/20 rounded-lg transition-colors disabled:opacity-40">
               Approve all
@@ -655,8 +672,8 @@ function AdminEventsPageInner() {
         <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-3 bg-zinc-800/50 border-b border-zinc-800 text-xs font-bold text-zinc-500 uppercase tracking-wider">
           <div className="col-span-1 flex items-center">
             <input type="checkbox"
-              checked={selected.size === visible.length && visible.length > 0}
-              onChange={() => setSelected(prev => prev.size === visible.length ? new Set() : new Set(visible.map(e => e.id)))}
+              checked={selectedVisible.length === visible.length && visible.length > 0}
+              onChange={() => setSelected(selectedVisible.length === visible.length ? new Set() : new Set(visible.map(e => e.id)))}
               className="rounded border-zinc-600 bg-zinc-800 text-amber-500 focus:ring-amber-500" />
           </div>
           <div className="col-span-5">Event</div>
@@ -672,11 +689,11 @@ function AdminEventsPageInner() {
         {!loading && visible.length > 0 && (
           <div className="md:hidden flex items-center gap-2 px-4 py-2.5 bg-zinc-800/40 border-b border-zinc-800">
             <input type="checkbox"
-              checked={selected.size === visible.length && visible.length > 0}
-              onChange={() => setSelected(prev => prev.size === visible.length ? new Set() : new Set(visible.map(e => e.id)))}
+              checked={selectedVisible.length === visible.length && visible.length > 0}
+              onChange={() => setSelected(selectedVisible.length === visible.length ? new Set() : new Set(visible.map(e => e.id)))}
               className="w-4 h-4 rounded border-zinc-600 bg-zinc-800 text-amber-500 focus:ring-amber-500 shrink-0" />
             <span className="text-xs text-zinc-400">
-              {selected.size > 0 ? <><span className="font-semibold text-white">{selected.size}</span> of {visible.length} selected</> : `Select all ${visible.length}`}
+              {selectedVisible.length > 0 ? <><span className="font-semibold text-white">{selectedVisible.length}</span> of {visible.length} selected</> : `Select all ${visible.length}`}
             </span>
           </div>
         )}

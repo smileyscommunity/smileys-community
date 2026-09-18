@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { isTier } from '@/lib/standingPolicy'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
+import { hostIdError } from '@/lib/eventHostCheck'
 import { getSession } from '@/lib/session'
 import { isAdmin, isModerator, isClubHost, isClubHostFor, failClosedCityId, hostCityIds } from '@/lib/access'
 import { createNotification, notifyNewEvent } from '@/lib/notify'
@@ -335,6 +336,11 @@ export async function POST(req: NextRequest) {
       }
       eventCityId = resolved.cityId
     }
+
+    // The host sees the guest list with contact details: an approved,
+    // unsuspended member of the event's city (lib/eventHostCheck).
+    const hostErr = await hostIdError(hostId, eventCityId, session, clubId)
+    if (hostErr) return NextResponse.json({ error: hostErr }, { status: 400 })
 
     // City-scope check for moderators (admins act globally, club hosts are
     // already constrained to their own clubs via isClubHostFor above).

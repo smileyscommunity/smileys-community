@@ -7,7 +7,7 @@ import {resolveImageUrl,  formatTime, firstNameOf} from '@/lib/data'
 import AlertsRow, { type Alert } from '@/components/admin/AlertsRow'
 import { todayInTz, nowInTz, DEFAULT_TZ } from '@/lib/cityTime'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
-import { DEFAULT_CURRENCY, formatMoney, currencySymbol } from '@/lib/data'
+import { formatMoney, currencySymbol } from '@/lib/data'
 
 interface TopHost {
   id: string; name: string; color: string; profilePhoto: string | null; count: number
@@ -22,7 +22,11 @@ interface Stats {
   membersActivated: number; membersNotActivated: number
   events: number; upcoming: number; rsvps: number
   newMembersThisMonth: number
-  revenueCollected: number; revenuePending: number; pendingPayments: number
+  // One row per currency, never summed across them. collected/previous are
+  // paid in the last 30 days and the 30 before; pending is everything still
+  // owed. Largest 30-day take first.
+  revenue: { currency: string; collected: number; previous: number; trend: number; pending: number }[]
+  pendingPayments: number
   pendingApplications: number; pendingReports: number
   // Event join requests awaiting a decision (upcoming events only) —
   // the /admin/participants Pending inbox count.
@@ -48,13 +52,16 @@ interface Stats {
   // Postponed events with no new date — seats held on a day that isn't
   // happening, outside every sweep. Longest-postponed first.
   postponedNoDate?: { id: string; title: string; emoji: string; date: string; seats: number; pending: number; waitlist: number; paymentsPending: number; daysSincePostponed: number; fromAudit: boolean }[]
-  trends: { members: number; rsvps: number; revenue: number }
+  trends: { members: number; rsvps: number }
   hangouts:   {
     active: number; today: number; referencesWeek: number
     topHost: TopHost | null
   }
   visitorsThisWeek: number
-  funnel:     { applications: number; approved: number; firstEvent: number; repeat: number }
+  // One cohort: applications made in the last windowDays, how many of those
+  // were approved, and how many of those approved members have been to one
+  // (and to two) past events in the same city.
+  funnel:     { windowDays: number; applications: number; approved: number; firstEvent: number; repeat: number }
   // Post-event survey quality rollup. wouldReturnRate is null when no
   // responses landed in the 30d window (no surveys dispatched yet, or
   // the events that ran got 0 responses). rateTrendPp is in
@@ -101,6 +108,11 @@ function timeAgo(date: string) {
   return `${Math.floor(s/86400)}d ago`
 }
 
+// Several amounts, each in its own currency: "₺12,400 · €300".
+function moneyList(amounts: [number, string][]): string {
+  return amounts.map(([n, c]) => formatMoney(n, c)).join(' · ')
+}
+
 function Trend({ v }: { v?: number | null }) {
   // Only suppress when the value is genuinely unknown (null/undefined).
   // A real 0% week-over-week change is still data — surface it as a
@@ -124,7 +136,6 @@ function Trend({ v }: { v?: number | null }) {
 export default function AdminPage() {
   // Admin surfaces follow the city being administered.
   const tz = useCurrentCity()?.timezone ?? DEFAULT_TZ
-  const cur = useCurrentCity()?.currency ?? DEFAULT_CURRENCY
   const { user } = useAuth()
   const [stats,    setStats]    = useState<Stats | null>(null)
   const [audit,    setAudit]    = useState<AuditEntry[]>([])
@@ -172,7 +183,8 @@ export default function AdminPage() {
     const cityQ = cityId ? `&city=${encodeURIComponent(cityId)}` : ''
     Promise.all([
       fetch(`/app/api/admin/stats${cityId ? `?city=${encodeURIComponent(cityId)}` : ''}`, { credentials: 'include' }),
-      fetch('/app/api/admin/audit?take=8',                                            { credentials: 'include' }),
+      // Recent Activity follows the chosen city like every other card.
+      fetch(`/app/api/admin/audit?take=8${cityQ}`,                                    { credentials: 'include' }),
       fetch(`/app/api/admin/events?status=published&from=${today}&take=6${cityQ}`,     { credentials: 'include' }),
     ]).then(async ([sRes, aRes, eRes]) => {
       if (!sRes.ok) throw new Error('stats')
@@ -261,7 +273,7 @@ export default function AdminPage() {
       href: '/admin/participants', color: 'border-amber-500/30 bg-amber-500/5 text-amber-400',
     },
     stats.pendingPayments > 0 && {
-      icon: '💳', label: `${stats.pendingPayments} payment${stats.pendingPayments !== 1 ? 's' : ''} · ${formatMoney(stats.revenuePending, cur)}`,
+      icon: '💳', label: `${stats.pendingPayments} payment${stats.pendingPayments !== 1 ? 's' : ''} · ${moneyList(stats.revenue.filter(r => r.pending > 0).map(r => [r.pending, r.currency]))}`,
       href: '/admin/payments', color: 'border-violet-500/30 bg-violet-500/5 text-violet-400',
     },
     stats.pendingReports > 0 && {
@@ -494,15 +506,16 @@ export default function AdminPage() {
           people?" Hidden when applications = 0 (zero-data community). */}
       {funnelLine && stats && (
         <div className="rounded-2xl border border-zinc-800 bg-zinc-900 px-4 py-3 text-xs text-zinc-400 overflow-x-auto whitespace-nowrap">
+          <span className="text-zinc-500 mr-2">Last {stats.funnel.windowDays} days:</span>
           <span className="font-bold text-white">{stats.funnel.applications}</span> applications
           <span className="text-zinc-600 mx-2">→</span>
           <span className="font-bold text-white">{stats.funnel.approved}</span> approved
           <span className="text-amber-400 ml-1">({funnelLine.approvedPct}%)</span>
           <span className="text-zinc-600 mx-2">→</span>
-          <span className="font-bold text-white">{stats.funnel.firstEvent}</span> first event
+          <span className="font-bold text-white">{stats.funnel.firstEvent}</span> attended an event
           <span className={`ml-1 ${funnelLine.firstPct >= 50 ? 'text-green-400' : 'text-amber-400'}`}>({funnelLine.firstPct}%)</span>
           <span className="text-zinc-600 mx-2">→</span>
-          <span className="font-bold text-white">{stats.funnel.repeat}</span> repeat
+          <span className="font-bold text-white">{stats.funnel.repeat}</span> came back
           <span className={`ml-1 ${funnelLine.repeatPct >= 50 ? 'text-green-400' : 'text-amber-400'}`}>({funnelLine.repeatPct}%)</span>
         </div>
       )}
@@ -606,9 +619,13 @@ export default function AdminPage() {
             href: '/admin/participants',
           },
           {
-            label: 'Revenue', value: stats ? formatMoney(stats.revenueCollected, cur) : undefined,
-            sub: stats ? (stats.revenuePending ? `${formatMoney(stats.revenuePending, cur)} pending` : 'No pending') : null,
-            trend: stats?.trends.revenue,
+            // Each amount in its own currency — the card used to add lira and
+            // euro together and print the sum in the browsing city's symbol.
+            // A single trend only when there's a single currency to compare.
+            label: 'Revenue (30 days)',
+            value: stats ? (stats.revenue.some(r => r.collected > 0) ? moneyList(stats.revenue.filter(r => r.collected > 0).map(r => [r.collected, r.currency])) : formatMoney(0, stats.revenue[0]?.currency)) : undefined,
+            sub: stats ? (stats.revenue.some(r => r.pending > 0) ? `${moneyList(stats.revenue.filter(r => r.pending > 0).map(r => [r.pending, r.currency]))} pending` : 'No pending') : null,
+            trend: stats && stats.revenue.length === 1 ? stats.revenue[0].trend : undefined,
             icon: '💰', iconBg: 'bg-violet-500/10 text-violet-400',
             href: '/admin/payments',
           },

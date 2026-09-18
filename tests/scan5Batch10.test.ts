@@ -41,7 +41,7 @@ vi.mock('@/lib/session', () => ({ getSession: vi.fn(async () => h.session.curren
 vi.mock('@/lib/notify', () => ({ createNotification: vi.fn(async () => true) }))
 vi.mock('@/lib/audit', () => ({ writeAudit: vi.fn() }))
 vi.mock('@/lib/email', () => ({ sendBroadcastEmail: vi.fn(async () => {}), recordEmailFailure: vi.fn(async () => {}) }))
-vi.mock('@/lib/rateLimit', () => ({ claimOnce: vi.fn(async () => true), releaseClaim: vi.fn(async () => {}) }))
+vi.mock('@/lib/rateLimit', () => ({ claimOnce: vi.fn(async () => true), releaseClaim: vi.fn(async () => {}), rateLimit: vi.fn(async () => true) }))
 vi.mock('@/lib/stepUp', () => ({ requireStepUp: vi.fn(() => null) }))
 vi.mock('@/lib/communityStats', () => ({ getCommunityStats: vi.fn(async () => ({ members: 0, events: 0, clubs: 0 })) }))
 // data/*.json is served from h.files; every other path (the source pins

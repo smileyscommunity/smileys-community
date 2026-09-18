@@ -2,6 +2,7 @@ import { canManageClubs } from '@/lib/access'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { writeAudit } from '@/lib/audit'
 import { COUNTED_CLUB_MEMBERSHIP_WHERE } from '@/lib/clubMemberCount'
 
 // POST /api/admin/clubs/[id]/recount
@@ -43,6 +44,8 @@ export async function POST(_: NextRequest, { params }: Params) {
     }
 
     await prisma.club.update({ where: { id }, data: { memberCount: trueCount } })
+    writeAudit(session.id, session.name, 'club.recount', id, 'club',
+      { memberCount: trueCount, drift }, `Recounted club members: ${trueCount} (was off by ${drift})`)
     return NextResponse.json({ memberCount: trueCount, drift })
   } catch (e) {
     console.error(e)

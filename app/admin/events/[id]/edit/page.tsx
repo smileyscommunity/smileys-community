@@ -21,6 +21,7 @@ import { phonePlaceholder, dialCode } from '@/lib/country'
 import { clampOccurrences, seriesOutcomeMessage, MIN_SERIES_COPIES, MAX_SERIES_COPIES, type SeriesFailure } from '@/lib/seriesCreate'
 import { clubOptionLabel } from '@/lib/clubLabel'
 import VenuePicker, { type LinkedVenue, type PickedVenue } from '@/components/VenuePicker'
+import { seriesDates } from '@/lib/seriesDates'
 const inputCls = 'bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none px-3 py-2.5 w-full text-sm'
 
 const emptyForm = {
@@ -421,19 +422,13 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
 
   function buildSpawnDates(): string[] {
     if (!form.date) return []
-    const days = repeat === 'weekly' ? 7 : repeat === 'biweekly' ? 14 : 0
-    const dates: string[] = []
-    const base = new Date(form.date)
     // Clamped like the new-event page: the input's max is only advisory, so
-    // a typed 500 used to spawn 500 events.
-    for (let i = 1; i <= clampOccurrences(occurrences, MIN_SERIES_COPIES, MAX_SERIES_COPIES); i++) {
-      const d = new Date(base)
-      if (repeat === 'monthly') d.setMonth(d.getMonth() + i)
-      else d.setDate(d.getDate() + days * i)
-      dates.push(d.toISOString().split('T')[0])
-    }
-    return dates
+    // a typed 500 used to spawn 500 events. Day-string maths (lib/seriesDates):
+    // Date#setMonth made 31 January + 1 month into 3 March.
+    const copies = clampOccurrences(occurrences, MIN_SERIES_COPIES, MAX_SERIES_COPIES)
+    return seriesDates(form.date, repeat, copies + 1).slice(1)
   }
+
 
   async function handleSpawn() {
     const dates = buildSpawnDates(); if (!dates.length) return

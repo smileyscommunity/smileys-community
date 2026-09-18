@@ -2,15 +2,17 @@
 
 import { toast } from 'sonner'
 import { toastApiError } from '@/lib/apiError'
+import { confirmToast } from '@/lib/confirmToast'
 
 import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
-import { DEFAULT_CURRENCY, formatMoney, currencySymbol, firstNameOf} from '@/lib/data'
+import { formatMoney, currencySymbol, firstNameOf, whatsappUrl } from '@/lib/data'
 import { phonePlaceholder, dialCode } from '@/lib/country'
 import { todayInTz, formatDay, DEFAULT_TZ } from '@/lib/cityTime'
+import { Attendance, AttendeeStatus } from '@/lib/constants'
 
 interface AttendedEvent {
   id: string
@@ -18,6 +20,8 @@ interface AttendedEvent {
   date: string
   neighborhood: string
   price: number
+  // The event's own currency — a Tbilisi event's price is lari, whoever looks.
+  currency?: string | null
   emoji: string
   // The event's CITY clock decides whether it has happened yet.
   city?: { timezone: string } | null
@@ -28,6 +32,30 @@ interface AttendedEvent {
 // used to label tonight's RSVPs "No Show" all day).
 function isPastEventDay(ev: AttendedEvent): boolean {
   return ev.date < todayInTz(ev.city?.timezone ?? DEFAULT_TZ)
+}
+
+interface JoinedEvent {
+  event: AttendedEvent
+  joinedAt: string
+  checkedIn: boolean
+  status: string
+  // The settled outcome (lib/constants Attendance). A no-show is an approved
+  // RSVP settled as 'no_show' — the same rows the users list counts — not
+  // "past and not scanned", which also caught excused seats, seats the
+  // close-out marked attended, and requests the host never approved.
+  attendance: string
+}
+
+// One outcome label per row, in the order the facts outrank each other.
+function attendanceLabel(je: JoinedEvent): { text: string; cls: string } {
+  if (je.checkedIn)                                  return { text: 'Checked In ✓', cls: 'text-green-500' }
+  if (je.status === AttendeeStatus.Approved && je.attendance === Attendance.NoShow)
+                                                     return { text: 'No Show',      cls: 'text-red-500' }
+  if (je.attendance === Attendance.Excused)          return { text: 'Excused',      cls: 'text-zinc-400' }
+  if (je.attendance === Attendance.Attended)         return { text: 'Attended',     cls: 'text-green-500' }
+  if (!isPastEventDay(je.event))                     return { text: 'Upcoming',     cls: 'text-zinc-600' }
+  if (je.status !== AttendeeStatus.Approved)         return { text: 'Not approved', cls: 'text-zinc-600' }
+  return { text: 'Unmarked', cls: 'text-zinc-500' }
 }
 
 interface AdminNote {
@@ -57,8 +85,19 @@ interface UserDetail {
   status: string
   membershipType: string
   warningCount: number
+  partnerId: string | null
+  industry: string | null
+  professionalRole: string | null
+  professionalStatus: string | null
+  suspendedUntil: string | null
+  suspensionNote: string | null
+  // Has the member set a password (activated)? Decides which link a resend
+  // sends: activation for the never-activated, verification otherwise.
+  hasPassword: boolean
+  // Paid payments per currency; null for moderators (payments are admin-only).
+  paidTotals: { currency: string; amount: number }[] | null
   adminNotes: AdminNote[]
-  joinedEvents: { event: AttendedEvent; joinedAt: string; checkedIn: boolean; status: string }[]
+  joinedEvents: JoinedEvent[]
   // Aggregate host quality — surfaces only when the user has hosted
   // at least one event. wouldReturnRate stays null when the events
   // exist but no surveys have responded yet.
@@ -107,8 +146,36 @@ const PROFESSIONAL_STATUS_OPTIONS = [
   { id: 'social_only',        label: '🥨 Social only'        },
 ]
 
+type ProfileForm = {
+  email: string; phone: string; nationality: string; neighborhood: string; instagram: string
+  languages: string; interests: string; bio: string; partnerId: string
+  industry: string; professionalRole: string; professionalStatus: string
+}
+
+const EMPTY_FORM: ProfileForm = {
+  email: '', phone: '', nationality: '', neighborhood: '', instagram: '',
+  languages: '', interests: '', bio: '', partnerId: '',
+  industry: '', professionalRole: '', professionalStatus: '',
+}
+
+function formFromUser(d: Partial<Record<keyof ProfileForm, unknown>>): ProfileForm {
+  const str  = (v: unknown) => typeof v === 'string' ? v : ''
+  const list = (v: unknown) => (Array.isArray(v) ? v : []).join(', ')
+  return {
+    email: str(d.email), phone: str(d.phone), nationality: str(d.nationality),
+    neighborhood: str(d.neighborhood), instagram: str(d.instagram),
+    languages: list(d.languages), interests: list(d.interests), bio: str(d.bio),
+    partnerId: str(d.partnerId), industry: str(d.industry),
+    professionalRole: str(d.professionalRole), professionalStatus: str(d.professionalStatus),
+  }
+}
+
+const splitList = (v: string) => v.split(',').map(s => s.trim()).filter(Boolean)
+
+const isSuspendedNow = (u: { suspendedUntil: string | null }) =>
+  !!u.suspendedUntil && new Date(u.suspendedUntil).getTime() > Date.now()
+
 export default function UserProfilePage({ params }: { params: Promise<{ id: string }> }) {
-  const cur = useCurrentCity()?.currency ?? DEFAULT_CURRENCY
   const country = useCurrentCity()?.country
   const { id } = use(params)
   const router  = useRouter()
@@ -151,20 +218,9 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
       .then(d => {
         if (!d) { setUser(null); return }
         setUser(d)
-        setProfileForm({
-          email: d.email || '',
-          phone: d.phone || '',
-          nationality: d.nationality || '',
-          neighborhood: d.neighborhood || '',
-          instagram: d.instagram || '',
-          languages: (Array.isArray(d.languages) ? d.languages : []).join(', '),
-          interests: (Array.isArray(d.interests) ? d.interests : []).join(', '),
-          bio: d.bio || '',
-          partnerId: d.partnerId || '',
-          industry: d.industry || '',
-          professionalRole: d.professionalRole || '',
-          professionalStatus: d.professionalStatus || '',
-        })
+        const form = formFromUser(d)
+        setProfileForm(form)
+        setProfileBaseline(form)
       })
       .catch(() => toast.error('Network error — could not load this member'))
       .finally(() => setLoading(false))
@@ -231,7 +287,9 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
       toast.success('User removed')
       router.push('/admin/users')
     } else {
-      toast.error('Failed to remove')
+      // The reason matters here (step-up required, no admin left to inherit
+      // their posts) — a bare "Failed to remove" hid it.
+      await toastApiError(res, 'Failed to remove')
       setRemoving(false)
     }
   }
@@ -256,17 +314,45 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
         toast.success(`User suspended for ${hours} hours`)
         setSuspendConfirm(false)
         setSuspendReason('')
-        // Reload user to show updated status if UI supports it
-        window.location.reload()
+        setUser(u => u ? { ...u, suspendedUntil: until.toISOString(), suspensionNote: suspendReason } : null)
       } else {
-        const d = await res.json()
-        toast.error(d.error || 'Failed to suspend')
+        await toastApiError(res, 'Failed to suspend')
       }
     } catch {
       toast.error('Network error')
     } finally {
       setSuspending(false)
     }
+  }
+
+  const liftSuspension = async () => {
+    if (!(await confirmToast('Lift this suspension? They can sign in again straight away.'))) return
+    const res = await fetch(`/app/api/admin/users/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ suspendedUntil: null, suspensionNote: null }),
+    })
+    if (res.ok) {
+      setUser(u => u ? { ...u, suspendedUntil: null, suspensionNote: null } : null)
+      toast.success('Suspension lifted')
+    } else {
+      await toastApiError(res, 'Could not lift the suspension')
+    }
+  }
+
+  // A never-activated member (no password) is who shows "Unverified", and
+  // the public resend-verification route answers them with a silent ok and
+  // no email. They need the activation link the users list resends.
+  const resendLink = async () => {
+    if (!user) return
+    const res = user.hasPassword
+      ? await fetch('/app/api/auth/resend-verification', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: user.email }),
+        })
+      : await fetch(`/app/api/admin/users/${id}/resend-approval`, { method: 'POST' })
+    if (res.ok) toast.success(user.hasPassword ? 'Verification email sent ✓' : 'Activation email sent ✓')
+    else await toastApiError(res, 'Could not send the email')
   }
 
   const changeRole = async (role: string) => {
@@ -312,11 +398,11 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
     }
   }
 
-  const [profileForm,   setProfileForm]   = useState({
-    email: '', phone: '', nationality: '', neighborhood: '', instagram: '',
-    languages: '', interests: '', bio: '', partnerId: '',
-    industry: '', professionalRole: '', professionalStatus: '',
-  })
+  const [profileForm,     setProfileForm]     = useState<ProfileForm>(EMPTY_FORM)
+  // The form as loaded (or last saved). A save sends only what differs from
+  // it: re-sending everything wrote partnerId: null over a partner the form
+  // never loaded, and re-validated a legacy neighborhood nobody touched.
+  const [profileBaseline, setProfileBaseline] = useState<ProfileForm>(EMPTY_FORM)
   const [partners,      setPartners]      = useState<{ id: string; name: string }[]>([])
 
   useEffect(() => {
@@ -324,25 +410,34 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
   }, [])
 
   const handleSaveProfile = async () => {
+    const changed = (Object.keys(profileForm) as (keyof ProfileForm)[]).filter(k => profileForm[k] !== profileBaseline[k])
+    if (changed.length === 0) { toast('Nothing to save'); return }
+    const body: Record<string, unknown> = {}
+    for (const k of changed) {
+      if (k === 'languages' || k === 'interests') body[k] = splitList(profileForm[k])
+      else if (k === 'partnerId') body[k] = profileForm.partnerId || null
+      else body[k] = profileForm[k]
+    }
     setSavingProfile(true)
     try {
       const res = await fetch(`/app/api/admin/users/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...profileForm,
-          languages: profileForm.languages.split(',').map((s: string) => s.trim()).filter(Boolean),
-          interests: profileForm.interests.split(',').map((s: string) => s.trim()).filter(Boolean),
-          partnerId: profileForm.partnerId || null,
-        }),
+        body: JSON.stringify(body),
       })
       if (res.ok) {
         toast.success('Profile updated')
-        const updated = await res.json()
-        setUser(updated)
+        // The response is the saved profile fields (normalised name,
+        // neighborhood…), not the page's whole record: merge it in. Replacing
+        // the state with it dropped joinedEvents and crashed the page.
+        const updated = await res.json().catch(() => null) as Partial<UserDetail> | null
+        const saved = updated && typeof updated === 'object' && !('error' in updated) ? updated : body as Partial<UserDetail>
+        setUser(u => u ? { ...u, ...saved } : null)
+        const form = formFromUser({ ...profileForm, ...saved })
+        setProfileForm(form)
+        setProfileBaseline(form)
       } else {
-        const d = await res.json()
-        toast.error(d.error || 'Failed to update')
+        await toastApiError(res, 'Failed to update')
       }
     } catch {
       toast.error('Network error')
@@ -362,11 +457,19 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
   }
 
   const attendedEvents = user.joinedEvents
-  const totalSpent     = attendedEvents.reduce((sum, je) => sum + (je.event.price ?? 0), 0)
-  const pastJoined     = attendedEvents.filter(je => isPastEventDay(je.event))
-  const checkedInCount = pastJoined.filter(je => je.checkedIn).length
-  const noShowCount    = pastJoined.filter(je => !je.checkedIn).length
-  const noShowRate     = pastJoined.length > 0 ? Math.round((noShowCount / pastJoined.length) * 100) : 0
+  // Only seats the member actually held count: a pending request that was
+  // never approved is neither an attendance nor a no-show.
+  const approvedJoined = attendedEvents.filter(je => je.status === AttendeeStatus.Approved)
+  const checkedInCount = approvedJoined.filter(je => je.checkedIn).length
+  const noShowCount    = approvedJoined.filter(je => je.attendance === Attendance.NoShow).length
+  // The rate is over settled seats — unmarked and excused ones are not a
+  // verdict either way.
+  const settledCount   = approvedJoined.filter(je => je.checkedIn || je.attendance === Attendance.Attended || je.attendance === Attendance.NoShow).length
+  const noShowRate     = settledCount > 0 ? Math.round((noShowCount / settledCount) * 100) : 0
+  const suspended      = isSuspendedNow(user)
+  // Same wa.me builder as the users list: the old inline strip-non-digits
+  // version sent Turkish local numbers (05…) to a non-existent country code.
+  const waBase         = whatsappUrl(user.phone, user.nationality)
   const daysSinceJoin  = user.joinedAt
     ? Math.floor((Date.now() - new Date(user.joinedAt).getTime()) / 86400000)
     : null
@@ -401,27 +504,28 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
               <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${roleBadge[user.role] ?? roleBadge.member}`}>{user.role}</span>
               <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${statusBadge[user.status] ?? statusBadge.approved}`}>{user.status}</span>
               <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${membershipBadge[user.membershipType] ?? membershipBadge.free}`}>{user.membershipType}</span>
+              {suspended && (
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-orange-500/10 text-orange-400" title={user.suspensionNote ?? undefined}>
+                  Suspended until {new Date(user.suspendedUntil!).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}
+                </span>
+              )}
               {!user.emailVerified && (
                 <>
-                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-500/10 text-red-400">Unverified</span>
-                  <button
-                    onClick={async () => {
-                      const res = await fetch('/app/api/auth/resend-verification', {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ email: user.email }),
-                      })
-                      if (res.ok) toast.success('Verification email sent ✓')
-                      else toast.error('Failed to send')
-                    }}
-                    className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 transition-colors border border-amber-500/20"
-                  >
-                    Resend verification
-                  </button>
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-500/10 text-red-400">{user.hasPassword ? 'Unverified' : 'Not activated'}</span>
+                  {/* Both sends are admin actions (resend-approval is admin-only). */}
+                  {isAdmin && (
+                    <button
+                      onClick={resendLink}
+                      className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 transition-colors border border-amber-500/20"
+                    >
+                      {user.hasPassword ? 'Resend verification' : 'Resend activation'}
+                    </button>
+                  )}
                 </>
               )}
             </div>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
-              {user.phone && (
+              {waBase && (
                 <button onClick={() => setWaModal(true)} className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/20 transition-colors">
                   <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
                   WhatsApp
@@ -444,7 +548,12 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
               Warn
             </button>
           )}
-          {isAdmin && user.status !== 'banned' && user.role !== 'admin' && (
+          {isAdmin && suspended && (
+            <button onClick={liftSuspension} className="text-xs px-3 py-1.5 rounded-xl bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/20 font-semibold transition-colors">
+              Lift suspension
+            </button>
+          )}
+          {isAdmin && !suspended && user.status !== 'banned' && user.role !== 'admin' && (
             <button onClick={() => setSuspendConfirm(true)} className="text-xs px-3 py-1.5 rounded-xl bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 border border-violet-500/20 font-semibold transition-colors">
               Suspend
             </button>
@@ -483,16 +592,23 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
               </div>
               <div className="bg-zinc-800/50 rounded-xl p-3">
                 <p className="text-[10px] font-bold text-zinc-500 uppercase">No shows</p>
+                {/* Settled no-shows (attendance = no_show), as on the users list. */}
                 <p className="text-xl font-black text-white">{noShowCount}</p>
                 {noShowRate > 0 && <p className={`text-[10px] font-bold mt-0.5 ${noShowRate > 30 ? 'text-red-500' : 'text-zinc-500'}`}>{noShowRate}% rate</p>}
               </div>
               <div className="bg-zinc-800/50 rounded-xl p-3">
-                <p className="text-[10px] font-bold text-zinc-500 uppercase">Total spent</p>
-                <p className="text-xl font-black text-white">{formatMoney(totalSpent, cur)}</p>
+                <p className="text-[10px] font-bold text-zinc-500 uppercase">Paid</p>
+                {/* Paid payments only, one line per currency — never list
+                    prices of RSVPs added up under the viewer's currency. */}
+                {user.paidTotals && user.paidTotals.length > 0
+                  ? user.paidTotals.map(t => (
+                      <p key={t.currency} className="text-xl font-black text-white">{formatMoney(t.amount, t.currency)}</p>
+                    ))
+                  : <p className="text-xl font-black text-zinc-600">—</p>}
               </div>
             </div>
 
-            {user.status === 'banned' && (
+            {user.status === 'banned' && !user.email.endsWith('@deleted.smileys') && (
               <button onClick={() => changeStatus('approved')} className="w-full py-2.5 rounded-xl bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/20 font-bold text-xs transition-colors mt-2">
                 Unban user
               </button>
@@ -535,7 +651,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
           </div>
 
           {/* Direct WhatsApp Message — Quick template */}
-          {user.phone && (
+          {waBase && (
             <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5">
               <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-3 flex items-center gap-2">
                 <svg className="w-4 h-4 text-green-500" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
@@ -546,22 +662,22 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                 <button
                   onClick={() => {
                     const text = encodeURIComponent(`Hi ${firstNameOf(user.name)}, this is Smileys Community. We're reaching out regarding your membership.`)
-                    window.open(`https://wa.me/${user.phone!.replace(/\D/g, '')}?text=${text}`, '_blank', 'noopener,noreferrer')
+                    window.open(`${waBase}?text=${text}`, '_blank', 'noopener,noreferrer')
                   }}
                   className="w-full text-left p-2 rounded-lg bg-zinc-800 border border-zinc-700 hover:border-zinc-500 transition-colors text-xs text-zinc-300"
                 >
                   <span className="font-bold block text-zinc-500 mb-0.5 uppercase text-[9px]">General inquiry</span>
-                  "Hi ${firstNameOf(user.name)}, this is Smileys..."
+                  "Hi {firstNameOf(user.name)}, this is Smileys..."
                 </button>
                 <button
                   onClick={() => {
                     const text = encodeURIComponent(`Hi ${firstNameOf(user.name)}, we noticed you missed the event today. Is everything okay? We hope to see you next time!`)
-                    window.open(`https://wa.me/${user.phone!.replace(/\D/g, '')}?text=${text}`, '_blank', 'noopener,noreferrer')
+                    window.open(`${waBase}?text=${text}`, '_blank', 'noopener,noreferrer')
                   }}
                   className="w-full text-left p-2 rounded-lg bg-zinc-800 border border-zinc-700 hover:border-zinc-500 transition-colors text-xs text-zinc-300"
                 >
                   <span className="font-bold block text-zinc-500 mb-0.5 uppercase text-[9px]">No-show follow up</span>
-                  "Hi ${firstNameOf(user.name)}, we noticed you missed..."
+                  "Hi {firstNameOf(user.name)}, we noticed you missed..."
                 </button>
               </div>
             </div>
@@ -691,7 +807,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                         <span className="text-base shrink-0">{ev.emoji}</span>
                         <p className="text-xs font-bold text-white truncate">{ev.title}</p>
                       </div>
-                      <span className="text-[9px] font-bold text-zinc-600 uppercase shrink-0">{new Date(ev.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</span>
+                      <span className="text-[9px] font-bold text-zinc-600 uppercase shrink-0">{formatDay(ev.date, { day: '2-digit', month: 'short' })}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1">
@@ -772,14 +888,10 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                       <p className="text-[10px] text-zinc-500 font-bold uppercase">{formatDay(je.event.date, { day: 'numeric', month: 'short', year: 'numeric' })} · {je.event.neighborhood}</p>
                     </div>
                     <div className="text-right shrink-0">
-                      {je.checkedIn ? (
-                        <span className="text-[10px] font-black text-green-500 uppercase tracking-tight">Checked In ✓</span>
-                      ) : (
-                        <span className={`text-[10px] font-black uppercase tracking-tight ${isPastEventDay(je.event) ? 'text-red-500' : 'text-zinc-600'}`}>
-                          {isPastEventDay(je.event) ? 'No Show' : 'Upcoming'}
-                        </span>
-                      )}
-                      <p className="text-[10px] font-bold text-zinc-600 uppercase mt-0.5">{formatMoney(je.event.price ?? 0, cur)}</p>
+                      {(() => { const l = attendanceLabel(je); return (
+                        <span className={`text-[10px] font-black uppercase tracking-tight ${l.cls}`}>{l.text}</span>
+                      ) })()}
+                      <p className="text-[10px] font-bold text-zinc-600 uppercase mt-0.5">{formatMoney(je.event.price ?? 0, je.event.currency)}</p>
                     </div>
                   </Link>
                 ))
@@ -890,7 +1002,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
               <button
                 onClick={() => {
                   const text = encodeURIComponent(waMessage)
-                  window.open(`https://wa.me/${user.phone!.replace(/\D/g, '')}?text=${text}`, '_blank', 'noopener,noreferrer')
+                  window.open(`${waBase}?text=${text}`, '_blank', 'noopener,noreferrer')
                   setWaModal(false)
                 }}
                 disabled={!waMessage.trim()}

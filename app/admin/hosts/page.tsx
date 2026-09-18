@@ -15,6 +15,7 @@ import { getInitials, firstNameOf} from '@/lib/data'
 import { useAdminLoad } from '@/lib/admin/useAdminLoad'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import { clubOptionLabel } from '@/lib/clubLabel'
+import { formatDay } from '@/lib/cityTime'
 
 interface Host {
   userId:         string
@@ -23,7 +24,8 @@ interface Host {
   eventCount:     number
   eventCount90d:  number
   totalAttendees: number
-  lastEventAt:    string | null
+  // 'YYYY-MM-DD' of the last event that happened (published or archived).
+  lastEventDate:  string | null
 }
 
 type ActivityFilter = 'all' | 'active' | 'inactive'
@@ -80,11 +82,9 @@ export default function AdminHostsPage() {
         sorted.sort((a, b) => b.totalAttendees - a.totalAttendees || tieBreaker(a, b))
         break
       case 'last': {
-        // Hosts with no events sink to the bottom (lastEventAt
-        // null → -Infinity). Most-recent first within those who
-        // have any.
-        const t = (h: Host) => h.lastEventAt ? new Date(h.lastEventAt).getTime() : -Infinity
-        sorted.sort((a, b) => t(b) - t(a) || tieBreaker(a, b))
+        // Hosts with no events sink to the bottom. Most-recent first
+        // within those who have any — bare days compare as strings.
+        sorted.sort((a, b) => (b.lastEventDate ?? '').localeCompare(a.lastEventDate ?? '') || tieBreaker(a, b))
         break
       }
       case 'name':
@@ -222,9 +222,9 @@ function HostCard({ host, onChanged }: { host: Host; onChanged: () => void }) {
           <span>📈 <strong className="text-white">{host.eventCount90d}</strong> in 90d</span>
           <span>👥 <strong className="text-white">{host.totalAttendees}</strong></span>
         </div>
-        {host.lastEventAt && (
+        {host.lastEventDate && (
           <p className="text-[10px] text-zinc-500 mt-0.5">
-            Last event: {new Date(host.lastEventAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+            Last event: {formatDay(host.lastEventDate, { day: 'numeric', month: 'short', year: 'numeric' })}
           </p>
         )}
 

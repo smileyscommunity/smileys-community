@@ -5,6 +5,7 @@ import { isAdmin } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
 
 const STATUSES = ['waitlisted', 'invited', 'converted', 'declined']
+const ROW_CAP  = 500
 
 // Admin view of the Smileys Pro waitlist. Sortable by createdAt asc
 // so admins outreach in order. Position is computed for each row so
@@ -13,16 +14,26 @@ export async function GET() {
   const session = await getSession()
   if (!session || !isAdmin(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const entries = await prisma.proWaitlistEntry.findMany({
-    orderBy: { createdAt: 'asc' },
-    take: 500,
-  })
+  // The row list is capped; the summary is counted, not derived from it.
+  // Counting the capped list reported "500 on the waitlist" for any list
+  // longer than that, and undercounted converted/invited the same way.
+  const [entries, total, converted, invited] = await Promise.all([
+    prisma.proWaitlistEntry.findMany({
+      orderBy: { createdAt: 'asc' },
+      take: ROW_CAP,
+    }),
+    prisma.proWaitlistEntry.count(),
+    prisma.proWaitlistEntry.count({ where: { status: 'converted' } }),
+    prisma.proWaitlistEntry.count({ where: { status: 'invited' } }),
+  ])
 
   const summary = {
-    total:      entries.length,
-    founders:   entries.slice(0, 100).length,
-    converted:  entries.filter(e => e.status === 'converted').length,
-    invited:    entries.filter(e => e.status === 'invited').length,
+    total,
+    founders:   Math.min(total, 100),
+    converted,
+    invited,
+    shown:      entries.length,
+    capped:     total > entries.length,
   }
 
   // Position is just index+1 since we ordered by createdAt asc.

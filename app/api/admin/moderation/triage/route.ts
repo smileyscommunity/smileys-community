@@ -38,7 +38,8 @@ export async function POST(req: NextRequest) {
     },
   })
 
-  if (!report) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  // Not for a report about the caller — the queue hides those from them.
+  if (!report || report.reportedId === session.id) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   // The moderation queue scopes moderators to reports about their own
   // city's members; this AI-triage route accepted any reportId and fed the

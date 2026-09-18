@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator } from '@/lib/access'
+import { isAdmin, isAdminOrModerator } from '@/lib/access'
+import { maskEmail, maskPhone } from '@/lib/admin/maskContact'
 import { writeAudit } from '@/lib/audit'
 import { convertDonationToPrize, DonationAlreadyPublishedError, type SponsorPayload, type PrizePayload } from '@/lib/cup-prize-conversion'
 
@@ -38,7 +39,8 @@ export async function GET(_: NextRequest, { params }: Params) {
     if (oa !== ob) return oa - ob
     return b.createdAt.getTime() - a.createdAt.getTime()
   })
-  return NextResponse.json({ donations })
+  // Donor contact details are an admin's, like every member's (lib/admin/maskContact).
+  return NextResponse.json({ donations: isAdmin(session) ? donations : donations.map(d => ({ ...d, donorEmail: maskEmail(d.donorEmail), donorPhone: maskPhone(d.donorPhone) })) })
 }
 
 export async function PATCH(req: NextRequest, { params }: Params) {

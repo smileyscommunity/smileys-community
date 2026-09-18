@@ -18,6 +18,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import { useAuth } from '@/contexts/AuthContext'
 import { confirmToast } from '@/lib/confirmToast'
 
 import {
@@ -308,6 +309,8 @@ function PrizeRow({ p, sponsors, onChanged }: {
   const [editing,  setEditing]  = useState(false)
   const [awarding, setAwarding] = useState(false)
   const [busy,     setBusy]     = useState(false)
+  // Awarding a prize is an admin's (api/admin/cup/prizes).
+  const canAward = useAuth().user.role === 'admin'
 
   async function destroy() {
     if (!(await confirmToast(`Delete prize "${p.title}"?`))) return
@@ -339,7 +342,7 @@ function PrizeRow({ p, sponsors, onChanged }: {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: p.id, awardedToUserId: null, status: 'active' }),
       })
-      if (!res.ok) { toast.error('Update failed'); return }
+      if (!res.ok) { toast.error((await res.json().catch(() => ({})))?.error ?? 'Update failed'); return }
       toast.success('Award removed')
       onChanged()
     } catch {
@@ -376,11 +379,11 @@ function PrizeRow({ p, sponsors, onChanged }: {
           <div className="flex flex-col gap-1 shrink-0">
             <button onClick={() => setEditing(true)} disabled={busy}
               className="text-[10px] px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold">Edit</button>
-            {p.awardedTo
+            {canAward && (p.awardedTo
               ? <button onClick={unaward} disabled={busy}
                   className="text-[10px] px-2 py-1 rounded bg-zinc-800 hover:bg-amber-500/15 hover:text-amber-400 text-zinc-500 font-semibold">Unaward</button>
               : <button onClick={() => setAwarding(true)} disabled={busy}
-                  className="text-[10px] px-2 py-1 rounded bg-emerald-500/10 hover:bg-emerald-500/25 text-emerald-400 font-semibold">Award →</button>}
+                  className="text-[10px] px-2 py-1 rounded bg-emerald-500/10 hover:bg-emerald-500/25 text-emerald-400 font-semibold">Award →</button>)}
             <button onClick={destroy} disabled={busy}
               className="text-[10px] px-2 py-1 rounded bg-zinc-800 hover:bg-red-500/15 hover:text-red-400 text-zinc-500 font-semibold">Delete</button>
           </div>
@@ -533,7 +536,7 @@ function AwardForm({ prize, onSaved, onCancel }: {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: prize.id, awardedToUserId: userId, status: 'awarded' }),
       })
-      if (!res.ok) { toast.error('Award failed'); return }
+      if (!res.ok) { toast.error((await res.json().catch(() => ({})))?.error ?? 'Award failed'); return }
       toast.success(`Awarded to ${userName}`)
       onSaved()
     } catch {

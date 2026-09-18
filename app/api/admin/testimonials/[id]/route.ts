@@ -59,6 +59,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     where: { id }, data,
     include: { city: { select: { id: true, name: true } } },
   })
+  writeAudit(session.id, session.name, 'testimonial.update', id, 'testimonial',
+    { cityId: item.cityId, fields: Object.keys(data) }, `Edited the quote from ${item.memberName}`)
   return NextResponse.json(item)
 }
 

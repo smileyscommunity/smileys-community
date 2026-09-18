@@ -20,6 +20,7 @@ import { countryName } from '@/lib/country'
 import { geocodeFailureMessage } from '@/lib/geocodeError'
 import { clampOccurrences, seriesOutcomeMessage, MIN_SERIES_COPIES, MAX_SERIES_COPIES, type SeriesFailure } from '@/lib/seriesCreate'
 import VenuePicker, { type LinkedVenue, type PickedVenue } from '@/components/VenuePicker'
+import { seriesDates } from '@/lib/seriesDates'
 const inputCls = 'w-full px-4 py-2.5 rounded-xl border border-zinc-700 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500 bg-zinc-800 placeholder-zinc-500'
 
 const emptyForm = {
@@ -374,22 +375,13 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
 
   function buildSpawnDates(): string[] {
     if (!form.date) return []
-    const days = repeat === 'weekly' ? 7 : repeat === 'biweekly' ? 14 : 0
-    const dates: string[] = []
-    // Pure-UTC calendar math — see buildDates in ../new/page.tsx: local
-    // setDate() shifted a series day across a DST boundary in the host's
-    // browser timezone.
-    const base = new Date(form.date + 'T00:00:00Z')
     // Clamped like the new-event page: the input's max is only advisory, so
-    // a typed 500 used to spawn 500 events.
-    for (let i = 1; i <= clampOccurrences(occurrences, MIN_SERIES_COPIES, MAX_SERIES_COPIES); i++) {
-      const d = new Date(base)
-      if (repeat === 'monthly') d.setUTCMonth(d.getUTCMonth() + i)
-      else d.setUTCDate(d.getUTCDate() + days * i)
-      dates.push(d.toISOString().split('T')[0])
-    }
-    return dates
+    // a typed 500 used to spawn 500 events. Day-string maths (lib/seriesDates):
+    // setUTCMonth made 31 January + 1 month into 3 March.
+    const copies = clampOccurrences(occurrences, MIN_SERIES_COPIES, MAX_SERIES_COPIES)
+    return seriesDates(form.date, repeat, copies + 1).slice(1)
   }
+
 
   async function handleSpawn() {
     const dates = buildSpawnDates(); if (!dates.length) return

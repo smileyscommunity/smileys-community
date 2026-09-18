@@ -41,6 +41,12 @@ vi.mock('@/lib/session',       () => ({ getSession: h.getSession }))
 vi.mock('@/lib/access',        () => ({ canViewAnalytics: () => true }))
 vi.mock('@/lib/city',          () => ({ getCityTz: vi.fn(async () => 'Europe/Istanbul'), DEFAULT_CITY_SLUG: 'default-city', getDefaultCityId: vi.fn(), resolveCityId: vi.fn() }))
 vi.mock('@/lib/cronHealth',    () => ({ listStaleSweepers: vi.fn(async () => []) }))
+// The Reports pill's filter is lib/admin/reportScope's (tests/reportScope);
+// here only that the route asks it about the dashboard's city.
+vi.mock('@/lib/admin/reportScope', () => ({
+  reportQueueWhere: vi.fn(async (_s: unknown, o?: { cityId?: string | null }) =>
+    o?.cityId ? { reported: { is: { cityId: o.cityId } } } : {}),
+}))
 vi.mock('@/lib/memberPrivacy', () => ({ restrictedSetFor: vi.fn(async () => new Set()) }))
 vi.mock('@/lib/rateLimit',     () => ({ rateLimit: vi.fn(async () => true), getIp: () => '1.2.3.4' }))
 vi.mock('next/cache',          () => ({ unstable_cache: (f: unknown) => f, revalidateTag: vi.fn(), revalidatePath: vi.fn() }))

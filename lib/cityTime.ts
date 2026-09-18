@@ -25,7 +25,7 @@ export const DEFAULT_TZ = 'Europe/Istanbul'
 // feed of that city until someone fixes the row. Degrade to the default
 // zone instead. Memoized: this sits on every city-scoped request.
 const tzFallbacks = new Map<string, string>()
-function safeTz(tz: string): string {
+export function safeTz(tz: string): string {
   let resolved = tzFallbacks.get(tz)
   if (resolved === undefined) {
     try { new Intl.DateTimeFormat('en-US', { timeZone: tz }); resolved = tz }

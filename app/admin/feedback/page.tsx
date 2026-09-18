@@ -5,6 +5,10 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import { loadFailure } from '@/lib/admin/useAdminLoad'
+// Event dates are bare days: formatDay renders the day itself, where
+// new Date('YYYY-MM-DD') read it as UTC midnight and showed the day before
+// west of Greenwich.
+import { formatDay } from '@/lib/cityTime'
 
 // Post-event survey dashboard. Lives in the Events section of the
 // sidebar — surveys are per-event feedback, not moderation actions.
@@ -421,7 +425,7 @@ function ResponseRow({ r }: { r: SurveyResponse }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-semibold text-white truncate">{r.event.title}</span>
-          <span className="text-[10px] text-zinc-600">{new Date(r.event.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
+          <span className="text-[10px] text-zinc-600">{formatDay(r.event.date, { day: 'numeric', month: 'short' })}</span>
         </div>
         {r.anomaly && r.anomalyNote && (
           <p className="text-xs text-zinc-300 mt-1 italic leading-snug">"{r.anomalyNote}"</p>
@@ -464,7 +468,7 @@ function EventAggRow({ row }: { row: EventAggregate }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-semibold text-white truncate">{r.event.title}</span>
-          <span className="text-[10px] text-zinc-600">{new Date(r.event.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+          <span className="text-[10px] text-zinc-600">{formatDay(r.event.date, { day: 'numeric', month: 'short', year: 'numeric' })}</span>
         </div>
         {/* Response rate sits right next to the response count — same
             line gives admins instant context for "trust the signal?"

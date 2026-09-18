@@ -30,7 +30,7 @@ describe('1. a failed send-now edit no longer strands the draft', () => {
   const page = read('app/admin/newsletter/page.tsx')
   it('the API checks recipients before retiring the original', () => {
     expect(api.indexOf('const recipients = await prisma.user.findMany(')).toBeLessThan(
-      api.indexOf("const gone = await prisma.newsletter.deleteMany({ where: { id: replacesId, status: 'scheduled' } })"))
+      api.lastIndexOf("const gone = await tx.newsletter.deleteMany({ where: { id: replacesId, status: 'scheduled' } })"))
   })
   it('every failure after the retire tells the page the original is gone', () => {
     expect(api.match(/originalRetired \}, \{ status: 502 \}\)/g)?.length).toBe(2)

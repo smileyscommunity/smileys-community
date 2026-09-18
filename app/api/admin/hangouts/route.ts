@@ -41,22 +41,36 @@ export async function GET(req: NextRequest) {
     } : {}),
   }
 
-  const [hangouts, total] = await Promise.all([
-    prisma.hangout.findMany({
-      where,
-      // Soonest-starting first so the live/upcoming ones an admin is most
-      // likely to act on sit at the top; past ones fall to the bottom.
-      orderBy: { startsAt: 'desc' },
-      skip: offset,
-      take,
-      include: {
-        user:   { select: { id: true, name: true, email: true, color: true } },
-        city:   { select: { name: true, slug: true } },
-        _count: { select: { joins: true, messages: true } },
-      },
-    }),
-    prisma.hangout.count({ where }),
+  // Live and upcoming first, soonest start at the top — the ones an admin is
+  // most likely to act on — then past ones, most recent first. Two ordered
+  // reads stitched at the boundary, since one orderBy can't sort the two
+  // halves in opposite directions; offset paging runs across the join. The
+  // single orderBy here used to be newest-start-first, which put next week's
+  // plan above the one starting in ten minutes.
+  const now = new Date()
+  const liveWhere = { ...where, endsAt: { gte: now } }
+  const pastWhere = { ...where, endsAt: { lt: now } }
+  const include = {
+    user:   { select: { id: true, name: true, email: true, color: true } },
+    city:   { select: { name: true, slug: true } },
+    _count: { select: { joins: true, messages: true } },
+  }
+  const [liveTotal, pastTotal] = await Promise.all([
+    prisma.hangout.count({ where: liveWhere }),
+    prisma.hangout.count({ where: pastWhere }),
   ])
+  const total    = liveTotal + pastTotal
+  const liveTake = Math.max(Math.min(take, liveTotal - offset), 0)
+  const pastSkip = Math.max(offset - liveTotal, 0)
+  const [live, past] = await Promise.all([
+    liveTake > 0
+      ? prisma.hangout.findMany({ where: liveWhere, orderBy: { startsAt: 'asc' }, skip: offset, take: liveTake, include })
+      : [],
+    take - liveTake > 0
+      ? prisma.hangout.findMany({ where: pastWhere, orderBy: { startsAt: 'desc' }, skip: pastSkip, take: take - liveTake, include })
+      : [],
+  ])
+  const hangouts = [...live, ...past]
 
   // Moderators don't get raw member emails elsewhere (the users list masks
   // them); keep that consistent here rather than leaking them through the

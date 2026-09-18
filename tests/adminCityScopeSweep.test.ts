@@ -110,9 +110,9 @@ describe('lists a moderator can reach are pinned to their city', () => {
     asAdmin(); await clubsGET(req('http://x/a?city=global'))
     expect(last('club.findMany').where).toEqual({ cityId: null })
   })
-  it('posts and testimonials — own city plus global', async () => {
+  it('posts: own city only (network-wide articles are an admin\'s); testimonials: own city plus global', async () => {
     asModerator(); await postsGET()
-    expect(last('post.findMany').where).toEqual({ OR: [{ cityId: BODRUM }, { cityId: null }] })
+    expect(last('post.findMany').where).toEqual({ cityId: BODRUM })
     await testimonialsGET()
     expect(last('testimonial.findMany').where).toEqual({ OR: [{ cityId: BODRUM }, { cityId: null }] })
   })

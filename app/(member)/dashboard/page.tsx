@@ -417,10 +417,11 @@ export default async function DashboardPage() {
       : Promise.resolve([]),
     // Member spotlight user profile
     spotlightData?.userId
+      // A live member only: a spotlight outlived the member's ban or hiding.
       ? prisma.user.findUnique({
           where:  { id: spotlightData.userId },
-          select: { id: true, name: true, color: true, profilePhoto: true, neighborhood: true },
-        })
+          select: { id: true, name: true, color: true, profilePhoto: true, neighborhood: true, status: true, hiddenFromMembers: true },
+        }).then(u => (u && u.status === 'approved' && !u.hiddenFromMembers ? u : null))
       : Promise.resolve(null),
     // Active community poll with user's vote
     prisma.communityPoll.findFirst({

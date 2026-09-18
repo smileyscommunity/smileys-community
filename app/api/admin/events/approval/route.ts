@@ -22,10 +22,16 @@ export async function GET() {
     const cityFilter = isAdmin(session) ? {} : { cityId: failClosedCityId(session) }
 
     const events = await prisma.event.findMany({
-      // A cancelled or archived event isn't waiting for review: offered here,
-      // "Approve" published it again and announced it to the club.
-      where: { approvalRequired: true, status: { notIn: ['cancelled', 'archived'] }, ...cityFilter },
-      orderBy: { createdAt: 'desc' },
+      // The queue is events waiting for review: status 'pending', which is
+      // what event creation sets when a member hosts or a free event is
+      // scheduled too far out (app/api/admin/events POST). It used to select
+      // approvalRequired — "the host approves each RSVP", a per-event setting
+      // that has nothing to do with review — so it listed live events with a
+      // Flag button and left the actually-pending ones out.
+      // Soonest first: an event two days out needs a decision before one
+      // next month.
+      where: { status: 'pending', ...cityFilter },
+      orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
       take: 100,
       select: {
         id: true, title: true, description: true, date: true, time: true,

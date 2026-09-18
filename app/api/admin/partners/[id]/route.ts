@@ -94,6 +94,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   // Nothing differs: answer with the row rather than issue an empty UPDATE.
   if (Object.keys(data).length === 0) return NextResponse.json(current)
   const partner = await prisma.partner.update({ where: { id }, data })
+  writeAudit(session.id, session.name, 'partner.update', id, 'partner',
+    { cityId: current.cityId, fields: Object.keys(data) }, `Edited partner "${partner.name}" (${Object.keys(data).join(', ')})`)
   return NextResponse.json(partner)
 }
 

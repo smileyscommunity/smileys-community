@@ -2,25 +2,35 @@ import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { canManageUsers } from '@/lib/access'
+import { isAdminOrModerator } from '@/lib/access'
 import { firstNameOf } from '@/lib/data'
+import { rateLimit } from '@/lib/rateLimit'
+import { mayReengage, REENGAGE_DRAFT_LIMIT, REENGAGE_WINDOW_MS } from './gate'
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
 export async function POST(req: NextRequest) {
   const session = await getSession()
-  if (!session || !canManageUsers(session)) {
+  if (!session || !isAdminOrModerator(session)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { userId } = await req.json()
-  if (!userId) return NextResponse.json({ error: 'Missing userId' }, { status: 400 })
+  const { userId } = await req.json().catch(() => ({}))
+  if (!userId || typeof userId !== 'string') return NextResponse.json({ error: 'Missing userId' }, { status: 400 })
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { name: true, interests: true, neighborhood: true, joinedAt: true, city: { select: { name: true } } },
+    select: { name: true, interests: true, neighborhood: true, joinedAt: true, cityId: true, city: { select: { name: true } } },
   })
   if (!user) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  // Moderators draft for their own city's members only. 404 rather than 403,
+  // as on the user detail route, so ids can't map which cities exist.
+  if (!mayReengage(session, user.cityId)) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // Each draft is a paid model call.
+  if (!await rateLimit(`reengage-draft:${session.id}`, REENGAGE_DRAFT_LIMIT, REENGAGE_WINDOW_MS)) {
+    return NextResponse.json({ error: 'Too many drafts — try again in a while.' }, { status: 429 })
+  }
 
   const firstName   = firstNameOf(user.name) || 'there'
   const interests   = (user.interests ?? []).slice(0, 3).join(', ')

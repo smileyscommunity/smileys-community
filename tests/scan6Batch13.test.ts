@@ -41,7 +41,8 @@ describe.each(EDIT_PAGES)('%s "Create N more"', (file) => {
   const spawn = src.slice(src.indexOf('function buildSpawnDates'), src.indexOf('if (loading) return'))
 
   it('clamps occurrences in the dates, the input and the button label', () => {
-    expect(spawn).toMatch(/i <= clampOccurrences\(occurrences, MIN_SERIES_COPIES, MAX_SERIES_COPIES\); i\+\+/)
+    // The copies are clamped, then dated by lib/seriesDates (months clamp too).
+    expect(spawn).toMatch(/const copies = clampOccurrences\(occurrences, MIN_SERIES_COPIES, MAX_SERIES_COPIES\)\s*\n\s*return seriesDates\(form\.date, repeat, copies \+ 1\)\.slice\(1\)/)
     expect(spawn).not.toMatch(/i <= occurrences;/)
     expect(src).toMatch(/max=\{MAX_SERIES_COPIES\}/)
     expect(src).not.toMatch(/max=\{52\}/)

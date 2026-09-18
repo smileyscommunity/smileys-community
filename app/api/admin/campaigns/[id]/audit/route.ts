@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator } from '@/lib/access'
+import { isAdmin, isAdminOrModerator } from '@/lib/access'
+import { maskContactsIn } from '@/lib/admin/maskContact'
 
 // GET /api/admin/campaigns/[id]/audit — recent admin actions
 // relevant to this campaign. Two filters merged client-side:
@@ -37,5 +38,8 @@ export async function GET(_: NextRequest, { params }: Params) {
       meta: true, createdAt: true,
     },
   })
-  return NextResponse.json({ entries })
+  // Same rule as /api/admin/audit: `meta` is an admin's (campaign.delete keeps
+  // the removed donations, donor email and phone included), and contact
+  // details in the text are masked for moderators.
+  return NextResponse.json({ entries: isAdmin(session) ? entries : entries.map(e => ({ ...e, meta: null, description: maskContactsIn(session, e.description) })) })
 }

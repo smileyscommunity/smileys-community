@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdmin } from '@/lib/access'
+import { isAdmin, isAdminOrModerator } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
 import { readFileSync, writeFileSync, renameSync } from 'fs'
 import { join } from 'path'
@@ -19,12 +19,23 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const data = read()
   if (!data.userId) return NextResponse.json(null)
-  const user = await prisma.user.findUnique({
+  const row = await prisma.user.findUnique({
     where:  { id: data.userId },
-    select: { id: true, name: true, color: true, profilePhoto: true, neighborhood: true, bio: true },
+    select: { id: true, name: true, color: true, profilePhoto: true, neighborhood: true, bio: true,
+              status: true, hiddenFromMembers: true, city: { select: { name: true } } },
   })
-  if (!user) return NextResponse.json(null)
-  return NextResponse.json({ user, funFact: data.funFact, topSpots: data.topSpots, updatedAt: data.updatedAt })
+  if (!row) return NextResponse.json(null)
+  const { status, hiddenFromMembers, ...user } = row
+  // The pick is a file, so it outlives whatever happens to the member after:
+  // a suspension or an admin hide left them featured. Only an approved,
+  // visible member is a spotlight. Staff still get the row, flagged, so the
+  // panel can say why nothing shows instead of looking unset.
+  const available = status === 'approved' && !hiddenFromMembers
+  if (!available && !isAdminOrModerator(session)) return NextResponse.json(null)
+  return NextResponse.json({
+    user, funFact: data.funFact, topSpots: data.topSpots, updatedAt: data.updatedAt,
+    ...(available ? {} : { unavailable: true }),
+  })
 }
 
 // There is one spotlight and it renders on every city's dashboard, so both
@@ -45,8 +56,11 @@ export async function POST(req: NextRequest) {
   }
   const { userId, funFact, topSpots } = await req.json()
   if (!userId || typeof userId !== 'string') return NextResponse.json({ error: 'userId required' }, { status: 400 })
-  const member = await prisma.user.findUnique({ where: { id: userId }, select: { cityId: true, status: true } })
+  const member = await prisma.user.findUnique({ where: { id: userId }, select: { cityId: true, status: true, hiddenFromMembers: true } })
   if (!member || member.status !== 'approved') return NextResponse.json({ error: 'Member not found' }, { status: 404 })
+  // Same rule the GET applies: a member hidden from the directory can't be
+  // the one member every dashboard features.
+  if (member.hiddenFromMembers) return NextResponse.json({ error: "This member is hidden from members and can't be spotlighted" }, { status: 400 })
   const fact  = typeof funFact === 'string' ? funFact.slice(0, 300) : ''
   const spots = Array.isArray(topSpots) ? topSpots.slice(0, 3).map(s => typeof s === 'string' ? s.slice(0, 120) : '') : ['', '', '']
   while (spots.length < 3) spots.push('')

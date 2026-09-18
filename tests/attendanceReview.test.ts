@@ -6,7 +6,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // hand a host somebody else's room.
 
 vi.mock('@/lib/session', () => ({ getSession: vi.fn() }))
-vi.mock('@/lib/access',  () => ({ isAdminOrModerator: (s: any) => s?.role === 'admin' || s?.role === 'moderator' }))
+vi.mock('@/lib/access',  () => ({
+  isAdminOrModerator: (s: any) => s?.role === 'admin' || s?.role === 'moderator',
+  isAdmin:            (s: any) => s?.role === 'admin',
+  failClosedCityId:   (s: any) => s?.cityId ?? '__no_city__',
+}))
 vi.mock('@/lib/standing', () => ({
   standingEvents: vi.fn(),
   roomOf:         vi.fn(),

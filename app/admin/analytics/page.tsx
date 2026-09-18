@@ -391,13 +391,23 @@ function AnalyticsInner() {
   // Lazy-load retention list only when Members tab is opened. Endpoint is
   // server-rendered list of never-attended + dormant — separate from the
   // /api/admin/analytics summary, which only includes counts.
+  //
+  // It follows the city switcher like the rest of the page: it used to load
+  // once, network-wide, so a Bodrum drill-down listed Istanbul's dormant
+  // members. A city change drops the old list and loads the new one the next
+  // time the tab is showing; the cancel guard stops a slow earlier response
+  // landing on top of the city picked after it.
+  const [retentionCity, setRetentionCity] = useState<string | null>(null)
   useEffect(() => {
-    if (tab !== 'members' || retention) return
-    fetch('/app/api/admin/retention', { credentials: 'include' })
+    if (tab !== 'members' || retentionCity === cityId) return
+    let cancelled = false
+    setRetention(null)
+    fetch(`/app/api/admin/retention${cityId ? `?city=${encodeURIComponent(cityId)}` : ''}`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d) setRetention(d) })
+      .then(d => { if (!cancelled && d) { setRetention(d); setRetentionCity(cityId) } })
       .catch(() => {})
-  }, [tab, retention])
+    return () => { cancelled = true }
+  }, [tab, cityId, retentionCity])
 
   // Initial-load skeleton — only fires when there's no data yet. Period
   // changes after first load keep showing the previous data (greyed out)

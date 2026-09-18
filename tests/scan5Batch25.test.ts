@@ -268,13 +268,17 @@ describe('88c. recurring series are bounded and report partial failure', () => {
     p.club.findUnique.mockResolvedValue({ cityId: 'c1', name: 'Run' })
     p.event.count.mockResolvedValue(MAX_SERIES_OCCURRENCES - 1)
     p.event.create.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({ id: 'e1', ...data }))
+    // The host is looked up (lib/eventHostCheck): a live member.
+    p.user.findUnique.mockResolvedValue({ status: 'approved', suspendedUntil: null, cityId: 'c1' })
     expect((await post(payload({ seriesId: 'series-1', isRecurring: true }))).status).toBe(200)
   })
 
   it.each(['app/admin/events/new/page.tsx', 'app/host/events/new/page.tsx'])('%s attempts every date and reports the outcome', (file) => {
     const src = read(file)
     expect(src).toMatch(/const outcome = seriesOutcomeMessage\(dates\.length, created, failures\)/)
-    expect(src).toMatch(/for \(let i = 0; i < clampOccurrences\(occurrences\); i\+\+\)/)
+    // Every date is built from the clamped count — a loop in the host form,
+    // lib/seriesDates in the admin one (which also clamps monthly days).
+    expect(src).toMatch(/for \(let i = 0; i < clampOccurrences\(occurrences\); i\+\+\)|seriesDates\(form\.date, repeat, clampOccurrences\(occurrences\)\)/)
     expect(src).toMatch(/max=\{MAX_SERIES_OCCURRENCES\}/)
     // The first failure no longer aborts the loop mid-series.
     expect(src).not.toMatch(/if \(!res\.ok\) \{ setError\(data\.error \?\? 'Failed[^']*'\); return \}/)

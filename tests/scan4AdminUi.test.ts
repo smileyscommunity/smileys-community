@@ -12,7 +12,10 @@ describe('user page: no-show is a city-day compare, links open without an opener
     expect(src).not.toContain('new Date(je.event.date) < new Date()')
     expect(src).not.toContain("je.event.date < new Date().toISOString().split('T')[0]")
     expect(src).toContain('return ev.date < todayInTz(ev.city?.timezone ?? DEFAULT_TZ)')
-    expect(src).toContain('attendedEvents.filter(je => isPastEventDay(je.event))')
+    // 2026-09-19: the no-show COUNT now reads the settled attendance column
+    // (tests/adminUsersReviewFixes); the city-day compare still decides
+    // whether an unsettled row reads "Upcoming".
+    expect(src).toContain("if (!isPastEventDay(je.event))                     return { text: 'Upcoming'")
   })
   it('the API selects the joined event city timezone', () => {
     expect(read('app/api/admin/users/[id]/route.ts')).toContain('price: true, city: { select: { timezone: true } } } } },')

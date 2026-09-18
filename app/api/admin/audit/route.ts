@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import type { Prisma } from '@prisma/client'
+import { maskContactsIn } from '@/lib/admin/maskContact'
 
 export async function GET(req: NextRequest) {
   const session = await getSession()
@@ -34,6 +35,9 @@ export async function GET(req: NextRequest) {
   // Admins see everything unless they pick a city.
   if (!isAdmin(session)) {
     where.OR = [{ cityId: failClosedCityId(session) }, { cityId: null }]
+    // Blacklist entries are an admin's (the blacklist itself is admin-only):
+    // city-less, they reached every city's moderators, email and all.
+    where.NOT = { action: { startsWith: 'blacklist.' } }
   } else if (city) {
     where.cityId = city
   }
@@ -43,9 +47,12 @@ export async function GET(req: NextRequest) {
     // who did it, what it said, and the target id (so they can grep an
     // event/user id from elsewhere and find every action against it).
     // ANDed with the city scope above (which may already own `OR`).
+    // A moderator can't search the text for an email or a phone number:
+    // the rows come back masked, but a hit would still confirm whose it was.
+    const contactSearch = !isAdmin(session) && (/@/.test(search) || search.replace(/\D/g, '').length >= 7)
     const text: Prisma.AuditLogWhereInput = { OR: [
       { adminName:   { contains: search, mode: 'insensitive' } },
-      { description: { contains: search, mode: 'insensitive' } },
+      ...(contactSearch ? [] : [{ description: { contains: search, mode: 'insensitive' as const } }]),
       { targetId:    { contains: search, mode: 'insensitive' } },
     ] }
     if (where.OR) { where.AND = [{ OR: where.OR }, text]; delete where.OR }
@@ -65,6 +72,7 @@ export async function GET(req: NextRequest) {
   // the city column says whose row it is, not whether its payload is safe. who/what/when (adminName, action, description, targetId,
   // createdAt) stays — that's the accountability a moderator needs.
   const full = canManageUsers(session)
-  const safe = full ? logs : logs.map(l => ({ ...l, meta: null }))
+  // The description can carry the same contact details — masked for them.
+  const safe = full ? logs : logs.map(l => ({ ...l, meta: null, description: maskContactsIn(session, l.description) }))
   return NextResponse.json(safe)
 }

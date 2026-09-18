@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator } from '@/lib/access'
+import { isAdmin, isAdminOrModerator, failClosedCityId } from '@/lib/access'
 import { attendanceReviewRows } from '@/lib/attendanceReview'
 
 export const dynamic = 'force-dynamic'
 
 /**
- * The attendance review queue. Admins and moderators see every room the
- * standing sweep is holding; anyone else sees only the rooms they run — the
+ * The attendance review queue. Admins see every room the standing sweep is
+ * holding, a moderator their own city's (a city-less moderator matches
+ * nothing); anyone else sees only the rooms they run — the
  * events they host, co-host, or host the club of (an inactive club grants
  * nothing, matching canManageEventOps).
  */
@@ -17,9 +18,11 @@ export async function GET(_req: NextRequest) {
   if (!session) return NextResponse.json({ error: 'Not logged in' }, { status: 401 })
 
   const all = isAdminOrModerator(session)
+  const admin = isAdmin(session)
   let eventIds: string[] | undefined
 
-  if (!all) {
+  // Everyone but an admin gets the rooms they run; a moderator their city's too.
+  if (!admin) {
     const [hosted, cohosted, clubs] = await Promise.all([
       prisma.event.findMany({ where: { hostId: session.id }, select: { id: true } }),
       prisma.eventCoHost.findMany({ where: { userId: session.id }, select: { eventId: true } }),
@@ -33,9 +36,9 @@ export async function GET(_req: NextRequest) {
       : []
     eventIds = [...new Set([...hosted.map(e => e.id), ...cohosted.map(c => c.eventId), ...clubEvents.map(e => e.id)])]
     // Nothing to run: an empty allow-list must return nothing, never everything.
-    if (eventIds.length === 0) return NextResponse.json({ rows: [], scope: 'mine' })
+    if (eventIds.length === 0 && !all) return NextResponse.json({ rows: [], scope: 'mine' })
   }
 
-  const rows = await attendanceReviewRows(new Date(), eventIds)
+  const rows = await attendanceReviewRows(new Date(), eventIds, all && !admin ? failClosedCityId(session) : undefined)
   return NextResponse.json({ rows, scope: all ? 'all' : 'mine' })
 }

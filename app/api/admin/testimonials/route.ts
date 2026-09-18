@@ -5,6 +5,7 @@ import { isAdminOrModerator, isAdmin, failClosedCityId } from '@/lib/access'
 
 import { ALLOWED_CATEGORIES } from './constants'
 import { INVALID, resolveCityIdInput, canActOnQuoteCity } from './cityInput'
+import { writeAudit } from '@/lib/audit'
 
 export async function GET() {
   const session = await getSession()
@@ -72,6 +73,8 @@ export async function POST(req: NextRequest) {
       order:      (maxOrder._max.order ?? 0) + 1,
     },
   })
+  writeAudit(session.id, session.name, 'testimonial.create', item.id, 'testimonial',
+    { cityId: item.cityId }, `Added a quote from ${item.memberName}`)
   return NextResponse.json(item)
 }
 

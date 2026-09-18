@@ -16,6 +16,12 @@ vi.mock('@/lib/session', () => ({ getSession: vi.fn() }))
 vi.mock('@/lib/access',  () => ({ canViewAnalytics: () => true }))
 vi.mock('@/lib/city',    () => ({ getCityTz: vi.fn(async () => 'Europe/Istanbul') }))
 vi.mock('@/lib/cronHealth', () => ({ listStaleSweepers: vi.fn(async () => []) }))
+// The Reports pill's filter is lib/admin/reportScope's (tests/reportScope);
+// here only that the route asks it about the dashboard's city.
+vi.mock('@/lib/admin/reportScope', () => ({
+  reportQueueWhere: vi.fn(async (_s: unknown, o?: { cityId?: string | null }) =>
+    o?.cityId ? { reported: { is: { cityId: o.cityId } } } : {}),
+}))
 // The stalled-city scan has its own prisma reads (lib/cityOps, covered by
 // tests/cityOps.test.ts); here only the scope it is asked for and the shape it
 // comes back as matter, so the reader is stubbed and the pure helpers kept.
@@ -37,7 +43,7 @@ vi.mock('@/lib/prisma', () => {
     eventAttendee:       { count: count(), groupBy: group() },
     eventSurvey:         { count: count() },
     clubMembership:      { groupBy: group() },
-    memberApplication:   { count: count() },
+    memberApplication:   { count: count(), findMany: many() },
     report:              { count: count() },
     payment:             { groupBy: group() },
     hangout:             { count: count(), groupBy: group() },

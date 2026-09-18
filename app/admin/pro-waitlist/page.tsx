@@ -22,7 +22,7 @@ interface Entry {
 
 interface Payload {
   entries: Entry[]
-  summary: { total: number; founders: number; converted: number; invited: number }
+  summary: { total: number; founders: number; converted: number; invited: number; shown?: number; capped?: boolean }
 }
 
 const STATUSES = ['waitlisted', 'invited', 'converted', 'declined'] as const
@@ -61,9 +61,13 @@ export default function AdminProWaitlistPage() {
   async function setStatus(entry: Entry, status: string) {
     try {
       const updated = await patch(entry.id, { status })
+      // The header counts are server totals now, so move them with the row
+      // rather than leaving them a status change behind.
+      const delta = (s: string) => (updated.status === s ? 1 : 0) - (entry.status === s ? 1 : 0)
       setData(prev => prev && {
         ...prev,
         entries: prev.entries.map(e => e.id === entry.id ? { ...e, ...updated } : e),
+        summary: { ...prev.summary, invited: prev.summary.invited + delta('invited'), converted: prev.summary.converted + delta('converted') },
       })
       toast.success(`${entry.email} → ${status}`)
     } catch (e) {
@@ -91,6 +95,12 @@ export default function AdminProWaitlistPage() {
         <div>
           <h1 className="text-xl font-bold text-white">Pro waitlist</h1>
           <p className="text-zinc-500 text-sm mt-1">Founding members lock in the founder rate. First 100 = 50% off for life.</p>
+          {data && (
+            <p className="text-zinc-400 text-xs mt-1 tabular-nums">
+              {data.summary.total} on the waitlist · {data.summary.invited} invited · {data.summary.converted} converted
+              {data.summary.capped && <span className="text-amber-400"> · showing the first {data.summary.shown}</span>}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <div className="text-right">

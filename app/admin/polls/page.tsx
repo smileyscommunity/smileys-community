@@ -10,6 +10,8 @@ import { useAuth } from '@/contexts/AuthContext'
 const QUESTION_MAX = 300
 const OPTION_MAX   = 200
 const MAX_OPTIONS  = 10
+// Page size of the history API; a shorter page means there is no more.
+const POLL_PAGE_SIZE = 10
 
 function timeAgo(iso: string): string {
   const ms = Date.now() - new Date(iso).getTime()
@@ -76,6 +78,28 @@ export default function PollsPage() {
   // Per-poll busy state so rapid clicks on End/Reactivate don't fire
   // multiple PATCHes against the same row.
   const [busyPollId, setBusyPollId] = useState<string | null>(null)
+  // History is paged. Whether more exists is known from the last page's
+  // length: the first page's from the hook, later ones from loadMore.
+  const [moreExhausted, setMoreExhausted] = useState(false)
+  const [loadingMore,   setLoadingMore]   = useState(false)
+  const hasMore = !moreExhausted && polls.length >= POLL_PAGE_SIZE
+
+  async function loadMore() {
+    const last = polls[polls.length - 1]
+    if (!last) return
+    setLoadingMore(true)
+    try {
+      const res = await fetch(`/app/api/admin/community-poll?after=${encodeURIComponent(last.id)}`, { credentials: 'include' })
+      const page = res.ok ? await res.json() : null
+      if (!Array.isArray(page)) { toast.error('Could not load older polls'); return }
+      setPolls(prev => [...prev, ...page.filter((p: Poll) => !prev.some(x => x.id === p.id))])
+      if (page.length < POLL_PAGE_SIZE) setMoreExhausted(true)
+    } catch {
+      toast.error('Could not load older polls')
+    } finally {
+      setLoadingMore(false)
+    }
+  }
 
   // Pre-compute validation state for the create form so the Publish
   // button and the inline error reflect what the server would say.
@@ -370,6 +394,15 @@ export default function PollsPage() {
                 </div>
               )
             })}
+            {hasMore && (
+              <button
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="w-full text-xs font-semibold text-zinc-400 hover:text-white py-2.5 rounded-xl border border-zinc-800 hover:border-zinc-600 transition-colors disabled:opacity-50"
+              >
+                {loadingMore ? 'Loading…' : 'Show older polls'}
+              </button>
+            )}
           </div>
         )}
       </div>

@@ -26,7 +26,7 @@ vi.mock('@/lib/notify',  () => ({ createNotification: vi.fn(async () => {}) }))
 vi.mock('@/lib/email',   () => ({ sendBroadcastEmail: vi.fn(async () => {}), recordEmailFailure: vi.fn(async () => {}) }))
 // Every POST now claims its requestId (scan 5 item 45); a fresh id per call
 // always wins the claim, so these cases test audience scoping alone.
-vi.mock('@/lib/rateLimit', () => ({ claimOnce: vi.fn(async () => true), releaseClaim: vi.fn(async () => {}) }))
+vi.mock('@/lib/rateLimit', () => ({ claimOnce: vi.fn(async () => true), releaseClaim: vi.fn(async () => {}), rateLimit: vi.fn(async () => true) }))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     city:      { findUnique: vi.fn() },

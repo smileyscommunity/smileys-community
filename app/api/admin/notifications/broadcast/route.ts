@@ -5,7 +5,8 @@ import { canSendBroadcasts, isAdmin, failClosedCityId } from '@/lib/access'
 import { requireStepUp } from '@/lib/stepUp'
 import { createNotification } from '@/lib/notify'
 import { sendBroadcastEmail, recordEmailFailure } from '@/lib/email'
-import { claimOnce, releaseClaim } from '@/lib/rateLimit'
+import { claimOnce, releaseClaim, rateLimit } from '@/lib/rateLimit'
+import { writeAudit } from '@/lib/audit'
 
 // Sends go out in sequential chunks. One Resend call per member all at once
 // trips Resend's rate limit on any real audience, and a burst of that size
@@ -207,6 +208,13 @@ export async function POST(req: NextRequest) {
   if (!(await claimOnce(claimKey, 60 * 60_000))) {
     return NextResponse.json({ error: 'This broadcast was already sent' }, { status: 409 })
   }
+  // A moderator's sends are bounded: the requestId only stops the same send
+  // twice, and a fresh id each time reached the whole city as often as asked.
+  // Counted after the claim, so a retried request doesn't use up a send.
+  if (!isAdmin(session) && !await rateLimit(`broadcast-mod:${session.id}`, 5, 24 * 60 * 60_000)) {
+    await releaseClaim(claimKey)
+    return NextResponse.json({ error: 'Daily broadcast limit reached — ask an admin' }, { status: 429 })
+  }
 
   // Fetch users with email + unsubscribe preference
   let users: { id: string; name: string; email: string; emailMarketing: boolean }[] = []
@@ -214,13 +222,16 @@ export async function POST(req: NextRequest) {
   try {
     if (audience === 'event' && eventId) {
       const attendees = await prisma.eventAttendee.findMany({
-        where: { eventId, status: 'approved' },
+        // Live accounts only: a ban keeps club memberships and seats on
+        // purpose, and a self-deleted account is a banned one with a dead
+        // @deleted.smileys address — both were emailed.
+        where: { eventId, status: 'approved', user: { status: 'approved' } },
         include: { user: { select: { id: true, name: true, email: true, emailMarketing: true } } },
       })
       users = attendees.map(a => a.user)
     } else if (audience === 'club' && clubId) {
       const members = await prisma.clubMembership.findMany({
-        where: { clubId, status: 'approved' },
+        where: { clubId, status: 'approved', user: { status: 'approved' } },
         include: { user: { select: { id: true, name: true, email: true, emailMarketing: true } } },
       })
       users = members.map(m => m.user)
@@ -281,6 +292,12 @@ export async function POST(req: NextRequest) {
             // What actually went out, not the size of the list we tried.
             sentBy: session.name, sentCount: isEmail ? emailed : notified },
   })
+  // Who sent what to whom, by id — the Broadcast row keeps only a name.
+  writeAudit(session.id, session.name, 'broadcast.send', requestId, 'broadcast',
+    { audience: audience ?? 'all', channel: isEmail ? 'email' : 'in-app', clubId: clubId || null, eventId: eventId || null,
+      cityId: audience === 'city' ? cityId : null, recipients: dedup.length, emailed, notified },
+    `Sent "${title.trim().slice(0, 80)}" to ${dedup.length} (${audience ?? 'all'}, ${isEmail ? 'email' : 'in-app'})`,
+  )
 
   return NextResponse.json({
     ok:           true,

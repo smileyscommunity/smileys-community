@@ -92,6 +92,10 @@ export async function PATCH(req: NextRequest) {
   if (!before) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const p = parsePayload(body)
+  // Awarding a prize is an admin's: a moderator could award one to themselves.
+  if (p.awardedToUserId !== undefined && !isAdmin(session)) {
+    return NextResponse.json({ error: 'Only an admin can award a prize' }, { status: 403 })
+  }
   const data: Record<string, unknown> = {}
   if (p.title !== null)       data.title       = p.title
   if (p.description !== undefined) data.description = p.description

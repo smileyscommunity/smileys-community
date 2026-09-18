@@ -28,7 +28,9 @@ describe('RSVP-tied emails', () => {
 
 describe('moderation queue', () => {
   it('never lists a report against the viewer (survey responders stay anonymous to the host)', () => {
-    expect(read('app/api/admin/moderation/route.ts')).toMatch(/where:\s*\{ \.\.\.cityFilter, reportedId: \{ not: session\.id \} \}/)
+    // Through the shared scope (lib/admin/reportScope), which the badges use too.
+    expect(read('app/api/admin/moderation/route.ts')).toContain('const where = await reportQueueWhere(session)')
+    expect(read('lib/admin/reportScope.ts')).toContain('return { ...scope, reportedId: { not: session.id } }')
   })
 })
 

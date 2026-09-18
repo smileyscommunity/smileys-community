@@ -8,6 +8,7 @@ import { useAdminLoad } from '@/lib/admin/useAdminLoad'
 import { CityBadge, useAdminCities } from '@/components/admin/CitySelect'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
+import { DEFAULT_TZ, safeTz } from '@/lib/cityTime'
 import { DEFAULT_CURRENCY, formatMoney, currencySymbol } from '@/lib/data'
 import { paymentsCsv } from '@/lib/admin/csvExports'
 import { PAYMENT_HELD_CHECKED_IN } from '@/lib/constants'
@@ -51,12 +52,17 @@ interface PaymentsStats {
   heldCount?:   number
   byEvent:      ByEventStat[]
   rowCap:       number
+  // Rows matching the current filters (server-side), and whether the list
+  // below stops short of them.
+  matched?:     number
   capped:       boolean
 }
 
 interface PaymentsResponse {
   payments: Payment[]
   stats:    PaymentsStats
+  // The clock the server read the date filters on; rows render on it too.
+  tz?:      string
 }
 
 // One source of truth per status — `color` for pills + log entries,
@@ -119,8 +125,34 @@ function AdminPaymentsPageInner() {
   // kicked in).
   const initialDateFrom = searchParams.get('from') ?? ''
   const initialDateTo   = searchParams.get('to')   ?? ''
+
+  const cities = useAdminCities()
+  const [filter,        setFilter]        = useState<FilterKey>(initialFilter)
+  const [search,        setSearch]        = useState(initialSearch)
+  const [dateFrom,      setDateFrom]      = useState(initialDateFrom)
+  const [dateTo,        setDateTo]        = useState(initialDateTo)
+
+  // Debounce search so typing doesn't spam history (or the API).
+  const [debouncedSearch, setDebouncedSearch] = useState(initialSearch)
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 250)
+    return () => clearTimeout(t)
+  }, [search])
+
+  // Filters run on the server, over every payment. They used to filter the
+  // 500 newest rows in the browser, so an older payment was unfindable and
+  // the date range cut on UTC days while the rows showed local ones.
+  const filterQuery = useMemo(() => {
+    const q = new URLSearchParams()
+    if (filter !== 'all')       q.set('status', filter)
+    if (debouncedSearch.trim()) q.set('search', debouncedSearch.trim())
+    if (dateFrom)               q.set('from',   dateFrom)
+    if (dateTo)                 q.set('to',     dateTo)
+    return q.toString()
+  }, [filter, debouncedSearch, dateFrom, dateTo])
+
   const { data, loading, error: loadError, retry, setData } = useAdminLoad<PaymentsResponse>(
-    '/app/api/admin/payments',
+    filterQuery ? `/app/api/admin/payments?${filterQuery}` : '/app/api/admin/payments',
     (v): v is PaymentsResponse =>
       !!v && typeof v === 'object' &&
       Array.isArray((v as PaymentsResponse).payments) &&
@@ -128,6 +160,8 @@ function AdminPaymentsPageInner() {
   )
   const payments = data?.payments ?? []
   const stats    = data?.stats
+  // A bad city timezone (admin-edited text) would throw in render.
+  const tz       = safeTz(data?.tz ?? DEFAULT_TZ)
   // Bridge function-form mutations to the hook's value-only setData.
   // Mutations touch only the row window; server stats stay anchored
   // until the next reload — close enough for the seconds between
@@ -138,11 +172,6 @@ function AdminPaymentsPageInner() {
     setData({ ...data, payments: updated })
   }
 
-  const cities = useAdminCities()
-  const [filter,        setFilter]        = useState<FilterKey>(initialFilter)
-  const [search,        setSearch]        = useState(initialSearch)
-  const [dateFrom,      setDateFrom]      = useState(initialDateFrom)
-  const [dateTo,        setDateTo]        = useState(initialDateTo)
   const [editNotes,     setEditNotes]     = useState<{ id: string; value: string } | null>(null)
   const [busy,          setBusy]          = useState<string | null>(null)
   const [expandedLog,   setExpandedLog]   = useState<string | null>(null)
@@ -161,12 +190,7 @@ function AdminPaymentsPageInner() {
     try { return await fn() } finally { setBusy(null) }
   }
 
-  // Debounce search so typing doesn't spam history.
-  const [debouncedSearch, setDebouncedSearch] = useState(initialSearch)
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(search), 250)
-    return () => clearTimeout(t)
-  }, [search])
+  const [exporting,     setExporting]     = useState(false)
 
   // URL-sync filter + search + date range. Replace (not push) so
   // back-button doesn't dump intermediate states. searchParams
@@ -192,7 +216,7 @@ function AdminPaymentsPageInner() {
     }
   }
 
-  async function updateStatus(p: Payment, overrideNote?: string, target?: StatusKey) {
+  async function updateStatus(p: Payment, reason?: string, target?: StatusKey) {
     // Single source of truth for next-state — STATUSES treats null
     // as terminal so the call-site rejects without a doomed PATCH.
     // `target` is the held row's cancel, the one move off the cycle.
@@ -203,7 +227,9 @@ function AdminPaymentsPageInner() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ id: p.id, status: next, notes: overrideNote }),
+        // `reason`, not `notes`: the server appends it to the payment's note
+        // instead of replacing whatever was written there.
+        body: JSON.stringify({ id: p.id, status: next, reason }),
       })
       if (res.ok) {
         const updated = await res.json()
@@ -302,41 +328,58 @@ function AdminPaymentsPageInner() {
     })
   }
 
-  // Search across the fields admin most often hunts by — member
-  // name + email + event title. Case-insensitive substring match.
-  // Date range is inclusive on both ends; compared as ISO strings
-  // since createdAt is a full timestamp (e.g. dateFrom='2026-05-01'
-  // matches anything with createdAt >= '2026-05-01').
-  const filtered = useMemo(() => {
-    const q = debouncedSearch.trim().toLowerCase()
-    return payments.filter(p => {
-      if (filter !== 'all' && p.status !== filter) return false
-      if (dateFrom && p.createdAt.slice(0, 10) < dateFrom) return false
-      if (dateTo   && p.createdAt.slice(0, 10) > dateTo)   return false
-      if (q && !p.user.name.toLowerCase().includes(q)
-            && !p.user.email.toLowerCase().includes(q)
-            && !p.event.title.toLowerCase().includes(q)) return false
-      return true
-    })
-  }, [payments, filter, debouncedSearch, dateFrom, dateTo])
+  // The server already filtered. Only the status is re-checked here, so a
+  // row whose status was just changed leaves a status-filtered view the way
+  // it did when filtering was local.
+  const filtered = useMemo(
+    () => payments.filter(p => filter === 'all' || p.status === filter),
+    [payments, filter],
+  )
+  const matched = stats?.matched ?? filtered.length
+  const hasFilters = filterQuery !== ''
 
-  // CSV export of the current visible filter — admins use this to
-  // reconcile against bank statements + accounting. paymentsCsv neutralises
-  // formula cells (a member name or note starting with =) and adds the BOM.
-  function exportCsv() {
-    if (filtered.length === 0) { toast.error('Nothing to export with the current filters'); return }
-    const csv  = paymentsCsv(filtered)
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
-    const url  = URL.createObjectURL(blob)
-    const a    = document.createElement('a')
-    const today = new Date().toISOString().slice(0, 10)
-    a.href = url
-    a.download = `payments-${today}.csv`
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
-    URL.revokeObjectURL(url)
-    toast.success(`Exported ${filtered.length} row${filtered.length === 1 ? '' : 's'}`)
+  // Rows render on the same city clock the date filters use, so a payment
+  // listed under 1 May is one a "from 1 May" filter keeps.
+  const dayOf  = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { timeZone: tz })
+  const timeOf = (iso: string) => new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23', timeZone: tz })
+
+  // CSV export of the current filters — admins use this to reconcile
+  // against bank statements + accounting. It asks the server for every
+  // matching row (up to its export cap) rather than dumping the 500-row
+  // window on screen. paymentsCsv neutralises formula cells (a member name
+  // or note starting with =) and adds the BOM.
+  async function exportCsv() {
+    if (matched === 0) { toast.error('Nothing to export with the current filters'); return }
+    setExporting(true)
+    try {
+      const q   = new URLSearchParams(filterQuery)
+      q.set('export', '1')
+      const res = await fetch(`/app/api/admin/payments?${q.toString()}`, { credentials: 'include' })
+      const body = await res.json().catch(() => null) as { payments?: Payment[]; matched?: number; capped?: boolean; error?: string } | null
+      if (!res.ok || !Array.isArray(body?.payments)) { toast.error(body?.error ?? 'Export failed'); return }
+      const rows = body.payments
+      if (rows.length === 0) { toast.error('Nothing to export with the current filters'); return }
+      const csv  = paymentsCsv(rows)
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      const today = new Date().toISOString().slice(0, 10)
+      a.href = url
+      a.download = `payments-${today}.csv`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+      if (body.capped) {
+        toast.warning(`Exported the newest ${rows.length} of ${body.matched ?? '?'} matching rows — narrow the dates to export the rest.`, { duration: 10_000 })
+      } else {
+        toast.success(`Exported ${rows.length} row${rows.length === 1 ? '' : 's'}`)
+      }
+    } catch {
+      toast.error('Export failed — check your connection')
+    } finally {
+      setExporting(false)
+    }
   }
 
   return (
@@ -346,14 +389,17 @@ function AdminPaymentsPageInner() {
           <h1 className="text-2xl font-extrabold text-white tracking-tight">Payments</h1>
           <p className="text-sm text-zinc-500 mt-0.5">
             {stats?.total ?? 0} total records
+            {hasFilters && stats && <> · {matched} match{matched === 1 ? '' : 'es'}</>}
             {stats?.capped && (
-              <span className="text-amber-400 ml-2">· showing the {stats.rowCap} most recent</span>
+              <span className="text-amber-400 ml-2">
+                · showing the {payments.length} most recent{hasFilters ? ' matches' : ''} — search or narrow the dates to reach older ones
+              </span>
             )}
           </p>
         </div>
-        <button onClick={exportCsv} disabled={loading || filtered.length === 0}
+        <button onClick={exportCsv} disabled={loading || exporting || matched === 0}
           className="text-xs px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 font-semibold disabled:opacity-40 transition-colors">
-          Export CSV ({filtered.length})
+          {exporting ? 'Exporting…' : `Export CSV (${matched})`}
         </button>
       </div>
 
@@ -474,7 +520,7 @@ function AdminPaymentsPageInner() {
       ) : filtered.length === 0 ? (
         <div className="bg-zinc-900 rounded-2xl p-10 text-center">
           <div className="text-3xl mb-2">💳</div>
-          <p className="text-zinc-400 text-sm">No payments.</p>
+          <p className="text-zinc-400 text-sm">{hasFilters ? 'No payments match these filters.' : 'No payments.'}</p>
         </div>
       ) : (
         <div className="bg-zinc-900 rounded-2xl overflow-hidden border border-zinc-800">
@@ -508,7 +554,7 @@ function AdminPaymentsPageInner() {
                       <input autoFocus value={editNotes.value}
                         onChange={e => setEditNotes({ id: p.id, value: e.target.value })}
                         onKeyDown={e => { if (e.key === 'Enter') saveNotes(p.id, editNotes.value); if (e.key === 'Escape') setEditNotes(null) }}
-                        maxLength={500}
+                        maxLength={Math.max(500, (p.notes ?? '').length)}
                         className="bg-zinc-800 text-white text-xs rounded-lg px-2 py-1.5 w-full border border-zinc-600 outline-none"
                         placeholder="Add note…" />
                       <button onClick={() => saveNotes(p.id, editNotes.value)} className="text-xs text-green-400 hover:text-green-300 shrink-0 px-1">✓</button>
@@ -527,7 +573,7 @@ function AdminPaymentsPageInner() {
                 )}
 
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-zinc-600">{new Date(p.createdAt).toLocaleDateString()}</span>
+                  <span className="text-xs text-zinc-600">{dayOf(p.createdAt)}</span>
                   <div className="flex gap-1.5">
                     {/* Status-change button hidden for terminal
                         states (refunded) — STATUSES.refunded.next
@@ -621,7 +667,7 @@ function AdminPaymentsPageInner() {
                               <input autoFocus value={editNotes.value}
                                 onChange={e => setEditNotes({ id: p.id, value: e.target.value })}
                                 onKeyDown={e => { if (e.key === 'Enter') saveNotes(p.id, editNotes.value); if (e.key === 'Escape') setEditNotes(null) }}
-                                maxLength={500}
+                                maxLength={Math.max(500, (p.notes ?? '').length)}
                                 className="bg-zinc-800 text-white text-xs rounded px-2 py-1 w-full border border-zinc-600 outline-none"
                                 placeholder="Add note…" />
                               <button onClick={() => saveNotes(p.id, editNotes.value)} className="text-xs text-green-400 hover:text-green-300 shrink-0">✓</button>
@@ -640,8 +686,8 @@ function AdminPaymentsPageInner() {
                         )}
                       </td>
                       <td className="px-4 py-3 text-zinc-500 text-xs whitespace-nowrap">
-                        <div>{new Date(p.createdAt).toLocaleDateString()}</div>
-                        <div className="text-zinc-600">{new Date(p.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</div>
+                        <div>{dayOf(p.createdAt)}</div>
+                        <div className="text-zinc-600">{timeOf(p.createdAt)}</div>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
@@ -725,7 +771,7 @@ function AdminPaymentsPageInner() {
               </p>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Reason for refund (required — sent to member)</label>
+              <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Reason for refund (required — sent to member, added to the payment&apos;s note)</label>
               <textarea
                 autoFocus
                 rows={3}
@@ -743,7 +789,7 @@ function AdminPaymentsPageInner() {
                 Cancel
               </button>
               <button
-                onClick={() => updateStatus(refundConfirm, refundNote || undefined)}
+                onClick={() => updateStatus(refundConfirm, refundNote.trim() || undefined)}
                 disabled={!refundNote.trim() || busy === refundConfirm.id}
                 className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-blue-500 hover:bg-blue-600 text-white transition-colors disabled:opacity-40">
                 {busy === refundConfirm.id ? 'Processing…' : 'Confirm refund'}

@@ -8,6 +8,9 @@ import { toCountryCode } from '@/lib/country'
 import { DEFAULT_CITY_SLUG } from '@/lib/city'
 import { getStatsFor } from '@/lib/cities'
 import { todayInTz } from '@/lib/cityTime'
+import { COMMUNITY_MEMBER_WHERE } from '@/lib/memberCount'
+import { writeAudit } from '@/lib/audit'
+import { requireStepUp } from '@/lib/stepUp'
 
 // GET /api/admin/cities — list every city with its club count + hosts, so the
 // admin Cities page can show launch status at a glance.
@@ -55,9 +58,13 @@ export async function GET() {
   }
 
   const [memberRows, guideRows, handbookRows, eventRowGroups] = await Promise.all([
+    // Members by the dashboard's rule (lib/memberCount): activated, and not
+    // staff or partner logins. Counting every approved account put admins and
+    // people who never set a password into each card, so this number and the
+    // dashboard's disagreed for the same city.
     prisma.user.groupBy({
       by: ['cityId'],
-      where: { cityId: { in: cityIds }, status: 'approved' },
+      where: { ...COMMUNITY_MEMBER_WHERE, cityId: { in: cityIds } },
       _count: { _all: true },
     }),
     prisma.guideEntry.groupBy({
@@ -126,6 +133,8 @@ export async function POST(req: NextRequest) {
   if (!session || !isAdmin(session)) {
     return NextResponse.json({ error: 'Creating a city is admin-only' }, { status: 403 })
   }
+  const stepUp = requireStepUp(session)
+  if (stepUp) return stepUp
 
   const body = await req.json()
   const name     = typeof body.name === 'string' ? body.name.trim() : ''
@@ -168,6 +177,8 @@ export async function POST(req: NextRequest) {
     data: { name, slug, country, timezone, currency, defaultLang, status: CITY_STATUS.ComingSoon },
     select: { id: true, name: true, slug: true },
   })
+  writeAudit(session.id, session.name, 'city.create', city.id, 'city',
+    { name, slug, country, timezone, currency }, `Created city ${name} (${slug})`)
 
   return NextResponse.json(city, { status: 201 })
 }

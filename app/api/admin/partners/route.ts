@@ -5,6 +5,7 @@ import { resolveTargetCityId } from '@/lib/city'
 import { canManagePartners, isAdmin, failClosedCityId } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
 import { requireStepUp } from '@/lib/stepUp'
+import { maskEmail } from '@/lib/admin/maskContact'
 
 export async function GET() {
   const session = await getSession()
@@ -22,7 +23,8 @@ export async function GET() {
       city: { select: { name: true, slug: true } },
     }
   })
-  return NextResponse.json(partners)
+  // Partner accounts' emails are masked for moderators, like every member's.
+  return NextResponse.json(isAdmin(session) ? partners : partners.map(p => ({ ...p, users: p.users.map(u => ({ ...u, email: maskEmail(u.email) })) })))
 }
 
 export async function POST(req: NextRequest) {
@@ -35,6 +37,11 @@ export async function POST(req: NextRequest) {
   if (!name || !category || !discount || !address || !neighborhood) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
+  // Strings, bounded — it took whatever the body held.
+  const text = (v: unknown, max: number) => typeof v === 'string' ? v.trim().slice(0, max) : ''
+  if (![name, category, discount, address, neighborhood].every(v => typeof v === 'string' && v.trim())) {
+    return NextResponse.json({ error: 'Every field is text' }, { status: 400 })
+  }
 
   // Explicit cityId wins (validated + canActInCity-gated); omitted keeps the
   // old behaviour — the creator's own context via resolveCityId.
@@ -45,15 +52,17 @@ export async function POST(req: NextRequest) {
 
   const partner = await prisma.partner.create({
     data: {
-      name,
-      cityId: target.cityId,
-      category,
-      discount,
-      address,
-      neighborhood,
-      isActive: true,
+      name:         text(name, 120),
+      cityId:       target.cityId,
+      category:     text(category, 60),
+      discount:     text(discount, 200),
+      address:      text(address, 300),
+      neighborhood: text(neighborhood, 80),
+      isActive:     true,
     },
   })
+  writeAudit(session.id, session.name, 'partner.create', partner.id, 'partner',
+    { cityId: partner.cityId, name: partner.name }, `Added partner "${partner.name}"`)
 
   return NextResponse.json(partner)
 }

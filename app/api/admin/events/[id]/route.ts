@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isTier } from '@/lib/standingPolicy'
 import { prisma } from '@/lib/prisma'
+import { hostIdError } from '@/lib/eventHostCheck'
 import { venueIdInput } from '@/lib/eventVenue'
 import { ensurePendingVenueBusiness } from '@/lib/venueDirectory'
 import { activeAttendeeWhere } from '@/lib/attendance'
@@ -244,6 +245,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
     // validation error and lose the whole save. Blank means "leave the
     // host as-is", never "unset it" — so drop it from the update.
     if ('hostId' in rest && !rest.hostId) delete rest.hostId
+    if ('hostId' in rest && rest.hostId === before.hostId) delete rest.hostId
 
     // Hosts cannot reassign event ownership or move to an unmanaged club.
     // City hosts sit under the same rule: their new events are forced to
@@ -293,6 +295,22 @@ export async function PUT(req: NextRequest, { params }: Params) {
       if (rest.clubId && rest.clubId !== before.clubId) {
         if (!clubHost || !await isClubHostFor(session.id, rest.clubId as string)) {
           return NextResponse.json({ error: 'You are not a host of the target club' }, { status: 403 })
+        }
+      }
+    }
+
+    // A new host is checked (lib/eventHostCheck): the host sees the guest
+    // list with contact details. And on an event people have already joined,
+    // a moderator can hand it to someone else but not to themselves — making
+    // yourself host was a way round the contact masking every moderator list
+    // applies.
+    if ('hostId' in rest) {
+      const hostErr = await hostIdError(rest.hostId, before.cityId, session, (rest.clubId as string | undefined) ?? before.clubId)
+      if (hostErr) return NextResponse.json({ error: hostErr }, { status: 400 })
+      if (!isAdmin(session) && rest.hostId === session.id) {
+        const joined = await prisma.eventAttendee.count({ where: { eventId: id, status: 'approved' } })
+        if (joined > 0) {
+          return NextResponse.json({ error: 'People have already joined — ask an admin to make you the host' }, { status: 403 })
         }
       }
     }
@@ -809,6 +827,16 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       restoring ? { status, restoredFromCancelled: true, restoredSeats, ...restoreExtra } : { status },
       `Event status set to ${status}`,
     )
+
+    // A pending event turned down from the review queue: its host hears
+    // why it never went live, instead of watching it sit there.
+    if (before.status === 'pending' && status === 'flagged' && before.hostId && before.hostId !== session.id) {
+      createNotification(
+        before.hostId, 'event_updated', 'Your event wasn\'t approved',
+        `"${before.title}" won't go live as it is. Reply to the Smileys team if you'd like to talk it through.`,
+        '/host/events',
+      ).catch(() => {})
+    }
 
     // On any transition into published (approve a pending event, or flip an
     // unpublished one live): notify host if it was an approval, and announce to

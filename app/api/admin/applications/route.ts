@@ -90,6 +90,20 @@ export async function PATCH(req: NextRequest) {
       })
       return NextResponse.json(application)
     }
+    // Anything else a moderator sends is the admin update below — a body with
+    // neither status nor suggestion fell through to it, and could set the
+    // clubs (a private one included) the member is enrolled in on approval.
+    // Their review note is theirs to save; nothing else.
+    if (!isAdmin(session)) {
+      if (reviewNote !== undefined && assignedClubs === undefined) {
+        const application = await prisma.memberApplication.update({
+          where: { id },
+          data:  { reviewNote: typeof reviewNote === 'string' ? reviewNote.slice(0, 2000) || null : null },
+        })
+        return NextResponse.json(application)
+      }
+      return NextResponse.json({ error: 'Moderators can only suggest' }, { status: 403 })
+    }
 
     // Cross-city default-club backstop. The client pre-fills approvals with
     // the settings-wide default club (quick + bulk approve send it blind), and

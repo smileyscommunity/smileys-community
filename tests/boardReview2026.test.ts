@@ -137,6 +137,9 @@ describe('moderation can act on the content', () => {
   })
 
   it('a board report is filed under the post\'s city', () => {
-    expect(src('app/api/admin/moderation/route.ts')).toContain('{ boardPostId: { in: cityBoardPostIds } }')
+    // The queue and every badge share lib/admin/reportScope, which files a
+    // board report by its post's city.
+    expect(src('app/api/admin/moderation/route.ts')).toContain('await reportQueueWhere(session)')
+    expect(src('lib/admin/reportScope.ts')).toContain('prisma.boardPost.findMany(')
   })
 })

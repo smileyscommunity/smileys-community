@@ -6,6 +6,7 @@ import { confirmToast } from '@/lib/confirmToast'
 import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import { downscaleImage } from '@/lib/image-resize'
 import { CityBadge, useAdminCities } from '@/components/admin/CitySelect'
+import { formatDay } from '@/lib/cityTime'
 
 interface Item { id: string; name: string; price: string | null; claimed: boolean }
 interface Sale {
@@ -19,6 +20,9 @@ interface Sale {
   user: { id: string; name: string; email: string; color: string }
   city?: { name: string; slug: string } | null
   items: Item[]
+  // leavingOn has passed on the sale's city calendar (server-judged). Still
+  // 'active' in the database, but gone from the public list.
+  expired?: boolean
 }
 
 // id is present for existing items (preserves `claimed` server-side and
@@ -153,7 +157,11 @@ export default function AdminMovingSalesPage() {
     }
   }
 
-  const visible = sales.filter(s => (status === 'all' || s.status === status) && (!cityFilter || (s.city?.slug ?? '') === cityFilter))
+  // "Active" means what members can still see: an active sale whose leaving
+  // date has passed is expired, and shows only under "all".
+  const matchesStatus = (s: Sale) =>
+    status === 'all' || (s.status === status && !(status === 'active' && s.expired))
+  const visible = sales.filter(s => matchesStatus(s) && (!cityFilter || (s.city?.slug ?? '') === cityFilter))
 
   return (
     <div className="p-4 sm:p-8 max-w-6xl">
@@ -212,10 +220,13 @@ export default function AdminMovingSalesPage() {
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${STATUS_COLOR[s.status] ?? STATUS_COLOR.active}`}>
                         {s.status}
                       </span>
+                      {s.status === 'active' && s.expired && (
+                        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-zinc-700/40 text-zinc-400">expired</span>
+                      )}
                     </div>
                     <p className="text-xs text-zinc-500 mt-0.5">{s.user.email}</p>
                     <p className="text-xs text-zinc-400 mt-1">
-                      Leaving {new Date(s.leavingOn).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      Leaving {formatDay(s.leavingOn.slice(0, 10), { day: 'numeric', month: 'short', year: 'numeric' })}
                       {s.neighborhood && <> · {s.neighborhood}</>}
                     </p>
                     {s.note && <p className="text-xs text-zinc-500 mt-1 line-clamp-2">{s.note}</p>}

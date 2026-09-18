@@ -262,5 +262,12 @@ export async function resolveTargetCityId(
     }
     return { cityId: city.id }
   }
+  // No city named. A moderator's is their own — never the view-city cookie,
+  // which the city switcher sets to any city: a Bursa moderator browsing
+  // Istanbul created live Istanbul partners and directory listings they then
+  // couldn't edit. A city-less moderator creates nothing (fail closed).
+  if (session.role === 'moderator') {
+    return session.cityId ? { cityId: session.cityId } : { error: 'Your account has no city — ask an admin', status: 403 }
+  }
   return { cityId: await resolveCityId(session) }
 }

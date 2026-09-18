@@ -22,7 +22,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Another admin has to review your own card' }, { status: 403 })
     }
 
-    const outcome = await restoreRedCard({ cardId: id, admin: { id: session.id, name: session.name }, note: typeof body?.note === 'string' ? body.note : '' })
+    const outcome = await restoreRedCard({ cardId: id, admin: { id: session.id, name: session.name }, note: typeof body?.note === 'string' ? body.note.slice(0, 1000) : '' })
     if (outcome === 'ok')        return NextResponse.json({ ok: true })
     if (outcome === 'not_found') return NextResponse.json({ error: 'Not a red card' }, { status: 404 })
     return NextResponse.json({ error: 'This card is no longer live' }, { status: 409 })

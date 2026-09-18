@@ -8,7 +8,10 @@ import { createNotification } from '@/lib/notify'
 import { writeAudit } from '@/lib/audit'
 import { validateBusinessCreate, validateFieldUpdate, dropUnchanged } from './_lib'
 
-const PAGE_SIZE = 200
+// One page of the list. The page asks for the next one with ?cursor=<last id>
+// when a full page came back ("Load more"); this used to be the only page, so
+// a city past its newest 200 rows was invisible to its moderators.
+const PAGE_SIZE = 100
 
 export async function GET(req: NextRequest) {
   try {
@@ -43,10 +46,28 @@ export async function GET(req: NextRequest) {
     if (status === 'approved') { where.isApproved = true }
     if (status === 'rejected') { where.isApproved = false; where.isActive = false }
 
+    // Search runs here, over every row, rather than over the page already
+    // loaded — the list used to filter client-side, so a listing past the
+    // first page could never be found.
+    const q = (searchParams.get('q') ?? '').trim().slice(0, 100)
+    if (q) {
+      where.OR = [
+        { name:         { contains: q, mode: 'insensitive' } },
+        { neighborhood: { contains: q, mode: 'insensitive' } },
+        { category:     { contains: q, mode: 'insensitive' } },
+        { address:      { contains: q, mode: 'insensitive' } },
+      ]
+    }
+
+    // Keyset paging on (createdAt, id) — id breaks ties so a bulk upload
+    // sharing one timestamp can't repeat or skip rows between pages.
+    const cursor = searchParams.get('cursor')
+
     const businesses = await prisma.business.findMany({
       where,
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: PAGE_SIZE,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       include: {
         submittedBy: { select: { id: true, name: true, email: true } },
         reviewedBy:  { select: { id: true, name: true } },

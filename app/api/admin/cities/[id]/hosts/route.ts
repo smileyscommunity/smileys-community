@@ -28,9 +28,15 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const [city, user] = await Promise.all([
     prisma.city.findUnique({ where: { id: cityId }, select: { id: true } }),
-    prisma.user.findUnique({ where: { email: email.trim().toLowerCase() }, select: { id: true, name: true, email: true, status: true, suspendedUntil: true } }),
+    prisma.user.findUnique({ where: { email: email.trim().toLowerCase() }, select: { id: true, name: true, email: true, status: true, suspendedUntil: true, cityId: true } }),
   ])
   if (!city) return NextResponse.json({ error: 'City not found' }, { status: 404 })
+  // A moderator grants within their own city's members, and learns nothing
+  // about anyone else: the replies below named any member's status and
+  // suspension date, whichever city they were in.
+  if (!isAdmin(session) && (!user || user.cityId !== cityId || user.status !== 'approved' || (user.suspendedUntil && user.suspendedUntil > new Date()))) {
+    return NextResponse.json({ error: 'No active member of this city has that email' }, { status: 404 })
+  }
   if (!user) return NextResponse.json({ error: `No member found with email "${email.trim()}"` }, { status: 404 })
   // A city host can create events and (as of the review-gate fix) has real
   // authority in the city. The lookup was by email alone, so a banned or

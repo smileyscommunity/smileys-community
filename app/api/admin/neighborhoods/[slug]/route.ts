@@ -8,6 +8,7 @@ import { canActInCity } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
 import { readFileSync, writeFileSync, mkdirSync, renameSync } from 'fs'
 import { dirname } from 'path'
+import { isSafeHref } from '@/lib/safeUrl'
 
 export const runtime = 'nodejs'
 
@@ -56,13 +57,10 @@ const BANNER_URL_RE = /^\/app\/api\/files\/neighborhoods\/[a-zA-Z0-9\-_]+\.(jpg|
 // Community group link — only same-origin paths or https:// URLs. The
 // public neighborhood page renders this as <a href>, so javascript: or
 // protocol-relative `//evil.com` would otherwise pass through.
+// The shared link rule (lib/safeUrl): this local copy let a backslash
+// through (`/\evil.com` is protocol-relative to a browser).
 function isSafeGroupLink(s: string): boolean {
-  if (!s) return true
-  // eslint-disable-next-line no-control-regex
-  if (/[\s\x00-\x1f]/.test(s)) return false
-  if (s.startsWith('//')) return false
-  if (s.startsWith('/')) return true
-  return /^https:\/\//i.test(s)
+  return !s || isSafeHref(s)
 }
 
 function str(v: unknown, max: number): string {

@@ -7,6 +7,7 @@ import { slugify } from '@/lib/slug'
 import { resolveTargetCityId } from '@/lib/city'
 import { computeEventSurveyRollup, aggregateRollup } from '@/lib/survey'
 import { COUNTED_CLUB_MEMBERSHIP_WHERE } from '@/lib/clubMemberCount'
+import { writeAudit } from '@/lib/audit'
 
 // GET /api/admin/clubs
 //
@@ -152,6 +153,8 @@ export async function POST(req: NextRequest) {
         cityId:      target.cityId,
       },
     })
+    writeAudit(session.id, session.name, 'club.create', club.id, 'club',
+      { cityId: club.cityId, slug: club.slug }, `Created club "${club.name}"`)
     return NextResponse.json(club, { status: 201 })
   } catch (e) {
     // P2002 = unique-constraint violation. The only realistic

@@ -15,8 +15,28 @@ import {formatName} from '@/lib/data'
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 import { todayInCity, resolveCityId } from '@/lib/city'
 import { formatMoney } from '@/lib/data'
+import { rateLimit, claimOnce, releaseClaim } from '@/lib/rateLimit'
+import {
+  mayReengage, reengageClaimKey, REENGAGE_DEDUPE_MS, REENGAGE_SEND_LIMIT, REENGAGE_WINDOW_MS, REENGAGE_MAX_LENGTH,
+} from '../reengage/gate'
 
 type Params = { params: Promise<{ id: string }> }
+
+// What a PATCH hands back. It used to return the whole row from
+// prisma.user.update — password hash, totpSecret, fingerprints and all — to
+// the browser, and the detail page then replaced its state with it and
+// crashed on the missing joinedEvents. Only the fields the admin pages read.
+const USER_PATCH_SELECT = {
+  id: true, name: true, email: true, role: true, status: true, membershipType: true,
+  color: true, bio: true, neighborhood: true, instagram: true, phone: true,
+  nationality: true, languages: true, interests: true, cityId: true,
+  partnerId: true, industry: true, professionalRole: true, professionalStatus: true,
+  suspendedUntil: true, suspensionNote: true, hiddenFromMembers: true,
+  banReason: true, bannedAt: true, appealStatus: true, warningCount: true, emailVerified: true,
+} as const
+
+// Same closed set the member's own profile route accepts (api/auth/me).
+const PRO_STATUSES = new Set(['social_only', 'open_to_networking', 'hiring', 'seeking_advice'])
 
 export async function GET(_: NextRequest, { params }: Params) {
   try {
@@ -34,13 +54,19 @@ export async function GET(_: NextRequest, { params }: Params) {
         phone: true, profilePhoto: true, nationality: true,
         languages: true, interests: true, cityId: true,
         status: true, membershipType: true, lastActive: true,
+        // The Quick Edit form starts from these. Without them it opened blank
+        // and every save sent partnerId: null, unlinking the member's partner.
+        partnerId: true, industry: true, professionalRole: true, professionalStatus: true,
+        warningCount: true, suspendedUntil: true, suspensionNote: true,
+        // Read only to say whether the member has activated; never sent.
+        password: true,
         adminNotes: {
           orderBy: { createdAt: 'desc' },
         },
         joinedEvents: {
           // Live RSVPs only — a cancelled row would read as a no-show below.
           where:   activeAttendeeWhere,
-          include: { event: { select: { id: true, title: true, emoji: true, date: true, neighborhood: true, price: true, city: { select: { timezone: true } } } } },
+          include: { event: { select: { id: true, title: true, emoji: true, date: true, neighborhood: true, currency: true, price: true, city: { select: { timezone: true } } } } },
           orderBy: { joinedAt: 'desc' },
         },
         clubMemberships: {
@@ -141,7 +167,20 @@ export async function GET(_: NextRequest, { params }: Params) {
       }
     }
 
-    return NextResponse.json({ ...user, hostQuality })
+    // What the member has actually paid, per currency. The page used to sum
+    // the list price of every RSVP — upcoming, unpaid and pending included,
+    // across currencies — under the viewer's currency sign. Payments are
+    // admin-only everywhere else, so moderators get none.
+    const paidTotals = isAdmin
+      ? (await prisma.payment.groupBy({
+          by:    ['currency'],
+          where: { userId: id, status: 'paid' },
+          _sum:  { amount: true },
+        })).map(g => ({ currency: g.currency, amount: g._sum.amount ?? 0 }))
+      : null
+
+    const { password, ...rest } = user
+    return NextResponse.json({ ...rest, hasPassword: !!password, hostQuality, paidTotals })
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
@@ -162,17 +201,41 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // for the audit log anyway so this isn't an extra round-trip.
     const target = await prisma.user.findUnique({
       where: { id },
-      select: { role: true, status: true, name: true, email: true, phone: true, suspendedUntil: true, cityId: true, membershipType: true },
+      select: { role: true, status: true, name: true, email: true, phone: true, suspendedUntil: true, cityId: true, membershipType: true, neighborhood: true, bannedAt: true },
     })
     if (!target) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-    // Re-engagement notification shortcut
-    if (body._reengage) {
-      if (!canManageUsers(session) && !canSuspendUsers(session)) {
+    // Re-engagement notification shortcut — the Retention page's "Send
+    // notification". Moderators send it to their own city's members (see
+    // ../reengage/gate.ts); it used to demand admin, so every moderator 403'd.
+    if ('_reengage' in body) {
+      if (!mayReengage(session, target.cityId)) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
-      const { createNotification } = await import('@/lib/notify')
-      await createNotification(id, 'announcement', '👋 We miss you!', body._reengage, '/events')
+      const message = typeof body._reengage === 'string' ? body._reengage.trim() : ''
+      if (!message) return NextResponse.json({ error: 'Message is empty' }, { status: 400 })
+      if (message.length > REENGAGE_MAX_LENGTH) {
+        return NextResponse.json({ error: `Keep it under ${REENGAGE_MAX_LENGTH} characters` }, { status: 400 })
+      }
+      const claimKey = reengageClaimKey(id)
+      if (!await claimOnce(claimKey, REENGAGE_DEDUPE_MS)) {
+        return NextResponse.json({ error: 'This member was already nudged in the last 7 days.' }, { status: 409 })
+      }
+      // Counted after the week's claim, so a refused repeat doesn't use a send.
+      if (!await rateLimit(`reengage-send:${session.id}`, REENGAGE_SEND_LIMIT, REENGAGE_WINDOW_MS)) {
+        await releaseClaim(claimKey)
+        return NextResponse.json({ error: 'Too many nudges sent — try again in a while.' }, { status: 429 })
+      }
+      const delivered = await createNotification(id, 'announcement', '👋 We miss you!', message, '/events')
+      if (!delivered) {
+        // The write failed: hand the week back so the next try can send.
+        await releaseClaim(claimKey)
+        return NextResponse.json({ error: 'Could not send the notification — try again.' }, { status: 502 })
+      }
+      writeAudit(session.id, session.name, 'user.reengage', id, 'user',
+        { name: target.name, cityId: target.cityId },
+        `Re-engagement nudge sent to ${target.name ?? id}`,
+      )
       return NextResponse.json({ ok: true })
     }
 
@@ -198,7 +261,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       'appealStatus', 'bio', 'neighborhood', 'instagram', 'phone', 'nationality',
       'languages', 'interests', 'color', 'name',
       'suspendedUntil', 'suspensionNote', 'partnerId',
-      'hiddenFromMembers', 'email'
+      'hiddenFromMembers', 'email',
+      // The Quick Edit form has always shown these; without them here the
+      // edits were dropped while the page said "Profile updated".
+      'industry', 'professionalRole', 'professionalStatus',
     ] as const
 
     const allowed: Record<string, unknown> = {}
@@ -236,6 +302,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // rejected rather than stored, because a stored one silently drops that
     // member out of every neighborhood feature (see
     // scripts/archive/fix-member-neighborhoods.ts for the 33 rows this produced).
+    //
+    // A value the form sent back unchanged is not an edit. A member still on a
+    // legacy neighborhood (not in the registry) got a 400 on EVERY Quick Edit
+    // save — any field — because the form always re-sent it.
+    if ('neighborhood' in allowed && (allowed.neighborhood ?? null) === (target.neighborhood ?? null)) {
+      delete allowed.neighborhood
+    }
     if ('neighborhood' in allowed) {
       const parsed = await normalizeNeighborhoodInput(target.cityId, allowed.neighborhood)
       if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
@@ -265,6 +338,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (allowed.status !== undefined && !['approved', 'pending', 'banned'].includes(allowed.status as string)) {
       return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
     }
+    // A self-deleted account is anonymised to a …@deleted.smileys address and
+    // left 'banned' only so its sessions end. Unbanning it would bring back
+    // a ghost login, not a member.
+    if (allowed.status !== undefined && allowed.status !== 'banned' && target.email.endsWith('@deleted.smileys')) {
+      return NextResponse.json({ error: 'This account was deleted by its owner and cannot be restored' }, { status: 400 })
+    }
     // membershipType is currently a free-form column with a UI offering
     // 'free' | 'premium' | 'vip'. The audit flagged it as the only field
     // in this whitelist with no enum validation. Locking it down now so a
@@ -275,6 +354,31 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
     if (allowed.hiddenFromMembers !== undefined && typeof allowed.hiddenFromMembers !== 'boolean') {
       return NextResponse.json({ error: 'Invalid hiddenFromMembers' }, { status: 400 })
+    }
+    // Professional fields: same rules as the member's own profile save.
+    // Empty clears; the status is a closed set because the Pro directory
+    // filters on it.
+    for (const key of ['industry', 'professionalRole'] as const) {
+      if (key in allowed) {
+        const v = allowed[key]
+        if (v === null || v === '') allowed[key] = null
+        else if (typeof v !== 'string' || v.trim().length > 60) return NextResponse.json({ error: `Invalid ${key}` }, { status: 400 })
+        else allowed[key] = v.trim()
+      }
+    }
+    if ('professionalStatus' in allowed) {
+      const v = allowed.professionalStatus
+      if (v === null || v === '') allowed.professionalStatus = null
+      else if (typeof v !== 'string' || !PRO_STATUSES.has(v)) {
+        return NextResponse.json({ error: 'Invalid professionalStatus' }, { status: 400 })
+      }
+    }
+    // A partner id that doesn't exist would reach the foreign key and 500.
+    if ('partnerId' in allowed && allowed.partnerId !== null) {
+      const partner = typeof allowed.partnerId === 'string'
+        ? await prisma.partner.findUnique({ where: { id: allowed.partnerId }, select: { id: true } })
+        : null
+      if (!partner) return NextResponse.json({ error: 'Unknown partner' }, { status: 400 })
     }
     // Email change — admin-only in practice (mod restriction above), since
     // email is the login identifier. Normalize, validate, and enforce
@@ -296,7 +400,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // profile save that only re-sent the current email) — succeed quietly
     // instead of tripping prisma with an empty data object.
     if (Object.keys(allowed).length === 0) {
-      const unchanged = await prisma.user.findUnique({ where: { id } })
+      const unchanged = await prisma.user.findUnique({ where: { id }, select: USER_PATCH_SELECT })
       return NextResponse.json(unchanged)
     }
 
@@ -337,13 +441,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // that way) and escapes self-deletion's scrub.
     const user = allowed.email !== undefined
       ? (await prisma.$transaction([
-          prisma.user.update({ where: { id }, data: allowed }),
+          prisma.user.update({ where: { id }, data: allowed, select: USER_PATCH_SELECT }),
           prisma.memberApplication.updateMany({
             where: { email: { equals: target.email, mode: 'insensitive' } },
             data:  { email: allowed.email as string },
           }),
         ]))[0]
-      : await prisma.user.update({ where: { id }, data: allowed })
+      : await prisma.user.update({ where: { id }, data: allowed, select: USER_PATCH_SELECT })
 
     // Premium/VIP grant → celebrate it (in-app + email). Fires only on a
     // genuine upgrade FROM a non-paid tier INTO a paid one — so re-saving an
@@ -383,6 +487,32 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       // not survive the ban either way).
       await prisma.passwordResetToken.deleteMany({ where: { userId: id } })
         .catch(err => console.error('[user PATCH ban] token cleanup failed', { id, err: String(err) }))
+    }
+
+    // Unban → take away the blacklist row the ban put there. Activation and
+    // registration both refuse a blacklisted email, so an unbanned member
+    // who had not activated yet could never get in. Only rows created at or
+    // after this ban are removed: an entry that predates it was a separate
+    // decision (the Blacklist page), not this ban's side effect. A legacy ban
+    // with no bannedAt can't be told apart, so it is left for the Blacklist
+    // page too.
+    if (before.status === 'banned' && allowed.status !== undefined && allowed.status !== 'banned'
+        && before.email && before.bannedAt) {
+      const removed = await prisma.blacklist.findMany({
+        where:  { email: { equals: before.email, mode: 'insensitive' }, createdAt: { gte: before.bannedAt } },
+        select: { id: true, email: true, phone: true, reason: true, bannedBy: true, createdAt: true },
+      }).catch(err => { console.error('[user PATCH unban] blacklist lookup failed', { id, err: String(err) }); return [] })
+      const cleared = removed.length
+        ? await prisma.blacklist.deleteMany({ where: { id: { in: removed.map(r => r.id) } } })
+            .then(() => true)
+            .catch(err => { console.error('[user PATCH unban] blacklist removal failed', { id, err: String(err) }); return false })
+        : false
+      if (cleared) {
+        writeAudit(session.id, session.name, 'blacklist.remove', id, 'user',
+          { name: before.name, cityId: before.cityId, reason: 'unban', entries: removed.map(r => ({ ...r, createdAt: r.createdAt.toISOString() })) },
+          `Blacklist entry removed on unban of ${before.name ?? id} (${before.email})`,
+        )
+      }
     }
 
     if (allowed.email !== undefined) {

@@ -22,7 +22,6 @@ export interface ReviewGuest {
   attendeeId: string
   userId:     string
   name:       string
-  email:      string | null
   /** The warning reached them (or was deliberately skipped — see `warned`). */
   warned:     boolean
   saysCame:   boolean
@@ -64,11 +63,19 @@ function stageOf(e: SweepEvent, now: Date): ReviewStage {
  * the decision actually turns on. `eventIds` narrows it to what a host runs;
  * an admin passes nothing and sees all of them.
  */
-export async function attendanceReviewRows(now: Date = new Date(), eventIds?: string[]): Promise<ReviewRow[]> {
+export async function attendanceReviewRows(
+  now: Date = new Date(),
+  eventIds?: string[],
+  // A moderator's own city: every other staff list is scoped this way, and
+  // this one handed any moderator every city's rooms and guest list.
+  cityId?: string,
+): Promise<ReviewRow[]> {
   let events = await standingEvents(now)
-  if (eventIds) {
-    const allowed = new Set(eventIds)
-    events = events.filter(e => allowed.has(e.id))
+  // Either list narrows it; both is their union — a moderator's city plus
+  // the rooms they run anywhere (a host in several cities reviews them all).
+  if (eventIds !== undefined || cityId !== undefined) {
+    const allowed = new Set(eventIds ?? [])
+    events = events.filter(e => allowed.has(e.id) || (cityId !== undefined && e.cityId === cityId))
   }
   if (events.length === 0) return []
 
@@ -121,7 +128,6 @@ export async function attendanceReviewRows(now: Date = new Date(), eventIds?: st
         attendeeId: m.id,
         userId:     m.userId,
         name:       m.user?.name ?? 'a guest',
-        email:      m.user?.email ?? null,
         warned:     warned.has(m.userId),
         saysCame:   saysCame.has(m.userId),
       })),
