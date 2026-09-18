@@ -1380,6 +1380,10 @@ model WaitlistEntry {
   userId    String
   eventId   String
   createdAt DateTime @default(now())
+  // The RSVP's stealth flag rides along: a member who joined invisibly and
+  // landed here must not be named on the waitlist grid, nor un-stealthed
+  // by a promotion (lib/attendance activateAttendee takes it back).
+  stealth   Boolean  @default(false)
 
   @@unique([userId, eventId])
   @@index([eventId])

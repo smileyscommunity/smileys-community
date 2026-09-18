@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { resolveCityId, getCityTz } from '@/lib/city'
-import { dayInTz, nowInTz } from '@/lib/cityTime'
+import { dayInTz, shiftDay, weekendRangeOf } from '@/lib/cityTime'
 import { groupBySeries, seriesCadenceLabel } from '@/lib/eventSeries'
 
 // Events discovery (Events brief §6–7, §14–18): the personalized
@@ -30,16 +30,12 @@ function cityDays(tz: string) {
   const fmt = (d: Date) => dayInTz(d, tz)
   const now = new Date()
   const today = fmt(now)
-  const tomorrow = fmt(new Date(now.getTime() + 86_400_000))
-  // Weekend = the coming Sat+Sun (today counts when we're already in it).
-  // Weekday comes from nowInTz's formatToParts read — no hand-built offset
-  // string, which is what kept the old version welded to UTC+3.
-  const DOW: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
-  const dow = DOW[nowInTz(tz, now).weekdayShort] ?? 0
-  const daysToSat = (6 - dow + 7) % 7
-  const sat = fmt(new Date(now.getTime() + daysToSat * 86_400_000))
-  const sun = fmt(new Date(now.getTime() + (daysToSat + 1) * 86_400_000))
-  const weekOut = fmt(new Date(now.getTime() + 7 * 86_400_000))
+  // Calendar maths on the city's day (shiftDay / weekendRangeOf), not +24h:
+  // the old Sat/Sun arithmetic showed NEXT weekend all Sunday, and +24h
+  // lands on the same day across a clock change.
+  const tomorrow = shiftDay(today, 1)
+  const { start: sat, end: sun } = weekendRangeOf(today)
+  const weekOut = shiftDay(today, 7)
   return { today, tomorrow, sat, sun, weekOut }
 }
 

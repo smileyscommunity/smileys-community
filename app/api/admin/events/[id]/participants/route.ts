@@ -295,7 +295,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
           const room  = !!next && (!seats || seatVerdict(seats).ok)
           if (next && room) {
             await tx.waitlistEntry.delete({ where: { id: next.id } })
-            await activateAttendee(tx, { userId: next.userId, eventId, status: 'approved' })
+            await activateAttendee(tx, { userId: next.userId, eventId, status: 'approved', stealth: next.stealth })
             // A promoted seat owes what any seat owes (lib/rsvpConfirmed).
             await createSeatPayment(tx, eventId, eventRow, next.userId)
           }
@@ -686,8 +686,10 @@ export async function PUT(req: NextRequest, { params }: Params) {
       const seats = await seatState(tx, eventId)
       const verdict = seats && !seats.staffIds.includes(userId) ? seatVerdict(seats) : { ok: true as const }
       if (!verdict.ok && !wantsOverCapacity(body)) return verdict
+      // A stealth waitlister stays stealth when seated by hand.
+      const queued = await tx.waitlistEntry.findUnique({ where: { userId_eventId: { userId, eventId } }, select: { stealth: true } })
       await tx.waitlistEntry.deleteMany({ where: { eventId, userId } })
-      await activateAttendee(tx, { userId, eventId, status: 'approved' })
+      await activateAttendee(tx, { userId, eventId, status: 'approved', stealth: queued?.stealth ?? false })
       // A seat added by hand owed nothing on the ledger; it owes what a
       // member's own RSVP owes (lib/rsvpConfirmed).
       await createSeatPayment(tx, eventId, event, userId)
@@ -763,8 +765,10 @@ export async function POST(req: NextRequest, { params }: Params) {
       const seats = await seatState(tx, eventId)
       const verdict = seats && !seats.staffIds.includes(userId) ? seatVerdict(seats) : { ok: true as const }
       if (!verdict.ok && !wantsOverCapacity(body)) return verdict
+      // A stealth waitlister stays stealth when promoted.
+      const queued = await tx.waitlistEntry.findUnique({ where: { userId_eventId: { userId, eventId } }, select: { stealth: true } })
       await tx.waitlistEntry.deleteMany({ where: { eventId, userId } })
-      await activateAttendee(tx, { userId, eventId, status: 'approved' })
+      await activateAttendee(tx, { userId, eventId, status: 'approved', stealth: queued?.stealth ?? false })
       // Same ledger row as the add above.
       await createSeatPayment(tx, eventId, eventMeta, userId)
       // Recompute, never a blind decrement — see the PUT add-attendee path.

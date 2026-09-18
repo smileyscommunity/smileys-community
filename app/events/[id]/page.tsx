@@ -1,4 +1,6 @@
 import { notFound } from 'next/navigation'
+import { eventStartDate } from '@/lib/eventJsonLd'
+import { FEMALE_VARIANTS } from '@/lib/eventQuota'
 import { jsonLdHtml } from '@/lib/jsonLd'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -72,10 +74,16 @@ function buildEventJsonLd(event: Event, eventUrl: string, tz: string, cityName: 
     description: event.description
       ? event.description.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 500)
       : `${event.emoji} ${event.title} in ${event.neighborhood}, ${cityName}`,
-    startDate: fromWallClockInTz(`${event.date}T${event.time ?? '00:00'}`, tz).toISOString(),
+    // A "TBA" or legacy "19.30" start has no instant: date only, as
+    // lib/eventJsonLd does for the list. toISOString() on NaN threw and took
+    // the whole page down with it.
+    startDate: eventStartDate(event as unknown as Parameters<typeof eventStartDate>[0], tz),
+    ...(/^\d{2}:\d{2}$/.test(event.endTime ?? '') ? { endDate: eventEndsAt(event, tz).toISOString() } : {}),
     eventStatus: event.status === 'cancelled'
       ? 'https://schema.org/EventCancelled'
-      : 'https://schema.org/EventScheduled',
+      : event.status === 'postponed'
+        ? 'https://schema.org/EventPostponed'
+        : 'https://schema.org/EventScheduled',
     eventAttendanceMode: online
       ? 'https://schema.org/OnlineEventAttendanceMode'
       : 'https://schema.org/OfflineEventAttendanceMode',
@@ -85,10 +93,12 @@ function buildEventJsonLd(event: Event, eventUrl: string, tz: string, cityName: 
       ? { '@type': 'VirtualLocation', url: event.meetingUrl ?? eventUrl }
       : {
           '@type': 'Place',
-          name:    event.location || event.neighborhood || cityName,
+          // Without the address (a guest's copy) the place is the neighbourhood:
+          // the venue name was "locked" on the page and printed here as a street.
+          name:    event.address ? (event.location || event.neighborhood || cityName) : (event.neighborhood || cityName),
           address: {
             '@type':         'PostalAddress',
-            streetAddress:   event.address ?? event.location ?? '',
+            streetAddress:   event.address ?? '',
             addressLocality: cityName,
             addressCountry:  countryCode,
           },
@@ -198,8 +208,9 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
     // page source for every logged-out visitor and crawler.
     const guestJsonLd = buildEventJsonLd(redactEventForGuest(event), eventUrl, eventTz, cityName, cityCountry, !!event.meetingUrl)
 
+    // The room, not the crew — the member view and the card both leave the host out.
     const goingCount = await prisma.eventAttendee.count({
-      where: { eventId: id, status: 'approved' },
+      where: { eventId: id, status: 'approved', userId: { not: event.hostId } },
     })
 
     const vibes = event.vibes ?? []
@@ -229,7 +240,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                 time={event.time}
                 timeZone={eventTz}
                 endTime={event.endTime}
-                location={event.location ?? event.neighborhood ?? ''}
+                location={event.neighborhood ?? ''}
                 description={event.description ? event.description.replace(/<[^>]+>/g, '') : ''}
                 url={eventUrl}
                 compact
@@ -313,19 +324,17 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
             )}
 
             {/* Host */}
+            {/* A first name and an initial: the host's face and surname are
+                for members (redactEventForGuest). */}
             {event.hostName && (
               <div className="flex items-center gap-3 pt-4 border-t border-gray-100">
-                {event.hostPhoto ? (
-                  <Image src={avatarUrl(event.hostPhoto, 96) ?? ''} alt={event.hostName} width={40} height={40} className="w-10 h-10 rounded-full object-cover" />
-                ) : (
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold"
-                    style={{ backgroundColor: event.hostColor ?? '#f59e0b' }}>
-                    {getInitials(event.hostName)}
-                  </div>
-                )}
+                <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold"
+                  style={{ backgroundColor: event.hostColor ?? '#f59e0b' }}>
+                  {getInitials(event.hostName)}
+                </div>
                 <div>
                   <p className="text-xs text-gray-400">Hosted by</p>
-                  <p className="font-semibold text-gray-900 text-sm">{event.hostName}</p>
+                  <p className="font-semibold text-gray-900 text-sm">{firstNameOf(event.hostName)}</p>
                 </div>
               </div>
             )}
@@ -380,9 +389,11 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
     prisma.waitlistEntry.findMany({
       where: { eventId: id },
       orderBy: { createdAt: 'asc' },
-      select: { userId: true },
-    }).then(async entries => {
-      const total = entries.length
+      select: { userId: true, stealth: true },
+    }).then(async all => {
+      const total = all.length
+      // A stealth joiner on the waitlist stays unnamed, as on the roster.
+      const entries = all.filter(e => !e.stealth)
       if (!total) return { users: [] as { id: string; name: string; color: string; profilePhoto: string | null; nationality: string | null; profileVisibility: string }[], total: 0 }
       // Show the whole waitlist (members expect to see everyone queued), but
       // keep a high safety cap so a pathological 500-person waitlist can't
@@ -449,7 +460,10 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
       ? `https://www.google.com/maps/search/?api=1&query=${event.lat},${event.lng}`
       : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([event.location, event.neighborhood, cityName].filter(Boolean).join(', '))}`)
 
-  const fillPercent = event.totalSpots > 0 ? (totalAttendeeCount / event.totalSpots) * 100 : 0
+  // Only a capped event fills up; an uncapped one keeps a nominal totalSpots
+  // (20) and read "23 / 20 going" with a bar past the end.
+  const fillPercent = event.limitedSpots && event.totalSpots > 0 ? Math.min(100, (totalAttendeeCount / event.totalSpots) * 100) : 0
+  const goingLabel  = event.limitedSpots ? `${totalAttendeeCount} / ${event.totalSpots} going` : `${totalAttendeeCount} going`
   // The venue address and map, the chat and meeting links and the payment
   // contact are what being on the event unlocks — the same people
   // GET /api/events/[id] hands the full event to. This was hardcoded to true,
@@ -500,15 +514,17 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
     where: { eventId: id, status: 'approved', userId: { notIn: [event.hostId, ...cohostIds] } },
     select: { user: { select: { gender: true, nationality: true } } },
   })
-  const femaleCount         = allApprovedGenders.filter(a => a.user.gender === 'female').length
+  // The same counts and caps the RSVP route waitlists by (lib/eventQuota):
+  // the panel matched only lowercase 'female' and ignored an explicit
+  // femaleQuota, so it disagreed with who actually got a seat.
+  const isFemale            = (g: string | null | undefined) => !!g && (FEMALE_VARIANTS as readonly string[]).includes(g)
+  const femaleCount         = allApprovedGenders.filter(a => isFemale(a.user.gender)).length
   const maleCount           = allApprovedGenders.filter(a => a.user.gender === 'male').length
   const maleQuota           = event.maleQuota ?? null
   const effectiveMaleQuota  = event.genderBalance ? (maleQuota ?? Math.floor(event.totalSpots / 2)) : null
-  const femaleCapacity      = effectiveMaleQuota !== null ? event.totalSpots - effectiveMaleQuota : event.totalSpots
+  const femaleCapacity      = event.genderBalance ? (event.femaleQuota ?? Math.floor(event.totalSpots / 2)) : event.totalSpots
   const maleIsFull          = effectiveMaleQuota !== null && maleCount >= effectiveMaleQuota
-  const turkishMaleCount = event.turkishMaleQuota
-    ? allApprovedGenders.filter(a => (a.user as any).nationality === 'Turkey' && a.user.gender === 'male').length
-    : 0
+  const femaleIsFull        = !!event.genderBalance && femaleCount >= femaleCapacity
 
   // Cross-link to the business directory when this venue has a listing
   // (matched by name — the venue-import script keeps directory names in
@@ -529,6 +545,21 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
 
   return (
     <div className="min-h-screen bg-warm pb-36 md:pb-28 lg:pb-10">
+      {/* Called off or moved: said at the top with the host's reason, not
+          only in the button's label (lib/db keeps cancelled events in the
+          feed so members see WHY — and the why was never rendered). */}
+      {(event.status === 'cancelled' || event.status === 'postponed') && (
+        <div className={`border-b ${event.status === 'cancelled' ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'}`}>
+          <div className="max-w-6xl mx-auto px-4 py-3 text-sm">
+            <p className={`font-bold ${event.status === 'cancelled' ? 'text-red-800' : 'text-amber-900'}`}>
+              {event.status === 'cancelled' ? '❌ This event was cancelled' : '⏸ This event is postponed — a new date will follow'}
+            </p>
+            {(event as { cancelReason?: string | null }).cancelReason && (
+              <p className={`mt-0.5 ${event.status === 'cancelled' ? 'text-red-700' : 'text-amber-800'}`}>{(event as { cancelReason?: string | null }).cancelReason}</p>
+            )}
+          </div>
+        </div>
+      )}
       <script
         type="application/ld+json"
         // JSON.stringify does NOT escape `<` so a host putting
@@ -784,7 +815,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
           {/* Capacity bar — mobile only */}
           <div className="lg:hidden bg-white rounded-2xl shadow-card p-4">
             <div className="flex items-center justify-between mb-2 text-sm">
-              <span className="font-semibold text-gray-900">👥 {totalAttendeeCount} / {event.totalSpots} going</span>
+              <span className="font-semibold text-gray-900">👥 {goingLabel}</span>
               {event.limitedSpots && event.spotsLeft <= 5 && event.spotsLeft > 0 && (
                 <span className="text-xs font-semibold text-red-500">⚡ {event.spotsLeft} spots left</span>
               )}
@@ -792,12 +823,14 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                 <span className="text-xs font-semibold text-violet-600">{saidSoldOut ? 'Sold out' : 'Full'}</span>
               )}
             </div>
+            {event.limitedSpots && (
             <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
               <div
                 className="h-full rounded-full transition-all duration-500"
                 style={{ width: `${fillPercent}%`, backgroundColor: fillPercent >= 85 ? '#ef4444' : fillPercent >= 65 ? '#f97316' : '#f59e0b' }}
               />
             </div>
+            )}
           </div>
 
           {/* Gender breakdown — mobile only */}
@@ -884,7 +917,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                   ) : live ? (
                     <span className="opacity-60 italic">Waiting for arrivals...</span>
                   ) : (
-                    <span>Doors at {event.time}</span>
+                    <span>Doors at {formatTime(event.time)}</span>
                   )}
                 </div>
               </div>
@@ -975,16 +1008,11 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
               {!isAdmin && !isHost && myAttendance?.status !== 'approved' ? (
                 <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-2xl">
                   <div className="flex -space-x-2">
-                    {attendees.slice(0, 5).map(a => {
-                      // #7 perf: 64-wide thumb — image is blurred + 36px CSS,
-                      // no benefit to larger sizes.
-                      const photo = avatarUrl(a.user.profilePhoto, 64)
-                      return photo ? (
-                        <img key={a.user.id} src={photo} alt="" loading="lazy" decoding="async" className="w-9 h-9 rounded-full object-cover border-2 border-white blur-sm" />
-                      ) : (
-                        <div key={a.user.id} className="w-9 h-9 rounded-full border-2 border-white blur-sm" style={{ backgroundColor: a.user.color }} />
-                      )
-                    })}
+                    {/* Coloured blanks, never the photo file under a CSS blur: the
+                        image URL was in the page for anyone who couldn't "see who". */}
+                    {attendees.slice(0, 5).map(a => (
+                      <div key={a.user.id} className="w-9 h-9 rounded-full border-2 border-white blur-sm" style={{ backgroundColor: a.user.color }} />
+                    ))}
                   </div>
                   <p className="text-sm text-gray-600"><span className="font-semibold text-gray-700">{totalAttendeeCount} people</span> are going. RSVP to see who.</p>
                 </div>
@@ -1030,8 +1058,9 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
 
           {attendees.length > 0 && <hr className="border-gray-100" />}
 
-          {/* Waitlist */}
-          {waitlisted.total > 0 && (
+          {/* Waitlist — the same gate as the attendee grid: names are for the
+              people inside the event. */}
+          {waitlisted.total > 0 && canSeeInside && (
             <div>
               <h2 className="text-base font-bold text-gray-900 mb-3">
                 Waitlist <span className="text-gray-400 font-normal">({waitlisted.total})</span>
@@ -1070,7 +1099,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
             </div>
           )}
 
-          {waitlisted.total > 0 && <hr className="border-gray-100" />}
+          {waitlisted.total > 0 && canSeeInside && <hr className="border-gray-100" />}
 
           {/* Club — mobile only */}
           {club && (
@@ -1144,15 +1173,17 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
             {/* Capacity */}
             <div className="bg-white rounded-2xl shadow-card p-5">
               <div className="flex items-center justify-between mb-2 text-sm">
-                <span className="font-semibold text-gray-900">👥 {totalAttendeeCount} / {event.totalSpots} going</span>
+                <span className="font-semibold text-gray-900">👥 {goingLabel}</span>
                 {event.limitedSpots && event.spotsLeft <= 5 && event.spotsLeft > 0 && (
                   <span className="text-xs font-semibold text-red-500">⚡ {event.spotsLeft} left</span>
                 )}
               </div>
+              {event.limitedSpots && (
               <div className="h-2 bg-gray-100 rounded-full overflow-hidden mb-4">
                 <div className="h-full rounded-full transition-all duration-500"
                   style={{ width: `${fillPercent}%`, backgroundColor: fillPercent >= 85 ? '#ef4444' : fillPercent >= 65 ? '#f97316' : '#f59e0b' }} />
               </div>
+              )}
               {/* Social proof — who's going */}
               {totalAttendeeCount > 0 && (
                 <div className="flex items-center gap-2.5 mb-3">
@@ -1200,6 +1231,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                 currency={event.currency}
                 payTo={event.payTo}
                 closedLabel={closedLabel}
+                approvalRequired={!!event.approvalRequired}
               />
               {myAttendance?.status === 'approved' && !isPast && (
                 <div className="mt-2">

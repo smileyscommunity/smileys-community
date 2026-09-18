@@ -130,11 +130,11 @@ export async function hasQuotaRoomFor(
 export async function findPromotableFromWaitlist(
   eventId: string,
   event: QuotaEvent,
-): Promise<{ id: string; userId: string } | null> {
+): Promise<{ id: string; userId: string; stealth: boolean } | null> {
   const queue = await prisma.waitlistEntry.findMany({
     where:   { eventId },
     orderBy: { createdAt: 'asc' },
-    select:  { id: true, userId: true },
+    select:  { id: true, userId: true, stealth: true },
   })
   if (queue.length === 0) return null
 
@@ -165,7 +165,7 @@ export async function findPromotableFromWaitlist(
     // sweeps this is what keeps them from being promoted into a spot.
     const gate = await getRsvpGate(entry.userId)
     if (!gate.ok && gate.code === 'red_card_blocked') continue
-    return { id: entry.id, userId: entry.userId }
+    return { id: entry.id, userId: entry.userId, stealth: entry.stealth }
   }
   return null
 }

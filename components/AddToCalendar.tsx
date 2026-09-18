@@ -55,6 +55,9 @@ export default function AddToCalendar({ title, date, time, location, description
     return () => document.removeEventListener('mousedown', onClick)
   }, [])
 
+  // A start that isn't HH:MM ("TBA", a legacy "19.30") has no instant to put
+  // in a calendar; the button used to produce "T NaNundefined00".
+  if (!/^\d{2}:\d{2}$/.test(time)) return null
   const start   = toICSDate(date, time)
   const end     = toICSDateEnd(date, time, endTime)
   const encoded = encodeURIComponent
@@ -72,6 +75,9 @@ export default function AddToCalendar({ title, date, time, location, description
       'VERSION:2.0',
       'PRODID:-//Smileys Community//EN',
       'BEGIN:VEVENT',
+      // UID and DTSTAMP are required by RFC 5545; Outlook refuses a VEVENT without them.
+      `UID:${url}`,
+      `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z')}`,
       // TZID with an IANA name and no VTIMEZONE block — Google, Apple and
       // Outlook all resolve these. No timeZone → floating, as before.
       `DTSTART${timeZone ? `;TZID=${timeZone}` : ''}:${start}`,

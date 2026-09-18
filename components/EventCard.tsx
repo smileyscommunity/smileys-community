@@ -229,7 +229,7 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
                   style={{ backgroundColor: event.hostColor ?? '#f59e0b' }}
                 >
                   {event.hostPhoto
-                    ? <img src={resolveImageUrl(event.hostPhoto)} alt={event.hostName} className="w-full h-full object-cover" />
+                    ? <img src={resolveImageUrl(event.hostPhoto)} alt="" className="w-full h-full object-cover" />
                     : event.hostName.trim().split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
                   }
                 </div>
@@ -270,11 +270,6 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
               </>
             ) : (
               <span className="text-xs text-gray-400">Be the first to join</span>
-            )}
-            {event.limitedSpots && event.spotsLeft <= 5 && event.spotsLeft > 0 && !urgency && !soldOut && (
-              <span className="text-[11px] font-semibold text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full shrink-0">
-                {event.spotsLeft} left
-              </span>
             )}
           </div>
 

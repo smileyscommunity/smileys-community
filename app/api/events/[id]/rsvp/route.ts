@@ -277,7 +277,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       // reason text and returns the response. Used by both the over-capacity
       // and the quota-pool blocks below so the wording stays consistent.
       const waitlistWithReason = async (reason: string) => {
-        await prisma.waitlistEntry.create({ data: { userId: session.id, eventId } })
+        await prisma.waitlistEntry.create({ data: { userId: session.id, eventId, stealth } })
         const position = await prisma.waitlistEntry.count({ where: { eventId } })
         createNotification(session.id, 'waitlist', 'Added to waitlist 📋',
           `${reason} — you're #${position} on the waitlist.`,
@@ -425,7 +425,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     })
 
     if (outcome.kind !== 'approved') {
-      await prisma.waitlistEntry.create({ data: { userId: session.id, eventId } })
+      await prisma.waitlistEntry.create({ data: { userId: session.id, eventId, stealth } })
       const position = await prisma.waitlistEntry.count({ where: { eventId } })
       const reason =
         outcome.kind === 'gender_full'  ? `Male spots for "${event.title}" are full` :
@@ -591,7 +591,8 @@ export async function DELETE(req: NextRequest, { params }: Params) {
           'payment_attention',
           'Paid attendee cancelled — refund?',
           `${session.name} cancelled their RSVP for "${eventTitle}" — ${formatMoney(totalPaid, paidPayments[0]?.currency)} was already paid. Review for refund.`,
-          `/admin/payments?search=${encodeURIComponent(session.email)}`,
+          // By id, not email: an address in a URL lands in history and access logs.
+          `/admin/payments?search=${encodeURIComponent(session.id)}`,
         ).catch(() => {})
       }
     }

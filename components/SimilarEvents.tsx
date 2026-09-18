@@ -11,6 +11,8 @@ interface Props {
 }
 
 export default async function SimilarEvents({ eventId, vibes, neighborhood, date, cityId }: Props) {
+  // Nothing to be similar to: no section.
+  if (!neighborhood && vibes.length === 0) return null
   const events = await prisma.event.findMany({
     where: {
       id:     { not: eventId },
@@ -19,9 +21,11 @@ export default async function SimilarEvents({ eventId, vibes, neighborhood, date
       // confusing) across cities.
       cityId,
       date:   { gte: date },
+      // An empty condition matched every event: "you might also like" was
+      // the next three on the calendar.
       OR: [
-        { neighborhood },
-        { vibes: vibes.length ? { hasSome: vibes } : undefined },
+        ...(neighborhood ? [{ neighborhood }] : []),
+        ...(vibes.length ? [{ vibes: { hasSome: vibes } }] : []),
       ],
     },
     orderBy: { date: 'asc' },

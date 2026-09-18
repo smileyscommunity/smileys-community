@@ -127,6 +127,10 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   try {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'Not logged in' }, { status: 401 })
+    // The one write here without a budget.
+    if (!await rateLimit(`event-delete:${session.id}`, 30, 60_000)) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+    }
 
     const { id: eventId } = await params
     const { messageId } = await req.json()

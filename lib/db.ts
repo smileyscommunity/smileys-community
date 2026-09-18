@@ -9,7 +9,7 @@ import { nowInTz, todayInTz, DEFAULT_TZ } from './cityTime'
 import { getCityTz, getCityConfig } from './city'
 import { isSoldOut } from '@/lib/soldOut'
 import { COUNTED_CLUB_MEMBERSHIP_WHERE } from './clubMemberCount'
-import { DEFAULT_CURRENCY } from './data'
+import { DEFAULT_CURRENCY, firstNameOf } from './data'
 
 // ── Clubs ─────────────────────────────────────────────────────────────────
 
@@ -222,6 +222,13 @@ export async function canSeeEvent(
 export function redactEventForGuest(event: Event): Event {
   return {
     ...event,
+    // The host, like a listing's poster, is not public data: a first name to
+    // say who's hosting, no photo file to fetch, no id to follow. The list
+    // and the page both showed the full name (and a scraper had every host's
+    // face across the cities through ?all=1).
+    hostName:         firstNameOf(event.hostName),
+    hostPhoto:        null,
+    hostId:           '',
     address:          undefined,
     lat:              null,
     lng:              null,

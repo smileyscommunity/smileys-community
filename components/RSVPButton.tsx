@@ -31,9 +31,12 @@ interface Props {
   // postponed, ended, already started — lib/eventJoinState). The button
   // says so instead of offering a tap that can only fail.
   closedLabel?: string | null
+  // The host approves each request: the button says so before the tap, not
+  // only after ("Pending approval").
+  approvalRequired?: boolean
 }
 
-export default function RSVPButton({ eventId, hostId, spotsLeft, soldOut = false, limitedSpots = true, price, memberPrice, membersOnly, currency = DEFAULT_CURRENCY, payTo = 'venue', closedLabel = null }: Props) {
+export default function RSVPButton({ eventId, hostId, spotsLeft, soldOut = false, limitedSpots = true, price, memberPrice, membersOnly, currency = DEFAULT_CURRENCY, payTo = 'venue', closedLabel = null, approvalRequired = false }: Props) {
   const { isLoggedIn, user } = useAuth()
   const { status, position, loading, checked, join, leave, gate, ackRequest, confirmAck, cancelAck, reconfirm, confirmComing, confirmWithToken } = useRSVP(eventId)
   const [confirmCancel, setConfirmCancel] = useState(false)
@@ -210,6 +213,7 @@ export default function RSVPButton({ eventId, hostId, spotsLeft, soldOut = false
                   {loading ? 'Joining…' :
                    isFull ? 'Join waitlist' :
                    membersOnly ? 'Attend' :
+                   approvalRequired ? `Request to join${price > 0 ? ` — ${formatPrice(memberPrice ?? price, currency)}` : ''}` :
                    memberPrice !== undefined ? `Join — ${formatPrice(memberPrice, currency)} (member)` :
                    price === 0 ? 'Join free' :
                    payTo === 'smileys' ? `Buy ticket — ${formatPrice(price, currency)}` :

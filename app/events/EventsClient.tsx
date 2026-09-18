@@ -64,6 +64,7 @@ function AppEventsPageInner() {
   const [loadingMore,  setLoadingMore]  = useState(false)
   const [hasMore,      setHasMore]      = useState(false)
   const [offset,       setOffset]       = useState(0)
+  const [total,        setTotal]        = useState<number | null>(null)
   const [tab,          setTab]          = useState<Tab>(() =>
     searchParams.get('tab') === 'past' ? 'past' : 'upcoming'
   )
@@ -135,7 +136,10 @@ function AppEventsPageInner() {
     try {
       const data = await fetch(url, { credentials: 'include' }).then(r => r.json())
       if (seq !== loadSeq.current) return
-      const evts: Event[] = Array.isArray(data.events) ? data.events : []
+      // A 429 or an error body is not an empty calendar.
+      if (!Array.isArray(data.events)) throw new Error(typeof data?.error === 'string' ? data.error : 'bad response')
+      const evts: Event[] = data.events
+      if (typeof data.total === 'number') setTotal(data.total)
       setEvents(prev => reset ? evts : [...prev, ...evts])
       setHasMore(data.hasMore ?? false)
       setOffset(currentOffset + evts.length)
@@ -247,7 +251,8 @@ function AppEventsPageInner() {
     }
 
     if (goingOnly) {
-      result = result.filter(e => !!attendance[e.id])
+      // "Going" is a seat, not a request or a place in the queue.
+      result = result.filter(e => attendance[e.id] === 'joined')
     }
 
     return result
@@ -274,6 +279,14 @@ function AppEventsPageInner() {
   )
 
   const hasActiveFilters = timeFilter !== 'All' || selectedTags.length > 0 || !!neighborhoodFilter || goingOnly
+
+  // A filter over one page of 24 was a filter over a quarter of Istanbul's
+  // calendar: "No events match" with matches on page two, and "Load more"
+  // hidden. With any filter on, the rest of the calendar is fetched.
+  useEffect(() => {
+    if (hasActiveFilters && hasMore && !loading && !loadingMore && events.length < 200) handleLoadMore()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasActiveFilters, hasMore, loading, loadingMore, events.length])
 
   // Number of filters active inside the sheet (going stays out of the
   // sheet — it's an inline one-tap toggle).
@@ -400,7 +413,7 @@ function AppEventsPageInner() {
             {(['upcoming', 'past'] as Tab[]).map(t => (
               <button
                 key={t}
-                onClick={() => { setTab(t); setTimeFilter('All'); setSelectedTags([]); setOffset(0); setGoingOnly(false) }}
+                onClick={() => { setTab(t); setTimeFilter('All'); setSelectedTags([]); setNeighborhoodFilter(''); setOffset(0); setGoingOnly(false) }}
                 className={`px-4 py-2 text-sm font-semibold rounded-full transition-colors ${
                   tab === t
                     ? 'bg-amber-500 text-white shadow-sm'
@@ -412,7 +425,8 @@ function AppEventsPageInner() {
             ))}
             {!loading && filtered.length > 0 && (
               <span className="ml-auto text-xs text-gray-400 font-medium">
-                {filtered.length} event{filtered.length !== 1 ? 's' : ''}
+                {/* The whole calendar's count when nothing is filtered — not the page loaded so far. */}
+                {(!hasActiveFilters && total !== null ? total : filtered.length)} event{(!hasActiveFilters && total !== null ? total : filtered.length) !== 1 ? 's' : ''}
               </span>
             )}
           </div>
@@ -702,7 +716,7 @@ function AppEventsPageInner() {
               ))}
             </div>
 
-            {hasMore && !loadingMore && filtered.length === events.length && (
+            {hasMore && !loadingMore && (
               <div className="flex justify-center mt-10">
                 <button
                   onClick={handleLoadMore}

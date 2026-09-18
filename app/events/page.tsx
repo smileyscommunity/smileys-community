@@ -89,7 +89,9 @@ export default async function EventsPage({ searchParams }: Props) {
   // The list goes out as structured data from the same rows and cache as the
   // /[city]/events hub.
   const { events } = await getCityEventsHub(cityId)
-  const jsonLd = eventListJsonLd(events, city, { appUrl: APP_URL, siteUrl: SITE_URL })
+  // Cancelled rows stay in the feed so the card can say why; they are not
+  // "EventScheduled" for a crawler.
+  const jsonLd = eventListJsonLd(events.filter(e => e.status !== 'cancelled'), city, { appUrl: APP_URL, siteUrl: SITE_URL })
   return (
     <>
       {jsonLd && (

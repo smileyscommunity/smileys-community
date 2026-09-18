@@ -19,8 +19,13 @@ export async function POST(_req: NextRequest, { params }: Params) {
 
   const { id } = await params
   const event = await prisma.event.findUnique({ where: { id }, select: { id: true, status: true } })
-  if (!event || event.status !== 'published') {
-    return NextResponse.json({ error: 'Event not found' }, { status: 404 })
+  if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
+  // Only a published event can be saved; one that was cancelled since can
+  // still be UN-saved, or the bookmark was stuck on it for good.
+  if (event.status !== 'published') {
+    const { count } = await prisma.eventSave.deleteMany({ where: { userId: session.id, eventId: id } })
+    if (count === 0) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
+    return NextResponse.json({ saved: false })
   }
 
   const existing = await prisma.eventSave.findUnique({
