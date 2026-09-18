@@ -1,5 +1,8 @@
 // Import event venues into the business directory.
 //
+// (Events now link to their listing by id — Event.businessId, lib/eventVenue.
+// Rows this creates don't link past events; scripts/link-event-venues.ts does.)
+//
 // The directory's cold-start problem: a handful of entries, while the
 // events table holds dozens of real businesses the community demonstrably
 // uses. This imports every venue that hosted a non-cancelled event,

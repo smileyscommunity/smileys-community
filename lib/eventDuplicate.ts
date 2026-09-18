@@ -19,7 +19,7 @@ import { normalizeClock } from '@/lib/eventTime'
 /** Content the organiser chose — the point of duplicating. */
 export const DUPLICATE_COPIED_FIELDS = [
   'description', 'time', 'endTime', 'duration',
-  'location', 'neighborhood', 'address', 'lat', 'lng',
+  'location', 'neighborhood', 'address', 'lat', 'lng', 'businessId',
   'emoji', 'coverImage', 'coverImagePosition', 'vibes', 'intent', 'language', 'difficulty',
   'price', 'memberPrice', 'currency', 'payTo', 'paymentContact', 'ticketUrl', 'refundPolicy',
   'totalSpots', 'limitedSpots', 'approvalRequired', 'isPremium', 'membersOnly', 'isFirstTimerFriendly',

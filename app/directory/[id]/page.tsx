@@ -83,8 +83,8 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
   if (!business) notFound()
 
   // ── Smileys history at this venue (phase 2.2) ─────────────────────────
-  // The reverse of the event page's "View in directory" link, same
-  // case-insensitive name match, same-city only. This is the layer that
+  // The reverse of the event page's "View in directory" link: the events
+  // linked to this listing (Event.businessId). This is the layer that
   // makes the directory more than another maps site: not "4.5 stars from
   // strangers" but "the community has actually been here, N times, and
   // is going again Thursday."
@@ -96,9 +96,8 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
   // exact location from guests, and this section named it. Guests get the count.
   const venueEvents = await prisma.event.findMany({
     where: {
-      location: { equals: business.name.replace(/\s+/g, ' ').trim(), mode: 'insensitive' },
-      cityId:   business.cityId,
-      status:   { in: ['published', 'archived'] },
+      businessId: business.id,
+      status:     { in: ['published', 'archived'] },
     },
     select:  { id: true, title: true, emoji: true, date: true, time: true, status: true },
     orderBy: { date: 'desc' },

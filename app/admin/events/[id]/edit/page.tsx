@@ -20,6 +20,7 @@ import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { phonePlaceholder, dialCode } from '@/lib/country'
 import { clampOccurrences, seriesOutcomeMessage, MIN_SERIES_COPIES, MAX_SERIES_COPIES, type SeriesFailure } from '@/lib/seriesCreate'
 import { clubOptionLabel } from '@/lib/clubLabel'
+import VenuePicker, { type LinkedVenue, type PickedVenue } from '@/components/VenuePicker'
 const inputCls = 'bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none px-3 py-2.5 w-full text-sm'
 
 const emptyForm = {
@@ -55,6 +56,8 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
   // clubs and global ones: the PUT route refuses a move under another city's
   // club (it would re-file the event under people who already joined).
   const [eventCityId,   setEventCityId]   = useState('')
+  // The directory listing the venue is linked to (components/VenuePicker).
+  const [venue,         setVenue]         = useState<LinkedVenue | null>(null)
   const [hostSearch,    setHostSearch]    = useState('')
   const [loading,       setLoading]       = useState(true)
   const [saving,        setSaving]        = useState(false)
@@ -172,6 +175,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
         })
         setLoadedStatus(event.status ?? 'published')
         if (typeof event.cityId === 'string') setEventCityId(event.cityId)
+        if (event.venue?.id) setVenue(event.venue)
         if (Array.isArray(event.tags) && event.tags.length) setSelectedTagIds(event.tags)
         if (event.seriesId) setSeriesId(event.seriesId)
       }
@@ -190,6 +194,20 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
   const geocodeCityParam = selectedClubCity ? `&city=${encodeURIComponent(selectedClubCity)}` : ''
 
   function set(key: string, value: string | boolean | number) { setForm(f => ({ ...f, [key]: value })) }
+
+  // Picking a listing names the venue and fills what the form doesn't have yet.
+  function pickVenue(v: PickedVenue | null) {
+    setVenue(v)
+    if (!v) return
+    setForm(f => ({
+      ...f,
+      location:     v.name,
+      address:      f.address || v.address || '',
+      neighborhood: f.neighborhood || (v.neighborhood && neighborhoods.includes(v.neighborhood) ? v.neighborhood : ''),
+      lat:          f.lat || (v.latitude  != null ? String(v.latitude)  : ''),
+      lng:          f.lng || (v.longitude != null ? String(v.longitude) : ''),
+    }))
+  }
 
   async function writeWithAI() {
     setAiLoading(true)
@@ -285,6 +303,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
   function buildSavePayload(applyToSeries = false) {
     return {
       ...form, tagIds: selectedTagIds, vibes: [], applyToSeries,
+      businessId: venue?.id ?? null,
       // "Free" and "Buy online" are UI-only states on top of payTo's two
       // real values — Smileys still never touches the money for either, so
       // both map to payTo='venue' underneath.
@@ -698,7 +717,12 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
           </div>
           <div>
             <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Venue name</label>
-            <input type="text" value={form.location} onChange={e => set('location', e.target.value)} className={inputCls} />
+            <VenuePicker
+              value={form.location} onText={v => set('location', v)}
+              venue={venue} onVenue={pickVenue}
+              cityParam={eventCityId ? `cityId=${encodeURIComponent(eventCityId)}` : ''}
+              className={inputCls}
+            />
           </div>
           <div className="col-span-full">
             <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Neighborhood</label>

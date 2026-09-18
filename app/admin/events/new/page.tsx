@@ -16,6 +16,7 @@ import { useCurrentCity } from '@/hooks/useCurrentCity'
 import CitySelect, { useAdminCities } from '@/components/admin/CitySelect'
 import { phonePlaceholder, dialCode } from '@/lib/country'
 import { clubOptionLabel } from '@/lib/clubLabel'
+import VenuePicker, { type LinkedVenue, type PickedVenue } from '@/components/VenuePicker'
 const inputCls = 'bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none px-3 py-2.5 w-full text-sm'
 
 
@@ -46,6 +47,8 @@ export default function NewEventPage() {
     language: '', refundPolicy: '', registrationDeadline: '',
     endTime: '', lat: '', lng: '',
   })
+  // The directory listing picked for the venue (components/VenuePicker).
+  const [venue, setVenue] = useState<LinkedVenue | null>(null)
   const [geocoding, setGeocoding] = useState(false)
   const [mapsUrl,   setMapsUrl]   = useState('')
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
@@ -110,6 +113,23 @@ export default function NewEventPage() {
   // Location lookup searches the same city's country (it used to search one
   // country for every city); the route falls back to the viewer's city.
   const geocodeCityParam = selectedClubCity ? `&city=${encodeURIComponent(selectedClubCity)}` : ''
+
+  // A global club's event is filed under the city picked for it.
+  const venueCityParam = selectedClubCity ? `city=${encodeURIComponent(selectedClubCity)}` : form.cityId ? `cityId=${encodeURIComponent(form.cityId)}` : ''
+
+  // Picking a listing names the venue and fills what the form doesn't have yet.
+  function pickVenue(v: PickedVenue | null) {
+    setVenue(v)
+    if (!v) return
+    setForm(f => ({
+      ...f,
+      location:     v.name,
+      address:      f.address || v.address || '',
+      neighborhood: f.neighborhood || (v.neighborhood && neighborhoods.includes(v.neighborhood) ? v.neighborhood : ''),
+      lat:          f.lat || (v.latitude  != null ? String(v.latitude)  : ''),
+      lng:          f.lng || (v.longitude != null ? String(v.longitude) : ''),
+    }))
+  }
 
   function set(key: string, value: string | boolean | number) {
     setForm(f => ({ ...f, [key]: value }))
@@ -270,6 +290,7 @@ export default function NewEventPage() {
       hostId: form.hostId || null,
       lat:  form.lat  ? parseFloat(form.lat)  : null,
       lng:  form.lng  ? parseFloat(form.lng)  : null,
+      businessId: venue?.id ?? null,
     }
 
     setSaving(true)
@@ -509,7 +530,12 @@ export default function NewEventPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Venue name *</label>
-            <input type="text" value={form.location} onChange={e => set('location', e.target.value)} placeholder="e.g. Karaköy Lokantası" className={inputCls} />
+            <VenuePicker
+              value={form.location} onText={v => set('location', v)}
+              venue={venue} onVenue={pickVenue}
+              cityParam={venueCityParam}
+              placeholder="e.g. Karaköy Lokantası" className={inputCls}
+            />
           </div>
           <div>
             <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Neighborhood *</label>

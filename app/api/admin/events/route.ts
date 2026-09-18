@@ -9,6 +9,7 @@ import {splitLeadingEmoji, stripDupTrailingEmoji} from '@/lib/data'
 import { normalizePaymentContact } from '@/lib/safeUrl'
 import { computeEventSurveyRollup } from '@/lib/survey'
 import { ensurePendingVenueBusiness } from '@/lib/venueDirectory'
+import { venueIdInput } from '@/lib/eventVenue'
 import { todayInCity, resolveTargetCityId, getCityConfig } from '@/lib/city'
 import { checkSeriesId } from '@/lib/seriesOwnership'
 import { MAX_SERIES_OCCURRENCES } from '@/lib/seriesCreate'
@@ -126,7 +127,7 @@ export async function POST(req: NextRequest) {
             // cityId is only read when the parent club is global (cityId
             // null) and so has no city to give the event — see below.
             cityId,
-            isRecurring, seriesId, lat, lng, tierOverride, cancelCutoffHours } = body
+            isRecurring, seriesId, lat, lng, tierOverride, cancelCutoffHours, businessId } = body
 
     if (!title || !date || !time || !location || !clubId || !hostId) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -368,9 +369,14 @@ export async function POST(req: NextRequest) {
     const needsReview   = !admin && !isModerator(session)
     const eventStatus   = needsReview ? 'pending' : (tooFarOut ? 'pending' : (status ?? 'published'))
 
+    // The directory listing the organiser picked, in this event's city.
+    const venue = await venueIdInput(businessId, eventCityId)
+    if ('error' in venue) return NextResponse.json({ error: venue.error }, { status: 400 })
+
     const event = await prisma.event.create({
       data: {
         title:                cleanTitle,
+        businessId:           venue.value ?? null,
         date,
         time:                 startTime.value as string,
         location:             location.trim(),
@@ -440,18 +446,23 @@ export async function POST(req: NextRequest) {
       include: { tags: { include: { tag: { include: { group: true } } } } },
     })
 
-    // Mirror the venue into the directory as a PENDING listing for admin
-    // review. Once approved, the event page's "View in directory" link matches.
-    // Fire-and-forget — never blocks event creation.
-    ensurePendingVenueBusiness({
-      location:      event.location,
-      cityId:        event.cityId,
-      neighborhood:  event.neighborhood,
-      address:       event.address,
-      latitude:      event.lat,
-      longitude:     event.lng,
-      submittedById: hostId,
-    }).catch(() => {})
+    // No listing picked: link the one this venue name already has in the
+    // city, or mirror the venue in as a PENDING listing for admin review and
+    // link that — its chip appears once approved. Never fails the create.
+    if (!event.businessId) {
+      const stubId = await ensurePendingVenueBusiness({
+        location:      event.location,
+        cityId:        event.cityId,
+        neighborhood:  event.neighborhood,
+        address:       event.address,
+        latitude:      event.lat,
+        longitude:     event.lng,
+        submittedById: hostId,
+      })
+      if (stubId) {
+        await prisma.event.update({ where: { id: event.id }, data: { businessId: stubId } }).catch(() => {})
+      }
+    }
 
     // Notify the assigned host if an admin created the event on their behalf
     if (admin && hostId !== session.id) {

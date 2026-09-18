@@ -43,5 +43,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({ ...publicEvent, lat: null, lng: null })
   }
 
-  return NextResponse.json(event)
+  // The linked directory listing names the venue, so it rides only with the
+  // exact location. The edit forms read it here; `live` says whether the
+  // event page shows its chip yet (a pending stub doesn't).
+  const link = await prisma.event.findUnique({
+    where:  { id },
+    select: { business: { select: { id: true, name: true, isApproved: true, isActive: true } } },
+  })
+  const b = link?.business
+  return NextResponse.json({ ...event, venue: b ? { id: b.id, name: b.name, live: b.isApproved && b.isActive } : null })
 }

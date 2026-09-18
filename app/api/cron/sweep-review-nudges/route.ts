@@ -18,8 +18,8 @@ import { recordCronRun } from '@/lib/cronHealth'
 // members newly eligible since the last run (new check-ins at directory
 // venues). Ported from scripts/send-review-nudges.ts.
 //
-// If a business name and event.location drift apart, re-check the ALIAS
-// map below (same convention as scripts/import-event-venues.ts).
+// A visit counts at the listing its event is linked to (Event.businessId —
+// lib/eventVenue); the venue name is no longer matched here.
 //
 // Auth: requires `Authorization: Bearer <CRON_SECRET>`. If CRON_SECRET is
 // unset, the endpoint refuses so a misconfigured prod doesn't leave the
@@ -32,15 +32,6 @@ export const dynamic = 'force-dynamic'
 // the rationale.
 import { checkCronAuth } from '@/lib/cronAuth'
 
-const ALIAS: Record<string, string> = {
-  'Buka': 'Buka Yeldeğirmeni',
-  'Blak Coffee Yeldeğirmeni':  'BLAK Coffee Co. Yeldeğirmeni',
-  'Blak Yeldeğirmeni':         'BLAK Coffee Co. Yeldeğirmeni',
-  'Black Coffee Yeldeğirmeni': 'BLAK Coffee Co. Yeldeğirmeni',
-}
-
-const norm = (s: string) => (ALIAS[s.replace(/\s+/g, ' ').trim()] ?? s.replace(/\s+/g, ' ').trim()).toLowerCase()
-
 async function runSweep() {
   // "Already happened" is per city. An event that finished last night in one
   // zone may still be today's in another, and nudging someone to review a
@@ -52,28 +43,27 @@ async function runSweep() {
     where: { isApproved: true, isActive: true },
     select: { id: true, name: true, cityId: true, _count: { select: { reviews: { where: { isHidden: false } } } } },
   })
-  // Keyed by city AND name: a name shared by two cities' listings kept only
-  // the last, and members were nudged to review the other city's.
-  const byName = new Map(businesses.map(b => [`${b.cityId}|${norm(b.name)}`, b]))
+  const bizId = new Map(businesses.map(b => [b.id, b]))
 
-  // Checked-in attendance at past, non-cancelled events whose venue has
-  // a directory listing.
+  // Checked-in attendance at past, non-cancelled events linked to a
+  // directory listing.
   const attendance = await prisma.eventAttendee.findMany({
     where: {
       status: 'approved', checkedIn: true,
       // One OR arm per timezone group; a single group (today's reality) makes
       // this the same query it was.
       OR: dayGroups.map(({ date, cityIds }) => ({
-        event: { date: { lt: date }, cancelledAt: null, cityId: { in: cityIds } },
+        event: { date: { lt: date }, cancelledAt: null, cityId: { in: cityIds }, businessId: { not: null } },
       })),
     },
-    select: { userId: true, event: { select: { location: true, cityId: true } } },
+    select: { userId: true, event: { select: { businessId: true } } },
   })
 
   // userId → (businessId → visit count)
   const visits = new Map<string, Map<string, number>>()
   for (const a of attendance) {
-    const biz = byName.get(`${a.event.cityId}|${norm(a.event.location ?? '')}`)
+    // Live listings only: a link to a pending or hidden one isn't in the map.
+    const biz = a.event.businessId ? bizId.get(a.event.businessId) : undefined
     if (!biz) continue
     if (!visits.has(a.userId)) visits.set(a.userId, new Map())
     const m = visits.get(a.userId)!
@@ -100,7 +90,6 @@ async function runSweep() {
   const reviewed     = new Set(reviews.map(r => `${r.authorId}:${r.businessId}`))
   const alreadySent  = new Set(nudged.map(n => n.userId))
   const approvedUser = new Map(users.map(u => [u.id, u]))
-  const bizId        = new Map(businesses.map(b => [b.id, b]))
 
   let sent = 0
   for (const [userId, m] of visits) {

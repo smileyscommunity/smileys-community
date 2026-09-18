@@ -36,6 +36,7 @@ import EventBadges from '@/components/EventBadges'
 import { sanitize } from '@/lib/sanitize'
 import { isSoldOut, isManuallySoldOut } from '@/lib/soldOut'
 import { DEFAULT_CURRENCY } from '@/lib/data'
+import { liveVenueOf } from '@/lib/eventVenue'
 
 export const dynamic = 'force-dynamic'
 
@@ -526,20 +527,11 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
   const maleIsFull          = effectiveMaleQuota !== null && maleCount >= effectiveMaleQuota
   const femaleIsFull        = !!event.genderBalance && femaleCount >= femaleCapacity
 
-  // Cross-link to the business directory when this venue has a listing
-  // (matched by name — the venue-import script keeps directory names in
-  // sync with event.location).
-  const directoryBusiness = event.location
-    ? await prisma.business.findFirst({
-        where: {
-          name: { equals: event.location.replace(/\s+/g, ' ').trim(), mode: 'insensitive' },
-          isApproved: true, isActive: true,
-          // The event's own city: a chain with one name in two cities cross-linked.
-          ...(event.cityId ? { cityId: event.cityId } : {}),
-        },
-        select: { id: true },
-      })
-    : null
+  // Cross-link to the business directory when the event is linked to a live
+  // listing (Event.businessId, picked in the event form — lib/eventVenue).
+  const directoryBusiness = await liveVenueOf(
+    (await prisma.event.findUnique({ where: { id }, select: { businessId: true } }))?.businessId,
+  )
 
   // Build JSON-LD Event schema
   const eventUrl = `${APP_URL}/events/${id}`

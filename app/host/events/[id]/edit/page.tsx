@@ -19,6 +19,7 @@ import { EVENT_EMOJIS as EMOJIS } from '@/lib/eventEmojis'
 import { countryName } from '@/lib/country'
 import { geocodeFailureMessage } from '@/lib/geocodeError'
 import { clampOccurrences, seriesOutcomeMessage, MIN_SERIES_COPIES, MAX_SERIES_COPIES, type SeriesFailure } from '@/lib/seriesCreate'
+import VenuePicker, { type LinkedVenue, type PickedVenue } from '@/components/VenuePicker'
 const inputCls = 'w-full px-4 py-2.5 rounded-xl border border-zinc-700 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500 bg-zinc-800 placeholder-zinc-500'
 
 const emptyForm = {
@@ -69,6 +70,8 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
   const [aiLoading,     setAiLoading]     = useState(false)
   const [geocoding,     setGeocoding]     = useState(false)
   const [mapsUrl,       setMapsUrl]       = useState('')
+  // The directory listing the venue is linked to (components/VenuePicker).
+  const [venue,         setVenue]         = useState<LinkedVenue | null>(null)
   // Hosts can't collect payment in-app (Smileys-only, admin-only field) —
   // just whether guests pay when they arrive or buy a ticket externally.
   // UI-only; maps onto the existing ticketUrl field on submit.
@@ -202,6 +205,7 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
           tierOverride:     event.tierOverride     ?? '',
         })
         setLoadedStatus(event.status ?? 'published')
+        if (event.venue?.id) setVenue(event.venue)
         if (typeof event.cityId === 'string' && event.cityId) {
           setEventCityId(event.cityId)
           // The event API carries only the city's id; name, slug, country and
@@ -223,6 +227,20 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
   }, [id])
 
   function set(key: string, value: string | boolean | number) { setForm(f => ({ ...f, [key]: value })) }
+
+  // Picking a listing names the venue and fills what the form doesn't have yet.
+  function pickVenue(v: PickedVenue | null) {
+    setVenue(v)
+    if (!v) return
+    setForm(f => ({
+      ...f,
+      location:     v.name,
+      address:      f.address || v.address || '',
+      neighborhood: f.neighborhood || (v.neighborhood && neighborhoods.includes(v.neighborhood) ? v.neighborhood : ''),
+      lat:          f.lat || (v.latitude  != null ? String(v.latitude)  : ''),
+      lng:          f.lng || (v.longitude != null ? String(v.longitude) : ''),
+    }))
+  }
 
   async function writeWithAI() {
     setAiLoading(true)
@@ -324,6 +342,7 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
         body: JSON.stringify({
           ...(allowOverCapacity ? { allowOverCapacity: true } : {}),
           ...form, tagIds: selectedTagIds, vibes: [],
+          businessId: venue?.id ?? null,
           minAge: form.minAge ? parseInt(form.minAge) : null,
           maxAge: form.maxAge ? parseInt(form.maxAge) : null,
           coverImage: form.coverImage || null, coverImagePosition: form.coverImagePosition,
@@ -400,6 +419,7 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
 
     const payload = {
       ...form, hostId, tagIds: selectedTagIds, vibes: [], seriesId: sid, isRecurring: true,
+      businessId: venue?.id ?? null,
       minAge: form.minAge ? parseInt(form.minAge) : null,
       maxAge: form.maxAge ? parseInt(form.maxAge) : null,
       coverImage: form.coverImage || null, meetingUrl: form.meetingUrl || null,
@@ -590,7 +610,12 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
             </div>
             <div>
               <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Venue name</label>
-              <input type="text" value={form.location} onChange={e => set('location', e.target.value)} className={inputCls} />
+              <VenuePicker
+                value={form.location} onText={v => set('location', v)}
+                venue={venue} onVenue={pickVenue}
+                cityParam={eventCityId ? `cityId=${encodeURIComponent(eventCityId)}` : ''}
+                className={inputCls}
+              />
             </div>
             <div className="col-span-full">
               <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Neighborhood</label>

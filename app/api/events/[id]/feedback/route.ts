@@ -5,6 +5,7 @@ import { createNotification } from '@/lib/notify'
 import { rateLimit, claimOnce, releaseClaim } from '@/lib/rateLimit'
 import { eventEndsAt } from '@/lib/eventTime'
 import { DEFAULT_TZ } from '@/lib/cityTime'
+import { liveVenueOf } from '@/lib/eventVenue'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -72,13 +73,14 @@ export async function GET(_: NextRequest, { params }: Params) {
   // listing the responder hasn't reviewed yet, offer a star rating that
   // becomes their public review. Null when there's no match or they
   // already reviewed it — the form simply skips the question.
-  const venue = await matchDirectoryVenue(event.location, event.cityId ?? null)
+  const venue = await venueOfEvent(id)
   // Not offered to the venue's own owner (their rating would be a self-review).
   const venueForForm = venue && venue.claimedById !== session.id && !(await prisma.businessReview.findUnique({
     where:  { businessId_authorId: { businessId: venue.id, authorId: session.id } },
     select: { id: true },
-  })) ? venue : null
+  })) ? { id: venue.id, name: venue.name } : null
 
+  // Id and name only — who owns the listing is not the responder's business.
   return NextResponse.json({ event, eligible: true, venue: venueForForm })
 }
 
@@ -185,14 +187,14 @@ export async function POST(req: NextRequest, { params }: Params) {
     },
   })
 
-  // Venue review — matched server-side from the event's location (the
+  // Venue review — the event's linked listing, resolved server-side (the
   // client never picks the business). Create-only: if the member
   // already has a review for this business (including from a survey
   // retry in the same window), leave it untouched. Best-effort — a
   // failure here must not lose the survey response.
   if (venueRating !== null) {
     try {
-      const venue = await matchDirectoryVenue(event.location, event.cityId ?? null)
+      const venue = await venueOfEvent(id)
       // An owner's survey rating of their own venue is not a review (the
       // review route refuses it; the survey went round it).
       if (venue && venue.claimedById !== session.id) {
@@ -267,15 +269,10 @@ export async function POST(req: NextRequest, { params }: Params) {
   return NextResponse.json({ ok: true })
 }
 
-// Match the event's venue to an approved directory listing by name —
-// the same convention the event page's "View in directory" chip uses,
-// kept in sync by scripts/import-event-venues.ts.
-async function matchDirectoryVenue(location: string | null, cityId: string | null) {
-  const name = (location ?? '').replace(/\s+/g, ' ').trim()
-  if (!name) return null
-  return prisma.business.findFirst({
-    where:  { name: { equals: name, mode: 'insensitive' }, isApproved: true, isActive: true, ...(cityId ? { cityId } : {}) },
-    select: { id: true, name: true, claimedById: true },
-  })
+// The event's directory listing (Event.businessId), when live — the one the
+// event page's "View in directory" chip links (lib/eventVenue).
+async function venueOfEvent(eventId: string) {
+  const row = await prisma.event.findUnique({ where: { id: eventId }, select: { businessId: true } })
+  return liveVenueOf(row?.businessId)
 }
 

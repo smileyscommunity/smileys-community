@@ -17,6 +17,7 @@ import { countryName } from '@/lib/country'
 import { geocodeFailureMessage } from '@/lib/geocodeError'
 import { neighborhoodIfListed } from '@/lib/postingNeighborhoods'
 import { clampOccurrences, seriesOutcomeMessage, MIN_SERIES_OCCURRENCES, MAX_SERIES_OCCURRENCES, type SeriesFailure } from '@/lib/seriesCreate'
+import VenuePicker, { type LinkedVenue, type PickedVenue } from '@/components/VenuePicker'
 
 const inputCls = 'w-full px-4 py-3 rounded-xl border border-zinc-700 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500 bg-zinc-800 placeholder-zinc-500'
 
@@ -40,6 +41,8 @@ function HostNewEventForm() {
   const [aiLoading,   setAiLoading]   = useState(false)
   const [geocoding,   setGeocoding]   = useState(false)
   const [mapsUrl,     setMapsUrl]     = useState('')
+  // The directory listing picked for the venue (components/VenuePicker).
+  const [venue,       setVenue]       = useState<LinkedVenue | null>(null)
   // Hosts can't collect payment in-app (that's Smileys-only, set via the
   // admin form) — just whether guests pay when they arrive or buy a ticket
   // externally. UI-only; maps onto the existing ticketUrl field on submit.
@@ -140,6 +143,20 @@ function HostNewEventForm() {
   // The lookup searches the event city's country — it used to search one
   // country for every city, then the browsed city's (see eventCity).
   const geocodeCityParam = eventCity?.slug ? `&city=${encodeURIComponent(eventCity.slug)}` : ''
+
+  // Picking a listing names the venue and fills what the form doesn't have yet.
+  function pickVenue(v: PickedVenue | null) {
+    setVenue(v)
+    if (!v) return
+    setForm(f => ({
+      ...f,
+      location:     v.name,
+      address:      f.address || v.address || '',
+      neighborhood: f.neighborhood || (v.neighborhood && neighborhoods.includes(v.neighborhood) ? v.neighborhood : ''),
+      lat:          f.lat || (v.latitude  != null ? String(v.latitude)  : ''),
+      lng:          f.lng || (v.longitude != null ? String(v.longitude) : ''),
+    }))
+  }
 
   async function parseMapsUrl(url: string) {
     const patterns = [
@@ -293,6 +310,7 @@ function HostNewEventForm() {
         seriesId,
         lat:  form.lat  ? parseFloat(form.lat)  : null,
         lng:  form.lng  ? parseFloat(form.lng)  : null,
+        businessId: venue?.id ?? null,
       }
 
       // Every date is attempted and the outcome reported as created vs failed.
@@ -481,13 +499,11 @@ function HostNewEventForm() {
         {/* Location */}
         <div>
           <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Venue name *</label>
-          <input
-            type="text"
-            placeholder="e.g. Salon İKSV"
-            value={form.location}
-            onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
-            required
-            className={inputCls}
+          <VenuePicker
+            value={form.location} onText={v => setForm(f => ({ ...f, location: v }))}
+            venue={venue} onVenue={pickVenue}
+            cityParam={eventCity?.slug ? `city=${encodeURIComponent(eventCity.slug)}` : ''}
+            placeholder="e.g. Salon İKSV" required className={inputCls}
           />
         </div>
 

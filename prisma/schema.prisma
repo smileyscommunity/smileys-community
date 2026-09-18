@@ -675,6 +675,14 @@ model Event {
   // Hours before the start after which a member's cancel counts as late.
   // null = the tier's default (24 scarce, 2 open); set for a trip that needs longer.
   cancelCutoffHours    Int?
+  // The directory listing this event is held at, picked by the organiser in
+  // the event form (or matched on its venue name when they didn't). The link
+  // used to be the name alone, re-matched on every read — "Dozze" never found
+  // "Dozze Kadıköy". A pending or hidden listing may be linked; readers show
+  // it only once it is approved and active. SetNull: a deleted listing leaves
+  // the event, with its typed venue name, intact.
+  businessId           String?
+  business             Business?       @relation(fields: [businessId], references: [id], onDelete: SetNull)
   attendees            EventAttendee[]
   noShowCards          NoShowCard[]
   standingOffences     StandingOffence[]
@@ -699,6 +707,7 @@ model Event {
   @@index([cityId])
   @@index([cityId, status, date])
   @@index([seriesId])
+  @@index([businessId])
   @@map("events")
 }
 
@@ -2163,6 +2172,7 @@ model Business {
   closedAt        DateTime?
   city            City             @relation(fields: [cityId], references: [id])
   claims          BusinessClaim[]
+  events          Event[]
   reports         BusinessReport[]
   reviews         BusinessReview[]
   saves           BusinessSave[]

@@ -1,13 +1,14 @@
 import { prisma } from '@/lib/prisma'
 
-// When an event is created with a venue, mirror that venue into the business
-// directory as a PENDING listing (isApproved:false, isActive:true) — which is
-// exactly the state the admin → Directory "pending" tab surfaces for review.
-// Once an admin approves it, it goes live AND the event page's "View in
-// directory" link starts matching (that match requires an approved+active
-// business whose name equals the event's location, case-insensitive).
+// When an event is created with a venue the organiser didn't pick from the
+// directory, find the listing that venue name already has in the event's city
+// (any status), or mirror it in as a PENDING listing (isApproved:false,
+// isActive:true) — exactly the state the admin → Directory "pending" tab
+// surfaces for review. The caller links the event to the id returned
+// (Event.businessId), so once an admin approves the stub the event page's
+// "View in directory" chip appears with no further matching.
 //
-// Fire-and-forget: this must never block or fail event creation.
+// Never throws: a directory hiccup must not fail event creation.
 
 // Obvious non-businesses — parks, waterfronts, campuses, walking routes.
 // Admin review is the real quality gate; this just keeps the pending queue
@@ -36,22 +37,23 @@ export async function ensurePendingVenueBusiness(opts: {
   latitude?: number | null
   longitude?: number | null
   submittedById?: string | null
-}): Promise<void> {
+}): Promise<string | null> {
   try {
     const name = (opts.location ?? '').replace(/\s+/g, ' ').trim()
-    if (!name) return
-    if (NON_VENUE.has(name.toLowerCase())) return
-    if (NON_VENUE_PREFIXES.some(p => name.toLowerCase().startsWith(p))) return
+    if (!name) return null
+    if (NON_VENUE.has(name.toLowerCase())) return null
+    if (NON_VENUE_PREFIXES.some(p => name.toLowerCase().startsWith(p))) return null
 
-    // Skip if a business with this name already exists (any status) — same
-    // case-insensitive name match the event page uses to link.
+    // A listing with this name already in the event's city (any status) is the
+    // venue. The lookup was city-blind, so a same-named café in another city
+    // stopped this city's stub from ever being made.
     const existing = await prisma.business.findFirst({
-      where:  { name: { equals: name, mode: 'insensitive' } },
+      where:  { name: { equals: name, mode: 'insensitive' }, cityId: opts.cityId },
       select: { id: true },
     })
-    if (existing) return
+    if (existing) return existing.id
 
-    await prisma.business.create({
+    const created = await prisma.business.create({
       data: {
         name,
         cityId:        opts.cityId,
@@ -66,8 +68,11 @@ export async function ensurePendingVenueBusiness(opts: {
         isActive:      true,
         submittedById: opts.submittedById ?? null,
       },
+      select: { id: true },
     })
+    return created.id
   } catch {
     // A directory hiccup must never break event creation.
+    return null
   }
 }

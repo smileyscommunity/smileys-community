@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isTier } from '@/lib/standingPolicy'
 import { prisma } from '@/lib/prisma'
+import { venueIdInput } from '@/lib/eventVenue'
+import { ensurePendingVenueBusiness } from '@/lib/venueDirectory'
 import { activeAttendeeWhere } from '@/lib/attendance'
 import { restoreSeatsReleasedByCancel, type PaidOnWaitlist } from '@/lib/eventRestore'
 import { backfillSeatPayments, collectsSeatPayment } from '@/lib/rsvpConfirmed'
@@ -310,6 +312,27 @@ export async function PUT(req: NextRequest, { params }: Params) {
           { status: 409 },
         )
       }
+    }
+
+    // The directory listing: one in the event's own city, or none. A venue
+    // renamed without a pick links the listing that name has in the city, or
+    // a pending stub (as on create) — the old link named the old venue.
+    if ('businessId' in body) {
+      const venue = await venueIdInput(body.businessId, before.cityId)
+      if ('error' in venue) return NextResponse.json({ error: venue.error }, { status: 400 })
+      rest.businessId = venue.value
+    }
+    const newLocation = typeof rest.location === 'string' ? rest.location.trim() : null
+    if (newLocation && newLocation !== (before.location ?? '').trim() && !rest.businessId) {
+      rest.businessId = await ensurePendingVenueBusiness({
+        location:      newLocation,
+        cityId:        before.cityId,
+        neighborhood:  typeof rest.neighborhood === 'string' ? rest.neighborhood : before.neighborhood,
+        address:       typeof rest.address === 'string' ? rest.address : null,
+        latitude:      typeof rest.lat === 'number' ? rest.lat : null,
+        longitude:     typeof rest.lng === 'number' ? rest.lng : null,
+        submittedById: before.hostId,
+      })
     }
 
     const data: Record<string, unknown> = { ...rest }

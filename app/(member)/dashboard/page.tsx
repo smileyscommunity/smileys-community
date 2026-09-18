@@ -224,10 +224,9 @@ export default async function DashboardPage() {
     .map((a) => ({ id: a.event.id, title: a.event.title, emoji: a.event.emoji }))
 
   // Post-visit venue review prompt: the member's most-recent checked-in
-  // past event whose venue is a live directory listing they haven't
-  // reviewed. Matches the event page's case-insensitive location↔business
-  // rule. Cheap — the directory is a small curated set and the visit scan
-  // is capped. Null when there's nothing to prompt (component self-hides).
+  // past event linked to a live directory listing they haven't reviewed —
+  // the listing the event page's "View in directory" chip links. The visit
+  // scan is capped. Null when there's nothing to prompt (component self-hides).
   // Several candidates, newest first: the prompt shows the first the member
   // hasn't dismissed (one dismissed venue blocked every later prompt).
   const venuesToReview: { businessId: string; businessName: string; eventTitle: string }[] = []
@@ -239,32 +238,23 @@ export default async function DashboardPage() {
       },
       orderBy: { event: { date: 'desc' } },
       take: 20,
-      select: { event: { select: { title: true, location: true, cityId: true } } },
+      select: { event: { select: { title: true, business: { select: { id: true, name: true, isApproved: true, isActive: true } } } } },
     })
-    if (checkedInVisits.length) {
-      // Only the venues these visits name, in their cities — not every
-      // listing in every city on each dashboard render.
-      const norm = (s: string) => s.replace(/\s+/g, ' ').trim().toLowerCase()
-      const liveBusinesses = await prisma.business.findMany({
-        where:  {
-          isApproved: true, isActive: true,
-          OR: checkedInVisits.filter(v => v.event.location).map(v => ({
-            cityId: v.event.cityId, name: { equals: (v.event.location as string).replace(/\s+/g, ' ').trim(), mode: 'insensitive' as const },
-          })),
-        },
-        select: { id: true, name: true, cityId: true },
-      })
-      const bizByName = new Map(liveBusinesses.map((b) => [`${b.cityId}|${norm(b.name)}`, b]))
+    // The listing each visit's event is linked to (Event.businessId), live only.
+    const linked = checkedInVisits.flatMap(v => {
+      const b = v.event.business
+      return b && b.isApproved && b.isActive ? [{ biz: b, eventTitle: v.event.title }] : []
+    })
+    if (linked.length) {
       const reviewedIds = new Set(
         (await prisma.businessReview.findMany({
-          where:  { authorId: session.id, businessId: { in: liveBusinesses.map((b) => b.id) } },
+          where:  { authorId: session.id, businessId: { in: linked.map(l => l.biz.id) } },
           select: { businessId: true },
         })).map((r) => r.businessId),
       )
-      for (const v of checkedInVisits) {
-        const biz = bizByName.get(`${v.event.cityId}|${norm(v.event.location ?? '')}`)
-        if (biz && !reviewedIds.has(biz.id) && !venuesToReview.some(c => c.businessId === biz.id)) {
-          venuesToReview.push({ businessId: biz.id, businessName: biz.name, eventTitle: v.event.title })
+      for (const { biz, eventTitle } of linked) {
+        if (!reviewedIds.has(biz.id) && !venuesToReview.some(c => c.businessId === biz.id)) {
+          venuesToReview.push({ businessId: biz.id, businessName: biz.name, eventTitle })
           if (venuesToReview.length >= 5) break
         }
       }
