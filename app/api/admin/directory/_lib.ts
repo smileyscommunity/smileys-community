@@ -121,6 +121,17 @@ export function validateBusinessCreate(input: Record<string, unknown>):
 // updatedAt and creating audit noise. Object and array values use
 // JSON equality — sufficient for the small `tags` array + `hours`
 // object this currently runs against.
+/** The tag only staff set: venues that host Smileys events. */
+export const STAFF_TAG = 'We meet here'
+/** An image uploaded through the directory upload route. */
+export const UPLOADED_DIRECTORY_IMAGE = /^\/app\/api\/files\/directory\/[\w-]+\.(jpg|jpeg|png|webp|gif)$/i
+
+function canonical(v: unknown): string {
+  return JSON.stringify(v, (_k, x) => x && typeof x === 'object' && !Array.isArray(x)
+    ? Object.fromEntries(Object.keys(x).sort().map(k => [k, (x as Record<string, unknown>)[k]]))
+    : x)
+}
+
 export function dropUnchanged(
   patch: Record<string, unknown>,
   existing: Record<string, unknown>,
@@ -131,7 +142,9 @@ export function dropUnchanged(
     const b = existing[k]
     if (a === b) continue
     if (typeof a === 'object' && a !== null && typeof b === 'object' && b !== null) {
-      if (JSON.stringify(a) === JSON.stringify(b)) continue
+      // Json columns read back with their keys sorted: compare canonically,
+      // or every save rewrote and audit-logged `hours` unchanged.
+      if (canonical(a) === canonical(b)) continue
     }
     out[k] = a
   }
@@ -141,11 +154,18 @@ export function dropUnchanged(
 // Schema-validate a PATCH field update. Returns either { data: validated
 // patch } (only allowed keys, each through its normalizer) or { error:
 // '...' } on the first invalid value.
-export function validateFieldUpdate(input: Record<string, unknown>):
+export function validateFieldUpdate(input: Record<string, unknown>, opts: { owner?: boolean } = {}):
   | { data: Record<string, unknown> }
   | { error: string }
 {
   const data: Record<string, unknown> = {}
+  // An owner edits the listing, not its identity: a rename or a new category
+  // goes through staff. Five features link venues by name (events, surveys,
+  // nudges, the dashboard, "Smileys has been here"), and a renamed listing
+  // took another venue's history.
+  if (opts.owner && ('name' in input || 'category' in input)) {
+    return { error: 'To change the name or category, contact the Smileys team.' }
+  }
 
   if ('name' in input) {
     const v = str(input.name, DIRECTORY_LIMITS.name)
@@ -191,8 +211,10 @@ export function validateFieldUpdate(input: Record<string, unknown>):
       const v = str(input[k], DIRECTORY_LIMITS[k])
       if (v === null) {
         data[k] = null
-      } else if (!isSafeHref(v)) {
-        return { error: `${k} must be an https:// URL` }
+      } else if (opts.owner ? !UPLOADED_DIRECTORY_IMAGE.test(v) : !isSafeHref(v)) {
+        // An owner's images are our uploads: an outside URL logged the IP of
+        // every visitor to the page.
+        return { error: opts.owner ? `${k} must be an uploaded image` : `${k} must be an https:// URL` }
       } else {
         data[k] = v
       }
@@ -222,8 +244,9 @@ export function validateFieldUpdate(input: Record<string, unknown>):
   }
   if ('tags' in input) {
     // Empty array clears all tags; we don't restrict here on intent.
-    const tags = normalizeTags(input.tags)
-    data.tags = tags ?? []
+    const tags = normalizeTags(input.tags) ?? []
+    // "We meet here" is a staff signal (the venues that host Smileys events).
+    data.tags = opts.owner ? tags.filter(t => t.toLowerCase() !== STAFF_TAG.toLowerCase()) : tags
   }
 
   return { data }

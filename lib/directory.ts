@@ -116,7 +116,8 @@ export async function queryDirectory(filters: DirectoryFilters & { cityId: strin
   const [ratingStats, saveCounts, mySaves, trendingStats, myClaims] = await Promise.all([
     prisma.businessReview.groupBy({
       by: ['businessId'],
-      where: { businessId: { in: ids }, isHidden: false },
+      // Visible reviews by members in good standing — the page's own count.
+      where: { businessId: { in: ids }, isHidden: false, author: { status: 'approved' } },
       _avg: { rating: true },
       _count: { _all: true },
     }),
@@ -160,7 +161,8 @@ export async function queryDirectory(filters: DirectoryFilters & { cityId: strin
       reviewCount:     statsByBiz.get(b.id)?.reviewCount ?? 0,
       saveCount:       saveByBiz.get(b.id)               ?? 0,
       isSaved:         savedSet.has(b.id),
-      addedBy:         attributionDisplay(submittedBy?.name),
+      // A guest learns a member added it, not who.
+      addedBy:         callerId ? attributionDisplay(submittedBy?.name) : 'a Smileys member',
       hasClaimedOwner: claimedById !== null,
       isMine:          callerId != null && claimedById === callerId,
       myClaimStatus,
@@ -169,10 +171,18 @@ export async function queryDirectory(filters: DirectoryFilters & { cityId: strin
 
   const sorted = sort === 'trending'
     ? [...items].sort((a, b) => (trendingByBiz.get(b.id) ?? 0) - (trendingByBiz.get(a.id) ?? 0))
-    // Top rated — avgRating desc (unrated sink below 1-star), review
-    // count as tiebreaker so a 4.8×12 outranks a 4.8×1.
+    // Top rated — a Bayesian average: each listing's rating pulled toward
+    // the directory's mean by a few phantom reviews, so one 5★ doesn't
+    // outrank 4.86 from 36. Unrated listings sink.
     : sort === 'toprated'
-    ? [...items].sort((a, b) => ((b.avgRating ?? -1) - (a.avgRating ?? -1)) || (b.reviewCount - a.reviewCount))
+    ? (() => {
+        const rated = items.filter(i => i.avgRating != null)
+        const mean  = rated.length ? rated.reduce((s, i) => s + (i.avgRating as number), 0) / rated.length : 0
+        const PRIOR = 5
+        const score = (i: typeof items[number]) => i.avgRating == null ? -1
+          : ((i.avgRating as number) * i.reviewCount + mean * PRIOR) / (i.reviewCount + PRIOR)
+        return [...items].sort((a, b) => (score(b) - score(a)) || (b.reviewCount - a.reviewCount))
+      })()
     : items
 
   return { items: sorted as unknown as DirectoryBusiness[], nextCursor, total }

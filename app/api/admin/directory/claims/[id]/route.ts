@@ -52,6 +52,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           { status: 409 },
         )
       }
+      let rivals: { id: string; claimantId: string }[] = []
       try {
         await prisma.$transaction(async (tx) => {
           const { count } = await tx.business.updateMany({
@@ -70,6 +71,18 @@ export async function PATCH(req: NextRequest, { params }: Params) {
             where: { id },
             data:  { status: 'approved', reviewedById: session.id, reviewedAt: new Date() },
           })
+          // Anyone else's pending claim on this business is answered too —
+          // it sat "pending" for good, and approving it later only 409'd.
+          rivals = await tx.businessClaim.findMany({
+            where:  { businessId: claim.businessId, status: 'pending', id: { not: id } },
+            select: { id: true, claimantId: true },
+          })
+          if (rivals.length) {
+            await tx.businessClaim.updateMany({
+              where: { id: { in: rivals.map(r => r.id) } },
+              data:  { status: 'rejected', reviewedById: session.id, reviewedAt: new Date() },
+            })
+          }
         })
       } catch (e) {
         if (e instanceof Error && e.message === 'CLAIM_RACED') {
@@ -83,9 +96,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       await createNotification(
         claim.claimantId, 'system',
         'Your business claim was approved',
-        `You're now the verified owner of "${claim.business.name}" in the Smileys directory.`,
-        '/directory',
+        `You're now the verified owner of "${claim.business.name}" — open the listing to edit it and reply to reviews.`,
+        `/directory/${claim.businessId}`,
       )
+      for (const r of rivals) {
+        createNotification(r.claimantId, 'system', 'Business claim not approved',
+          `"${claim.business.name}" has been verified for another owner. If that's wrong, contact the Smileys team.`,
+          `/directory/${claim.businessId}`).catch(() => {})
+      }
       await writeAudit(
         session.id, session.name,
         'directory.claim_approve',
@@ -95,16 +113,24 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return NextResponse.json({ ok: true })
     }
 
-    // Reject path.
-    await prisma.businessClaim.update({
-      where: { id },
-      data:  { status: 'rejected', reviewedById: session.id, reviewedAt: new Date() },
-    })
+    // Reject path. Rejecting a claim that was APPROVED also takes the
+    // ownership back — the business kept the claimant as owner, and no route
+    // could clear it.
+    await prisma.$transaction([
+      prisma.businessClaim.update({
+        where: { id },
+        data:  { status: 'rejected', reviewedById: session.id, reviewedAt: new Date() },
+      }),
+      prisma.business.updateMany({
+        where: { id: claim.businessId, claimedById: claim.claimantId },
+        data:  { claimedById: null, claimedAt: null },
+      }),
+    ])
     await createNotification(
       claim.claimantId, 'system',
       'Business claim not approved',
       `Your claim for "${claim.business.name}" wasn't approved. You can re-submit with more proof.`,
-      '/directory',
+      `/directory/${claim.businessId}`,
     )
     await writeAudit(
       session.id, session.name,

@@ -50,9 +50,11 @@ async function runSweep() {
 
   const businesses = await prisma.business.findMany({
     where: { isApproved: true, isActive: true },
-    select: { id: true, name: true },
+    select: { id: true, name: true, cityId: true, _count: { select: { reviews: { where: { isHidden: false } } } } },
   })
-  const byName = new Map(businesses.map(b => [norm(b.name), b]))
+  // Keyed by city AND name: a name shared by two cities' listings kept only
+  // the last, and members were nudged to review the other city's.
+  const byName = new Map(businesses.map(b => [`${b.cityId}|${norm(b.name)}`, b]))
 
   // Checked-in attendance at past, non-cancelled events whose venue has
   // a directory listing.
@@ -65,13 +67,13 @@ async function runSweep() {
         event: { date: { lt: date }, cancelledAt: null, cityId: { in: cityIds } },
       })),
     },
-    select: { userId: true, event: { select: { location: true } } },
+    select: { userId: true, event: { select: { location: true, cityId: true } } },
   })
 
   // userId → (businessId → visit count)
   const visits = new Map<string, Map<string, number>>()
   for (const a of attendance) {
-    const biz = byName.get(norm(a.event.location ?? ''))
+    const biz = byName.get(`${a.event.cityId}|${norm(a.event.location ?? '')}`)
     if (!biz) continue
     if (!visits.has(a.userId)) visits.set(a.userId, new Map())
     const m = visits.get(a.userId)!
@@ -121,7 +123,7 @@ async function runSweep() {
       userId,
       'directory_review_nudge',
       `Been to ${biz.name} with us?`,
-      `You've checked in at ${count} Smileys event${count === 1 ? '' : 's'} there — leave the first review and help other members find it.`,
+      `You've checked in at ${count} Smileys event${count === 1 ? '' : 's'} there — ${biz._count.reviews === 0 ? 'leave the first review' : 'add your review'} and help other members find it.`,
       `/directory/${businessId}`,
     )
     sent++

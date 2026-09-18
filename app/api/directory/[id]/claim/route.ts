@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { notifyCityStaff } from '@/lib/staffNotify'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
@@ -47,7 +48,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     const { id } = await params
     const business = await prisma.business.findUnique({
       where: { id },
-      select: { id: true, name: true, isApproved: true, isActive: true, claimedById: true },
+      select: { id: true, name: true, isApproved: true, isActive: true, claimedById: true, cityId: true },
     })
     if (!business || !business.isApproved || !business.isActive) {
       // Don't leak whether the business exists vs is unapproved — both
@@ -91,16 +92,8 @@ export async function POST(req: NextRequest, { params }: Params) {
     // Notify admins. Best-effort — wrapped so a single notify failure
     // doesn't roll back the claim.
     try {
-      const admins = await prisma.user.findMany({
-        where:  { role: { in: ['admin', 'moderator'] } },
-        select: { id: true },
-      })
-      await Promise.all(admins.map(a => createNotification(
-        a.id, 'system',
-        'New business claim',
-        `${session.name} claims ownership of "${business.name}"`,
-        '/admin/directory?status=claims',
-      )))
+      await notifyCityStaff(business.cityId ?? null, 'system', 'New business claim',
+        `${session.name} claims ownership of "${business.name}"`, '/admin/directory?status=claims')
     } catch (e) {
       console.error('Notify-on-claim failed:', e)
     }

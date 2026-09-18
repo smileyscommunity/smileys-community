@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { createNotification } from '@/lib/notify'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
 import { authorProjector } from '@/lib/authorProjection'
@@ -19,12 +20,15 @@ export async function GET(_req: NextRequest, { params }: Params) {
     const { id } = await params
     const session = await getSession()
 
+    // A live listing's reviews only, and by members still in good standing
+    // (a banned member's review goes with them).
     const reviews = await prisma.businessReview.findMany({
       where: {
         businessId: id,
+        business: { isApproved: true, isActive: true },
         OR: session
-          ? [{ isHidden: false }, { authorId: session.id }]
-          : [{ isHidden: false }],
+          ? [{ isHidden: false, author: { status: 'approved' } }, { authorId: session.id }]
+          : [{ isHidden: false, author: { status: 'approved' } }],
       },
       orderBy: { createdAt: 'desc' },
       take: 100,
@@ -45,9 +49,9 @@ export async function GET(_req: NextRequest, { params }: Params) {
       reviews: reviews.map(r => ({
         ...r,
         author: project(r.author),
-        ownerReplyBy: r.ownerReplyBy && !session
-          ? { id: 'member', name: firstNameOf(r.ownerReplyBy.name) }
-          : r.ownerReplyBy,
+        // That the owner replied, not who they are: the list never exposes
+        // the owner's member id, and neither does this.
+        ownerReplyBy: r.ownerReplyBy ? { id: 'owner', name: 'The owner' } : null,
       })),
     })
   } catch (e) {
@@ -74,7 +78,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     const { id } = await params
     const business = await prisma.business.findUnique({
       where:  { id },
-      select: { id: true, isApproved: true, isActive: true, claimedById: true },
+      select: { id: true, isApproved: true, isActive: true, claimedById: true, name: true },
     })
     if (!business || !business.isApproved || !business.isActive) {
       return NextResponse.json({ error: 'Business not found' }, { status: 404 })
@@ -99,16 +103,26 @@ export async function POST(req: NextRequest, { params }: Params) {
       ? body.comment.trim().slice(0, COMMENT_MAX)
       : null
 
+    const prior = await prisma.businessReview.findUnique({
+      where:  { businessId_authorId: { businessId: id, authorId: session.id } },
+      select: { rating: true, comment: true },
+    })
+    const changed = !prior || prior.rating !== ratingNum || (prior.comment ?? null) !== comment
     const review = await prisma.businessReview.upsert({
       where:  { businessId_authorId: { businessId: id, authorId: session.id } },
       create: { businessId: id, authorId: session.id, rating: ratingNum, comment },
       update: {
         rating: ratingNum, comment,
-        // Editing the review resets any owner reply — the original reply
-        // may no longer be relevant. Owner can re-reply.
-        ownerReply: null, ownerReplyAt: null, ownerReplyById: null,
+        // A changed review resets the owner's reply (it may no longer fit);
+        // re-saving the same words keeps it.
+        ...(changed ? { ownerReply: null, ownerReplyAt: null, ownerReplyById: null } : {}),
       },
     })
+    // A verified owner hears about a new review of their business.
+    if (!prior && business.claimedById) {
+      createNotification(business.claimedById, 'directory_review', `⭐ New review of ${business.name}`,
+        `${ratingNum}★${comment ? ` — ${comment.slice(0, 100)}` : ''}`, `/directory/${id}`).catch(() => {})
+    }
     return NextResponse.json({ ok: true, id: review.id })
   } catch (e) {
     console.error('Reviews POST error:', e)

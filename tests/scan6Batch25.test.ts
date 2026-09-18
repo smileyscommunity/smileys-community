@@ -79,8 +79,11 @@ describe('self-deletion scrubs the member\'s business claim messages', () => {
   it('neutralises the message inside the deletion transaction', async () => {
     const res = await deleteAccountPOST(jsonReq({ password: 'pw' }))
     expect(res.status).toBe(200)
+    // Two writes in the transaction: the scrub, then pending claims rejected
+    // (approving one later gave the business to a deleted account).
     const scrubs = h.log.filter(l => l.key === 'businessClaim.updateMany')
-    expect(scrubs).toEqual([{ key: 'businessClaim.updateMany', inTx: true }])
+    expect(scrubs).toEqual([{ key: 'businessClaim.updateMany', inTx: true }, { key: 'businessClaim.updateMany', inTx: true }])
+    expect(h.calls['businessClaim.updateMany'][1]).toEqual({ where: { claimantId: 'u1', status: 'pending' }, data: { status: 'rejected' } })
     // Same transaction as the user-row anonymisation, before it.
     const userUpdate = h.log.findIndex(l => l.key === 'user.update')
     expect(h.log[userUpdate].inTx).toBe(true)
@@ -96,7 +99,9 @@ describe('self-deletion scrubs the member\'s business claim messages', () => {
       const was = before.find(c => c.id === id)!
       expect(now.message).toBe('[deleted]')
       expect(now.message).not.toMatch(/\+90|@|Jane/)
-      expect({ ...now, message: was.message }).toEqual(was)
+      // A pending claim is closed as rejected; everything else stays.
+      const status = was.status === 'pending' ? 'rejected' : was.status
+      expect({ ...now, message: was.message }).toEqual({ ...was, status })
     }
     expect(h.calls['businessClaim.deleteMany']).toBeUndefined()
     expect(h.calls['businessClaim.delete']).toBeUndefined()

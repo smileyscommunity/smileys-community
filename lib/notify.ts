@@ -24,6 +24,7 @@ const PREF_KEY: Record<string, 'newEvents' | 'reminders' | 'eventUpdates' | 'joi
   club_approved:      null,
   club_rejected:      null,
   club_request:       null,  // to a private club's hosts: someone asked to join
+  directory_review:   null,  // a new review of your business / the owner replied to yours
   host_assigned:      null,
   application:        null,
   report:             null,

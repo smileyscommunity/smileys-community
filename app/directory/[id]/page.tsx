@@ -4,7 +4,8 @@ import type { Metadata } from 'next'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { firstNameOf } from '@/lib/data'
-import { restrictedSetFor } from '@/lib/memberPrivacy'
+import { authorProjector } from '@/lib/authorProjection'
+import StaffReviewHide from './StaffReviewHide'
 import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
 import { formatShortDate } from '@/lib/data'
 import { resolveImageUrl, avatarUrl } from '@/lib/data'
@@ -91,6 +92,8 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
   // clock made a Tbilisi café read "Open now" an hour late.
   const businessCity = await getCityConfig(business.cityId)
   const today = todayInTz(businessCity.timezone ?? DEFAULT_TZ)
+  // Upcoming events at the venue are for members: the event page keeps its
+  // exact location from guests, and this section named it. Guests get the count.
   const venueEvents = await prisma.event.findMany({
     where: {
       location: { equals: business.name.replace(/\s+/g, ' ').trim(), mode: 'insensitive' },
@@ -101,22 +104,24 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
     orderBy: { date: 'desc' },
     take:    200,
   })
-  const upcomingHere = venueEvents
+  const upcomingHere = !session ? [] : venueEvents
     .filter(e => e.status === 'published' && e.date >= today)
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(0, 3)
   const pastHereCount = venueEvents.filter(e => e.date < today).length
 
   // Aggregates + per-caller state, all in parallel.
-  const [reviewsRaw, saveCount, mySave, myReview, myClaim] = await Promise.all([
+  // A banned member's review leaves the page and the rating with them.
+  const LIVE_AUTHOR = { author: { status: 'approved' } }
+  const [reviewsRaw, saveCount, mySave, myReview, myClaim, ratingAgg] = await Promise.all([
     prisma.businessReview.findMany({
       where: {
         businessId: business.id,
         // Hidden reviews are excluded from the public list AND the
         // average, but visible to the author themselves via OR.
         OR: session
-          ? [{ isHidden: false }, { authorId: session.id }]
-          : [{ isHidden: false }],
+          ? [{ isHidden: false, ...LIVE_AUTHOR }, { authorId: session.id }]
+          : [{ isHidden: false, ...LIVE_AUTHOR }],
       },
       orderBy: { createdAt: 'desc' },
       take: 50,
@@ -141,14 +146,19 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
       where:  { businessId_claimantId: { businessId: business.id, claimantId: session.id } },
       select: { status: true },
     }) : Promise.resolve(null),
+    // Over every visible review, not the newest 50 the list shows — the
+    // page, the list and Google's count must agree.
+    prisma.businessReview.aggregate({
+      where:  { businessId: business.id, isHidden: false, ...LIVE_AUTHOR },
+      _avg:   { rating: true },
+      _count: { _all: true },
+    }),
   ])
 
   // Average rating uses only non-hidden reviews so the public number
   // matches what visitors see in the list.
-  const visibleReviews = reviewsRaw.filter(r => !r.isHidden)
-  const avgRating = visibleReviews.length > 0
-    ? visibleReviews.reduce((sum, r) => sum + r.rating, 0) / visibleReviews.length
-    : null
+  const reviewCount = ratingAgg._count._all
+  const avgRating   = reviewCount > 0 ? ratingAgg._avg.rating : null
 
   const isMine     = session != null && business.claimedById === session.id
   const isStaff    = session != null && (session.role === 'admin' || session.role === 'moderator')
@@ -193,13 +203,20 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
       streetAddress:     business.address ?? undefined,
     },
   }
-  // Coordinates: explicit values win, neighborhood centroid is the
-  // public fallback (matches the map view's resolution strategy).
-  const lat = business.latitude  ?? meta?.lat
-  const lon = business.longitude ?? meta?.lon
+  // Real coordinates only. The neighbourhood's centre is not the business:
+  // published as its exact geo and used for "Maps ↗", it put half the pins
+  // in the wrong street (and, for a name the table doesn't know, in Eminönü).
+  void meta
+  const lat = business.latitude
+  const lon = business.longitude
   if (lat != null && lon != null) {
     ld.geo = { '@type': 'GeoCoordinates', latitude: lat, longitude: lon }
   }
+  const mapsHref = lat != null && lon != null
+    ? `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`
+    : business.address
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([business.name, business.address, businessCity.name].filter(Boolean).join(', '))}`
+      : null
   if (business.phone && /^[+\d\s\-()]{4,40}$/.test(business.phone)) {
     ld.telephone = business.phone
   }
@@ -214,21 +231,25 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
   const hoursSpec = formatHoursSchema(hours)
   if (hoursSpec.length > 0) ld.openingHoursSpecification = hoursSpec
 
-  if (visibleReviews.length > 0 && avgRating != null) {
+  if (reviewCount > 0 && avgRating != null) {
     ld.aggregateRating = {
       '@type':      'AggregateRating',
       ratingValue:  avgRating.toFixed(1),
-      reviewCount:  visibleReviews.length,
+      reviewCount,
       bestRating:   5,
       worstRating:  1,
     }
   }
 
-  const restrictedReviewers = session ? await restrictedSetFor(session, reviewsRaw.map(r => r.author)) : new Set<string>()
+  // One rule for who a reviewer is shown as (lib/authorProjection): a guest
+  // gets a first name and no photo, a member everyone but a connections-only
+  // stranger in full. The page used to show every reviewer's photo to guests.
+  const showAuthor = await authorProjector(session, reviewsRaw.map(r => r.author))
   const openStatus = getOpenStatus(hours, businessCity.timezone ?? DEFAULT_TZ)
   const cover      = resolveImageUrl(business.coverImage)
   const logo       = resolveImageUrl(business.logo)
-  const addedBy    = attributionDisplay(business.submittedBy?.name)
+  // Guests: who added it is a member, not a name.
+  const addedBy    = session ? attributionDisplay(business.submittedBy?.name) : 'a Smileys member'
 
   // Shared summary for the client action components (header / reviews
   // header / footer — see DetailClient.tsx for the split rationale).
@@ -266,7 +287,7 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
         <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
         {/* Breadcrumb */}
         <div className="absolute top-3 left-3 sm:top-5 sm:left-5">
-          <Link href="/directory"
+          <Link href={`/directory?city=${businessCity.slug}`}
             className="inline-flex items-center gap-1 px-3 py-1.5 bg-white/95 backdrop-blur text-xs font-semibold text-gray-700 rounded-full hover:bg-white transition-colors shadow-sm">
             ← Directory
           </Link>
@@ -305,7 +326,7 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
                   <p className="text-sm">
                     <span className="text-amber-500">★</span>{' '}
                     <span className="font-bold text-gray-900">{avgRating.toFixed(1)}</span>{' '}
-                    <span className="text-gray-400">· {visibleReviews.length} review{visibleReviews.length === 1 ? '' : 's'}</span>
+                    <span className="text-gray-400">· {reviewCount} review{reviewCount === 1 ? '' : 's'}</span>
                   </p>
                 )}
                 {saveCount > 0 && (
@@ -391,9 +412,9 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
                   </span>
                 </>
               )
-              return lat != null && lon != null ? (
+              return mapsHref ? (
                 <a
-                  href={`https://www.google.com/maps/search/?api=1&query=${lat},${lon}`}
+                  href={mapsHref}
                   target="_blank" rel="noopener noreferrer nofollow"
                   className="flex items-center gap-3 px-4 sm:px-5 py-3.5 hover:bg-amber-50/60 transition-colors"
                 >
@@ -404,6 +425,16 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
                 <div className="flex items-center gap-3 px-4 sm:px-5 py-3.5">{inner}</div>
               )
             })()}
+            {business.phone && !/^[+\d\s\-()]{4,40}$/.test(business.phone) && (
+              // A number with dots, slashes or words still shows, as text.
+              <div className="flex items-center gap-3 px-4 sm:px-5 py-3.5">
+                <span className="w-9 h-9 rounded-full bg-amber-50 flex items-center justify-center text-base shrink-0" aria-hidden="true">📞</span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-[11px] font-bold uppercase tracking-wide text-gray-400">Phone</span>
+                  <span className="block text-sm text-gray-800">{business.phone}</span>
+                </span>
+              </div>
+            )}
             {business.phone && /^[+\d\s\-()]{4,40}$/.test(business.phone) && (
               <a
                 href={`tel:${business.phone.replace(/[^\d+]/g, '')}`}
@@ -522,7 +553,7 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
         <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 sm:p-6 mt-6" id="reviews">
           <div className="flex items-center justify-between gap-3 mb-4">
             <h2 className="text-lg font-bold text-gray-900">
-              Reviews{visibleReviews.length > 0 ? ` · ${visibleReviews.length}` : ''}
+              Reviews{reviewCount > 0 ? ` · ${reviewCount}` : ''}
             </h2>
             <div className="flex items-center gap-3">
               {avgRating != null && (
@@ -552,8 +583,9 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
                 // reviewer was the full name, and a connections-only member's
                 // review is a review, not a profile. Guests get the first
                 // name; a member the reviewer isn't connected to too.
-                const reviewerName = session && !restrictedReviewers.has(r.author.id) ? r.author.name : firstNameOf(r.author.name)
-                const avatar = r.author.profilePhoto ? avatarUrl(r.author.profilePhoto, 64) : null
+                const shown = showAuthor(r.author)
+                const reviewerName = shown.name
+                const avatar = shown.profilePhoto ? avatarUrl(shown.profilePhoto, 64) : null
                 return (
                   <article key={r.id} className={`pt-4 border-t border-gray-100 first:border-0 first:pt-0 ${r.isHidden ? 'opacity-60' : ''}`}>
                     <div className="flex items-start gap-3">
@@ -572,6 +604,7 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
                           <span className="text-amber-500 text-sm tracking-tight" aria-label={`${r.rating} stars`}>
                             {'★'.repeat(r.rating)}<span className="text-gray-300">{'★'.repeat(5 - r.rating)}</span>
                           </span>
+                          {isStaff && <StaffReviewHide reviewId={r.id} hidden={r.isHidden} />}
                           {r.isHidden && (
                             <span className="text-[10px] font-semibold text-red-600 bg-red-100 rounded-full px-2 py-0.5">Hidden by admin</span>
                           )}

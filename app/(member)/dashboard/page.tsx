@@ -21,7 +21,7 @@ import PullToRefreshTrigger from '@/components/PullToRefreshTrigger'
 import QuickLinks from '@/components/QuickLinks'
 import CityWeather from '@/components/CityWeather'
 import ReviewReminder from '@/components/ReviewReminder'
-import VenueReviewPrompt from '@/components/VenueReviewPrompt'
+import { VenueReviewPrompts } from '@/components/VenueReviewPrompt'
 import TestimonialPrompt from '@/components/TestimonialPrompt'
 import ReferralImpact from '@/components/ReferralImpact'
 import InviteBanner from '@/components/InviteBanner'
@@ -228,7 +228,9 @@ export default async function DashboardPage() {
   // reviewed. Matches the event page's case-insensitive location↔business
   // rule. Cheap — the directory is a small curated set and the visit scan
   // is capped. Null when there's nothing to prompt (component self-hides).
-  let venueToReview: { businessId: string; businessName: string; eventTitle: string } | null = null
+  // Several candidates, newest first: the prompt shows the first the member
+  // hasn't dismissed (one dismissed venue blocked every later prompt).
+  const venuesToReview: { businessId: string; businessName: string; eventTitle: string }[] = []
   {
     const checkedInVisits = await prisma.eventAttendee.findMany({
       where: {
@@ -237,15 +239,22 @@ export default async function DashboardPage() {
       },
       orderBy: { event: { date: 'desc' } },
       take: 20,
-      select: { event: { select: { title: true, location: true } } },
+      select: { event: { select: { title: true, location: true, cityId: true } } },
     })
     if (checkedInVisits.length) {
-      const liveBusinesses = await prisma.business.findMany({
-        where:  { isApproved: true, isActive: true },
-        select: { id: true, name: true },
-      })
+      // Only the venues these visits name, in their cities — not every
+      // listing in every city on each dashboard render.
       const norm = (s: string) => s.replace(/\s+/g, ' ').trim().toLowerCase()
-      const bizByName = new Map(liveBusinesses.map((b) => [norm(b.name), b]))
+      const liveBusinesses = await prisma.business.findMany({
+        where:  {
+          isApproved: true, isActive: true,
+          OR: checkedInVisits.filter(v => v.event.location).map(v => ({
+            cityId: v.event.cityId, name: { equals: (v.event.location as string).replace(/\s+/g, ' ').trim(), mode: 'insensitive' as const },
+          })),
+        },
+        select: { id: true, name: true, cityId: true },
+      })
+      const bizByName = new Map(liveBusinesses.map((b) => [`${b.cityId}|${norm(b.name)}`, b]))
       const reviewedIds = new Set(
         (await prisma.businessReview.findMany({
           where:  { authorId: session.id, businessId: { in: liveBusinesses.map((b) => b.id) } },
@@ -253,10 +262,10 @@ export default async function DashboardPage() {
         })).map((r) => r.businessId),
       )
       for (const v of checkedInVisits) {
-        const biz = bizByName.get(norm(v.event.location ?? ''))
-        if (biz && !reviewedIds.has(biz.id)) {
-          venueToReview = { businessId: biz.id, businessName: biz.name, eventTitle: v.event.title }
-          break
+        const biz = bizByName.get(`${v.event.cityId}|${norm(v.event.location ?? '')}`)
+        if (biz && !reviewedIds.has(biz.id) && !venuesToReview.some(c => c.businessId === biz.id)) {
+          venuesToReview.push({ businessId: biz.id, businessName: biz.name, eventTitle: v.event.title })
+          if (venuesToReview.length >= 5) break
         }
       }
     }
@@ -1331,10 +1340,12 @@ export default async function DashboardPage() {
 
             {/* Post-visit venue review — inline one-tap rating for the most
                 recent checked-in venue the member hasn't reviewed. */}
-            {venueToReview && <VenueReviewPrompt {...venueToReview} />}
+            {/* The first venue not yet dismissed; with none left, the testimonial ask. */}
+            <VenueReviewPrompts candidates={venuesToReview}
+              fallback={askTestimonial ? <TestimonialPrompt cityName={city.name} /> : null} />
             {/* Never both at once — two asks stacked reads as a survey wall.
                 The venue review wins (it's time-sensitive; this one isn't). */}
-            {!venueToReview && askTestimonial && <TestimonialPrompt cityName={city.name} />}
+
 
             {/* Live hangouts strip */}
             {activeHangouts.length > 0 && (

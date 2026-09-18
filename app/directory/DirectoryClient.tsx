@@ -257,6 +257,13 @@ type TypeFilter = 'all' | 'expat-owned' | 'expat-friendly'
 // Suspense wrapper is required by Next 15 when useSearchParams is read
 // from a client component — without it the static-paths optimizer bails
 // out on the whole page tree at build time.
+// Search folding: Turkish-aware lowercase, accents and dotted/dotless i
+// stripped, curly apostrophes straightened.
+function fold(s: string): string {
+  return s.toLocaleLowerCase('tr').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/ı/g, 'i').replace(/[’‘`]/g, "'")
+}
+
 export default function DirectoryClient() {
   return (
     <Suspense fallback={null}>
@@ -383,16 +390,18 @@ function DirectoryPageInner() {
   const visible = businesses.filter(b => {
     if (meetOnly && !b.tags.includes('We meet here')) return false
     if (!search.trim()) return true
-    const q = search.toLowerCase()
+    // Folded both sides: "kadikoy" finds Kadıköy, "istiklal" İstiklal,
+    // "rock'n" the stored "Rock’n".
+    const q = fold(search)
     return (
-      b.name.toLowerCase().includes(q) ||
-      b.description.toLowerCase().includes(q) ||
-      (b.neighborhood ?? '').toLowerCase().includes(q) ||
-      b.category.toLowerCase().includes(q) ||
+      fold(b.name).includes(q) ||
+      fold(b.description).includes(q) ||
+      fold(b.neighborhood ?? '').includes(q) ||
+      fold(b.category).includes(q) ||
       // Tags participate in the same in-memory match so a tag-chip
       // click ("Vegan") narrows the grid to other entries carrying
       // that tag too, not just the one card clicked.
-      b.tags.some(t => t.toLowerCase().includes(q))
+      b.tags.some(t => fold(t).includes(q))
     )
   })
 
@@ -457,7 +466,7 @@ function DirectoryPageInner() {
                   </button>
                 ))}
               </div>
-              <Link href={isLoggedIn ? '/directory/submit' : '/login?return=/directory/submit'}
+              <Link href={isLoggedIn ? `/directory/submit${pinnedCity ? `?city=${pinnedCity}` : ''}` : '/login?return=/directory/submit'}
                 className="shrink-0 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors">
                 {isLoggedIn ? '+ Submit' : 'Sign in to submit'}
               </Link>
@@ -578,13 +587,13 @@ function DirectoryPageInner() {
               {search ? 'Try a different search term or clear your filters.' : 'Be the first to add one!'}
             </p>
             <div className="flex flex-col gap-2 items-center">
-              {(search || category !== 'all' || type !== 'all' || meetOnly) && (
-                <button onClick={() => { setSearch(''); setCategory('all'); setType('all'); setMeetOnly(false) }}
+              {(search || category !== 'all' || type !== 'all' || meetOnly || neighborhood) && (
+                <button onClick={() => { setSearch(''); setCategory('all'); setType('all'); setMeetOnly(false); setNeighborhood('') }}
                   className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-xl transition-colors">
                   Clear filters
                 </button>
               )}
-              <Link href={isLoggedIn ? '/directory/submit' : '/login?return=/directory/submit'}
+              <Link href={isLoggedIn ? `/directory/submit${pinnedCity ? `?city=${pinnedCity}` : ''}` : '/login?return=/directory/submit'}
                 className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors">
                 {isLoggedIn ? 'Submit a Business' : 'Sign in to submit'}
               </Link>

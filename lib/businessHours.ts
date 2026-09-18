@@ -75,8 +75,9 @@ export function parseHours(input: unknown):
     }
     out[day] = v
   }
-  // Empty object → treat as null (no hours set).
-  return { hours: Object.keys(out).length === 0 ? null : out }
+  // Empty, or every day blank → no hours set. The owner form sends all seven
+  // days, null when empty, and a week of nulls read as "Closed" for good.
+  return { hours: Object.values(out).some(v => v) ? out : null }
 }
 
 // Map ECMAScript getDay() (Sunday = 0) to our day keys.
@@ -146,7 +147,11 @@ export function formatHoursSchema(hours: BusinessHours | null | undefined): Arra
     const [opens, closes] = v.split('-')
     const o = minutesFromHHMM(opens)
     const c = minutesFromHHMM(closes)
-    if (c <= o) {
+    if (c === 0) {
+      // Closes at midnight: today until 23:59, nothing the next day — a
+      // next-day 00:00–00:00 reads to Google as "closed all day".
+      out.push({ '@type': 'OpeningHoursSpecification', dayOfWeek: DAY_SCHEMA[d], opens, closes: '23:59' })
+    } else if (c <= o) {
       // Cross-midnight: emit today 'opens-24:00' + next-day '00:00-closes'.
       out.push({ '@type': 'OpeningHoursSpecification', dayOfWeek: DAY_SCHEMA[d], opens, closes: '23:59' })
       const nextIdx = (DAY_KEYS.indexOf(d) + 1) % DAY_KEYS.length
@@ -219,7 +224,8 @@ export function getOpenStatus(hours: BusinessHours | null | undefined, tz: strin
   // 3. Closed. Find the next opening slot within the next 7 days.
   // Simple modular walk — probe[0] = today, probe[1] = tomorrow, etc.
   const idx = DAY_KEYS.indexOf(dayKey)
-  for (let i = 0; i < 7; i++) {
+  // Through i = 7: a place open one day a week opens next on the same weekday.
+  for (let i = 0; i <= 7; i++) {
     const probe: DayKey = DAY_KEYS[(idx + i) % DAY_KEYS.length]
     const r = hours[probe]
     if (r && isValidRange(r)) {

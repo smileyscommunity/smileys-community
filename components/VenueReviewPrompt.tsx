@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type ReactNode } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 
@@ -166,4 +166,20 @@ export default function VenueReviewPrompt({ businessId, businessName, eventTitle
       </motion.div>
     </AnimatePresence>
   )
+}
+
+/**
+ * The first candidate the member hasn't dismissed, else the fallback. One
+ * dismissed venue used to stop every later prompt: the server kept picking
+ * it, and the client kept hiding it.
+ */
+export function VenueReviewPrompts({ candidates, fallback }: { candidates: Props[]; fallback: ReactNode }) {
+  const [pick, setPick] = useState<Props | null | undefined>(undefined)
+  useEffect(() => {
+    let dismissed: string[] = []
+    try { dismissed = JSON.parse(storageGet('dismissed_venue_reviews') ?? '[]') } catch {}
+    setPick(candidates.find(c => !dismissed.includes(c.businessId)) ?? null)
+  }, [candidates])
+  if (pick === undefined) return null
+  return pick ? <VenueReviewPrompt {...pick} /> : <>{fallback}</>
 }

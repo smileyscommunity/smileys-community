@@ -88,7 +88,8 @@ describe('GET /api/directory returns each business\'s own city slug', () => {
     expect(b).not.toHaveProperty('submittedBy')
     expect(JSON.stringify(b)).not.toContain('u-owner')
     expect(JSON.stringify(b)).not.toContain('Kowalski')
-    expect(b).toMatchObject({ isSaved: false, isMine: false, myClaimStatus: 'none', hasClaimedOwner: true, addedBy: 'Sarah K.' })
+    // A guest learns a member added it, not who.
+    expect(b).toMatchObject({ isSaved: false, isMine: false, myClaimStatus: 'none', hasClaimedOwner: true, addedBy: 'a Smileys member' })
     // no per-viewer lookups run without a session
     expect(h.prisma.businessSave.findMany).not.toHaveBeenCalled()
     expect(h.prisma.businessClaim.findMany).not.toHaveBeenCalled()

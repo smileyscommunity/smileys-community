@@ -119,7 +119,8 @@ export default function SubmitBusinessPage() {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        // The city the form was opened for (?city=), not only the cookie's.
+        body: JSON.stringify({ ...form, city: new URLSearchParams(window.location.search).get('city') ?? undefined }),
       })
       const data = await r.json().catch(() => ({}))
       if (!r.ok) { setError(data?.error || 'Failed to submit'); return }

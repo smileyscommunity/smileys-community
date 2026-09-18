@@ -51,8 +51,10 @@ describe('broadcast email', () => {
 describe('public directory reviews', () => {
   it('show a first name to guests and to members not connected to a private reviewer', () => {
     const src = read('app/directory/[id]/page.tsx')
-    expect(src).toMatch(/const reviewerName = session && !restrictedReviewers\.has\(r\.author\.id\) \? r\.author\.name : firstNameOf\(r\.author\.name\)/)
-    expect(src).toMatch(/restrictedSetFor\(session, reviewsRaw\.map\(r => r\.author\)\)/)
+    // One rule, lib/authorProjection: guests a first name and no photo, a
+    // connections-only stranger the same for members.
+    expect(src).toMatch(/const showAuthor = await authorProjector\(session, reviewsRaw\.map\(r => r\.author\)\)/)
+    expect(src).toMatch(/const avatar = shown\.profilePhoto \? avatarUrl\(shown\.profilePhoto, 64\) : null/)
     expect(src).not.toMatch(/truncate">\{r\.author\.name\}/)
   })
 })

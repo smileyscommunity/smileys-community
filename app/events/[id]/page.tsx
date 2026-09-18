@@ -534,6 +534,8 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
         where: {
           name: { equals: event.location.replace(/\s+/g, ' ').trim(), mode: 'insensitive' },
           isApproved: true, isActive: true,
+          // The event's own city: a chain with one name in two cities cross-linked.
+          ...(event.cityId ? { cityId: event.cityId } : {}),
         },
         select: { id: true },
       })

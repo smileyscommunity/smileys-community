@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { notifyCityStaff } from '@/lib/staffNotify'
 import { getSession } from '@/lib/session'
 import { rateLimit, getIp } from '@/lib/rateLimit'
 
@@ -54,6 +55,11 @@ export async function POST(req: NextRequest, { params }: Params) {
         message,
       },
     })
+    // Reports reached no one: nothing notified, nothing counted them.
+    prisma.business.findUnique({ where: { id }, select: { name: true, cityId: true } })
+      .then(b => b && notifyCityStaff(b.cityId ?? null, 'system', 'Business reported',
+        `"${b.name}" was reported: ${reason}`, '/admin/directory?status=reports'))
+      .catch(() => {})
 
     return NextResponse.json({ ok: true })
   } catch (e) {

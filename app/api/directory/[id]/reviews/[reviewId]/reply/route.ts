@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { createNotification } from '@/lib/notify'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
 
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     const { id, reviewId } = await params
     const review = await prisma.businessReview.findUnique({
       where:  { id: reviewId },
-      select: { id: true, businessId: true, business: { select: { claimedById: true } } },
+      select: { id: true, businessId: true, authorId: true, ownerReply: true, business: { select: { claimedById: true, name: true } } },
     })
     if (!review || review.businessId !== id) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -49,6 +50,11 @@ export async function POST(req: NextRequest, { params }: Params) {
         ownerReplyById: session.id,
       },
     })
+    // The reviewer hears the first time the owner answers (not on every edit).
+    if (!review.ownerReply) {
+      createNotification(review.authorId, 'directory_review', `💬 ${review.business.name} replied to your review`,
+        'The owner answered — see what they said.', `/directory/${review.businessId}`).catch(() => {})
+    }
     return NextResponse.json({ ok: true })
   } catch (e) {
     console.error('Review reply POST error:', e)

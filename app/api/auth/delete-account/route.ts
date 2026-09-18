@@ -196,6 +196,9 @@ export async function POST(req: NextRequest) {
     // render it verbatim. It is NOT NULL, so it gets the neutral body; the row,
     // status, business and reviewer stamps stay as the ownership audit trail.
     await tx.businessClaim.updateMany({ where: { claimantId: id }, data: { message: DELETED_BODY } })
+    // A pending claim from a deleted account is not a claim: approving it
+    // gave the business to an account nobody can use.
+    await tx.businessClaim.updateMany({ where: { claimantId: id, status: 'pending' }, data: { status: 'rejected' } })
     // A business this member OWNED stays listed, but left on a deleted account
     // nobody else could claim it ("already claimed") and nobody could answer its
     // reviews until staff noticed. Release the ownership; the approved claim row

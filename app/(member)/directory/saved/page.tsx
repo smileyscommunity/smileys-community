@@ -80,6 +80,11 @@ export default function SavedDirectoryPage() {
         setItems(prev)
         return
       }
+      // The endpoint toggles: from a stale tab the tap SAVED it. Toggle back.
+      const d = await r.json().catch(() => null)
+      if (d?.saved === true) {
+        await fetch(`/app/api/directory/${id}/save`, { method: 'POST', credentials: 'include' }).catch(() => {})
+      }
     } catch {
       toast.error('Network error')
       setItems(prev)

@@ -133,9 +133,11 @@ async function main() {
     const firstDate    = evs.map(e => e.date).sort()[0]
     const category     = inferCategory(name)
 
+    // No count in the text: it was written once and went stale (the page's
+    // own "Smileys has been here" section counts live).
     const description =
-      `A ${neighborhood ?? cityName.get(evs[0].cityId) ?? 'local'} regular for the Smileys community — has hosted ` +
-      `${evs.length} Smileys event${evs.length === 1 ? '' : 's'} since ${monthYear(firstDate)}.`
+      `A ${neighborhood ?? cityName.get(evs[0].cityId) ?? 'local'} regular for the Smileys community, ` +
+      `hosting Smileys events since ${monthYear(firstDate)}.`
 
     // >= 2 events publishes directly; a lone event goes to the approval
     // queue (isApproved:false, isActive:true = the directory's "pending"

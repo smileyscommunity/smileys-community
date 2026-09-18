@@ -14,6 +14,7 @@ const session = vi.hoisted(() => ({ current: null as { id: string; role: string 
 vi.mock('@/lib/prisma', () => ({ prisma: p }))
 vi.mock('@/lib/session', () => ({ getSession: vi.fn(async () => session.current) }))
 vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn(async () => true) }))
+vi.mock('@/lib/notify', () => ({ createNotification: vi.fn(async () => true) }))
 vi.mock('@/lib/access', () => ({ isAdmin: vi.fn(() => false), canActInCity: vi.fn(() => false) }))
 vi.mock('@/lib/memberPrivacy', () => ({ restrictedSetFor: vi.fn(async () => privacy.restricted) }))
 
@@ -46,7 +47,7 @@ describe('18. directory reviews API follows the business page rule', () => {
     p.businessReview.findMany.mockResolvedValue([row])
     const { reviews } = await (await get()).json()
     expect(reviews[0].author).toEqual({ id: 'member', name: 'Ayşe', color: '#f00', profilePhoto: null })
-    expect(reviews[0].ownerReplyBy).toEqual({ id: 'member', name: 'Mehmet' })
+    expect(reviews[0].ownerReplyBy).toEqual({ id: 'owner', name: 'The owner' })
     expect(JSON.stringify(reviews)).not.toContain('Yılmaz')
     expect(JSON.stringify(reviews)).not.toContain('profileVisibility')
   })

@@ -43,7 +43,7 @@ export async function GET() {
     const [ratingStats, saveCounts] = await Promise.all([
       ids.length === 0 ? Promise.resolve([]) : prisma.businessReview.groupBy({
         by: ['businessId'],
-        where: { businessId: { in: ids }, isHidden: false },
+        where: { businessId: { in: ids }, isHidden: false, author: { status: 'approved' } },
         _avg: { rating: true },
         _count: { _all: true },
       }),

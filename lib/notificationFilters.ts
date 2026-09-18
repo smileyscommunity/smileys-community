@@ -59,7 +59,7 @@ export const FILTER_TYPES: Record<Filter, string[]> = {
     // From the team, rather than from another member: new articles, one-off
     // broadcasts, and a city going live all read as notices, like 'announcement'.
     'new_article', 'broadcast', 'city_launch',
-    'directory_submission', 'directory_review_nudge',
+    'directory_submission', 'directory_review_nudge', 'directory_review',
     // Things a member submits for review — they land in a moderator queue.
     'story_submission', 'testimonial_submission',
   ],
@@ -101,6 +101,7 @@ export const TYPE_ICON: Record<string, string> = {
   spot_opened:         '🎟️',
   club_approved:       '🏛️',
   club_request:        '📨',
+  directory_review:    '⭐',
   club_rejected:       '❌',
   new_event:           '📣',
   attendee_joined:     '🙌',

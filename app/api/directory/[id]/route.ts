@@ -63,7 +63,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const body = await req.json().catch(() => null) as Record<string, unknown> | null
     if (!body) return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
 
-    const result = validateFieldUpdate(body)
+    // The owner's rules (no rename, uploaded images only, no staff tag);
+    // staff keep theirs.
+    const result = validateFieldUpdate(body, { owner: isOwner && !isStaff })
     if ('error' in result) return NextResponse.json({ error: result.error }, { status: 400 })
     if (Object.keys(result.data).length === 0) {
       return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })

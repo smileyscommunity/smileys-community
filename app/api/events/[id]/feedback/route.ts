@@ -34,7 +34,7 @@ export async function GET(_: NextRequest, { params }: Params) {
   const { id } = await params
   const event = await prisma.event.findUnique({
     where:  { id },
-    select: { id: true, title: true, emoji: true, date: true, time: true, endTime: true, location: true, city: { select: { timezone: true } } },
+    select: { id: true, title: true, emoji: true, date: true, time: true, endTime: true, location: true, cityId: true, city: { select: { timezone: true } } },
   })
   if (!event) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
@@ -72,8 +72,9 @@ export async function GET(_: NextRequest, { params }: Params) {
   // listing the responder hasn't reviewed yet, offer a star rating that
   // becomes their public review. Null when there's no match or they
   // already reviewed it — the form simply skips the question.
-  const venue = await matchDirectoryVenue(event.location)
-  const venueForForm = venue && !(await prisma.businessReview.findUnique({
+  const venue = await matchDirectoryVenue(event.location, event.cityId ?? null)
+  // Not offered to the venue's own owner (their rating would be a self-review).
+  const venueForForm = venue && venue.claimedById !== session.id && !(await prisma.businessReview.findUnique({
     where:  { businessId_authorId: { businessId: venue.id, authorId: session.id } },
     select: { id: true },
   })) ? venue : null
@@ -129,7 +130,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const event = await prisma.event.findUnique({
     where:  { id },
-    select: { id: true, title: true, date: true, time: true, endTime: true, hostId: true, location: true, city: { select: { timezone: true } } },
+    select: { id: true, title: true, date: true, time: true, endTime: true, hostId: true, location: true, cityId: true, city: { select: { timezone: true } } },
   })
   if (!event) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
@@ -191,8 +192,10 @@ export async function POST(req: NextRequest, { params }: Params) {
   // failure here must not lose the survey response.
   if (venueRating !== null) {
     try {
-      const venue = await matchDirectoryVenue(event.location)
-      if (venue) {
+      const venue = await matchDirectoryVenue(event.location, event.cityId ?? null)
+      // An owner's survey rating of their own venue is not a review (the
+      // review route refuses it; the survey went round it).
+      if (venue && venue.claimedById !== session.id) {
         const already = await prisma.businessReview.findUnique({
           where:  { businessId_authorId: { businessId: venue.id, authorId: session.id } },
           select: { id: true },
@@ -267,12 +270,12 @@ export async function POST(req: NextRequest, { params }: Params) {
 // Match the event's venue to an approved directory listing by name —
 // the same convention the event page's "View in directory" chip uses,
 // kept in sync by scripts/import-event-venues.ts.
-async function matchDirectoryVenue(location: string | null) {
+async function matchDirectoryVenue(location: string | null, cityId: string | null) {
   const name = (location ?? '').replace(/\s+/g, ' ').trim()
   if (!name) return null
   return prisma.business.findFirst({
-    where:  { name: { equals: name, mode: 'insensitive' }, isApproved: true, isActive: true },
-    select: { id: true, name: true },
+    where:  { name: { equals: name, mode: 'insensitive' }, isApproved: true, isActive: true, ...(cityId ? { cityId } : {}) },
+    select: { id: true, name: true, claimedById: true },
   })
 }
 

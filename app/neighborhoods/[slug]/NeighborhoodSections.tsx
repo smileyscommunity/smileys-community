@@ -364,7 +364,7 @@ export default async function NeighborhoodSections({
           ? b.description.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 500)
           : undefined,
         image:        absoluteImageUrl(b.logo || b.coverImage),
-        url:          b.website || `${APP_URL}/directory?neighborhood=${encodeURIComponent(name)}`,
+        url:          `${APP_URL}/directory/${b.id}`,
         address: {
           '@type':         'PostalAddress',
           addressLocality: name,
@@ -704,7 +704,7 @@ export default async function NeighborhoodSections({
         <div className="pt-6 border-t border-gray-100">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">Local businesses in {name}</h2>
-            <Link href={`/directory?neighborhood=${encodeURIComponent(name)}`}
+            <Link href={`/directory?neighborhood=${encodeURIComponent(name)}&city=${encodeURIComponent(city.slug)}`}
               className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
               See all →
             </Link>
@@ -714,7 +714,7 @@ export default async function NeighborhoodSections({
               const cover = resolveImageUrl(b.coverImage)
               const logo  = resolveImageUrl(b.logo)
               return (
-                <Link key={b.id} href={`/directory?neighborhood=${encodeURIComponent(name)}`} className="group block">
+                <Link key={b.id} href={`/directory/${b.id}`} className="group block">
                   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all h-full flex flex-col">
                     <div className="relative h-32 bg-gray-100">
                       {cover ? (

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
+import { notifyCityStaff } from '@/lib/staffNotify'
 import { getSession } from '@/lib/session'
 import { resolveCityId } from '@/lib/city'
 import { getPublicCity } from '@/lib/cities'
@@ -108,7 +110,12 @@ export async function POST(req: NextRequest) {
     // validated against the isSafeHref allowlist (https / mailto only)
     // so a malicious submission can't ship a javascript:/data: URL out
     // to every member who clicks "Website".
-    const neighborhood = str(body.neighborhood, DIRECTORY_LIMITS.neighborhood)
+    // The city the form was opened for (?city= on the page), else the
+    // member's own; the neighbourhood must be one of that city's.
+    const reqCitySlug = typeof body.city === 'string' ? body.city.trim() : ''
+    const reqCity = reqCitySlug ? await prisma.city.findUnique({ where: { slug: reqCitySlug }, select: { id: true, status: true } }) : null
+    const cityId = reqCity && reqCity.status === 'live' ? reqCity.id : await resolveCityId(session)
+    const neighborhood = await safeNeighborhoodFor(cityId, str(body.neighborhood, DIRECTORY_LIMITS.neighborhood))
     const address      = str(body.address,      DIRECTORY_LIMITS.address)
     const phone        = str(body.phone,        DIRECTORY_LIMITS.phone)
     const languages    = str(body.languages,    DIRECTORY_LIMITS.languages)
@@ -150,10 +157,23 @@ export async function POST(req: NextRequest) {
     // but not to publish directly without a second pair of eyes.
     const autoApprove = session.role === 'admin'
 
+    // One listing per name per city: a resubmitted "Dozze Kadıköy" made a
+    // second row (and split its reviews). Pending ones count too.
+    const duplicate = await prisma.business.findFirst({
+      where:  { cityId, name: { equals: name.replace(/\s+/g, ' ').trim(), mode: 'insensitive' } },
+      select: { id: true, isApproved: true },
+    })
+    if (duplicate) {
+      return NextResponse.json({
+        error: duplicate.isApproved ? 'That business is already in the directory.' : 'That business has already been submitted and is waiting for review.',
+        existingId: duplicate.isApproved ? duplicate.id : undefined,
+      }, { status: 409 })
+    }
+
     const business = await prisma.business.create({
       data: {
         name,
-        cityId: await resolveCityId(session),
+        cityId,
         category,
         description,
         neighborhood,
@@ -171,23 +191,10 @@ export async function POST(req: NextRequest) {
     })
 
     if (!autoApprove) {
-      const admins = await prisma.user.findMany({
-        where: { role: { in: ['admin', 'moderator'] } },
-        select: { id: true },
-      })
-      // In-app + push, fanned out to every admin/moderator. Switched
-      // from the generic 'system' type to 'directory_submission' so
-      // these get a distinct 📋 icon in the bell (previously buried
-      // among any other system entries with the fallback 🔔).
-      await Promise.all(admins.map(a =>
-        createNotification(
-          a.id,
-          'directory_submission',
-          'New business submission',
-          `${session.name} submitted "${business.name}" for directory approval`,
-          '/admin/directory',
-        ),
-      ))
+      // Admins and the moderators of THIS city — their queue is the only one
+      // that shows it (lib/staffNotify).
+      await notifyCityStaff(cityId, 'directory_submission', 'New business submission',
+        `${session.name} submitted "${business.name}" for directory approval`, '/admin/directory')
       // Single-recipient email to the ADMIN_EMAIL inbox — same shape as
       // sendAdminNewApplicationEmail. Non-blocking + catches its own
       // failures so a Resend hiccup doesn't roll back the submission.
