@@ -231,6 +231,10 @@ export default function AdminStandingPage() {
                   </div>
                   <p className="text-xs text-zinc-400 mt-1">
                     <Link href={`/admin/events/${o.event.id}/participants`} className="hover:underline">{o.event.title}</Link> · {o.event.date}
+                    {' · '}
+                    {/* The door is the evidence: who was scanned, who wasn't,
+                        and the place to undo this if it is wrong. */}
+                    <Link href={`/admin/checkin?event=${o.event.id}`} className="text-zinc-500 hover:text-zinc-300 hover:underline">check-in</Link>
                   </p>
                   {o.disputeNote && <p className="text-sm text-zinc-200 mt-2 italic">&ldquo;{o.disputeNote}&rdquo;</p>}
                   {o.resolutionNote && <p className="text-xs text-zinc-500 mt-1">{o.resolutionNote}</p>}

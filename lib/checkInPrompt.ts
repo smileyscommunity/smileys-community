@@ -1,5 +1,5 @@
 import { eventEndsAt } from '@/lib/eventTime'
-import { attendanceSettlesAt, checkInReached } from '@/lib/standingPolicy'
+import { attendanceSettlesAt, checkInReached, HOST_MARKING_WINDOW_DAYS } from '@/lib/standingPolicy'
 import { DEFAULT_TZ } from '@/lib/cityTime'
 
 // ── "You haven't checked anyone in" ─────────────────────────────────────────
@@ -95,11 +95,41 @@ export function awaitingCheckIn(
 export function doorEventsWhere(userId: string, now: Date = new Date()) {
   const day = (offset: number) => new Date(now.getTime() + offset * DAY).toISOString().slice(0, 10)
   return {
-    date: { gte: day(-2), lte: day(1) },
+    // Back as far as a host may still act. Attendance can be marked or waived
+    // for HOST_MARKING_WINDOW_DAYS after a room settles, but this list reached
+    // two days — so the month-long window we give hosts was only usable for a
+    // couple of days, or through the review queue's deep link. The page that
+    // performs the action now lists the events it applies to.
+    date: { gte: day(-(HOST_MARKING_WINDOW_DAYS + 2)), lte: day(1) },
     OR: [
       { hostId: userId },
       { cohosts: { some: { userId } } },
       { club: { is: { isActive: true, memberships: { some: { userId, role: 'host', status: 'approved' } } } } },
     ],
   }
+}
+
+/**
+ * Events a host can still act on, newest first: the room has settled, so it is
+ * off the "awaiting check-in" prompt, but marking and waiving stay open for
+ * HOST_MARKING_WINDOW_DAYS. Without these the check-in page offers only the
+ * last two days and a host correcting a week-old absence has nowhere to land.
+ *
+ * Deliberately separate from awaitingCheckIn: these are not work the host owes
+ * anyone tonight, they are events that remain correctable.
+ */
+export function stillCorrectable<E extends CheckInPromptEvent>(
+  events: E[], tz: string = DEFAULT_TZ, now: Date = new Date(),
+): E[] {
+  return events
+    .filter(e => {
+      if (e.status !== 'published' && e.status !== 'archived') return false
+      const zone     = (e as { timezone?: string | null }).timezone || tz
+      const settles  = attendanceSettlesAt(e, zone).getTime()
+      const closes   = settles + HOST_MARKING_WINDOW_DAYS * DAY
+      const t        = now.getTime()
+      // Settled (so not on the prompt) but inside the window.
+      return t >= settles && t < closes
+    })
+    .sort((a, b) => (a.date < b.date ? 1 : -1))
 }

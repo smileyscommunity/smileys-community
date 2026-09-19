@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { awaitingCheckIn, doorEventsWhere, type CheckInPromptEvent } from '@/lib/checkInPrompt'
+import { HOST_MARKING_WINDOW_DAYS } from '@/lib/standingPolicy'
 
 // Which finished events the host is chased about. The guard this mirrors
 // (checkInIsCredible) is what kept the sweeper from carding a whole room on
@@ -99,7 +100,15 @@ describe('doorEventsWhere', () => {
     ])
   })
 
-  it('is bounded to two days behind and tomorrow ahead', () => {
-    expect(doorEventsWhere('u1', now).date).toEqual({ gte: '2026-10-10', lte: '2026-10-13' })
+  it('reaches back as far as a host may still act, and one day ahead', () => {
+    // Was two days behind, which quietly capped the month-long marking
+    // window: waiving stays open for HOST_MARKING_WINDOW_DAYS but the page
+    // that does it would not list the event. Derived from the constant so the
+    // two cannot drift apart again.
+    const { gte, lte } = doorEventsWhere('u1', now).date
+    expect(lte).toBe('2026-10-13')
+    const behind = (now.getTime() - new Date(gte).getTime()) / 86_400_000
+    expect(behind).toBeGreaterThanOrEqual(HOST_MARKING_WINDOW_DAYS)
+    expect(behind).toBeLessThanOrEqual(HOST_MARKING_WINDOW_DAYS + 3)
   })
 })

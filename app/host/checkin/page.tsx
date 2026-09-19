@@ -1,5 +1,7 @@
 'use client'
 
+import Link from 'next/link'
+
 import { useState, useEffect, Suspense, useMemo } from 'react'
 import { toast } from 'sonner'
 import { useCheckinSync } from '@/hooks/useCheckinSync'
@@ -14,6 +16,7 @@ import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { vibrate, useScanCheckin } from '@/lib/checkin'
 import { type CheckInPromptEvent } from '@/lib/checkInPrompt'
 import { awaitingCheckInPerEvent, eventTz, matchesName, readRoster, saveRoster } from '@/lib/hostPanel'
+import { stillCorrectable } from '@/lib/checkInPrompt'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import { loadFailure } from '@/lib/admin/useAdminLoad'
 import SwipeRow from '@/components/SwipeRow'
@@ -72,8 +75,14 @@ function EventList() {
     // draft or still-in-review event has no door to run.
     const todays  = all.filter(e => (e.status === 'published' || e.status === 'postponed') && e.date === todayInTz(eventTz(e, tz)))
     const pending = awaitingCheckInPerEvent(all, tz).map(p => p.event)
+    // Settled rooms a host can still correct (lib/checkInPrompt
+    // stillCorrectable). They owe nothing tonight, but waiving and marking
+    // stay open for a month and this is the page that does it.
+    const older   = stillCorrectable(all, tz)
     const seen    = new Set(todays.map(e => e.id))
-    return [...todays, ...pending.filter(e => !seen.has(e.id))]
+    const list    = [...todays, ...pending.filter(e => !seen.has(e.id))]
+    const listed  = new Set(list.map(e => e.id))
+    return [...list, ...older.filter(e => !listed.has(e.id))]
   }, [all, tz])
 
   if (loading) return <div className="text-zinc-500 text-sm">Loading…</div>
@@ -440,7 +449,10 @@ export default function HostCheckinPage() {
   return (
     <div className="p-4 sm:p-8">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-white">Check-In</h1>
+        <div className="flex items-baseline justify-between gap-3 flex-wrap">
+          <h1 className="text-2xl font-bold text-white">Check-In</h1>
+          <Link href="/host/review" className="text-xs font-semibold text-zinc-400 hover:text-white underline whitespace-nowrap">Attendance review →</Link>
+        </div>
         <p className="text-zinc-400 text-sm mt-1">Scan QR or tap to check in attendees</p>
       </div>
       <Suspense fallback={<div className="text-zinc-500 text-sm">Loading…</div>}>

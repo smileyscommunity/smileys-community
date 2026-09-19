@@ -1,5 +1,7 @@
 'use client'
 
+import Link from 'next/link'
+
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { toast } from 'sonner'
@@ -302,7 +304,10 @@ function CheckInPageInner() {
       <div className="bg-black">
       <div className="px-4 pt-5 pb-3">
         <div className="flex items-center justify-between mb-2">
-          <h1 className="text-lg font-bold">Check-In</h1>
+          <div className="flex items-baseline gap-3 min-w-0">
+            <h1 className="text-lg font-bold">Check-In</h1>
+            <Link href="/admin/attendance-review" className="text-xs font-semibold text-zinc-400 hover:text-white underline whitespace-nowrap">Attendance review →</Link>
+          </div>
           <button
             onClick={() => setScanning(true)}
             disabled={!selectedId || loadingAtts}
