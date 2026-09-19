@@ -46,10 +46,11 @@ const BODY = [
     `<strong>At the end of that day</strong>, anything still unresolved is recorded as a no-show.`,
     `Your host can undo it for <strong>${HOST_WINDOW} days</strong> afterwards, and you can contest it for <strong>${DISPUTE} days</strong>.`,
   ]),
-  p(`And if we never sent you that message, <strong>nothing is recorded</strong>. Being marked absent depends on our having actually told you, in time to do something about it. That part is on us.`),
+  p(`And if we never sent you that message, <strong>nothing is recorded</strong>. Being marked absent depends on our having actually told you, in time to do something about it. That part is on us — as is the case where your host never ran check-in at all, which we treat as having no idea rather than as everyone being absent.`),
 
   h2('What is never recorded'),
   ul([
+    `An event where <strong>nobody was checked in at all</strong>. If the door was never opened we have no idea who came, so nothing is recorded for anyone.`,
     `Events with <strong>no cap on numbers</strong>. Only limited-spot events count.`,
     `Anything you <strong>paid for in advance</strong>. You bought the seat; missing it is your loss alone.`,
     `A spot you took <strong>less than ${LATE_SEAT} hours</strong> before the start.`,

@@ -43,6 +43,7 @@ const BODY = [
     `<strong>For ${HOST_WINDOW} days afterwards</strong> — you can still <strong>waive</strong> an absence, or mark one you missed. A fresh check-in is refused once the room has settled, so to fix a missed scan, waive it rather than trying to scan them late.`,
   ]),
   p(`There is no threshold any more. It used to be that if fewer than half the room was scanned, the whole event was skipped and nothing counted. That protected members from bad data, but it also meant that at a thinly-scanned event <em>nobody</em> was ever recorded — so the same behaviour counted at one event and not at another. What protects members now is the message: nobody is marked absent on a warning they never received.`),
+  p(`One line does remain, and it is about you rather than them: <strong>if you never check anyone in, nothing is recorded for anyone</strong>. No scans is not evidence that nobody came — it is evidence that nobody checked, and a room where the door never opened is not one we will guess about. You still get the list, and you can still mark whoever genuinely didn't turn up.`),
 
   h2('What never counts'),
   ul([
@@ -51,6 +52,8 @@ const BODY = [
     `<strong>You and your co-hosts</strong>, your club's hosts, and staff. Never.`,
     `A city in its <strong>first ${NEW_CITY} days</strong> — recorded, but nothing counts against anyone yet.`,
     `A seat released because someone didn't answer "Still coming?" — that is never an absence.`,
+    `Anything at an event where <strong>nobody was scanned</strong> — see above.`,
+    `A seat someone <strong>paid for in advance</strong>. They bought it; missing it is their loss alone.`,
   ]),
 
   h2('Cancelling late counts too'),
