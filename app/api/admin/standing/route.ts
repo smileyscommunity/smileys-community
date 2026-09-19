@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin, canModerateReports, failClosedCityId } from '@/lib/access'
 import { reviewConflict, eventRunners } from '@/lib/noShowPolicy'
-import { LIVE_CARD_STATUSES, OffenceStatus, CardLevel, StandingCardStatus } from '@/lib/standingPolicy'
+import { LIVE_CARD_STATUSES, OffenceStatus, CardLevel, StandingCardStatus, windowStart } from '@/lib/standingPolicy'
 
 // Standing queues for the admin panel. Moderators see their own city's members
 // only (same scoping as the no-show inbox); admins see everything.
@@ -41,8 +41,28 @@ export async function GET(req: NextRequest) {
           } },
         },
       })
+      // Warnings: what decideIssuance would count for this member right now —
+      // counting, open, unattached to a card, inside the window. One of these
+      // is a warning and nothing else; YELLOW_AFTER_OFFENCES of them is a card.
+      // Counted here rather than in the page so it can never drift from the
+      // rule that actually issues: same filter, same window.
+      const userIds = [...new Set(rows.map(r => r.userId))]
+      const loose = userIds.length ? await prisma.standingOffence.groupBy({
+        by:    ['userId'],
+        where: {
+          userId:     { in: userIds },
+          counts:     true,
+          status:     OffenceStatus.Open,
+          cardId:     null,
+          occurredAt: { gte: windowStart(new Date()) },
+        },
+        _count: { _all: true },
+      }) : []
+      const warnings = new Map(loose.map(g => [g.userId, g._count._all]))
+
       const items = rows.map(({ event: { cohosts, club, ...event }, ...o }) => ({
         ...o, event,
+        warnings: warnings.get(o.userId) ?? 0,
         conflict: reviewConflict(session.id, o, eventRunners({ hostId: event.hostId, cohosts, club })),
       }))
       return NextResponse.json({ items: maskRows(session, items, 'user') })

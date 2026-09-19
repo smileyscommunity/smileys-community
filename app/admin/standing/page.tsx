@@ -8,6 +8,7 @@ import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import { loadFailure } from '@/lib/admin/useAdminLoad'
 import { useAuth } from '@/contexts/AuthContext'
 import { REVIEW_CONFLICT_MESSAGE, type ReviewConflict } from '@/lib/noShowPolicy'
+import { YELLOW_AFTER_OFFENCES as YELLOW_AT } from '@/lib/standingPolicy'
 
 // Standing, admin side. The inbox is disputes: a member said "I was there".
 // Overturn removes the offence (and withdraws a card built on it); uphold
@@ -20,6 +21,8 @@ interface UserRef  { id: string; name: string; email?: string | null }
 interface EventRef { id: string; title: string; emoji: string; date: string }
 interface OffenceRow {
   id: string; kind: string; tier: string; counts: boolean; loggedReason: string | null; status: string
+  /** Counting, open, uncarded offences this member holds in the window. */
+  warnings?: number
   occurredAt: string; recordedAt: string; disputeNote: string | null; disputedAt: string | null; resolutionNote: string | null
   user: UserRef; event: EventRef; conflict?: ReviewConflict | null
 }
@@ -188,6 +191,14 @@ export default function AdminStandingPage() {
                       {o.counts ? o.tier : `logged · ${o.loggedReason === 'new_city' ? 'new city' : 'open'}`}
                     </span>
                     {o.status !== 'open' && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase bg-violet-500/15 text-violet-300">{o.status}</span>}
+                    {typeof o.warnings === 'number' && o.warnings > 0 && (
+                      <span
+                        title={`${o.warnings} counting offence${o.warnings === 1 ? '' : 's'} on record and not yet on a card. ${YELLOW_AT} is a yellow.`}
+                        className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase ${
+                          o.warnings >= YELLOW_AT ? 'bg-amber-500/20 text-amber-300' : 'bg-zinc-800 text-zinc-400'}`}>
+                        {o.warnings === 1 ? '1 warning' : `${o.warnings} warnings`}
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-zinc-400 mt-1">
                     <Link href={`/admin/events/${o.event.id}/participants`} className="hover:underline">{o.event.title}</Link> · {o.event.date}
