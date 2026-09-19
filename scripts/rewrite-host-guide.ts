@@ -33,7 +33,7 @@ const h2 = (t: string) => `<h2>${t}</h2>`
 const ul = (items: string[]) => `<ul>${items.map(i => `<li>${i}</li>`).join('')}</ul>`
 
 const BODY = [
-  p(`Your job is one thing: <strong>check people in at the door</strong>. Everything below follows from that, and none of it asks you to be the person who penalises anyone.`),
+  p(`Your part is simple: <strong>check people in at the door</strong>. Everything below follows from that — and none of it asks you to judge anyone, argue with anyone, or hand out a penalty yourself. Scan people in, and the rest takes care of itself.`),
 
   h2('What happens, and when'),
   ul([
