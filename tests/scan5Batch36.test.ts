@@ -155,6 +155,15 @@ describe('103 createNotification skips accounts that may not receive it', () => 
 })
 
 describe('103 sendPushToUser never reaches a banned account', () => {
+  // VAPID is configured on first send now, not at import, and a send without
+  // keys returns before touching the database — so these tests, which are
+  // about the QUERY, have to supply keys for the function to get that far.
+  beforeEach(() => {
+    process.env.VAPID_EMAIL = 'mailto:test@example.test'
+    process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY = 'BFakePublicKeyForTestsOnly_0000000000000000000000000000000000000000000000000000000000'
+    process.env.VAPID_PRIVATE_KEY = 'fake-private-key-for-tests-only-0000000000'
+  })
+
   it('filters subscriptions through the user relation — no extra round trip', async () => {
     const { sendPushToUser } = await import('@/lib/push')
     await sendPushToUser('u1', { title: 't', body: 'b' })
