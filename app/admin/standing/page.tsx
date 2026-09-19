@@ -8,7 +8,7 @@ import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import { loadFailure } from '@/lib/admin/useAdminLoad'
 import { useAuth } from '@/contexts/AuthContext'
 import { REVIEW_CONFLICT_MESSAGE, type ReviewConflict } from '@/lib/noShowPolicy'
-import { YELLOW_AFTER_OFFENCES as YELLOW_AT } from '@/lib/standingPolicy'
+import { YELLOW_AFTER_OFFENCES as YELLOW_AT, STANDING_WINDOW_DAYS as STANDING_WINDOW } from '@/lib/standingPolicy'
 
 // Standing, admin side. The inbox is disputes: a member said "I was there".
 // Overturn removes the offence (and withdraws a card built on it); uphold
@@ -34,7 +34,7 @@ interface CardRow {
 }
 interface Overview {
   enforced: boolean; since: string | null
-  stats: { offences30: number; counting30: number; disputed: number; liveYellow: number; liveRed: number; shadowLive: number; autoResolved30: number; forgiven30: number }
+  stats: { offences30: number; counting30: number; disputed: number; liveYellow: number; liveRed: number; shadowLive: number; autoResolved30: number; forgiven30: number; nearlyCarded?: number }
 }
 
 const VIEWS: { key: View; label: string }[] = [
@@ -121,6 +121,15 @@ export default function AdminStandingPage() {
         </p>
       </div>
 
+      {s && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4 text-xs">
+          <Stat label="Offences · 30d"  value={s.offences30}   sub={`${s.counting30} still counting`} />
+          <Stat label="Yellow cards"    value={s.liveYellow}   tone={s.liveYellow ? 'warn' : undefined} />
+          <Stat label="Red cards"       value={s.liveRed}      tone={s.liveRed ? 'bad' : undefined} />
+          <Stat label="Disputes"        value={s.disputed}     tone={s.disputed ? 'warn' : undefined} sub="waiting on a person" />
+        </div>
+      )}
+
       {overview && (
         <div className={`rounded-xl border p-4 mb-5 ${overview.enforced ? 'bg-green-500/5 border-green-500/30' : 'bg-zinc-900 border-zinc-800'}`}>
           <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -176,7 +185,7 @@ export default function AdminStandingPage() {
 
       {loadError ? <LoadErrorBanner message={loadError} onRetry={load} title="Couldn't load standing" />
        : items === null ? <p className="text-zinc-500 text-sm">Loading…</p>
-       : items.length === 0 ? <p className="text-zinc-500 text-sm">{view === 'disputes' ? 'No disputes waiting.' : 'Nothing here.'}</p>
+       : items.length === 0 ? <EmptyQueue view={view} stats={s} />
        : (view === 'disputes' || view === 'offences') ? (
         <div className="space-y-3">
           {(items as OffenceRow[]).map(o => (
@@ -267,4 +276,35 @@ export default function AdminStandingPage() {
       )}
     </div>
   )
+}
+
+function Stat({ label, value, sub, tone }: { label: string; value: number; sub?: string; tone?: 'warn' | 'bad' }) {
+  const colour = tone === 'bad' ? 'text-red-400' : tone === 'warn' ? 'text-amber-400' : 'text-white'
+  return (
+    <div className="bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2.5">
+      <p className={`text-xl font-bold ${colour}`}>{value}</p>
+      <p className="text-[11px] text-zinc-400 mt-0.5">{label}</p>
+      {sub && <p className="text-[10px] text-zinc-600 mt-0.5">{sub}</p>}
+    </div>
+  )
+}
+
+/**
+ * An empty queue should say why it is empty and what would fill it.
+ * "Nothing here" reads the same whether standing is working and nobody has
+ * earned a card, or it has quietly stopped issuing them — which is exactly
+ * the question an admin opens this page to answer.
+ */
+function EmptyQueue({ view, stats }: { view: View; stats?: Overview['stats'] }) {
+  const near = stats?.nearlyCarded ?? 0
+  const nextCard = near > 0
+    ? `${near} member${near === 1 ? ' is' : 's are'} one offence short — a second inside ${STANDING_WINDOW} days is the first yellow.`
+    : `A card needs ${YELLOW_AT} offences inside ${STANDING_WINDOW} days by the same member; nobody is close yet.`
+  const text: Record<View, string> = {
+    disputes: 'No disputes waiting. A member taps "I was there" and it lands here for a decision.',
+    review:   'No red cards up for review. One appears when a red card\u2019s holder has their check-ins back in.',
+    cards:    `No live cards. ${nextCard}`,
+    offences: `Nothing recorded yet. Offences appear the morning after an event settles${stats ? ` — ${stats.autoResolved30} seats were resolved as attended in the last 30 days` : ''}.`,
+  }
+  return <p className="text-zinc-500 text-sm leading-relaxed max-w-lg">{text[view]}</p>
 }

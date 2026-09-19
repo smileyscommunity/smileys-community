@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { canViewModStats, isAdmin, failClosedCityId } from '@/lib/access'
+import { OffenceStatus } from '@/lib/standingPolicy'
 import { todayInCity, resolveCityId } from '@/lib/city'
 import { countHostlessClubRequests } from '@/lib/clubRequests'
 import { reportQueueWhere } from '@/lib/admin/reportScope'
@@ -27,6 +28,7 @@ export async function GET() {
     const [
       pendingApplications,
       pendingReports,
+      standingDisputes,
       approvalQueueEvents,
       visitorsThisWeek,
       recentMessages,
@@ -34,6 +36,12 @@ export async function GET() {
     ] = await Promise.all([
       prisma.memberApplication.count({ where: { status: 'pending', ...(isAdmin(session) ? {} : { targetCityId: failClosedCityId(session) }) } }),
       prisma.report.count({ where: { ...reportsWhere, status: 'pending' } }),
+      // "I was there", waiting on a human. The only standing queue with a
+      // member on the other end of it, so the only one worth a badge —
+      // scoped like every other moderator list.
+      prisma.standingOffence.count({
+        where: { status: OffenceStatus.Disputed, ...(isAdmin(session) ? {} : { user: { cityId: failClosedCityId(session) } }) },
+      }),
       prisma.event.count({ where: { status: 'pending', ...inCity } }),
       // Visitors-this-week — mods see the same soft signal admins do so the
       // shared AlertsRow renders the same pill on both dashboards.
@@ -71,6 +79,7 @@ export async function GET() {
     return NextResponse.json({
       pendingApplications,
       pendingReports,
+      standingDisputes,
       approvalQueueEvents,
       hostlessClubRequests,
       visitorsThisWeek,

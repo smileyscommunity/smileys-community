@@ -16,17 +16,25 @@ export interface ModCounts {
   pendingApplications: number
   pendingReports:      number
   approvalQueueEvents: number
+  /** "I was there", waiting on a decision. */
+  standingDisputes:    number
 }
 
-// GET /api/admin/mod-stats → the three badge counts, or null for a body that
-// isn't one (an error payload must not render as "0 of everything").
+// GET /api/admin/mod-stats → the badge counts, or null for a body that isn't
+// one (an error payload must not render as "0 of everything").
 export function parseModCounts(body: unknown): ModCounts | null {
   if (!body || typeof body !== 'object') return null
   const b = body as Record<string, unknown>
   const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : null)
   const apps = n(b.pendingApplications), reports = n(b.pendingReports), events = n(b.approvalQueueEvents)
   if (apps === null || reports === null || events === null) return null
-  return { pendingApplications: apps, pendingReports: reports, approvalQueueEvents: events }
+  // Tolerated as missing: an older deployment's response is still a usable
+  // body for the three counts that have always been there, and a badge that
+  // renders 0 beats a sidebar that renders none.
+  return {
+    pendingApplications: apps, pendingReports: reports, approvalQueueEvents: events,
+    standingDisputes: n(b.standingDisputes) ?? 0,
+  }
 }
 
 // Slowest background cadence (only while visible) and the floor between

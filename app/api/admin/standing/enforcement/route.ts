@@ -4,7 +4,7 @@ import { getSession } from '@/lib/session'
 import { isAdmin, canModerateReports } from '@/lib/access'
 import { requireStepUp } from '@/lib/stepUp'
 import { standingEnforcement, setStandingEnforced } from '@/lib/standing'
-import { LIVE_CARD_STATUSES, OffenceStatus, CardLevel } from '@/lib/standingPolicy'
+import { LIVE_CARD_STATUSES, OffenceStatus, CardLevel, windowStart, YELLOW_AFTER_OFFENCES } from '@/lib/standingPolicy'
 
 // The standing switch, and the numbers to read before touching it. Until it is
 // on, the sweep records everything in shadow: nothing reaches members. Admins
@@ -33,9 +33,21 @@ export async function GET() {
       prisma.eventAttendee.count({ where: { attendanceAutoResolvedAt: { gte: since30 }, attendance: 'attended' } }),
       prisma.standingOffence.count({ where: { recordedAt: { gte: since30 }, status: OffenceStatus.Forgiven } }),
     ])
+
+    // How many members are one offence short of a card. Without it an empty
+    // cards queue says nothing: it reads the same whether the system is
+    // working and nobody has earned one, or it has quietly stopped issuing.
+    // Same filter decideIssuance uses, so the number means what it says.
+    const loose = await prisma.standingOffence.groupBy({
+      by:    ['userId'],
+      where: { counts: true, status: OffenceStatus.Open, cardId: null, occurredAt: { gte: windowStart(new Date()) } },
+      _count: { _all: true },
+    })
+    const nearlyCarded = loose.filter(g => g._count._all === YELLOW_AFTER_OFFENCES - 1).length
+
     return NextResponse.json({
       ...enforcement,
-      stats: { offences30, counting30, disputed, liveYellow, liveRed, shadowLive, autoResolved30, forgiven30 },
+      stats: { offences30, counting30, disputed, liveYellow, liveRed, shadowLive, autoResolved30, forgiven30, nearlyCarded },
     })
   } catch (e) {
     console.error('[admin standing enforcement GET]', e)

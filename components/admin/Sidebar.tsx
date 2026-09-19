@@ -125,6 +125,9 @@ export default function Sidebar({ open, onClose }: Props) {
   function badgeFor(href: string): number {
     if (href.startsWith('/admin/applications')) return modCounts?.pendingApplications ?? 0
     if (href.startsWith('/admin/moderation'))   return modCounts?.pendingReports      ?? 0
+    // Disputes only — not offences or cards. A card is a record; a dispute is
+    // a member waiting on a person, and waiting is what a badge is for.
+    if (href.startsWith('/admin/standing'))     return modCounts?.standingDisputes    ?? 0
     return 0
   }
 
