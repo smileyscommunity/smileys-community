@@ -7,7 +7,7 @@ import { writeAudit } from '@/lib/audit'
 import { eventStartsAt, eventEndsAt } from '@/lib/eventTime'
 import { DEFAULT_TZ } from '@/lib/cityTime'
 import { Attendance, AttendeeStatus } from '@/lib/constants'
-import { eventRunners, noShowExemptionReason } from '@/lib/noShowPolicy'
+import { eventRunners, noShowExemptionReason, noShowPolicyApplies } from '@/lib/noShowPolicy'
 import { standingEnforcement, type StandingEnforcement } from '@/lib/standingRead'
 import {
   STANDING_SWEEP_LOOKBACK_DAYS, DISPUTE_WINDOW_DAYS, STANDING_WINDOW_DAYS, STANDING_STARTS_AT, STANDING_ENFORCE_SETTING,
@@ -71,6 +71,9 @@ export async function setStandingEnforced(on: boolean, actor: { id: string; name
 const SWEEP_EVENT_SELECT = {
   id: true, title: true, date: true, time: true, endTime: true,
   limitedSpots: true, totalSpots: true, tierOverride: true, cancelCutoffHours: true,
+  // What noShowPolicyApplies reads: a seat someone already paid for is theirs
+  // to miss, and standing has no business judging it.
+  price: true, memberPrice: true, payTo: true, ticketUrl: true, paymentContact: true,
   hostId: true, cityId: true,
   city:    { select: { timezone: true, createdAt: true } },
   cohosts: { select: { userId: true } },
@@ -93,6 +96,13 @@ export async function standingEvents(now: Date, cityId?: string): Promise<SweepE
     select: SWEEP_EVENT_SELECT,
   })
   return events.filter(e => {
+    // Prepaid seats are out, exactly as the reconfirm sweep already treats
+    // them (needsReconfirmation reads the same rule). Standing had no money
+    // check at all, so a ₺1200 cruise paid to Smileys and a ticketed theatre
+    // night were being warned and carded while the day-before "still coming?"
+    // skipped them — two halves of one policy disagreeing, and what both
+    // articles promise members is excluded.
+    if (!noShowPolicyApplies(e)) return false
     const tz = e.city?.timezone ?? DEFAULT_TZ
     return eventStartsAt(e, tz).getTime() >= STANDING_STARTS_AT.getTime()
       && eventEndsAt(e, tz).getTime() >= now.getTime() - STANDING_SWEEP_LOOKBACK_DAYS * DAY

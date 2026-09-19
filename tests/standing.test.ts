@@ -26,7 +26,7 @@ import { sendAttendanceReviewEmail } from '@/lib/email'
 import { claimOnce, releaseClaim } from '@/lib/rateLimit'
 import { sendAttendanceCheckEmail, sendNoShowRecordedEmail } from '@/lib/email'
 import {
-  standingEnforcement, setStandingEnforced, standingLevelsFor, settleAttendance, sendAttendanceReviews, notifyNoShows,
+  standingEnforcement, setStandingEnforced, standingLevelsFor, settleAttendance, sendAttendanceReviews, notifyNoShows, standingEvents,
   resolvedEvents, reviewingEvents, recordOffences, evaluateMember, overturnOffence, disputeOffence, overturnByStaff, type SweepEvent,
 } from '@/lib/standing'
 
@@ -589,5 +589,42 @@ describe('disputeOffence', () => {
     expect(await disputeOffence('o1', 'm1', 'x', NOW)).toBe('not_found')
     p.standingOffence.findUnique.mockResolvedValueOnce({ userId: 'm1', kind: 'late_cancel', status: 'open', occurredAt: NOW, event: { title: 'x', cityId: 'c1' } })
     expect(await disputeOffence('o1', 'm1', 'x', NOW)).toBe('not_allowed')
+  })
+})
+
+describe('standingEvents: a seat someone already paid for is theirs to miss', () => {
+  // The same rule the day-before "still coming?" uses (needsReconfirmation →
+  // noShowPolicyApplies). Standing had no money check at all, so a prepaid
+  // cruise was being warned and carded while reconfirmation skipped it — and
+  // both member articles promise prepaid events are excluded.
+  const base = {
+    date: '2026-10-18', time: '19:00', endTime: null, limitedSpots: true, totalSpots: 10,
+    tierOverride: null, cancelCutoffHours: null, hostId: 'h1', cityId: 'c1',
+    city: { timezone: 'Europe/Istanbul', createdAt: new Date('2025-01-01') },
+    cohosts: [], club: null, memberPrice: null, paymentContact: null,
+  }
+  const ev = (id: string, money: Partial<{ price: number; payTo: string | null; ticketUrl: string | null }>) =>
+    ({ ...base, id, title: id, price: 0, payTo: null, ticketUrl: null, ...money })
+
+  it('keeps free events and pay-at-the-door, drops prepaid and ticketed', async () => {
+    p.event.findMany.mockResolvedValue([
+      ev('free',      { price: 0 }),
+      ev('atTheDoor', { price: 400, payTo: 'venue' }),              // Edip's bowling night
+      ev('toSmileys', { price: 1200, payTo: 'smileys' }),           // Sunset Sailing
+      ev('ticketed',  { price: 1750, payTo: 'venue', ticketUrl: 'https://tickets/x' }),
+    ])
+    const kept = (await standingEvents(NOW)).map(e => e.id)
+    expect(kept).toEqual(['free', 'atTheDoor'])
+  })
+
+  it('reads the money fields it judges on', async () => {
+    p.event.findMany.mockResolvedValue([])
+    await standingEvents(NOW)
+    const select = p.event.findMany.mock.calls[0][0].select
+    // Without these in the select the rule silently sees undefined and keeps
+    // everything — the failure mode is invisible, so pin the select itself.
+    for (const f of ['price', 'memberPrice', 'payTo', 'ticketUrl', 'paymentContact']) {
+      expect(select[f]).toBe(true)
+    }
   })
 })
