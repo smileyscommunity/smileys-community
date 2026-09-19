@@ -422,7 +422,7 @@ function CheckInScanner() {
           <p className="text-xs text-zinc-500 text-center mt-2">
             {pending.length > 0
               ? 'Waiting for the check-ins on this phone to send first.'
-              : "For the end of the event. Anyone you leave unmarked is settled at midnight the day after: a no-show if we told them they weren't checked in and they didn't reply, attended if they never got that message. A late arrival can still be checked in."}
+              : "For the end of the event. Anyone you leave unmarked is settled at midnight the day after: a no-show if we told them they weren't checked in and they didn't reply, attended if they never got that message. A late arrival can still be checked in until then."}
           </p>
         </div>
       )}
