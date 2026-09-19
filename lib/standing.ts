@@ -183,8 +183,17 @@ export async function settleAttendance(event: SweepEvent, now: Date): Promise<{ 
     select: { userId: true },
   })).map(n => n.userId))
 
-  const absentee = unmarked.filter(r => warned.has(r.userId)).map(r => r.id)
-  const silent   = unmarked.filter(r => !warned.has(r.userId)).map(r => r.id)
+  // Was there a door at all? Not "was it good enough" — the ratio decides
+  // nothing any more — but whether anyone opened the scanner. A room with
+  // zero scans is not evidence that nobody came; it is evidence that nobody
+  // checked. Without this a host whose phone died, or who never got back to
+  // the door, marks their ENTIRE room absent overnight, which is how v1 lost
+  // its credibility: 95 cards, all wrong. The host can still close such a
+  // room out by hand, which is the point — an absence is something a host
+  // says. Costs nothing on a room that was scanned.
+  const doorRan  = room.some(r => r.checkedIn)
+  const absentee = doorRan ? unmarked.filter(r => warned.has(r.userId)).map(r => r.id) : []
+  const silent   = unmarked.filter(r => !absentee.includes(r.id)).map(r => r.id)
   const still    = { status: AttendeeStatus.Approved, checkedIn: false, attendance: Attendance.Unknown }
   const [absent, attended] = await Promise.all([
     absentee.length === 0 ? { count: 0 } : prisma.eventAttendee.updateMany({
@@ -235,6 +244,11 @@ export async function sendAttendanceReviews(event: SweepEvent): Promise<number> 
   // evidence there is, and staying silent let every no-show at those events
   // walk while a well-scanned room's guests took cards for the same conduct.
   const ran = checkInRan(room)
+  // Whether anyone opened the scanner at all, which is a different question
+  // from whether they scanned enough (`ran`). Nothing in a room with zero
+  // scans can settle as absent (settleAttendance), so its guests must not be
+  // told it will — and a warning that means nothing is worse than silence.
+  const doorRan = room.some(r => r.checkedIn)
   const e = await prisma.event.findUnique({ where: { id: event.id }, select: { emoji: true } })
   const runners = runnersOf(event)
   // And whoever else checked people in — an admin running the door.
@@ -252,10 +266,15 @@ export async function sendAttendanceReviews(event: SweepEvent): Promise<number> 
   // What is left at the end of the review day counts, so the host's line is
   // about the seats they DON'T act on. The scan ratio is a hint about how
   // much the door's record is worth, not a gate on any of this.
-  const consequence = counts
-    ? 'Anyone still on this list at the end of tomorrow counts as a no-show on their standing. You can waive that for a month afterwards.'
-    : `Anyone still on this list at the end of tomorrow goes on the record, though ${caveat}.`
-  const doorNote = ran ? '' : ` Only ${Math.round(room.filter(r => !r.exempt && r.checkedIn).length / Math.max(1, room.filter(r => !r.exempt).length) * 100)}% of the room was scanned, so check this list carefully — plenty of them may simply have been missed at the door.`
+  const consequence = !doorRan
+    ? 'You can mark or waive for a month.'
+    : counts
+      ? 'Anyone still on this list at the end of tomorrow counts as a no-show on their standing. You can waive that for a month afterwards.'
+      : `Anyone still on this list at the end of tomorrow goes on the record, though ${caveat}.`
+  const doorNote = !doorRan
+    ? ' Nobody was checked in at this event, so none of this counts against anyone on its own — mark whoever genuinely did not come.'
+    : ran ? ''
+    : ` Only ${Math.round(room.filter(r => !r.exempt && r.checkedIn).length / Math.max(1, room.filter(r => !r.exempt).length) * 100)}% of the room was scanned, so check this list carefully — plenty of them may simply have been missed at the door.`
   // Addresses for the email below: the bell alone never reached a host with a
   // busy account, which is how a list sat unread among 2,902 notifications.
   const runnerContacts = new Map((await prisma.user.findMany({
@@ -293,10 +312,13 @@ export async function sendAttendanceReviews(event: SweepEvent): Promise<number> 
   // tell the host while one tap still fixes it, instead of finding out from a
   // no-show and waiting on a moderator. Only once the host's list has gone,
   // so a guest is never told the host can fix what the host wasn't told about.
-  // Every room, including the ones where an absence is only noted: the notice
-  // is also the thing that makes a seat defaultable at all (settleAttendance
-  // only defaults a guest who got one), so withholding it from a whole class
-  // of events silently exempted them.
+  // Every room whose door was opened, including the ones where an absence is
+  // only noted: the notice is also the thing that makes a seat defaultable at
+  // all (settleAttendance only defaults a guest who got one), so withholding
+  // it from a whole class of events silently exempted them. A room nobody
+  // scanned is the exception — nothing there can settle as absent, so there
+  // is nothing to warn anyone about. The host still gets the list.
+  if (!doorRan) return sent
   for (const g of missing) {
     const key = `attendance-review-guest:${event.id}:${g.userId}`
     if (!await claimOnce(key, 7 * DAY)) continue

@@ -173,6 +173,28 @@ describe('resolving and recording an event', () => {
     expect(updates()[0]).toMatchObject({ where: { id: { in: ['a', 'b', 'c'] } }, data: { attendance: 'no_show' } })
   })
 
+  it('a room nobody scanned defaults nobody, however many were warned', async () => {
+    // The door was never opened: no scans at all. That is not evidence nobody
+    // came, it is evidence nobody checked — and without this guard a host
+    // whose phone died marks their ENTIRE room absent overnight, which is how
+    // v1 lost its credibility. The host closes it out by hand instead.
+    warnedAll('a', 'b', 'c')
+    p.eventAttendee.findMany.mockResolvedValue(room(0, ['a', 'b', 'c']))
+    const out = await settleAttendance(EVENT, NOW)
+    expect(JSON.stringify(updates())).not.toContain('no_show')
+    expect(out.absent).toBe(0)
+    expect(updates()[0]).toMatchObject({ where: { id: { in: ['a', 'b', 'c'] } }, data: { attendance: 'attended' } })
+  })
+
+  it('one scan is enough for the door to have run', async () => {
+    // The bar is "was there a door", not "was it good enough" — a single scan
+    // in a room of nine still settles the warned ones.
+    warnedAll('a', 'b')
+    p.eventAttendee.findMany.mockResolvedValue(room(1, ['a', 'b']))
+    await settleAttendance(EVENT, NOW)
+    expect(updates()[0]).toMatchObject({ where: { id: { in: ['a', 'b'] } }, data: { attendance: 'no_show' } })
+  })
+
   it('never defaults a guest the warning did not reach — it settles them as attended', async () => {
     // Ahmet Öztekin, 2026-09-16: his claim was taken, his notice never
     // written, and 14 sweeps skipped him. Nobody is marked absent on a
@@ -326,6 +348,21 @@ describe('the host review', () => {
     const guestNotes = [...new Set(calls.filter((c: any) => c[1] === 'attendance_check').map((c: any) => c[3]))]
     expect(guestNotes).toHaveLength(1)
     expect(guestNotes[0]).toContain("it doesn't count against your standing")
+  })
+
+  it('warns no guest in a room nobody scanned, and tells the host why', async () => {
+    // Nothing there can settle as absent, so a warning saying it will is a
+    // lie — and a warning that means nothing is worse than silence. The host
+    // still gets the list, because they are the only one who can say who
+    // actually missed it.
+    p.eventAttendee.findMany.mockResolvedValue([guest('a'), guest('b')])
+    expect(await sendAttendanceReviews(EVENT as unknown as SweepEvent)).toBeGreaterThan(0)
+    const types = (createNotification as any).mock.calls.map((c: any) => c[1])
+    expect(types).toContain('attendance_review')
+    expect(types).not.toContain('attendance_check')
+    const host = (createNotification as any).mock.calls.find((c: any) => c[1] === 'attendance_review')
+    expect(host[3]).toContain('Nobody was checked in at this event')
+    expect(host[3]).not.toContain('counts as a no-show on their standing')
   })
 
   it('sends nothing when everyone is already marked', async () => {
