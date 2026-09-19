@@ -211,8 +211,10 @@ export async function settleAttendance(event: SweepEvent, now: Date): Promise<{ 
 export const reviewSentKey = (eventId: string) => `attendance-review-sent:${eventId}`
 // A guest said "I was there" during the review (POST /api/events/[id]/attendance-claim).
 export const saysCameKey = (eventId: string, userId: string) => `attendance-says-came:${eventId}:${userId}`
-// Resend allows 10 sends a second; the sweeps that ignored it got 429s.
-const pause = () => new Promise(r => setTimeout(r, 150))
+// Pacing lives in lib/email's send(), which every helper passes through, so
+// one budget covers every sweep at once. This file used to keep its own 150ms
+// gap on the belief that Resend allowed ten a second; it does not, and a
+// per-sweep pause cannot see the other sweeps sharing the hour anyway.
 
 async function hasClaim(key: string, now: Date): Promise<boolean> {
   const row = await prisma.rateLimit.findUnique({ where: { key }, select: { resetAt: true } })
@@ -299,7 +301,6 @@ export async function sendAttendanceReviews(event: SweepEvent): Promise<number> 
           to.email, to.name, event.title, e?.emoji ?? '📋', event.id,
           missing.map(m => m.user?.name ?? 'a guest'), `${doorNote} ${consequence}`.trim(),
         ).catch(err => console.error('[standing] review email failed', { eventId: event.id, userId, err: String(err) }))
-        await pause()
       }
     }
     if (ok) sent++
@@ -333,7 +334,6 @@ export async function sendAttendanceReviews(event: SweepEvent): Promise<number> 
     if (g.user?.email) {
       await sendAttendanceCheckEmail(g.user.email, g.user.name, event.title, e?.emoji ?? '🎟️', event.id)
         .catch(err => console.error('[standing] attendance check email failed', { eventId: event.id, err: String(err) }))
-      await pause()
     }
   }
   return sent
@@ -614,7 +614,6 @@ export async function notifyNoShows(eventIds: string[], enforcement: StandingEnf
     if (o.user?.email) {
       await sendNoShowRecordedEmail(o.user.email, o.user.name, o.event.title, o.event.emoji, how)
         .catch(err => console.error('[standing] no-show email failed', { offenceId: o.id, err: String(err) }))
-      await pause()
     }
   }
   return sent

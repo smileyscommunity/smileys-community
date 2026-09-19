@@ -170,13 +170,60 @@ export async function recordEmailFailure(opts: {
 // A thrown error (missing key, network) still propagates as before.
 type SendResult = { ok: true; id: string | null } | { ok: false; error: unknown }
 
+// ── Pacing ──────────────────────────────────────────────────────────────────
+//
+// Resend rate-limits, and we were walking into it: 28 refusals in one day, all
+// 429 rate_limit_exceeded, across the reminder and review-request sweeps. Each
+// sweep paced itself with its own short pause, which does nothing about the
+// other sweeps running on the same hour — the :00 reminders and the :50
+// standing sweep have no idea about each other.
+//
+// So the pacing belongs here, at the one place every helper already passes
+// through, rather than in each caller. Sends are serialised through a single
+// promise chain with a minimum gap, so the whole process obeys one budget
+// however many sweeps are awake.
+const SEND_INTERVAL_MS = Number(process.env.EMAIL_MIN_INTERVAL_MS ?? 550)
+const RETRY_BACKOFF_MS = [1_000, 3_000, 8_000]
+// Tests send dozens of mails through mocked clients; pacing them would add
+// minutes to the suite and prove nothing about a library we do not own.
+const PACED = process.env.NODE_ENV !== 'test'
+
+let sendChain: Promise<unknown> = Promise.resolve()
+let lastSentAt = 0
+
+/** Serialise onto the chain, leaving at least SEND_INTERVAL_MS between sends. */
+function paced<T>(fn: () => Promise<T>): Promise<T> {
+  if (!PACED) return fn()
+  const run = sendChain.then(async () => {
+    const wait = lastSentAt + SEND_INTERVAL_MS - Date.now()
+    if (wait > 0) await new Promise(r => setTimeout(r, wait))
+    try { return await fn() } finally { lastSentAt = Date.now() }
+  })
+  // The chain must survive a rejection, or one failed send stalls every
+  // later one behind it for the life of the process.
+  sendChain = run.then(() => undefined, () => undefined)
+  return run
+}
+
+const isRateLimit = (e: unknown): boolean => {
+  const o = e as { statusCode?: number; name?: string } | null
+  return o?.statusCode === 429 || o?.name === 'rate_limit_exceeded'
+}
+
 async function send(
   helper:  string,
   payload: CreateEmailOptions,
   opts:    { policy?: RecipientPolicy; throwOnError?: boolean } = {},
 ): Promise<SendResult> {
   const client = getResend(opts.policy)
-  const res    = await client.emails.send(payload)
+  // A 429 is the one refusal worth retrying: the message is fine, we simply
+  // asked too fast. Anything else (a bad address, a missing key) will refuse
+  // again just as quickly, so it falls through to the recorded failure below.
+  let res = await paced(() => client.emails.send(payload))
+  for (let attempt = 0; isRateLimit(res?.error) && attempt < RETRY_BACKOFF_MS.length; attempt++) {
+    if (PACED) await new Promise(r => setTimeout(r, RETRY_BACKOFF_MS[attempt]))
+    res = await paced(() => client.emails.send(payload))
+  }
   const error  = res?.error
   if (!error) return { ok: true, id: res?.data?.id ?? null }
   const recipient = ([] as string[]).concat(payload.to).join(', ')
