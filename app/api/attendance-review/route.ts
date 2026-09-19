@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic'
  * events they host, co-host, or host the club of (an inactive club grants
  * nothing, matching canManageEventOps).
  */
-export async function GET(_req: NextRequest) {
+export async function GET(req: NextRequest) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Not logged in' }, { status: 401 })
 
@@ -36,9 +36,13 @@ export async function GET(_req: NextRequest) {
       : []
     eventIds = [...new Set([...hosted.map(e => e.id), ...cohosted.map(c => c.eventId), ...clubEvents.map(e => e.id)])]
     // Nothing to run: an empty allow-list must return nothing, never everything.
-    if (eventIds.length === 0 && !all) return NextResponse.json({ rows: [], scope: 'mine' })
+    if (eventIds.length === 0 && !all) return NextResponse.json({ rows: [], total: 0, scope: 'mine', includeSettled: false })
   }
 
-  const rows = await attendanceReviewRows(new Date(), eventIds, all && !admin ? failClosedCityId(session) : undefined)
-  return NextResponse.json({ rows, scope: all ? 'all' : 'mine' })
+  // Settled rooms older than the tail are off by default — see SETTLED_TAIL_DAYS.
+  const includeSettled = req.nextUrl.searchParams.get('settled') === '1'
+  const { rows, total } = await attendanceReviewRows(
+    new Date(), eventIds, all && !admin ? failClosedCityId(session) : undefined, { includeSettled },
+  )
+  return NextResponse.json({ rows, total, scope: all ? 'all' : 'mine', includeSettled })
 }

@@ -1472,7 +1472,7 @@ export async function sendAdminNoShowAppealEmail(memberName: string, eventTitle:
         <p style="color:#374151;font-size:14px;margin:0 0 8px"><strong>Member:</strong> ${esc(memberName)}</p>
         <p style="color:#374151;font-size:14px;margin:0 0 8px"><strong>Event:</strong> ${esc(eventTitle)}</p>
         <p style="color:#374151;font-size:14px;margin:0 0 24px"><strong>Window closes:</strong> ${esc(fmtDate(appealDeadlineAt))} — nothing is paused for them while the appeal is open.</p>
-        <a href="${APP_URL}/admin/no-shows" style="display:inline-block;background:#111;color:#fff;font-weight:600;font-size:14px;padding:12px 24px;border-radius:10px;text-decoration:none">
+        <a href="${APP_URL}/admin/standing" style="display:inline-block;background:#111;color:#fff;font-weight:600;font-size:14px;padding:12px 24px;border-radius:10px;text-decoration:none">
           Review appeal →
         </a>
       </div>

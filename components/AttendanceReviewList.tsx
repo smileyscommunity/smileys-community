@@ -38,21 +38,24 @@ function timeLeft(iso: string): string {
 }
 
 export default function AttendanceReviewList({ heading, blurb }: { heading: string; blurb: string }) {
-  const [rows,  setRows]  = useState<Row[] | null>(null)
-  const [scope, setScope] = useState<'all' | 'mine'>('mine')
-  const [error, setError] = useState<string | null>(null)
+  const [rows,    setRows]    = useState<Row[] | null>(null)
+  const [scope,   setScope]   = useState<'all' | 'mine'>('mine')
+  const [total,   setTotal]   = useState(0)
+  const [settled, setSettled] = useState(false)
+  const [error,   setError]   = useState<string | null>(null)
 
   useEffect(() => {
     let live = true
-    fetch('/app/api/attendance-review')
+    setRows(null)
+    fetch(`/app/api/attendance-review${settled ? '?settled=1' : ''}`)
       .then(async r => {
         if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error ?? `HTTP ${r.status}`)
         return r.json()
       })
-      .then(d => { if (live) { setRows(d.rows); setScope(d.scope) } })
+      .then(d => { if (live) { setRows(d.rows); setScope(d.scope); setTotal(d.total ?? d.rows.length) } })
       .catch(e => { if (live) setError(String(e.message ?? e)) })
     return () => { live = false }
-  }, [])
+  }, [settled])
 
   if (error)       return <div className="p-4 sm:p-6"><p className="text-sm text-red-400">Could not load the review queue: {error}</p></div>
   if (rows === null) return <div className="p-4 sm:p-6"><p className="text-sm text-zinc-500">Loading…</p></div>
@@ -62,6 +65,16 @@ export default function AttendanceReviewList({ heading, blurb }: { heading: stri
       <div className="mb-5">
         <h1 className="text-xl font-bold text-white">{heading}</h1>
         <p className="text-xs text-zinc-500 mt-0.5">{blurb}{scope === 'all' ? ' Showing every city.' : ' Showing the events you run.'}</p>
+        {/* The queue is the rooms still worth a decision. Older settled ones
+            stay reachable — a host can mark one for a month — but they are not
+            what this screen is for, and loading a month of them is what made
+            it slow. */}
+        {(total > rows.length || settled) && (
+          <button onClick={() => setSettled((v: boolean) => !v)}
+            className="mt-2 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors">
+            {settled ? 'Show only what needs a decision' : `Show older settled rooms (${total - rows.length} more)`}
+          </button>
+        )}
       </div>
 
       {rows.length === 0 && (

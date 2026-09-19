@@ -89,12 +89,6 @@ describe('b) check-in / participants search is null-safe', () => {
 })
 
 describe('c) queue pages show a failed load as an error, not an empty list', () => {
-  it('no-shows: non-OK throws into a retry banner instead of setCards([])', () => {
-    const src = read('app/admin/no-shows/page.tsx')
-    expect(src).not.toContain('.catch(() => setCards([]))')
-    expect(src).toContain('if (!r.ok) throw await loadFailure(r)')
-    expect(src).toContain('<LoadErrorBanner message={loadError} onRetry={load}')
-  })
   it('moderation: a failed feed keeps its data and names itself in the banner', () => {
     const src = read('app/admin/moderation/page.tsx')
     expect(src).toContain('if (!r.ok) throw await loadFailure(r)')
@@ -191,12 +185,6 @@ describe('e) currency and timezone follow the event', () => {
     expect(src).toContain('<span>{formatDay(e.date)}</span>')
     expect(src).not.toContain('new Date(e.date).toLocaleDateString()')
     expect(read('app/api/admin/events/approval/route.ts')).toMatch(/price: true, currency: true,/)
-  })
-  it('no-shows: card times formatted on the event city clock', () => {
-    const src = read('app/admin/no-shows/page.tsx')
-    expect(src).toContain("hourCycle: 'h23', timeZone: tz })")
-    expect(src).not.toMatch(/fmt\(c\.\w+\)/)
-    expect(read('app/api/admin/no-show/cards/route.ts')).toContain('hostId: true, cityId: true')
   })
   it('participants inbox: status pill judged on the event city calendar', () => {
     const src = read('app/admin/participants/page.tsx')

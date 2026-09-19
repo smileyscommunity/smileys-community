@@ -435,8 +435,8 @@ describe('9. member links a moderator can open', () => {
     expect(isModeratorPageAllowed('/admin/users/u1')).toBe(false)
   })
 
-  it('Retention and No-shows link through it', () => {
-    for (const p of ['app/admin/retention/page.tsx', 'app/admin/no-shows/page.tsx']) {
+  it('Retention links through it', () => {
+    for (const p of ['app/admin/retention/page.tsx']) {
       const page = read(p)
       expect(page, p).not.toContain('href={`/admin/users/')
       expect(page, p).toContain('memberHref(')

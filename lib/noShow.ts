@@ -530,7 +530,7 @@ export async function submitAppeal(cardId: string, userId: string, note: string,
     createNotification(a.id, 'no_show_appeal',
       'No-show appeal to review',
       `${card.user.name ?? 'A member'} is appealing a red card from "${card.event.title}".`,
-      '/admin/no-shows').catch(() => {})
+      '/admin/standing').catch(() => {})
   }
   // The bell can sit unseen past a 48-hour window; the inbox email can't.
   sendAdminNoShowAppealEmail(card.user.name ?? 'A member', card.event.title, card.appealDeadlineAt)

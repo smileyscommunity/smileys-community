@@ -83,7 +83,7 @@ describe('staff are not locked out', () => {
     expect(lib).toContain('events = events.filter(e => allowed.has(e.id) || (cityId !== undefined && e.cityId === cityId))')
     const route = src('app/api/attendance-review/route.ts')
     expect(route).toContain('if (!admin) {')
-    expect(route).toContain('attendanceReviewRows(new Date(), eventIds, all && !admin ? failClosedCityId(session) : undefined)')
+    expect(route).toContain('all && !admin ? failClosedCityId(session) : undefined')
   })
 
   it('a moderator can still save an application note', () => {

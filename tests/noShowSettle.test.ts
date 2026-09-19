@@ -265,7 +265,7 @@ describe('submitAppeal — inside the window, once', () => {
       where: { id: 'r' },
       data:  { appealNote: 'I was there, the scan failed', appealedAt: NOW, appealStatus: 'pending', status: 'appeal_pending' },
     })
-    expect(createNotification).toHaveBeenCalledWith('admin', 'no_show_appeal', expect.any(String), expect.any(String), '/admin/no-shows')
+    expect(createNotification).toHaveBeenCalledWith('admin', 'no_show_appeal', expect.any(String), expect.any(String), '/admin/standing')
     expect(sendAdminNoShowAppealEmail).toHaveBeenCalledWith('A', 'T', red.appealDeadlineAt)
   })
   it('after the deadline → window_closed', async () => {

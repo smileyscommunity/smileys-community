@@ -23,7 +23,6 @@ vi.mock('@/lib/noShow', () => ({ resolveCard: h.resolveCard }))
 vi.mock('@/lib/session', () => ({ getSession: vi.fn(async () => h.session.current) }))
 
 import { checkSeriesId, seriesScopeFor } from '@/lib/seriesOwnership'
-import { PATCH as resolvePATCH } from '@/app/api/admin/no-show/cards/[id]/route'
 
 beforeEach(() => { vi.clearAllMocks() })
 
@@ -87,29 +86,5 @@ describe('25. a series belongs to whoever owns its events', () => {
   })
 })
 
-describe('26. nobody resolves their own no-show card', () => {
-  const patch = (action = 'accept') => resolvePATCH(
-    new Request('http://x', { method: 'PATCH', body: JSON.stringify({ action }) }) as never,
-    { params: Promise.resolve({ id: 'card1' }) })
-
-  it('a moderator is refused on their own card and nothing is resolved', async () => {
-    h.session.current = { id: 'm1', role: 'moderator', cityId: 'ist', name: 'Mod' }
-    p.noShowCard.findUnique.mockResolvedValue({ userId: 'm1', user: { cityId: 'ist' } })
-    expect((await patch()).status).toBe(403)
-    expect(h.resolveCard).not.toHaveBeenCalled()
-  })
-  it('an admin is refused on their own card too', async () => {
-    h.session.current = { id: 'a1', role: 'admin', cityId: 'ist', name: 'Admin' }
-    p.noShowCard.findUnique.mockResolvedValue({ userId: 'a1', user: { cityId: 'ist' } })
-    expect((await patch('overturn')).status).toBe(403)
-  })
-  it('someone else\'s card in their city still resolves', async () => {
-    h.session.current = { id: 'm1', role: 'moderator', cityId: 'ist', name: 'Mod' }
-    p.noShowCard.findUnique.mockResolvedValue({ userId: 'u9', user: { cityId: 'ist' } })
-    expect((await patch()).status).toBe(200)
-    expect(h.resolveCard).toHaveBeenCalledTimes(1)
-  })
-  it('the inbox leaves your own cards out', () => {
-    expect(read('app/api/admin/no-show/cards/route.ts')).toContain('userId: { not: session.id },')
-  })
-})
+// 26's "nobody resolves their own card" moved to standingReviewConflict.test
+// with v1's cards route — standing's offence decision enforces it now.

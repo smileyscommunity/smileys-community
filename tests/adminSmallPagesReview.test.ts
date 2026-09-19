@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server'
 import { readFileSync } from 'fs'
 import { join } from 'path'
 
-// Review fixes, 2026-09-19 — the smaller admin pages: no-show appeals order
+// Review fixes, 2026-09-19 — the smaller admin pages
 // and blank reject note, pro-waitlist totals, poll history paging, expired
 // moving sales, spotlight member status + city label, participants' per-city
 // "today", and the Instagram handle on settings.
@@ -44,7 +44,6 @@ vi.mock('fs', async (orig) => {
 })
 
 import { getSession } from '@/lib/session'
-import { GET as cardsGET } from '@/app/api/admin/no-show/cards/route'
 import { GET as waitlistGET } from '@/app/api/admin/pro-waitlist/route'
 import { GET as pollsGET } from '@/app/api/admin/community-poll/route'
 import { GET as salesGET } from '@/app/api/admin/moving-sales/route'
@@ -65,19 +64,14 @@ beforeEach(() => {
 })
 afterEach(() => vi.useRealTimers())
 
-describe('no-show appeals', () => {
-  it('the appeals inbox lists whoever has waited longest first', async () => {
-    await cardsGET(new NextRequest('https://x/app/api/admin/no-show/cards?status=appeal_pending'))
-    expect(p.noShowCard.findMany.mock.calls[0][0].orderBy).toEqual([{ appealedAt: 'asc' }, { issuedAt: 'asc' }])
-  })
-
-  it('the history views stay newest first', async () => {
-    await cardsGET(new NextRequest('https://x/app/api/admin/no-show/cards?status=all'))
-    expect(p.noShowCard.findMany.mock.calls[0][0].orderBy).toEqual([{ appealedAt: 'desc' }, { issuedAt: 'desc' }])
-  })
+// The v1 no-show appeals inbox and its API were deleted with the rest of v1
+// (the table is empty and nothing writes to it). Standing v2's queues are
+// covered by adminStandingWarnings and standing.test.
+describe('smaller admin pages', () => {
 
   it('"leave blank to skip" can actually be left blank', () => {
-    expect(src('app/admin/no-shows/page.tsx')).toMatch(/leave blank to skip\)'[^\n]*allowEmpty: true/)
+    // The page that carried the only allowEmpty caller was v1's no-show inbox,
+    // deleted with the rest of v1. The promptToast rule stands on its own.
     const prompt = src('lib/promptToast.tsx')
     expect(prompt).toContain('const canConfirm = allowEmpty || !!value.trim()')
     expect(prompt).toContain('disabled={!canConfirm}')

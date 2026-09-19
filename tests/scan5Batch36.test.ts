@@ -281,71 +281,12 @@ describe('104a who is never carded', () => {
 })
 
 // ── 104b. conflict of interest ─────────────────────────────────────────────
-describe('104b nobody judges a card from an event they run', () => {
+// 104b's card-judging tests moved to standingReviewConflict.test.ts when v1's
+// no-show cards route and page were deleted — the rule they protect is now
+// enforced on standing's offence decision, and that is where it is covered.
+// The host waiver below still has a live route, so it stays.
+describe('104b a runner cannot clear their own card', () => {
   const MOD   = { id: 'm1', role: 'moderator', cityId: 'ist', name: 'Mod' }
-  const ADMIN = { id: 'a1', role: 'admin', cityId: 'ist', name: 'Admin' }
-  const patch = async (action = 'overturn') => {
-    const { PATCH } = await import('@/app/api/admin/no-show/cards/[id]/route')
-    return PATCH(new NextRequest('http://x', { method: 'PATCH', body: JSON.stringify({ action }) }), { params: Promise.resolve({ id: 'card1' }) })
-  }
-  const cardWith = (event: object) => ({ userId: 'u9', user: { cityId: 'ist' }, event })
-
-  it('reviewConflict: own card, host, co-host, club host; else none', async () => {
-    const { reviewConflict } = await import('@/lib/noShowPolicy')
-    const e = { hostId: 'host', cohostIds: ['co'], clubHostIds: ['ch'] }
-    expect(reviewConflict('u9', { userId: 'u9' }, e)).toBe('own_card')
-    expect(reviewConflict('host', { userId: 'u9' }, e)).toBe('event_host')
-    expect(reviewConflict('co', { userId: 'u9' }, e)).toBe('event_cohost')
-    expect(reviewConflict('ch', { userId: 'u9' }, e)).toBe('club_host')
-    expect(reviewConflict('other', { userId: 'u9' }, e)).toBeNull()
-  })
-
-  it.each([
-    ['hosts',       { hostId: 'm1', cohosts: [], club: null },                                'event_host'],
-    ['co-hosts',    { hostId: 'h', cohosts: [{ userId: 'm1' }], club: null },                 'event_cohost'],
-    ['hosts the club of', { hostId: 'h', cohosts: [], club: { memberships: [{ userId: 'm1' }] } }, 'club_host'],
-  ])('a moderator who %s the event is refused (403) and nothing is resolved', async (_label, event, conflict) => {
-    h.session.current = MOD
-    h.prisma.noShowCard.findUnique.mockResolvedValue(cardWith(event))
-    const res = await patch()
-    expect(res.status).toBe(403)
-    expect(await res.json()).toMatchObject({ code: 'conflict_of_interest', conflict })
-    expect(h.resolveCard).not.toHaveBeenCalled()
-  })
-
-  it('admins are held to the same rule', async () => {
-    h.session.current = ADMIN
-    h.prisma.noShowCard.findUnique.mockResolvedValue(cardWith({ hostId: 'a1', cohosts: [], club: null }))
-    expect((await patch('reject')).status).toBe(403)
-    expect(h.resolveCard).not.toHaveBeenCalled()
-  })
-
-  it('an unrelated moderator resolves, and the lookup only asks about the caller', async () => {
-    h.session.current = MOD
-    h.prisma.noShowCard.findUnique.mockResolvedValue(cardWith({ hostId: 'h', cohosts: [], club: { memberships: [] } }))
-    expect((await patch()).status).toBe(200)
-    expect(h.resolveCard).toHaveBeenCalledTimes(1)
-    const select = h.prisma.noShowCard.findUnique.mock.calls[0][0].select
-    expect(select.event.select.cohosts.where).toEqual({ userId: 'm1' })
-    expect(select.event.select.club.select.memberships.where).toEqual({ userId: 'm1', role: 'host', status: 'approved' })
-  })
-
-  it('the inbox flags conflicted cards and does not ship the runner rows', async () => {
-    const { GET } = await import('@/app/api/admin/no-show/cards/route')
-    h.session.current = MOD
-    const base = { id: 'x', title: 'Walk', emoji: '🚶', date: '2026-09-12', cityId: 'ist' }
-    h.prisma.noShowCard.findMany.mockResolvedValue([
-      { id: 'c1', userId: 'u1', user: { id: 'u1', name: 'A', email: 'aaaa@example.test', cityId: 'ist' }, event: { ...base, hostId: 'h', cohosts: [{ userId: 'm1' }], club: null } },
-      { id: 'c2', userId: 'u2', user: { id: 'u2', name: 'B', email: 'bbbb@example.test', cityId: 'ist' }, event: { ...base, hostId: 'h', cohosts: [], club: { memberships: [] } } },
-    ])
-    const body = await (await GET(new NextRequest('http://x/api/admin/no-show/cards?status=all'))).json()
-    expect(body.cards.map((c: { conflict: string | null }) => c.conflict)).toEqual(['event_cohost', null])
-    for (const c of body.cards) {
-      expect(c.event).not.toHaveProperty('cohosts')
-      expect(c.event).not.toHaveProperty('club')
-    }
-  })
-
   it('the host waiver refuses a runner clearing their own card', async () => {
     const { POST } = await import('@/app/api/events/[id]/no-shows/waive/route')
     const waive = () => POST(
@@ -360,13 +301,6 @@ describe('104b nobody judges a card from an event they run', () => {
     expect(h.waiveCard).toHaveBeenCalledTimes(1)
   })
 
-  it('the admin page hides the actions on a conflicted card and says why', () => {
-    const src = read('app/admin/no-shows/page.tsx')
-    expect(src).toContain('{c.conflict ? (')
-    expect(src).toContain('REVIEW_CONFLICT_MESSAGE[c.conflict]')
-    // The buttons live only in the no-conflict branch.
-    expect(src.indexOf("resolve(c, 'accept')")).toBeGreaterThan(src.indexOf('{c.conflict ? ('))
-  })
 })
 
 // ── 104c. the audit script ─────────────────────────────────────────────────

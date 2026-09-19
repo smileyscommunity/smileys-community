@@ -45,8 +45,6 @@ export const NAV_GROUPS: { label: string; items: AdminNavItem[] }[] = [
       { label: 'Events',       href: '/admin/events',       exact: false, roles: ['admin', 'host'],            icon: 'events'       },
       { label: 'Participants', href: '/admin/participants',  exact: false, roles: ['admin', 'host'],            icon: 'participants' },
       { label: 'Check-In',     href: '/admin/checkin',       exact: false, roles: ['admin', 'host'],            icon: 'checkin'      },
-      // No-show cards: appeals inbox + card history. Hosts waive from Participants.
-      { label: 'No-shows',     href: '/admin/no-shows',      exact: false, roles: ['admin', 'moderator'],       icon: 'noshows'      },
       // The pre-settlement view: rooms still in their review day, the ratio
       // against the bar, who is unmarked and who was actually warned. Hosts
       // get the same screen scoped to their own events at /host/review.
