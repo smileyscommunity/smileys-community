@@ -51,6 +51,8 @@ export default function AdminStandingPage() {
   const isAdmin = user?.role === 'admin'
   const [view,      setView]      = useState<View>('disputes')
   const [items,     setItems]     = useState<(OffenceRow | CardRow)[] | null>(null)
+  /** What the queue holds, which is more than one page when it is truncated. */
+  const [total,     setTotal]     = useState(0)
   const [overview,  setOverview]  = useState<Overview | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [notes,     setNotes]     = useState<Record<string, string>>({})
@@ -60,7 +62,7 @@ export default function AdminStandingPage() {
     setItems(null); setLoadError(null)
     fetch(`/app/api/admin/standing?view=${view}`, { credentials: 'include' })
       .then(async r => { if (!r.ok) throw await loadFailure(r); return r.json() })
-      .then(d => setItems(d.items ?? []))
+      .then(d => { setItems(d.items ?? []); setTotal(d.total ?? (d.items ?? []).length) })
       .catch((e: Error) => setLoadError(e?.message ?? 'Failed to load'))
     fetch('/app/api/admin/standing/enforcement', { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
@@ -131,7 +133,8 @@ export default function AdminStandingPage() {
                 active={view === 'disputes'} onClick={() => setView('disputes')} />
           <Stat label="Red cards"      value={s.liveRed}    sub="up for review"       tone={s.liveRed ? 'bad' : undefined}
                 active={view === 'review'}   onClick={() => setView('review')} />
-          <Stat label="Live cards"     value={s.liveYellow + s.liveRed} sub={`${s.liveYellow} yellow · ${s.liveRed} red`}
+          <Stat label="Live cards"     value={s.liveYellow + s.liveRed}
+                sub={`${s.liveYellow} yellow · ${s.liveRed} red${s.shadowLive ? ` · ${s.shadowLive} shadow` : ''}`}
                 tone={s.liveYellow + s.liveRed ? 'warn' : undefined}
                 active={view === 'cards'}    onClick={() => setView('cards')} />
           <Stat label="Offences · 30d" value={s.offences30} sub={`${s.counting30} still counting`}
@@ -192,6 +195,12 @@ export default function AdminStandingPage() {
             </button>
           ))}
         </div>
+      )}
+
+      {items !== null && items.length > 0 && items.length < total && (
+        <p className="text-[11px] text-zinc-500 mb-2">
+          Showing the first {items.length} of {total} — narrow the queue or act on these first.
+        </p>
       )}
 
       {loadError ? <LoadErrorBanner message={loadError} onRetry={load} title="Couldn't load standing" />

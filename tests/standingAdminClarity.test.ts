@@ -79,3 +79,38 @@ describe('the counts are the navigation', () => {
     expect(page).toContain('VIEWS.map(v => (')
   })
 })
+
+describe('a tile counts exactly what its queue returns', () => {
+  const page  = src('app/admin/standing/page.tsx')
+  const stats = src('app/api/admin/standing/enforcement/route.ts')
+  const queue = src('app/api/admin/standing/route.ts')
+
+  it('counts shadow cards, because the card queues do not filter them out', () => {
+    // While enforcement is off EVERY card is shadow. Excluding them made all
+    // three card tiles read 0 in front of a full list — during exactly the
+    // period an admin reads this page to decide whether to switch on.
+    expect(stats).toContain('prisma.standingCard.count({ where: { level: CardLevel.Yellow, status: { in: LIVE_CARD_STATUSES } } })')
+    expect(stats).toContain('prisma.standingCard.count({ where: { level: CardLevel.Red,    status: { in: LIVE_CARD_STATUSES } } })')
+    expect(queue).not.toContain('shadow: false')
+    // ...and the split is named on the tile rather than hidden.
+    expect(page).toContain('${s.shadowLive} shadow')
+  })
+
+  it('opens a 30-day list under a 30-day count', () => {
+    expect(queue).toContain("recordedAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }")
+    // A dispute is never date-filtered: somebody is waiting on it.
+    expect(queue).toContain("? { status: OffenceStatus.Disputed, ...cityScope }")
+  })
+
+  it('says when a queue is only its first page', () => {
+    expect(queue).toContain('const total = await prisma.standingOffence.count({ where })')
+    expect(queue).toContain('const total = await prisma.standingCard.count({ where })')
+    expect(page).toContain('Showing the first {items.length} of {total}')
+  })
+
+  it('does not call someone with a card "one short of the first yellow"', () => {
+    // Their next offence escalates an existing card; it is not a first yellow.
+    expect(stats).toContain("distinct: ['userId']")
+    expect(stats).toContain('!carded.has(g.userId)')
+  })
+})

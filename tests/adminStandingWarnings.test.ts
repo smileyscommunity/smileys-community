@@ -14,7 +14,7 @@ vi.mock('@/lib/access',  () => ({
 vi.mock('@/lib/admin/maskContact', () => ({ maskRows: (_s: any, rows: any) => rows }))
 vi.mock('@/lib/noShowPolicy', () => ({ reviewConflict: () => null, eventRunners: () => ({ hostId: 'h1', cohostIds: [], clubHostIds: [] }) }))
 vi.mock('@/lib/prisma', () => ({ prisma: {
-  standingOffence: { findMany: vi.fn(), groupBy: vi.fn() },
+  standingOffence: { findMany: vi.fn(), groupBy: vi.fn(), count: vi.fn(async () => 0) },
   standingCard:    { findMany: vi.fn(async () => []) },
   appSetting:      { findUnique: vi.fn(async () => null) },
 } }))
@@ -38,6 +38,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   ;(getSession as any).mockResolvedValue({ id: 'a1', name: 'A', role: 'admin', cityId: 'c1' })
   p.standingOffence.groupBy.mockResolvedValue([])
+  p.standingOffence.count.mockResolvedValue(0)
 })
 
 describe('the warnings tally', () => {
@@ -76,5 +77,27 @@ describe('the warnings tally', () => {
     p.standingOffence.findMany.mockResolvedValue([])
     await GET(req('offences'))
     expect(p.standingOffence.groupBy).not.toHaveBeenCalled()
+  })
+})
+
+describe('the queue reports what it is holding back', () => {
+  it('returns the true total beside a capped page', async () => {
+    // The page prints "showing the first N of TOTAL" from this. Without it a
+    // truncated queue just stopped at the cap and looked complete.
+    ;(getSession as any).mockResolvedValue({ id: 'a1', role: 'admin', cityId: 'c1' })
+    p.standingOffence.findMany.mockResolvedValue([row('o1', 'u1')])
+    p.standingOffence.count.mockResolvedValue(340)
+    const body = await (await GET(req('offences'))).json()
+    expect(body.total).toBe(340)
+    expect(body.items).toHaveLength(1)
+  })
+
+  it('counts the same rows it returns', async () => {
+    ;(getSession as any).mockResolvedValue({ id: 'a1', role: 'admin', cityId: 'c1' })
+    p.standingOffence.findMany.mockResolvedValue([row('o1', 'u1')])
+    await GET(req('offences'))
+    const countWhere = p.standingOffence.count.mock.calls[0][0].where
+    const listWhere  = p.standingOffence.findMany.mock.calls[0][0].where
+    expect(countWhere).toEqual(listWhere)
   })
 })

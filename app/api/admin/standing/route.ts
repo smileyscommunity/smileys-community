@@ -12,6 +12,10 @@ import { LIVE_CARD_STATUSES, OffenceStatus, CardLevel, StandingCardStatus, windo
 //   view=review    red cards — eligible for review first, then still active
 //   view=cards     every live card, shadow ones included
 //   view=offences  the latest recorded offences
+// One page of a queue. Returned with a `total` so a truncated list says so
+// rather than quietly ending at the cap.
+const PAGE = 200
+
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
@@ -25,10 +29,18 @@ export async function GET(req: NextRequest) {
     const userSelect = { id: true, name: true, email: true, cityId: true } as const
 
     if (view === 'disputes' || view === 'offences') {
+      // The offences queue is the last 30 days, matching the tile that opens
+      // it — it used to count 30 days and open an all-time list, so the number
+      // and its destination disagreed. A dispute is never date-filtered:
+      // somebody is waiting on it however old it is.
+      const where = view === 'disputes'
+        ? { status: OffenceStatus.Disputed, ...cityScope }
+        : { recordedAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }, ...cityScope }
+      const total = await prisma.standingOffence.count({ where })
       const rows = await prisma.standingOffence.findMany({
-        where:   { ...(view === 'disputes' ? { status: OffenceStatus.Disputed } : {}), ...cityScope },
+        where,
         orderBy: view === 'disputes' ? { disputedAt: 'asc' } : { recordedAt: 'desc' },
-        take:    200,
+        take:    PAGE,
         select: {
           id: true, userId: true, kind: true, tier: true, counts: true, loggedReason: true, status: true,
           occurredAt: true, recordedAt: true, disputeNote: true, disputedAt: true, resolutionNote: true,
@@ -65,19 +77,21 @@ export async function GET(req: NextRequest) {
         warnings: warnings.get(o.userId) ?? 0,
         conflict: reviewConflict(session.id, o, eventRunners({ hostId: event.hostId, cohosts, club })),
       }))
-      return NextResponse.json({ items: maskRows(session, items, 'user') })
+      return NextResponse.json({ items: maskRows(session, items, 'user'), total })
     }
 
     if (view === 'review' || view === 'cards') {
+      const where = {
+        ...(view === 'review'
+          ? { level: CardLevel.Red, status: { in: [StandingCardStatus.Review, StandingCardStatus.Active] } }
+          : { status: { in: LIVE_CARD_STATUSES } }),
+        ...cityScope,
+      }
+      const total = await prisma.standingCard.count({ where })
       const rows = await prisma.standingCard.findMany({
-        where: {
-          ...(view === 'review'
-            ? { level: CardLevel.Red, status: { in: [StandingCardStatus.Review, StandingCardStatus.Active] } }
-            : { status: { in: LIVE_CARD_STATUSES } }),
-          ...cityScope,
-        },
+        where,
         orderBy: [{ status: 'desc' }, { issuedAt: 'desc' }],
-        take:    200,
+        take:    PAGE,
         select: {
           id: true, userId: true, level: true, status: true, shadow: true, issuedAt: true, triggeredAt: true, resolutionNote: true,
           user:     { select: userSelect },
@@ -89,7 +103,7 @@ export async function GET(req: NextRequest) {
         ...c, recoveries: _count.recoveries,
         conflict: c.userId === session.id ? 'own_card' as const : null,
       }))
-      return NextResponse.json({ items: maskRows(session, items, 'user') })
+      return NextResponse.json({ items: maskRows(session, items, 'user'), total })
     }
 
     return NextResponse.json({ error: 'Unknown view' }, { status: 400 })
