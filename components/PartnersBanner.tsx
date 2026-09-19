@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { resolveImageUrl, firstNameOf} from '@/lib/data'
+import { useMediaQuery, LG_UP } from '@/hooks/useMediaQuery'
 
 interface Partner {
   id: string
@@ -15,15 +16,23 @@ interface Partner {
 
 export default function PartnersBanner() {
   const [partners, setPartners] = useState<Partner[]>([])
+  const fetched = useRef(false)
+  // Desktop-only on the dashboard (wrapped in `hidden lg:block` there), but a
+  // CSS-hidden component still mounts and fetches — so every phone loaded the
+  // partner list for a banner it never showed. Wait until it can be seen, and
+  // fetch once: crossing back under the breakpoint doesn't need a refetch.
+  const visible = useMediaQuery(LG_UP)
 
   useEffect(() => {
+    if (!visible || fetched.current) return
+    fetched.current = true
     fetch('/app/api/partners', { credentials: 'include' })
       .then(r => r.ok ? r.json() : [])
       .then(d => setPartners(Array.isArray(d) ? d.slice(0, 8) : []))
       .catch(() => {})
-  }, [])
+  }, [visible])
 
-  if (!partners.length) return null
+  if (!visible || !partners.length) return null
 
   return (
     <div className="bg-white border border-gray-100 rounded-2xl shadow-card overflow-hidden">

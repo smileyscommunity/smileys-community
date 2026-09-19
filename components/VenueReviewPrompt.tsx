@@ -29,7 +29,11 @@ const RATING_LABELS: Record<number, string> = {
   1: 'Awful', 2: 'Poor', 3: 'OK', 4: 'Good', 5: 'Loved it',
 }
 
-export default function VenueReviewPrompt({ businessId, businessName, eventTitle }: Props) {
+// Told when this venue's prompt is finished with (dismissed, or reviewed and
+// thanked), so a list of candidates can move on to the next one.
+type PromptProps = Props & { onDone?: (businessId: string) => void }
+
+export default function VenueReviewPrompt({ businessId, businessName, eventTitle, onDone }: PromptProps) {
   const [mounted,   setMounted]   = useState(false)
   const [dismissed, setDismissed] = useState(false)
   const [rating,    setRating]    = useState(0)
@@ -58,9 +62,14 @@ export default function VenueReviewPrompt({ businessId, businessName, eventTitle
     }
   }
 
+  function finish() {
+    setDismissed(true)
+    onDone?.(businessId)
+  }
+
   function handleDismiss() {
     persistDismiss()
-    setDismissed(true)
+    finish()
   }
 
   async function submit() {
@@ -82,7 +91,7 @@ export default function VenueReviewPrompt({ businessId, businessName, eventTitle
       // dashboard re-queries (the server filter excludes it on next load).
       persistDismiss()
       setDone(true)
-      setTimeout(() => setDismissed(true), 1800)
+      setTimeout(finish, 1800)
     } catch {
       toast.error('Something went wrong')
     } finally {
@@ -172,14 +181,29 @@ export default function VenueReviewPrompt({ businessId, businessName, eventTitle
  * The first candidate the member hasn't dismissed, else the fallback. One
  * dismissed venue used to stop every later prompt: the server kept picking
  * it, and the client kept hiding it.
+ *
+ * Dismissing (or reviewing) moves straight on to the next candidate, or to
+ * the fallback when none is left. The pick was made once on mount, so a
+ * dismissal left the slot empty until the next page load.
  */
 export function VenueReviewPrompts({ candidates, fallback }: { candidates: Props[]; fallback: ReactNode }) {
-  const [pick, setPick] = useState<Props | null | undefined>(undefined)
+  // null until storage has been read, so the server render and the first
+  // client render agree (both empty).
+  const [done, setDone] = useState<string[] | null>(null)
   useEffect(() => {
     let dismissed: string[] = []
     try { dismissed = JSON.parse(storageGet('dismissed_venue_reviews') ?? '[]') } catch {}
-    setPick(candidates.find(c => !dismissed.includes(c.businessId)) ?? null)
+    setDone(Array.isArray(dismissed) ? dismissed : [])
   }, [candidates])
-  if (pick === undefined) return null
-  return pick ? <VenueReviewPrompt {...pick} /> : <>{fallback}</>
+  if (done === null) return null
+  const pick = candidates.find(c => !done.includes(c.businessId))
+  if (!pick) return <>{fallback}</>
+  // Keyed so the next venue starts with a fresh form, not the last one's stars.
+  return (
+    <VenueReviewPrompt
+      key={pick.businessId}
+      {...pick}
+      onDone={id => setDone(prev => (prev && !prev.includes(id) ? [...prev, id] : prev))}
+    />
+  )
 }

@@ -1,14 +1,15 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-
-const THRESHOLD = 72
+import { armPull, pullDistance, PULL_THRESHOLD as THRESHOLD } from '@/lib/pullToRefresh'
 
 export function usePullToRefresh(onRefresh: () => Promise<void>) {
   const [pullY,      setPullY]      = useState(0)
   const [refreshing, setRefreshing] = useState(false)
 
-  const startY       = useRef(0)
+  // null = no gesture armed. Only a touch that starts at the very top arms
+  // one, and it's disarmed when that touch ends (lib/pullToRefresh has why).
+  const startY       = useRef<number | null>(null)
   const currentPullY = useRef(0)
   const busy         = useRef(false)
 
@@ -24,38 +25,54 @@ export function usePullToRefresh(onRefresh: () => Promise<void>) {
   }, [onRefresh])
 
   useEffect(() => {
-    function onTouchStart(e: TouchEvent) {
-      if (busy.current || window.scrollY > 0) return
-      startY.current = e.touches[0].clientY
-    }
-
-    function onTouchMove(e: TouchEvent) {
-      if (busy.current) return
-      const dy = e.touches[0].clientY - startY.current
-      if (dy > 0 && window.scrollY === 0) {
-        const clamped = Math.min(dy * 0.45, THRESHOLD + 16)
-        currentPullY.current = clamped
-        setPullY(clamped)
-      }
-    }
-
-    function onTouchEnd() {
-      if (busy.current) return
-      if (currentPullY.current >= THRESHOLD) {
-        doRefresh()
-      } else {
+    function reset() {
+      startY.current = null
+      if (currentPullY.current !== 0) {
         currentPullY.current = 0
         setPullY(0)
       }
     }
 
-    window.addEventListener('touchstart', onTouchStart, { passive: true })
-    window.addEventListener('touchmove',  onTouchMove,  { passive: true })
-    window.addEventListener('touchend',   onTouchEnd)
+    function onTouchStart(e: TouchEvent) {
+      startY.current = armPull({ busy: busy.current, scrollY: window.scrollY, clientY: e.touches[0].clientY })
+    }
+
+    function onTouchMove(e: TouchEvent) {
+      if (busy.current || startY.current === null) return
+      const next = pullDistance({ startY: startY.current, clientY: e.touches[0].clientY, scrollY: window.scrollY })
+      if (next !== currentPullY.current) {
+        currentPullY.current = next
+        setPullY(next)
+      }
+    }
+
+    function onTouchEnd() {
+      const armed = startY.current !== null
+      if (busy.current) { startY.current = null; return }
+      if (armed && currentPullY.current >= THRESHOLD) {
+        startY.current = null
+        doRefresh()
+      } else {
+        reset()
+      }
+    }
+
+    // A cancelled touch (the OS took it — a notification, a system gesture)
+    // never refreshes; it just lets go.
+    function onTouchCancel() {
+      if (busy.current) { startY.current = null; return }
+      reset()
+    }
+
+    window.addEventListener('touchstart',  onTouchStart,  { passive: true })
+    window.addEventListener('touchmove',   onTouchMove,   { passive: true })
+    window.addEventListener('touchend',    onTouchEnd)
+    window.addEventListener('touchcancel', onTouchCancel)
     return () => {
-      window.removeEventListener('touchstart', onTouchStart)
-      window.removeEventListener('touchmove',  onTouchMove)
-      window.removeEventListener('touchend',   onTouchEnd)
+      window.removeEventListener('touchstart',  onTouchStart)
+      window.removeEventListener('touchmove',   onTouchMove)
+      window.removeEventListener('touchend',    onTouchEnd)
+      window.removeEventListener('touchcancel', onTouchCancel)
     }
   }, [doRefresh])
 

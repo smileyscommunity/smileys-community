@@ -130,6 +130,9 @@ const h = vi.hoisted(() => {
   })
   const prisma = {
     ...client(null),
+    // GET /api/first-event also asks whether the member has an RSVP (the
+    // "first" vs "next" heading); nobody in these tests has one.
+    eventAttendee: { findFirst: vi.fn(async () => null) },
     $transaction: vi.fn(async (fn: (tx: any) => Promise<unknown>) => {
       const ctx: Ctx = { held: [] }
       try { return await fn(client(ctx)) }

@@ -5,25 +5,35 @@ import { getSession } from '@/lib/session'
 import { createNotification } from '@/lib/notify'
 import { rateLimit } from '@/lib/rateLimit'
 import { trackServer } from '@/lib/posthog-server'
+import { parseConnectionFilters } from '@/lib/connectionFilters'
 
-// GET /api/connections — returns my connections and pending requests
-export async function GET() {
+// GET /api/connections — returns my connections and pending requests.
+// Optional ?direction=sent|received and ?status=pending|accepted narrow it
+// (lib/connectionFilters); a narrowed response carries only the direction
+// asked for. With neither, the response is the full { sent, received }.
+export async function GET(req: NextRequest) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const filters = parseConnectionFilters(req.nextUrl.searchParams)
+  if (!filters.ok) return NextResponse.json({ error: filters.error }, { status: 400 })
 
   // Declined rows are kept in the DB as decline-memory (they permanently
   // block re-request notifications) but are invisible to both sides: the
   // requester sees the request quietly disappear (same UX as the old
   // delete-on-decline), the receiver already handled it.
+  const status = filters.status ?? { not: 'declined' }
+  const wantSent     = filters.direction !== 'received'
+  const wantReceived = filters.direction !== 'sent'
   const [sent, received] = await Promise.all([
-    prisma.memberConnection.findMany({
-      where: { requesterId: session.id, status: { not: 'declined' } },
+    wantSent ? prisma.memberConnection.findMany({
+      where: { requesterId: session.id, status },
       include: { receiver: { select: { id: true, name: true, color: true, profilePhoto: true, neighborhood: true, profileVisibility: true } } },
-    }),
-    prisma.memberConnection.findMany({
-      where: { receiverId: session.id, status: { not: 'declined' } },
+    }) : Promise.resolve([]),
+    wantReceived ? prisma.memberConnection.findMany({
+      where: { receiverId: session.id, status },
       include: { requester: { select: { id: true, name: true, color: true, profilePhoto: true, neighborhood: true, profileVisibility: true } } },
-    }),
+    }) : Promise.resolve([]),
   ])
 
   // A pending row is not a connection: a connections-only member on the
@@ -34,8 +44,8 @@ export async function GET() {
     return restricted.has(p.id) ? { ...rest, neighborhood: null } : rest
   }
   return NextResponse.json({
-    sent:     sent.map(c => ({ ...c, receiver: redact(c.receiver) })),
-    received: received.map(c => ({ ...c, requester: redact(c.requester) })),
+    ...(wantSent     ? { sent:     sent.map(c => ({ ...c, receiver: redact(c.receiver) })) } : {}),
+    ...(wantReceived ? { received: received.map(c => ({ ...c, requester: redact(c.requester) })) } : {}),
   })
 }
 

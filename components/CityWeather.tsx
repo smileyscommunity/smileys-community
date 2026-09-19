@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { DEFAULT_TZ } from '@/lib/cityTime'
+import { useMediaQuery, LG_UP } from '@/hooks/useMediaQuery'
 
 interface Weather {
   temp: number | null
@@ -51,8 +52,14 @@ export default function CityWeather({
 }) {
   const [weather, setWeather] = useState<Weather | null>(null)
   const [loading, setLoading] = useState(true)
+  // The dashboard shows this card from lg up only (its rail is `hidden
+  // lg:block`), but CSS hiding still mounts it — every phone was calling the
+  // weather API for a card it never drew. Fetch only once it can be seen;
+  // crossing the breakpoint later (rotation, resize) fetches then.
+  const visible = useMediaQuery(LG_UP)
 
   useEffect(() => {
+    if (!visible) return
     if (lat == null || lng == null) { setLoading(false); return }
     fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true&timezone=${encodeURIComponent(timezone)}`)
       .then(r => r.json())
@@ -65,7 +72,9 @@ export default function CityWeather({
         setWeather({ temp: null, text: name, icon: '🌤️' })
       })
       .finally(() => setLoading(false))
-  }, [lat, lng, timezone, name])
+  }, [visible, lat, lng, timezone, name])
+
+  if (visible === false) return null
 
   if (loading) {
     return (

@@ -2,7 +2,12 @@
 
 import Link from 'next/link'
 import posthog from 'posthog-js'
-import type { Club } from '@/lib/data'
+
+/** Only what the tile shows — the page used to hand this client component
+ *  whole club rows, invite links and spotlight fields included. */
+export interface LineupClub {
+  id: string; slug: string; name: string; emoji: string; bgColor: string; category: string; memberCount: number
+}
 
 // "Your lineup" — club picks for a member's first weeks, matched to the
 // interests they chose at registration (lib/clubRecommendations). The
@@ -11,7 +16,7 @@ import type { Club } from '@/lib/data'
 // answers they actually gave. Client component so clicks are measurable —
 // whether the lineup converts to club joins is the success metric of the
 // whole five-questions build.
-export default function RecommendedClubs({ clubs }: { clubs: Club[] }) {
+export default function RecommendedClubs({ clubs }: { clubs: LineupClub[] }) {
   if (clubs.length === 0) return null
   return (
     <div className="bg-white rounded-2xl shadow-card p-5">
@@ -25,7 +30,8 @@ export default function RecommendedClubs({ clubs }: { clubs: Club[] }) {
           <Link key={c.id} href={`/clubs/${c.slug}`}
             onClick={() => posthog.capture('lineup_club_clicked', { club_id: c.id, club_category: c.category, position: idx })}
             className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:border-amber-200 hover:bg-amber-50/40 transition-colors">
-            <span className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0" style={{ backgroundColor: c.bgColor }} aria-hidden="true">{c.emoji}</span>
+            {/* bgColor is a Tailwind class ('bg-amber-50'), not a colour value. */}
+            <span className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0 ${c.bgColor || 'bg-amber-50'}`} aria-hidden="true">{c.emoji}</span>
             <span className="min-w-0">
               <span className="block text-sm font-semibold text-gray-900 truncate">{c.name}</span>
               <span className="block text-xs text-gray-500">{c.category} · {c.memberCount} member{c.memberCount === 1 ? '' : 's'}</span>

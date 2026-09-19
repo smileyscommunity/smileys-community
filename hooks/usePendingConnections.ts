@@ -33,7 +33,9 @@ function refresh(reason: RefreshReason) {
   if (!shouldRefreshPending({ reason, now: Date.now(), lastFetchAt, inFlight: gate.inFlight(), hidden })) return
   const generation = gate.start()
   lastFetchAt = Date.now()
-  fetch('/app/api/connections', { credentials: 'include' })
+  // Only the pending requests received — the badge downloaded the member's
+  // whole connection list to count them.
+  fetch('/app/api/connections?direction=received&status=pending', { credentials: 'include' })
     .then(r => {
       if (r.status === 401) return { received: [] }  // session gone — nothing pending
       if (!r.ok) return null                          // transient failure keeps the last count

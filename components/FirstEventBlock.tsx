@@ -11,6 +11,10 @@ import { formatDate, formatTime, resolveImageUrl } from '@/lib/data'
 // (where RSVP already handles waitlists/approval); a click beacon attributes
 // the tap for lift measurement. Supplemental surface: on any error it simply
 // renders nothing rather than breaking the dashboard.
+//
+// The dashboard also shows it to self-declared newcomers in their first two
+// months even after they've RSVP'd; for them (`returning` from the API) it's
+// "Your next event" — they've already had a first.
 
 type Card = {
   id: string
@@ -28,7 +32,7 @@ type Card = {
 }
 
 export default function FirstEventBlock() {
-  const [state, setState] = useState<{ events: Card[]; empty: boolean } | null>(null)
+  const [state, setState] = useState<{ events: Card[]; empty: boolean; returning?: boolean } | null>(null)
   const [failed, setFailed] = useState(false)
 
   useEffect(() => {
@@ -51,7 +55,7 @@ export default function FirstEventBlock() {
   return (
     <section className="mb-6">
       <div className="flex items-baseline justify-between mb-3">
-        <h2 className="text-lg font-extrabold text-gray-900">👋 Your first event</h2>
+        <h2 className="text-lg font-extrabold text-gray-900">{state.returning ? '👋 Your next event' : '👋 Your first event'}</h2>
         <Link href="/events" className="text-sm font-semibold text-amber-700 hover:text-amber-800">
           See all →
         </Link>

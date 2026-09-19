@@ -92,8 +92,8 @@ export default function OnboardingCard() {
         ×
       </button>
 
-      <p className="text-xs font-bold uppercase tracking-widest text-amber-700 mb-1">New in Smileys</p>
-      <h3 className="text-base font-extrabold text-gray-900 mb-3">What&apos;s here this week</h3>
+      <p className="text-xs font-bold uppercase tracking-widest text-amber-700 mb-1">Start here</p>
+      <h3 className="text-base font-extrabold text-gray-900 mb-3">Good places to start</h3>
 
       <div className="space-y-2">
         {ITEMS.map(it => (

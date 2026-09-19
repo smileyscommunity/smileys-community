@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
 
 // One-time quote ask. Surfaces on the dashboard once a member has actually
 // shown up three times (checked-in events, the strict signal) and hasn't
@@ -19,7 +20,15 @@ import { toast } from 'sonner'
 const DISMISS_KEY = 'dismissed_testimonial_prompt'
 const QUOTE_MAX = 300
 
-export default function TestimonialPrompt({ cityName }: { cityName?: string }) {
+// The quote is filed under the member's HOME city (POST /api/testimonials
+// uses user.cityId), so that's the city the copy names. It used to name the
+// city being viewed, which asked a member browsing another city about a place
+// their quote would never appear. Home comes from useCurrentCity —
+// `homeName` while viewing elsewhere, otherwise the current city is home.
+// Until that resolves, the copy just says "Smileys".
+export default function TestimonialPrompt() {
+  const current  = useCurrentCity()
+  const cityName = current ? (current.viewing ? current.homeName : current.name) : null
   const [mounted,   setMounted]   = useState(false)
   const [dismissed, setDismissed] = useState(false)
   const [quote,     setQuote]     = useState('')

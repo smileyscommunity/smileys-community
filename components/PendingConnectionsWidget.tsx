@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
 import { resolveImageUrl, getInitials } from '@/lib/data'
 import { notifyConnectionsChanged } from '@/lib/pendingConnections'
 
@@ -26,7 +27,10 @@ export default function PendingConnectionsWidget() {
   const [acting,   setActing]   = useState<string | null>(null)
 
   useEffect(() => {
-    fetch('/app/api/connections', { credentials: 'include' })
+    // Only the requests waiting on me — the unfiltered endpoint returns the
+    // member's whole network, both directions, to fill a card that is
+    // usually empty.
+    fetch('/app/api/connections?direction=received&status=pending', { credentials: 'include' })
       .then(r => r.json())
       .then(d => {
         const received: PendingConn[] = Array.isArray(d.received)
@@ -38,24 +42,54 @@ export default function PendingConnectionsWidget() {
       .finally(() => setLoading(false))
   }, [])
 
+  // The row leaves the list as soon as it's tapped. If the server says no, it
+  // comes back where it was and the member is told why — a silent failure
+  // used to leave the request looking handled when it wasn't. A 404 is the
+  // exception: the request is gone (withdrawn, or the account is), so there
+  // is nothing to put back.
   async function respond(connId: string, action: 'accept' | 'decline') {
+    const index = pending.findIndex(c => c.id === connId)
+    const row   = pending[index]
+    if (!row) return
     setActing(connId)
+    setPending(prev => prev.filter(c => c.id !== connId))
     try {
-      if (action === 'accept') {
-        const res = await fetch(`/app/api/connections/${connId}`, {
-          method: 'PATCH', credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'accept' }),
-        })
-        if (res.ok) { setPending(prev => prev.filter(c => c.id !== connId)); notifyConnectionsChanged() }
-      } else {
-        const res = await fetch(`/app/api/connections/${connId}`, {
-          method: 'DELETE', credentials: 'include',
-        })
+      const res = action === 'accept'
+        ? await fetch(`/app/api/connections/${connId}`, {
+            method: 'PATCH', credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'accept' }),
+          })
+        : await fetch(`/app/api/connections/${connId}`, {
+            method: 'DELETE', credentials: 'include',
+          })
+      if (res.ok) {
         // Nav badges hold their own count — tell them it moved.
-        if (res.ok) { setPending(prev => prev.filter(c => c.id !== connId)); notifyConnectionsChanged() }
+        notifyConnectionsChanged()
+        return
       }
+      const data = await res.json().catch(() => ({}))
+      const verb = action === 'accept' ? 'accept' : 'decline'
+      if (res.status === 404) {
+        toast.error('That request is no longer available')
+        notifyConnectionsChanged()
+        return
+      }
+      toast.error(data.error ?? `Couldn't ${verb} the request`)
+      restore(row, index)
+    } catch {
+      toast.error('Something went wrong — check your connection')
+      restore(row, index)
     } finally { setActing(null) }
+  }
+
+  function restore(row: PendingConn, index: number) {
+    setPending(prev => {
+      if (prev.some(c => c.id === row.id)) return prev
+      const next = [...prev]
+      next.splice(Math.min(index, next.length), 0, row)
+      return next
+    })
   }
 
   if (loading || pending.length === 0) return null

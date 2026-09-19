@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
+import {
+  DISMISSED_KEY, SNOOZE_KEY, parseDismissedIds, isSnoozed, snoozeUntil,
+} from '@/lib/reviewReminder'
 
 interface UnreviewedEvent {
   id:    string
@@ -14,33 +17,39 @@ interface Props {
   events: UnreviewedEvent[]
 }
 
+// Storage can throw (private mode, blocked site data); the reminder must not
+// take the dashboard with it.
+function storageGet(key: string): string | null { try { return localStorage.getItem(key) } catch { return null } }
+function storageSet(key: string, value: string): void { try { localStorage.setItem(key, value) } catch {} }
+
 export default function ReviewReminder({ events }: Props) {
   const [dismissedIds, setDismissedIds] = useState<string[]>([])
+  const [snoozed, setSnoozed] = useState(false)
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
     setMounted(true)
-    let stored: string | null = null
-    try { stored = localStorage.getItem('dismissed_reviews') } catch {}
-    if (stored) {
-      try {
-        setDismissedIds(JSON.parse(stored))
-      } catch {
-        try { localStorage.removeItem('dismissed_reviews') } catch {}
-      }
-    }
+    setDismissedIds(parseDismissedIds(storageGet(DISMISSED_KEY)))
+    setSnoozed(isSnoozed(storageGet(SNOOZE_KEY), Date.now()))
   }, [])
 
   const activeEvents = events.filter(e => !dismissedIds.includes(e.id))
 
-  if (!mounted || activeEvents.length === 0) return null
+  if (!mounted || snoozed || activeEvents.length === 0) return null
 
   const next = activeEvents[0]
 
+  // "Maybe later": not now, for any event — back in a week.
+  const handleSnooze = () => {
+    storageSet(SNOOZE_KEY, snoozeUntil(Date.now()))
+    setSnoozed(true)
+  }
+
+  // ✕: never ask about this event again.
   const handleDismiss = () => {
     const updated = [...dismissedIds, next.id]
     setDismissedIds(updated)
-    try { localStorage.setItem('dismissed_reviews', JSON.stringify(updated)) } catch {}
+    storageSet(DISMISSED_KEY, JSON.stringify(updated))
   }
 
   return (
@@ -67,15 +76,20 @@ export default function ReviewReminder({ events }: Props) {
                 Leave a review
               </Link>
               <button
-                onClick={handleDismiss}
+                onClick={handleSnooze}
                 className="text-xs text-violet-200 hover:text-white font-medium px-2 py-1"
               >
                 Maybe later
               </button>
             </div>
           </div>
-          <button onClick={handleDismiss} className="text-white/40 hover:text-white">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <button
+            onClick={handleDismiss}
+            className="text-white/40 hover:text-white"
+            aria-label={`Don't ask again about ${next.title}`}
+            title="Don't ask again"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>

@@ -27,7 +27,6 @@ import ReferralImpact from '@/components/ReferralImpact'
 import InviteBanner from '@/components/InviteBanner'
 import AnnouncementBanner from '@/components/AnnouncementBanner'
 import OnboardingCard from '@/components/OnboardingCard'
-import CupPromoBanner from '@/components/CupPromoBanner'
 import CommunityPollWidget from '@/components/CommunityPollWidget'
 import PendingConnectionsWidget from '@/components/PendingConnectionsWidget'
 import ClubActivityTimeline from '@/components/ClubActivityTimeline'
@@ -42,6 +41,9 @@ import Image from 'next/image'
 import { categoryMeta } from '@/lib/handbook-categories'
 import { todayInTz, shiftDay } from '@/lib/cityTime'
 import { DEFAULT_TZ } from '@/lib/cityTime'
+import { eventEndsAt } from '@/lib/eventTime'
+import { DEFAULT_CITY_SLUG } from '@/lib/cities'
+import { restrictedSetFor } from '@/lib/memberPrivacy'
 
 export const dynamic = 'force-dynamic'
 
@@ -77,27 +79,47 @@ export default async function DashboardPage() {
   // dashboard was the biggest cross-city leak (Izmir's seeded clubs were
   // topping every Istanbul member's "new clubs" strip).
   const cityId = await resolveCityId(session)
+  // These four don't depend on each other — one round trip, not four.
+  const [cityConfig, neighborhoodCount, cityRow, blockRows, connectionRows] = await Promise.all([
+    getCityConfig(cityId),
+    prisma.neighborhood.count({ where: { cityId, active: true } }),
+    prisma.city.findUnique({
+      where:  { id: cityId },
+      select: { name: true, slug: true, lat: true, lng: true, timezone: true, status: true },
+    }),
+    // Everyone the viewer blocked or was blocked by. The activity wall named
+    // them — their hangouts, their "free right now" pings, their reviews and
+    // RSVPs — while every other member surface leaves a blocked pair out
+    // (lib/memberPrivacy). One query, used by every feed below.
+    prisma.memberBlock.findMany({
+      where:  { OR: [{ blockerId: session.id }, { blockedId: session.id }] },
+      select: { blockerId: true, blockedId: true },
+    }),
+    // The viewer's accepted connections: a connections-only member is shown
+    // to them and nobody else, and a suggestion shouldn't be someone they
+    // already know.
+    prisma.memberConnection.findMany({
+      where:  { status: 'accepted', OR: [{ requesterId: session.id }, { receiverId: session.id }] },
+      select: { requesterId: true, receiverId: true },
+    }),
+  ])
   // Country goes with it: national handbook articles (residence permits, SIM
   // cards) are true across a country, not across every city we run.
-  const cityCountry = (await getCityConfig(cityId)).country ?? null
+  const cityCountry = cityConfig.country ?? null
   // The weather card needs a point and a clock, not just an id — same city the
   // rest of this page is scoped to.
-  const hasNeighborhoods = (await prisma.neighborhood.count({
-    where: { cityId, active: true },
-  })) > 0
-  const city = await prisma.city.findUnique({
-    where:  { id: cityId },
-    select: { name: true, lat: true, lng: true, timezone: true, status: true },
+  const hasNeighborhoods = neighborhoodCount > 0
   // ComingSoon, not Live: this fallback only fires for a cityId with no City
   // row (stale session after a reseed). Claiming Live would walk a phantom
   // city straight through the founding gate as "Istanbul".
-  }) ?? { name: 'Istanbul', lat: null, lng: null, timezone: DEFAULT_TZ, status: CITY_STATUS.ComingSoon }
+  const city = cityRow ?? { name: 'Istanbul', slug: DEFAULT_CITY_SLUG, lat: null, lng: null, timezone: DEFAULT_TZ, status: CITY_STATUS.ComingSoon }
 
   // The member's city decides the calendar day; the row above already
   // carries its zone, and its fallback is the default city's.
   const tz         = city.timezone
   const today      = todayInTz(tz)
-  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
+  // This month on the member's city calendar (event dates are 'YYYY-MM-DD').
+  const monthStartStr = `${today.slice(0, 7)}-01`
   const weekAgo    = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
   const twoWeeksAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000)
   const monthAgo    = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
@@ -106,25 +128,25 @@ export default async function DashboardPage() {
   const weekEndStr  = shiftDay(today, 7)
   const monthEndStr = shiftDay(today, 30)
 
-  // Everyone the viewer blocked or was blocked by. The activity wall named
-  // them — their hangouts, their "free right now" pings, their reviews and
-  // RSVPs — while every other member surface leaves a blocked pair out
-  // (lib/memberPrivacy). One query, used by every feed below.
-  const blockRows = await prisma.memberBlock.findMany({
-    where:  { OR: [{ blockerId: session.id }, { blockedId: session.id }] },
-    select: { blockerId: true, blockedId: true },
-  })
   const blockedIds     = blockRows.map(b => b.blockerId === session.id ? b.blockedId : b.blockerId)
   const notMeOrBlocked = [session.id, ...blockedIds]
+  const connectedIds   = connectionRows.map(c => c.requesterId === session.id ? c.receiverId : c.requesterId)
+  // An account shown on this page: live, not hidden (the RSVP feed's rule,
+  // now every feed's — hidden and banned members' activity was announced).
+  const LIVE = { status: 'approved', hiddenFromMembers: false } as const
+  // Someone listed as a person (near you, suggestions): also either public
+  // or already connected to the viewer — profileVisibility 'connections'
+  // means strangers don't get their photo, bio and neighbourhood.
+  const LISTABLE = { ...LIVE, OR: [{ profileVisibility: { not: 'connections' } }, { id: { in: connectedIds } }] }
 
-  const [myAttendances, myMemberships, eventsThisMonth, userProfile, , unreviewedRaw, weeklyVisitors, recentListings, recentMovingSales] = await Promise.all([
+  const [myAttendances, myMemberships, userProfile, unreviewedRaw, recentListings, recentMovingSales] = await Promise.all([
     // Lightweight: only ids + dates are needed for the id lists, counts,
     // and month/streak math. Full event objects for the upcoming cards
     // come from the separate (take: 5) query below — avoids loading every
     // attendance's full event payload.
     prisma.eventAttendee.findMany({
       where: { userId: session.id, status: 'approved' },
-      select: { eventId: true, event: { select: { date: true } } },
+      select: { eventId: true, attendance: true, event: { select: { date: true } } },
       orderBy: { joinedAt: 'desc' },
     }),
     prisma.clubMembership.findMany({
@@ -133,28 +155,26 @@ export default async function DashboardPage() {
       where: { userId: session.id, status: 'approved', club: { isActive: true } },
       include: { club: { select: { id: true, name: true, slug: true, emoji: true, bgColor: true, memberCount: true } } },
     }),
-    prisma.eventAttendee.count({
-      where: { userId: session.id, status: 'approved', joinedAt: { gte: new Date(monthStart) } },
-    }),
     prisma.user.findUnique({
       where: { id: session.id },
       select: { referralCode: true, profilePhoto: true, bio: true, neighborhood: true, joinedAt: true, color: true, membershipType: true, interests: true, instagram: true, gender: true, socialStyles: true, languages: true, nationality: true },
     }),
-    prisma.notification.count({ where: { userId: session.id, isRead: false } }),
+    // Events to review: the most recent past ones first (it took any five,
+    // so it nagged about old events and missed new ones), and never one the
+    // member was marked a no-show at — the review route refuses them.
     prisma.eventAttendee.findMany({
       where: {
         userId: session.id,
         status: 'approved',
+        attendance: { not: 'no_show' },
         event: { date: { lt: today }, status: { in: ['published', 'archived'] } }
       },
       include: { event: { select: { id: true, title: true, emoji: true, reviews: { where: { userId: session.id } } } } },
-      take: 5,
-    }),
-    prisma.profileView.count({
-      where: { viewedId: session.id, createdAt: { gte: weekAgo } },
+      orderBy: { event: { date: 'desc' } },
+      take: 10,
     }),
     prisma.listing.findMany({
-      where: { status: 'active', cityId, userId: { notIn: notMeOrBlocked } },
+      where: { status: 'active', cityId, userId: { notIn: notMeOrBlocked }, user: LIVE },
       orderBy: { createdAt: 'desc' },
       take: 4,
       select: { id: true, title: true, category: true, photo: true, photoPosition: true, price: true, createdAt: true, user: { select: { name: true, color: true, profilePhoto: true } } },
@@ -162,7 +182,8 @@ export default async function DashboardPage() {
     // Moving Sales — separate table from Listing, so it needs its own
     // query; was previously missing from the dashboard entirely.
     prisma.movingSale.findMany({
-      where: { status: 'active', cityId, userId: { notIn: notMeOrBlocked } },
+      // Not a sale whose leaving day has passed (the /moving-sales rule).
+      where: { status: 'active', cityId, userId: { notIn: notMeOrBlocked }, user: LIVE, leavingOn: { gte: today } },
       orderBy: { createdAt: 'desc' },
       take: 3,
       select: {
@@ -212,15 +233,24 @@ export default async function DashboardPage() {
   // narrowing this query's event shape to the lightweight {date} of
   // the first eventAttendee query, breaking `.title` access at build
   // time (local `tsc --noEmit` didn't catch it; `next build` did).
-  const upcomingAttendances = await prisma.eventAttendee.findMany({
-    where: { userId: session.id, status: 'approved', event: { date: { gte: today } } },
-    include: { event: { select: { id: true, title: true, date: true, time: true, neighborhood: true, emoji: true, price: true, currency: true, coverImage: true, limitedSpots: true, spotsLeft: true, lat: true, lng: true } } },
-    orderBy: [{ event: { date: 'asc' } }],
-    take: 5,
-  })
+  // Only published, not cancelled: an event still awaiting review 404s for
+  // the people holding a seat on it (12 members had one as "Next").
+  const upcomingWhere = { userId: session.id, status: 'approved', event: { date: { gte: today }, status: 'published', cancelledAt: null } } as const
+  const [upcomingRaw, upcomingCount] = await Promise.all([
+    prisma.eventAttendee.findMany({
+      where: upcomingWhere,
+      include: { event: { select: { id: true, title: true, date: true, time: true, endTime: true, neighborhood: true, emoji: true, price: true, currency: true, coverImage: true, limitedSpots: true, spotsLeft: true, lat: true, lng: true } } },
+      orderBy: [{ event: { date: 'asc' } }, { event: { time: 'asc' } }],
+      take: 6,
+    }),
+    prisma.eventAttendee.count({ where: upcomingWhere }),
+  ])
+  // An event that has already ended today isn't "Next" any more.
+  const upcomingAttendances = upcomingRaw.filter(a => eventEndsAt(a.event, tz).getTime() > Date.now()).slice(0, 5)
 
   const unreviewed = unreviewedRaw
     .filter((a) => a.event.reviews.length === 0)
+    .slice(0, 5)
     .map((a) => ({ id: a.event.id, title: a.event.title, emoji: a.event.emoji }))
 
   // Post-visit venue review prompt: the member's most-recent checked-in
@@ -229,6 +259,7 @@ export default async function DashboardPage() {
   // scan is capped. Null when there's nothing to prompt (component self-hides).
   // Several candidates, newest first: the prompt shows the first the member
   // hasn't dismissed (one dismissed venue blocked every later prompt).
+  const venuesToReviewP = (async () => {
   const venuesToReview: { businessId: string; businessName: string; eventTitle: string }[] = []
   {
     const checkedInVisits = await prisma.eventAttendee.findMany({
@@ -260,10 +291,13 @@ export default async function DashboardPage() {
       }
     }
   }
+  return venuesToReview
+  })()
 
   // Testimonial ask: three real show-ups (checked in, the strict signal) and
   // no quote from them yet — the member whose one line belongs on the wall.
   // The prompt itself is dismissible client-side; this is only eligibility.
+  const askTestimonialP = (async () => {
   let askTestimonial = false
   {
     const attended = await prisma.eventAttendee.count({
@@ -274,6 +308,11 @@ export default async function DashboardPage() {
       askTestimonial = given === 0
     }
   }
+  return askTestimonial
+  })()
+
+  // The venue and testimonial asks don't depend on each other: one round.
+  const [venuesToReview, askTestimonial] = await Promise.all([venuesToReviewP, askTestimonialP])
 
   const clubIds        = myMemberships.map((m) => m.clubId)
   const joinedEventIds = myAttendances.map((a) => a.eventId)
@@ -305,6 +344,10 @@ export default async function DashboardPage() {
     } else if (data?.active && data?.headline) {
       adBanners = [data]
     }
+    // A banner is for the city it was written for: `city` (a slug) when the
+    // banner names one, else the default city — banners.json has no city,
+    // and "Sail Istanbul, spots filling fast" was on every city's dashboard.
+    adBanners = adBanners.filter((b) => (typeof b.city === 'string' && b.city ? b.city : DEFAULT_CITY_SLUG) === city.slug)
   } catch { /* no banners */ }
 
   // First promo-type banner gets embedded in the orange hero section.
@@ -313,14 +356,16 @@ export default async function DashboardPage() {
   const centerBanners = heroBanner ? adBanners.filter((b) => b !== heroBanner) : adBanners
 
   // Pre-batch derivations needed inside the merged Promise.all below.
-  const fourteenDaysOut = new Date(Date.now() + 14 * 24 * 60 * 60_000).toISOString().slice(0, 10)
+  const fourteenDaysOut = shiftDay(today, 14)
+  // Suggestions: listable members (LISTABLE), not already connected, found
+  // through a shared club or a neighbourhood they chose to be listed in
+  // (neighborhoodVisible — the "show me to my neighbours" switch).
   const suggestedMembersWhere = (() => {
     const conditions: any[] = []
     if (clubIds.length) conditions.push({ clubMemberships: { some: { clubId: { in: clubIds }, status: 'approved' } } })
-    if (userProfile?.neighborhood) conditions.push({ neighborhood: userProfile.neighborhood })
-    return conditions.length > 0
-      ? { id: { notIn: notMeOrBlocked }, status: 'approved', hiddenFromMembers: false, cityId, OR: conditions }
-      : { id: { notIn: notMeOrBlocked }, status: 'approved', hiddenFromMembers: false, cityId }
+    if (userProfile?.neighborhood) conditions.push({ neighborhood: userProfile.neighborhood, neighborhoodVisible: true })
+    const base = { id: { notIn: [...notMeOrBlocked, ...connectedIds] }, cityId, AND: [LISTABLE] }
+    return conditions.length > 0 ? { ...base, OR: conditions } : base
   })()
 
   // One big parallel batch instead of two sequential ones with two
@@ -369,15 +414,17 @@ export default async function DashboardPage() {
         ...(clubIds.length
           ? { clubId: { in: clubIds } }
           : { club: { isPrivate: false, isActive: true, OR: [{ cityId }, { cityId: null }] } }),
-        userId: { notIn: notMeOrBlocked }, status: 'approved', joinedAt: { gte: weekAgo },
+        userId: { notIn: notMeOrBlocked }, status: 'approved', joinedAt: { gte: weekAgo }, user: LIVE,
       },
       include: { user: { select: { name: true, color: true } }, club: { select: { name: true, emoji: true, slug: true } } },
       orderBy: { joinedAt: 'desc' }, take: 5,
     }),
+    // Requests still waiting on an event that hasn't happened: a request on
+    // last month's event sat here forever.
     prisma.eventAttendee.findMany({
-      where: { userId: session.id, status: 'pending' },
+      where: { userId: session.id, status: 'pending', event: { date: { gte: today }, status: 'published', cancelledAt: null } },
       include: { event: { select: { id: true, title: true, date: true, emoji: true } } },
-      orderBy: { joinedAt: 'desc' }, take: 3,
+      orderBy: { joinedAt: 'desc' }, take: 10,
     }),
     // Club wall posts — same no-clubs fallback as joins above. The
     // isPrivate filter matters here: private-club posts must not
@@ -389,6 +436,8 @@ export default async function DashboardPage() {
           : { club: { isPrivate: false, isActive: true, OR: [{ cityId }, { cityId: null }] } }),
         type: { in: ['post', 'announcement'] },
         userId: { notIn: blockedIds },
+        user: LIVE,
+        createdAt: { gte: twoWeeksAgo },
       },
       orderBy: { createdAt: 'desc' }, take: 4,
       include: {
@@ -405,7 +454,7 @@ export default async function DashboardPage() {
             userId: { notIn: notMeOrBlocked },
             stealth: false,
             event: { cityId, date: { gte: today }, status: 'published', id: { notIn: joinedEventIds } },
-            user: { hiddenFromMembers: false, joinedEvents: { some: { eventId: { in: pastEventIds }, status: 'approved' } } },
+            user: { ...LIVE, joinedEvents: { some: { eventId: { in: pastEventIds }, status: 'approved' } } },
           },
           include: {
             user:  { select: { id: true, name: true, color: true, profilePhoto: true } },
@@ -418,10 +467,13 @@ export default async function DashboardPage() {
     // Member spotlight user profile
     spotlightData?.userId
       // A live member only: a spotlight outlived the member's ban or hiding.
+      // In their own city only (the spotlight is one site-wide file, and an
+      // Istanbul member's "top spots" mean nothing in Antalya), and never to
+      // someone in a block with them.
       ? prisma.user.findUnique({
           where:  { id: spotlightData.userId },
-          select: { id: true, name: true, color: true, profilePhoto: true, neighborhood: true, status: true, hiddenFromMembers: true },
-        }).then(u => (u && u.status === 'approved' && !u.hiddenFromMembers ? u : null))
+          select: { id: true, name: true, color: true, profilePhoto: true, neighborhood: true, status: true, hiddenFromMembers: true, cityId: true, profileVisibility: true },
+        }).then(u => (u && u.status === 'approved' && !u.hiddenFromMembers && u.cityId === cityId && !blockedIds.includes(u.id) ? u : null))
       : Promise.resolve(null),
     // Active community poll with user's vote
     prisma.communityPoll.findFirst({
@@ -440,7 +492,7 @@ export default async function DashboardPage() {
     prisma.event.findMany({
       where: { cityId, featured: true, date: { gte: today }, status: 'published', id: { notIn: joinedEventIds } },
       orderBy: { date: 'asc' }, take: 3,
-      select: { id: true, title: true, date: true, time: true, emoji: true, neighborhood: true, price: true, currency: true, spotsLeft: true, limitedSpots: true, coverImage: true },
+      select: { id: true, title: true, date: true, time: true, emoji: true, neighborhood: true, price: true, currency: true, spotsLeft: true, limitedSpots: true, soldOut: true, coverImage: true },
     }),
     // New this week: events added in the last seven days, newest first,
     // whatever the recommendation scoring makes of them. "Recommended" shows
@@ -457,7 +509,7 @@ export default async function DashboardPage() {
     // joined. Ordered soonest-first (date is text 'YYYY-MM-DD', so asc = chrono)
     // so the closest event sits on top — the one you need to grab a spot for now.
     prisma.event.findMany({
-      where: { cityId, date: { gte: today }, status: 'published', limitedSpots: true, spotsLeft: { gt: 0, lte: 5 }, id: { notIn: joinedEventIds } },
+      where: { cityId, date: { gte: today }, status: 'published', limitedSpots: true, soldOut: false, spotsLeft: { gt: 0, lte: 5 }, id: { notIn: joinedEventIds } },
       orderBy: [{ date: 'asc' }, { time: 'asc' }],
       take: 4,
       select: { id: true, title: true, date: true, emoji: true, spotsLeft: true, neighborhood: true, price: true },
@@ -481,12 +533,15 @@ export default async function DashboardPage() {
         // events under "new in your clubs".
         cityId,
         status:    'published',
+        date:      { gte: today },
         createdAt: { gte: twoWeeksAgo },
         id:        { notIn: joinedEventIds },
       },
       orderBy: { createdAt: 'desc' },
       take: 5,
-      include: { club: { select: { name: true, emoji: true, slug: true } } },
+      // Only what the timeline shows: a full Event row carries the address,
+      // meeting and chat links and payment contact.
+      select: { id: true, title: true, emoji: true, date: true, createdAt: true, club: { select: { name: true, emoji: true, slug: true } } },
     }),
     // Referral stats — reuses userProfile.referralCode (already loaded in
     // batch 1) instead of a redundant prisma.user.findUnique. Self-hides
@@ -520,7 +575,7 @@ export default async function DashboardPage() {
       },
       orderBy: { startsOn: 'asc' },
       take: 4,
-      include: { user: { select: { id: true, name: true, color: true, profilePhoto: true } } },
+      include: { user: { select: { id: true, name: true, color: true, profilePhoto: true, profileVisibility: true } } },
     }),
     // From the Handbook — surfaces the freshest expat-survival articles
     // so members discover the KB without leaving the dashboard. Same
@@ -556,22 +611,28 @@ export default async function DashboardPage() {
       // "Joined Smileys · <neighborhood>" is only said of members who show
       // their profile to everyone.
       where: { cityId, status: 'approved', hiddenFromMembers: false, profileVisibility: { not: 'connections' }, joinedAt: { gte: weekAgo }, id: { notIn: notMeOrBlocked } },
-      select: { id: true, name: true, color: true, profilePhoto: true, neighborhood: true, joinedAt: true },
+      select: { id: true, name: true, color: true, profilePhoto: true, neighborhood: true, neighborhoodVisible: true, joinedAt: true },
       orderBy: { joinedAt: 'desc' },
       take: 8,
-    }),
+    }).then(rows => rows.map(({ neighborhoodVisible, ...m }) => ({ ...m, neighborhood: neighborhoodVisible ? m.neighborhood : null }))),
     // Merge event-attached photos with standalone club photos so a
     // photo uploaded directly to a club (no event) still surfaces here.
     // Over-fetch from each pool, then trim to 9 after a unified sort.
     Promise.all([
+      // Only galleries the viewer can open: events they were at or ran, clubs
+      // they're in. The city's every photo named stealth guests and showed
+      // private clubs' galleries to everyone.
       prisma.eventPhoto.findMany({
-        where: { event: { cityId } },
+        where: {
+          event: { cityId, OR: [{ id: { in: joinedEventIds } }, { hostId: session.id }, { cohosts: { some: { userId: session.id } } }] },
+          userId: { notIn: blockedIds }, user: LIVE,
+        },
         orderBy: { createdAt: 'desc' },
         take: 9,
         select: { id: true, url: true, caption: true, createdAt: true, eventId: true, event: { select: { title: true } }, user: { select: { name: true, color: true } } },
       }),
       prisma.clubPhoto.findMany({
-        where: { club: { OR: [{ cityId }, { cityId: null }] } },
+        where: { clubId: { in: clubIds }, club: { isActive: true, OR: [{ cityId }, { cityId: null }] }, userId: { notIn: blockedIds }, user: LIVE },
         orderBy: { createdAt: 'desc' },
         take: 9,
         select: { id: true, url: true, caption: true, createdAt: true, club: { select: { slug: true, name: true } }, user: { select: { name: true, color: true } } },
@@ -584,16 +645,18 @@ export default async function DashboardPage() {
     // event exclusion that used to live in the WHERE clause is now a
     // post-fetch JS dedupe so this query no longer waits on featuredEvents.
     // Over-fetch by the featured `take: 3` to absorb the dedupe loss.
+    // Ranked by people actually going (approved seats), in JS: the SQL order
+    // counted every attendee row, cancelled ones included.
     prisma.event.findMany({
       where: { cityId, date: { gte: today }, status: 'published', id: { notIn: joinedEventIds } },
       orderBy: { attendees: { _count: 'desc' } },
-      take: 7,
+      take: 20,
       select: { id: true, title: true, date: true, emoji: true, neighborhood: true, price: true, currency: true, totalSpots: true, spotsLeft: true, limitedSpots: true, _count: { select: { attendees: { where: { status: 'approved' } } } } },
     }),
     // Members near you: same neighborhood, excluding self
     userProfile?.neighborhood
       ? prisma.user.findMany({
-          where: { neighborhood: userProfile.neighborhood, status: 'approved', hiddenFromMembers: false, cityId, id: { notIn: notMeOrBlocked } },
+          where: { neighborhood: userProfile.neighborhood, neighborhoodVisible: true, cityId, id: { notIn: notMeOrBlocked }, AND: [LISTABLE] },
           select: { id: true, name: true, color: true, profilePhoto: true, bio: true },
           orderBy: { joinedAt: 'desc' },
           take: 6,
@@ -617,7 +680,7 @@ export default async function DashboardPage() {
     }),
     // Active hangouts happening now — started, not merely posted.
     prisma.hangout.findMany({
-      where: { status: 'active', cityId, startsAt: { lte: new Date() }, endsAt: { gt: new Date() } },
+      where: { status: 'active', cityId, startsAt: { lte: new Date() }, endsAt: { gt: new Date() }, userId: { notIn: blockedIds }, user: LIVE },
       select: { id: true, neighborhood: true },
       orderBy: { startsAt: 'asc' },
       take: 10,
@@ -625,7 +688,7 @@ export default async function DashboardPage() {
     // Recent hangouts posted — feeds ClubActivityTimeline so the dashboard
     // cross-promotes spontaneous meetups alongside club activity.
     prisma.hangout.findMany({
-      where: { status: 'active', cityId, endsAt: { gt: new Date() }, createdAt: { gte: weekAgo }, userId: { notIn: notMeOrBlocked } },
+      where: { status: 'active', cityId, endsAt: { gt: new Date() }, createdAt: { gte: weekAgo }, userId: { notIn: notMeOrBlocked }, user: LIVE },
       orderBy: { createdAt: 'desc' },
       take: 5,
       select: {
@@ -638,7 +701,7 @@ export default async function DashboardPage() {
     // now" strip (id/photo for avatars) + ClubActivityTimeline. Excludes
     // the viewer's own, last 7 days.
     prisma.availabilityPulse.findMany({
-      where: { until: { gte: new Date() }, cityId, createdAt: { gte: weekAgo }, userId: { notIn: notMeOrBlocked } },
+      where: { until: { gte: new Date() }, cityId, createdAt: { gte: weekAgo }, userId: { notIn: notMeOrBlocked }, user: LIVE },
       orderBy: { createdAt: 'desc' },
       take: 5,
       select: {
@@ -652,8 +715,9 @@ export default async function DashboardPage() {
       where: {
         status:    'accepted',
         updatedAt: { gte: weekAgo },
-        requester: { cityId },
-        receiver:  { cityId },
+        // Who a connections-only or hidden member connects with is theirs.
+        requester: { cityId, ...LIVE, profileVisibility: { not: 'connections' } },
+        receiver:  { cityId, ...LIVE, profileVisibility: { not: 'connections' } },
         NOT: { OR: [{ requesterId: session.id }, { receiverId: session.id }] },
         requesterId: { notIn: blockedIds },
         receiverId:  { notIn: blockedIds },
@@ -673,6 +737,7 @@ export default async function DashboardPage() {
         vibe:       'good',
         createdAt:  { gte: weekAgo },
         fromUserId: { notIn: notMeOrBlocked },
+        fromUser:   LIVE,
         hangout:    { cityId },
       },
       orderBy: { createdAt: 'desc' },
@@ -692,7 +757,7 @@ export default async function DashboardPage() {
       where: {
         status:    'approved',
         stealth:   false,
-        user:      { hiddenFromMembers: false },
+        user:      LIVE,
         userId:    { notIn: notMeOrBlocked },
         joinedAt:  { gte: weekAgo },
         event:     { cityId, status: 'published', date: { gte: today } },
@@ -724,7 +789,7 @@ export default async function DashboardPage() {
     // Event reviews — 4★+ only, mirroring the 'good'-vibes filter on
     // hangout references so the wall stays celebratory, not gripey.
     prisma.review.findMany({
-      where:   { rating: { gte: 4 }, createdAt: { gte: weekAgo }, userId: { notIn: notMeOrBlocked }, event: { cityId } },
+      where:   { rating: { gte: 4 }, createdAt: { gte: weekAgo }, userId: { notIn: notMeOrBlocked }, user: LIVE, event: { cityId } },
       orderBy: { createdAt: 'desc' },
       take: 4,
       select: {
@@ -740,6 +805,7 @@ export default async function DashboardPage() {
         isHidden:  false,
         createdAt: { gte: weekAgo },
         authorId:  { notIn: notMeOrBlocked },
+        author:    LIVE,
         business:  { isApproved: true, isActive: true, cityId },
       },
       orderBy: { createdAt: 'desc' },
@@ -752,7 +818,7 @@ export default async function DashboardPage() {
     }),
     // Hangout joins — joining is as strong a social signal as posting.
     prisma.hangoutJoin.findMany({
-      where:   { createdAt: { gte: weekAgo }, userId: { notIn: notMeOrBlocked }, hangout: { status: 'active', cityId } },
+      where:   { createdAt: { gte: weekAgo }, userId: { notIn: notMeOrBlocked }, user: LIVE, hangout: { status: 'active', cityId } },
       orderBy: { createdAt: 'desc' },
       take: 4,
       select: {
@@ -763,7 +829,7 @@ export default async function DashboardPage() {
     }),
     // Neighborhood wall posts.
     prisma.neighborhoodPost.findMany({
-      where:   { cityId, createdAt: { gte: weekAgo }, userId: { notIn: notMeOrBlocked } },
+      where:   { cityId, createdAt: { gte: weekAgo }, userId: { notIn: notMeOrBlocked }, user: LIVE },
       orderBy: { createdAt: 'desc' },
       take: 4,
       select: {
@@ -822,8 +888,11 @@ export default async function DashboardPage() {
   // "Your lineup" — club picks for the member's first three weeks, from
   // their registration interests + new-in-town answer. After the window
   // the block retires on its own; no dismissal state to store.
+  // Mapped to the tile's fields: RecommendedClubs is a client component, and
+  // every field of a prop reaches the browser (getClubs rows carry the
+  // WhatsApp invite link).
   const lineupClubs = userProfile && userProfile.joinedAt > new Date(Date.now() - 21 * 86_400_000)
-    ? await recommendedClubsFor({
+    ? (await recommendedClubsFor({
         cityId,
         interests:      userProfile.interests ?? [],
         // The Language clubs are most of what a global-club city adds, and
@@ -832,7 +901,7 @@ export default async function DashboardPage() {
         nationality:    userProfile.nationality,
         newInTown:      userProfile.socialStyles?.includes('new_in_town') ?? false,
         excludeClubIds: clubIds,
-      })
+      })).map(c => ({ id: c.id, slug: c.slug, name: c.name, emoji: c.emoji, bgColor: c.bgColor, category: c.category, memberCount: c.memberCount }))
     : []
 
   const recommendedEvents = recommendedCandidates
@@ -884,6 +953,17 @@ export default async function DashboardPage() {
     }
   }
 
+  // A connections-only member, to a stranger: the visitors strip shows the
+  // card without who posted it (the /visiting rule), and the spotlight
+  // shows a first name with no photo or neighbourhood (the club spotlight's).
+  const restricted = await restrictedSetFor(session, [
+    ...upcomingVisitors.flatMap(v => v.user ? [v.user] : []),
+    ...(spotlightUser ? [spotlightUser] : []),
+  ])
+  const shownSpotlight = spotlightUser && restricted.has(spotlightUser.id)
+    ? { ...spotlightUser, name: firstNameOf(spotlightUser.name), profilePhoto: null, neighborhood: null }
+    : spotlightUser
+
   // Deduplicate who's going by userId
   const seenUsers = new Set<string>()
   const whosGoing = whosGoingRaw.filter((a) => seenUsers.has(a.userId) ? false : (seenUsers.add(a.userId), true)).slice(0, 8)
@@ -899,39 +979,30 @@ export default async function DashboardPage() {
     ? new Date(userProfile.joinedAt).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
     : null
 
-  // Monthly streak: consecutive months (going back from now) with ≥1 event attended
-  const monthsWithEvents = new Set(
-    myAttendances.filter((a) => a.event.date <= today).map((a) => a.event.date.slice(0, 7))
-  )
-  let monthStreak = 0
-  {
-    const d = new Date()
-    let yr = d.getFullYear(), mo = d.getMonth() + 1
-    while (monthStreak < 36) {
-      const key = `${yr}-${String(mo).padStart(2, '0')}`
-      if (!monthsWithEvents.has(key)) break
-      monthStreak++
-      mo--; if (mo === 0) { mo = 12; yr-- }
-    }
-  }
-
   // Deduplicate: recommended must not repeat featured events
   const featuredIds = new Set(featuredEvents.map((e) => e.id))
   const deduplicatedRecommended = recommendedEvents.filter((e) => !featuredIds.has(e.id))
   // Post-fetch dedupe of trending against featured (used to live in the
   // SQL WHERE clause; moved here so the query no longer waited on
   // featuredEvents). Slice to 4 to match the original UI cap.
-  const trendingEvents = trendingEventsRaw.filter((e) => !featuredIds.has(e.id)).slice(0, 4)
+  const trendingEvents = trendingEventsRaw
+    .filter((e) => !featuredIds.has(e.id))
+    .sort((a, b) => b._count.attendees - a._count.attendees || (a.date < b.date ? -1 : 1))
+    .slice(0, 4)
 
-  // Trimmed from 6 vanity tiles to 4 — drops "Events attended" (lifetime
-  // total grows slowly) and "My clubs" (changes once a month). The
-  // remaining four are either forward-looking (Upcoming, This month),
-  // motivational (Month streak), or actually-clickable (Profile views).
+  // Plain counts of real things. The streak and the profile-view counter
+  // went: a streak reset every 1st (and counted no-shows), and a view
+  // counter is the kind of loop this community doesn't run on. "This month"
+  // was RSVPs *made* this month; it's now events the member went to this
+  // month, on their city's calendar.
+  // A recorded no-show isn't an event gone to.
+  const wentTo            = myAttendances.filter(a => a.event.date < today && a.attendance !== 'no_show')
+  const attendedThisMonth = wentTo.filter(a => a.event.date >= monthStartStr).length
   const stats: { label: string; value: number; href?: string }[] = [
-    { label: 'Upcoming',      value: upcomingEvents.length },
-    { label: 'Profile views', value: weeklyVisitors, href: '/profile-visitors' },
-    { label: 'Month streak',  value: monthStreak           },
-    { label: 'This month',    value: eventsThisMonth       },
+    { label: 'Upcoming',       value: upcomingCount,          href: '/my-events' },
+    { label: 'This month',     value: attendedThisMonth       },
+    { label: 'Events so far',  value: wentTo.length           },
+    { label: 'My clubs',       value: clubs.length,           href: '/clubs' },
   ]
 
   return (
@@ -964,14 +1035,6 @@ export default async function DashboardPage() {
                   </span>
                 </div>
               )}
-              {/* Smileys Cup 2026 — compact pill sitting next to the
-                  "Next: <event>" pill (when present) so it shares the
-                  same row of action affordances under the member's
-                  name instead of taking its own full-width row below
-                  the stats strip. Saves significant vertical space
-                  above the fold on mobile. Dismissible per-browser
-                  and auto-hides post-tournament. */}
-              <CupPromoBanner />
             </div>
             <div className="shrink-0 flex flex-col items-end gap-2">
               {userProfile?.profilePhoto ? (
@@ -1139,26 +1202,26 @@ export default async function DashboardPage() {
             )}
 
             {/* Member Spotlight */}
-            {spotlightUser && spotlightData && (
+            {shownSpotlight && spotlightData && (
               <div className="bg-white rounded-2xl shadow-card p-5">
                 <div className="flex items-center gap-1.5 mb-3">
                   <span className="text-sm">⭐</span>
                   <h2 className="text-sm font-bold text-gray-900">Member spotlight</h2>
                 </div>
                 <div className="flex items-center gap-3 mb-3">
-                  {spotlightUser.profilePhoto ? (
-                    <img src={avatarUrl(spotlightUser.profilePhoto, 128)} alt={spotlightUser.name} loading="lazy" decoding="async"
+                  {shownSpotlight.profilePhoto ? (
+                    <img src={avatarUrl(shownSpotlight.profilePhoto, 128)} alt={shownSpotlight.name} loading="lazy" decoding="async"
                       className="w-14 h-14 rounded-full object-cover shrink-0" />
                   ) : (
                     <div className="w-14 h-14 rounded-full shrink-0 flex items-center justify-center text-white font-bold text-lg"
-                      style={{ backgroundColor: spotlightUser.color }}>
-                      {spotlightUser.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2)}
+                      style={{ backgroundColor: shownSpotlight.color }}>
+                      {shownSpotlight.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2)}
                     </div>
                   )}
                   <div className="min-w-0">
-                    <p className="font-bold text-gray-900 truncate">{spotlightUser.name}</p>
-                    {spotlightUser.neighborhood && (
-                      <p className="text-xs text-gray-400">📍 {spotlightUser.neighborhood}</p>
+                    <p className="font-bold text-gray-900 truncate">{shownSpotlight.name}</p>
+                    {shownSpotlight.neighborhood && (
+                      <p className="text-xs text-gray-400">📍 {shownSpotlight.neighborhood}</p>
                     )}
                   </div>
                 </div>
@@ -1333,7 +1396,7 @@ export default async function DashboardPage() {
                 recent checked-in venue the member hasn't reviewed. */}
             {/* The first venue not yet dismissed; with none left, the testimonial ask. */}
             <VenueReviewPrompts candidates={venuesToReview}
-              fallback={askTestimonial ? <TestimonialPrompt cityName={city.name} /> : null} />
+              fallback={askTestimonial ? <TestimonialPrompt /> : null} />
             {/* Never both at once — two asks stacked reads as a survey wall.
                 The venue review wins (it's time-sensitive; this one isn't). */}
 
@@ -1393,9 +1456,12 @@ export default async function DashboardPage() {
                       <div className="shrink-0 w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-xl relative z-10">{banner.emoji}</div>
                     </div>
                   )
+                  // An internal link goes through Link (which adds the /app base);
+                  // a raw <a href="/events"> left the app.
                   return banner.link ? (
-                    <a key={banner.id || i} href={banner.link} target={banner.link.startsWith('http') ? '_blank' : undefined}
-                      rel={banner.link.startsWith('http') ? 'noopener noreferrer' : undefined} className="block h-full group">{inner}</a>
+                    banner.link.startsWith('http')
+                      ? <a key={banner.id || i} href={banner.link} target="_blank" rel="noopener noreferrer" className="block h-full group">{inner}</a>
+                      : <Link key={banner.id || i} href={banner.link} className="block h-full group">{inner}</Link>
                   ) : <div key={banner.id || i}>{inner}</div>
                 })}
               </div>
@@ -1447,7 +1513,9 @@ export default async function DashboardPage() {
               name:     v.name,
               startsOn: typeof v.startsOn === 'string' ? v.startsOn : new Date(v.startsOn).toISOString().split('T')[0],
               endsOn:   typeof v.endsOn   === 'string' ? v.endsOn   : new Date(v.endsOn).toISOString().split('T')[0],
-              user:     v.user ?? null,
+              user:     v.user && !restricted.has(v.user.id)
+                ? { id: v.user.id, name: v.user.name, color: v.user.color, profilePhoto: v.user.profilePhoto }
+                : null,
             }))} cityName={city.name} />
 
             {/* Spots running low — urgent, time-sensitive */}
@@ -1479,7 +1547,7 @@ export default async function DashboardPage() {
               <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
                 <h3 className="text-sm font-bold text-amber-800 mb-2">⏳ Pending approval ({waitlisted.length})</h3>
                 <div className="space-y-2">
-                  {waitlisted.map(({ event }) => (
+                  {waitlisted.slice(0, 3).map(({ event }) => (
                     <Link key={event.id} href={`/events/${event.id}`}
                       className="flex items-center gap-3 hover:opacity-80 transition-opacity">
                       <span className="text-lg">{event.emoji}</span>
@@ -1695,7 +1763,7 @@ export default async function DashboardPage() {
                       </div>
                       <div className="text-right shrink-0 self-center">
                         <span className="text-sm font-bold text-gray-900">{event.price === 0 ? 'Free' : formatPrice(event.price, event.currency)}</span>
-                        {event.limitedSpots && event.spotsLeft > 0 && event.spotsLeft <= 5 && (
+                        {event.limitedSpots && !event.soldOut && event.spotsLeft > 0 && event.spotsLeft <= 5 && (
                           <p className="text-xs text-red-500 font-medium">{event.spotsLeft} left</p>
                         )}
                       </div>
@@ -1709,14 +1777,16 @@ export default async function DashboardPage() {
             {recentListings.length > 0 && (
               <div className="bg-white rounded-2xl shadow-card p-5">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-sm font-bold text-gray-900">📋 Community Board</h2>
-                  <Link href="/board" className="text-xs text-amber-600 font-semibold hover:underline">See all →</Link>
+                  {/* Listings live on the marketplace since the board/marketplace
+                      split; /board is the conversation feed. */}
+                  <h2 className="text-sm font-bold text-gray-900">🛍️ Marketplace</h2>
+                  <Link href="/marketplace" className="text-xs text-amber-600 font-semibold hover:underline">See all →</Link>
                 </div>
                 <div className="space-y-3">
                   {recentListings.map((l) => {
                     const EMOJI: Record<string, string> = { ROOMS: '🏠', JOBS: '💼', SERVICES: '🛠️', BUY_SELL: '🛍️', FREE: '🎁', LOST_FOUND: '🔍', RECO: '⭐', EXPERIENCES: '🎟️', PETS: '🐾' }
                     return (
-                      <Link key={l.id} href={`/board?id=${l.id}`}
+                      <Link key={l.id} href={`/marketplace?l=${l.id}`}
                         className="flex items-center gap-3 group">
                         <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center text-lg shrink-0">
                           {EMOJI[l.category] ?? '📋'}
@@ -1745,11 +1815,11 @@ export default async function DashboardPage() {
               <div className="bg-white rounded-2xl shadow-card p-5">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-sm font-bold text-gray-900">📦 Moving Sales</h2>
-                  <Link href="/board?tab=MOVING" className="text-xs text-amber-600 font-semibold hover:underline">See all →</Link>
+                  <Link href="/marketplace?tab=MOVING" className="text-xs text-amber-600 font-semibold hover:underline">See all →</Link>
                 </div>
                 <div className="space-y-3">
                   {recentMovingSales.map((s) => (
-                    <Link key={s.id} href="/board?tab=MOVING" className="flex items-center gap-3 group">
+                    <Link key={s.id} href="/marketplace?tab=MOVING" className="flex items-center gap-3 group">
                       <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center text-lg shrink-0">📦</div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-gray-900 group-hover:text-amber-600 transition-colors truncate">
@@ -1802,7 +1872,9 @@ export default async function DashboardPage() {
                   <div>
                     <h2 className="text-xl font-bold text-gray-900">Recommended for you</h2>
                     <p className="text-xs text-gray-400 mt-0.5">
-                      {clubIds.length > 0 ? 'Based on your clubs' : userProfile?.neighborhood ? `Events in ${userProfile.neighborhood}` : 'Upcoming events'}
+                      {/* Scored by clubs, interests and neighbourhood together — the
+                          old "Based on your clubs" was shown whatever did the picking. */}
+                      {clubIds.length > 0 || wantedTagIds.size > 0 || userProfile?.neighborhood ? 'From your clubs, interests and neighbourhood' : 'Upcoming events'}
                     </p>
                   </div>
                   <Link href="/events" className="text-sm text-amber-600 font-semibold hover:underline">Browse all →</Link>
@@ -2121,7 +2193,7 @@ export default async function DashboardPage() {
                   <div className="p-4">
                     <div className="flex items-center gap-1.5 mb-2">
                       <span className="text-[10px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full uppercase tracking-wide">★ Featured</span>
-                      {e.limitedSpots && e.spotsLeft > 0 && e.spotsLeft <= 5 && (
+                      {e.limitedSpots && !e.soldOut && e.spotsLeft > 0 && e.spotsLeft <= 5 && (
                         <span className="text-[10px] font-bold text-red-600 bg-red-100 px-1.5 py-0.5 rounded-full">{e.spotsLeft} spots left</span>
                       )}
                     </div>
@@ -2140,7 +2212,7 @@ export default async function DashboardPage() {
               const l = recentListings[Math.floor(Math.random() * recentListings.length)]
               const EMOJI: Record<string, string> = { ROOMS: '🏠', JOBS: '💼', SERVICES: '🛠️', BUY_SELL: '🛍️', FREE: '🎁', LOST_FOUND: '🔍', RECO: '⭐', EXPERIENCES: '🎟️', PETS: '🐾' }
               return (
-                <Link href={`/board?id=${l.id}`} className="block bg-white rounded-2xl shadow-card p-4 hover:shadow-md transition-shadow group">
+                <Link href={`/marketplace?l=${l.id}`} className="block bg-white rounded-2xl shadow-card p-4 hover:shadow-md transition-shadow group">
                   <div className="flex items-center justify-between mb-3">
                     <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">New on Board</h2>
                     <span className="text-lg">{EMOJI[l.category] ?? '📋'}</span>

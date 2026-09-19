@@ -1,21 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-
-interface Option {
-  id:      string
-  text:    string
-  votes:   number
-  percent: number
-}
-
-interface Poll {
-  id:            string
-  question:      string
-  totalVotes:    number
-  votedOptionId: string | null
-  options:       Option[]
-}
+import { toast } from 'sonner'
+import { applyOptimisticVote, type PollState as Poll } from '@/lib/pollOptimistic'
 
 export default function CommunityPollWidget({ initial }: { initial: Poll | null }) {
   const [poll,    setPoll]    = useState<Poll | null>(initial)
@@ -25,20 +12,37 @@ export default function CommunityPollWidget({ initial }: { initial: Poll | null 
 
   const hasVoted = !!poll.votedOptionId
 
+  // The vote shows at once; if the server refuses it (closed poll, rate
+  // limit, lost connection) the member is told why and the poll goes back to
+  // votable. It used to fail silently, leaving "Tap to vote" under a tap that
+  // had done nothing.
   async function vote(optionId: string) {
-    if (voting || hasVoted) return
+    if (voting || hasVoted || !poll) return
+    const before = poll
     setVoting(true)
+    setPoll(applyOptimisticVote(before, optionId))
     try {
       const res = await fetch('/app/api/community-poll', {
         method:  'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ pollId: poll!.id, optionId }),
+        body:    JSON.stringify({ pollId: before.id, optionId }),
       })
-      if (!res.ok) return
-      // Refresh poll data
-      const updated = await fetch('/app/api/community-poll', { credentials: 'include' }).then(r => r.json())
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        toast.error(data.error ?? "Couldn't record your vote")
+        setPoll(before)
+        return
+      }
+      // Swap the local guess for the real tallies. A failed refresh keeps the
+      // guess — the vote itself went through.
+      const updated = await fetch('/app/api/community-poll', { credentials: 'include' })
+        .then(r => (r.ok ? r.json() : null))
+        .catch(() => null)
       if (updated) setPoll(updated)
+    } catch {
+      toast.error('Something went wrong — check your connection')
+      setPoll(before)
     } finally { setVoting(false) }
   }
 

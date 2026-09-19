@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { neighborhoodToSlug } from '@/lib/neighborhoods'
@@ -27,12 +28,30 @@ const BASE_LINKS: LinkItem[] = [
   { label: 'Install App',       href: '#install',          icon: '📲', isAction: true },
 ]
 
+// Already running as the installed app: offering to install it is noise.
+// Same test InstallPrompt uses (iOS Safari only exposes navigator.standalone).
+function isStandalone(): boolean {
+  try {
+    return window.matchMedia('(display-mode: standalone)').matches ||
+      !!(navigator as Navigator & { standalone?: boolean }).standalone
+  } catch {
+    return false
+  }
+}
+
 export default function QuickLinks() {
   const { user } = useAuth()
+  // Unknown until mount (the server can't tell), and hidden while unknown so
+  // the installed app never flashes an "Install App" row; in a browser tab it
+  // appears once the check has run.
+  const [showInstall, setShowInstall] = useState(false)
+  useEffect(() => { setShowInstall(!isStandalone()) }, [])
+
   const wallLink: LinkItem | null = user.neighborhood
     ? { label: `${user.neighborhood} wall`, href: `/neighborhoods/${neighborhoodToSlug(user.neighborhood)}#wall`, icon: '📍' }
     : null
-  const LINKS = wallLink ? [...BASE_LINKS.slice(0, 4), wallLink, ...BASE_LINKS.slice(4)] : BASE_LINKS
+  const base  = showInstall ? BASE_LINKS : BASE_LINKS.filter(l => !l.isAction)
+  const LINKS = wallLink ? [...base.slice(0, 4), wallLink, ...base.slice(4)] : base
   return (
     <div className="bg-white rounded-2xl shadow-card p-5">
       <h2 className="text-base font-bold text-gray-900 mb-3">Quick links</h2>
