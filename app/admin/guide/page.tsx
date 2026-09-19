@@ -300,7 +300,7 @@ export default function AdminGuidePage() {
             {openCat === ci && (
               <div className="border-t border-zinc-800 p-4 space-y-4">
                 {/* Category meta */}
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className={labelCls}>Icon (emoji)</label>
                     <input value={cat.icon} onChange={e => updateCat(ci, 'icon', e.target.value)}

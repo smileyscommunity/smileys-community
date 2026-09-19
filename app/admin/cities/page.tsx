@@ -399,7 +399,7 @@ export default function AdminCitiesPage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 mt-4">
+              <div className="flex flex-wrap items-center gap-3 mt-4">
                 {/* Ops signal, not a setting: derived from members/events/hosts/
                     hangouts. A live city sitting in "seeding" needs a person's
                     attention — there is nothing to click here on purpose. */}
@@ -425,7 +425,7 @@ export default function AdminCitiesPage() {
                   ]
                   const done = items.filter(i => i.ok).length
                   return (
-                    <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2 py-0.5 rounded-full border ${
+                    <span className={`inline-flex flex-wrap items-center gap-1.5 text-[11px] font-bold px-2 py-0.5 rounded-full border ${
                       done === 3 ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25'
                                  : 'bg-zinc-800 text-zinc-400 border-zinc-700'
                     }`} title="What the go-live gate checks">

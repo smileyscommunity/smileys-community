@@ -278,7 +278,7 @@ export default function AdminListingsPage() {
       {/* Edit modal */}
       {editing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setEditing(null)}>
-          <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 w-full max-w-lg space-y-4" onClick={e => e.stopPropagation()}>
+          <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 w-full max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto space-y-4" onClick={e => e.stopPropagation()}>
             <h2 className="text-white font-bold text-lg">Edit Listing</h2>
             <div>
               <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Title</label>
@@ -550,7 +550,7 @@ export default function AdminListingsPage() {
               {listings.map(l => (
                 <tr key={l.id} className="hover:bg-zinc-800/40 transition-colors group">
                   {/* Title + description */}
-                  <td className="px-5 py-4 max-w-xs">
+                  <td className="px-5 py-4 max-w-[55vw] sm:max-w-xs">
                     <Link href={`/admin/listings/${l.id}`} className="block group/t">
                       <p className="font-semibold text-zinc-100 truncate group-hover/t:text-amber-400 transition-colors">{l.title} <CityBadge city={l.city} cities={cities} /></p>
                       <p className="text-xs text-zinc-500 truncate mt-0.5">{l.description}</p>
@@ -595,7 +595,7 @@ export default function AdminListingsPage() {
                     <div className="flex items-center gap-2 justify-end">
                       <button
                         onClick={() => openEdit(l)}
-                        className="text-xs text-amber-400 hover:text-amber-300 font-semibold px-3 py-2 rounded-lg hover:bg-amber-500/10 transition-colors md:opacity-0 md:group-hover:opacity-100"
+                        className="text-xs text-amber-400 hover:text-amber-300 font-semibold px-3 py-2 rounded-lg hover:bg-amber-500/10 transition-colors md:[@media(hover:hover)]:opacity-0 md:[@media(hover:hover)]:group-hover:opacity-100"
                       >
                         Edit
                       </button>
@@ -609,7 +609,7 @@ export default function AdminListingsPage() {
                       ) : (
                         <button
                           onClick={() => handleDelete(l.id)}
-                          className="text-xs text-red-400 hover:text-red-300 font-semibold px-3 py-2 rounded-lg hover:bg-red-500/10 transition-colors md:opacity-0 md:group-hover:opacity-100"
+                          className="text-xs text-red-400 hover:text-red-300 font-semibold px-3 py-2 rounded-lg hover:bg-red-500/10 transition-colors md:[@media(hover:hover)]:opacity-0 md:[@media(hover:hover)]:group-hover:opacity-100"
                         >
                           Remove
                         </button>

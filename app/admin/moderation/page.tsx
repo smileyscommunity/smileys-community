@@ -559,7 +559,7 @@ function ModerationPageInner() {
         </div>
       ) : tab === 'reports' ? (
         <div className="space-y-4">
-          <div className="flex gap-1.5">
+          <div className="flex flex-wrap gap-1.5">
             {([
               { key: 'all',       label: 'All',       count: reports.length },
               { key: 'pending',   label: 'Pending',   count: reports.filter(r => r.status === 'pending').length },
@@ -607,7 +607,7 @@ function ModerationPageInner() {
             <div className="space-y-3">
               {visibleReports.map(r => (
                 <div key={r.id} className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5 flex flex-col gap-3">
-                  <div className="flex items-start gap-4">
+                  <div className="flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-4">
                   <Avatar name={r.reported.name} color={r.reported.color} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -673,7 +673,7 @@ function ModerationPageInner() {
                       <div className="text-xs text-zinc-500 mt-1 italic">Note: {r.reviewNote}</div>
                     )}
                   </div>
-                  <div className="flex gap-2 shrink-0 flex-wrap justify-end">
+                  <div className="flex flex-wrap gap-2 sm:shrink-0 sm:justify-end">
                     {r.status === 'pending' && (
                       <button onClick={() => triageReport(r.id)} disabled={triageLoading === r.id}
                         className="text-xs bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 border border-violet-500/20 px-3 py-2 rounded-lg font-medium transition-colors disabled:opacity-50">
@@ -1018,8 +1018,8 @@ function ModerationPageInner() {
 
       {/* Review modal */}
       {selected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl w-full max-w-md p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4 py-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto p-6">
             <div className="flex items-start justify-between mb-4">
               <div>
                 <h3 className="font-bold text-white">Review report</h3>
@@ -1036,7 +1036,7 @@ function ModerationPageInner() {
 
             <div className="bg-zinc-800 rounded-xl p-3 mb-4">
               <div className="text-xs font-semibold text-amber-400 mb-1">{REASON_LABELS[selected.reason] ?? selected.reason}</div>
-              {selected.details && <p className="text-sm text-zinc-300">"{selected.details}"</p>}
+              {selected.details && <p className="text-sm text-zinc-300 break-words">"{selected.details}"</p>}
             </div>
 
             <div className="mb-3">

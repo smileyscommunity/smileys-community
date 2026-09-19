@@ -200,7 +200,7 @@ export default function AdminClubDetailPage() {
     : []
 
   return (
-    <div className="p-6 max-w-2xl space-y-6">
+    <div className="p-4 sm:p-6 max-w-2xl space-y-6">
 
       <div className="flex items-center gap-3">
         <Link href="/admin/clubs" className="text-zinc-500 hover:text-zinc-300 transition-colors">
@@ -369,9 +369,9 @@ export default function AdminClubDetailPage() {
 
         <div className="space-y-2">
           {approved.map(({ user, role }) => (
-            <div key={user.id} className="flex items-center gap-3 py-2">
+            <div key={user.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 py-2">
               <Avatar user={user} />
-              <div className="flex-1 min-w-0">
+              <div className="flex-1 min-w-[8rem]">
                 <p className="text-sm font-semibold text-white truncate">{user.name}</p>
                 <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${
                   role === 'host' ? 'bg-blue-900 text-blue-300' : 'bg-zinc-800 text-zinc-400'

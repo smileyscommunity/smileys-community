@@ -258,7 +258,7 @@ function EditNeighborhoodPageInner({ params }: { params: Promise<{ slug: string 
   )
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-8 pb-24">
+    <div className="p-6 max-w-3xl mx-auto space-y-8 pb-40">
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -769,7 +769,7 @@ function EditNeighborhoodPageInner({ params }: { params: Promise<{ slug: string 
       </section>
 
       {/* Sticky save bar */}
-      <div className="fixed bottom-0 inset-x-0 p-4 bg-zinc-950 border-t border-white/5 flex items-center justify-between gap-4 z-20 md:hidden">
+      <div className="fixed bottom-16 inset-x-0 p-4 bg-zinc-950 border-t border-white/5 flex items-center justify-between gap-4 z-30 md:hidden">
         <span className="text-xs text-zinc-500">Remember to save your changes</span>
         <button
           onClick={save}

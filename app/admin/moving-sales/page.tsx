@@ -170,7 +170,7 @@ export default function AdminMovingSalesPage() {
         <p className="text-zinc-400 text-sm mt-1">{visible.length} sale{visible.length !== 1 ? 's' : ''}</p>
       </div>
 
-      <div className="flex gap-2 mb-6">
+      <div className="flex flex-wrap gap-2 mb-6">
         {(['active', 'done', 'removed', 'all'] as const).map(s => (
           <button key={s} onClick={() => setStatus(s)}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors capitalize ${
@@ -183,7 +183,7 @@ export default function AdminMovingSalesPage() {
         ))}
         {cities.length > 1 && (
           <select value={cityFilter} onChange={e => setCityFilter(e.target.value)}
-            className="ml-1 px-3 py-1.5 rounded-lg text-xs bg-zinc-800 border border-zinc-700 text-zinc-300 focus:outline-none focus:ring-2 focus:ring-amber-500">
+            className="px-3 py-1.5 rounded-lg text-xs bg-zinc-800 border border-zinc-700 text-zinc-300 focus:outline-none focus:ring-2 focus:ring-amber-500">
             <option value="">All cities</option>
             {cities.map(c => <option key={c.id} value={c.slug}>{c.name}</option>)}
           </select>
@@ -205,8 +205,8 @@ export default function AdminMovingSalesPage() {
         <div className="space-y-3">
           {visible.map(s => (
             <div key={s.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-start gap-3 min-w-0">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
+                <div className="flex items-start gap-3 min-w-0 flex-1">
                   {s.photo ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={s.photo} alt="" className="w-11 h-11 rounded-lg object-cover shrink-0" />
@@ -224,7 +224,7 @@ export default function AdminMovingSalesPage() {
                         <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-zinc-700/40 text-zinc-400">expired</span>
                       )}
                     </div>
-                    <p className="text-xs text-zinc-500 mt-0.5">{s.user.email}</p>
+                    <p className="text-xs text-zinc-500 mt-0.5 break-all">{s.user.email}</p>
                     <p className="text-xs text-zinc-400 mt-1">
                       Leaving {formatDay(s.leavingOn.slice(0, 10), { day: 'numeric', month: 'short', year: 'numeric' })}
                       {s.neighborhood && <> · {s.neighborhood}</>}
@@ -315,12 +315,12 @@ export default function AdminMovingSalesPage() {
                   <div key={i} className="flex gap-2">
                     <input value={it.name} placeholder="Item"
                       onChange={e => setEditForm(f => ({ ...f, items: f.items.map((x, j) => j === i ? { ...x, name: e.target.value } : x) }))}
-                      className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white" />
+                      className="flex-1 min-w-0 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white" />
                     <input value={it.price} placeholder="Price"
                       onChange={e => setEditForm(f => ({ ...f, items: f.items.map((x, j) => j === i ? { ...x, price: e.target.value } : x) }))}
-                      className="w-24 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white" />
+                      className="w-20 sm:w-24 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white" />
                     <button onClick={() => setEditForm(f => ({ ...f, items: f.items.filter((_, j) => j !== i) }))}
-                      className="text-red-400 hover:text-red-300 px-2">✕</button>
+                      className="shrink-0 text-red-400 hover:text-red-300 px-2">✕</button>
                   </div>
                 ))}
                 <button onClick={() => setEditForm(f => ({ ...f, items: [...f.items, { name: '', price: '' }] }))}

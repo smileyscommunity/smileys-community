@@ -1225,7 +1225,7 @@ export default function AdminDirectoryPage() {
   }
 
   return (
-    <div className="p-6 max-w-3xl">
+    <div className="p-4 sm:p-6 max-w-3xl">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-bold text-white">Business Directory</h1>
@@ -1251,18 +1251,20 @@ export default function AdminDirectoryPage() {
       {/* Tabs. Approved / Pending / Rejected partition every business
           row; the fourth Claims tab is a different model entirely
           (ownership claims) and uses its own list component. */}
-      <div className="flex gap-1 mb-5 bg-zinc-900 p-1 rounded-xl w-fit">
-        {(['approved', 'pending', 'rejected', 'claims', 'reports'] as const).map(v => (
-          <button key={v} onClick={() => setView(v)}
-            className={`text-xs font-semibold px-4 py-1.5 rounded-lg capitalize transition-colors ${
-              view === v ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'
-            }`}>
-            {v}
-          </button>
-        ))}
+      <div className="flex flex-wrap items-center gap-2 mb-5">
+        <div className="flex flex-wrap gap-1 bg-zinc-900 p-1 rounded-xl w-full sm:w-fit">
+          {(['approved', 'pending', 'rejected', 'claims', 'reports'] as const).map(v => (
+            <button key={v} onClick={() => setView(v)}
+              className={`text-xs font-semibold px-4 py-1.5 rounded-lg capitalize transition-colors ${
+                view === v ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'
+              }`}>
+              {v}
+            </button>
+          ))}
+        </div>
         {listCities.length > 1 && !isClaims && view !== 'reports' && (
           <select value={cityFilter} onChange={e => setCityFilter(e.target.value)}
-            className="ml-2 text-xs px-3 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 focus:outline-none focus:ring-2 focus:ring-amber-500">
+            className="text-xs px-3 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 focus:outline-none focus:ring-2 focus:ring-amber-500">
             <option value="">All cities</option>
             {listCities.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>

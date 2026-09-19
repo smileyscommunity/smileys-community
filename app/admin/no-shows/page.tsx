@@ -114,7 +114,7 @@ export default function AdminNoShowsPage() {
             <div key={c.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
               <div className="flex items-start gap-3 flex-wrap">
                 <span className="text-xl" aria-hidden="true">{c.kind === 'red' ? '🟥' : '🟨'}</span>
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-[12rem]">
                   <div className="flex items-center gap-2 flex-wrap">
                     <Link href={memberHref(c.user.id, me?.role)} className="font-semibold text-white hover:underline">{c.user.name}</Link>
                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase ${STATUS_PILL[c.status] ?? STATUS_PILL.active}`}>{c.status.replace('_', ' ')}</span>
@@ -130,7 +130,7 @@ export default function AdminNoShowsPage() {
                   {c.appealNote && (
                     <blockquote className="mt-2 text-sm text-zinc-200 bg-zinc-800/60 rounded-lg px-3 py-2 border-l-2 border-violet-500/50">
                       <span className="text-[10px] text-zinc-500 uppercase tracking-wide">Appeal · {fmt(c.appealedAt, tzFor(c))}{c.appealStatus && c.appealStatus !== 'pending' ? ` · ${c.appealStatus}` : ''}</span>
-                      <p className="whitespace-pre-wrap mt-1">{c.appealNote}</p>
+                      <p className="whitespace-pre-wrap break-words mt-1">{c.appealNote}</p>
                     </blockquote>
                   )}
                   {c.waiveReason && <p className="text-xs text-green-400 mt-2">Waived by host: {c.waiveReason}</p>}
@@ -139,7 +139,7 @@ export default function AdminNoShowsPage() {
                 <div className="flex gap-2 shrink-0">
                   {c.conflict ? (
                     (c.status === 'appeal_pending' || c.status === 'active') && (
-                      <p className="text-xs text-amber-400 max-w-[14rem]">{REVIEW_CONFLICT_MESSAGE[c.conflict]}</p>
+                      <p className="text-xs text-amber-400 sm:max-w-[14rem]">{REVIEW_CONFLICT_MESSAGE[c.conflict]}</p>
                     )
                   ) : <>
                   {c.status === 'appeal_pending' && (

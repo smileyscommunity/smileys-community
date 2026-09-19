@@ -176,7 +176,7 @@ function NewsletterRow({ n, tz, onDuplicate, onCancel, onEdit }: {
             </div>
           )}
           <div
-            className="px-4 pb-4 pt-3 text-sm text-gray-700 leading-relaxed prose prose-sm max-w-none bg-white"
+            className="px-4 pb-4 pt-3 text-sm text-gray-700 leading-relaxed prose prose-sm max-w-none break-words bg-white"
             dangerouslySetInnerHTML={{ __html: n.bodyHtml }}
           />
         </div>
@@ -732,7 +732,7 @@ export default function NewsletterPage() {
           <div>
             <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-2">Preview</p>
             <div
-              className="bg-white rounded-xl p-6 text-sm text-gray-700 leading-relaxed prose prose-sm max-w-none border border-zinc-700"
+              className="bg-white rounded-xl p-6 text-sm text-gray-700 leading-relaxed prose prose-sm max-w-none break-words border border-zinc-700"
               dangerouslySetInnerHTML={{ __html: bodyHtml }}
             />
           </div>

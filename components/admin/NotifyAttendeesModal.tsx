@@ -106,7 +106,7 @@ export default function NotifyAttendeesModal({ event, preset, onClose }: Props) 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
          onClick={onClose}>
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
+      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[calc(100dvh-2rem)] flex flex-col overflow-hidden"
            onClick={e => e.stopPropagation()}>
         <div className="p-5 border-b border-zinc-800">
           <h2 className="text-white font-bold text-lg">Notify attendees</h2>
@@ -116,7 +116,7 @@ export default function NotifyAttendeesModal({ event, preset, onClose }: Props) 
           </p>
         </div>
 
-        <div className="p-5 space-y-4">
+        <div className="p-5 space-y-4 overflow-y-auto">
           <div>
             <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">
               Quick templates

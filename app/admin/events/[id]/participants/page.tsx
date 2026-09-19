@@ -31,7 +31,7 @@ interface PaymentRow  { id: string; userId: string; status: string; amount: numb
 
 function Row({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-3 px-4 py-3 hover:bg-zinc-800/40 transition-colors">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 hover:bg-zinc-800/40 transition-colors">
       {children}
     </div>
   )
@@ -657,7 +657,7 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
                 {pending.map(a => (
                   <Row key={a.userId}>
                     <UserAvatar user={a.user} />
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-[8rem]">
                       <div className="flex items-center gap-2 min-w-0">
                         <p className="text-sm font-semibold text-white truncate">{a.user.name}</p>
                         <NoShowCardBadge cards={a.activeCards} />
@@ -721,7 +721,7 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
           count={approved.length}
           color="bg-green-500/20 text-green-400"
         >
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {trackPayments && approved.length > 0 && (
               <div className="flex rounded-lg overflow-hidden border border-zinc-700 text-xs font-semibold">
                 {(['all', 'paid', 'unpaid'] as const).map(v => (
@@ -809,7 +809,7 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
               {visibleApproved.map(a => (
                 <Row key={a.userId}>
                   <UserAvatar user={a.user} />
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-[8rem]">
                     <div className="flex items-center gap-1.5">
                       <p className="text-sm font-semibold text-white truncate">{a.user.name}</p>
                       {(a.user.noShowCount ?? 0) >= 3 && (
@@ -826,13 +826,14 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
                         onClick={() => togglePaid(a.userId, payments[a.userId]?.status === 'paid')}
                         disabled={payBusy === a.userId}
                         title={payments[a.userId]?.status === 'paid' ? 'Mark as unpaid' : 'Mark as paid'}
+                        aria-label={payments[a.userId]?.status === 'paid' ? 'Paid — mark as unpaid' : 'Unpaid — mark as paid'}
                         className={`text-xs font-bold px-2 py-1 rounded-lg transition-colors disabled:opacity-40 ${
                           payments[a.userId]?.status === 'paid'
                             ? 'bg-green-500/15 text-green-400 hover:bg-green-500/25'
                             : 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20'
                         }`}
                       >
-                        {payBusy === a.userId ? '…' : payments[a.userId]?.status === 'paid' ? `${sym} Paid` : `${sym} Unpaid`}
+                        {payBusy === a.userId ? '…' : <>{sym}<span className="hidden sm:inline">{payments[a.userId]?.status === 'paid' ? ' Paid' : ' Unpaid'}</span></>}
                       </button>
                     )}
                     {/* No status pill — the check-in button's color carries
@@ -889,18 +890,19 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
                 <Row key={w.userId}>
                   <span className="text-xs font-bold text-zinc-600 w-5 text-center shrink-0">#{i + 1}</span>
                   <UserAvatar user={w.user} />
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-[8rem]">
                     <p className="text-sm font-semibold text-white truncate">{w.user.name}</p>
                   </div>
-                  <p className="text-xs text-zinc-600 shrink-0">
+                  <p className="hidden sm:block text-xs text-zinc-600 shrink-0">
                     {/* Joined-the-queue day on the event city's calendar, not the device's. */}
                     {formatDay(dayInTz(new Date(w.createdAt), eventTz), { day: 'numeric', month: 'short' })}
                   </p>
                   <div className="flex items-center gap-2 shrink-0">
                     <WhatsAppButton user={w.user} />
                     <button onClick={() => promote(w)} disabled={busy === w.userId}
+                      aria-label="Promote"
                       className="text-xs px-3 py-2 rounded-lg bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 font-semibold transition-colors disabled:opacity-40">
-                      ↑ Promote
+                      ↑<span className="hidden sm:inline"> Promote</span>
                     </button>
                     <button onClick={() => removeWaitlist(w.userId)} disabled={busy === w.userId}
                       className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-600 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-40">
@@ -924,7 +926,7 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
               {noShowCards.map(c => (
                 <Row key={c.id}>
                   <span className="text-lg shrink-0" aria-hidden="true">{c.kind === 'red' ? '🟥' : '🟨'}</span>
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-[8rem]">
                     <p className="text-sm font-semibold text-white truncate">{c.user.name}</p>
                     <p className="text-[11px] text-zinc-500">{c.kind === 'red' ? 'Second no-show — RSVPs pause after the appeal window' : 'First no-show — warning only'}</p>
                   </div>

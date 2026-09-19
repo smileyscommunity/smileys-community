@@ -99,15 +99,15 @@ function EventGroupHeader({ event, demand, meta, tz }: { event: EventRef; demand
   // Tbilisi event viewed from Istanbul turns "Past" on Tbilisi's midnight.
   const pill = eventStatusPill(event.status, event.date, tz)
   return (
-    <div className="flex items-center gap-2 px-5 py-3 border-b border-zinc-800 bg-zinc-800/40">
+    <div className="flex flex-wrap items-center gap-2 px-5 py-3 border-b border-zinc-800 bg-zinc-800/40">
       <span>{event.emoji}</span>
       <Link href={`/admin/events/${event.id}/participants`}
-        className="text-sm font-bold text-white hover:text-amber-400 transition-colors truncate">
+        className="min-w-[8rem] flex-1 text-sm font-bold text-white hover:text-amber-400 transition-colors truncate">
         {event.title}
       </Link>
       <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${pill.cls}`}>{pill.label}</span>
       <SeatsBadge event={event} demand={demand} />
-      <span className="text-xs text-zinc-500 ml-auto shrink-0">{meta}</span>
+      <span className="text-xs text-zinc-500 basis-full sm:basis-auto sm:ml-auto shrink-0">{meta}</span>
     </div>
   )
 }
@@ -129,10 +129,10 @@ function ParticipantRow({
   children:  React.ReactNode
 }) {
   return (
-    <div className={`flex items-center gap-3 px-4 sm:px-5 py-4 transition-colors ${selected ? 'bg-amber-500/5' : 'hover:bg-zinc-800/40'}`}>
+    <div className={`flex flex-wrap items-center gap-x-3 gap-y-2 px-4 sm:px-5 py-4 transition-colors ${selected ? 'bg-amber-500/5' : 'hover:bg-zinc-800/40'}`}>
       {leading}
       <UserAvatar user={user} />
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-[10rem]">
         <p className="text-sm font-semibold text-white truncate">{user.name}</p>
         <p className="text-xs text-zinc-500 truncate">{user.email}</p>
         {mobileEvent && (
@@ -476,7 +476,7 @@ export default function AdminParticipantsPage() {
           {view === 'pending' && (
             <>
               {pending.length > 0 && (
-                <div className="flex items-center gap-3 px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-xl">
+                <div className="flex flex-wrap items-center gap-3 px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-xl">
                   <input
                     type="checkbox"
                     checked={selected.size === pending.length && pending.length > 0}
@@ -487,7 +487,7 @@ export default function AdminParticipantsPage() {
                     {selected.size > 0 ? <span className="font-semibold text-white">{selected.size} selected</span> : `Select all ${pending.length}`}
                   </span>
                   {selected.size > 0 && (
-                    <div className="flex gap-2 ml-auto">
+                    <div className="flex flex-wrap gap-2 ml-auto">
                       <button onClick={bulkApprove} disabled={bulkSaving}
                         className="px-4 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-bold rounded-lg disabled:opacity-50">
                         {bulkSaving ? '…' : `✅ Approve ${selected.size}`}

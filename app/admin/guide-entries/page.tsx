@@ -178,8 +178,8 @@ export default function AdminGuideEntriesPage() {
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
       <div className="flex flex-wrap items-end justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-extrabold text-gray-900">Guide experiences</h1>
-          <p className="text-sm text-gray-600 mt-1">
+          <h1 className="text-2xl font-extrabold text-white">Guide experiences</h1>
+          <p className="text-sm text-zinc-400 mt-1">
             {loading ? 'Loading…' : `${entries.length} in ${citySlug || 'all cities'} · ${published} published`}
           </p>
         </div>

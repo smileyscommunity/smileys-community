@@ -428,7 +428,7 @@ function AdminPaymentsPageInner() {
               const max = stats.byEvent[0].paidTotal || 1
               return (
                 <div key={e.eventId}>
-                  <div className="flex items-center justify-between mb-1 gap-2">
+                  <div className="flex flex-wrap items-center justify-between mb-1 gap-2">
                     <span className="text-xs text-zinc-300 font-medium truncate max-w-[60%]">{e.emoji} {e.title}</span>
                     <div className="flex items-center gap-2 shrink-0">
                       <span className="text-xs text-zinc-500">{e.paidCount} txn</span>
@@ -455,10 +455,10 @@ function AdminPaymentsPageInner() {
       <LoadErrorBanner message={loadError} onRetry={retry} title="Couldn't load payments" />
 
       <div className="flex flex-wrap gap-2">
-        <div className="flex gap-1 bg-zinc-900 rounded-xl p-1 w-fit">
+        <div className="flex gap-1 bg-zinc-900 rounded-xl p-1 w-fit max-w-full overflow-x-auto scrollbar-hide">
           {FILTER_KEYS.map(f => (
             <button key={f} onClick={() => setFilter(f)}
-              className={`px-4 py-2 rounded-lg text-xs font-semibold capitalize transition-colors ${filter === f ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-white'}`}>
+              className={`shrink-0 px-3 sm:px-4 py-2 rounded-lg text-xs font-semibold capitalize transition-colors ${filter === f ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-white'}`}>
               {f}
             </button>
           ))}
@@ -758,9 +758,9 @@ function AdminPaymentsPageInner() {
 
       {/* Refund confirmation modal */}
       {refundConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto"
           onClick={() => { setRefundConfirm(null); setRefundNote('') }}>
-          <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 w-full max-w-md space-y-4"
+          <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 w-full max-w-md max-h-[90dvh] overflow-y-auto space-y-4"
             onClick={e => e.stopPropagation()}>
             <div>
               <h3 className="text-white font-bold text-lg">Confirm refund</h3>

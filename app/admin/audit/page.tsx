@@ -101,11 +101,11 @@ function DiffView({ meta, action }: { meta: Record<string, unknown> | null; acti
       return (
         <div className="mt-1.5 space-y-0.5">
           {entries.map(([key, val]) => (
-            <div key={key} className="flex items-center gap-2 text-xs">
+            <div key={key} className="flex flex-wrap items-center gap-2 text-xs">
               <span className="text-zinc-500 font-medium">{key}:</span>
-              <span className="text-red-400 line-through decoration-red-400/50">{String(val.from ?? 'null')}</span>
+              <span className="text-red-400 line-through decoration-red-400/50 break-all">{String(val.from ?? 'null')}</span>
               <span className="text-zinc-600">→</span>
-              <span className="text-green-400 font-medium">{String(val.to ?? 'null')}</span>
+              <span className="text-green-400 font-medium break-all">{String(val.to ?? 'null')}</span>
             </div>
           ))}
         </div>
@@ -119,11 +119,11 @@ function DiffView({ meta, action }: { meta: Record<string, unknown> | null; acti
   // visual diff at all — the prose description was the only signal.
   if ('from' in meta && 'to' in meta) {
     return (
-      <div className="mt-1.5 flex items-center gap-2 text-xs">
+      <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs">
         <span className="text-zinc-500 font-medium">{flatDiffLabel(action)}:</span>
-        <span className="text-red-400 line-through decoration-red-400/50">{String(meta.from ?? 'null')}</span>
+        <span className="text-red-400 line-through decoration-red-400/50 break-all">{String(meta.from ?? 'null')}</span>
         <span className="text-zinc-600">→</span>
-        <span className="text-green-400 font-medium">{String(meta.to ?? 'null')}</span>
+        <span className="text-green-400 font-medium break-all">{String(meta.to ?? 'null')}</span>
       </div>
     )
   }
@@ -455,11 +455,11 @@ function AdminAuditPageInner() {
                         // types fall back to plain text — no detail
                         // route to navigate to.
                         return href ? (
-                          <Link href={href} className="text-xs text-zinc-600 hover:text-amber-400 font-mono mt-0.5 inline-block transition-colors">
+                          <Link href={href} className="text-xs text-zinc-600 hover:text-amber-400 font-mono mt-0.5 inline-block break-all transition-colors">
                             {text} →
                           </Link>
                         ) : (
-                          <div className="text-xs text-zinc-600 font-mono mt-0.5">{text}</div>
+                          <div className="text-xs text-zinc-600 font-mono mt-0.5 break-all">{text}</div>
                         )
                       })()}
                     </div>

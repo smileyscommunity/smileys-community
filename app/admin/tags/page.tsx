@@ -214,18 +214,18 @@ export default function TagsPage() {
               {/* Group header */}
               <div className="flex items-center gap-3 px-5 py-4 border-b border-zinc-800 bg-zinc-800/40">
                 {editingGroup === group.id ? (
-                  <div className="flex items-center gap-2 flex-1">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
                     <input value={editGroupVal.emoji} onChange={e => setEditGroupVal(p => ({ ...p, emoji: e.target.value }))}
                       className={`${inputCls} w-14 text-center`} maxLength={2} />
                     <input value={editGroupVal.name} onChange={e => setEditGroupVal(p => ({ ...p, name: e.target.value }))}
-                      className={`${inputCls} flex-1`}
+                      className={`${inputCls} flex-1 min-w-0`}
                       onKeyDown={e => e.key === 'Enter' && saveGroup(group.id)} />
                     <button onClick={() => saveGroup(group.id)}
-                      className="px-3 py-1.5 text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors">
+                      className="shrink-0 px-3 py-1.5 text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors">
                       Save
                     </button>
                     <button onClick={() => setEditingGroup(null)}
-                      className="px-3 py-1.5 text-xs text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-700 transition-colors">
+                      className="shrink-0 px-3 py-1.5 text-xs text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-700 transition-colors">
                       Cancel
                     </button>
                   </div>

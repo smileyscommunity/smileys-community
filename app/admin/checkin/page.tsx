@@ -291,14 +291,15 @@ function CheckInPageInner() {
     // overflow-y-auto used to constrain the list to its own scroll so
     // the header stayed pinned by accident; with `min-h-screen` the
     // inner container sometimes exceeded viewport and outer-main
-    // scrolled instead, taking the header off-screen. Now header +
-    // search are explicitly sticky to the outer scroll, and the list
+    // scrolled instead, taking the header off-screen. Now the search
+    // bar is explicitly sticky to the outer scroll, and the list
     // scrolls with the page like every other admin surface.
     <div className="min-h-screen bg-black text-white max-w-lg lg:max-w-3xl mx-auto">
 
-      {/* Sticky header — event picker + scan button + stats stay
-          in view while the operator scrolls a long attendee list. */}
-      <div className="sticky top-0 z-20 bg-black border-b border-zinc-800">
+      {/* Header — event picker + scan button + stats. Scrolls away
+          normally; only the search bar below stays pinned (the whole
+          block was ~325px tall on a phone, too much to keep sticky). */}
+      <div className="bg-black">
       <div className="px-4 pt-5 pb-3">
         <div className="flex items-center justify-between mb-2">
           <h1 className="text-lg font-bold">Check-In</h1>
@@ -360,13 +361,13 @@ function CheckInPageInner() {
                 narrow the list, tap again (or Total) to show everyone. */}
             <div className="flex items-center gap-4 mt-3">
               <button onClick={() => setView(v => v === 'in' ? 'all' : 'in')}
-                className={`flex-1 bg-zinc-900 rounded-xl p-3 text-center border active:scale-[0.98] transition-all ${view === 'in' ? 'border-green-500' : 'border-transparent'}`}>
-                <div className="text-2xl font-bold text-green-400">{checkedInCount}</div>
+                className={`flex-1 bg-zinc-900 rounded-xl p-2 sm:p-3 text-center border active:scale-[0.98] transition-all ${view === 'in' ? 'border-green-500' : 'border-transparent'}`}>
+                <div className="text-xl sm:text-2xl font-bold text-green-400">{checkedInCount}</div>
                 <div className="text-xs text-zinc-500 mt-0.5">{view === 'in' ? 'Showing checked-in ↓' : 'Checked in'}</div>
               </button>
               <button onClick={() => setView(v => v === 'remaining' ? 'all' : 'remaining')}
-                className={`flex-1 bg-zinc-900 rounded-xl p-3 text-center border active:scale-[0.98] transition-all ${view === 'remaining' ? 'border-amber-500' : 'border-transparent'}`}>
-                <div className="text-2xl font-bold">{attendees.length - checkedInCount}</div>
+                className={`flex-1 bg-zinc-900 rounded-xl p-2 sm:p-3 text-center border active:scale-[0.98] transition-all ${view === 'remaining' ? 'border-amber-500' : 'border-transparent'}`}>
+                <div className="text-xl sm:text-2xl font-bold">{attendees.length - checkedInCount}</div>
                 {/* "Expected" used to live here, which read like "the
                     planned count" — actually this is the still-to-arrive
                     delta. "Remaining" is what an operator at the door
@@ -374,8 +375,8 @@ function CheckInPageInner() {
                 <div className="text-xs text-zinc-500 mt-0.5">{view === 'remaining' ? 'Showing remaining ↓' : 'Remaining'}</div>
               </button>
               <button onClick={() => setView('all')}
-                className="flex-1 bg-zinc-900 rounded-xl p-3 text-center border border-transparent active:scale-[0.98] transition-all">
-                <div className="text-2xl font-bold text-zinc-400">{attendees.length}</div>
+                className="flex-1 bg-zinc-900 rounded-xl p-2 sm:p-3 text-center border border-transparent active:scale-[0.98] transition-all">
+                <div className="text-xl sm:text-2xl font-bold text-zinc-400">{attendees.length}</div>
                 <div className="text-xs text-zinc-500 mt-0.5">Total</div>
               </button>
             </div>
@@ -388,9 +389,11 @@ function CheckInPageInner() {
           </>
         )}
       </div>
+      </div>
 
-      {/* Search */}
-      <div className="px-4 py-3 border-t border-zinc-800">
+      {/* Search — sticky so it stays in reach while the operator
+          scrolls a long attendee list. */}
+      <div className="sticky top-0 z-20 bg-black px-4 py-3 border-t border-b border-zinc-800">
         <input
           ref={searchRef}
           type="text"
@@ -406,10 +409,9 @@ function CheckInPageInner() {
           </p>
         )}
       </div>
-      </div>
 
-      {/* Attendee list — scrolls with the page now that header+search
-          are sticky. Old flex-1 + overflow-y-auto constrained the list
+      {/* Attendee list — scrolls with the page now that the search bar
+          is sticky. Old flex-1 + overflow-y-auto constrained the list
           to its own internal scroll, which only worked when the inner
           container exactly matched viewport height. */}
       <div className="divide-y divide-zinc-900">

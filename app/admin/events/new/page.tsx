@@ -340,7 +340,7 @@ export default function NewEventPage() {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-3xl">
+    <div className="p-4 sm:p-6 space-y-6 max-w-3xl">
       <div className="flex items-center gap-3">
         <Link href="/admin/events" className="text-zinc-500 hover:text-zinc-300 transition-colors">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -360,7 +360,7 @@ export default function NewEventPage() {
         <h2 className="text-white font-bold mb-5">Basic info</h2>
         <div className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="col-span-2">
+            <div className="col-span-full">
               <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Event title *</label>
               <input type="text" value={form.title} onChange={e => set('title', e.target.value)} placeholder="e.g. Sunset Sailing Experience" className={inputCls} />
             </div>
@@ -426,7 +426,7 @@ export default function NewEventPage() {
               <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Language</label>
               <input type="text" value={form.language} onChange={e => set('language', e.target.value)} placeholder="e.g. English, Turkish" className={inputCls} />
             </div>
-            <div className="col-span-2">
+            <div className="col-span-full">
               <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Description</label>
               <div className="mb-2 bg-zinc-800/60 border border-zinc-700 rounded-xl p-3 space-y-2">
                 <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Write with AI</p>
@@ -440,7 +440,7 @@ export default function NewEventPage() {
               </div>
               <textarea rows={3} value={form.description} onChange={e => set('description', e.target.value)} placeholder="Describe the experience..." className={`${inputCls} resize-none`} />
             </div>
-            <div className="col-span-2">
+            <div className="col-span-full">
               <ImageUpload value={form.coverImage} onChange={url => set('coverImage', url)} folder="events"
                 position={form.coverImagePosition} onPositionChange={pos => set('coverImagePosition', pos)} />
             </div>
@@ -452,8 +452,9 @@ export default function NewEventPage() {
       <section className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5">
         <h2 className="text-white font-bold mb-5">When & Where</h2>
         <div className="space-y-4">
-          {/* Date + Start time — always side by side */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* Date + Start time — side by side from sm up (stacked on
+              phones, where two HH:MM dropdowns don't fit half a row) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Date *</label>
               <input type="date" value={form.date} onChange={e => set('date', e.target.value)} className={`${inputCls} admin-date-input`} />
@@ -473,8 +474,8 @@ export default function NewEventPage() {
             </div>
           </div>
 
-          {/* End time + Registration deadline — always side by side */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* End time + Registration deadline — side by side from sm up */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-zinc-400 mb-1.5">End time</label>
               <div className="flex items-center gap-1.5">
@@ -495,7 +496,7 @@ export default function NewEventPage() {
           </div>
 
           {/* Repeat + Occurrences */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Repeat</label>
               <select value={repeat} onChange={e => setRepeat(e.target.value as typeof repeat)} className={inputCls}>
@@ -536,13 +537,13 @@ export default function NewEventPage() {
               {neighborhoods.map(n => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
-          <div className="col-span-2">
+          <div className="col-span-full">
             <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Full address</label>
             <input type="text" value={form.address} onChange={e => set('address', e.target.value)} onBlur={() => { if (form.address.trim() && !form.lat) geocodeAddress() }} placeholder="e.g. Kemankeş Cad. No:10, Karaköy" className={inputCls} />
           </div>
 
           {/* Map coordinates */}
-          <div className="col-span-2">
+          <div className="col-span-full">
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs font-semibold text-zinc-400">Map coordinates <span className="font-normal text-zinc-500">(for map view)</span></label>
               <button
@@ -576,7 +577,7 @@ export default function NewEventPage() {
           </div>
 
           {/* Google Maps URL paste */}
-          <div className="col-span-2">
+          <div className="col-span-full">
             <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Paste Google Maps link <span className="font-normal text-zinc-500">(extracts coordinates automatically)</span></label>
             <div className="flex gap-2">
               <input
@@ -721,7 +722,7 @@ export default function NewEventPage() {
         </div>
         {form.genderBalance && (
           <div className="mt-4 space-y-3">
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <label className="text-sm font-medium text-zinc-300 shrink-0 w-32">♂ Male quota</label>
               <input
                 type="number"
@@ -732,12 +733,12 @@ export default function NewEventPage() {
                 placeholder={`Default: ${form.totalSpots ? Math.floor(parseInt(form.totalSpots) / 2) : '½ of spots'}`}
                 className="w-32 bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 px-3 py-2 text-sm"
               />
-              <span className="text-xs text-zinc-500">max males allowed</span>
+              <span className="text-xs text-zinc-500 basis-full sm:basis-auto">max males allowed</span>
             </div>
             {/* Female cap — null/empty = uncapped (preserves old behaviour).
                 Set this to also cap the female side so the event balances
                 instead of just protecting against male-dominance. */}
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <label className="text-sm font-medium text-zinc-300 shrink-0 w-32">♀ Female quota</label>
               <input
                 type="number"
@@ -748,9 +749,9 @@ export default function NewEventPage() {
                 placeholder="Leave blank for uncapped"
                 className="w-32 bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 px-3 py-2 text-sm"
               />
-              <span className="text-xs text-zinc-500">max females allowed (blank = no cap)</span>
+              <span className="text-xs text-zinc-500 basis-full sm:basis-auto">max females allowed (blank = no cap)</span>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <label className="text-sm font-medium text-zinc-300 shrink-0 w-32">🇹🇷 Turkish male</label>
               <input
                 type="number"
@@ -760,7 +761,7 @@ export default function NewEventPage() {
                 placeholder="Leave blank for no sub-cap"
                 className="w-32 bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 px-3 py-2 text-sm"
               />
-              <span className="text-xs text-zinc-500">sub-cap on Turkish males specifically</span>
+              <span className="text-xs text-zinc-500 basis-full sm:basis-auto">sub-cap on Turkish males specifically</span>
             </div>
           </div>
         )}

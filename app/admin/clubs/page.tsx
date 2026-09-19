@@ -142,7 +142,7 @@ function ClubForm({
           {CLUB_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
       </div>
-      <div className="col-span-2">
+      <div className="sm:col-span-2">
         <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Description *</label>
         <textarea rows={2} value={value.description} onChange={e => set('description', e.target.value)} placeholder="What's this club about?" className={`${inputCls} resize-none`} />
       </div>
@@ -169,11 +169,11 @@ function ClubForm({
         <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Founded date</label>
         <input type="date" value={value.foundedAt} onChange={e => set('foundedAt', e.target.value)} className={`${inputCls} admin-date-input`} />
       </div>
-      <div className="col-span-2">
+      <div className="sm:col-span-2">
         <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Rules / Guidelines</label>
         <textarea rows={3} value={value.rules} onChange={e => set('rules', e.target.value)} placeholder="Club rules and guidelines…" className={`${inputCls} resize-none`} />
       </div>
-      <div className="col-span-2">
+      <div className="sm:col-span-2">
         <label className="flex items-center gap-2 cursor-pointer">
           <input type="checkbox" checked={value.isPrivate} onChange={e => set('isPrivate', e.target.checked)} className="w-4 h-4 rounded accent-amber-500" />
           <span className="text-sm text-zinc-300">Private club (invite only)</span>
@@ -475,7 +475,7 @@ export default function AdminClubsPage() {
   return (
     <div className="p-4 sm:p-6 space-y-6">
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-white text-2xl font-extrabold tracking-tight">Clubs</h1>
           <p className="text-sm text-zinc-500 mt-1">

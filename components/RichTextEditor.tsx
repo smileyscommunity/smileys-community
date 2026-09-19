@@ -68,7 +68,7 @@ export default function RichTextEditor({ value, onChange, placeholder, className
         // editing (Tailwind preflight strips default margins, so without this
         // everything looked glued together); prose-invert keeps text light on
         // the dark editor surface.
-        class: 'prose prose-invert prose-sm max-w-none min-h-[120px] outline-none leading-relaxed p-3',
+        class: 'prose prose-invert prose-sm max-w-none break-words min-h-[120px] outline-none leading-relaxed p-3',
       },
     },
     onUpdate({ editor }) {

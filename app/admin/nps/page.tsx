@@ -310,7 +310,7 @@ function CommentRow({ c }: { c: Comment }) {
         <span className="text-[10px] text-zinc-700">·</span>
         <span className="text-[10px] text-zinc-700">{new Date(c.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
       </div>
-      <p className="text-sm text-zinc-300 whitespace-pre-wrap leading-relaxed">{c.comment}</p>
+      <p className="text-sm text-zinc-300 whitespace-pre-wrap break-words leading-relaxed">{c.comment}</p>
     </div>
   )
 }

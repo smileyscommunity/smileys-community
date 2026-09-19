@@ -842,7 +842,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                       <span className="text-[10px] font-bold text-amber-500 uppercase">{n.adminName}</span>
                       <span className="text-[9px] text-zinc-600 uppercase font-bold">{new Date(n.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
                     </div>
-                    <p className="text-xs text-zinc-300 whitespace-pre-wrap leading-relaxed">{n.text}</p>
+                    <p className="text-xs text-zinc-300 whitespace-pre-wrap break-words leading-relaxed">{n.text}</p>
                   </div>
                 ))
               )}
@@ -904,8 +904,8 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
 
       {/* Modals */}
       {banConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setBanConfirm(false)}>
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-sm w-full" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto" onClick={() => setBanConfirm(false)}>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-sm w-full max-h-[90dvh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <h2 className="text-lg font-extrabold text-white mb-2">Ban {user.name}?</h2>
             <p className="text-sm text-zinc-500 mb-4">This will permanently prevent the user from logging in or attending events. This action is recorded in the audit log.</p>
             <textarea
@@ -925,8 +925,8 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
       )}
 
       {warnConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setWarnConfirm(false)}>
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-sm w-full" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto" onClick={() => setWarnConfirm(false)}>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-sm w-full max-h-[90dvh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <h2 className="text-lg font-extrabold text-white mb-2">Warn {user.name}?</h2>
             <p className="text-sm text-zinc-500 mb-4">The user will receive an email and a push notification with your warning reason. Their warning count will increase by 1.</p>
             <textarea
@@ -946,8 +946,8 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
       )}
 
       {suspendConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setSuspendConfirm(false)}>
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-sm w-full" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto" onClick={() => setSuspendConfirm(false)}>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-sm w-full max-h-[90dvh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <h2 className="text-lg font-extrabold text-white mb-2">Suspend {user.name}</h2>
             <p className="text-sm text-zinc-500 mb-4">Temporarily block access for a set duration. Recorded in audit log.</p>
             <div className="flex gap-2 mb-4">
@@ -972,8 +972,8 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
       )}
 
       {removeConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm" onClick={() => setRemoveConfirm(false)}>
-          <div className="bg-zinc-950 border border-red-500/20 rounded-2xl p-6 max-w-sm w-full" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm overflow-y-auto" onClick={() => setRemoveConfirm(false)}>
+          <div className="bg-zinc-950 border border-red-500/20 rounded-2xl p-6 max-w-sm w-full max-h-[90dvh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <h2 className="text-lg font-extrabold text-red-500 mb-2">Irreversible: Delete {user.name}?</h2>
             <p className="text-sm text-zinc-500 mb-6">This will purge the user and all their non-financial data from the platform. Are you absolutely sure?</p>
             <div className="flex gap-2">
@@ -987,8 +987,8 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
       )}
 
       {waModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setWaModal(false)}>
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-sm w-full" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto" onClick={() => setWaModal(false)}>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-sm w-full max-h-[90dvh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <h2 className="text-lg font-extrabold text-white mb-2">WhatsApp: {user.name}</h2>
             <p className="text-xs text-zinc-500 mb-4 italic leading-tight">Send a custom WhatsApp message or use one of the templates on the profile sidebar.</p>
             <textarea

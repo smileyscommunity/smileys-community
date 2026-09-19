@@ -464,7 +464,7 @@ function AnalyticsInner() {
             })()}
           </p>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
           {/* Stale-data indicator — only shows during in-flight refreshes
               that aren't the initial load, so admins know the chart values
               are catching up to a new period selection. */}

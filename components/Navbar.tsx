@@ -152,6 +152,10 @@ export default function Navbar({
   // clicking an item.
   useEffect(() => { setDiscoverOpen(false) }, [pathname])
 
+  // The admin panel has its own shell (top bar, sidebar, bottom nav) filling
+  // the screen: this bar above it pushed the panel down on phones.
+  if (pathname?.startsWith('/admin')) return null
+
   const isActive = (href: string) =>
     href === '/' ? pathname === '/' : pathname.startsWith(href)
 

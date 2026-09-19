@@ -207,7 +207,7 @@ export default function AdminSponsorsPage() {
 
               {open && (
                 <div className="mt-4 pt-4 border-t border-zinc-800 space-y-4">
-                  <p className="text-sm text-zinc-300 whitespace-pre-wrap">{lead.message}</p>
+                  <p className="text-sm text-zinc-300 whitespace-pre-wrap break-words">{lead.message}</p>
                   <div className="flex items-end gap-3 flex-wrap">
                     <div>
                       <label className="block text-xs text-zinc-500 mb-1">Deal value ({currencySymbol(cur).trim()})</label>

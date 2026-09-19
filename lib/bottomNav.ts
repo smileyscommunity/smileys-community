@@ -21,8 +21,10 @@ export function isCityRoute(pathname: string, citySlugs: readonly string[]): boo
   return !!first && citySlugs.includes(first)
 }
 
+// Not /admin: the admin panel has its own bottom nav, and this one sat on top
+// of it (z-50 over z-30), taking every tap at the bottom of an admin screen.
 export function isBottomNavRoute(pathname: string, citySlugs: readonly string[] = []): boolean {
-  return pathname.startsWith('/admin') || pathname.startsWith('/host') || pathname.startsWith('/partner') ||
+  return pathname.startsWith('/host') || pathname.startsWith('/partner') ||
     BOTTOM_NAV_ROUTES.some(r => pathname === r || pathname.startsWith(r + '/')) ||
     isCityRoute(pathname, citySlugs)
 }

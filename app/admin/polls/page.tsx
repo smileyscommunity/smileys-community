@@ -323,9 +323,9 @@ export default function PollsPage() {
               const total = totalVotes(poll)
               return (
                 <div key={poll.id} className={`rounded-2xl border p-5 ${poll.active ? 'border-amber-500/30 bg-amber-500/5' : 'border-zinc-800 bg-zinc-900'}`}>
-                  <div className="flex items-start justify-between gap-3 mb-4">
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-4">
                     <p className="text-sm font-semibold text-white leading-snug">{poll.question}</p>
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto flex-wrap">
                       <span className={`text-xs font-bold px-2 py-1 rounded-lg uppercase tracking-wide ${poll.active ? 'bg-amber-500/20 text-amber-400' : 'bg-zinc-800 text-zinc-500'}`}>
                         {poll.active ? 'Live' : 'Ended'}
                       </span>

@@ -145,7 +145,7 @@ function BulkAddListingsPageInner() {
           <code className="text-zinc-300 bg-zinc-800 px-1 rounded">Contact:</code> optional, everything else is description.
         </p>
 
-        <div className="grid grid-cols-3 gap-3 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
           <div>
             <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Category</label>
             <select value={category} onChange={e => setCategory(e.target.value)}

@@ -37,7 +37,7 @@ export default function NoShowBanner() {
       .catch(() => setCards([]))
   }, [isLoggedIn])
 
-  if (!isLoggedIn || !cards?.length || pathname === '/no-show') return null
+  if (!isLoggedIn || !cards?.length || pathname === '/no-show' || pathname?.startsWith('/admin')) return null
 
   const red    = cards.find(c => c.kind === 'red')
   const yellow = cards.find(c => c.kind === 'yellow' && !c.acknowledgedAt)

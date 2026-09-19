@@ -200,7 +200,7 @@ export default function AdminSettingsPage() {
                 {rules.map((r, i) => (
                   <div key={i} className="bg-zinc-800/60 border border-zinc-700 rounded-xl p-3 space-y-2">
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold text-zinc-500 w-6">#{i + 1}</span>
+                      <span className="hidden sm:inline text-[10px] font-bold text-zinc-500 w-6">#{i + 1}</span>
                       <input
                         type="text"
                         value={r.icon ?? ''}
@@ -216,10 +216,10 @@ export default function AdminSettingsPage() {
                         onChange={(e) => setRules(prev => prev.map((x, j) => j === i ? { ...x, title: e.target.value } : x))}
                         placeholder="Short headline (e.g. Be kind)"
                         maxLength={60}
-                        className="flex-1 px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder-zinc-500 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                        className="flex-1 min-w-0 px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder-zinc-500 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
                         aria-label={`Rule ${i + 1} title`}
                       />
-                      <div className="flex items-center gap-0.5">
+                      <div className="flex items-center gap-0.5 shrink-0">
                         <button
                           type="button"
                           disabled={i === 0}

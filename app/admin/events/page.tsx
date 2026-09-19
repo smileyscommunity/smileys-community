@@ -666,10 +666,10 @@ function AdminEventsPageInner() {
       )}
 
       {/* Table */}
-      <div className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
+      <div className="bg-zinc-900 rounded-2xl border border-zinc-800">
 
         {/* Desktop header — col layout: 1 | 5 | 2 | 1 | 3 = 12 */}
-        <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-3 bg-zinc-800/50 border-b border-zinc-800 text-xs font-bold text-zinc-500 uppercase tracking-wider">
+        <div className="hidden lg:grid grid-cols-12 gap-4 px-6 py-3 rounded-t-2xl bg-zinc-800/50 border-b border-zinc-800 text-xs font-bold text-zinc-500 uppercase tracking-wider">
           <div className="col-span-1 flex items-center">
             <input type="checkbox"
               checked={selectedVisible.length === visible.length && visible.length > 0}
@@ -687,7 +687,7 @@ function AdminEventsPageInner() {
             mobile equivalent the per-row checkboxes (added below) work
             but bulk-clearing a whole filter view requires N taps. */}
         {!loading && visible.length > 0 && (
-          <div className="md:hidden flex items-center gap-2 px-4 py-2.5 bg-zinc-800/40 border-b border-zinc-800">
+          <div className="lg:hidden flex items-center gap-2 px-4 py-2.5 rounded-t-2xl bg-zinc-800/40 border-b border-zinc-800">
             <input type="checkbox"
               checked={selectedVisible.length === visible.length && visible.length > 0}
               onChange={() => setSelected(selectedVisible.length === visible.length ? new Set() : new Set(visible.map(e => e.id)))}
@@ -708,7 +708,7 @@ function AdminEventsPageInner() {
           {loading && [0, 1, 2, 3].map(i => (
             <div key={i}>
               {/* Mobile skeleton card */}
-              <div className="md:hidden p-4 space-y-3">
+              <div className="lg:hidden p-4 space-y-3">
                 <div className="flex items-start gap-3">
                   <div className="w-4 h-4 rounded bg-zinc-800 animate-pulse shrink-0 mt-1" />
                   <div className="w-7 h-7 rounded bg-zinc-800 animate-pulse shrink-0" />
@@ -725,7 +725,7 @@ function AdminEventsPageInner() {
                 </div>
               </div>
               {/* Desktop skeleton row */}
-              <div className="hidden md:flex items-center gap-4 px-6 py-4">
+              <div className="hidden lg:flex items-center gap-4 px-6 py-4">
                 <div className="w-3.5 h-3.5 rounded bg-zinc-800 animate-pulse shrink-0" />
                 <div className="w-7 h-7 rounded-lg bg-zinc-800 animate-pulse shrink-0" />
                 <div className="flex-1 min-w-0 space-y-1.5">
@@ -773,10 +773,10 @@ function AdminEventsPageInner() {
               <div key={event.id}>
 
                 {/* ── Mobile card ── */}
-                <div className={`md:hidden p-4 space-y-3 ${selected.has(event.id) ? 'bg-amber-500/5' : ''}`}>
+                <div className={`lg:hidden p-4 space-y-3 ${selected.has(event.id) ? 'bg-amber-500/5' : ''}`}>
                   <div className="flex items-start gap-3">
                     {/* Per-card checkbox — desktop had this in a hidden
-                        md:grid column, so mobile users couldn't put
+                        lg:grid column, so mobile users couldn't put
                         anything into `selected` and the bulk-actions
                         bar was unreachable from a phone. */}
                     <input type="checkbox" checked={selected.has(event.id)} onChange={() => toggleSelect(event.id)}
@@ -855,7 +855,7 @@ function AdminEventsPageInner() {
                 </div>
 
                 {/* ── Desktop row — col: 1 | 5 | 2 | 1 | 3 = 12 ── */}
-                <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-zinc-800/40 transition-colors">
+                <div className="hidden lg:grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-zinc-800/40 transition-colors">
 
                   {/* Checkbox */}
                   <div className="col-span-1 flex items-center">
@@ -936,7 +936,7 @@ function AdminEventsPageInner() {
                   </div>
 
                   {/* Actions */}
-                  <div className="col-span-3 flex items-center justify-end gap-1.5">
+                  <div className="col-span-3 flex flex-wrap items-center justify-end gap-1.5">
                     <RowActions event={event} isFeatured={isFeatured}
                       onApprove={approveEvent} onToggleFeatured={toggleFeatured} onToggleSoldOut={toggleSoldOut}
                       onStatusChange={handleStatusChange} onDuplicate={handleDuplicate} onDelete={handleDelete} onNotify={openNotify} />
@@ -949,7 +949,7 @@ function AdminEventsPageInner() {
         </div>
 
         {visible.length > 0 && (
-          <div className="px-4 sm:px-6 py-3 border-t border-zinc-800 bg-zinc-800/30 text-xs text-zinc-500">
+          <div className="px-4 sm:px-6 py-3 border-t border-zinc-800 rounded-b-2xl bg-zinc-800/30 text-xs text-zinc-500">
             Showing {visible.length} of {events.length} events
           </div>
         )}

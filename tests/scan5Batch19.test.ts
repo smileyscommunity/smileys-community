@@ -111,7 +111,9 @@ describe('75 — bottom nav after a city switch', () => {
   it('without slugs the old rule is unchanged (the regression, for the record)', () => {
     expect(isBottomNavRoute('/bursa')).toBe(false)
     expect(isBottomNavRoute('/events')).toBe(true)
-    expect(isBottomNavRoute('/admin/users')).toBe(true)
+    // The admin panel has its own bottom nav; the member one covered it.
+    expect(isBottomNavRoute('/admin/users')).toBe(false)
+    expect(isBottomNavRoute('/host/events')).toBe(true)
   })
 
   it('non-city top-level pages are not swept in by the slug match', () => {

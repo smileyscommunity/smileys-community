@@ -28,6 +28,8 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
   // The member pitch has no business closing the advertiser page — /advertise
   // ends with its own partner CTA band instead.
   const showMemberCta = !isLoggedIn && !pathname?.startsWith('/advertise')
+  // Not under the admin panel, which fills the screen with its own shell.
+  if (pathname?.startsWith('/admin')) return null
 
   return (
     <footer className="bg-white border-t border-gray-100">

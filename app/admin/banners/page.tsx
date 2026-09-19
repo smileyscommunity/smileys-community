@@ -263,14 +263,15 @@ export default function BannersPage() {
                             }`}>
                               {b.active ? 'Active' : 'Draft'}
                             </span>
-                            {/* md:opacity-0 + md:group-hover keeps the
-                                clean hover-reveal on desktop while
-                                showing the controls unconditionally on
-                                touch — previously the entire button
-                                cluster was unreachable from mobile
-                                because there's no hover on touch. */}
+                            {/* md:opacity-0 + md:group-hover (only on
+                                hover-capable pointers) keeps the clean
+                                hover-reveal on desktop while showing the
+                                controls unconditionally on touch —
+                                including touch tablets at md+ —
+                                previously the entire button cluster was
+                                unreachable without hover. */}
                             {isAdmin && (
-                            <div className="flex items-center gap-2 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                            <div className="flex items-center gap-2 md:[@media(hover:hover)]:opacity-0 md:[@media(hover:hover)]:group-hover:opacity-100 transition-opacity">
                               <button onClick={() => toggleActive(p.key, b.id)} disabled={!canWrite} className="p-1 text-zinc-500 hover:text-white disabled:opacity-40" title={b.active ? 'Deactivate' : 'Activate'}>
                                 {b.active ? '⏸' : '▶'}
                               </button>
@@ -386,7 +387,7 @@ export default function BannersPage() {
                     className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-xl text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500" />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-1.5 ml-1">CTA Text</label>
                     <input type="text" value={editing.cta} maxLength={20}

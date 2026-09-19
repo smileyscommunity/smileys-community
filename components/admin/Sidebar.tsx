@@ -256,7 +256,7 @@ export default function Sidebar({ open, onClose }: Props) {
             </div>
             <button
               onClick={logout}
-              className="text-zinc-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+              className="text-zinc-600 hover:text-red-400 transition-colors opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
               title="Sign out"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -510,8 +510,8 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
 
       {/* Series update modal */}
       {seriesModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
-          <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 overflow-y-auto">
+          <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 max-w-sm w-full max-h-[90dvh] overflow-y-auto shadow-2xl space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0">
                 <svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -888,7 +888,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
             could only be set at creation and were invisible here. */}
         {form.genderBalance && (
           <div className="mt-4 space-y-3">
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <label className="text-sm font-medium text-zinc-300 shrink-0 w-32">♂ Male quota</label>
               <input
                 type="number"
@@ -899,9 +899,9 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
                 placeholder={`Default: ${form.totalSpots ? Math.floor(parseInt(form.totalSpots) / 2) : '½ of spots'}`}
                 className="w-32 bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 px-3 py-2 text-sm"
               />
-              <span className="text-xs text-zinc-500">max males allowed</span>
+              <span className="text-xs text-zinc-500 basis-full sm:basis-auto">max males allowed</span>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <label className="text-sm font-medium text-zinc-300 shrink-0 w-32">♀ Female quota</label>
               <input
                 type="number"
@@ -912,9 +912,9 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
                 placeholder="Leave blank for uncapped"
                 className="w-32 bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 px-3 py-2 text-sm"
               />
-              <span className="text-xs text-zinc-500">max females allowed (blank = no cap)</span>
+              <span className="text-xs text-zinc-500 basis-full sm:basis-auto">max females allowed (blank = no cap)</span>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <label className="text-sm font-medium text-zinc-300 shrink-0 w-32">🇹🇷 Turkish male</label>
               <input
                 type="number"
@@ -924,7 +924,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
                 placeholder="Leave blank for no sub-cap"
                 className="w-32 bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 px-3 py-2 text-sm"
               />
-              <span className="text-xs text-zinc-500">sub-cap on Turkish males specifically</span>
+              <span className="text-xs text-zinc-500 basis-full sm:basis-auto">sub-cap on Turkish males specifically</span>
             </div>
           </div>
         )}

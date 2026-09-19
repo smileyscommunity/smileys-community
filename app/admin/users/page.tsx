@@ -738,8 +738,8 @@ function AdminUsersPageInner() {
           ))}
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="relative flex-1">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div className="relative w-full sm:w-auto sm:flex-1">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
@@ -749,11 +749,11 @@ function AdminUsersPageInner() {
             />
           </div>
           <CitySelect value={cityFilter} onChange={setCityFilter} label={null} emptyLabel="All cities"
-            className="shrink-0 px-3 py-2 text-xs font-semibold rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 transition-colors cursor-pointer" />
+            className="min-w-0 flex-1 sm:flex-none px-3 py-2 text-xs font-semibold rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 transition-colors cursor-pointer" />
           <select
             value={sortBy}
             onChange={e => setSortBy(e.target.value as SortKey)}
-            className="shrink-0 px-3 py-2 text-xs font-semibold rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 transition-colors cursor-pointer"
+            className="min-w-0 flex-1 sm:flex-none px-3 py-2 text-xs font-semibold rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 transition-colors cursor-pointer"
             title="Sort by"
           >
             <option value="recent">Newest</option>
@@ -769,10 +769,12 @@ function AdminUsersPageInner() {
               a.click()
               setTimeout(() => URL.revokeObjectURL(url), 200)
             }}
+            aria-label="Export CSV"
             className="shrink-0 flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 transition-colors"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-            Export CSV
+            <span className="sm:hidden">CSV</span>
+            <span className="hidden sm:inline">Export CSV</span>
           </button>
         </div>
       </div>
@@ -844,8 +846,9 @@ function AdminUsersPageInner() {
         </div>
       )}
 
-      {/* Table */}
-      <div className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
+      {/* Table — no overflow-hidden: it clipped the Suspend/Ban menu on the
+          last rows. The footer carries its own bottom rounding instead. */}
+      <div className="bg-zinc-900 rounded-2xl border border-zinc-800">
         {/* Desktop header */}
         <div className="hidden md:grid grid-cols-12 gap-3 px-6 py-3 border-b border-zinc-800 text-xs font-bold text-zinc-500 uppercase tracking-wider items-center">
           <div className="col-span-1">
@@ -1066,7 +1069,7 @@ function AdminUsersPageInner() {
         </div>
 
         {visible.length > 0 && (
-          <div className="px-6 py-3 border-t border-zinc-800 bg-zinc-800/50 text-xs text-zinc-500 flex items-center justify-between gap-3 flex-wrap">
+          <div className="px-6 py-3 border-t border-zinc-800 bg-zinc-800/50 rounded-b-2xl text-xs text-zinc-500 flex items-center justify-between gap-3 flex-wrap">
             <span>Showing {visible.length} of {users.length} users</span>
             {refreshLabel && <span className="text-zinc-600">{refreshLabel}</span>}
           </div>

@@ -1048,13 +1048,13 @@ function AdminApplicationsPageInner() {
           on the backdrop) so admins get the whole screen for reading and
           deciding; padded centered card on desktop. */}
       {selected && (
-        <div className="fixed inset-0 z-50 flex items-stretch sm:items-center sm:justify-center bg-black/40 backdrop-blur-sm sm:p-4" onClick={() => setSelected(null)}>
-          <div className="bg-zinc-900 border-0 sm:border sm:border-zinc-800 rounded-none sm:rounded-2xl shadow-2xl w-full max-w-5xl h-full sm:h-auto sm:max-h-[90vh] overflow-y-auto sm:overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-stretch md:items-center md:justify-center bg-black/40 backdrop-blur-sm md:p-4" onClick={() => setSelected(null)}>
+          <div className="bg-zinc-900 border-0 md:border md:border-zinc-800 rounded-none md:rounded-2xl shadow-2xl w-full max-w-5xl h-full md:h-auto md:max-h-[90vh] overflow-y-auto md:overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
 
             {/* Modal header — sticky-top on mobile (paired with sticky-bottom
                 decision panel below) so context + close X are always visible
                 regardless of scroll position. */}
-            <div className="sticky top-0 sm:static flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-zinc-800 shrink-0 bg-zinc-900/95 backdrop-blur-sm sm:bg-zinc-900 z-10">
+            <div className="sticky top-0 md:static flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-zinc-800 shrink-0 bg-zinc-900/95 backdrop-blur-sm md:bg-zinc-900 z-10">
               <div className="flex items-center gap-2 flex-wrap">
                 <Score app={selected} />
                 <Flag app={selected} />
@@ -1109,9 +1109,9 @@ function AdminApplicationsPageInner() {
                   {selected.referrerName && <div className="flex gap-2"><span className="text-zinc-600 w-24 shrink-0">Told by</span><span className="text-amber-400">{selected.referrerName}</span></div>}
                   {!!selected.lookingFor?.length && <div className="flex gap-2"><span className="text-zinc-600 w-24 shrink-0">Looking for</span><span className="text-zinc-400">{selected.lookingFor.join(', ').replace(/_/g, ' ')}</span></div>}
                   {selected.ipAddress && (
-                    <div className="flex gap-2 items-center">
+                    <div className="flex flex-wrap gap-2 items-center">
                       <span className="text-zinc-600 w-12 shrink-0">IP</span>
-                      <span className="text-zinc-300 font-mono text-xs">{selected.ipAddress}</span>
+                      <span className="text-zinc-300 font-mono text-xs break-all">{selected.ipAddress}</span>
                       {/* Reuse the memoized map the list cards already
                           build instead of re-scanning `apps` per render.
                           Map counts include the current app, so > 1 is
@@ -1123,7 +1123,7 @@ function AdminApplicationsPageInner() {
                   )}
                   {selected.userAgent && <div className="flex gap-2"><span className="text-zinc-600 w-12 shrink-0">Device</span><span className="text-zinc-500 text-xs truncate">{selected.userAgent}</span></div>}
                   {selected.fingerprint && (
-                    <div className="flex gap-2 items-center">
+                    <div className="flex flex-wrap gap-2 items-center">
                       <span className="text-zinc-600 w-20 shrink-0">Fingerprint</span>
                       <span className="text-zinc-400 font-mono text-xs">{selected.fingerprint.slice(0, 16)}…</span>
                       {(fingerprintCounts.get(selected.fingerprint) ?? 0) > 1 && (
@@ -1132,9 +1132,9 @@ function AdminApplicationsPageInner() {
                     </div>
                   )}
                   {selected.timezone && (
-                    <div className="flex gap-2 items-center">
+                    <div className="flex flex-wrap gap-2 items-center">
                       <span className="text-zinc-600 w-20 shrink-0">Timezone</span>
-                      <span className="text-zinc-400 text-xs">{selected.timezone}</span>
+                      <span className="text-zinc-400 text-xs break-all">{selected.timezone}</span>
                       {selected.timezoneMismatch && (
                         <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-400">⚠️ IP mismatch — possible VPN</span>
                       )}
@@ -1314,23 +1314,106 @@ function AdminApplicationsPageInner() {
                       </div>
                     </div>
                   )}
+
+                  {/* Review tools — kept in the scrolling body (not the
+                      sticky decision bar) so they don't eat the phone
+                      screen. */}
+                  <div className="border-t border-zinc-800 pt-4 space-y-3">
+                    <div className="flex gap-2">
+                      <input value={reviewNote} onChange={e => setReviewNote(e.target.value)}
+                        placeholder="Internal note (only visible to admins)…"
+                        className="flex-1 px-3 py-2 text-sm bg-zinc-800 border border-zinc-700 rounded-xl focus:outline-none focus:ring-1 focus:ring-amber-500 text-white placeholder-zinc-600" />
+                      <button onClick={saveNote} className="px-3 py-2 text-xs text-zinc-400 border border-zinc-700 rounded-xl hover:bg-zinc-800 transition-colors">
+                        Save
+                      </button>
+                    </div>
+                    {!isMod && (selected.status === 'pending' || selected.status === 'hold') && (
+                      <>
+                        {/* Welcome message draft */}
+                        <div className="bg-zinc-800/60 border border-zinc-700 rounded-xl p-3 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Welcome message</p>
+                            <button onClick={() => draftWelcome(selected.id)} disabled={welcomeLoading}
+                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 border border-violet-500/20 transition-colors disabled:opacity-50">
+                              {welcomeLoading ? '⏳ Writing…' : welcomeMsg ? '✦ Redraft' : '✦ Draft with AI'}
+                            </button>
+                          </div>
+                          <textarea
+                            value={welcomeMsg}
+                            onChange={e => setWelcomeMsg(e.target.value)}
+                            rows={3}
+                            placeholder="AI will draft a personalised welcome — or write your own…"
+                            className="w-full px-3 py-2 text-xs bg-zinc-900 border border-zinc-700 rounded-lg text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-violet-500/50 resize-none"
+                          />
+                          {welcomeMsg && <p className="text-xs text-zinc-600">Sent to the member on approval. Edit before approving.</p>}
+                        </div>
+
+                        {/* Request more info — emails the applicant a question
+                            and parks the app as 'hold' so it leaves the pending
+                            queue. When they reply, manually flip back to
+                            pending from the Hold tab. */}
+                        <div className="bg-zinc-800/60 border border-zinc-700 rounded-xl p-3 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Request more info</p>
+                            {moreInfoMsg.trim() && (
+                              <span className="text-[10px] text-zinc-500">Moves to Hold tab</span>
+                            )}
+                          </div>
+                          <textarea
+                            value={moreInfoMsg}
+                            onChange={e => setMoreInfoMsg(e.target.value)}
+                            rows={2}
+                            placeholder="Ask a clarifying question — sent verbatim to the applicant…"
+                            className="w-full px-3 py-2 text-xs bg-zinc-900 border border-zinc-700 rounded-lg text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-blue-500/50 resize-none"
+                          />
+                          <button onClick={() => requestMoreInfo(selected.id)} disabled={holdSaving || !moreInfoMsg.trim()}
+                            className="w-full py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 font-semibold rounded-lg text-xs transition-colors border border-blue-500/20 disabled:opacity-50">
+                            {holdSaving ? 'Sending…' : '✉ Send + Hold'}
+                          </button>
+                        </div>
+
+                        {(selected.fingerprint || selected.ipAddress) && (
+                          <button
+                            onClick={async () => {
+                              if (!(await confirmToast('Blacklist this device/IP? Future applications from same device will be auto-rejected.'))) return
+                              const res = await fetch('/app/api/admin/blacklist', {
+                                method: 'POST', credentials: 'include',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  name: selected.fullName,
+                                  fingerprint: selected.fingerprint || undefined,
+                                  ipAddress: selected.ipAddress || undefined,
+                                  reason: `Blacklisted device/IP from application by ${selected.fullName} (${selected.email})`,
+                                }),
+                              })
+                              if (!res.ok) {
+                                const d = await res.json().catch(() => ({}))
+                                toast.error(d?.error ?? 'Could not blacklist')
+                                return
+                              }
+                              toast.success('Device blacklisted — future attempts auto-rejected')
+                            }}
+                            className="w-full py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-red-400 font-semibold rounded-xl text-xs transition-colors border border-zinc-700">
+                            🚫 Blacklist this device / IP
+                          </button>
+                        )}
+                        <textarea value={rejectMsg} onChange={e => setRejectMsg(e.target.value)} rows={2}
+                          placeholder="Optional message to applicant on rejection…"
+                          className="w-full px-3 py-2 text-xs bg-zinc-800 border border-zinc-700 rounded-xl focus:outline-none focus:ring-1 focus:ring-red-500/50 text-white placeholder-zinc-600 resize-none" />
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 {/* Decision panel — sticky-bottom on mobile so Approve/Reject
                     is always one tap away regardless of how far the admin
                     has scrolled through the application essays; static
                     bottom panel on desktop where the body has its own
-                    overflow container. */}
-                <div className="sticky bottom-0 sm:static shrink-0 border-t border-zinc-800 p-4 space-y-3 bg-zinc-900/95 backdrop-blur-sm sm:bg-zinc-900/80 z-10">
-                  <div className="flex gap-2">
-                    <input value={reviewNote} onChange={e => setReviewNote(e.target.value)}
-                      placeholder="Internal note (only visible to admins)…"
-                      className="flex-1 px-3 py-2 text-sm bg-zinc-800 border border-zinc-700 rounded-xl focus:outline-none focus:ring-1 focus:ring-amber-500 text-white placeholder-zinc-600" />
-                    <button onClick={saveNote} className="px-3 py-2 text-xs text-zinc-400 border border-zinc-700 rounded-xl hover:bg-zinc-800 transition-colors">
-                      Save
-                    </button>
-                  </div>
-
+                    overflow container. Only the decision buttons live here
+                    (the note, welcome draft, more-info, blacklist and
+                    rejection message sit at the end of the scrolling body)
+                    so the sticky bar stays one row tall on phones. */}
+                <div className="sticky bottom-0 md:static shrink-0 border-t border-zinc-800 p-4 space-y-3 bg-zinc-900/95 backdrop-blur-sm md:bg-zinc-900/80 z-10">
                   {isMod ? (
                     <div className="space-y-2">
                       <div className="grid grid-cols-2 gap-2">
@@ -1351,49 +1434,6 @@ function AdminApplicationsPageInner() {
                        pending-only, so a held application had no decision
                        controls on the one screen built for the decision. */
                     <div className="space-y-2">
-                      {/* Welcome message draft */}
-                      <div className="bg-zinc-800/60 border border-zinc-700 rounded-xl p-3 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Welcome message</p>
-                          <button onClick={() => draftWelcome(selected.id)} disabled={welcomeLoading}
-                            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 border border-violet-500/20 transition-colors disabled:opacity-50">
-                            {welcomeLoading ? '⏳ Writing…' : welcomeMsg ? '✦ Redraft' : '✦ Draft with AI'}
-                          </button>
-                        </div>
-                        <textarea
-                          value={welcomeMsg}
-                          onChange={e => setWelcomeMsg(e.target.value)}
-                          rows={3}
-                          placeholder="AI will draft a personalised welcome — or write your own…"
-                          className="w-full px-3 py-2 text-xs bg-zinc-900 border border-zinc-700 rounded-lg text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-violet-500/50 resize-none"
-                        />
-                        {welcomeMsg && <p className="text-xs text-zinc-600">Sent to the member on approval. Edit before approving.</p>}
-                      </div>
-
-                      {/* Request more info — emails the applicant a question
-                          and parks the app as 'hold' so it leaves the pending
-                          queue. When they reply, manually flip back to
-                          pending from the Hold tab. */}
-                      <div className="bg-zinc-800/60 border border-zinc-700 rounded-xl p-3 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Request more info</p>
-                          {moreInfoMsg.trim() && (
-                            <span className="text-[10px] text-zinc-500">Moves to Hold tab</span>
-                          )}
-                        </div>
-                        <textarea
-                          value={moreInfoMsg}
-                          onChange={e => setMoreInfoMsg(e.target.value)}
-                          rows={2}
-                          placeholder="Ask a clarifying question — sent verbatim to the applicant…"
-                          className="w-full px-3 py-2 text-xs bg-zinc-900 border border-zinc-700 rounded-lg text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-blue-500/50 resize-none"
-                        />
-                        <button onClick={() => requestMoreInfo(selected.id)} disabled={holdSaving || !moreInfoMsg.trim()}
-                          className="w-full py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 font-semibold rounded-lg text-xs transition-colors border border-blue-500/20 disabled:opacity-50">
-                          {holdSaving ? 'Sending…' : '✉ Send + Hold'}
-                        </button>
-                      </div>
-
                       <div className="grid grid-cols-2 gap-2">
                         <button onClick={() => decide(selected.id, 'approved')} disabled={saving}
                           className="py-2.5 bg-green-500 hover:bg-green-600 text-white font-bold rounded-xl text-sm transition-colors disabled:opacity-50">
@@ -1404,34 +1444,6 @@ function AdminApplicationsPageInner() {
                           {saving ? '…' : '❌ Reject'}
                         </button>
                       </div>
-                      {(selected.fingerprint || selected.ipAddress) && (
-                        <button
-                          onClick={async () => {
-                            if (!(await confirmToast('Blacklist this device/IP? Future applications from same device will be auto-rejected.'))) return
-                            const res = await fetch('/app/api/admin/blacklist', {
-                              method: 'POST', credentials: 'include',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({
-                                name: selected.fullName,
-                                fingerprint: selected.fingerprint || undefined,
-                                ipAddress: selected.ipAddress || undefined,
-                                reason: `Blacklisted device/IP from application by ${selected.fullName} (${selected.email})`,
-                              }),
-                            })
-                            if (!res.ok) {
-                              const d = await res.json().catch(() => ({}))
-                              toast.error(d?.error ?? 'Could not blacklist')
-                              return
-                            }
-                            toast.success('Device blacklisted — future attempts auto-rejected')
-                          }}
-                          className="w-full py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-red-400 font-semibold rounded-xl text-xs transition-colors border border-zinc-700">
-                          🚫 Blacklist this device / IP
-                        </button>
-                      )}
-                      <textarea value={rejectMsg} onChange={e => setRejectMsg(e.target.value)} rows={2}
-                        placeholder="Optional message to applicant on rejection…"
-                        className="w-full px-3 py-2 text-xs bg-zinc-800 border border-zinc-700 rounded-xl focus:outline-none focus:ring-1 focus:ring-red-500/50 text-white placeholder-zinc-600 resize-none" />
                     </div>
                   ) : (
                     <div className="flex items-center justify-between">

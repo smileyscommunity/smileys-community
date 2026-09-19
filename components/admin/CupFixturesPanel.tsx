@@ -140,7 +140,7 @@ export default function CupFixturesPanel() {
       )}
 
       <div className="flex items-center gap-3 flex-wrap">
-        <div className="flex gap-1 bg-zinc-800 rounded-xl p-1 border border-zinc-700 w-fit">
+        <div className="flex flex-wrap gap-1 bg-zinc-800 rounded-xl p-1 border border-zinc-700 w-fit">
           {(['all', 'group', 'r32', 'r16', 'qf', 'sf', 'final'] as const).map(r => (
             <button key={r} onClick={() => setRoundFilter(r)}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${

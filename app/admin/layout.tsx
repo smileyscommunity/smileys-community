@@ -26,6 +26,15 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const { user, isLoading, isLoggedIn } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  // The drawer closes on any navigation (Back included) and on Esc — it
+  // stayed open across route changes.
+  useEffect(() => { setSidebarOpen(false) }, [pathname])
+  useEffect(() => {
+    if (!sidebarOpen) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSidebarOpen(false) }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [sidebarOpen])
 
   const allowed  = user?.role === 'admin' || user?.role === 'moderator'
   const isMod    = user?.role === 'moderator'
@@ -55,13 +64,15 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="flex-1 flex flex-col min-w-0">
         <Topbar onMenuClick={() => setSidebarOpen(true)} />
-        <main className="flex-1 overflow-y-auto pb-16 md:pb-0">
+        <main className="flex-1 overflow-y-auto pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
           {children}
         </main>
       </div>
 
       {/* Mobile bottom nav — 6 pinned shortcuts + More */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-zinc-950 border-t border-white/5 flex">
+      {/* safe-area-pb: the installed app runs edge to edge (viewportFit
+          cover), and the iPhone home indicator sat over the labels. */}
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-zinc-950 border-t border-white/5 flex safe-area-pb">
         {(isMod ? MODERATOR_BOTTOM_NAV : [
           { label: 'Home',   href: '/admin',              icon: 'dashboard',    exact: true  },
           { label: 'Apps',   href: '/admin/applications', icon: 'applications', exact: false },

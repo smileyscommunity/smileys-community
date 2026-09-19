@@ -509,11 +509,11 @@ export default function StoriesPage() {
                   <img src={resolveImageUrl(p.url)} alt={p.caption ?? ''}
                     className="w-full aspect-square object-cover" />
                   {/* Desktop hover overlay — covers the photo on hover
-                      with caption/event + actions. Hidden on touch (md
-                      and below) because there's no hover, leaving the
-                      tile a dead surface with no way to toggle or
-                      delete a photo on mobile. */}
-                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity hidden md:flex flex-col items-center justify-center gap-2 p-3">
+                      with caption/event + actions. Only on md+ screens with
+                      real hover; touch devices (incl. tablets) get the
+                      strip below, since without hover the overlay leaves
+                      no way to toggle or delete a photo. */}
+                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity hidden [@media(hover:hover)]:md:flex flex-col items-center justify-center gap-2 p-3">
                     {p.caption && <p className="text-xs text-white text-center font-medium leading-snug">{p.caption}</p>}
                     {p.event   && <p className="text-xs text-amber-400 text-center">{p.event}</p>}
                     {canEditPhotos && <div className="flex gap-2 mt-1">
@@ -547,7 +547,7 @@ export default function StoriesPage() {
                       readable. Caption/event live in the strip too so
                       mobile admins see the same metadata the desktop
                       overlay shows. */}
-                  <div className="md:hidden absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/60 to-transparent p-2 space-y-1">
+                  <div className="[@media(hover:hover)]:md:hidden absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/60 to-transparent p-2 space-y-1">
                     {(p.caption || p.event) && (
                       <div className="text-[10px] leading-snug">
                         {p.caption && <p className="text-white font-medium truncate">{p.caption}</p>}

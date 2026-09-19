@@ -110,14 +110,14 @@ export default function AdminPostsPage() {
       </div>
 
       {/* Filter tabs */}
-      <div className="flex gap-1 mb-5">
+      <div className="flex gap-1 mb-5 overflow-x-auto scrollbar-hide">
         {/* 'submitted' = member-written stories awaiting review (the
             /share-story flow) — edit, then publish like any draft. */}
         {(['all', 'published', 'draft', 'submitted'] as const).map(f => (
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium capitalize transition-colors ${
+            className={`shrink-0 px-3 sm:px-4 py-2 rounded-lg text-sm font-medium capitalize transition-colors ${
               filter === f ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
@@ -142,9 +142,9 @@ export default function AdminPostsPage() {
       ) : (
         <div className="space-y-2">
           {filtered.map(post => (
-            <div key={post.id} className="bg-zinc-800 border border-zinc-700 rounded-xl p-4 flex items-center gap-4">
+            <div key={post.id} className="bg-zinc-800 border border-zinc-700 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
+                <div className="flex flex-wrap items-center gap-2 mb-1">
                   <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${categoryColors[post.category] ?? 'bg-zinc-700 text-zinc-300'}`}>
                     {post.category}
                   </span>
@@ -176,7 +176,7 @@ export default function AdminPostsPage() {
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
                 {post.status === 'published' && (
                   <a
                     href={`/app/posts/${post.slug}`}
