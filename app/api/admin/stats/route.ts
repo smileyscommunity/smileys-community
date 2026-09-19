@@ -7,6 +7,7 @@ import { getCityTz } from '@/lib/city'
 import { listStaleSweepers } from '@/lib/cronHealth'
 import { stalledLiveCities, stalledSeverity, describeStalled } from '@/lib/cityOps'
 import { loadPostponedEvents, planPostponed } from '@/lib/postponedEvents'
+import { countRoomsNeedingReview } from '@/lib/attendanceReview'
 import { COMMUNITY_MEMBER_WHERE, NOT_ACTIVATED_MEMBER_WHERE, MEMBER_ROLE_FILTER } from '@/lib/memberCount'
 import { reportQueueWhere } from '@/lib/admin/reportScope'
 
@@ -267,7 +268,7 @@ export async function GET(req: Request) {
   //
   // Postponed events with no new date sit outside every sweep, seats and all
   // (lib/postponedEvents). A failed lookup costs the pill, not the dashboard.
-  const [emailFailures24h, staleSweepers, stalled, postponed] = await Promise.all([
+  const [emailFailures24h, staleSweepers, stalled, postponed, roomsNeedingReview] = await Promise.all([
     prisma.emailFailure.count({
       where: { createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
     }),
@@ -276,6 +277,12 @@ export async function GET(req: Request) {
     loadPostponedEvents({ cityId })
       .then(facts => planPostponed(facts, new Date()).filter(r => r.needsNewDate))
       .catch(err => { console.error('[admin stats] postponed events lookup failed', err); return [] }),
+    // Rooms in their review day with someone still unmarked. After tonight
+    // those seats settle and the cheap fix — a check-in, a waiver — is gone,
+    // so this is the one attendance number worth a dashboard pill. Costs the
+    // pill, not the dashboard, if it fails.
+    countRoomsNeedingReview(new Date(), undefined, cityId ?? undefined)
+      .catch(err => { console.error('[admin stats] review queue count failed', err); return 0 }),
   ])
 
   return NextResponse.json({
@@ -285,7 +292,7 @@ export async function GET(req: Request) {
     city,
     totalAccounts, members, membersActivated, membersNotActivated, hosts, events, upcoming, rsvps,
     newMembersThisMonth, revenue, pendingPayments,
-    pendingApplications, pendingReports, emailFailures24h,
+    pendingApplications, pendingReports, emailFailures24h, roomsNeedingReview,
     pendingJoinRequests: pendingJoinRequests as number,
     // Today's events with live door-ops counts, sorted by start time.
     todayEvents: (todayEventsRaw as { id: string; title: string; emoji: string; time: string; totalSpots: number; attendees: { checkedIn: boolean }[] }[])

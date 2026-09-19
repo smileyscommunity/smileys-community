@@ -2,7 +2,7 @@ import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notify'
 import { claimOnce, releaseClaim } from '@/lib/rateLimit'
-import { sendAttendanceCheckEmail, sendNoShowRecordedEmail, type OffenceHow } from '@/lib/email'
+import { sendAttendanceCheckEmail, sendAttendanceReviewEmail, sendNoShowRecordedEmail, type OffenceHow } from '@/lib/email'
 import { writeAudit } from '@/lib/audit'
 import { eventStartsAt, eventEndsAt } from '@/lib/eventTime'
 import { DEFAULT_TZ } from '@/lib/cityTime'
@@ -239,6 +239,13 @@ export async function sendAttendanceReviews(event: SweepEvent): Promise<number> 
     ? 'Anyone still on this list at the end of tomorrow counts as a no-show on their standing. You can waive that for a month afterwards.'
     : `Anyone still on this list at the end of tomorrow goes on the record, though ${caveat}.`
   const doorNote = ran ? '' : ` Only ${Math.round(room.filter(r => !r.exempt && r.checkedIn).length / Math.max(1, room.filter(r => !r.exempt).length) * 100)}% of the room was scanned, so check this list carefully — plenty of them may simply have been missed at the door.`
+  // Addresses for the email below: the bell alone never reached a host with a
+  // busy account, which is how a list sat unread among 2,902 notifications.
+  const runnerContacts = new Map((await prisma.user.findMany({
+    where:  { id: { in: recipients } },
+    select: { id: true, name: true, email: true },
+  })).map(u => [u.id, u]))
+
   let sent = 0
   for (const userId of recipients) {
     const key = `attendance-review:${event.id}:${userId}`
@@ -247,6 +254,18 @@ export async function sendAttendanceReviews(event: SweepEvent): Promise<number> 
       `${e?.emoji ?? '📋'} ${n} not checked in at ${event.title}`,
       `${names(missing)}. Check in anyone who came, or waive them.${doorNote} ${consequence}`,
       `/host/checkin?event=${event.id}`)
+    if (ok) {
+      // Same claim covers both: one list, one email. A failed send never
+      // withholds the bell entry that already landed.
+      const to = runnerContacts.get(userId)
+      if (to?.email) {
+        await sendAttendanceReviewEmail(
+          to.email, to.name, event.title, e?.emoji ?? '📋', event.id,
+          missing.map(m => m.user?.name ?? 'a guest'), `${doorNote} ${consequence}`.trim(),
+        ).catch(err => console.error('[standing] review email failed', { eventId: event.id, userId, err: String(err) }))
+        await pause()
+      }
+    }
     if (ok) sent++
     else await releaseClaim(key)
   }

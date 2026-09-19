@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 vi.mock('@/lib/notify', () => ({ createNotification: vi.fn().mockResolvedValue(true) }))
 vi.mock('@/lib/audit',  () => ({ writeAudit: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('@/lib/rateLimit', () => ({ claimOnce: vi.fn(), releaseClaim: vi.fn() }))
-vi.mock('@/lib/email', () => ({ sendAttendanceCheckEmail: vi.fn().mockResolvedValue(undefined), sendNoShowRecordedEmail: vi.fn().mockResolvedValue(undefined) }))
+vi.mock('@/lib/email', () => ({ sendAttendanceCheckEmail: vi.fn().mockResolvedValue(undefined), sendAttendanceReviewEmail: vi.fn().mockResolvedValue(undefined), sendNoShowRecordedEmail: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('@/lib/prisma', () => ({ prisma: {
   $transaction:     vi.fn(),
   $queryRaw:        vi.fn(),
@@ -22,6 +22,7 @@ vi.mock('@/lib/prisma', () => ({ prisma: {
 import { prisma } from '@/lib/prisma'
 import { writeAudit } from '@/lib/audit'
 import { createNotification } from '@/lib/notify'
+import { sendAttendanceReviewEmail } from '@/lib/email'
 import { claimOnce, releaseClaim } from '@/lib/rateLimit'
 import { sendAttendanceCheckEmail, sendNoShowRecordedEmail } from '@/lib/email'
 import {
@@ -64,6 +65,7 @@ beforeEach(() => {
   p.rateLimit.findMany.mockResolvedValue([])
   p.user.findMany.mockResolvedValue([])
   ;(sendAttendanceCheckEmail as any).mockResolvedValue(undefined)
+  ;(sendAttendanceReviewEmail as any).mockResolvedValue(undefined)
   ;(sendNoShowRecordedEmail as any).mockResolvedValue(undefined)
   ;(createNotification as any).mockResolvedValue(true)
   let n = 0
@@ -379,6 +381,38 @@ describe('the host review', () => {
       ['m1@x', 'M One', 'Sunset Sailing', '⛵', 'defaulted'],
       ['m3@x', 'M Three', 'Sunset Sailing', '⛵', 'late_cancel'],
     ])
+  })
+
+  describe('reaching a host who never opens the bell', () => {
+    it('emails every runner it notified, with the names and what happens next', async () => {
+      p.eventAttendee.findMany.mockResolvedValue([scanned('s1'), scanned('s2'), scanned('s3'), guest('a'), guest('b')])
+      p.user.findMany.mockResolvedValue([
+        { id: 'host', name: 'Cenk', email: 'cenk@x.com' },
+        { id: 'co',   name: 'Co',   email: 'co@x.com' },
+      ])
+      await sendAttendanceReviews(EVENT as unknown as SweepEvent)
+      const calls = (sendAttendanceReviewEmail as any).mock.calls
+      expect(calls.map((c: any) => c[0]).sort()).toEqual(['cenk@x.com', 'co@x.com'])
+      // The names on the list, and the consequence, travel with it.
+      expect(calls[0][5]).toEqual(['a', 'b'])
+      expect(calls[0][6]).toContain('no-show')
+    })
+
+    it('a failed email never costs the host their bell entry', async () => {
+      p.eventAttendee.findMany.mockResolvedValue([scanned('s1'), scanned('s2'), scanned('s3'), guest('a')])
+      p.user.findMany.mockResolvedValue([{ id: 'host', name: 'Cenk', email: 'cenk@x.com' }])
+      ;(sendAttendanceReviewEmail as any).mockRejectedValueOnce(new Error('resend down'))
+      const sent = await sendAttendanceReviews(EVENT as unknown as SweepEvent)
+      expect(sent).toBeGreaterThan(0)
+      expect(releaseClaim).not.toHaveBeenCalledWith('attendance-review:e1:host')
+    })
+
+    it('says nothing by email to a runner with no address', async () => {
+      p.eventAttendee.findMany.mockResolvedValue([scanned('s1'), scanned('s2'), scanned('s3'), guest('a')])
+      p.user.findMany.mockResolvedValue([{ id: 'host', name: 'Cenk', email: null }])
+      await sendAttendanceReviews(EVENT as unknown as SweepEvent)
+      expect(sendAttendanceReviewEmail).not.toHaveBeenCalled()
+    })
   })
 })
 

@@ -223,3 +223,18 @@ export async function doorRunners(eventId: string): Promise<string[]> {
   const rows = await prisma.rateLimit.findMany({ where: { key: { startsWith: prefix } }, select: { key: true } })
   return rows.map(r => r.key.slice(prefix.length))
 }
+
+/**
+ * How many rooms are in their review day right now with somebody still
+ * unmarked — the number an admin wants on the dashboard, because after
+ * tonight those seats settle and the easy fix is gone.
+ *
+ * Reuses the batched builder rather than growing a second, subtly different
+ * definition of "needs attention".
+ */
+export async function countRoomsNeedingReview(
+  now: Date = new Date(), eventIds?: string[], cityId?: string,
+): Promise<number> {
+  const { rows } = await attendanceReviewRows(now, eventIds, cityId)
+  return rows.filter(r => r.stage === 'review' && r.unmarked.length > 0).length
+}

@@ -29,7 +29,7 @@ vi.mock('@/lib/prisma', () => ({ prisma: {
   clubMembership:{ findMany: vi.fn(async () => []) },
 } }))
 
-import { attendanceReviewRows } from '@/lib/attendanceReview'
+import { attendanceReviewRows, countRoomsNeedingReview } from '@/lib/attendanceReview'
 import { GET } from '@/app/api/attendance-review/route'
 import { standingEvents } from '@/lib/standing'
 import { getSession } from '@/lib/session'
@@ -156,5 +156,26 @@ describe('the queue does not degrade as the community runs more events', () => {
     const { rows, total } = await attendanceReviewRows(NOW, undefined, undefined, { limit: 5 })
     expect(rows).toHaveLength(5)
     expect(total).toBe(12)
+  })
+})
+
+describe('countRoomsNeedingReview', () => {
+  it('counts only rooms still in their review day with someone unmarked', async () => {
+    // The dashboard pill's number. A room whose guests are all accounted for
+    // needs nothing, and a settled one is past the cheap fix — neither is work.
+    ;(standingEvents as any).mockResolvedValue([EVENT])
+    room(guest('u1', true, 'A'), guest('u2', false, 'B'))
+    expect(await countRoomsNeedingReview(NOW)).toBe(1)
+
+    room(guest('u1', true, 'A'), guest('u2', true, 'B'))
+    expect(await countRoomsNeedingReview(NOW)).toBe(0)
+  })
+
+  it('shares its definition with the queue, so the pill cannot promise work that is not there', async () => {
+    ;(standingEvents as any).mockResolvedValue([EVENT])
+    room(guest('u1', true, 'A'), guest('u2', false, 'B'))
+    const { rows } = await attendanceReviewRows(NOW)
+    const fromQueue = rows.filter(r => r.stage === 'review' && r.unmarked.length > 0).length
+    expect(await countRoomsNeedingReview(NOW)).toBe(fromQueue)
   })
 })

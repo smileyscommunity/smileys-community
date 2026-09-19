@@ -750,6 +750,47 @@ export async function sendAttendanceCheckEmail(email: string, name: string, even
   })
 }
 
+/**
+ * The morning-after list, to whoever ran the door.
+ *
+ * The bell entry and a push were the only thing carrying this, and a host with
+ * a busy account never sees either — the one it was written for had 2,902
+ * unread notifications the morning his list arrived, and never found it. The
+ * guests on the same list have always had an email; the people who can
+ * actually fix the record did not.
+ */
+export async function sendAttendanceReviewEmail(
+  email: string, name: string, eventTitle: string, eventEmoji: string, eventId: string,
+  missing: string[], consequence: string,
+) {
+  const url  = `${APP_URL}/host/checkin?event=${eventId}`
+  const n    = missing.length
+  const list = missing.slice(0, 8).map(m => `<li style="margin:0 0 4px">${esc(m)}</li>`).join('')
+  const more = n > 8 ? `<li style="margin:0;color:#6b7280">and ${n - 8} more</li>` : ''
+  await send('sendAttendanceReviewEmail', {
+    from: FROM, to: email,
+    subject: safeSubject(`${n} not checked in at "${eventTitle}"`),
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <div style="text-align:center;margin-bottom:24px">
+          <span style="font-size:48px">${esc(eventEmoji)}</span>
+          <h1 style="font-size:22px;font-weight:800;color:#111;margin:12px 0 4px">${n} not checked in</h1>
+          <p style="color:#6b7280;font-size:14px;margin:0">at <strong>${esc(eventTitle)}</strong></p>
+        </div>
+        <p style="color:#374151;font-size:14px;line-height:1.6;margin:0 0 8px">Hi ${esc(firstNameOf(name))}, these guests weren't checked in:</p>
+        <ul style="color:#374151;font-size:14px;line-height:1.6;margin:0 0 16px;padding-left:20px">${list}${more}</ul>
+        <p style="color:#374151;font-size:14px;line-height:1.6">
+          Check in anyone who came, or waive them. ${esc(consequence)}
+        </p>
+        <a href="${url}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin:20px 0 16px">
+          Open check-in →
+        </a>
+        <p style="color:#9ca3af;font-size:12px;text-align:center">If everyone on this list simply didn't come, there's nothing to do.</p>
+      </div>
+    `,
+  })
+}
+
 // Standing: an offence that counts was recorded (lib/standing notifyNoShows).
 // 'defaulted' — not checked in after the host's review; 'marked' — the host
 // marked them absent; 'late_cancel' — cancelled after the cutoff, seat unused.

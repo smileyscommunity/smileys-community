@@ -28,6 +28,8 @@ interface Stats {
   revenue: { currency: string; collected: number; previous: number; trend: number; pending: number }[]
   pendingPayments: number
   pendingApplications: number; pendingReports: number
+  /** Rooms in their review day with someone unmarked — they settle at midnight. */
+  roomsNeedingReview?: number
   // Event join requests awaiting a decision (upcoming events only) —
   // the /admin/participants Pending inbox count.
   pendingJoinRequests: number
@@ -279,6 +281,13 @@ export default function AdminPage() {
     stats.pendingReports > 0 && {
       icon: '🚨', label: `${stats.pendingReports} report${stats.pendingReports !== 1 ? 's' : ''} to review`,
       href: '/admin/moderation', color: 'border-red-500/30 bg-red-500/5 text-red-400',
+    },
+    // Attendance is the one queue with a deadline nobody sets: after tonight
+    // those rooms settle and the cheap fix is gone. Amber, not red — the
+    // rooms are fine, they just stop being fixable cheaply.
+    (stats.roomsNeedingReview ?? 0) > 0 && {
+      icon: '📋', label: `${stats.roomsNeedingReview} room${stats.roomsNeedingReview !== 1 ? 's' : ''} settling tonight`,
+      href: '/admin/attendance-review', color: 'border-amber-500/30 bg-amber-500/5 text-amber-400',
     },
     // #4 monitoring — sits at the high-severity end of the alerts row
     // because a broken SMTP means refunds + verifications + lockout
