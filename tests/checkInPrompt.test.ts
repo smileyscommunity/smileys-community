@@ -39,13 +39,17 @@ describe('awaitingCheckIn', () => {
     expect(awaitingCheckIn([event({ endTime: '23:00' })], TZ, now)).toEqual([])
   })
 
-  it('leaves a credibly checked-in event alone', () => {
-    expect(awaitingCheckIn([event({ checkedInCount: 6 })], TZ, now)).toEqual([])
+  it('stops only when everybody is accounted for', () => {
+    // It used to stop at CHECK_IN_RAN_RATIO — 70% scanned and the host heard
+    // no more. That made sense while the ratio decided whether absences
+    // counted; it decides nothing now, and the people still unscanned are
+    // exactly the ones heading for a warning. So the prompt follows them.
+    expect(awaitingCheckIn([event({ checkedInCount: 8 })], TZ, now)).toEqual([])
   })
 
-  it('still chases a half-hearted check-in below the ratio — half the room is not enough', () => {
+  it('keeps chasing while anyone is unaccounted for, however good the door was', () => {
+    expect(awaitingCheckIn([event({ checkedInCount: 7 })], TZ, now)).toHaveLength(1)
     expect(awaitingCheckIn([event({ checkedInCount: 4 })], TZ, now)).toHaveLength(1)
-    expect(awaitingCheckIn([event({ checkedInCount: 5 })], TZ, now)).toHaveLength(1)
   })
 
   it('chases paid and prepaid events too — attendance is not only for cards', () => {

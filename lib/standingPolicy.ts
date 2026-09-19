@@ -11,7 +11,7 @@ import { dayInTz, shiftDay, fromWallClockInTz } from '@/lib/cityTime'
 // reversed. Here the host sees the list first: the morning after, they get
 // who wasn't checked in and the rest of that day to check anyone in or excuse
 // them. Only then does an unmarked seat count as a no-show, and only where the
-// host ran check-in at all (attendanceSettlesAt, checkInRan).
+// host ran check-in at all (attendanceSettlesAt, doorOpened).
 //
 //   - An offence is a no-show or a late cancellation. It is carded only on a
 //     SCARCE event (a lost seat, or a promise to a venue), and not in a city's
@@ -45,18 +45,6 @@ export const ATTENDANCE_REVIEW_NOTICE_HOUR = 10
 // have the same full day as everyone after them.
 export const DEFAULT_ABSENT_FIRST_REVIEW_DAY = '2026-09-18'
 export const DISPUTE_WINDOW_DAYS           = 30
-// "The host ran check-in": at least this share of the room scanned. An
-// unchecked seat is a no-show only past it; below it the room settles as
-// attended. v1 used half (NO_SHOW_MIN_CHECKIN_RATIO); a door worked for the
-// first half hour and then abandoned passed that, and the 50–69% band held a
-// third of the unchecked guests in the month before this rule.
-export const CHECK_IN_RAN_RATIO            = 0.7
-// The small-room relief on that ratio (checkInReached): a door that left at
-// most this many seats unscanned ran, whatever the ratio says.
-export const SMALL_ROOM_MAX_UNSCANNED      = 1
-// ...as long as it was worked at all. One scan out of two is half a room, not
-// a rounding error, so the relief needs a second scan behind it.
-export const SMALL_ROOM_MIN_SCANNED        = 2
 // A seat taken this close to the start is never an offence: a waitlist claim
 // or a late join the member may not have seen in time is not a commitment
 // anyone else lost a seat to.
@@ -159,7 +147,7 @@ export function lateCancelLine(startsAt: Date, e: TierFields): Date {
 // ATTENDANCE_REVIEW_NOTICE_HOUR they're sent everyone who wasn't checked in;
 // until that day ends they can check someone in, excuse them, or mark them
 // absent. At midnight the room settles: check-in and close-out close, and the
-// sweep resolves whatever is still unmarked (checkInRan decides which way).
+// sweep resolves whatever is still unmarked (the warning decides which way).
 
 /** The host's review day: the day after the event, never before the day it ends. */
 export function attendanceReviewDay(e: EventClock, tz: string): string {
@@ -220,33 +208,22 @@ export interface RoomRow {
 }
 
 /**
- * Did the host run check-in? At least CHECK_IN_RAN_RATIO of the room scanned, where the room is
- * the approved guests who aren't running it. Only then is an unmarked seat a
- * no-show: an event nobody scanned (a coworking morning, a café table) settles
- * as attended, as it always did. Excused guests stay in the room: excusing
- * must never be what tips it over half and turns the rest into no-shows.
- */
-export function checkInRan(rows: RoomRow[]): boolean {
-  const room = rows.filter(r => !r.exempt)
-  return checkInReached(room.filter(r => r.checkedIn).length, room.length)
-}
-
-/**
- * The same line from counts: at least one scan, and CHECK_IN_RAN_RATIO of the
- * room — except that a flat ratio is arithmetic no small room can pass. Three
- * guests need all three scanned to clear 70%, so a host who worked the door
- * and missed one person is treated as never having opened it. Where at most
- * SMALL_ROOM_MAX_UNSCANNED seat is unscanned and the door was plainly worked
- * (SMALL_ROOM_MIN_SCANNED scans or more), the room counts as run.
+ * Was the door opened at all?
  *
- * Deliberately narrow: it forgives the rounding, not the judgement. A room
- * where a third or more went unscanned still does not count, however small —
- * that is the v1 mistake (unscanned = absent) the host close-out replaced.
+ * This used to ask whether ENOUGH of the room was scanned —
+ * CHECK_IN_RAN_RATIO, latterly 70% — with a small-room relief bolted on
+ * because a flat ratio is arithmetic no small room can pass: three guests
+ * needed all three, so a host who worked the door and missed one person was
+ * treated as never having opened it. The relief patched the arithmetic and
+ * left the idea, which was the part that did not survive contact: a
+ * percentage cannot tell a missed scan from an absence at any room size.
+ *
+ * Nothing rests on a ratio now. An absence is warned, then settled, or it is
+ * something a host says; the only thing the door still decides is whether
+ * there is any evidence at all, and one scan is evidence.
  */
-export function checkInReached(scanned: number, room: number): boolean {
-  if (scanned < 1 || room < 1) return false
-  if (scanned >= SMALL_ROOM_MIN_SCANNED && room - scanned <= SMALL_ROOM_MAX_UNSCANNED) return true
-  return scanned / room >= CHECK_IN_RAN_RATIO
+export function doorOpened(rows: RoomRow[]): boolean {
+  return rows.some(r => !r.exempt && r.checkedIn)
 }
 
 /** Who the review is about: not scanned, not marked either way, not running the event. */
@@ -328,13 +305,14 @@ export function classifyRow(row: StandingRow, startsAt: Date, e: TierFields, run
  * "Came" is the check-in — where the host ran one. Where they didn't, a
  * later joiner counts as having come, as every unmarked seat there does: the
  * member who gave a seat back must not do worse than the one who never came.
+ * Where the door WAS opened, only a scan counts as arriving.
  */
 export function refilledLateCancels(
   lateCancels: { id: string; cancelledAt: Date }[],
   arrivals:    { joinedAt: Date; checkedIn: boolean }[],
-  checkInRan:  boolean = true,
+  doorOpened:  boolean = true,
 ): Set<string> {
-  const joins = arrivals.filter(a => a.checkedIn || !checkInRan).map(a => a.joinedAt.getTime()).sort((a, b) => a - b)
+  const joins = arrivals.filter(a => a.checkedIn || !doorOpened).map(a => a.joinedAt.getTime()).sort((a, b) => a - b)
   const forgiven = new Set<string>()
   let j = 0
   for (const lc of [...lateCancels].sort((a, b) => a.cancelledAt.getTime() - b.cancelledAt.getTime())) {

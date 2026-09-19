@@ -1,8 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { standingEvents, reviewSentKey, type SweepEvent } from '@/lib/standing'
 import {
-  attendanceReviewOpensAt, attendanceSettlesAt, checkInRan, unmarkedGuests,
-  CHECK_IN_RAN_RATIO, doorKey,
+  attendanceReviewOpensAt, attendanceSettlesAt, doorOpened, unmarkedGuests, doorKey,
 } from '@/lib/standingPolicy'
 import { noShowExemptionReason, eventRunners } from '@/lib/noShowPolicy'
 import { AttendeeStatus } from '@/lib/constants'
@@ -42,9 +41,8 @@ export interface ReviewRow {
   room:         number
   scanned:      number
   ratio:        number
-  /** Did the door clear the bar? Below it nothing settles as a no-show. */
-  checkInRan:   boolean
-  bar:          number
+  /** Was the scanner opened at all? No ratio: one scan is evidence. */
+  doorOpened:   boolean
   unmarked:     ReviewGuest[]
   /** The host list went out for this event. */
   listSent:     boolean
@@ -201,8 +199,7 @@ export async function attendanceReviewRows(
       room:       guests.length,
       scanned,
       ratio:      guests.length ? scanned / guests.length : 0,
-      checkInRan: checkInRan(room),
-      bar:        CHECK_IN_RAN_RATIO,
+      doorOpened: doorOpened(room),
       unmarked:   missing.map(m => ({
         attendeeId: m.id,
         userId:     m.userId,

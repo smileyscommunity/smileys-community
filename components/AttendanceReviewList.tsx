@@ -18,7 +18,7 @@ interface Row {
   eventId: string; title: string; emoji: string; date: string
   hostId: string; hostName: string | null
   stage: 'running' | 'review' | 'settled'
-  room: number; scanned: number; ratio: number; checkInRan: boolean; bar: number
+  room: number; scanned: number; ratio: number; doorOpened: boolean
   unmarked: Guest[]; listSent: boolean
   opensAt: string; settlesAt: string; endsAt: string
 }
@@ -100,7 +100,6 @@ export default function AttendanceReviewList({ heading, blurb }: { heading: stri
 
 function EventCard({ row: r }: { row: Row }) {
   const pct      = Math.round(r.ratio * 100)
-  const barPct   = Math.round(r.bar * 100)
   const unwarned = r.unmarked.filter(g => !g.warned)
 
   return (
@@ -121,17 +120,17 @@ function EventCard({ row: r }: { row: Row }) {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3 text-xs">
         <Stat label="Room"        value={String(r.room)} />
         <Stat label="Checked in"  value={`${r.scanned} · ${pct}%`} />
-        <Stat label={`Door ran (${barPct}%)`}
-              value={r.checkInRan ? 'yes' : 'no'}
-              tone={r.checkInRan ? 'good' : 'warn'} />
+        <Stat label="Door opened"
+              value={r.doorOpened ? 'yes' : 'no'}
+              tone={r.doorOpened ? 'good' : 'warn'} />
         <Stat label={r.stage === 'settled' ? 'Settled' : 'Settles'}
               value={r.stage === 'settled' ? 'closed' : timeLeft(r.settlesAt)}
               tone={r.stage === 'review' ? 'warn' : undefined} />
       </div>
 
-      {!r.checkInRan && r.unmarked.length > 0 && (
+      {!r.doorOpened && r.unmarked.length > 0 && (
         <p className="text-xs text-amber-400/90 mt-2.5">
-          Only {pct}% of the room was scanned, so plenty of these people may simply have been missed at the door. They still settle as no-shows if nobody acts — worth a careful look.
+          Nobody was scanned at this event, so none of these settle as a no-show on their own. Only what the host marks counts here.
         </p>
       )}
       {unwarned.length > 0 && (

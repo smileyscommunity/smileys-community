@@ -65,13 +65,13 @@ beforeEach(() => {
 })
 
 describe('attendanceReviewRows', () => {
-  it('reports the ratio and that the door did not clear the bar', async () => {
+  it('reports the ratio, and whether the door was opened at all', async () => {
     room(guest('u1', true, 'A'), guest('u2', false, 'B'), guest('u3', false, 'C'))
     const { rows: [row] } = await attendanceReviewRows(NOW)
     expect(row.room).toBe(3)
     expect(row.scanned).toBe(1)
     expect(row.ratio).toBeCloseTo(1 / 3)
-    expect(row.checkInRan).toBe(false)     // 33% is under the 70% bar
+    expect(row.doorOpened).toBe(true)      // one scan is a door, whatever the ratio
     expect(row.unmarked).toHaveLength(2)
     expect(row.stage).toBe('review')
   })

@@ -350,6 +350,39 @@ describe('the host review', () => {
     expect(guestNotes[0]).toContain("it doesn't count against your standing")
   })
 
+  it('warns a guest the host already marked absent, before it counts', async () => {
+    // The Galata walk, 2026-09-19: the host closed the door out promptly, so
+    // unmarkedGuests was empty and nobody heard anything. Good behaviour by
+    // the host left their members with LESS warning than an inattentive
+    // host's — straight to a recorded absence with no chance to answer first.
+    p.eventAttendee.findMany.mockResolvedValue([
+      scanned('s1'), scanned('s2'), scanned('s3'),
+      guest('a', { attendance: 'no_show' }),
+    ])
+    await sendAttendanceReviews(EVENT as unknown as SweepEvent)
+    const calls = (createNotification as any).mock.calls
+    const warned = calls.filter((c: any) => c[1] === 'attendance_check').map((c: any) => c[0])
+    expect(warned).toEqual(['a'])
+    // Nothing is left for the host to decide, so they get no list.
+    expect(calls.map((c: any) => c[1])).not.toContain('attendance_review')
+  })
+
+  it('still lists the unmarked ones for the host when both kinds are present', async () => {
+    p.eventAttendee.findMany.mockResolvedValue([
+      scanned('s1'), scanned('s2'), scanned('s3'),
+      guest('zara', { attendance: 'no_show' }), guest('pending'),
+    ])
+    await sendAttendanceReviews(EVENT as unknown as SweepEvent)
+    const calls = (createNotification as any).mock.calls
+    // Both are facing an absence, so both are warned...
+    expect(calls.filter((c: any) => c[1] === 'attendance_check').map((c: any) => c[0]).sort())
+      .toEqual(['pending', 'zara'])
+    // ...but the host's list names only what is still theirs to decide.
+    const host = calls.find((c: any) => c[1] === 'attendance_review')
+    expect(host[2]).toContain('1 not checked in')
+    expect(host[3]).not.toContain('zara')
+  })
+
   it('warns no guest in a room nobody scanned, and tells the host why', async () => {
     // Nothing there can settle as absent, so a warning saying it will is a
     // lie — and a warning that means nothing is worse than silence. The host
@@ -371,7 +404,7 @@ describe('the host review', () => {
     expect(createNotification).not.toHaveBeenCalled()
   })
 
-  it('still asks the host where the door did not clear the bar, and asks for a mark rather than threatening one', async () => {
+  it('treats a thin door like any other door — one scan and the warnings mean something', async () => {
     // 1 of 3 scanned: under the ratio. The list used to be withheld here,
     // which is how every no-show at a badly-scanned event walked free while a
     // well-scanned room's guests took cards for the same conduct.
@@ -382,7 +415,9 @@ describe('the host review', () => {
     expect(host[3]).toContain('Check in anyone who came, or waive them')
     expect(host[3]).toContain('counts as a no-show on their standing')
     // A thin door is a caution about the list, not an exemption from it.
-    expect(host[3]).toContain('may simply have been missed at the door')
+    // No ratio commentary: the door was opened, so the list reads like any
+    // other. Only a room with NO scans gets the "counts as nothing" caveat.
+    expect(host[3]).not.toContain('Nobody was checked in at this event')
 
     // The guest is told plainly, and given the tap that fixes it.
     const g = (createNotification as any).mock.calls.find((c: any) => c[1] === 'attendance_check')

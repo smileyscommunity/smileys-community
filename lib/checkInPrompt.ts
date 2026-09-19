@@ -1,12 +1,12 @@
 import { eventEndsAt } from '@/lib/eventTime'
-import { attendanceSettlesAt, checkInReached, HOST_MARKING_WINDOW_DAYS } from '@/lib/standingPolicy'
+import { attendanceSettlesAt, HOST_MARKING_WINDOW_DAYS } from '@/lib/standingPolicy'
 import { DEFAULT_TZ } from '@/lib/cityTime'
 
 // ── "You haven't checked anyone in" ─────────────────────────────────────────
 //
 // The host-facing counterpart to NoShowBanner. The standing sweep reads an
 // unchecked seat as a no-show only on events where the host actually ran
-// check-in (checkInReached); with nobody scanned it skips the event
+// check-in; with nobody scanned it skips the event
 // entirely rather than hand cards to the whole room. That guard is right,
 // but it also means the cards, the appeals and the waiver never fire for a
 // host who forgets — the feature quietly does nothing.
@@ -70,7 +70,13 @@ export function awaitingCheckIn(
     // their runs. Attendance is the record of who came, whatever the price.
     const approved = e.roomApproved  ?? e._count?.attendees ?? 0
     const checked  = e.roomCheckedIn ?? e.checkedInCount    ?? 0
-    if (approved < 1 || checkInReached(checked, approved)) return []
+    // Anyone unaccounted for is worth a prompt. This used to stop at
+    // CHECK_IN_RAN_RATIO — 70% scanned and the host heard no more — which
+    // made sense when the ratio decided whether absences counted. It no
+    // longer decides anything, and the three people still unscanned are
+    // exactly the ones heading for a warning, so the prompt follows them
+    // rather than a percentage. It clears at the settle either way.
+    if (approved < 1 || checked >= approved) return []
     const endsAt = eventEndsAt(e, tz).getTime()
     if (endsAt > now.getTime()) return []                       // still running
     // Past the resolution the room is settled: nothing left to check in.

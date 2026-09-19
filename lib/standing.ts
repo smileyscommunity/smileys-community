@@ -14,7 +14,7 @@ import {
   RECOVERY_REQUIRES_CHECKIN, LIVE_CARD_STATUSES, OffenceKind, OffenceStatus, CardLevel, StandingCardStatus,
   eventTier, classifyRow, refilledLateCancels, offenceCounts, decideIssuance, isSuccessfulCommitment,
   recoveryOutcome, disputeHolds, standingLevel, countedCommitments, commitmentsNeeded, canDispute, windowStart,
-  attendanceReviewOpensAt, attendanceSettlesAt, checkInRan, unmarkedGuests, doorKey, CHECK_IN_RAN_RATIO,
+  attendanceReviewOpensAt, attendanceSettlesAt, doorOpened, unmarkedGuests, doorKey,
   type LedgerOffence,
 } from '@/lib/standingPolicy'
 
@@ -239,18 +239,23 @@ const names = (list: { user: { name: string } | null }[]) => {
 export async function sendAttendanceReviews(event: SweepEvent): Promise<number> {
   const room = await roomOf(event)
   const missing = unmarkedGuests(room)
-  if (missing.length === 0) return 0
+  // Everyone heading for an absence, whether by the host's mark or by
+  // default. A host who closes the door out promptly — the good behaviour —
+  // emptied `missing`, and their guests then got no warning at all while an
+  // inattentive host's guests got a full day and a tap to answer. The
+  // attentive host's members should not be the ones told less.
+  const marked  = room.filter(r => !r.exempt && !r.checkedIn && r.attendance === Attendance.NoShow)
+  const facing  = [...missing, ...marked]
+  if (facing.length === 0) return 0
   // Below the bar the room still gets its list. The ratio decides what may be
   // imposed on a guest, never whether the host is told: a door that scanned a
   // third of the room is exactly where the host's own account is the only
   // evidence there is, and staying silent let every no-show at those events
   // walk while a well-scanned room's guests took cards for the same conduct.
-  const ran = checkInRan(room)
-  // Whether anyone opened the scanner at all, which is a different question
-  // from whether they scanned enough (`ran`). Nothing in a room with zero
+  // Whether anyone opened the scanner at all. Nothing in a room with zero
   // scans can settle as absent (settleAttendance), so its guests must not be
   // told it will — and a warning that means nothing is worse than silence.
-  const doorRan = room.some(r => r.checkedIn)
+  const doorRan = doorOpened(room)
   const e = await prisma.event.findUnique({ where: { id: event.id }, select: { emoji: true } })
   const runners = runnersOf(event)
   // And whoever else checked people in — an admin running the door.
@@ -273,10 +278,9 @@ export async function sendAttendanceReviews(event: SweepEvent): Promise<number> 
     : counts
       ? 'Anyone still on this list at the end of tomorrow counts as a no-show on their standing. You can waive that for a month afterwards.'
       : `Anyone still on this list at the end of tomorrow goes on the record, though ${caveat}.`
-  const doorNote = !doorRan
-    ? ' Nobody was checked in at this event, so none of this counts against anyone on its own — mark whoever genuinely did not come.'
-    : ran ? ''
-    : ` Only ${Math.round(room.filter(r => !r.exempt && r.checkedIn).length / Math.max(1, room.filter(r => !r.exempt).length) * 100)}% of the room was scanned, so check this list carefully — plenty of them may simply have been missed at the door.`
+  const doorNote = doorRan
+    ? ''
+    : ' Nobody was checked in at this event, so none of this counts against anyone on its own — mark whoever genuinely did not come.'
   // Addresses for the email below: the bell alone never reached a host with a
   // busy account, which is how a list sat unread among 2,902 notifications.
   const runnerContacts = new Map((await prisma.user.findMany({
@@ -285,7 +289,9 @@ export async function sendAttendanceReviews(event: SweepEvent): Promise<number> 
   })).map(u => [u.id, u]))
 
   let sent = 0
-  for (const userId of recipients) {
+  // Only when something is still theirs to decide. A host who already marked
+  // everyone has nothing to act on, and "0 not checked in" is not a list.
+  for (const userId of missing.length > 0 ? recipients : []) {
     const key = `attendance-review:${event.id}:${userId}`
     if (!await claimOnce(key, 7 * DAY)) continue
     const ok = await createNotification(userId, 'attendance_review',
@@ -307,7 +313,11 @@ export async function sendAttendanceReviews(event: SweepEvent): Promise<number> 
     else await releaseClaim(key)
   }
   if (sent > 0) await claimOnce(reviewSentKey(event.id), 30 * DAY)
-  else if (!await hasClaim(reviewSentKey(event.id), new Date())) return 0
+  // No host list going out is only a reason to hold the guests back when
+  // there was one to send. Where the host already marked everybody there is
+  // nothing to wait for — they have spoken, and the guest's chance to answer
+  // should not depend on a notice that was never needed.
+  else if (missing.length > 0 && !await hasClaim(reviewSentKey(event.id), new Date())) return 0
 
   // And each guest on the list, the same morning: someone who was there can
   // tell the host while one tap still fixes it, instead of finding out from a
@@ -320,7 +330,7 @@ export async function sendAttendanceReviews(event: SweepEvent): Promise<number> 
   // scanned is the exception — nothing there can settle as absent, so there
   // is nothing to warn anyone about. The host still gets the list.
   if (!doorRan) return sent
-  for (const g of missing) {
+  for (const g of facing) {
     const key = `attendance-review-guest:${event.id}:${g.userId}`
     if (!await claimOnce(key, 7 * DAY)) continue
     const ok = await createNotification(g.userId, 'attendance_check',
@@ -364,8 +374,8 @@ export async function recordOffences(event: SweepEvent): Promise<Set<string>> {
   const lateCancels = classified.filter(c => c.kind === OffenceKind.LateCancel).map(c => ({ id: c.row.id, cancelledAt: c.row.cancelledAt! }))
   const arrivals    = rows.filter(r => r.status === AttendeeStatus.Approved && !noShowExemptionReason(r.userId, r.user?.role, runners))
   // Where the door wasn't run, a later joiner is taken to have come (refilledLateCancels).
-  const ran         = checkInRan(rows.filter(r => r.status === AttendeeStatus.Approved).map(r => ({ ...r, exempt: !!noShowExemptionReason(r.userId, r.user?.role, runners) })))
-  const forgiven    = refilledLateCancels(lateCancels, arrivals, ran)
+  const opened      = doorOpened(rows.filter(r => r.status === AttendeeStatus.Approved).map(r => ({ ...r, exempt: !!noShowExemptionReason(r.userId, r.user?.role, runners) })))
+  const forgiven    = refilledLateCancels(lateCancels, arrivals, opened)
   const tier        = eventTier(event)
   const { counts, loggedReason } = offenceCounts(tier, event.city?.createdAt ?? null, startsAt)
 

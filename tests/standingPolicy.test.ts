@@ -3,7 +3,7 @@ import {
   eventTier, cancelCutoffHours, lateCancelLine, classifyRow, refilledLateCancels, offenceCounts,
   decideIssuance, isSuccessfulCommitment, countedCommitments, recoveryOutcome,
   standingLevel, blocksRsvp, orderWaitlist, canDispute, disputeHolds,
-  attendanceReviewDay, attendanceReviewOpensAt, attendanceSettlesAt, checkInRan, unmarkedGuests, seatTakenLate, lateReplayAllowed,
+  attendanceReviewDay, attendanceReviewOpensAt, attendanceSettlesAt, doorOpened, unmarkedGuests, seatTakenLate, lateReplayAllowed,
   CANCEL_CUTOFF_HOURS, NEW_CITY_GRACE_DAYS, STANDING_WINDOW_DAYS, DISPUTE_WINDOW_DAYS,
   type StandingRow, type LedgerOffence,
 } from '@/lib/standingPolicy'
@@ -318,33 +318,29 @@ describe('the host review day', () => {
   })
 })
 
-describe('checkInRan / unmarkedGuests', () => {
+describe('doorOpened / unmarkedGuests', () => {
   const r = (checkedIn: boolean, attendance = checkedIn ? 'attended' : 'unknown', exempt = false) => ({ checkedIn, attendance, exempt })
-  it('needs 70% of the room scanned, not counting the people running it; excusing never tips it', () => {
-    expect(checkInRan([r(true), r(true), r(true), r(true), r(true), r(true), r(true), r(false), r(false), r(false)])).toBe(true)
-    expect(checkInRan([r(true), r(false)])).toBe(false)
-    // Three guests, one missed: 67% is under the bar on paper, but a flat
-    // ratio is arithmetic no small room can pass, and the host plainly ran
-    // the door. The small-room relief takes it (SMALL_ROOM_MAX_UNSCANNED).
-    expect(checkInRan([r(true), r(true), r(false)])).toBe(true)
-    expect(checkInRan([r(true), r(true), r(true), r(false)])).toBe(true)
-    expect(checkInRan([r(true), r(true), r(false), r(false, 'excused')])).toBe(false)
-    expect(checkInRan([r(false, 'unknown', true), r(false, 'unknown', true), r(true), r(true), r(true), r(false)])).toBe(true)
-    expect(checkInRan([r(false), r(false)])).toBe(false)
-    expect(checkInRan([])).toBe(false)
+
+  it('asks only whether the scanner was opened — one scan is evidence', () => {
+    // There is no ratio any more. It was 70% with a small-room relief bolted
+    // on, because a flat percentage is arithmetic no small room can pass:
+    // three guests needed all three, so a host who worked the door and missed
+    // one was treated as never having opened it. The relief fixed the
+    // arithmetic and left the idea, and the idea was the broken part — a
+    // percentage cannot tell a missed scan from an absence at any size.
+    expect(doorOpened([r(true), r(false), r(false)])).toBe(true)
+    expect(doorOpened([r(true), r(false)])).toBe(true)
+    expect(doorOpened([r(true), r(true), r(false)])).toBe(true)
+    expect(doorOpened([r(false), r(false)])).toBe(false)
+    expect(doorOpened([])).toBe(false)
   })
-  it('forgives the rounding on a small room, never the judgement', () => {
-    // One unscanned seat, and the door was worked: it ran.
-    expect(checkInRan([r(true), r(true), r(false)])).toBe(true)
-    // Two unscanned out of five is a third of the room — still not a door.
-    // This is Edip's bowling night: 3 of 5 stays under the bar.
-    expect(checkInRan([r(true), r(true), r(true), r(false), r(false)])).toBe(false)
-    // One scan out of three is not a rounding error, it is a door opened and
-    // abandoned. Roberta's caffè: nothing here settles as a no-show.
-    expect(checkInRan([r(true), r(false), r(false)])).toBe(false)
-    // A single scan never carries a room on its own, however small.
-    expect(checkInRan([r(true), r(false)])).toBe(false)
+
+  it('does not count the people running the event as having opened it', () => {
+    // A host scanning themselves in is not a door.
+    expect(doorOpened([r(true, 'attended', true), r(false), r(false)])).toBe(false)
+    expect(doorOpened([r(true, 'attended', true), r(true), r(false)])).toBe(true)
   })
+
   it('lists only guests nobody has marked either way', () => {
     const rows = [r(true), r(false), r(false, 'no_show'), r(false, 'excused'), r(false, 'unknown', true)]
     expect(unmarkedGuests(rows)).toEqual([rows[1]])
