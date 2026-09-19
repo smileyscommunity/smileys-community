@@ -121,12 +121,21 @@ export default function AdminStandingPage() {
         </p>
       </div>
 
+      {/* The tiles ARE the tabs. A count and a tab per queue was the same four
+          things twice, with the number in one place and the way to reach it in
+          another. Moderators get no stats (the counts are network-wide), so
+          they keep the plain row below. */}
       {s && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4 text-xs">
-          <Stat label="Offences · 30d"  value={s.offences30}   sub={`${s.counting30} still counting`} />
-          <Stat label="Yellow cards"    value={s.liveYellow}   tone={s.liveYellow ? 'warn' : undefined} />
-          <Stat label="Red cards"       value={s.liveRed}      tone={s.liveRed ? 'bad' : undefined} />
-          <Stat label="Disputes"        value={s.disputed}     tone={s.disputed ? 'warn' : undefined} sub="waiting on a person" />
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-5 text-xs">
+          <Stat label="Disputes"       value={s.disputed}   sub="waiting on a person" tone={s.disputed ? 'warn' : undefined}
+                active={view === 'disputes'} onClick={() => setView('disputes')} />
+          <Stat label="Red cards"      value={s.liveRed}    sub="up for review"       tone={s.liveRed ? 'bad' : undefined}
+                active={view === 'review'}   onClick={() => setView('review')} />
+          <Stat label="Live cards"     value={s.liveYellow + s.liveRed} sub={`${s.liveYellow} yellow · ${s.liveRed} red`}
+                tone={s.liveYellow + s.liveRed ? 'warn' : undefined}
+                active={view === 'cards'}    onClick={() => setView('cards')} />
+          <Stat label="Offences · 30d" value={s.offences30} sub={`${s.counting30} still counting`}
+                active={view === 'offences'} onClick={() => setView('offences')} />
         </div>
       )}
 
@@ -174,14 +183,16 @@ export default function AdminStandingPage() {
         </div>
       )}
 
-      <div className="flex rounded-lg overflow-hidden text-xs font-semibold mb-4 w-fit">
-        {VIEWS.map(v => (
-          <button key={v.key} onClick={() => setView(v.key)}
-            className={`px-3 py-1.5 transition-colors ${view === v.key ? 'bg-zinc-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}>
-            {v.label}
-          </button>
-        ))}
-      </div>
+      {!s && (
+        <div className="flex rounded-lg overflow-hidden text-xs font-semibold mb-4 w-fit">
+          {VIEWS.map(v => (
+            <button key={v.key} onClick={() => setView(v.key)}
+              className={`px-3 py-1.5 transition-colors ${view === v.key ? 'bg-zinc-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}>
+              {v.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {loadError ? <LoadErrorBanner message={loadError} onRetry={load} title="Couldn't load standing" />
        : items === null ? <p className="text-zinc-500 text-sm">Loading…</p>
@@ -278,14 +289,29 @@ export default function AdminStandingPage() {
   )
 }
 
-function Stat({ label, value, sub, tone }: { label: string; value: number; sub?: string; tone?: 'warn' | 'bad' }) {
+function Stat({ label, value, sub, tone, active, onClick }: {
+  label: string; value: number; sub?: string; tone?: 'warn' | 'bad'
+  active?: boolean; onClick?: () => void
+}) {
   const colour = tone === 'bad' ? 'text-red-400' : tone === 'warn' ? 'text-amber-400' : 'text-white'
-  return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2.5">
+  const body = (
+    <>
       <p className={`text-xl font-bold ${colour}`}>{value}</p>
       <p className="text-[11px] text-zinc-400 mt-0.5">{label}</p>
       {sub && <p className="text-[10px] text-zinc-600 mt-0.5">{sub}</p>}
-    </div>
+    </>
+  )
+  const base = 'rounded-lg px-3 py-2.5 border text-left w-full transition-colors'
+  if (!onClick) return <div className={`${base} bg-zinc-900 border-zinc-800`}>{body}</div>
+  // A real button: keyboard-reachable, and aria-pressed says which queue is
+  // open, since the only other cue is a border colour.
+  return (
+    <button type="button" onClick={onClick} aria-pressed={!!active}
+      className={`${base} ${active
+        ? 'bg-zinc-800 border-zinc-500'
+        : 'bg-zinc-900 border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800/50'}`}>
+      {body}
+    </button>
   )
 }
 

@@ -50,3 +50,32 @@ describe('the disputes badge', () => {
     expect(lib).toContain('standingDisputes: n(b.standingDisputes) ?? 0')
   })
 })
+
+describe('the counts are the navigation', () => {
+  const page = src('app/admin/standing/page.tsx')
+
+  it('every queue is reachable from its own tile', () => {
+    for (const v of ['disputes', 'review', 'cards', 'offences']) {
+      expect(page).toContain(`onClick={() => setView('${v}')}`)
+    }
+  })
+
+  it('a tile with somewhere to go is a button, and says which queue is open', () => {
+    expect(page).toContain('<button type="button" onClick={onClick} aria-pressed={!!active}')
+    // A tile without an onClick stays a plain div — no fake affordance.
+    expect(page).toContain("if (!onClick) return")
+  })
+
+  it('drops the duplicate tab row wherever the tiles render', () => {
+    // A count per queue AND a tab per queue was the same four things twice.
+    expect(page).toContain('{!s && (')
+  })
+
+  it('keeps the plain row for moderators, who get no counts', () => {
+    // The stats are network-wide and admin-only (enforcement route), so a
+    // moderator with no tiles must still be able to change queue.
+    expect(src('app/api/admin/standing/enforcement/route.ts'))
+      .toContain('if (!isAdmin(session)) return NextResponse.json(await standingEnforcement())')
+    expect(page).toContain('VIEWS.map(v => (')
+  })
+})
