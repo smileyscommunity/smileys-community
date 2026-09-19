@@ -79,10 +79,17 @@ const SWEEP_EVENT_SELECT = {
 
 export type SweepEvent = Prisma.EventGetPayload<{ select: typeof SWEEP_EVENT_SELECT }>
 
-export async function standingEvents(now: Date): Promise<SweepEvent[]> {
+export async function standingEvents(now: Date, cityId?: string): Promise<SweepEvent[]> {
   const floor = new Date(Math.max(STANDING_STARTS_AT.getTime(), now.getTime() - (STANDING_SWEEP_LOOKBACK_DAYS + 2) * DAY))
   const events = await prisma.event.findMany({
-    where:  { date: { gte: isoDay(floor), lte: isoDay(now) }, cancelledAt: null, status: { in: ['published', 'archived'] } },
+    // `cityId` narrows in the QUERY, not afterwards: a city-scoped caller (the
+    // admin dashboard on one city) must not read every city's events and drop
+    // them in memory. The sweep itself passes nothing and reads them all.
+    where:  {
+      date: { gte: isoDay(floor), lte: isoDay(now) }, cancelledAt: null,
+      status: { in: ['published', 'archived'] },
+      ...(cityId ? { cityId } : {}),
+    },
     select: SWEEP_EVENT_SELECT,
   })
   return events.filter(e => {

@@ -1,11 +1,21 @@
 import webpush from 'web-push'
 import { prisma } from './prisma'
 
-webpush.setVapidDetails(
-  process.env.VAPID_EMAIL!,
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!,
-)
+// Configured on first send, not on import. web-push throws from
+// setVapidDetails when the keys are absent, so doing it at module scope made
+// merely IMPORTING anything that transitively reaches this file fail without
+// VAPID in the environment — which is every unit test of a route that happens
+// to sit downstream of a notification. A push module should be inert until
+// someone pushes.
+let vapidReady = false
+function configureVapid(): boolean {
+  if (vapidReady) return true
+  const { VAPID_EMAIL, NEXT_PUBLIC_VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY } = process.env
+  if (!VAPID_EMAIL || !NEXT_PUBLIC_VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return false
+  webpush.setVapidDetails(VAPID_EMAIL, NEXT_PUBLIC_VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY)
+  vapidReady = true
+  return true
+}
 
 // Hard caps on payload field lengths. Browsers / push services cap the
 // total encrypted payload at ~4KB; staying well under means we never
@@ -66,6 +76,9 @@ export async function sendPushToUser(
   userId: string,
   payload: { title: string; body: string; link?: string },
 ) {
+  // No keys, no push — and no throw. Callers are fire-and-forget; a missing
+  // VAPID config must not take down whatever triggered the notification.
+  if (!configureVapid()) return
   const subs = await prisma.pushSubscription.findMany({
     // A banned member's devices (account deletion bans too) get nothing: the
     // ban ended that contact. Filtered through the relation so the check costs

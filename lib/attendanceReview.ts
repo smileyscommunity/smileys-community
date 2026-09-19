@@ -101,7 +101,9 @@ export async function attendanceReviewRows(
   cityId?: string,
   q: ReviewQuery = {},
 ): Promise<{ rows: ReviewRow[]; total: number }> {
-  let events = await standingEvents(now)
+  // Scope in the query where we can: a moderator or a city dashboard reads
+  // one city's events, not everyone's filtered down afterwards.
+  let events = await standingEvents(now, eventIds === undefined ? cityId : undefined)
   // Either list narrows it; both is their union — a moderator's city plus
   // the rooms they run anywhere (a host in several cities reviews them all).
   if (eventIds !== undefined || cityId !== undefined) {
