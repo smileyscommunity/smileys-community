@@ -36,52 +36,44 @@ const h2 = (t: string) => `<h2>${t}</h2>`
 const ul = (items: string[]) => `<ul>${items.map(i => `<li>${i}</li>`).join('')}</ul>`
 
 const BODY = [
-  p(`Most of our events are free, and many of them fill up. When someone books a spot and doesn't use it, that spot could have gone to someone on the waitlist. So events with <strong>limited spots</strong> keep a simple record of who came. Here is all of it, so nothing is a surprise.`),
-  p(`The short version: <strong>turn up, or cancel in time</strong>. That is the whole thing. Everything below is detail for the cases where something goes wrong.`),
+  p(`Most of our events are free, and most of them fill up. When someone holds a spot and doesn't use it, that spot could have gone to whoever was next on the waitlist. So we keep a simple record of who came.`),
+  p(`<strong>The short version: turn up, or cancel in time.</strong> Do that and you will never think about this page again. Everything below is for when something goes wrong.`),
 
-  h2('What actually happens'),
+  h2(`If you weren't checked in`),
   ul([
-    `Your host checks people in at the event.`,
-    `If you weren't checked in, you get a message <strong>the next morning, from ${NOTICE_HOUR}:00</strong>, with a tap that says <strong>"I was there"</strong>. Your host gets the same list and can check you in or set it aside.`,
+    `<strong>The next morning, from ${NOTICE_HOUR}:00</strong>, you get a message with a tap that says <strong>"I was there"</strong>. Your host gets the same list, and can check you in.`,
     `<strong>At the end of that day</strong>, anything still unresolved is recorded as a no-show.`,
-    `Your host can undo it for <strong>${HOST_WINDOW} days</strong> afterwards, and you can contest it for <strong>${DISPUTE} days</strong>.`,
+    `<strong>After that</strong>, your host can undo it for ${HOST_WINDOW} days, and you can contest it for ${DISPUTE} days.`,
   ]),
-  p(`And if we never sent you that message, <strong>nothing is recorded</strong>. Being marked absent depends on our having actually told you, in time to do something about it. That part is on us — as is the case where your host never ran check-in at all, which we treat as having no idea rather than as everyone being absent.`),
+  p(`So there is a whole day, and a one-tap way out, before anything is recorded — and if that message never reached you, <strong>nothing is recorded at all</strong>. Being marked absent depends on our having actually told you in time to do something about it.`),
 
-  h2('What is never recorded'),
+  h2('When nothing is recorded, whatever the roster says'),
   ul([
-    `An event where <strong>nobody was checked in at all</strong>. If the door was never opened we have no idea who came, so nothing is recorded for anyone.`,
-    `Events with <strong>no cap on numbers</strong>. Only limited-spot events count.`,
-    `Anything you <strong>paid for in advance</strong>. You bought the seat; missing it is your loss alone.`,
-    `A spot you took <strong>less than ${LATE_SEAT} hours</strong> before the start.`,
-    `A spot a <strong>host or admin</strong> removed you from.`,
-    `A spot <strong>released because you didn't answer "Still coming?"</strong> — silence can cost you the spot, never your standing.`,
-    `Events in a city's <strong>first ${NEW_CITY} days</strong>.`,
+    `<strong>Nobody was checked in at all.</strong> If the door was never opened we have no idea who came, so the whole room is left alone.`,
+    `<strong>You paid in advance.</strong> You bought the seat; missing it is your loss alone.`,
+    `<strong>You took the spot late</strong> — inside ${LATE_SEAT} hours of the start, which you may never have seen in time.`,
+    `<strong>A host or admin removed you.</strong>`,
+    `<strong>Your spot was released</strong> because you didn't answer "Still coming?" — silence can cost you the spot, never your standing.`,
+    `<strong>The event had no cap</strong> on numbers, or the city is in its first ${NEW_CITY} days.`,
   ]),
 
   h2('Cancelling'),
-  p(`Cancel more than <strong>${CUTOFF} hours</strong> before a limited event and nothing is recorded — that is exactly what we want, because it gives the spot to someone waiting. Inside ${CUTOFF} hours it counts the same as not coming: too late for anyone else to take it. Two things clear that automatically:`),
-  ul([
-    `Someone from the waitlist takes your spot <em>and comes</em>. No empty chair, nothing recorded.`,
-    `You answered the day-before "Still coming?" with a no, before the spot was released (<strong>${RELEASE} hours</strong> before the start). Telling us straight is never punished.`,
-  ]),
+  p(`Cancel more than <strong>${CUTOFF} hours</strong> ahead and nothing is recorded — that is exactly what we want, because the spot goes to someone waiting. Inside ${CUTOFF} hours it counts the same as not coming: too late for anyone else to use.`),
+  p(`This is why the "Still coming?" message arrives <strong>${ASK} hours</strong> before the event${ASK > CUTOFF ? `, comfortably before that ${CUTOFF}-hour line` : ''} — answer it honestly and you are clear either way. And if you do cancel late but someone from the waitlist takes your spot and comes, it is forgiven automatically. The rule is about the empty chair, and there wasn't one.`),
 
-  h2('What a card is'),
+  h2('Cards'),
   ul([
-    `<strong>The first time in ${WINDOW} days: nothing but a message.</strong> No card.`,
-    `<strong>The second: a yellow card.</strong> You join waitlists for limited events at the back.`,
-    `<strong>One more after that: a red card.</strong> You can't take a spot on an event with limited places until it's cleared. Events with no cap are unaffected — and they are how you clear it. Any RSVP you already hold stays valid.`,
+    `<strong>First time in ${WINDOW} days</strong> — a message. No card.`,
+    `<strong>Second</strong> — a yellow card. You join waitlists for limited events at the back.`,
+    `<strong>One more after that</strong> — a red card. You can't take a spot on a limited event until it clears. Events with no cap are unaffected, and any RSVP you already hold stays valid.`,
   ]),
-  p(`Cards are cleared by turning up: <strong>${YELLOW_CLEARS} check-ins</strong> clears a yellow, <strong>${RED_CLEARS}</strong> clears a red once an admin has reviewed it. A card does not expire on its own — showing up is what clears it.`),
+  p(`Cards clear by turning up: <strong>${YELLOW_CLEARS} check-ins</strong> for a yellow, <strong>${RED_CLEARS}</strong> plus an admin's review for a red. They don't expire on their own — showing up is what clears them.`),
 
   h2('If it is wrong'),
-  p(`Tap <strong>"I was there"</strong> on the event within ${DISPUTE} days and a human looks at it. Faster still: tell your host. They were at the door, they know, and they can undo it themselves for ${HOST_WINDOW} days. Hosts are asked to be generous about this — a missed scan is far more likely than someone lying about being in the room.`),
-
-  h2('"Still coming?"'),
-  p(`Limited free events send a message about <strong>${ASK} hours</strong> before asking whether you are still coming. Tap yes and you're set. If you don't answer <em>and someone is waiting</em>, your spot goes to them <strong>${RELEASE} hours</strong> before the start. If nobody is waiting, your spot stays yours. Either way it is never a no-show, and you can rejoin the waitlist.`),
+  p(`Tap <strong>"I was there"</strong> on the event within ${DISPUTE} days and a person looks at it. Faster still, tell your host — they were at the door, they know, and they can undo it themselves for ${HOST_WINDOW} days. Hosts are asked to be generous here: a missed scan is far likelier than someone claiming a room they weren't in.`),
 
   h2('Who can see it'),
-  p(`Your standing is private. It is not on your profile and other members never see it. A host sees it only when you are waiting for their approval on a limited event — which is the one moment it is meant to matter.`),
+  p(`Your standing is private. It is not on your profile and other members never see it. A host sees it only when you are waiting on their approval for a limited event — the one moment it is meant to matter.`),
   p(`You can always check yours at <a href="/standing">Standing</a>. If there is nothing on record, that is exactly what it will say.`),
 
   p(`Thanks for helping keep Smileys events full of people who actually want to be there. ❤️`),
