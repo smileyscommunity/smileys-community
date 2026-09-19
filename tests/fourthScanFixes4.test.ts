@@ -52,7 +52,9 @@ describe('admin user page survives a non-2xx load (item 16)', () => {
     expect(src).not.toContain('d.interests.join(')
     // 2026-09-19: the form is built by formFromUser, which guards the lists the same way.
     expect(src).toContain('const list = (v: unknown) => (Array.isArray(v) ? v : []).join(\', \')')
-    expect(src).toContain('const form = formFromUser(d)')
+    // 2026-09-20: the call now also carries the member's home city slug (the
+    // admin-only "Home city" control), so it's no longer a bare `d`.
+    expect(src).toContain('const form = formFromUser({ ...d,')
   })
 })
 

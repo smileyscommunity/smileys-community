@@ -81,6 +81,9 @@ async function applyEmailChange(userId: string, newEmail: string, askedAtVersion
         data:  { email: newEmail },
       })
       await tx.emailVerificationToken.deleteMany({ where: { userId } })
+      // A reset link issued to the OLD address would still work after the
+      // login moved — and the notice we send there names the new address.
+      await tx.passwordResetToken.deleteMany({ where: { userId } })
       return updated
     })
     tokenVersion = u.tokenVersion

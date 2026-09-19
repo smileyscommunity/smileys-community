@@ -150,15 +150,30 @@ export type MoveResult =
  * join row for the NEW home is removed, because home lives on User.cityId
  * only — the two representations must never overlap.
  */
-export async function setHomeCity(userId: string, slug: string): Promise<MoveResult> {
+export async function setHomeCity(
+  userId: string,
+  slug: string,
+  // Set by the admin path below: an admin moving a staff member is exactly
+  // how a staff account is supposed to move.
+  opts: { byAdmin?: boolean } = {},
+): Promise<MoveResult> {
   const [user, city] = await Promise.all([
-    prisma.user.findUnique({ where: { id: userId }, select: { cityId: true, status: true } }),
+    prisma.user.findUnique({ where: { id: userId }, select: { cityId: true, status: true, role: true } }),
     prisma.city.findUnique({ where: { slug }, select: { id: true, slug: true, name: true, status: true } }),
   ])
   if (!user) return { ok: false, error: 'Member not found' }
   if (!city) return { ok: false, error: 'City not found' }
   if (user.status !== 'approved') {
     return { ok: false, error: 'Your membership needs to be approved first' }
+  }
+  // Staff don't move themselves. User.cityId is the column every moderator
+  // scope check reads (lib/access failClosedCityId / canActInCity), so this
+  // member-facing setting would otherwise hand a moderator the applications,
+  // members, private event chats and suspend tools of any live city — the
+  // thing the admin routes explicitly guard against. An admin moves a staff
+  // account from the user page instead.
+  if (!opts.byAdmin && (user.role === 'moderator' || user.role === 'admin' || user.role === 'host')) {
+    return { ok: false, error: 'An admin has to move a staff account — ask the team.' }
   }
   // Same rule as joining: home must be a live city, or every feed empties.
   if (city.status !== CITY_STATUS.Live) {

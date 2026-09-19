@@ -281,7 +281,13 @@ export async function POST(req: NextRequest) {
   // Resolved here, after every refusal, so the club lookup never runs for a
   // send that is turned away. A vanished club gets no link rather than a 404.
   const { link } = await broadcastLink(eventId, clubId)
-  const notifyResults = await inChunks(dedup, u => createNotification(u.id, notifType, title.trim(), message.trim(), link))
+  // Read once for the whole audience: createNotification would otherwise
+  // look each member's preferences up individually, which for a city-wide
+  // announcement is one query per member against a ten-connection pool.
+  const prefRows = await prisma.notificationPreference.findMany({ where: { userId: { in: dedup.map(u => u.id) } } })
+  const prefsBy = new Map(prefRows.map(p => [p.userId, p]))
+  const notifyResults = await inChunks(dedup, u =>
+    createNotification(u.id, notifType, title.trim(), message.trim(), link, undefined, prefsBy.get(u.id) ?? null))
   const notified = notifyResults.filter(r => r.status === 'fulfilled' && r.value === true).length
 
   await prisma.broadcast.create({

@@ -42,8 +42,13 @@ describe('review eligibility', () => {
 
 describe('TOTP step claims', () => {
   const claim = /prisma\.user\.updateMany\(\{\s*where: \{ id: [a-z.]+, OR: \[\{ lastUsedTotpStep: null \}, \{ lastUsedTotpStep: \{ lt: currentStep \} \}\] \},\s*data:\s*\{ lastUsedTotpStep: currentStep \},/
-  it('email change claims the step atomically', () => {
-    expect(read('app/api/auth/update-email/route.ts')).toMatch(claim)
+  // The email change's copy moved into lib/totpReauth when the password
+  // change and account deletion started asking for a code too.
+  it('the shared re-auth claims the step atomically, and the three routes use it', () => {
+    expect(read('lib/totpReauth.ts')).toMatch(claim)
+    for (const r of ['update-email', 'change-password', 'delete-account']) {
+      expect(read(`app/api/auth/${r}/route.ts`), r).toContain('await totpReauth(user, code)')
+    }
   })
   it('backup-code regeneration claims the step atomically instead of read-then-write', () => {
     const src = read('app/api/auth/2fa/backup-codes/route.ts')

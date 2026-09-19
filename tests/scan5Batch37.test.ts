@@ -40,6 +40,7 @@ vi.mock('@/lib/prisma', () => ({ prisma: {
   eventAttendee:      { findMany: vi.fn(async () => []) },
   event:              { findUnique: vi.fn() },
   broadcast:          { create: vi.fn(async () => ({})), findUnique: vi.fn(), findFirst: vi.fn(async () => null), update: vi.fn(async () => ({})) },
+  notificationPreference: { findMany: vi.fn(async () => []) },
   notification:       { updateMany: vi.fn(async () => ({ count: 0 })) },
 } }))
 
@@ -159,7 +160,9 @@ describe('108 — club broadcasts link to /clubs/<slug>', () => {
     p.club.findUnique.mockResolvedValueOnce({ slug: 'book-club' })
     const res = await send({ audience: 'club', clubId: 'k1' })
     expect(res.status).toBe(200)
-    expect((createNotification as any).mock.calls[0]).toEqual(['u1', 'announcement', 'T', 'M', '/clubs/book-club'])
+    // The two trailing arguments are the recipient row (unused here) and the
+    // member's preferences, read once for the whole audience.
+    expect((createNotification as any).mock.calls[0]).toEqual(['u1', 'announcement', 'T', 'M', '/clubs/book-club', undefined, null])
   })
 
   it('a club that vanished gets no link rather than a 404; an event send keeps /events/<id>', async () => {

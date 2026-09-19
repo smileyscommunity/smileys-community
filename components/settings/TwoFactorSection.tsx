@@ -1,24 +1,34 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 
 interface Props {
-  /** Caller controls visibility — 2FA is enrollment-gated to admin / moderator
-   *  roles today, so the parent shouldn't render this for members. */
+  /** Caller controls visibility — the parent renders this for staff, and for
+   *  anyone already enrolled whatever their role is now. */
   show: boolean
+  /** Enrolment is admin/moderator-only server-side; turning it OFF is for
+   *  whoever has it on (a demoted member is still asked for a code at every
+   *  sign-in, so they must be able to remove it). False for an enrolled
+   *  member who has since been demoted: they keep Disable and new recovery
+   *  codes, but can't re-enrol. */
+  canEnroll?: boolean
 }
 
 type Mode =
   | 'loading'
+  | 'unknown'     // the probe failed — we don't know, and won't guess
   | 'disabled'    // 2FA not enabled
   | 'enrolling'   // QR shown, awaiting code
   | 'codes'       // backup codes shown after successful enroll/regen
   | 'enabled'     // 2FA active
 
-export default function TwoFactorSection({ show }: Props) {
+export default function TwoFactorSection({ show, canEnroll = true }: Props) {
   const [mode, setMode] = useState<Mode>('loading')
   const [qr,          setQr]          = useState<string | null>(null)
+  // The shared secret behind the QR. You can't scan a QR code on the phone
+  // you're holding it on, so enrollment from a phone needs the typed form.
+  const [secret,      setSecret]      = useState<string | null>(null)
   const [code,        setCode]        = useState('')
   const [busy,        setBusy]        = useState(false)
   const [error,       setError]       = useState<string | null>(null)
@@ -31,20 +41,32 @@ export default function TwoFactorSection({ show }: Props) {
   // Determine current state. There's no dedicated "is 2FA enabled" GET, so we
   // probe the backup-codes endpoint — it returns 400 when 2FA is off and a
   // count when it's on. Cheap, no extra route required.
-  useEffect(() => {
-    if (!show) return
+  //
+  // ONLY the 400 means "not enrolled". A 429, a 500 or a dead connection used
+  // to read as "off" too, which offered an enrolled admin the Enable button
+  // for 2FA they already had — and told them nothing was protecting the
+  // account. Anything else is 'unknown', which says so and offers a retry.
+  const probe = useCallback(() => {
+    setMode('loading')
     fetch('/app/api/auth/2fa/backup-codes', { credentials: 'include' })
       .then(async res => {
         if (res.ok) {
-          const d = await res.json()
+          const d = await res.json().catch(() => ({}))
           setRemaining(d.remaining ?? null)
           setMode('enabled')
-        } else {
+        } else if (res.status === 400) {
           setMode('disabled')
+        } else {
+          setMode('unknown')
         }
       })
-      .catch(() => setMode('disabled'))
-  }, [show])
+      .catch(() => setMode('unknown'))
+  }, [])
+
+  useEffect(() => {
+    if (!show) return
+    probe()
+  }, [show, probe])
 
   if (!show) return null
 
@@ -53,10 +75,15 @@ export default function TwoFactorSection({ show }: Props) {
     setError(null)
     try {
       const res = await fetch('/app/api/auth/2fa/setup', { credentials: 'include' })
-      const d   = await res.json()
+      const d   = await res.json().catch(() => ({}))
       if (!res.ok) { setError(d.error ?? 'Could not start enrollment'); return }
       setQr(d.qrDataUrl)
+      setSecret(typeof d.secret === 'string' ? d.secret : null)
       setMode('enrolling')
+    } catch {
+      // A 502 or a dropped connection used to throw out of here and leave the
+      // button stuck on "Setting up…" with nothing said.
+      setError('Could not reach the server — try again')
     } finally {
       setBusy(false)
     }
@@ -72,11 +99,14 @@ export default function TwoFactorSection({ show }: Props) {
         headers:     { 'Content-Type': 'application/json' },
         body:        JSON.stringify({ code }),
       })
-      const d = await res.json()
+      const d = await res.json().catch(() => ({}))
       if (!res.ok) { setError(d.error ?? 'Invalid code'); return }
       setBackupCodes(d.backupCodes ?? [])
       setMode('codes')
+      setSecret(null)
       setCode('')
+    } catch {
+      setError('Could not reach the server — try again')
     } finally {
       setBusy(false)
     }
@@ -92,12 +122,14 @@ export default function TwoFactorSection({ show }: Props) {
         headers:     { 'Content-Type': 'application/json' },
         body:        JSON.stringify({ code }),
       })
-      const d = await res.json()
+      const d = await res.json().catch(() => ({}))
       if (!res.ok) { toast.error(d.error ?? 'Could not regenerate codes'); return }
       setBackupCodes(d.backupCodes ?? [])
       setMode('codes')
       setConfirmAction(null)
       setCode('')
+    } catch {
+      toast.error('Could not reach the server — try again')
     } finally {
       setBusy(false)
     }
@@ -113,13 +145,18 @@ export default function TwoFactorSection({ show }: Props) {
         headers:     { 'Content-Type': 'application/json' },
         body:        JSON.stringify({ code }),
       })
-      const d = await res.json()
-      if (!res.ok) { toast.error(d.error ?? 'Could not disable 2FA'); return }
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error(d.error ?? 'Could not disable 2FA')
+        return
+      }
       toast.success('2FA disabled')
       setMode('disabled')
       setRemaining(null)
       setConfirmAction(null)
       setCode('')
+    } catch {
+      toast.error('Could not reach the server — try again')
     } finally {
       setBusy(false)
     }
@@ -157,7 +194,29 @@ export default function TwoFactorSection({ show }: Props) {
 
   if (mode === 'loading') return <p className="text-xs text-gray-400">Loading…</p>
 
+  if (mode === 'unknown') {
+    return (
+      <div className="space-y-2">
+        <p className="text-xs text-gray-600">
+          We couldn&apos;t check whether two-factor is on for your account just now.
+          Rather than guess, nothing is offered here until we can.
+        </p>
+        <button
+          onClick={probe}
+          className="text-sm font-semibold text-amber-600 hover:text-amber-700"
+        >
+          Retry
+        </button>
+      </div>
+    )
+  }
+
   if (mode === 'disabled') {
+    // Only reachable for staff: the parent renders this section for a
+    // non-staff member only when they're already enrolled.
+    if (!canEnroll) {
+      return <p className="text-xs text-gray-600">Two-factor authentication is off for your account.</p>
+    }
     return (
       <div className="space-y-3">
         <p className="text-xs text-gray-600">
@@ -186,7 +245,16 @@ export default function TwoFactorSection({ show }: Props) {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={qr} alt="2FA QR code" className="w-40 h-40" />
         </div>
+        {/* Enrolling from the same phone that holds the authenticator app is
+            the common case, and a phone can't photograph its own screen. */}
+        {secret && (
+          <details>
+            <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-700">Can&apos;t scan? Enter this code manually</summary>
+            <code className="block mt-2 text-xs bg-gray-50 border border-gray-200 px-3 py-2 rounded-lg break-all text-gray-800 select-all">{secret}</code>
+          </details>
+        )}
         <input
+          aria-label="6-digit code from your authenticator app"
           type="text"
           inputMode="numeric"
           autoComplete="one-time-code"
@@ -215,7 +283,7 @@ export default function TwoFactorSection({ show }: Props) {
           <p className="text-xs font-semibold text-amber-900 mb-1">Save these recovery codes</p>
           <p className="text-xs text-amber-800 leading-relaxed">
             Each code can be used ONCE to sign in if you lose your phone.
-            They won't be shown again. Store them in your password manager
+            They won&apos;t be shown again. Store them in your password manager
             or print them.
           </p>
         </div>
@@ -250,7 +318,7 @@ export default function TwoFactorSection({ show }: Props) {
           }}
           className="w-full py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-semibold"
         >
-          I've saved my codes
+          I&apos;ve saved my codes
         </button>
       </div>
     )
@@ -282,6 +350,7 @@ export default function TwoFactorSection({ show }: Props) {
             inputMode="numeric"
             autoComplete="one-time-code"
             maxLength={6}
+            aria-label="6-digit code from your authenticator app"
             value={code}
             onChange={e => setCode(e.target.value.replace(/\D/g, ''))}
             placeholder="123456"
@@ -309,6 +378,7 @@ export default function TwoFactorSection({ show }: Props) {
           </div>
         </div>
       ) : (
+        <>
         <div className="flex gap-2">
           <button
             onClick={() => { setConfirmAction('regen'); setCode(''); setError(null) }}
@@ -325,6 +395,13 @@ export default function TwoFactorSection({ show }: Props) {
             Disable 2FA
           </button>
         </div>
+        {!canEnroll && (
+          <p className="text-xs text-gray-500">
+            Recovery codes are yours to replace any time, and you can turn 2FA off here.
+            Setting it up again is an admin action.
+          </p>
+        )}
+        </>
       )}
     </div>
   )

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { rateLimit } from '@/lib/rateLimit'
 
 export async function GET() {
   const session = await getSession()
@@ -17,6 +18,10 @@ export async function PUT(req: NextRequest) {
   try {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    if (!await rateLimit(`notif-prefs:${session.id}`, 60, 60_000)) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+    }
 
     const body = await req.json().catch(() => null)
     if (!body || typeof body !== 'object') {
@@ -50,6 +55,21 @@ export async function PUT(req: NextRequest) {
       ...(bool(quietHours)   !== undefined && { quietHours:   bool(quietHours) }),
       ...(qf !== undefined && { quietFrom: qf as number }),
       ...(qt !== undefined && { quietTo:   qt as number }),
+    }
+
+    // Equal bounds mute nothing (lib/notify inQuietWindow), so a window that
+    // quietly does nothing can't be saved. The page sends only what changed,
+    // so the bound that ISN'T in the body is read from the stored row —
+    // otherwise moving one end onto the other would pass unchecked.
+    if (qf !== undefined || qt !== undefined) {
+      const stored = await prisma.notificationPreference.findUnique({
+        where: { userId: session.id }, select: { quietFrom: true, quietTo: true },
+      })
+      const from = qf !== undefined ? qf as number : stored?.quietFrom ?? 23
+      const to   = qt !== undefined ? qt as number : stored?.quietTo   ?? 9
+      if (from === to) {
+        return NextResponse.json({ error: 'Quiet hours need a start and a different end' }, { status: 400 })
+      }
     }
 
     const prefs = await prisma.notificationPreference.upsert({

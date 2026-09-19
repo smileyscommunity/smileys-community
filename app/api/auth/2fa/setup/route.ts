@@ -125,12 +125,13 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   const session = await getSession()
-  // Both admins and moderators can enroll: moderators can review
-  // applications + suspend users + read event chats, so PII access is
-  // comparable. Members can't enroll (yet) — 2FA at login isn't surfaced
-  // for the member role.
-  if (!session || (session.role !== 'admin' && session.role !== 'moderator')) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  // Enrolling is staff-only (see GET), but turning it OFF is for whoever
+  // has it on: login enforces 2FA from the column alone, so a moderator
+  // demoted to member was prompted for a code at every sign-in with no way
+  // to disable it and no page that would show them the section. A valid
+  // code is still required below.
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   // Same bucket as POST, not merely the same shape — disabling 2FA also

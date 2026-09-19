@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { useAuth } from '@/contexts/AuthContext'
-import { PUSH_SYNCED_KEY, PUSH_SYNCED_USER_KEY } from '@/lib/pushDevice'
+import { PUSH_SYNCED_KEY, PUSH_SYNCED_USER_KEY, pushOptedOut, setPushOptedOut } from '@/lib/pushDevice'
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!
 
@@ -24,7 +24,11 @@ type SubscribeResult = 'ok' | 'refused' | 'failed'
 async function subscribe(): Promise<SubscribeResult> {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return 'failed'
 
-  const reg = await navigator.serviceWorker.ready
+  // Not serviceWorker.ready: that promise never settles when no worker is
+  // registered (a private window, a blocked registration), so this hung for
+  // ever rather than giving up — the same trap lib/pushDevice documents.
+  const reg = await navigator.serviceWorker.getRegistration()
+  if (!reg) return 'failed'
   const existing = await reg.pushManager.getSubscription()
   const sub = existing ?? await reg.pushManager.subscribe({
     userVisibleOnly: true,
@@ -77,17 +81,23 @@ export default function PushPermission() {
       return
     }
     if (Notification.permission === 'granted') {
-      // The daily gate is per member, not per browser. subscribe() reuses the
-      // browser's existing endpoint, and on a shared phone a once-a-day stamp
-      // left it tied to whoever synced last — so a different member re-syncs
-      // (and the server moves the endpoint to them) straight away.
-      // A refused endpoint used to be re-POSTed (and re-refused) every day.
-      const due = syncedUser() !== userId || Date.now() - readStamp(SYNCED_KEY) > RESYNC_AFTER
-      if (due && Date.now() - readStamp(REFUSED_KEY) > REFUSED_FOR) {
-        subscribe().then(r => {
-          if (r === 'ok') { rememberSyncedUser(userId); writeStamp(SYNCED_KEY) }
-          else if (r === 'refused') writeStamp(REFUSED_KEY)
-        }).catch(() => {})
+      // Someone who switched the toggle off in /settings unsubscribed this
+      // device on purpose. The browser permission is still 'granted', so the
+      // re-sync below used to subscribe it straight back — the toggle turned
+      // itself on again by the time they returned to the page.
+      if (!pushOptedOut()) {
+        // The daily gate is per member, not per browser. subscribe() reuses the
+        // browser's existing endpoint, and on a shared phone a once-a-day stamp
+        // left it tied to whoever synced last — so a different member re-syncs
+        // (and the server moves the endpoint to them) straight away.
+        // A refused endpoint used to be re-POSTed (and re-refused) every day.
+        const due = syncedUser() !== userId || Date.now() - readStamp(SYNCED_KEY) > RESYNC_AFTER
+        if (due && Date.now() - readStamp(REFUSED_KEY) > REFUSED_FOR) {
+          subscribe().then(r => {
+            if (r === 'ok') { rememberSyncedUser(userId); writeStamp(SYNCED_KEY) }
+            else if (r === 'refused') writeStamp(REFUSED_KEY)
+          }).catch(() => {})
+        }
       }
       setState('subscribed')
     } else if (Notification.permission === 'denied') {
@@ -109,6 +119,9 @@ export default function PushPermission() {
         writeStamp(SYNCED_KEY)
         setState('subscribed')
         rememberSyncedUser(userId)
+        // Tapping Allow is this device changing its mind about an earlier
+        // "off" in /settings.
+        setPushOptedOut(false)
         return
       }
       // The card used to vanish as if notifications were on when the server

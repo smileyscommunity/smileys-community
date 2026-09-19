@@ -14,6 +14,7 @@ import { computeEventSurveyRollup, aggregateRollup } from '@/lib/survey'
 import {formatName} from '@/lib/data'
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 import { todayInCity, resolveCityId } from '@/lib/city'
+import { setHomeCity } from '@/lib/cityMembership'
 import { formatMoney } from '@/lib/data'
 import { rateLimit, claimOnce, releaseClaim } from '@/lib/rateLimit'
 import {
@@ -287,7 +288,21 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       }
     }
 
-    if (Object.keys(allowed).length === 0) {
+    // Home city. Members move themselves in /settings, but staff can't (their
+    // city IS their moderation scope — lib/cityMembership), so an admin has to
+    // be able to do it for them. Admins only, and through the same helper, so
+    // the old city stays on their list and the neighbourhood is cleared.
+    // The move itself runs LAST (below), after every other field has been
+    // validated: moving first and then rejecting the neighbourhood left the
+    // member moved, their neighbourhood cleared, and the save reported as a
+    // failure.
+    const moveTo = 'homeCitySlug' in body ? String(body.homeCitySlug ?? '').trim() : null
+    if (moveTo !== null) {
+      if (!adminPrivilege) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      if (!moveTo) return NextResponse.json({ error: 'City is required' }, { status: 400 })
+    }
+
+    if (Object.keys(allowed).length === 0 && !moveTo) {
       return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 })
     }
 
@@ -310,7 +325,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       delete allowed.neighborhood
     }
     if ('neighborhood' in allowed) {
-      const parsed = await normalizeNeighborhoodInput(target.cityId, allowed.neighborhood)
+      // Against the city they will live in when this save finishes — moving
+      // a member and giving them a neighbourhood there is one save.
+      const cityForNeighborhood = moveTo
+        ? (await prisma.city.findUnique({ where: { slug: moveTo }, select: { id: true } }))?.id ?? target.cityId
+        : target.cityId
+      const parsed = await normalizeNeighborhoodInput(cityForNeighborhood, allowed.neighborhood)
       if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
       allowed.neighborhood = parsed.value
     }
@@ -396,6 +416,22 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         if (taken) return NextResponse.json({ error: 'That email is already in use by another account' }, { status: 409 })
       }
     }
+    // The move, now that every other field has been accepted — moving first
+    // and then rejecting one left the member moved and the save reported as
+    // a failure. setHomeCity clears the neighbourhood (it belongs to the old
+    // city's registry); a neighbourhood in this same save is written by the
+    // update below, which runs after this and was validated against the new
+    // city.
+    if (moveTo) {
+      const moved = await setHomeCity(id, moveTo, { byAdmin: true })
+      if (!moved.ok) return NextResponse.json({ error: moved.error }, { status: 400 })
+      if (!moved.alreadyHome) {
+        await writeAudit(session.id, session.name, 'user.home_city_changed', id, 'user',
+          { from: target.cityId, to: moved.city.id, cityId: moved.city.id },
+          `Moved ${target.name ?? 'a member'} to ${moved.city.name}`)
+      }
+    }
+
     // The no-op email drop above can leave nothing to update (e.g. a
     // profile save that only re-sent the current email) — succeed quietly
     // instead of tripping prisma with an empty data object.

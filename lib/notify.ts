@@ -1,5 +1,6 @@
 import { rateLimit } from '@/lib/rateLimit'
 import { prisma } from './prisma'
+import type { NotificationPreference } from '@prisma/client'
 import { sendPushToUser } from './push'
 import { getCityTz } from './city'
 import { nowInTz, DEFAULT_TZ } from './cityTime'
@@ -127,7 +128,7 @@ const PREF_KEY: Record<string, 'newEvents' | 'reminders' | 'eventUpdates' | 'joi
 // city's clock — not the founding city's. Hand-built UTC offsets are how
 // this used to work and exactly what lib/cityTime.ts warns against.
 // `knownCityId` (null = no city) skips the lookup when the recipient row was already read.
-async function inQuietWindow(userId: string, from: number, to: number, knownCityId?: string | null): Promise<boolean> {
+export async function inQuietWindow(userId: string, from: number, to: number, knownCityId?: string | null): Promise<boolean> {
   const cityId = knownCityId !== undefined
     ? knownCityId
     : (await prisma.user.findUnique({ where: { id: userId }, select: { cityId: true } }))?.cityId
@@ -167,6 +168,20 @@ export const SUSPENDED_SKIPPED_TYPES: ReadonlySet<string> = new Set([
   'spot_opened',
   // staff queues: another moderator picks them up
   'application', 'report', 'directory_submission', 'no_show_appeal',
+])
+
+// Quiet hours hold a push until morning, which is right for everything except
+// the handful of notices that are only useful in the next few minutes: a
+// hangout about to start (the cron's own comment calls it the highest-value
+// notification in the feature — a joiner who doesn't see it doesn't turn up),
+// the door staff's "check-in is open" for an event running late, a freed seat
+// that goes first-come, and the notice that a seat was released. ('Still
+// coming?' deliberately waits out quiet hours — see reconfirm_ask above, the
+// email goes regardless.) Quiet hours never suppressed these before —
+// they had no preference key at all — and silencing them would be a
+// regression dressed as a fix.
+export const QUIET_HOURS_EXEMPT: ReadonlySet<string> = new Set([
+  'hangout_starting', 'checkin_nudge', 'spot_opened', 'reconfirm_released',
 ])
 
 export interface NotificationRecipient {
@@ -210,6 +225,11 @@ export async function createNotification(
   body: string,
   link?: string,
   recipient?: NotificationRecipient,
+  // A fan-out that already read this member's preferences passes them here
+  // rather than having this function read them again per recipient — a
+  // city-wide announcement is thousands of rows against a pool of ten.
+  // `null` means "read, and there are none".
+  knownPrefs?: NotificationPreference | null,
 ): Promise<boolean> {
   try {
     const prefKey = PREF_KEY[type]
@@ -222,13 +242,19 @@ export async function createNotification(
     // recorded, so a notification sent during a member's quiet window is there
     // waiting when they next open notifications rather than vanishing. Muting a
     // type (pref = false) still skips it entirely.
+    // Quiet hours are read for EVERY type, not only the ones with a
+    // preference key: the types with no key are direct messages, connection
+    // requests, RSVPs, waitlist promotions and the standing notices — exactly
+    // what buzzes a phone at 3am. "Mute notifications from 23:00" muted none
+    // of them. Muting a type (pref = false) still skips it entirely.
     let suppressPush = false
-    if (prefKey !== undefined && prefKey !== null) {
-      const prefs = await prisma.notificationPreference.findUnique({ where: { userId } })
-      if (prefs) {
-        if (!prefs[prefKey]) return true
-        if (prefs.quietHours && await inQuietWindow(userId, prefs.quietFrom, prefs.quietTo, user?.cityId)) suppressPush = true
-      }
+    const prefs = knownPrefs !== undefined
+      ? knownPrefs
+      : await prisma.notificationPreference.findUnique({ where: { userId } })
+    if (prefs) {
+      if (prefKey !== undefined && prefKey !== null && !prefs[prefKey]) return true
+      if (prefs.quietHours && !QUIET_HOURS_EXEMPT.has(type)
+          && await inQuietWindow(userId, prefs.quietFrom, prefs.quietTo, user?.cityId)) suppressPush = true
     }
 
     // Bundle attendee_joined within 1 hour into a single notification
@@ -406,4 +432,35 @@ export async function notifyNewEvent(event: {
       members.slice(i, i + BATCH).map(m => createNotification(m.userId, 'new_event', title, body, link)),
     )
   }
+}
+
+/**
+ * For fan-outs that push WITHOUT writing a notification row (the cup
+ * reminders), which is the one path that skipped every preference the
+ * settings page offers. Returns the ids that may be pushed right now:
+ * account live (recipientSkipReason), the type not muted, and outside the
+ * member's quiet hours.
+ */
+export async function pushablePushIds(userIds: string[], type: string): Promise<string[]> {
+  if (userIds.length === 0) return []
+  const prefKey = PREF_KEY[type]
+  const [users, prefs] = await Promise.all([
+    prisma.user.findMany({
+      where:  { id: { in: userIds } },
+      select: { id: true, status: true, suspendedUntil: true, hiddenFromMembers: true, cityId: true },
+    }),
+    prisma.notificationPreference.findMany({ where: { userId: { in: userIds } } }),
+  ])
+  const prefFor = new Map(prefs.map(p => [p.userId, p]))
+  const out: string[] = []
+  for (const u of users) {
+    if (recipientSkipReason(u as NotificationRecipient, type)) continue
+    const p = prefFor.get(u.id)
+    if (p) {
+      if (prefKey !== undefined && prefKey !== null && !p[prefKey]) continue
+      if (p.quietHours && !QUIET_HOURS_EXEMPT.has(type) && await inQuietWindow(u.id, p.quietFrom, p.quietTo, u.cityId)) continue
+    }
+    out.push(u.id)
+  }
+  return out
 }

@@ -4,10 +4,11 @@ import { toast } from 'sonner'
 import { toastApiError } from '@/lib/apiError'
 import { confirmToast } from '@/lib/confirmToast'
 
-import { useState, useEffect, use } from 'react'
+import { useState, useEffect, useRef, use } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
+import { useAdminCities } from '@/components/admin/CitySelect'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { formatMoney, currencySymbol, firstNameOf, whatsappUrl } from '@/lib/data'
 import { phonePlaceholder, dialCode } from '@/lib/country'
@@ -80,6 +81,7 @@ interface UserDetail {
   phone: string | null
   profilePhoto: string | null
   nationality: string | null
+  cityId: string | null
   languages: string[]
   interests: string[]
   status: string
@@ -147,12 +149,17 @@ const PROFESSIONAL_STATUS_OPTIONS = [
 ]
 
 type ProfileForm = {
+  // The member's home city, as a slug. Members move themselves in /settings,
+  // but staff can't (their home city IS their moderation scope), so this is
+  // the only way to move one.
+  homeCitySlug: string
   email: string; phone: string; nationality: string; neighborhood: string; instagram: string
   languages: string; interests: string; bio: string; partnerId: string
   industry: string; professionalRole: string; professionalStatus: string
 }
 
 const EMPTY_FORM: ProfileForm = {
+  homeCitySlug: '',
   email: '', phone: '', nationality: '', neighborhood: '', instagram: '',
   languages: '', interests: '', bio: '', partnerId: '',
   industry: '', professionalRole: '', professionalStatus: '',
@@ -162,6 +169,7 @@ function formFromUser(d: Partial<Record<keyof ProfileForm, unknown>>): ProfileFo
   const str  = (v: unknown) => typeof v === 'string' ? v : ''
   const list = (v: unknown) => (Array.isArray(v) ? v : []).join(', ')
   return {
+    homeCitySlug: str(d.homeCitySlug),
     email: str(d.email), phone: str(d.phone), nationality: str(d.nationality),
     neighborhood: str(d.neighborhood), instagram: str(d.instagram),
     languages: list(d.languages), interests: list(d.interests), bio: str(d.bio),
@@ -218,7 +226,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
       .then(d => {
         if (!d) { setUser(null); return }
         setUser(d)
-        const form = formFromUser(d)
+        const form = formFromUser({ ...d, homeCitySlug: citiesRef.current.find(c => c.id === d.cityId)?.slug ?? '' })
         setProfileForm(form)
         setProfileBaseline(form)
       })
@@ -404,6 +412,18 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
   // never loaded, and re-validated a legacy neighborhood nobody touched.
   const [profileBaseline, setProfileBaseline] = useState<ProfileForm>(EMPTY_FORM)
   const [partners,      setPartners]      = useState<{ id: string; name: string }[]>([])
+  const cities = useAdminCities()
+  // The member loads before the city list often enough; keep the latest list
+  // where the load handler can read it, and fill the field in when it lands.
+  const citiesRef = useRef(cities)
+  useEffect(() => {
+    citiesRef.current = cities
+    const slug = cities.find(c => c.id === user?.cityId)?.slug ?? ''
+    if (slug && !profileBaseline.homeCitySlug) {
+      setProfileForm(f => ({ ...f, homeCitySlug: f.homeCitySlug || slug }))
+      setProfileBaseline(f => ({ ...f, homeCitySlug: slug }))
+    }
+  }, [cities, user?.cityId, profileBaseline.homeCitySlug])
 
   useEffect(() => {
     fetch('/app/api/partners').then(r => r.json()).then(d => setPartners(Array.isArray(d) ? d : []))
@@ -415,6 +435,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
     const body: Record<string, unknown> = {}
     for (const k of changed) {
       if (k === 'languages' || k === 'interests') body[k] = splitList(profileForm[k])
+      else if (k === 'homeCitySlug') body.homeCitySlug = profileForm.homeCitySlug
       else if (k === 'partnerId') body[k] = profileForm.partnerId || null
       else body[k] = profileForm[k]
     }
@@ -433,7 +454,8 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
         const updated = await res.json().catch(() => null) as Partial<UserDetail> | null
         const saved = updated && typeof updated === 'object' && !('error' in updated) ? updated : body as Partial<UserDetail>
         setUser(u => u ? { ...u, ...saved } : null)
-        const form = formFromUser({ ...profileForm, ...saved })
+        const form = formFromUser({ ...profileForm, ...saved,
+          homeCitySlug: cities.find(c => c.id === (saved as { cityId?: string }).cityId)?.slug ?? profileForm.homeCitySlug })
         setProfileForm(form)
         setProfileBaseline(form)
       } else {
@@ -705,6 +727,22 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                 <input type="text" value={profileForm.nationality} onChange={e => setProfileForm({ ...profileForm, nationality: e.target.value })}
                   className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-amber-500" />
               </div>
+              {isAdmin && cities.length > 1 && (
+                <div>
+                  <label htmlFor="ae-home-city" className="text-[10px] font-bold text-zinc-500 uppercase block mb-1">Home city</label>
+                  <select id="ae-home-city" value={profileForm.homeCitySlug}
+                    onChange={e => setProfileForm({ ...profileForm, homeCitySlug: e.target.value })}
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-amber-500 appearance-none">
+                    {/* Without this the picker would show the first live city
+                        for a member whose own city isn't in the list — a city
+                        they are not in, read as fact. */}
+                    {!profileForm.homeCitySlug && <option value="">Unknown — pick a city to move them</option>}
+                    {cities.filter(c => c.status === 'live' || c.slug === profileBaseline.homeCitySlug)
+                      .map(c => <option key={c.id} value={c.slug}>{c.name}</option>)}
+                  </select>
+                  <p className="text-[10px] text-zinc-600 mt-1">Their old city stays on their list, and their neighbourhood is cleared — it belongs to the city they left. Staff can&apos;t move themselves, so this is the way.</p>
+                </div>
+              )}
               <div>
                 <label className="text-[10px] font-bold text-zinc-500 uppercase block mb-1">Neighborhood</label>
                 <input type="text" value={profileForm.neighborhood} onChange={e => setProfileForm({ ...profileForm, neighborhood: e.target.value })}

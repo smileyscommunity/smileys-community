@@ -33,10 +33,14 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   }
   if (row.revokedAt) return NextResponse.json({ ok: true })
 
-  await prisma.session.update({
-    where: { id },
-    data:  { revokedAt: new Date() },
-  })
+  await prisma.$transaction([
+    prisma.session.update({ where: { id }, data: { revokedAt: new Date() } }),
+    // "Sign out a device you don't recognise" has to mean it stops hearing
+    // from us: a revoked session left the phone's push subscription in place,
+    // so it kept receiving notifications — message previews included — until
+    // its browser unsubscribed on its own.
+    prisma.pushSubscription.deleteMany({ where: { userId: session.id, sessionId: id } }),
+  ])
 
   return NextResponse.json({ ok: true })
 }

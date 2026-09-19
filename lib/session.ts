@@ -89,7 +89,12 @@ export async function createSession(user: SessionUser, opts: CreateOptions = {})
     // getSession will then drop them as expected.
     await prisma.session.updateMany({
       where: { id: jti, revokedAt: null },
-      data:  { expiresAt },
+      // totpVerified is written when the caller passes one: this path ignored
+      // it, so every caller that "carried step-up forward" on a re-issue
+      // (change-password, update-email) was silently demoting the row to
+      // false — invisible while the 2FA gate is off, a lockout the moment
+      // it's on.
+      data:  { expiresAt, ...(opts.totpVerified !== undefined ? { totpVerified: opts.totpVerified } : {}) },
     })
   }
 

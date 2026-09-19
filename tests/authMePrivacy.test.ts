@@ -10,6 +10,8 @@ vi.mock('@/lib/access', () => ({
   hostCityIds: vi.fn(async () => []),   // used by GET, not by the PATCH under test
 }))
 vi.mock('@/lib/prisma', () => ({ prisma: { user: { update: vi.fn() } } }))
+// The save is rate-limited now (one JWT + session write per call).
+vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn(async () => true) }))
 
 import { PATCH } from '@/app/api/auth/me/route'
 import { getSession } from '@/lib/session'

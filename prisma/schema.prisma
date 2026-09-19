@@ -1823,10 +1823,17 @@ model PushSubscription {
   endpoint  String   @unique
   p256dh    String
   auth      String
+  // The signed-in device this was registered from (Session.id / the JWT's
+  // jti), so signing that device out in /settings also stops its pushes.
+  // Revoking a session used to leave the phone receiving message previews.
+  // Null for rows registered before this existed, and for legacy sessions
+  // that carry no id.
+  sessionId String?
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([sessionId])
   @@map("push_subscriptions")
 }
 

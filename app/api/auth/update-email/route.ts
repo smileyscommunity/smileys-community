@@ -6,8 +6,7 @@ import { getSession } from '@/lib/session'
 import { sendConfirmEmailChange, sendEmailChangeRequestedNotice, recordEmailFailure } from '@/lib/email'
 import { rateLimit } from '@/lib/rateLimit'
 import { hashToken } from '@/lib/tokenHash'
-import { verifySync } from 'otplib/functional'
-import { decryptTotpSecret } from '@/lib/totpCrypto'
+import { totpReauth } from '@/lib/totpReauth'
 import { writeAudit } from '@/lib/audit'
 
 export async function POST(req: NextRequest) {
@@ -30,39 +29,23 @@ export async function POST(req: NextRequest) {
     const valid = await bcrypt.compare(password, user.password)
     if (!valid) return NextResponse.json({ error: 'Password is incorrect' }, { status: 401 })
 
-    // 2FA-enrolled accounts must also present a fresh TOTP code — a stolen
-    // session plus the password alone must not be able to rotate the login
-    // email out from under the owner. 'code_required' is a machine-readable
-    // marker: the settings form reveals its code input on seeing it.
-    if (user.totpEnabled && user.totpSecret) {
-      const codeStr = String(code ?? '').trim()
-      if (!/^\d{6}$/.test(codeStr)) {
-        return NextResponse.json({ error: 'code_required' }, { status: 400 })
-      }
-      const secret = decryptTotpSecret(user.totpSecret)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const result = verifySync({ token: codeStr, secret, strategy: 'totp' } as any)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (!(result as any).valid) {
-        return NextResponse.json({ error: 'Invalid code — check your authenticator app' }, { status: 400 })
-      }
-      // Same atomic step claim as /2fa/verify: a code observed at login must
-      // not also rotate the email within its 30s window.
-      const currentStep = Math.floor(Date.now() / 30000)
-      const stepClaim = await prisma.user.updateMany({
-        where: { id: user.id, OR: [{ lastUsedTotpStep: null }, { lastUsedTotpStep: { lt: currentStep } }] },
-        data:  { lastUsedTotpStep: currentStep },
-      })
-      if (stepClaim.count !== 1) {
-        return NextResponse.json({ error: 'This code was already used — wait for the next one.' }, { status: 400 })
-      }
-    }
-
     const newEmail = email.toLowerCase().trim()
     if (newEmail === user.email.toLowerCase()) return NextResponse.json({ error: 'That is already your email' }, { status: 400 })
 
+    // Checked here, not by the mail service: an address like "nate@" used to
+    // write a token row, fail at send time, and come back as "we couldn't
+    // send it just now" — which was false, and it spent one of three
+    // attempts an hour and dropped any earlier pending change.
+    if (!/^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/.test(newEmail) || newEmail.length > 200) {
+      return NextResponse.json({ error: "That doesn't look like an email address" }, { status: 400 })
+    }
+
     const existing = await prisma.user.findUnique({ where: { email: newEmail } })
     if (existing) return NextResponse.json({ error: 'Email already in use' }, { status: 409 })
+
+    // Last, so a rejected address doesn't burn the member's 30-second code.
+    const reauth = await totpReauth(user, code)
+    if (reauth) return reauth
 
     // The change waits for the new address to prove itself. It used to
     // switch the login on the spot and mark it unverified, so one typo moved
@@ -99,4 +82,42 @@ export async function POST(req: NextRequest) {
     console.error(e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
+}
+
+// GET — the change waiting for the new address to confirm, if any. Settings
+// showed nothing at all, so a member who mistyped the address had no way to
+// see what they'd asked for, and no way to take it back.
+export async function GET() {
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: 'Not logged in' }, { status: 401 })
+
+  // Matched against the account's current tokenVersion: the link is refused
+  // at any other one (verify-email), so a change left behind by a password
+  // change or a "sign out everywhere" isn't pending — it's dead, and saying
+  // otherwise leaves the page waiting for a confirmation that can't work.
+  const [row, user] = await Promise.all([
+    prisma.emailVerificationToken.findFirst({
+      where:  { userId: session.id, newEmail: { not: null }, expiresAt: { gt: new Date() } },
+      orderBy: { expiresAt: 'desc' },
+      select: { newEmail: true, expiresAt: true, tokenVersion: true },
+    }),
+    prisma.user.findUnique({ where: { id: session.id }, select: { tokenVersion: true } }),
+  ])
+  const live = row && user && row.tokenVersion === user.tokenVersion
+  return NextResponse.json({ pending: live ? { newEmail: row.newEmail, expiresAt: row.expiresAt } : null })
+}
+
+// DELETE — cancel it. No password: this only ever un-does a request, and the
+// address it would have moved to is the one at risk if it stands.
+export async function DELETE() {
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: 'Not logged in' }, { status: 401 })
+  if (!await rateLimit(`update-email-cancel:${session.id}`, 20, 60 * 60_000)) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+  }
+
+  const { count } = await prisma.emailVerificationToken.deleteMany({
+    where: { userId: session.id, newEmail: { not: null } },
+  })
+  return NextResponse.json({ ok: true, cancelled: count > 0 })
 }

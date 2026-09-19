@@ -261,8 +261,11 @@ describe('2 deploy.sh', () => {
 
 // ── 3, 4, 5, 6 — copy, form state, comment, the comment-pinning test
 describe('3 settings copy', () => {
+  // The description grew in the 2026-09 settings review (it also gates event
+  // chat and event photos — see tests/settingsReview2026), but hangouts must
+  // still be named: that's what this item was about.
   it('the joinedEvents toggle names hangouts too', () => {
-    expect(read('app/(member)/settings/page.tsx')).toContain('description="When someone joins your event or hangout"')
+    expect(read('app/(member)/settings/page.tsx')).toContain('When someone joins your event or hangout')
   })
 })
 

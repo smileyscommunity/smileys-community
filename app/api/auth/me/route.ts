@@ -7,6 +7,7 @@ import { formatName } from '@/lib/data'
 import { getDefaultCityId } from '@/lib/city'
 import { normalizeNeighborhoodInput } from '@/lib/neighborhoodsDb'
 import { validateProfileField } from '@/lib/profileFields'
+import { rateLimit } from '@/lib/rateLimit'
 import { writeAudit } from '@/lib/audit'
 import { todayInCity } from '@/lib/city'
 
@@ -39,6 +40,10 @@ export async function GET(req: NextRequest) {
           status: true, membershipType: true, profilePhoto: true, lastActive: true,
           partnerId: true, suspendedUntil: true, totpEnabled: true,
           openToCoffee: true, openToLanguage: true, openToHosting: true, neighborhoodVisible: true,
+          // The settings toggle defaulted to ON when this was missing, so a
+          // member who unsubscribed from an email footer was shown as
+          // subscribed — a consent surface saying the opposite of the truth.
+          emailMarketing: true,
           industry: true, professionalRole: true, professionalStatus: true,
         },
       }),
@@ -132,6 +137,11 @@ export async function PATCH(req: NextRequest) {
   try {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // Each save mints a JWT and writes the session row; a stuck client
+    // retrying shouldn't hammer that.
+    if (!await rateLimit(`profile-save:${session.id}`, 60, 60_000)) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+    }
 
     const body = await req.json()
     const allowed = ['name', 'bio', 'neighborhood', 'instagram', 'linkedin', 'lookingFor', 'color',
@@ -292,6 +302,7 @@ export async function PATCH(req: NextRequest) {
       ok: true,
       user: {
         name: updated.name, color: updated.color, bio: updated.bio, neighborhood: updated.neighborhood,
+        emailMarketing: updated.emailMarketing,
         instagram: updated.instagram, linkedin: updated.linkedin, lookingFor: updated.lookingFor,
         profileVisibility: updated.profileVisibility, phone: updated.phone, gender: updated.gender,
         nationality: updated.nationality, languages: updated.languages, interests: updated.interests,

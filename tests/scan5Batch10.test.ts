@@ -11,6 +11,7 @@ const read = (p: string) => readFileSync(p, 'utf8')
 const p = vi.hoisted(() => {
   const m: Record<string, any> = {
     broadcast:      { findMany: vi.fn(async () => []), create: vi.fn(async () => ({})) },
+    notificationPreference: { findMany: vi.fn(async () => []) },
     club:           { findUnique: vi.fn(), findMany: vi.fn(async () => []) },
     event:          { findUnique: vi.fn(), findMany: vi.fn(async () => []) },
     city:           { findUnique: vi.fn(async ({ where }: any) => ({ id: where.id })) },

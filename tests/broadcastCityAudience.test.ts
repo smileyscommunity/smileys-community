@@ -34,6 +34,7 @@ vi.mock('@/lib/prisma', () => ({
     event:     { findUnique: vi.fn() },
     club:      { findUnique: vi.fn() },
     broadcast: { create: vi.fn(async () => ({})), findMany: vi.fn(async () => []) },
+    notificationPreference: { findMany: vi.fn(async () => []) },
   },
 }))
 

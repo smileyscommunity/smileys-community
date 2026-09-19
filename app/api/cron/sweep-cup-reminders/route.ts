@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { sendPushToUser } from '@/lib/push'
+import { pushablePushIds } from '@/lib/notify'
 import { teamLabel } from '@/lib/cup-data'
 import { recordCronRun } from '@/lib/cronHealth'
 import { isCupFinishedNow } from '@/lib/cup'
@@ -110,7 +111,13 @@ async function runSweep() {
       select: { id: true },
     })
 
-    if (candidates.length === 0) {
+    // Every other push goes through createNotification, which honours the
+    // member's mutes and quiet hours; this fan-out wrote no row and so
+    // honoured neither — a 30-minutes-to-kickoff ping at any hour, to
+    // anyone with a subscription.
+    const recipients = await pushablePushIds(candidates.map(u => u.id), 'cup_reminder')
+
+    if (recipients.length === 0) {
       // Nobody to ping — claim already stamped, nothing to do.
       continue
     }
@@ -125,14 +132,14 @@ async function runSweep() {
     // cleaned up automatically). The claim already stamped, so a
     // crash partway through means some subscribers miss this one
     // reminder — but they won't get double-sent on retry either.
-    for (let i = 0; i < candidates.length; i += PUSH_BATCH_SIZE) {
-      const batch = candidates.slice(i, i + PUSH_BATCH_SIZE)
+    for (let i = 0; i < recipients.length; i += PUSH_BATCH_SIZE) {
+      const batch = recipients.slice(i, i + PUSH_BATCH_SIZE)
       await Promise.allSettled(
-        batch.map(u => sendPushToUser(u.id, { title, body, link })),
+        batch.map(userId => sendPushToUser(userId, { title, body, link })),
       )
     }
 
-    totalSent      += candidates.length
+    totalSent      += recipients.length
     fixturesPushed += 1
   }
 

@@ -9,8 +9,13 @@ import { rateLimit } from '@/lib/rateLimit'
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 import { writeAudit } from '@/lib/audit'
 import { createNotification } from '@/lib/notify'
-import { todayInCity, resolveCityId } from '@/lib/city'
+import { todayInCity, resolveCityId, getCityTz } from '@/lib/city'
 import { applicationScrubData, TOMBSTONE_EMAIL_SUFFIX } from '@/lib/applicationScrub'
+import { totpReauth } from '@/lib/totpReauth'
+import { eventStartsAt } from '@/lib/eventTime'
+import { activeAttendeeWhere } from '@/lib/attendance'
+import { sendEventCancelledEmail, recordEmailFailure } from '@/lib/email'
+import { notifyCityStaff } from '@/lib/staffNotify'
 
 // Account deletion follows an anonymize-and-clear strategy, not hard
 // delete. The User row is preserved (with all identifying fields
@@ -63,12 +68,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Too many attempts. Try again later.' }, { status: 429 })
   }
 
-  const { password } = await req.json()
+  const { password, code } = await req.json()
   if (!password) return NextResponse.json({ error: 'Password is required' }, { status: 400 })
 
   const user = await prisma.user.findUnique({
     where: { id: session.id },
-    select: { password: true, status: true, name: true, email: true, phone: true, lastFingerprint: true },
+    select: { id: true, password: true, status: true, name: true, email: true, phone: true, lastFingerprint: true,
+              cityId: true, totpEnabled: true, totpSecret: true },
   })
   if (!user || !user.password) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 })
@@ -76,6 +82,11 @@ export async function POST(req: NextRequest) {
 
   const valid = await bcrypt.compare(password, user.password)
   if (!valid) return NextResponse.json({ error: 'Incorrect password' }, { status: 403 })
+
+  // The same second proof the email change asks for. This is the one thing
+  // here that can't be undone, and it used to ask for less.
+  const reauth = await totpReauth(user, code)
+  if (reauth) return reauth
 
   const id = session.id
   const ghost = `deleted_${randomBytes(6).toString('hex')}`
@@ -92,6 +103,38 @@ export async function POST(req: NextRequest) {
     where:  { userId: id, status: 'active', endsAt: { gt: new Date() } },
     select: { id: true, title: true, joins: { select: { userId: true } } },
   })
+  // Events they host that haven't happened yet. Hangouts were already
+  // cancelled and their joiners told; events were left published with a
+  // "Deleted Member" host, so people would have turned up to an evening
+  // nobody was running. Cancelled here, with the people who were coming
+  // and the city's staff told — staff because an event with no host may
+  // still be worth someone taking over.
+  const hostedEventRows = await prisma.event.findMany({
+    where: {
+      hostId: id, cancelledAt: null,
+      status: { in: ['published', 'pending', 'draft', 'flagged', 'postponed'] },
+      // A day either side of "today somewhere": the exact cut is per event,
+      // on its own city's clock, just below.
+      date:   { gte: new Date(Date.now() - 2 * 86400000).toISOString().slice(0, 10) },
+    },
+    select: {
+      id: true, title: true, date: true, time: true, status: true, cityId: true, totalSpots: true,
+      attendees: {
+        where:  { status: { in: ['approved', 'pending'] } },
+        select: { userId: true, status: true, user: { select: { email: true, name: true } } },
+      },
+    },
+  })
+  // Only the ones that haven't started. A date-only compare called tonight's
+  // 19:00 event "upcoming" at 23:00, so a host who ran their evening and then
+  // left would have sent everyone who was just there an "event cancelled"
+  // notice — and cancelling it suppresses the no-show pass, the survey and
+  // the review nudges for an event that actually happened.
+  const hostedEvents: typeof hostedEventRows = []
+  for (const e of hostedEventRows) {
+    const tz = await getCityTz(e.cityId)
+    if (eventStartsAt(e, tz).getTime() > Date.now()) hostedEvents.push(e)
+  }
 
   await prisma.$transaction(async tx => {
     // ── 0. Decrement club memberCount for each approved membership ─────────
@@ -189,6 +232,25 @@ export async function POST(req: NextRequest) {
     // The neighbourhood too: it was the member's home, published by default.
     await tx.boardPost.updateMany({ where: { userId: id }, data: { title: 'Deleted post', body: DELETED_BODY, neighborhood: null, status: 'removed', pinned: false } })
     await tx.hangout.updateMany({ where: { userId: id }, data: { title: 'Deleted hangout', description: null, location: 'Removed', photo: null, status: 'cancelled' } })
+    // Their upcoming events are called off rather than left standing with a
+    // "Deleted Member" host (the people going are told outside the
+    // transaction). Past ones keep their history.
+    if (hostedEvents.length) {
+      const eventIds = hostedEvents.map(e => e.id)
+      const stamp = new Date()
+      await tx.event.updateMany({
+        where: { id: { in: eventIds } },
+        data:  { status: 'cancelled', cancelledAt: stamp, cancelReason: 'The host left Smileys' },
+      })
+      // Same release as the admin cancel path: a cancelled event keeps
+      // nobody "going", or every attendee still sees it on their plans.
+      // Removed by the actor — a removal is never a no-show.
+      await tx.eventAttendee.updateMany({
+        where: { eventId: { in: eventIds }, ...activeAttendeeWhere },
+        data:  { status: 'removed', cancelledAt: stamp, cancelledBy: 'admin' },
+      })
+      await tx.waitlistEntry.deleteMany({ where: { eventId: { in: eventIds } } })
+    }
     await tx.movingSale.updateMany({ where: { userId: id }, data: { note: null, photo: null } })
     await tx.guideTip.updateMany({ where: { userId: id }, data: { body: DELETED_BODY } })
     await tx.businessReview.updateMany({ where: { authorId: id }, data: { comment: null } })
@@ -304,6 +366,15 @@ export async function POST(req: NextRequest) {
         openToCoffee:     false,
         openToLanguage:   false,
         openToHosting:    false,
+        // Work details are quasi-identifying and render on the Pro surfaces
+        // and the admin user page; the scrub list predates them.
+        industry:           null,
+        professionalRole:   null,
+        professionalStatus: null,
+        listingAlerts:      [],
+        // Any staff role goes with the account: a deleted moderator's row
+        // shouldn't keep a title that means "may act on other members".
+        role:             'member',
         emailMarketing:   false,
         emailVerified:    false,
         // Moderation state — clear so the deleted account doesn't carry
@@ -347,6 +418,27 @@ export async function POST(req: NextRequest) {
   )
 
   await deleteSession()
+  for (const e of hostedEvents) {
+    // The seat counter is derived from the rows just released.
+    recomputeSpotsLeft(e.id, e.totalSpots).catch(err =>
+      console.error('[delete-account] spotsLeft recompute failed', { eventId: e.id, err: String(err) }))
+    for (const a of e.attendees) {
+      createNotification(a.userId, 'event_cancelled', '❌ Event cancelled',
+        `"${e.title}" on ${e.date} is off — the host left Smileys.`, '/events').catch(() => {})
+      // The email too: someone who RSVP'd weeks ago and doesn't open the app
+      // daily would otherwise turn up to an evening nobody is running.
+      if (a.status === 'approved' && a.user.email) {
+        sendEventCancelledEmail(a.user.email, a.user.name ?? 'Member', e.title, e.date).catch(async err => {
+          await recordEmailFailure({ helper: 'sendEventCancelledEmail', recipient: a.user.email, error: err, context: { eventId: e.id, userId: a.userId } })
+        })
+      }
+    }
+    if (e.status === 'published') {
+      notifyCityStaff(e.cityId, 'event_cancelled', 'Event cancelled — host deleted their account',
+        `"${e.title}" (${e.date}) was cancelled when its host left. ${e.attendees.length} were going.`,
+        `/admin/events/${e.id}/edit`).catch(() => {})
+    }
+  }
   for (const h of hostedUpcoming) {
     for (const j of h.joins) {
       createNotification(j.userId, 'hangout_cancelled', '❌ Hangout cancelled',

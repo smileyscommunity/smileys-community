@@ -57,8 +57,10 @@ export async function POST(req: NextRequest) {
   // evicted (or skipped) the moment it joins a member with other devices.
   await prisma.pushSubscription.upsert({
     where:  { endpoint },
-    create: { userId: session.id, endpoint, p256dh: keys.p256dh, auth: keys.auth },
-    update: { userId: session.id, p256dh: keys.p256dh, auth: keys.auth, createdAt: new Date() },
+    // The device's session rides along so signing it out in /settings takes
+    // its pushes with it.
+    create: { userId: session.id, endpoint, p256dh: keys.p256dh, auth: keys.auth, sessionId: session.sessionId ?? null },
+    update: { userId: session.id, p256dh: keys.p256dh, auth: keys.auth, sessionId: session.sessionId ?? null, createdAt: new Date() },
   })
 
   // A member has a handful of devices, not hundreds of rows: keep the newest.
@@ -73,6 +75,10 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  if (!await rateLimit(`push-unsub:${session.id}`, 30, 60 * 60_000)) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+  }
 
   const { endpoint } = await req.json().catch(() => ({}))
   if (typeof endpoint !== 'string' || !endpoint) return NextResponse.json({ error: 'endpoint required' }, { status: 400 })
