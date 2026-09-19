@@ -241,6 +241,9 @@ describe('b. every caller path: event row lock → advisory lock → insert', ()
       expectEventLockFirst()
     })
     it('manual add (PUT)', async () => {
+      // Seating by hand is an admin's; anyone else sends an invitation.
+      h.getSession.mockResolvedValue({ id: 'a1', name: 'Admin', role: 'admin', cityId: 'c1' })
+      p.user.findUnique.mockResolvedValue({ status: 'approved', suspendedUntil: null, hiddenFromMembers: false, cityId: 'c1' })
       p.eventAttendee.findUnique.mockResolvedValue(null)
       expect((await participantsPUT(req({ userId: 'u1' }), params)).status).toBe(200)
       expectEventLockFirst()

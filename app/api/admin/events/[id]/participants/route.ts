@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { findPromotableFromWaitlist, hasQuotaRoomFor, quotaEventSelect } from '@/lib/eventQuota'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdmin, isClubHost, canManageEventOps } from '@/lib/access'
+import { isAdmin, isClubHost, canManageEventOps, hostCityIds } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
 import { sendEventApprovedEmail, sendEventRejectedEmail, recordEmailFailure } from '@/lib/email'
 import { autoJoinClub } from '@/lib/autoJoinClub'
@@ -15,10 +15,12 @@ import { getRsvpGate, gateErrorBody } from '@/lib/noShow'
 import { standingLevelsFor } from '@/lib/standingRead'
 import { CardStatus } from '@/lib/noShowPolicy'
 import { DEFAULT_CURRENCY } from '@/lib/data'
-import { rateLimit } from '@/lib/rateLimit'
+import { rateLimit, claimOnce, releaseClaim } from '@/lib/rateLimit'
+import { isBlockedEitherWay } from '@/lib/memberPrivacy'
+import { getMemberCityIds } from '@/lib/cityMembership'
 import { lockEventRow, seatState, seatVerdict, overCapacityBody, wantsOverCapacity } from '@/lib/eventCapacity'
 import { getCityTz } from '@/lib/city'
-import { eventHasStarted } from '@/lib/eventTime'
+import { eventHasStarted, eventStartsAt, eventEndsAt } from '@/lib/eventTime'
 
 // Who is taking the member off the event, for the soft-cancel stamp.
 // Everyone past canManageEventOps who isn't an admin is some kind of host.
@@ -215,11 +217,20 @@ export async function GET(_: NextRequest, { params }: Params) {
     // primary host only. Co-hosts and club hosts run the door by name and
     // photo; gender and nationality stay, since balance quotas are theirs to
     // manage.
-    const canSeeContact = session.role === 'admin' || eventRow?.hostId === session.id
+    // Phone numbers are an admin's alone: the host page never shows them,
+    // and a host who could seat anyone and read this list back had every
+    // member's number.
+    const isAdminViewer = session.role === 'admin'
+    // Emails go to the event's host only while they still hold a host role:
+    // a club deactivated or a city grant revoked left the former host reading
+    // every guest's address on the events they still held.
+    const canSeeContact = isAdminViewer || (eventRow?.hostId === session.id && (
+      session.role === 'moderator' || await isClubHost(session.id) || (await hostCityIds(session.id)).length > 0))
     const stripContact = <T extends { user?: { email?: unknown; phone?: unknown } | null }>(row: T): T => {
-      if (canSeeContact || !row.user) return row
-      const { email: _e, phone: _p, ...user } = row.user
-      return { ...row, user } as T
+      if (!row.user) return row
+      if (isAdminViewer) return row
+      const { email, phone: _p, ...user } = row.user
+      return { ...row, user: canSeeContact ? { ...user, email } : user } as T
     }
 
     return NextResponse.json({ attendees: attendees.map(stripContact), waitlist: waitlist.map(stripContact), payments, noShowCards })
@@ -255,6 +266,12 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       prisma.eventAttendee.findUnique({ where: { userId_eventId: { userId, eventId } } }),
       prisma.event.findUnique({ where: { id: eventId }, select: { title: true, approvalRequired: true, price: true, payTo: true, currency: true, hostId: true, cityId: true, date: true, time: true, endTime: true, ...quotaEventSelect } }),
     ])
+    // Once the event has started a seat is part of the attendance record:
+    // removing a guest then took them out of the review (no card), or took
+    // an attended guest's credit away. Check-in and Excuse are the tools.
+    if (!isAdmin(session) && eventRow && eventHasStarted(eventRow, await getCityTz(eventRow.cityId))) {
+      return NextResponse.json({ error: 'It has started — mark them at check-in or excuse them instead' }, { status: 409 })
+    }
     await cancelAttendeeOp(prisma, { userId, eventId, by: cancelActor(session) })
 
     // AD2 fix: handle the member's payments + write an audit row.
@@ -399,7 +416,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     const [event, user, current] = await Promise.all([
-      prisma.event.findUnique({ where: { id: eventId }, select: { title: true, status: true, spotsLeft: true, date: true, neighborhood: true, turkishMaleQuota: true, genderBalance: true, maleQuota: true, femaleQuota: true, totalSpots: true, approvalRequired: true, price: true, payTo: true, currency: true, hostId: true } }),
+      prisma.event.findUnique({ where: { id: eventId }, select: { title: true, status: true, spotsLeft: true, date: true, time: true, endTime: true, cityId: true, neighborhood: true, turkishMaleQuota: true, genderBalance: true, maleQuota: true, femaleQuota: true, totalSpots: true, approvalRequired: true, price: true, payTo: true, currency: true, hostId: true } }),
       prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true, gender: true, nationality: true } }),
       prisma.eventAttendee.findUnique({ where: { userId_eventId: { userId, eventId } }, select: { status: true } }),
     ])
@@ -446,6 +463,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // nothing will keep, and it cancels the seat they held.
     if ((action === 'approve' || action === 'toWaitlist') && (event?.status === 'cancelled' || event?.status === 'archived')) {
       return NextResponse.json({ error: action === 'approve' ? 'Cannot approve into a cancelled or archived event' : 'Cannot waitlist for a cancelled or archived event' }, { status: 400 })
+    }
+    // Moving a seated guest to the waitlist after the start rewrites the
+    // attendance record the same way removing them does.
+    if (action === 'toWaitlist' && !isAdmin(session) && event &&
+        eventHasStarted(event, await getCityTz(event.cityId))) {
+      return NextResponse.json({ error: 'It has started — mark them at check-in or excuse them instead' }, { status: 409 })
     }
 
     if (action === 'approve') {
@@ -636,7 +659,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 }
 
-// PUT — directly add any member as an approved attendee
+// PUT — add a member. An admin seats them directly; anyone else running the
+// event (host, co-host, club or city host, moderator) sends an INVITATION the
+// member accepts by RSVPing themselves — or, at the door (`walkIn`, from an
+// hour before the start to the end), seats someone who turned up. Seating by hand let a host put any
+// member on any event — then read their contact details back off the list,
+// or run close-out and hand them a no-show for an event they never joined.
 export async function PUT(req: NextRequest, { params }: Params) {
   try {
     const session = await getSession()
@@ -654,7 +682,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
     const event = await prisma.event.findUnique({
       where: { id: eventId },
-      select: { title: true, spotsLeft: true, approvalRequired: true, hostId: true, status: true, price: true, payTo: true, currency: true, ...quotaEventSelect },
+      select: { title: true, spotsLeft: true, approvalRequired: true, hostId: true, status: true, price: true, payTo: true, currency: true, cityId: true, date: true, time: true, endTime: true, ...quotaEventSelect },
     })
     if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
     if (event.hostId === userId) return NextResponse.json({ error: 'Hosts are automatically attending their own events' }, { status: 400 })
@@ -666,6 +694,68 @@ export async function PUT(req: NextRequest, { params }: Params) {
       where: { userId_eventId: { userId, eventId } },
     })
     if (isActiveAttendee(existing)) return NextResponse.json({ error: 'Already attending' }, { status: 409 })
+
+    // Only a live member, and not one who blocked the caller or was blocked.
+    const target = await prisma.user.findUnique({
+      where:  { id: userId },
+      select: { status: true, suspendedUntil: true, hiddenFromMembers: true, cityId: true },
+    })
+    if (!target || target.status !== 'approved' || (target.suspendedUntil && target.suspendedUntil > new Date())) {
+      return NextResponse.json({ error: 'That member can\'t be added' }, { status: 404 })
+    }
+
+    // A walk-in: someone standing at the door, seated by whoever runs it.
+    // Only from an hour before the start until the end (in the event's city),
+    // and bounded per event — the door can't be used to seat people remotely.
+    const tz     = await getCityTz(event.cityId)
+    const now    = Date.now()
+    const walkIn = body.walkIn === true &&
+      now >= eventStartsAt(event, tz).getTime() - 60 * 60_000 && now <= eventEndsAt(event, tz).getTime()
+
+    if (!isAdmin(session)) {
+      // Invited or walked in, the same member rules: a hidden member, a
+      // blocked pair and a member of another city look the same as "not found".
+      if (target.hiddenFromMembers || await isBlockedEitherWay(session.id, userId)) {
+        return NextResponse.json({ error: 'That member can\'t be added' }, { status: 404 })
+      }
+      const memberCities = await getMemberCityIds(userId)
+      if (!memberCities.includes(event.cityId) && target.cityId !== event.cityId) {
+        return NextResponse.json({ error: 'That member can\'t be added' }, { status: 404 })
+      }
+    }
+    if (!isAdmin(session) && body.walkIn === true && !walkIn) {
+      return NextResponse.json({ error: 'Walk-ins are added at the door — from an hour before the start until the end' }, { status: 409 })
+    }
+    if (!isAdmin(session) && walkIn && event.status !== 'published' && event.status !== 'postponed') {
+      return NextResponse.json({ error: 'This event isn\'t live — there\'s no door to add walk-ins at' }, { status: 409 })
+    }
+    if (!isAdmin(session) && walkIn && !await rateLimit(`walk-in:${eventId}`, 30, 60 * 60_000)) {
+      return NextResponse.json({ error: 'Too many walk-ins added — ask an admin' }, { status: 429 })
+    }
+
+    if (!isAdmin(session) && !walkIn) {
+      // An invitation once it's too late to RSVP is a dead end.
+      if (eventHasStarted(event, tz)) {
+        return NextResponse.json({ error: 'It has started — add them as a walk-in at the door' }, { status: 409 })
+      }
+      // An invitation to a page they can open: the event has to be live.
+      if (event.status !== 'published' && event.status !== 'postponed') {
+        return NextResponse.json({ error: 'You can invite people once the event is live' }, { status: 409 })
+      }
+      // One invitation per member per event, however often it's pressed.
+      const inviteKey = `event-invite:${eventId}:${userId}`
+      if (!await claimOnce(inviteKey, 30 * 24 * 60 * 60_000)) {
+        return NextResponse.json({ error: 'They\'ve already been invited' }, { status: 409 })
+      }
+      const delivered = await createNotification(userId, 'rsvp', 'You\'re invited 🎟️',
+        `${session.name.split(' ')[0]} invited you to "${event.title}". Tap to take a spot.`, `/events/${eventId}`)
+      if (!delivered) {
+        await releaseClaim(inviteKey)
+        return NextResponse.json({ error: 'Could not send the invitation — try again' }, { status: 502 })
+      }
+      writeAudit(session.id, session.name, 'event.invite', eventId, 'event', { userId }, `Invited a member to "${event.title}"`)
+      return NextResponse.json({ ok: true, invited: true })
+    }
 
     // A red-card block holds for a host's manual add too — otherwise it is
     // a rule for one button only. (A yellow card's confirmation is the
@@ -703,6 +793,8 @@ export async function PUT(req: NextRequest, { params }: Params) {
     autoJoinClub(userId, eventId).catch(() => {})
     createNotification(userId, 'rsvp', 'You\'re in! 🎉',
       `You've been added to "${event.title}".`, `/events/${eventId}`)
+    writeAudit(session.id, session.name, walkIn ? 'event.walk_in' : 'event.seat_add', eventId, 'event', { userId },
+      `${walkIn ? 'Seated a walk-in at' : 'Seated a member on'} "${event.title}"`)
 
     return NextResponse.json({ ok: true })
   } catch (e) {

@@ -12,14 +12,18 @@ import {resolveImageUrl, avatarUrl, getInitials} from '@/lib/data'
 import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { vibrate, useScanCheckin } from '@/lib/checkin'
-import { awaitingCheckIn, type CheckInPromptEvent } from '@/lib/checkInPrompt'
+import { type CheckInPromptEvent } from '@/lib/checkInPrompt'
+import { awaitingCheckInPerEvent, eventTz, matchesName, readRoster, saveRoster } from '@/lib/hostPanel'
+import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
+import { loadFailure } from '@/lib/admin/useAdminLoad'
 import SwipeRow from '@/components/SwipeRow'
 import ScanResultToast from '@/components/ScanResultToast'
 import dynamic from 'next/dynamic'
 
 const QRScanner = dynamic(() => import('@/components/QRScanner'), { ssr: false })
 
-type HostEvent = CheckInPromptEvent
+// The door list carries each event's own city clock (`timezone`).
+type HostEvent = CheckInPromptEvent & { timezone?: string | null }
 
 interface Attendee {
   userId: string
@@ -39,18 +43,23 @@ function EventList() {
   const tz = useCurrentCity()?.timezone ?? DEFAULT_TZ
   const [all,     setAll]     = useState<HostEvent[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError,  setLoadError]  = useState<string | null>(null)
+  const [reloadTick, setReloadTick] = useState(0)
   const router = useRouter()
 
   useEffect(() => {
     // The door list: events you host, co-host or club-host. The own-events
     // list left co-hosts and club hosts with "No events today" for a room the
-    // check-in API would have let them run.
+    // check-in API would have let them run. A failed load says so, with
+    // Retry — "No events today" at the door on a dropped connection sent
+    // hosts looking for an event that was there all along.
+    setLoadError(null)
     fetch('/app/api/host/events?scope=door', { credentials: 'include' })
-      .then(r => r.json())
+      .then(async r => { if (!r.ok) throw await loadFailure(r); return r.json() })
       .then(d => setAll(Array.isArray(d) ? d : []))
-      .catch(() => {})
+      .catch((e: Error) => setLoadError(e?.message ?? 'Failed to load'))
       .finally(() => setLoading(false))
-  }, [])
+  }, [reloadTick])
 
   // Derived, not captured: the zone is DEFAULT_TZ on a cold load until the
   // city resolves, and a filter computed inside the fetch effect kept that
@@ -59,14 +68,19 @@ function EventList() {
     // Today's events, plus any that have already ended without a check-in
     // and can still be settled. Without the second half, a host following
     // the dashboard prompt the morning after lands on "No events today".
-    const today = todayInTz(tz)
-    const todays  = all.filter(e => e.date === today)
-    const pending = awaitingCheckIn(all, tz).map(p => p.event)
+    // Each read on its own city's day. Only events that are on — a cancelled,
+    // draft or still-in-review event has no door to run.
+    const todays  = all.filter(e => (e.status === 'published' || e.status === 'postponed') && e.date === todayInTz(eventTz(e, tz)))
+    const pending = awaitingCheckInPerEvent(all, tz).map(p => p.event)
     const seen    = new Set(todays.map(e => e.id))
     return [...todays, ...pending.filter(e => !seen.has(e.id))]
   }, [all, tz])
 
   if (loading) return <div className="text-zinc-500 text-sm">Loading…</div>
+  if (loadError) return (
+    <LoadErrorBanner message={loadError} title="Couldn't load your events"
+      onRetry={() => { setLoading(true); setReloadTick(t => t + 1) }} />
+  )
 
   if (events.length === 0) {
     return (
@@ -89,7 +103,7 @@ function EventList() {
               {/* A finished event in this list is one still awaiting its
                   check-in, so it needs its date — the time alone would read
                   as today. */}
-              {e.date === todayInTz(tz) ? e.time : `${e.date} · ${e.time}`}
+              {e.date === todayInTz(eventTz(e, tz)) ? e.time : `${e.date} · ${e.time}`}
             </div>
           </div>
           <div className="ml-auto text-xs text-amber-400 font-medium shrink-0">Open →</div>
@@ -103,7 +117,11 @@ function CheckInScanner() {
   const searchParams = useSearchParams()
   const router       = useRouter()
   const eventId      = searchParams.get('event') ?? ''
-  const tz           = useCurrentCity()?.timezone ?? DEFAULT_TZ
+  const browsedTz    = useCurrentCity()?.timezone ?? DEFAULT_TZ
+  // The event's own city clock, looked up from its city once the event loads
+  // (the event read carries only the id). The browsed city's until then.
+  const [eventTzName, setEventTzName] = useState<string | null>(null)
+  const tz           = eventTzName ?? browsedTz
 
   const [attendees,   setAttendees]   = useState<Attendee[]>([])
   const [loading,     setLoading]     = useState(true)
@@ -112,6 +130,11 @@ function CheckInScanner() {
   const [toggling,    setToggling]    = useState<string | null>(null)
   const [toggleError, setToggleError] = useState<string | null>(null)
   const [eventDate,   setEventDate]   = useState('')
+  const [loadError,   setLoadError]   = useState<string | null>(null)
+  // When the list on screen is the copy saved on this phone (lib/hostPanel),
+  // the time it was saved — shown so nobody takes it for the live list.
+  const [savedAt,     setSavedAt]     = useState<string | null>(null)
+  const [reloadTick,  setReloadTick]  = useState(0)
 
   // useScanCheckin owns scan parse + look-up + optimistic PATCH with
   // rollback + vibrate + toast lifecycle. Same hook /admin/checkin
@@ -131,15 +154,47 @@ function CheckInScanner() {
 
   useEffect(() => {
     if (!eventId) return
+    // The roster must be a roster: a refused or failed load (403, 429, a 500,
+    // no signal) used to parse the error body as an empty list — "No
+    // attendees found" at the door. Now it raises Retry, and if this phone
+    // loaded the list before, that copy stays usable meanwhile, labelled.
+    setLoadError(null)
     Promise.all([
-      fetch(`/app/api/events/${eventId}/checkin`, { credentials: 'include' }).then(r => r.json()),
-      fetch(`/app/api/events/${eventId}`, { credentials: 'include' }).then(r => r.json()),
-    ]).then(([att, ev]) => {
-      setAttendees(Array.isArray(att) ? applyPending(att, pendingFor(loadQueue(), eventId)) : [])
-      if (ev?.title) setEventName(ev.title)
-      if (typeof ev?.date === 'string') setEventDate(ev.date)
+      fetch(`/app/api/events/${eventId}/checkin`, { credentials: 'include' }).then(async r => {
+        if (!r.ok) throw await loadFailure(r)
+        const att = await r.json()
+        if (!Array.isArray(att)) throw new Error('The check-in list came back in an unexpected shape')
+        return att as Attendee[]
+      }),
+      fetch(`/app/api/events/${eventId}`, { credentials: 'include' }).then(r => r.ok ? r.json() : null).catch(() => null),
+    ]).then(async ([att, ev]) => {
+      const name = typeof ev?.title === 'string' ? ev.title : ''
+      const date = typeof ev?.date === 'string' ? ev.date : ''
+      setAttendees(applyPending(att, pendingFor(loadQueue(), eventId)))
+      if (name) setEventName(name)
+      if (date) setEventDate(date)
+      setSavedAt(null)
+      let zone: string | null = null
+      if (typeof ev?.cityId === 'string' && ev.cityId) {
+        zone = await fetch(`/app/api/city/current?cityId=${encodeURIComponent(ev.cityId)}`, { credentials: 'include' })
+          .then(r => r.ok ? r.json() : null).then(d => typeof d?.timezone === 'string' ? d.timezone : null).catch(() => null)
+        if (zone) setEventTzName(zone)
+      }
+      saveRoster(eventId, { eventName: name, eventDate: date, tz: zone, attendees: att })
+    }).catch((e: Error) => {
+      const saved = readRoster<Attendee>(eventId)
+      if (saved) {
+        setAttendees(applyPending(saved.attendees, pendingFor(loadQueue(), eventId)))
+        if (saved.eventName) setEventName(saved.eventName)
+        if (saved.eventDate) setEventDate(saved.eventDate)
+        if (saved.tz) setEventTzName(saved.tz)
+        setSavedAt(saved.savedAt)
+      }
+      setLoadError(e?.message ?? 'Failed to load')
     }).finally(() => setLoading(false))
-  }, [eventId])
+  }, [eventId, reloadTick])
+
+  const retryLoad = () => { setLoading(true); setReloadTick(t => t + 1) }
 
   async function toggleCheckin(userId: string, current: boolean) {
     setToggling(userId)
@@ -180,9 +235,8 @@ function CheckInScanner() {
   const { rest, noShowCount, closing, markRest } = useCloseOut({
     eventId, attendees, setAttendees, onError: setToggleError,
   })
-  const visible = attendees.filter(a =>
-    !search || a.user.name.toLowerCase().includes(search.toLowerCase())
-  )
+  // Turkish-aware: "sukru" finds Şükrü, "ilker" finds İlker (lib/hostPanel).
+  const visible = attendees.filter(a => matchesName(a.user.name, search))
 
   if (loading) return (
     <div className="space-y-4">
@@ -198,9 +252,35 @@ function CheckInScanner() {
     </div>
   )
 
+  // Nothing loaded and nothing saved on this phone: only the error to show.
+  if (loadError && !savedAt) return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <button onClick={() => router.push('/host/checkin')} className="p-2 rounded-lg text-zinc-400 hover:bg-zinc-800 transition-colors">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+        <h2 className="text-base font-bold text-white truncate">{eventName || 'Check-in'}</h2>
+      </div>
+      <LoadErrorBanner message={loadError} title="Couldn't load the check-in list" onRetry={retryLoad} />
+    </div>
+  )
+
   return (
     <div className="space-y-4">
       {scanning && <QRScanner onScan={handleScan} onClose={() => setScanning(false)} />}
+
+      {savedAt && (
+        <div className="flex items-start gap-3 text-xs text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+          <p className="flex-1">
+            Couldn&apos;t reach the server — showing the list saved on this phone at{' '}
+            {new Date(savedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: tz })}.
+            Check-ins you make are kept here and sent when you&apos;re back online.
+          </p>
+          <button onClick={retryLoad} className="shrink-0 font-semibold text-amber-200 hover:text-white">Retry</button>
+        </div>
+      )}
 
       <ScanResultToast result={scanResult} position="top" />
 
@@ -342,7 +422,7 @@ function CheckInScanner() {
           <p className="text-xs text-zinc-500 text-center mt-2">
             {pending.length > 0
               ? 'Waiting for the check-ins on this phone to send first.'
-              : "For the end of the event. Anyone not checked in or excused by midnight the day after counts as a no-show anyway, if most of the room was checked in. A late arrival can still be checked in."}
+              : "For the end of the event. Anyone you leave unmarked is settled at midnight the day after: a no-show if we told them they weren't checked in and they didn't reply, attended if they never got that message. A late arrival can still be checked in."}
           </p>
         </div>
       )}

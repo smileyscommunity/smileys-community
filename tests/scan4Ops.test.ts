@@ -270,8 +270,13 @@ describe('4 host edit status select', () => {
   const src = read('app/host/events/[id]/edit/page.tsx')
   it('offers Published by the status loaded from the server, not the live form value', () => {
     expect(src).toMatch(/setLoadedStatus\(event\.status \?\? 'published'\)/)
-    expect(src).toContain(`{(loadedStatus === 'published' || isStaff) && <option value="published">Published (live)</option>}`)
-    expect(src).toContain(`{loadedStatus === 'pending' ? (`)
+    // Host panel review (2026-09): the options are built from the loaded
+    // status — its own option always first, even 'pending' or 'flagged', which
+    // used to be a read-only box for one and missing from the select for the
+    // other — and a staff select keeps it too.
+    expect(src).toContain(`{ value: loadedStatus, label: STATUS_NAMES[loadedStatus] ?? loadedStatus },`)
+    expect(src).toContain(`[...new Set([loadedStatus, 'published', 'draft', 'pending', 'postponed', 'cancelled'])]`)
+    expect(src).toContain(`{!isStaff && loadedStatus === 'pending' && (`)
     expect(src).not.toMatch(/form\.status === 'published' \|\|/)
     expect(src).not.toMatch(/\{form\.status === 'pending' \?/)
   })

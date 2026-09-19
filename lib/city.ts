@@ -1,6 +1,6 @@
 import { prisma } from './prisma'
 import { todayInTz, DEFAULT_TZ } from './cityTime'
-import { canActInCity } from './access'
+import { canActInCity, hostCityIds } from './access'
 import type { SessionUser } from './session'
 import { DEFAULT_CURRENCY } from './data'
 
@@ -267,6 +267,15 @@ export async function resolveTargetCityId(
   // Istanbul created live Istanbul partners and directory listings they then
   // couldn't edit. A city-less moderator creates nothing (fail closed).
   if (session.role === 'moderator') {
+    return session.cityId ? { cityId: session.cityId } : { error: 'Your account has no city — ask an admin', status: 403 }
+  }
+  // Anyone else but an admin: the city on screen only if it's one of theirs
+  // (home or a city they host) — a host filed a global club's event into
+  // whichever city the switcher cookie named.
+  if (session.role !== 'admin') {
+    const viewed  = await resolveCityId(session)
+    const allowed = [...(session.cityId ? [session.cityId] : []), ...await hostCityIds(session.id)]
+    if (allowed.includes(viewed)) return { cityId: viewed }
     return session.cityId ? { cityId: session.cityId } : { error: 'Your account has no city — ask an admin', status: 403 }
   }
   return { cityId: await resolveCityId(session) }

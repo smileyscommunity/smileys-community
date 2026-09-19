@@ -1,12 +1,14 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { resolveImageUrl } from '@/lib/data'
 import ClubAnnouncements from '@/components/ClubAnnouncements'
 import ClubSpotlight     from '@/components/ClubSpotlight'
 import ClubRulesEditor   from '@/components/ClubRulesEditor'
 import ClubResources     from '@/components/ClubResources'
 import ClubPhotos        from '@/components/ClubPhotos'
+import LoadErrorBanner   from '@/components/admin/LoadErrorBanner'
+import { loadFailure }   from '@/lib/admin/useAdminLoad'
 
 interface ClubResource { id: string; title: string; url: string; emoji: string; order: number; clubId: string; createdAt: Date | string }
 interface Spotlight  { userId: string; name: string; color: string; photo: string | null; bio: string | null; note: string | null; updatedAt: string | null }
@@ -31,18 +33,26 @@ interface ClubMember {
   color: string; photo: string | null; neighborhood: string | null; connected: boolean
 }
 
-function MemberList({ slug }: { slug: string }) {
+function MemberList({ slug, reloadKey }: { slug: string; reloadKey: number }) {
   const [members, setMembers] = useState<ClubMember[]>([])
   const [loading, setLoading] = useState(true)
+  const [error,   setError]   = useState<string | null>(null)
+  const [retries, setRetries] = useState(0)
 
+  // reloadKey moves when a join request is approved, so the new member
+  // appears here without a page reload. A failed load says so — "No members
+  // yet" on a 500 told a host their club had emptied.
   useEffect(() => {
+    setError(null)
     fetch(`/app/api/clubs/${slug}/members`, { credentials: 'include' })
-      .then(r => r.ok ? r.json() : [])
-      .then(setMembers)
+      .then(async r => { if (!r.ok) throw await loadFailure(r); return r.json() })
+      .then(d => setMembers(Array.isArray(d) ? d : []))
+      .catch((e: Error) => setError(e?.message ?? 'Failed to load'))
       .finally(() => setLoading(false))
-  }, [slug])
+  }, [slug, reloadKey, retries])
 
   if (loading) return <p className="text-zinc-500 text-sm py-8 text-center">Loading…</p>
+  if (error) return <LoadErrorBanner message={error} title="Couldn't load members" onRetry={() => { setLoading(true); setRetries(n => n + 1) }} />
   if (members.length === 0) return (
     <div className="py-12 text-center">
       <div className="text-3xl mb-2">👥</div>
@@ -80,37 +90,41 @@ function MemberList({ slug }: { slug: string }) {
   )
 }
 
-function MemberRequests({ slug }: { slug: string }) {
-  const [requests, setRequests] = useState<JoinRequest[]>([])
-  const [loading,  setLoading]  = useState(true)
+// The join requests are loaded by the tabs component (it needs the count for
+// the Members tab and to decide which tab opens), and handed down here.
+function MemberRequests({ slug, requests, loadError, onRetry, onDecided }: {
+  slug:      string
+  requests:  JoinRequest[] | null
+  loadError: string | null
+  onRetry:   () => void
+  onDecided: (userId: string, action: 'approve' | 'reject') => void
+}) {
   const [busy,     setBusy]     = useState<string | null>(null)
   const [error,    setError]    = useState<string | null>(null)
-
-  useEffect(() => {
-    fetch(`/app/api/clubs/${slug}/members?pending=1`, { credentials: 'include' })
-      .then(r => r.ok ? r.json() : [])
-      .then(setRequests)
-      .finally(() => setLoading(false))
-  }, [slug])
 
   async function decide(userId: string, action: 'approve' | 'reject') {
     setBusy(userId)
     setError(null)
-    const res = await fetch(`/app/api/clubs/${slug}/members`, {
-      method: 'PATCH', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, action }),
-    })
-    if (res.ok) {
-      setRequests(prev => prev.filter(r => r.id !== userId))
-    } else {
-      const data = await res.json().catch(() => ({}))
-      setError(data.error ?? 'Something went wrong. Please try again.')
+    try {
+      const res = await fetch(`/app/api/clubs/${slug}/members`, {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, action }),
+      })
+      if (res.ok) {
+        onDecided(userId, action)
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setError(data.error ?? 'Something went wrong. Please try again.')
+      }
+    } catch {
+      setError('Could not reach the server — check your connection.')
     }
     setBusy(null)
   }
 
-  if (loading) return <p className="text-zinc-500 text-sm py-8 text-center">Loading…</p>
+  if (loadError) return <LoadErrorBanner message={loadError} title="Couldn't load join requests" onRetry={onRetry} />
+  if (requests === null) return <p className="text-zinc-500 text-sm py-8 text-center">Loading…</p>
 
   if (requests.length === 0) return (
     <div className="py-12 text-center">
@@ -189,27 +203,65 @@ export default function ClubManagementTabs({
   slug, currentUserId, isAdmin, isPrivate, initialRules, initialResources, initialSpotlight,
 }: Props) {
   const [tab, setTab] = useState<Tab>('announcements')
+  const [requests,      setRequests]      = useState<JoinRequest[] | null>(null)
+  const [requestsError, setRequestsError] = useState<string | null>(null)
+  const [requestsTick,  setRequestsTick]  = useState(0)
+  const [membersTick,   setMembersTick]   = useState(0)
+  // Only the first answer picks the opening tab — a later reload (Retry, or
+  // the last request decided) must not yank the host off the tab they're on.
+  const tabChosen = useRef(false)
 
-  const tabs: { key: Tab; label: string }[] = [
-    { key: 'members' as Tab, label: '👥 Members' },
-    ...BASE_TABS,
+  // Join requests are what a host most needs to act on, and they sat behind a
+  // tab that said nothing about them. The count rides on the Members tab, and
+  // the page opens there while any are waiting.
+  useEffect(() => {
+    setRequestsError(null)
+    fetch(`/app/api/clubs/${slug}/members?pending=1`, { credentials: 'include' })
+      .then(async r => { if (!r.ok) throw await loadFailure(r); return r.json() })
+      .then(d => {
+        const list: JoinRequest[] = Array.isArray(d) ? d : []
+        setRequests(list)
+        if (!tabChosen.current) {
+          tabChosen.current = true
+          if (list.length > 0) setTab('members')
+        }
+      })
+      .catch((e: Error) => { setRequests([]); setRequestsError(e?.message ?? 'Failed to load') })
+  }, [slug, requestsTick])
+
+  function decided(userId: string, action: 'approve' | 'reject') {
+    setRequests(prev => (prev ?? []).filter(r => r.id !== userId))
+    // An approved request is a new member: the list below re-reads.
+    if (action === 'approve') setMembersTick(t => t + 1)
+  }
+
+  const pendingCount = requests?.length ?? 0
+  const tabs: { key: Tab; label: string; badge?: number }[] = [
+    { key: 'members' as Tab, label: '👥 Members', badge: pendingCount },
+    ...BASE_TABS.map(t => t.key === 'rules' && !isAdmin ? { ...t, label: '📋 View rules' } : t),
   ]
 
   return (
     <div>
-      {/* Tab bar */}
-      <div className="flex flex-wrap gap-1 mb-6 border-b border-zinc-800">
+      {/* Tab bar — one row that scrolls sideways on a phone. */}
+      <div className="flex gap-1 mb-6 border-b border-zinc-800 overflow-x-auto scrollbar-hide">
         {tabs.map(t => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`pb-3 px-1 mr-3 text-sm font-semibold border-b-2 whitespace-nowrap transition-colors ${
+            className={`shrink-0 pb-3 px-1 mr-3 text-sm font-semibold border-b-2 whitespace-nowrap transition-colors ${
               tab === t.key
                 ? 'border-amber-500 text-amber-400'
                 : 'border-transparent text-zinc-500 hover:text-zinc-200'
             }`}
           >
             {t.label}
+            {!!t.badge && (
+              <span className="ml-1.5 text-xs font-bold px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400"
+                aria-label={`${t.badge} pending join request${t.badge === 1 ? '' : 's'}`}>
+                {t.badge}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -217,8 +269,9 @@ export default function ClubManagementTabs({
       {tab === 'members' && (
         <div className="space-y-8">
           {/* Pending rows exist whether or not the club is private today (it may have been). */}
-          <MemberRequests slug={slug} />
-          <MemberList slug={slug} />
+          <MemberRequests slug={slug} requests={requests} loadError={requestsError}
+            onRetry={() => { setRequests(null); setRequestsTick(t => t + 1) }} onDecided={decided} />
+          <MemberList slug={slug} reloadKey={membersTick} />
         </div>
       )}
       {tab === 'announcements' && (
@@ -228,7 +281,16 @@ export default function ClubManagementTabs({
         <ClubSpotlight slug={slug} initialSpotlight={initialSpotlight} canEdit={true} dark />
       )}
       {tab === 'rules' && (
-        <ClubRulesEditor slug={slug} initialRules={initialRules} canEdit={isAdmin} dark />
+        <>
+          {/* Rules are set by staff; a host reads them here. The editor renders
+              nothing read-only when there are none, which left an empty tab. */}
+          {!isAdmin && (
+            <p className="text-xs text-zinc-500 mb-4">
+              {initialRules ? 'The Smileys team sets the club rules — ask a moderator if they need a change.' : 'No rules have been set for this club yet. The Smileys team sets them — ask a moderator if you’d like some.'}
+            </p>
+          )}
+          <ClubRulesEditor slug={slug} initialRules={initialRules} canEdit={isAdmin} dark />
+        </>
       )}
       {tab === 'resources' && (
         <ClubResources slug={slug} initialResources={initialResources} canEdit={true} dark />

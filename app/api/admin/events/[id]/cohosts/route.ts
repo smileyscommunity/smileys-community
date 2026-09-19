@@ -5,8 +5,11 @@ import { createNotification } from '@/lib/notify'
 import { writeAudit } from '@/lib/audit'
 import { rateLimit } from '@/lib/rateLimit'
 import { UserStatus } from '@/lib/constants'
+import { isAdmin } from '@/lib/access'
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 import { lockEventRow, seatState, seatVerdict, overCapacityBody, wantsOverCapacity } from '@/lib/eventCapacity'
+import { getMemberCityIds } from '@/lib/cityMembership'
+import { isBlockedEitherWay } from '@/lib/memberPrivacy'
 
 async function canManage(session: { id: string; role: string } | null, eventId: string) {
   if (!session) return false
@@ -59,15 +62,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const { userId } = await readBody(req)
     if (!userId) return NextResponse.json({ error: 'userId required' }, { status: 400 })
 
-    const event = await prisma.event.findUnique({ where: { id }, select: { title: true, hostId: true, totalSpots: true } })
+    const event = await prisma.event.findUnique({ where: { id }, select: { title: true, hostId: true, totalSpots: true, cityId: true } })
     if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
     if (event.hostId === userId) return NextResponse.json({ error: 'Already the main host' }, { status: 400 })
 
     // A co-host runs the door and sees the event chat — only a real, approved
     // member qualifies (pending applicants and suspended accounts don't).
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, status: true } })
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, status: true, suspendedUntil: true, hiddenFromMembers: true, cityId: true } })
     if (!user) return NextResponse.json({ error: 'Member not found' }, { status: 404 })
-    if (user.status !== UserStatus.Approved) return NextResponse.json({ error: 'Only approved members can be co-hosts' }, { status: 400 })
+    if (user.status !== UserStatus.Approved || (user.suspendedUntil && user.suspendedUntil > new Date())) {
+      return NextResponse.json({ error: 'Only active members can be co-hosts' }, { status: 400 })
+    }
+    // Door powers go to someone the host could reach anyway: a member of the
+    // event's city, not hidden, and not in a block with the host. Staff pick
+    // anyone.
+    if (!isAdmin(session)) {
+      const cities = await getMemberCityIds(userId)
+      if (user.hiddenFromMembers || await isBlockedEitherWay(session.id, userId) ||
+          (user.cityId !== event.cityId && !cities.includes(event.cityId))) {
+        return NextResponse.json({ error: 'That member can\'t co-host this event' }, { status: 400 })
+      }
+    }
 
     const cohost = await prisma.eventCoHost.upsert({
       where: { eventId_userId: { eventId: id, userId } },

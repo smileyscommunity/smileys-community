@@ -13,6 +13,8 @@ const p = vi.hoisted(() => {
   return m
 })
 const h = vi.hoisted(() => ({ stepUp: null as unknown, session: { id: 'adm', name: 'Admin', role: 'admin' } as Record<string, unknown> | null }))
+// Edits and invitations are rate-limited and claimed (rate_limits table).
+vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn(async () => true), claimOnce: vi.fn(async () => true), releaseClaim: vi.fn(async () => {}) }))
 vi.mock('@/lib/prisma', () => ({ prisma: p }))
 vi.mock('@/lib/session', () => ({ getSession: vi.fn(async () => h.session) }))
 vi.mock('@/lib/access', () => ({ isAdmin: (s: { role: string }) => s.role === 'admin', canManagePartners: vi.fn(() => true), failClosedCityId: vi.fn() }))
@@ -57,7 +59,8 @@ describe('33. deleting a partner moves its accounts back to member', () => {
 describe('34. payment through Smileys stays a staff decision', () => {
   it('hosts can\'t change payTo or paymentContact on edit, and a host\'s new event is paid at the venue', () => {
     const put = read('app/api/admin/events/[id]/route.ts')
-    expect(put).toMatch(/delete rest\.featured[\s\S]{0,700}delete rest\.payTo\s*\n\s*delete rest\.paymentContact/)
+    // Same host block; the status allowlist now sits between the two.
+    expect(put).toMatch(/delete rest\.featured[\s\S]{0,4000}delete rest\.payTo\s*\n\s*delete rest\.paymentContact/)
     const post = read('app/api/admin/events/route.ts')
     expect(post).toContain("payTo:                needsReview ? 'venue' : (payTo || 'venue'),")
     expect(post).toContain('paymentContact:       needsReview ? null : contact,')

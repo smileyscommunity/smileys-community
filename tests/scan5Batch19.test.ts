@@ -113,7 +113,9 @@ describe('75 — bottom nav after a city switch', () => {
     expect(isBottomNavRoute('/events')).toBe(true)
     // The admin panel has its own bottom nav; the member one covered it.
     expect(isBottomNavRoute('/admin/users')).toBe(false)
-    expect(isBottomNavRoute('/host/events')).toBe(true)
+    // The host panel too: it is a full-height shell with its own navigation,
+    // and the member bar sat over the bottom of it.
+    expect(isBottomNavRoute('/host/events')).toBe(false)
   })
 
   it('non-city top-level pages are not swept in by the slug match', () => {

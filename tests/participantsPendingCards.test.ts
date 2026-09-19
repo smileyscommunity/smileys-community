@@ -5,8 +5,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // deciding on — as counts, and nowhere else: not on approved rows, not on
 // the waitlist, and never for cards that were waived or overturned.
 
+// Edits and invitations are rate-limited and claimed (rate_limits table).
+vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn(async () => true), claimOnce: vi.fn(async () => true), releaseClaim: vi.fn(async () => {}) }))
 vi.mock('@/lib/session', () => ({ getSession: vi.fn() }))
-vi.mock('@/lib/access',  () => ({ isAdmin: vi.fn(), isClubHost: vi.fn(), canManageEventOps: vi.fn().mockResolvedValue(true) }))
+vi.mock('@/lib/access',  () => ({ isAdmin: vi.fn(), isClubHost: vi.fn(), canManageEventOps: vi.fn().mockResolvedValue(true), hostCityIds: vi.fn(async () => []) }))
 vi.mock('@/lib/notify',  () => ({ createNotification: vi.fn() }))
 vi.mock('@/lib/email',   () => ({ sendEventApprovedEmail: vi.fn(), sendEventRejectedEmail: vi.fn(), recordEmailFailure: vi.fn() }))
 vi.mock('@/lib/autoJoinClub', () => ({ autoJoinClub: vi.fn() }))

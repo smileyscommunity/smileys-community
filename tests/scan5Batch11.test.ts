@@ -7,6 +7,8 @@ import { join } from 'path'
 //  49. the edit forms saved 'Cancelled' (seats released, everyone emailed) unasked
 //  50. DELETE hard-deleted events with attendees and paid payments, telling no one
 
+// Edits and invitations are rate-limited and claimed (rate_limits table).
+vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn(async () => true), claimOnce: vi.fn(async () => true), releaseClaim: vi.fn(async () => {}) }))
 vi.mock('@/lib/session', () => ({ getSession: vi.fn() }))
 vi.mock('@/lib/access', () => ({
   isAdmin:            (s: any) => s?.role === 'admin',
@@ -30,6 +32,8 @@ vi.mock('@/lib/prisma', () => ({
     payment:       { count: vi.fn(async () => 0), findMany: vi.fn(async () => []), deleteMany: vi.fn(async () => ({ count: 0 })) },
     paymentLog:    { createMany: vi.fn(async () => ({ count: 0 })) },
     noShowCard:    { findMany: vi.fn(async () => []) },
+    // Cancel/postpone check whether the event has started, on its city's clock.
+    city:          { findUnique: vi.fn(async () => ({ timezone: 'Europe/Istanbul' })) },
   },
 }))
 

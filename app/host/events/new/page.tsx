@@ -39,7 +39,10 @@ function HostNewEventForm() {
   const [repeat,      setRepeat]      = useState<'none' | 'weekly' | 'biweekly' | 'monthly'>('none')
   const [occurrences, setOccurrences] = useState(4)
   const [aiNotes,     setAiNotes]     = useState('')
-  const [aiLoading,   setAiLoading]   = useState(false)
+  // One flag per AI button: a shared one showed "Suggesting…" on the tags
+  // button while the description was being written, and disabled both.
+  const [tagsLoading, setTagsLoading] = useState(false)
+  const [descLoading, setDescLoading] = useState(false)
   const [geocoding,   setGeocoding]   = useState(false)
   const [mapsUrl,     setMapsUrl]     = useState('')
   // The directory listing picked for the venue (components/VenuePicker).
@@ -98,12 +101,18 @@ function HostNewEventForm() {
       try {
         const dup = JSON.parse(dupStr)
         sessionStorage.removeItem('smileys_dup_event')
+        // Everything that describes the event carries over — only the date is
+        // left blank. The copy used to lose its emoji, end time, links, payment
+        // method, tags, linked venue and cover crop, and a host re-running a
+        // weekly event had to find and re-enter each one.
         setForm(f => ({
           ...f,
           title:        dup.title        ? `${dup.title} (Copy)` : f.title,
           clubId:       dup.clubId       ?? f.clubId,
+          emoji:        dup.emoji        || f.emoji,
           date:         '',
           time:         dup.time         ?? f.time,
+          endTime:      dup.endTime      ?? f.endTime,
           location:     dup.location     ?? f.location,
           neighborhood: dup.neighborhood ?? f.neighborhood,
           address:      dup.address      ?? f.address,
@@ -112,9 +121,17 @@ function HostNewEventForm() {
           totalSpots:   dup.totalSpots   ? String(dup.totalSpots) : f.totalSpots,
           price:        dup.price        != null ? String(dup.price) : f.price,
           memberPrice:  dup.memberPrice  != null ? String(dup.memberPrice) : f.memberPrice,
+          whatsappUrl:  dup.whatsappUrl  ?? f.whatsappUrl,
+          ticketUrl:    dup.ticketUrl    ?? f.ticketUrl,
           description:  dup.description  ?? f.description,
           coverImage:   dup.coverImage   ?? f.coverImage,
+          coverImagePosition: typeof dup.coverImagePosition === 'number' ? dup.coverImagePosition : f.coverImagePosition,
+          intent:       dup.intent === 'professional' || dup.intent === 'social' ? dup.intent : f.intent,
         }))
+        // A ticket link is what "Buy online" means (see paymentMethod above).
+        if (dup.ticketUrl) setPaymentMethod('buyonline')
+        if (Array.isArray(dup.tags) && dup.tags.length) setSelectedTagIds(dup.tags.filter((t: unknown) => typeof t === 'string'))
+        if (dup.venue?.id && dup.venue?.name) setVenue({ id: dup.venue.id, name: dup.venue.name, live: dup.venue.live })
       } catch {}
     }
   }, [])
@@ -193,21 +210,29 @@ function HostNewEventForm() {
   }
 
   async function suggestTags() {
-    setAiLoading(true)
+    setTagsLoading(true)
     try {
       const res = await fetch('/app/api/host/events/suggest-tags', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: form.title, description: form.description }),
       })
-      if (!res.ok) { toast.error(res.status === 429 ? 'AI limit reached — try again in an hour' : `Suggest tags failed (${res.status})`); return }
+      if (!res.ok) {
+        // A 400 carries the reason ("Title must be at most … characters") —
+        // "failed (400)" told the host nothing they could act on.
+        const reason = (await res.json().catch(() => ({})))?.error
+        toast.error(res.status === 429 ? 'AI limit reached — try again in an hour'
+          : res.status === 400 && typeof reason === 'string' && reason ? reason
+          : `Suggest tags failed (${res.status})`)
+        return
+      }
       const { tagIds } = await res.json()
       if (!tagIds?.length) { toast.message('No matching tags — add more detail to the title or description'); return }
       const added = tagIds.filter((id: string) => !selectedTagIds.includes(id)).length
       setSelectedTagIds(prev => [...new Set([...prev, ...tagIds])])
       toast.success(added ? `Added ${added} suggested tag${added === 1 ? '' : 's'}` : 'Suggestions match the tags already selected')
     } catch { toast.error('Suggest tags failed — check your connection') }
-    finally { setAiLoading(false) }
+    finally { setTagsLoading(false) }
   }
 
   function buildDates(): string[] {
@@ -219,7 +244,7 @@ function HostNewEventForm() {
 
 
   async function writeWithAI() {
-    setAiLoading(true)
+    setDescLoading(true)
     try {
     const club = clubs.find(c => c.id === form.clubId)
     const res = await fetch('/app/api/host/events/describe', {
@@ -243,7 +268,7 @@ function HostNewEventForm() {
     } catch {
       setError('Could not write a description right now')
     } finally {
-      setAiLoading(false)
+      setDescLoading(false)
     }
   }
 
@@ -309,6 +334,7 @@ function HostNewEventForm() {
       // Stopping at the first failure hid how many already existed, so a retry
       // duplicated them.
       let created = 0
+      let inReview = 0
       const failures: SeriesFailure[] = []
       for (const date of dates) {
         try {
@@ -320,6 +346,7 @@ function HostNewEventForm() {
           const data = await res.json().catch(() => ({}))
           if (!res.ok) { failures.push({ date, error: data?.error ?? 'Failed to create event' }); continue }
           created++
+          if (data?.status === 'pending') inReview++
         } catch {
           failures.push({ date, error: 'network error' })
         }
@@ -330,6 +357,15 @@ function HostNewEventForm() {
       // (A self-grant of club-host used to be POSTed here; that route is
       // staff-only and answered 403 for every host, so it was dead.)
 
+      // A host's new event goes to review (the route files it 'pending'). It
+      // used to land on the Upcoming tab, where it isn't listed, and looked
+      // like it had vanished — so say where it went and open that tab.
+      if (inReview > 0) {
+        toast.success("Submitted for review — you'll be notified when it's live")
+        router.push('/host/events?tab=pending')
+        return
+      }
+      toast.success(created === 1 ? 'Event created' : `Created ${created} events`)
       router.push('/host/events')
     } catch {
       setError('Something went wrong')
@@ -403,10 +439,10 @@ function HostNewEventForm() {
             <button
               type="button"
               onClick={suggestTags}
-              disabled={aiLoading || (!form.title && !form.description)}
+              disabled={tagsLoading || (!form.title && !form.description)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 border border-violet-500/20 transition-colors disabled:opacity-40"
             >
-              {aiLoading ? '⏳ Suggesting…' : '✦ Suggest tags'}
+              {tagsLoading ? '⏳ Suggesting…' : '✦ Suggest tags'}
             </button>
           </div>
           <VibePicker selectedIds={selectedTagIds} onChange={setSelectedTagIds} />
@@ -646,10 +682,10 @@ function HostNewEventForm() {
             <button
               type="button"
               onClick={writeWithAI}
-              disabled={aiLoading || !form.title.trim()}
+              disabled={descLoading || !form.title.trim()}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 border border-violet-500/20 transition-colors disabled:opacity-40"
             >
-              {aiLoading ? '⏳ Writing…' : '✦ Generate description'}
+              {descLoading ? '⏳ Writing…' : '✦ Generate description'}
             </button>
           </div>
 

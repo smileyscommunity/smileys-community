@@ -7,9 +7,18 @@ import { isAdmin, isModerator, isClubHost, hostCityIds } from '@/lib/access'
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
+// Shared with the other AI helper (same `ai:` bucket), so the message counts both.
+const AI_CALLS_PER_HOUR = 20
+
 // Bounds on what one call can put into a paid prompt.
 const MAX_TITLE = 200
 const MAX_DESCRIPTION = 2000
+// A long description is normal — the form sends the whole event write-up —
+// and the first 2000 characters say plenty about what the event is, so the
+// prompt takes those and the rest is dropped rather than refused (a 400 here
+// left a host with a long description no way to get tags at all). This cap
+// is only on the raw payload, so nobody can post megabytes at the stripper.
+const MAX_DESCRIPTION_RAW = 100_000
 
 export async function POST(req: NextRequest) {
   const session = await getSession()
@@ -18,7 +27,9 @@ export async function POST(req: NextRequest) {
   // was open to every member, each call spending OpenAI credit.
   const canHost = isAdmin(session) || isModerator(session) || await isClubHost(session.id) || (await hostCityIds(session.id)).length > 0
   if (!canHost) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  if (!await rateLimit(`ai:${session.id}`, 20, 60 * 60_000)) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
+  if (!await rateLimit(`ai:${session.id}`, AI_CALLS_PER_HOUR, 60 * 60_000)) {
+    return NextResponse.json({ error: `The AI helpers are limited to ${AI_CALLS_PER_HOUR} uses an hour — try again later` }, { status: 429 })
+  }
 
   // Malformed JSON threw before any handler — a 500 for a client mistake.
   const body = await req.json().catch(() => null)
@@ -28,12 +39,14 @@ export async function POST(req: NextRequest) {
   if (rawTitle !== undefined && rawTitle !== null && typeof rawTitle !== 'string') return NextResponse.json({ error: 'Title must be text' }, { status: 400 })
   if (rawDescription !== undefined && rawDescription !== null && typeof rawDescription !== 'string') return NextResponse.json({ error: 'Description must be text' }, { status: 400 })
   const title = rawTitle ?? ''
+  if ((rawDescription ?? '').length > MAX_DESCRIPTION_RAW) {
+    return NextResponse.json({ error: 'That description is too long to suggest tags from — shorten it and try again' }, { status: 413 })
+  }
   // The event forms send the rich-text editor's HTML; tags only need the words,
   // so the cap is on the text a reader would see, not on markup.
-  const description = (rawDescription ?? '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
-  if (!title && !description) return NextResponse.json({ error: 'Need title or description' }, { status: 400 })
+  const description = (rawDescription ?? '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, MAX_DESCRIPTION)
+  if (!title.trim() && !description) return NextResponse.json({ error: 'Add a title or a description first, then suggest tags' }, { status: 400 })
   if (title.length > MAX_TITLE) return NextResponse.json({ error: `Title must be at most ${MAX_TITLE} characters` }, { status: 400 })
-  if (description.length > MAX_DESCRIPTION) return NextResponse.json({ error: `Description must be at most ${MAX_DESCRIPTION} characters` }, { status: 400 })
 
   const tagGroups = await prisma.tagGroup.findMany({
     include: { tags: { select: { id: true, name: true, emoji: true } } },

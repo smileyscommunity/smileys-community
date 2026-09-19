@@ -8,6 +8,10 @@ export const BOTTOM_NAV_ROUTES = [
   // The city index and each city's page — a Cities tab that vanishes on the
   // page it navigates to would strand members there.
   '/cities',
+  // Meet the Hosts. It had the nav only by accident — the host panel's
+  // startsWith('/host') matched it too — but it is a member-facing page like
+  // the rest, so it keeps it on purpose now that the panel's rule is exact.
+  '/hosts',
 ]
 
 // A city switch lands on `/<slug>` (CitiesMenu does a full load to the city's
@@ -21,10 +25,23 @@ export function isCityRoute(pathname: string, citySlugs: readonly string[]): boo
   return !!first && citySlugs.includes(first)
 }
 
+/**
+ * The host panel's own routes. `/hosts` — the public Meet the Hosts page — is
+ * not one of them, which a bare startsWith('/host') got wrong. The member
+ * Navbar, Footer and no-show strip stand aside here: the panel is a
+ * full-height shell with its own navigation and its own way back.
+ */
+export function isHostPanelRoute(pathname: string | null | undefined): boolean {
+  return !!pathname && (pathname === '/host' || pathname.startsWith('/host/'))
+}
+
 // Not /admin: the admin panel has its own bottom nav, and this one sat on top
 // of it (z-50 over z-30), taking every tap at the bottom of an admin screen.
+// Not /host either: the host panel fills the screen with its own shell, and
+// this bar covered the bottom of it — the check-in page's close-out button
+// sat underneath.
 export function isBottomNavRoute(pathname: string, citySlugs: readonly string[] = []): boolean {
-  return pathname.startsWith('/host') || pathname.startsWith('/partner') ||
+  return pathname.startsWith('/partner') ||
     BOTTOM_NAV_ROUTES.some(r => pathname === r || pathname.startsWith(r + '/')) ||
     isCityRoute(pathname, citySlugs)
 }

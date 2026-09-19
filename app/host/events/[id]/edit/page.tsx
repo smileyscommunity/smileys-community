@@ -9,8 +9,11 @@ import { confirmToast } from '@/lib/confirmToast'
 import { withCapacityConfirm } from '@/lib/admin/overCapacity'
 import { toastApiError } from '@/lib/apiError'
 import { currencySymbol } from '@/lib/data'
-import { todayInTz, DEFAULT_TZ, formatDay } from '@/lib/cityTime'
+import { todayInTz, formatDay, DEFAULT_TZ } from '@/lib/cityTime'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
+import { eventHasStarted } from '@/lib/eventTime'
+import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
+import { loadFailure } from '@/lib/admin/useAdminLoad'
 import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import ImageUpload from '@/components/ImageUpload'
 import VibePicker from '@/components/VibePicker'
@@ -48,6 +51,15 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
   // reload. The PUT route enforces the same rule (a host may only keep an
   // already-published event published), so nothing is loosened.
   const [loadedStatus,  setLoadedStatus]  = useState('')
+  // The seat commitment as loaded. Sent back only when the host changes it:
+  // the route treats a blank as "clear it", so re-sending what the form
+  // happened to hold could wipe a moderator's setting (and, once the event
+  // has started, turned an unrelated save into a 403).
+  const [loadedTier,    setLoadedTier]    = useState('')
+  // When the event runs, as loaded — "has it started" is read from the saved
+  // clock, not from whatever is being typed into the date box.
+  const [loadedClock,   setLoadedClock]   = useState<{ date: string; time: string; endTime: string | null } | null>(null)
+  const [applyToSeries, setApplyToSeries] = useState(false)
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
   // `city` rides along from /api/host/clubs; the picker below offers only
   // clubs in the event's own city (or global ones) — the PUT route refuses
@@ -61,6 +73,9 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
   const isClubHost = (viewer as { isClubHost?: boolean } | null)?.isClubHost === true
   const isStaff = viewer?.role === 'admin' || viewer?.role === 'moderator'
   const [loading,       setLoading]       = useState(true)
+  const [loadError,     setLoadError]     = useState<string | null>(null)
+  const [notFound,      setNotFound]      = useState(false)
+  const [reloadTick,    setReloadTick]    = useState(0)
   const [saving,        setSaving]        = useState(false)
   const [error,         setError]         = useState('')
   const [repeat,        setRepeat]        = useState<'weekly' | 'biweekly' | 'monthly'>('weekly')
@@ -68,7 +83,9 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
   const [spawning,      setSpawning]      = useState(false)
   const [hostId,        setHostId]        = useState('')
   const [aiNotes,       setAiNotes]       = useState('')
-  const [aiLoading,     setAiLoading]     = useState(false)
+  // Separate flags: one shared between the two AI buttons labelled both busy.
+  const [descLoading,   setDescLoading]   = useState(false)
+  const [tagsLoading,   setTagsLoading]   = useState(false)
   const [geocoding,     setGeocoding]     = useState(false)
   const [mapsUrl,       setMapsUrl]       = useState('')
   // The directory listing the venue is linked to (components/VenuePicker).
@@ -89,10 +106,14 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
   // null until the event and its city load (the browsed list never flashes);
   // an event with no city, or a city lookup that fails, uses the browsed city.
   const [eventCityId,     setEventCityId]     = useState('')
-  const [eventCity,       setEventCity]       = useState<{ name: string; slug: string; country: string | null; currency: string } | null>(null)
+  const [eventCity,       setEventCity]       = useState<{ name: string; slug: string; country: string | null; currency: string; timezone: string | null } | null>(null)
   const [eventCityFailed, setEventCityFailed] = useState(false)
   const formCity = eventCity ?? (!loading && (!eventCityId || eventCityFailed) ? city : null)
   const neighborhoods = useCityNeighborhoods(formCity ? formCity.slug : null)
+  // The event's own clock for "today" and "has it started" — the browsed
+  // city's only while the event's city is still loading (or has none).
+  const tz = eventCity?.timezone || city?.timezone || DEFAULT_TZ
+  const started = !!loadedClock && eventHasStarted(loadedClock, tz)
   // The lookup searches the EVENT's city's country (it used to search one
   // country for every city).
   const geocodeCityParam = eventCityId ? `&cityId=${encodeURIComponent(eventCityId)}`
@@ -160,72 +181,82 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
   }
 
   useEffect(() => {
+    // The event read decides the page: a 404 says "Event not found", any
+    // other failure (a network drop, a 500) raises Retry. Both used to fall
+    // through to an empty form — which a Save then wrote back over the event.
+    setLoadError(null)
+    setNotFound(false)
     Promise.all([
-      fetch(`/app/api/events/${id}`, { credentials: 'include' }).then(r => r.json()),
+      fetch(`/app/api/events/${id}`, { credentials: 'include' }).then(async r => {
+        if (r.status === 404) return null
+        if (!r.ok) throw await loadFailure(r)
+        return r.json()
+      }),
       fetch('/app/api/host/clubs', { credentials: 'include' }).then(r => r.ok ? r.json() : []),
-      fetch('/app/api/auth/me', { credentials: 'include' }).then(r => r.json()),
+      fetch('/app/api/auth/me', { credentials: 'include' }).then(r => r.ok ? r.json() : null),
       fetch(`/app/api/admin/events/${id}/cohosts`, { credentials: 'include' }).then(r => r.ok ? r.json() : []),
     ]).then(([event, hostClubs, me, cohostData]) => {
+      if (!event?.id) { setNotFound(true); return }
       if (Array.isArray(cohostData)) setCohosts(cohostData)
       if (me?.id) setHostId(me.id)
       setClubs(Array.isArray(hostClubs) ? hostClubs : [])
-      if (event?.id) {
-        setHostId(event.hostId ?? '')
-        setForm({
-          title:        event.title        ?? '',
-          date:         event.date         ?? '',
-          time:         event.time         ?? '',
-          location:     event.location     ?? '',
-          neighborhood: event.neighborhood ?? '',
-          address:      event.address      ?? '',
-          lat:          event.lat != null  ? String(event.lat)  : '',
-          lng:          event.lng != null  ? String(event.lng)  : '',
-          clubId:       event.clubId       ?? '',
-          description:  event.description  ?? '',
-          totalSpots:   String(event.totalSpots ?? 20),
-          price:        String(event.price       ?? 0),
-          memberPrice:  String(event.memberPrice ?? ''),
-          emoji:        event.emoji        ?? '🎉',
-          status:       event.status       ?? 'published',
-          isPremium:    event.isPremium    ?? false,
-          membersOnly:  event.membersOnly  ?? false,
-          limitedSpots: event.limitedSpots ?? true,
-          isRecurring:  event.isRecurring  ?? false,
-          coverImage:         event.coverImage         ?? '',
-          coverImagePosition: event.coverImagePosition ?? 50,
-          meetingUrl:         event.meetingUrl         ?? '',
-          whatsappUrl:        event.whatsappUrl        ?? '',
-          ticketUrl:          event.ticketUrl          ?? '',
-          minAge:       event.minAge != null   ? String(event.minAge)   : '',
-          maxAge:       event.maxAge != null   ? String(event.maxAge)   : '',
-          language:     event.language     ?? '',
-          refundPolicy: event.refundPolicy ?? '',
-          registrationDeadline: event.registrationDeadline ?? '',
-          endTime:          event.endTime          ?? '',
-          approvalRequired: event.approvalRequired ?? false,
-          tierOverride:     event.tierOverride     ?? '',
-        })
-        setLoadedStatus(event.status ?? 'published')
-        if (event.venue?.id) setVenue(event.venue)
-        if (typeof event.cityId === 'string' && event.cityId) {
-          setEventCityId(event.cityId)
-          // The event API carries only the city's id; name, slug, country and
-          // currency come from the same place useCurrentCity reads them.
-          fetch(`/app/api/city/current?cityId=${encodeURIComponent(event.cityId)}`, { credentials: 'include' })
-            .then(r => r.ok ? r.json() : null)
-            .then(d => {
-              if (d?.slug) setEventCity({ name: d.name, slug: d.slug, country: d.country ?? null, currency: d.currency })
-              else setEventCityFailed(true)
-            })
-            .catch(() => setEventCityFailed(true))
-        }
-        setPaymentMethod(event.ticketUrl ? 'buyonline' : 'venue')
-        if (Array.isArray(event.tags) && event.tags.length) setSelectedTagIds(event.tags)
-        if (event.seriesId) setSeriesId(event.seriesId)
+      setHostId(event.hostId ?? '')
+      setForm({
+        title:        event.title        ?? '',
+        date:         event.date         ?? '',
+        time:         event.time         ?? '',
+        location:     event.location     ?? '',
+        neighborhood: event.neighborhood ?? '',
+        address:      event.address      ?? '',
+        lat:          event.lat != null  ? String(event.lat)  : '',
+        lng:          event.lng != null  ? String(event.lng)  : '',
+        clubId:       event.clubId       ?? '',
+        description:  event.description  ?? '',
+        totalSpots:   String(event.totalSpots ?? 20),
+        price:        String(event.price       ?? 0),
+        memberPrice:  String(event.memberPrice ?? ''),
+        emoji:        event.emoji        ?? '🎉',
+        status:       event.status       ?? 'published',
+        isPremium:    event.isPremium    ?? false,
+        membersOnly:  event.membersOnly  ?? false,
+        limitedSpots: event.limitedSpots ?? true,
+        isRecurring:  event.isRecurring  ?? false,
+        coverImage:         event.coverImage         ?? '',
+        coverImagePosition: event.coverImagePosition ?? 50,
+        meetingUrl:         event.meetingUrl         ?? '',
+        whatsappUrl:        event.whatsappUrl        ?? '',
+        ticketUrl:          event.ticketUrl          ?? '',
+        minAge:       event.minAge != null   ? String(event.minAge)   : '',
+        maxAge:       event.maxAge != null   ? String(event.maxAge)   : '',
+        language:     event.language     ?? '',
+        refundPolicy: event.refundPolicy ?? '',
+        registrationDeadline: event.registrationDeadline ?? '',
+        endTime:          event.endTime          ?? '',
+        approvalRequired: event.approvalRequired ?? false,
+        tierOverride:     event.tierOverride     ?? '',
+      })
+      setLoadedStatus(event.status ?? 'published')
+      setLoadedTier(event.tierOverride ?? '')
+      setLoadedClock({ date: event.date ?? '', time: event.time ?? '', endTime: event.endTime ?? null })
+      if (event.venue?.id) setVenue(event.venue)
+      if (typeof event.cityId === 'string' && event.cityId) {
+        setEventCityId(event.cityId)
+        // The event API carries only the city's id; name, slug, country and
+        // currency come from the same place useCurrentCity reads them.
+        fetch(`/app/api/city/current?cityId=${encodeURIComponent(event.cityId)}`, { credentials: 'include' })
+          .then(r => r.ok ? r.json() : null)
+          .then(d => {
+            if (d?.slug) setEventCity({ name: d.name, slug: d.slug, country: d.country ?? null, currency: d.currency, timezone: typeof d.timezone === 'string' ? d.timezone : null })
+            else setEventCityFailed(true)
+          })
+          .catch(() => setEventCityFailed(true))
       }
-      setLoading(false)
-    })
-  }, [id])
+      setPaymentMethod(event.ticketUrl ? 'buyonline' : 'venue')
+      if (Array.isArray(event.tags) && event.tags.length) setSelectedTagIds(event.tags)
+      if (event.seriesId) setSeriesId(event.seriesId)
+    }).catch((e: Error) => setLoadError(e?.message ?? 'Failed to load'))
+      .finally(() => setLoading(false))
+  }, [id, reloadTick])
 
   function set(key: string, value: string | boolean | number) { setForm(f => ({ ...f, [key]: value })) }
 
@@ -244,7 +275,7 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
   }
 
   async function writeWithAI() {
-    setAiLoading(true)
+    setDescLoading(true)
     const club = clubs.find(c => c.id === form.clubId)
     try {
       const res = await fetch('/app/api/host/events/describe', {
@@ -262,9 +293,9 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
         const { description } = await res.json()
         const html = description.split(/\n\n+/).map((p: string) => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('')
         set('description', html)
-      } else { toast.error('AI generation failed') }
+      } else { await toastApiError(res, 'AI generation failed') }
     } catch { toast.error('AI generation failed') }
-    setAiLoading(false)
+    setDescLoading(false)
   }
 
   async function searchCohostMembers(q: string) {
@@ -288,12 +319,15 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId }),
       })
-      if (res.ok) {
-        const data = await res.json()
-        setCohosts(prev => [...prev.filter(c => c.userId !== userId), data])
-        setCohostSearch(''); setCohostResults([])
-      }
-    } finally { setAddingCohost(false) }
+      // A refusal (a member who can't co-host, a full event) used to do
+      // nothing visible — the search just sat there.
+      if (!res.ok) { await toastApiError(res, `Could not add ${name} as co-host`); return }
+      const data = await res.json()
+      setCohosts(prev => [...prev.filter(c => c.userId !== userId), data])
+      setCohostSearch(''); setCohostResults([])
+      toast.success(`${name} added as co-host`)
+    } catch { toast.error('Could not add co-host — check your connection') }
+    finally { setAddingCohost(false) }
   }
 
   async function removeCohost(userId: string, name: string) {
@@ -337,12 +371,21 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
     try {
       // Switching limited spots on under the seats already held is refused with
       // the count; saved again with the override only after "exceed capacity?".
+      // Capacity is a moderator's call (the route ignores a host's
+      // totalSpots), and the seat commitment goes only when it was changed —
+      // see loadedTier. The status too: re-sending a moderator-held one
+      // ('pending', 'flagged') reads to the route as a host trying to move it.
+      const { totalSpots, tierOverride, status, ...fields } = form
       const res = await withCapacityConfirm(allowOverCapacity => fetch(`/app/api/admin/events/${id}`, {
         method: 'PUT', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...(allowOverCapacity ? { allowOverCapacity: true } : {}),
-          ...form, tagIds: selectedTagIds, vibes: [],
+          ...fields, tagIds: selectedTagIds, vibes: [],
+          ...(isStaff ? { totalSpots } : {}),
+          ...(status !== loadedStatus ? { status } : {}),
+          ...(tierOverride !== loadedTier ? { tierOverride } : {}),
+          ...(applyToSeries && seriesId ? { applyToSeries: true } : {}),
           businessId: venue?.id ?? null,
           minAge: form.minAge ? parseInt(form.minAge) : null,
           maxAge: form.maxAge ? parseInt(form.maxAge) : null,
@@ -385,6 +428,13 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
 
   async function handleSpawn() {
     const dates = buildSpawnDates(); if (!dates.length) return
+    // Copies count forward from this event's date. From a date already gone
+    // the first copies land in the past too — refused one by one, after the
+    // series link was already written.
+    if (form.date < todayInTz(tz)) {
+      toast.error('This event is in the past — set a future date first, or create the series from a new event.')
+      return
+    }
     setSpawning(true)
 
     const sid = seriesId ?? crypto.randomUUID()
@@ -425,6 +475,7 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
       // Stopping at the first failure hid how many already existed, so a retry
       // duplicated them.
       let created = 0
+      let inReview = 0
       const failures: SeriesFailure[] = []
       for (const date of dates) {
         try {
@@ -436,6 +487,7 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
           const data = await res.json().catch(() => ({}))
           if (!res.ok) { failures.push({ date, error: data?.error ?? 'Failed to create event' }); continue }
           created++
+          if (data?.status === 'pending') inReview++
         } catch {
           failures.push({ date, error: 'network error' })
         }
@@ -443,12 +495,56 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
       const outcome = seriesOutcomeMessage(dates.length, created, failures)
       // Long-lived: it names the failed dates and warns against re-submitting.
       if (outcome) { toast.error(outcome, { duration: 15000 }); return }
-      toast.success(`Created ${dates.length} events — all linked as a series`)
+      // A host's copies are new events, so they go to review like any other —
+      // "Created" alone had hosts looking for them on the public feed.
+      toast.success(inReview > 0
+        ? `Created ${dates.length} events, linked as a series — they're awaiting review and go live once a moderator approves them`
+        : `Created ${dates.length} events — all linked as a series`)
     } catch { toast.error('Something went wrong') }
     finally { setSpawning(false) }
   }
 
   if (loading) return <div className="p-8 text-center text-zinc-500 text-sm">Loading…</div>
+  if (loadError) return (
+    <div className="p-4 sm:p-8">
+      <LoadErrorBanner message={loadError} title="Couldn't load this event"
+        onRetry={() => { setLoading(true); setReloadTick(t => t + 1) }} />
+    </div>
+  )
+  if (notFound) return (
+    <div className="p-8 text-center">
+      <p className="text-zinc-400 text-sm">Event not found</p>
+      <Link href="/host/events" className="inline-block mt-3 text-xs text-amber-400 hover:text-amber-300">← Back to my events</Link>
+    </div>
+  )
+
+  // What the status select offers. Staff see every status. A host sees the
+  // current one — even a moderator's 'pending' or 'flagged', shown by name
+  // rather than hidden (a select without its own value showed the first
+  // option and saved it) — plus only the moves the PUT route accepts from
+  // there (draft, postponed, cancelled, a reopen): nothing but Cancel out of
+  // a staff-held status, and no Cancel or Postpone once the event has started.
+  const heldByStaff = ['pending', 'flagged', 'unpublished'].includes(loadedStatus)
+  const STATUS_NAMES: Record<string, string> = {
+    published: 'Published (live)', draft: 'Draft', pending: 'Awaiting review',
+    flagged: 'Not approved', unpublished: 'Unpublished', postponed: 'Postponed',
+    cancelled: 'Cancelled', archived: 'Archived',
+  }
+  const hostStatusOptions: { value: string; label: string }[] = [
+    { value: loadedStatus, label: STATUS_NAMES[loadedStatus] ?? loadedStatus },
+    ...(!heldByStaff && (loadedStatus === 'draft' || loadedStatus === 'postponed')
+      ? [{ value: 'published', label: 'Publish again (live)' }] : []),
+    // A flagged or unpublished event, edited, can go back to the moderators.
+    // Not Archived: the route takes only draft, postponed, cancelled, a
+    // reopen and that resubmit from a host.
+    ...((loadedStatus === 'flagged' || loadedStatus === 'unpublished')
+      ? [{ value: 'pending', label: 'Resubmit for review' }] : []),
+    ...(!heldByStaff && !started ? [
+      { value: 'draft', label: 'Draft' },
+      { value: 'postponed', label: 'Postponed' },
+    ] : []),
+    ...(!started ? [{ value: 'cancelled', label: 'Cancelled' }] : []),
+  ].filter((o, i, all) => all.findIndex(x => x.value === o.value) === i)
 
   return (
     <div className="p-4 sm:p-8 max-w-3xl">
@@ -489,22 +585,28 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
             )}
             <div>
               <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Status</label>
-              {loadedStatus === 'pending' ? (
-                <div className="px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm font-semibold">
-                  ⏳ Pending admin approval
-                </div>
+              {isStaff ? (
+                <select value={form.status} onChange={e => set('status', e.target.value)} className={inputCls}>
+                  {[...new Set([loadedStatus, 'published', 'draft', 'pending', 'postponed', 'cancelled'])]
+                    .map(value => <option key={value} value={value}>{STATUS_NAMES[value] ?? value}</option>)}
+                </select>
               ) : (
                 <select value={form.status} onChange={e => set('status', e.target.value)} className={inputCls}>
-                  {/* A host may keep an event published (no-op resubmit) but not move it there. */}
-                  {(loadedStatus === 'published' || isStaff) && <option value="published">Published (live)</option>}
-                  {/* A parked (draft/postponed) event can go back live if staff published it
-                      before — the PUT route checks the audit trail and its refusal shows inline. */}
-                  {!isStaff && (loadedStatus === 'draft' || loadedStatus === 'postponed') && <option value="published">Publish again (live)</option>}
-                  <option value="draft">Draft</option>
-                  <option value="pending">Submit for review</option>
-                  <option value="postponed">Postponed</option>
-                  <option value="cancelled">Cancelled</option>
+                  {/* A host may keep an event published (no-op resubmit) but not move it
+                      there; a parked (draft/postponed) event can go back live if staff
+                      published it before — the PUT route checks the audit trail and its
+                      refusal shows inline. */}
+                  {hostStatusOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
+              )}
+              {!isStaff && loadedStatus === 'pending' && (
+                <p className="mt-1.5 text-xs text-zinc-500">A moderator checks it before it goes live — you&apos;ll be notified.</p>
+              )}
+              {!isStaff && loadedStatus === 'flagged' && (
+                <p className="mt-1.5 text-xs text-red-300/90">A moderator didn&apos;t approve this — edit it, then choose &ldquo;Resubmit for review&rdquo;, or contact the team.</p>
+              )}
+              {!isStaff && started && loadedStatus !== 'cancelled' && (
+                <p className="mt-1.5 text-xs text-zinc-500">It has started, so it can&apos;t be cancelled or postponed any more.</p>
               )}
               {/* The PUT route keeps a cancelled event cancelled through every non-publish move. */}
               {!isStaff && loadedStatus === 'cancelled' && form.status !== 'cancelled' && (
@@ -566,10 +668,10 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
                 <button
                   type="button"
                   onClick={writeWithAI}
-                  disabled={aiLoading || !form.title.trim()}
+                  disabled={descLoading || !form.title.trim()}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 border border-violet-500/20 transition-colors disabled:opacity-40"
                 >
-                  {aiLoading ? '⏳ Writing…' : '✦ Generate description'}
+                  {descLoading ? '⏳ Writing…' : '✦ Generate description'}
                 </button>
               </div>
               <RichTextEditor value={form.description} onChange={v => set('description', v)} placeholder="Write a compelling description…" />
@@ -656,7 +758,11 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
             <div>
               <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Total spots</label>
-              <input type="number" min="1" value={form.totalSpots} onChange={e => set('totalSpots', e.target.value)} className={inputCls} />
+              {/* Capacity is set by staff: the route ignores a host's value, so an
+                  editable box here took the edit and silently kept the old one. */}
+              <input type="number" min="1" value={form.totalSpots} onChange={e => set('totalSpots', e.target.value)}
+                readOnly={!isStaff} className={`${inputCls} ${!isStaff ? 'opacity-60 cursor-not-allowed' : ''}`} />
+              {!isStaff && <p className="text-xs text-zinc-600 mt-1">Ask a moderator to change capacity.</p>}
             </div>
             <div>
               <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Guest price ({currencySymbol(formCity?.currency).trim()})</label>
@@ -751,7 +857,7 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
             <button
               type="button"
               onClick={async () => {
-                setAiLoading(true)
+                setTagsLoading(true)
                 try {
                   const res = await fetch('/app/api/host/events/suggest-tags', {
                     method: 'POST', credentials: 'include',
@@ -761,14 +867,16 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
                   if (res.ok) {
                     const { tagIds } = await res.json()
                     if (tagIds?.length) setSelectedTagIds((prev: string[]) => [...new Set([...prev, ...tagIds])])
-                  } else { toast.error('AI suggestion failed') }
+                  } else if (res.status === 429) { toast.error('AI limit reached — try again in an hour') }
+                  // A 400 says what's wrong with the title or description.
+                  else { await toastApiError(res, 'AI suggestion failed') }
                 } catch { toast.error('AI suggestion failed') }
-                setAiLoading(false)
+                setTagsLoading(false)
               }}
-              disabled={aiLoading || (!form.title && !form.description)}
+              disabled={tagsLoading || (!form.title && !form.description)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 border border-violet-500/20 transition-colors disabled:opacity-40"
             >
-              {aiLoading ? '⏳ Suggesting…' : '✦ Suggest tags'}
+              {tagsLoading ? '⏳ Suggesting…' : '✦ Suggest tags'}
             </button>
           </div>
           <VibePicker selectedIds={selectedTagIds} onChange={setSelectedTagIds} />
@@ -785,6 +893,21 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
             ))}
           </div>
         </section>
+
+        {/* A series edit used to mean opening every occurrence. The route copies
+            this save onto the series' upcoming events (its own date, seats and
+            tags stay; the status is never copied — cancelling one night must
+            not cancel the run). */}
+        {seriesId && (
+          <label className="flex items-start gap-2 cursor-pointer">
+            <input type="checkbox" checked={applyToSeries} onChange={e => setApplyToSeries(e.target.checked)}
+              className="w-4 h-4 mt-0.5 rounded accent-amber-500" />
+            <span className="text-sm text-zinc-300">
+              Apply to all upcoming events in this series
+              <span className="block text-xs text-zinc-500">Details only — each event keeps its own date and status.</span>
+            </span>
+          </label>
+        )}
 
         <div className="flex flex-wrap items-center justify-between gap-3 pb-4">
           <button onClick={handleDelete} className="text-sm px-4 py-2.5 rounded-xl text-red-400 hover:bg-red-900/20 border border-red-900 transition-colors">
@@ -817,12 +940,15 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
               <input type="number" min={MIN_SERIES_COPIES} max={MAX_SERIES_COPIES} value={occurrences} onChange={e => setOccurrences(Math.min(MAX_SERIES_COPIES, parseInt(e.target.value) || 0))} className={inputCls} />
             </div>
             <div className="flex items-end">
-              <button onClick={handleSpawn} disabled={spawning || !form.date} className="w-full px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors disabled:opacity-50">
+              <button onClick={handleSpawn} disabled={spawning || !form.date || form.date < todayInTz(tz)} className="w-full px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors disabled:opacity-50">
                 {spawning ? 'Creating…' : `Create ${clampOccurrences(occurrences, MIN_SERIES_COPIES, MAX_SERIES_COPIES)} more`}
               </button>
             </div>
           </div>
-          {form.date && buildSpawnDates().length > 0 && (
+          {form.date && form.date < todayInTz(tz) && (
+            <p className="text-xs text-amber-400/90 mt-3">This event&apos;s date has passed, so copies can&apos;t be made from it.</p>
+          )}
+          {form.date && form.date >= todayInTz(tz) && buildSpawnDates().length > 0 && (
             <p className="text-xs text-zinc-500 mt-3">
               Will create on: {buildSpawnDates().map(d => formatDay(d, { day: 'numeric', month: 'short' })).join(' · ')}
             </p>

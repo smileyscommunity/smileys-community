@@ -14,14 +14,22 @@ import { resolveImageUrl } from '@/lib/data'
 
 interface RecentEvent {
   id: string; title: string; emoji: string; date: string
-  responses: number; wouldReturnRate: number | null; responseRate: number | null
+  responses: number; wouldReturnRate: number | null; wouldReturnBasedOn: number; responseRate: number | null
 }
 interface QualityPayload {
-  eventsHosted: number
-  quality: { surveyResponses: number; wouldReturnRate: number | null; responseRate: number | null } | null
+  eventsHeld: number
+  quality: { surveyResponses: number; wouldReturnRate: number | null; wouldReturnBasedOn: number; responseRate: number | null } | null
   recent: RecentEvent[]
+  surveyStep: number
 }
-interface HostClub { id: string; slug: string; name: string; emoji?: string }
+interface HostClub { id: string; slug: string; name: string; emoji?: string; canManage?: boolean; hosted?: boolean }
+
+// /api/host/clubs lists every club the caller may file an event under — for
+// an admin that is every club in every city, and for a city host every club
+// in their cities. The identity panel is about the person, so an admin sees
+// the clubs they actually host, and anyone's row stops at a handful with the
+// rest one tap away on My Clubs.
+const MAX_CLUB_CHIPS = 8
 
 export default function HostProfileCard() {
   const { user } = useAuth()
@@ -40,6 +48,9 @@ export default function HostProfileCard() {
   }, [])
 
   const photo = resolveImageUrl(user.profilePhoto ?? null)
+  const myClubs  = user.role === 'admin' ? clubs.filter(c => c.hosted) : clubs
+  const chips    = myClubs.slice(0, MAX_CLUB_CHIPS)
+  const moreClub = myClubs.length - chips.length
 
   return (
     <div className="mb-6 sm:mb-8 space-y-4">
@@ -61,14 +72,22 @@ export default function HostProfileCard() {
               {user.role === 'admin' ? 'Admin' : 'Host'}
             </span>
           </div>
-          {clubs.length > 0 && (
+          {chips.length > 0 && (
             <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
-              {clubs.map(c => (
-                <Link key={c.id} href={`/host/clubs/${c.slug}`}
+              {/* Only a club the viewer manages opens on /host/clubs/[slug];
+                  a city host's city clubs 404 there, so they go to the public page. */}
+              {chips.map(c => (
+                <Link key={c.id} href={c.canManage ? `/host/clubs/${c.slug}` : `/clubs/${c.slug}`}
                   className="text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-2 py-0.5 rounded-full transition-colors">
                   {c.emoji ? `${c.emoji} ` : ''}{c.name}
                 </Link>
               ))}
+              {moreClub > 0 && (
+                <Link href="/host/clubs"
+                  className="text-xs text-zinc-500 hover:text-zinc-300 px-2 py-0.5 transition-colors">
+                  +{moreClub} more
+                </Link>
+              )}
             </div>
           )}
         </div>
@@ -78,14 +97,14 @@ export default function HostProfileCard() {
         </Link>
       </div>
 
-      {/* Quality — only once there's at least one hosted event. */}
-      {data && data.eventsHosted > 0 && (
+      {/* Quality — only once at least one of their events has happened. */}
+      {data && data.eventsHeld > 0 && (
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
           <div className="mb-4">
             <h2 className="text-sm font-bold text-white">How members rate your events</h2>
             <p className="text-xs text-zinc-500 mt-0.5">
               {data.quality
-                ? `${data.quality.surveyResponses} post-event survey response${data.quality.surveyResponses === 1 ? '' : 's'} across ${data.eventsHosted} event${data.eventsHosted === 1 ? '' : 's'}`
+                ? `${data.quality.surveyResponses} post-event survey response${data.quality.surveyResponses === 1 ? '' : 's'} across ${data.eventsHeld} past event${data.eventsHeld === 1 ? '' : 's'}`
                 : 'Members get a short survey after each event — responses will show up here.'}
             </p>
           </div>
@@ -102,6 +121,11 @@ export default function HostProfileCard() {
                   {data.quality.wouldReturnRate === null ? '—' : `${data.quality.wouldReturnRate}%`}
                 </div>
                 <div className="text-xs text-zinc-500 mt-1">Would attend again</div>
+                {/* The rate moves only in whole blocks of answers per event
+                    (see /api/host/quality), so say what it is built from. */}
+                {data.quality.wouldReturnRate !== null && data.quality.wouldReturnBasedOn < data.quality.surveyResponses && (
+                  <div className="text-[10px] text-zinc-600 mt-0.5">from {data.quality.wouldReturnBasedOn} of {data.quality.surveyResponses}</div>
+                )}
               </div>
               <div className="bg-zinc-950/50 rounded-xl p-3">
                 <div className="text-2xl font-extrabold text-white">
@@ -136,7 +160,7 @@ export default function HostProfileCard() {
                         }`}>{e.wouldReturnRate}% would return</span>
                       ) : (
                         <span className="text-zinc-600">
-                          {e.responses > 0 ? `${e.responses} response${e.responses === 1 ? '' : 's'} — needs 3+ for a rate` : 'no responses yet'}
+                          {e.responses > 0 ? `${e.responses} response${e.responses === 1 ? '' : 's'} — needs ${data.surveyStep}+ for a rate` : 'no responses yet'}
                         </span>
                       )}
                     </div>

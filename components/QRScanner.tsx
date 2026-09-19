@@ -126,9 +126,13 @@ export default function QRScanner({ onScan, onClose }: Props) {
     onClose()
   }
 
+  // z-[60]: above every panel chrome (the host drawer and the bottom navs sit
+  // at z-50 and below), which otherwise showed through the camera view. The
+  // header and the hint are padded by the safe areas — the installed app runs
+  // edge to edge, and the hint sat under the iPhone home indicator.
   return (
-    <div className="fixed inset-0 z-50 bg-black flex flex-col">
-      <div className="flex items-center justify-between px-5 py-4 shrink-0">
+    <div className="fixed inset-0 z-[60] bg-black flex flex-col">
+      <div className="flex items-center justify-between px-5 pb-4 pt-[calc(1rem+env(safe-area-inset-top))] shrink-0">
         <p className="text-white font-semibold text-base">Scan member QR</p>
         <button onClick={close} className="w-9 h-9 flex items-center justify-center rounded-full bg-white/10 text-white text-lg hover:bg-white/20 transition-colors">
           ✕
@@ -166,7 +170,7 @@ export default function QRScanner({ onScan, onClose }: Props) {
             </div>
           </div>
 
-          <p className="absolute bottom-10 left-0 right-0 text-center text-white/70 text-sm z-10">
+          <p className="absolute bottom-[calc(2.5rem+env(safe-area-inset-bottom))] left-0 right-0 text-center text-white/70 text-sm z-10">
             Point at the member's QR code
           </p>
         </div>

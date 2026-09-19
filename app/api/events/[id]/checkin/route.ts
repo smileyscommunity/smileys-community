@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdmin, canManageEventOps } from '@/lib/access'
+import { isAdmin, canManageEventOps, isClubHost, hostCityIds } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
 import { rateLimit, claimOnce } from '@/lib/rateLimit'
 import { Attendance } from '@/lib/constants'
@@ -48,7 +48,10 @@ export async function GET(_: NextRequest, { params }: Params) {
         club:    { select: { memberships: { where: { role: 'host', status: 'approved' }, select: { userId: true } } } },
       },
     })
-    const canSeeEmail = isAdmin(session) || event?.hostId === session.id
+    // The same rule as the participants list: the primary host sees emails
+    // only while they still hold a host role.
+    const canSeeEmail = isAdmin(session) || (event?.hostId === session.id && (
+      session.role === 'moderator' || await isClubHost(session.id) || (await hostCityIds(session.id)).length > 0))
     // Guests who said "I was there" during the morning-after review.
     const claimPrefix = saysCameKey(eventId, '')
     const saysCame = new Set((await prisma.rateLimit.findMany({

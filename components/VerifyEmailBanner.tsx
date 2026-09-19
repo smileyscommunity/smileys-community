@@ -3,12 +3,17 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { useAuth } from '@/contexts/AuthContext'
+import { usePathname } from 'next/navigation'
 
 export default function VerifyEmailBanner() {
   const { user, isLoggedIn } = useAuth()
   const [sent,    setSent]    = useState(false)
   const [loading, setLoading] = useState(false)
 
+  // Not over the admin and host panels: each fills the screen with its own
+  // shell, and a strip above it pushed the bottom rows below the fold.
+  const pathname = usePathname()
+  if (pathname?.startsWith('/admin') || pathname === '/host' || pathname?.startsWith('/host/')) return null
   if (!isLoggedIn || user.emailVerified || user.role === 'admin' || user.role === 'moderator' || user.isClubHost) return null
 
   async function resend() {

@@ -46,7 +46,7 @@ vi.mock('@/lib/eventCapacity', () => ({
   belowApprovedBody: vi.fn(), wantsOverCapacity: vi.fn(() => false),
 }))
 vi.mock('@/lib/city',      () => ({ todayInCity: vi.fn(async () => '2026-09-16'), getCityTz: vi.fn(async () => 'Europe/Istanbul') }))
-vi.mock('@/lib/rateLimit', () => ({ claimOnce: vi.fn(async () => true), releaseClaim: vi.fn() }))
+vi.mock('@/lib/rateLimit', () => ({ claimOnce: vi.fn(async () => true), releaseClaim: vi.fn(), rateLimit: vi.fn(async () => true) }))
 
 import { PUT } from '@/app/api/admin/events/[id]/route'
 

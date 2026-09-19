@@ -14,17 +14,39 @@ const CLUB_SELECT = {
 } as const
 type ClubCity = { id: string; slug: string; name: string; country: string; timezone: string; currency: string }
 
+// Every row says three things about the caller and that club:
+//   canManage        /host/clubs/[slug] opens for them. That page admits an
+//                    admin, or an approved host of an ACTIVE club — nobody
+//                    else, city hosts included — so link anything else to the
+//                    public /clubs/[slug] instead of a 404.
+//   canCreateEvents  the event-create route will accept this club. Every row
+//                    here is one: clubs the caller hosts, and for a city host
+//                    every active club in their cities. (Admins: any club.)
+//   hosted           the caller holds an approved host membership. For an
+//                    admin, whose list is every club in every city, this is
+//                    what "my clubs" means (HostProfileCard shows only these).
+type HostClubRow = {
+  id: string; name: string; emoji: string; slug: string; memberCount: number; city: ClubCity | null
+  canManage: boolean; canCreateEvents: boolean; hosted: boolean
+}
+
 export async function GET() {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  // Admins see all clubs
+  // Admins see all clubs — the create and edit forms file events under any of them.
   if (isAdmin(session)) {
     const clubs = await prisma.club.findMany({
-      select: CLUB_SELECT,
+      select: {
+        ...CLUB_SELECT,
+        memberships: { where: { userId: session.id, role: 'host', status: 'approved' }, select: { id: true }, take: 1 },
+      },
       orderBy: { name: 'asc' },
     })
-    return NextResponse.json(clubs.map(c => ({ ...c, canManage: true })))
+    const rows: HostClubRow[] = clubs.map(({ memberships, ...c }) => ({
+      ...c, canManage: true, canCreateEvents: true, hosted: (memberships?.length ?? 0) > 0,
+    }))
+    return NextResponse.json(rows)
   }
 
   // Everyone else (hosts, moderators) sees only clubs they are assigned to
@@ -37,8 +59,8 @@ export async function GET() {
   // `canManage` says whether /host/clubs/[slug] will open for this viewer —
   // it requires an approved host membership (or admin). The My Clubs list
   // linked every row there, so a city host's city clubs all 404'd.
-  const clubs: { id: string; name: string; emoji: string; slug: string; memberCount: number; city: ClubCity | null; canManage: boolean }[] =
-    memberships.map(m => ({ ...m.club, canManage: true }))
+  const clubs: HostClubRow[] =
+    memberships.map(m => ({ ...m.club, canManage: true, canCreateEvents: true, hosted: true }))
 
   // A city host (consul) runs events across their city without per-club host
   // grants — the create form was unusable for them (empty club list, then a
@@ -51,7 +73,7 @@ export async function GET() {
       select: CLUB_SELECT,
       orderBy: { name: 'asc' },
     })
-    clubs.push(...cityClubs.map(c => ({ ...c, canManage: false })))
+    clubs.push(...cityClubs.map(c => ({ ...c, canManage: false, canCreateEvents: true, hosted: false })))
   }
   return NextResponse.json(clubs)
 }

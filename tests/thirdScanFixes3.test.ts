@@ -59,7 +59,9 @@ describe('20 busy flags recover', () => {
     ['components/BoardHub.tsx', /if \(!res\?\.ok\) \{ toast\.error\('Could not delete the listing'\); return \}/],
     ['app/(member)/board/new/page.tsx', /setError\('Could not reach the server — your listing is still here, try again'\)/],
     ['app/(member)/clubs/[slug]/ClubJoinWidget.tsx', /finally \{\s*setLoading\(false\)/],
-    ['app/host/events/new/page.tsx', /finally \{\s*setAiLoading\(false\)/],
+    // Host panel review (2026-09): one busy flag per AI button now.
+    ['app/host/events/new/page.tsx', /finally \{\s*setDescLoading\(false\)/],
+    ['app/host/events/new/page.tsx', /finally \{ setTagsLoading\(false\) \}/],
     ['app/(member)/reviews/page.tsx', /r\.ok \? r\.json\(\) : Promise\.reject/],
     ['app/appeal/page.tsx', /setError\('Could not reach the server — try again'\)/],
   ])('%s', (file, re) => {

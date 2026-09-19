@@ -69,8 +69,8 @@ vi.mock('@/lib/eventCapacity', () => ({
   lockEventRow: vi.fn(), seatState: vi.fn(), shrinkVerdict: vi.fn(() => ({ ok: true })),
   belowApprovedBody: vi.fn(), wantsOverCapacity: vi.fn(() => false),
 }))
-vi.mock('@/lib/city',       () => ({ citiesByToday: h.citiesByToday, todayInCity: vi.fn(async () => '2026-09-15') }))
-vi.mock('@/lib/rateLimit',  () => ({ claimOnce: h.claimOnce, releaseClaim: h.releaseClaim }))
+vi.mock('@/lib/city',       () => ({ citiesByToday: h.citiesByToday, todayInCity: vi.fn(async () => '2026-09-15'), getCityTz: vi.fn(async () => 'Europe/Istanbul') }))
+vi.mock('@/lib/rateLimit',  () => ({ claimOnce: h.claimOnce, releaseClaim: h.releaseClaim, rateLimit: vi.fn(async () => true) }))
 vi.mock('@/lib/cronHealth', () => ({ recordCronRun: vi.fn() }))
 
 import { readFileSync } from 'fs'
@@ -144,13 +144,13 @@ describe('a. PUT: parking a cancelled event is not a restore', () => {
     expectNothingRestored()
   })
 
-  it('a host archiving their own cancelled event is not a restore either', async () => {
+  it('a host cannot archive their event at all (the standing sweep reads archived as held)', async () => {
     h.getSession.mockResolvedValue(host)
     h.isClubHost.mockResolvedValue(true)
     p.event.findUnique.mockResolvedValue(existing())
     const res = await PUT(req({ status: 'archived' }), params)
-    expect(res.status).toBe(200)
-    expectNothingRestored()
+    expect(res.status).toBe(403)
+    expect(p.event.update).not.toHaveBeenCalled()
   })
 
   it('staff cancelled → published restores as before: stamp cleared, seats back, members told', async () => {

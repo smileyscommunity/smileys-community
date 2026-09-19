@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
+import { isHostPanelRoute } from '@/lib/bottomNav'
 
 // Member-facing no-show standing, in the same slot as the verify-email and
 // pending-approval strips. Yellow: a heads-up that the next RSVP asks for a
@@ -37,7 +38,9 @@ export default function NoShowBanner() {
       .catch(() => setCards([]))
   }, [isLoggedIn])
 
-  if (!isLoggedIn || !cards?.length || pathname === '/no-show' || pathname?.startsWith('/admin')) return null
+  // Not over the admin or host panel: both are full-height shells, and a strip
+  // above one pushed its bottom edge off the screen.
+  if (!isLoggedIn || !cards?.length || pathname === '/no-show' || pathname?.startsWith('/admin') || isHostPanelRoute(pathname)) return null
 
   const red    = cards.find(c => c.kind === 'red')
   const yellow = cards.find(c => c.kind === 'yellow' && !c.acknowledgedAt)

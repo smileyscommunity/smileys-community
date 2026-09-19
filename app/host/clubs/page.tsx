@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
+import { loadFailure } from '@/lib/admin/useAdminLoad'
 
 interface Club {
   id: string
@@ -15,23 +17,32 @@ interface Club {
 export default function HostClubsPage() {
   const [clubs,   setClubs]   = useState<Club[]>([])
   const [loading, setLoading] = useState(true)
+  const [error,   setError]   = useState<string | null>(null)
+  const [retries, setRetries] = useState(0)
 
+  // A failed load is not "No clubs assigned".
   useEffect(() => {
+    setError(null)
     fetch('/app/api/host/clubs', { credentials: 'include' })
-      .then(r => r.json())
+      .then(async r => { if (!r.ok) throw await loadFailure(r); return r.json() })
       .then(d => setClubs(Array.isArray(d) ? d : []))
+      .catch((e: Error) => setError(e?.message ?? 'Failed to load'))
       .finally(() => setLoading(false))
-  }, [])
+  }, [retries])
 
   return (
     <div className="p-4 sm:p-8">
       <div className="mb-6 sm:mb-8">
         <h1 className="text-2xl font-bold text-white">My Clubs</h1>
-        <p className="text-zinc-400 text-sm mt-1">Manage announcements, spotlight, rules, resources and photos.</p>
+        {/* Rules are staff-set (a host's Rules tab is read-only), so they're
+            not listed among what a host manages. */}
+        <p className="text-zinc-400 text-sm mt-1">Manage announcements, spotlight, resources and photos, and view the club rules.</p>
       </div>
 
       {loading ? (
         <div className="text-zinc-500 text-sm">Loading…</div>
+      ) : error ? (
+        <LoadErrorBanner message={error} title="Couldn't load your clubs" onRetry={() => { setLoading(true); setRetries(n => n + 1) }} />
       ) : clubs.length === 0 ? (
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-12 text-center">
           <div aria-hidden="true" className="text-4xl mb-3">🏛️</div>

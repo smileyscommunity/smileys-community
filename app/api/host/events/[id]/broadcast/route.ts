@@ -5,6 +5,8 @@ import { isAdmin, canManageEventOps } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
 import { rateLimit } from '@/lib/rateLimit'
 
+const BROADCASTS_PER_HOUR = 10
+
 type Params = { params: Promise<{ id: string }> }
 
 export async function POST(req: NextRequest, { params }: Params) {
@@ -33,17 +35,25 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     // Counted only once the caller is known to run this event: a stranger's
     // (or a malformed) request used to burn the host's hourly budget.
-    if (!isAdmin(session) && !await rateLimit(`broadcast:${session.id}`, 10, 60 * 60_000))
-      return NextResponse.json({ error: 'Rate limit: max 10 broadcasts per hour' }, { status: 429 })
+    if (!isAdmin(session) && !await rateLimit(`broadcast:${session.id}`, BROADCASTS_PER_HOUR, 60 * 60_000)) {
+      return NextResponse.json(
+        { error: `You can send up to ${BROADCASTS_PER_HOUR} messages an hour to your guests — try again later` },
+        { status: 429 },
+      )
+    }
 
-    // The sender is excluded in the query, so `sent` is the number of people
-    // actually notified rather than one too many when a co-host is attending.
+    // `sent` is the number of people actually notified. The sender is
+    // excluded in the query (a co-host attending counted themselves); so are
+    // the accounts createNotification refuses to deliver to (banned, deleted
+    // — lib/notify recipientSkipReason), which it reports as handled and the
+    // count would have included; and a write that failed
+    // (createNotification → false) isn't a message anyone got.
     const attendees = await prisma.eventAttendee.findMany({
-      where: { eventId, status: 'approved', userId: { not: session.id } },
+      where: { eventId, status: 'approved', userId: { not: session.id }, user: { status: { notIn: ['banned', 'deleted'] } } },
       select: { userId: true },
     })
 
-    await Promise.all(
+    const results = await Promise.all(
       attendees
         .map(a =>
           createNotification(
@@ -56,7 +66,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         )
     )
 
-    return NextResponse.json({ ok: true, sent: attendees.length })
+    return NextResponse.json({ ok: true, sent: results.filter(r => r !== false).length })
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

@@ -12,6 +12,8 @@ import { readFileSync } from 'fs'
 //      ending 23:59. One normaliser now guards every create/update, and the
 //      reader tolerates the legacy forms until the repair script has run.
 
+// Edits and invitations are rate-limited and claimed (rate_limits table).
+vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn(async () => true), claimOnce: vi.fn(async () => true), releaseClaim: vi.fn(async () => {}) }))
 vi.mock('@/lib/session', () => ({ getSession: vi.fn() }))
 vi.mock('@/lib/audit',   () => ({ writeAudit: vi.fn(async () => {}), getDiff: vi.fn(() => null) }))
 vi.mock('@/lib/notify',  () => ({ createNotification: vi.fn(async () => {}), notifyNewEvent: vi.fn(async () => {}) }))

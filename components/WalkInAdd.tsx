@@ -49,12 +49,20 @@ export default function WalkInAdd({ eventId, onAdded, exclude, dark = true }: {
       const res = await withCapacityConfirm(allow => fetch(`/app/api/admin/events/${eventId}/participants`, {
         method: 'PUT', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: u.id, ...(allow ? { [OVERRIDE_FLAG]: true } : {}) }),
+        body: JSON.stringify({ userId: u.id, walkIn: true, ...(allow ? { [OVERRIDE_FLAG]: true } : {}) }),
       }))
       if (!res) return                                  // said no to exceeding capacity
       if (!res.ok) {
         const d = await res.json().catch(() => null)
         toast.error(typeof d?.error === 'string' ? d.error : "Couldn't add them.")
+        return
+      }
+      const d = await res.json().catch(() => null)
+      // Outside the door window the server sends an invitation instead of a
+      // seat — say so rather than claim a check-in that didn't happen.
+      if (d?.invited) {
+        toast.success(`Invitation sent to ${u.name} — they'll get a spot when they accept`)
+        setQ(''); setFound([]); setOpen(false)
         return
       }
       await onAdded(u.id)

@@ -16,7 +16,7 @@ vi.mock('@/lib/access', () => ({
   isClubHostFor:      vi.fn(),
   hostCityIds:        vi.fn(),
 }))
-vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn() }))
+vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn(), claimOnce: vi.fn(async () => true), releaseClaim: vi.fn(async () => {}) }))
 vi.mock('@/lib/notify', () => ({ createNotification: vi.fn(), notifyNewEvent: vi.fn() }))
 vi.mock('@/lib/audit', () => ({ writeAudit: vi.fn(), getDiff: vi.fn(() => null) }))
 vi.mock('@/lib/email', () => ({ sendEventCancelledEmail: vi.fn(), recordEmailFailure: vi.fn() }))
@@ -32,8 +32,13 @@ vi.mock('@/lib/prisma', () => ({
     user:          { findUnique: vi.fn() },
     eventCoHost:   { findMany: vi.fn(), upsert: vi.fn(), deleteMany: vi.fn() },
     tagGroup:      { findMany: vi.fn() },
+    // Cancel/postpone check whether the event has started, on its city's clock.
+    city:          { findUnique: vi.fn(async () => ({ timezone: 'Europe/Istanbul' })) },
   },
 }))
+// A co-host is a member of the event's city and not in a block with the host.
+vi.mock('@/lib/cityMembership', () => ({ getMemberCityIds: vi.fn(async () => ['c1']) }))
+vi.mock('@/lib/memberPrivacy', () => ({ isBlockedEitherWay: vi.fn(async () => false) }))
 
 import { PUT } from '@/app/api/admin/events/[id]/route'
 import { POST as DESCRIBE } from '@/app/api/host/events/describe/route'
@@ -144,7 +149,9 @@ describe('51b. parking a live event asks first', () => {
     expect(save.slice(gate, gate + 400)).toMatch(/!\(await confirmToast\(/)
     expect(gate).toBeLessThan(save.indexOf('fetch('))
     // …and the parked event can be put back from the same select.
-    expect(src).toContain(`{!isStaff && (loadedStatus === 'draft' || loadedStatus === 'postponed') && <option value="published">`)
+    // (Host panel review, 2026-09: the host's options are a list now, keyed on
+    // the same loaded status.)
+    expect(src).toMatch(/!heldByStaff && \(loadedStatus === 'draft' \|\| loadedStatus === 'postponed'\)\s*\? \[\{ value: 'published', label: 'Publish again \(live\)' \}\]/)
   })
 })
 
@@ -236,10 +243,26 @@ describe('52. AI describe / suggest-tags are host tools with bounded input', () 
       { title: 'x'.repeat(201) },
       { title: 7 },
       { description: ['x'] },
-      { description: `<p>${'x'.repeat(2001)}</p>` },
     ]) {
       expect((await SUGGEST(req(body))).status).toBe(400)
     }
+    expect(create).not.toHaveBeenCalled()
+  })
+  // Superseded (host panel review): a description over 2000 characters of
+  // text used to be a 400, which left a host with a long write-up no way to
+  // get tags. The prompt now takes the first 2000; only an absurd raw payload
+  // is refused.
+  it('suggest-tags: a long description is cut to 2000 characters, not refused', async () => {
+    const res = await SUGGEST(req({ description: `<p>${'x'.repeat(2001)}y</p>` }))
+    expect(res.status).toBe(200)
+    const prompt: string = create.mock.calls[0][0].messages[0].content
+    expect(prompt).toContain(`Event description: ${'x'.repeat(2000)}\n`)
+    expect(prompt).not.toContain('xy')
+  })
+  it('suggest-tags: a raw payload past the hard cap is a 413 with a message', async () => {
+    const res = await SUGGEST(req({ description: 'x'.repeat(100_001) }))
+    expect(res.status).toBe(413)
+    expect((await res.json()).error).toMatch(/too long/)
     expect(create).not.toHaveBeenCalled()
   })
   it('suggest-tags: the cap is on text, not rich-text markup', async () => {

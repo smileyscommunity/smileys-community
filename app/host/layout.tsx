@@ -31,14 +31,14 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
       )}
 
       <aside className={`
-        fixed inset-y-0 left-0 z-50 w-56 bg-black border-r border-zinc-800 p-4 flex flex-col
+        fixed inset-y-0 left-0 z-50 w-56 bg-black border-r border-zinc-800 p-4 flex flex-col overflow-y-auto
         transform transition-transform duration-200 ease-in-out
         md:static md:translate-x-0 md:shrink-0
         ${open ? 'translate-x-0' : '-translate-x-full'}
-      `}>
+      `} aria-label="Host panel">
         <div className="flex items-center justify-between mb-1 px-3">
           <div className="text-xl font-bold text-white">Smileys</div>
-          <button onClick={onClose} className="md:hidden p-1 text-zinc-400 hover:text-white">
+          <button onClick={onClose} aria-label="Close menu" className="md:hidden p-1 text-zinc-400 hover:text-white">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -65,7 +65,17 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
 
         <div className="flex-1" />
 
-        <div className="border-t border-zinc-800 pt-4 mt-4 shrink-0">
+        <div className="border-t border-zinc-800 pt-4 mt-4 shrink-0 safe-area-pb">
+          {/* The member site's navbar and bottom nav stand aside on /host, so
+              the way back to it lives here. */}
+          <Link
+            href="/dashboard"
+            onClick={onClose}
+            className="flex items-center gap-2 px-3 py-2 mb-2 rounded-lg text-sm text-zinc-300 hover:bg-zinc-900 hover:text-white transition-colors"
+          >
+            <BackIcon />
+            Back to Smileys
+          </Link>
           {user.role === 'moderator' && (
             <Link
               href="/admin/moderator"
@@ -103,9 +113,19 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
 }
 
 export default function HostLayout({ children }: { children: ReactNode }) {
-  const router = useRouter()
+  const router   = useRouter()
+  const pathname = usePathname()
   const { user, isLoading, isLoggedIn } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  // The drawer closes on any navigation (Back included) and on Esc — the same
+  // rule as the admin panel's.
+  useEffect(() => { setSidebarOpen(false) }, [pathname])
+  useEffect(() => {
+    if (!sidebarOpen) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSidebarOpen(false) }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [sidebarOpen])
 
   // Club hosts, city-level hosts (consul / city-host grant), admins and
   // moderators. canEnterHostPanel is shared with the dashboard's own gates so
@@ -119,14 +139,19 @@ export default function HostLayout({ children }: { children: ReactNode }) {
 
   if (isLoading || !mayEnter) return null
 
+  // A full-screen shell, like /admin: the member Navbar, Footer and bottom nav
+  // stand aside on these routes (lib/bottomNav isHostPanelRoute), so the panel
+  // owns the whole viewport and scrolls inside <main>. h-dvh, not h-screen —
+  // on a phone 100vh runs under the browser's toolbar and hid the last rows.
   return (
-    <div className="flex h-screen bg-black overflow-hidden">
+    <div className="flex h-dvh bg-black overflow-hidden">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Mobile topbar */}
-        <div className="md:hidden h-14 border-b border-zinc-800 flex items-center justify-between px-4 shrink-0">
+        <div className="md:hidden h-14 border-b border-zinc-800 flex items-center justify-between gap-2 px-4 shrink-0">
           <button
             onClick={() => setSidebarOpen(true)}
+            aria-label="Open menu"
             className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -134,17 +159,28 @@ export default function HostLayout({ children }: { children: ReactNode }) {
             </svg>
           </button>
           <div className="text-sm font-semibold text-white">Host Panel</div>
-          <div
-            className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold"
-            style={{ backgroundColor: user.color }}
+          <Link
+            href="/dashboard"
+            className="flex items-center gap-1 text-xs text-zinc-400 hover:text-white px-2 py-1.5 rounded-lg hover:bg-zinc-800 transition-colors"
           >
-            {user.initials}
-          </div>
+            <BackIcon />
+            Smileys
+          </Link>
         </div>
-        <div className="flex-1 overflow-y-auto">
+        {/* The installed app runs edge to edge (viewportFit cover): the last
+            row — check-in's close-out button — must clear the home indicator. */}
+        <main className="flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom)]">
           {children}
-        </div>
+        </main>
       </div>
     </div>
+  )
+}
+
+function BackIcon() {
+  return (
+    <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+    </svg>
   )
 }

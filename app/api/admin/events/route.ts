@@ -110,8 +110,11 @@ export async function POST(req: NextRequest) {
     // gate answered 403. Bounded like club hosts: own hostId only, clubs of a
     // city they host only (checked below once the parent club resolves), and
     // their events still land in the review queue like any non-staff host's.
-    const cityHostOf = (!admin && !clubHost && !isModerator(session)) ? await hostCityIds(session.id) : []
-    const cityHost   = cityHostOf.length > 0
+    // Everyone but an admin has their city-host grants read: a club host who
+    // is also a city host was refused their city's other clubs, and a
+    // moderator could not create in the city they host outside their own.
+    const cityHostOf = !admin ? await hostCityIds(session.id) : []
+    const cityHost   = cityHostOf.length > 0 && !clubHost && !isModerator(session)
     const canCreate = admin || clubHost || isModerator(session) || cityHost
     if (!canCreate) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
@@ -171,14 +174,20 @@ export async function POST(req: NextRequest) {
     if (!safeHttps(whatsappUrl))     return NextResponse.json({ error: 'WhatsApp URL must start with https://' }, { status: 400 })
     if (!safeHttps(ticketUrl))       return NextResponse.json({ error: 'Ticket URL must start with https://' }, { status: 400 })
 
+    let clubViaCityGrant = false
     if (clubHost) {
       // Club hosts can only create events for themselves
       if (hostId !== session.id) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
-      // Club hosts can only create events for clubs where they have host role
+      // Club hosts create for clubs they host — or, when they're also a city
+      // host, for any club of a city they host (checked once the club's city
+      // resolves below).
       if (!await isClubHostFor(session.id, clubId)) {
-        return NextResponse.json({ error: 'You must be assigned as a host of this club to create events for it' }, { status: 403 })
+        if (cityHostOf.length === 0) {
+          return NextResponse.json({ error: 'You must be assigned as a host of this club to create events for it' }, { status: 403 })
+        }
+        clubViaCityGrant = true
       }
     }
     // City hosts likewise host only their own events; the club-belongs-to-
@@ -342,10 +351,19 @@ export async function POST(req: NextRequest) {
     const hostErr = await hostIdError(hostId, eventCityId, session, clubId)
     if (hostErr) return NextResponse.json({ error: hostErr }, { status: 400 })
 
+    if (clubViaCityGrant && !cityHostOf.includes(eventCityId)) {
+      return NextResponse.json({ error: 'You must be assigned as a host of this club to create events for it' }, { status: 403 })
+    }
     // City-scope check for moderators (admins act globally, club hosts are
-    // already constrained to their own clubs via isClubHostFor above).
-    if (!admin && isModerator(session) && session.cityId !== eventCityId) {
+    // already constrained to their own clubs via isClubHostFor above). A
+    // moderator who is a city host elsewhere creates there as a host: for
+    // themselves, and through review like any host's event.
+    const modViaCityGrant = !admin && isModerator(session) && session.cityId !== eventCityId && cityHostOf.includes(eventCityId)
+    if (!admin && isModerator(session) && session.cityId !== eventCityId && !modViaCityGrant) {
       return NextResponse.json({ error: 'Cross-city event creation is admin-only' }, { status: 403 })
+    }
+    if (modViaCityGrant && hostId !== session.id) {
+      return NextResponse.json({ error: 'In a city you host, you create events for yourself' }, { status: 403 })
     }
     // City hosts are scoped by their grants, not their home city — a consul
     // living in Istanbul can host the İzmir they were appointed to.
@@ -370,9 +388,15 @@ export async function POST(req: NextRequest) {
     // an Istanbul admin scheduling in Antalya was being judged against
     // Istanbul's today.
     const isFree        = !parseInt(price) && !memberPrice
+    // A host's event is in the future (a past-dated copy from "recurring
+    // copies" or a typo landed as a new event nobody could attend). Staff can
+    // still record one after the fact.
+    if (!admin && !isModerator(session) && date < await todayInCity(eventCityId)) {
+      return NextResponse.json({ error: 'That date has already passed' }, { status: 400 })
+    }
     const weekOut       = await todayInCity(eventCityId, 7)
     const tooFarOut     = isFree && date > weekOut && !admin
-    const needsReview   = !admin && !isModerator(session)
+    const needsReview   = !admin && (!isModerator(session) || modViaCityGrant)
     const eventStatus   = needsReview ? 'pending' : (tooFarOut ? 'pending' : (status ?? 'published'))
 
     // The directory listing the organiser picked, in this event's city.

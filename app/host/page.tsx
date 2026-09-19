@@ -7,6 +7,9 @@ import { canHostEvents, canHostClubs, canRunDoor } from '@/lib/auth'
 import { firstNameOf } from '@/lib/data'
 import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
+import { eventTz } from '@/lib/hostPanel'
+import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
+import { loadFailure } from '@/lib/admin/useAdminLoad'
 import HostImpactStats from '@/components/HostImpactStats'
 import HostProfileCard from '@/components/HostProfileCard'
 import CheckInPrompt from '@/components/CheckInPrompt'
@@ -27,6 +30,9 @@ interface Event {
   price: number
   memberPrice?: number | null
   noShowProcessedAt?: string | null
+  // The event's own city clock (/api/host/events); the browsed city's when absent.
+  timezone?: string | null
+  cityId?: string | null
 }
 
 
@@ -37,18 +43,25 @@ export default function HostDashboard() {
   const { user } = useAuth()
   const [events,  setEvents]  = useState<Event[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [reloadTick, setReloadTick] = useState(0)
   const [doorEvents, setDoorEvents] = useState<Event[]>([])
 
   const canEvents = canHostEvents(user)
   const canClubs  = canHostClubs(user)
   const canDoor   = canRunDoor(user)
 
+  // A failed load used to leave the list empty and say "Create your first
+  // one!" to a host with a full calendar. It raises a Retry banner instead.
   useEffect(() => {
     if (!canEvents) { setLoading(false); return }
+    setLoadError(null)
     fetch('/app/api/host/events', { credentials: 'include' })
-      .then(r => r.json()).then(d => setEvents(Array.isArray(d) ? d : [])).catch(() => {})
+      .then(async r => { if (!r.ok) throw await loadFailure(r); return r.json() })
+      .then(d => setEvents(Array.isArray(d) ? d : []))
+      .catch((e: Error) => setLoadError(e?.message ?? 'Failed to load'))
       .finally(() => setLoading(false))
-  }, [])
+  }, [reloadTick])
 
   // The check-in prompt reads the door list (?scope=door) — events you host,
   // co-host or club-host — so a co-host is chased about the room they ran too.
@@ -58,14 +71,22 @@ export default function HostDashboard() {
       .then(r => r.json()).then(d => setDoorEvents(Array.isArray(d) ? d : [])).catch(() => {})
   }, [])
 
-  const today     = todayInTz(tz)
-  const upcoming  = events.filter(e => e.status === 'published' && e.date >= today)
+  // Each event's day on its own city's clock — a host with rooms in two
+  // cities gets each one's "today" right (lib/hostPanel eventTz).
+  const todayOf   = (e: Event) => todayInTz(eventTz(e, tz))
+  const upcoming  = events.filter(e => e.status === 'published' && e.date >= todayOf(e))
+  // Submitted and waiting on a moderator: listed with a label, not hidden —
+  // a host who just created an event saw no trace of it here.
+  const awaitingReview = events
+    .filter(e => e.status === 'pending' && e.date >= todayOf(e))
+    .sort((a, b) => a.date.localeCompare(b.date))
   const past      = events
-    .filter(e => e.date < today && e.status !== 'cancelled' && e.status !== 'draft')
+    .filter(e => e.date < todayOf(e) && e.status !== 'cancelled' && e.status !== 'draft' && e.status !== 'pending' && e.status !== 'flagged')
     .sort((a, b) => b.date.localeCompare(a.date))
-  const totalAtts = events
-    .filter(e => e.status !== 'cancelled' && e.status !== 'draft')
-    .reduce((s, e) => s + (e._count?.attendees ?? 0), 0)
+  // People who actually had a seat at something that ran: past events only.
+  // Counting upcoming RSVPs too made the figure jump every time someone joined
+  // next week's event, and fall again when they cancelled.
+  const totalAtts = past.reduce((s, e) => s + (e._count?.attendees ?? 0), 0)
 
   // Exclude unlimited events (totalSpots === 0) from fill rate — they'd always contribute 0%
   const ratedPast = past.filter(e => e.totalSpots > 0)
@@ -81,7 +102,7 @@ export default function HostDashboard() {
 
   const nextEvent = upcoming.sort((a, b) => a.date.localeCompare(b.date))[0]
   const daysUntilNext = nextEvent
-    ? Math.ceil((new Date(nextEvent.date).getTime() - new Date(today).getTime()) / 86400000)
+    ? Math.ceil((new Date(nextEvent.date).getTime() - new Date(todayOf(nextEvent)).getTime()) / 86400000)
     : null
 
   return (
@@ -106,7 +127,7 @@ export default function HostDashboard() {
         <Link href="/host/clubs" className="block bg-zinc-900 border border-zinc-800 hover:border-amber-500/50 rounded-xl p-6 mb-6 transition-colors group">
           <div aria-hidden="true" className="text-2xl mb-2">🏛️</div>
           <div className="text-white font-semibold group-hover:text-amber-400 transition-colors">Go to My Clubs</div>
-          <div className="text-zinc-500 text-sm mt-0.5">Manage announcements, spotlight, rules, resources and photos.</div>
+          <div className="text-zinc-500 text-sm mt-0.5">Manage announcements, spotlight, resources and photos, and view the club rules.</div>
         </Link>
       )}
 
@@ -126,7 +147,7 @@ export default function HostDashboard() {
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 sm:gap-4 mb-6 sm:mb-8">
         <div className="bg-zinc-900 rounded-xl p-5 border border-zinc-800">
           <div className="text-3xl font-bold text-white">{totalAtts}</div>
-          <div className="text-xs text-zinc-400 mt-1">Total Attendees</div>
+          <div className="text-xs text-zinc-400 mt-1">Guests booked (past)</div>
         </div>
         <div className="bg-zinc-900 rounded-xl p-5 border border-zinc-800">
           <div className="text-3xl font-bold text-white">{upcoming.length}</div>
@@ -164,7 +185,10 @@ export default function HostDashboard() {
 
       {loading ? (
         <div className="text-zinc-500 text-sm">Loading…</div>
-      ) : upcoming.length === 0 ? (
+      ) : loadError ? (
+        <LoadErrorBanner message={loadError} title="Couldn't load your events"
+          onRetry={() => { setLoading(true); setReloadTick(t => t + 1) }} />
+      ) : upcoming.length === 0 && awaitingReview.length === 0 ? (
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-8 text-center">
           <div aria-hidden="true" className="text-3xl mb-2">🎉</div>
           <div className="text-zinc-400 text-sm">No upcoming events. Create your first one!</div>
@@ -174,6 +198,26 @@ export default function HostDashboard() {
         </div>
       ) : (
         <div className="space-y-3">
+          {awaitingReview.map(e => (
+            <div key={e.id} className="bg-zinc-900 border border-violet-500/30 rounded-xl p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3 min-w-0">
+                  <span aria-hidden="true" className="text-2xl shrink-0">{e.emoji}</span>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Link href={`/host/events/${e.id}/edit`} className="text-sm font-medium text-white hover:text-amber-400 transition-colors truncate">{e.title}</Link>
+                      <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-violet-500/10 text-violet-400 shrink-0">Awaiting review</span>
+                    </div>
+                    <div className="text-xs text-zinc-400 mt-0.5">{e.date} · {e.time}</div>
+                    <div className="text-xs text-zinc-500 mt-0.5">A moderator checks it before it goes live — you&apos;ll be notified.</div>
+                  </div>
+                </div>
+                <Link href={`/host/events/${e.id}/edit`} className="text-xs text-zinc-400 hover:text-white border border-zinc-700 px-3 py-1.5 rounded-lg transition-colors shrink-0">
+                  Edit
+                </Link>
+              </div>
+            </div>
+          ))}
           {upcoming.map(e => (
             <div key={e.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
               <div className="flex items-start justify-between gap-3">
@@ -197,7 +241,7 @@ export default function HostDashboard() {
               <div className="mt-2 text-xs text-zinc-500 pl-11 flex items-center gap-3">
                 <span>{e._count?.attendees ?? 0} / {e.totalSpots} attendees</span>
                 {/* Event day: the roster one tap away, not three menus deep. */}
-                {e.date === today && (
+                {e.date === todayOf(e) && (
                   <Link href={`/host/checkin?event=${e.id}`} className="font-semibold text-amber-400 hover:text-amber-300 transition-colors">
                     Check in →
                   </Link>

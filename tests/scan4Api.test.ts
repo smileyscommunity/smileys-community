@@ -38,6 +38,8 @@ vi.mock('@/lib/prisma', () => ({ prisma: {
   business:         { findUnique: vi.fn() },
   businessClaim:    { findUnique: vi.fn(), upsert: vi.fn() },
   testimonial:      { count: vi.fn(), aggregate: vi.fn(), create: vi.fn() },
+  // Started checks read the event city's clock.
+  city:             { findUnique: vi.fn(async () => ({ timezone: 'Europe/Istanbul' })) },
 } }))
 
 import { POST as addResource } from '@/app/api/clubs/[slug]/resources/route'
@@ -227,7 +229,9 @@ describe('3 host broadcast', () => {
       [{ userId: 'ch' }, { userId: 'u1' }, { userId: 'u2' }].filter(a => a.userId !== where.userId?.not))
     const res = await broadcast(req({ message: 'Doors at 7' }), eventParams)
     expect(res.status).toBe(200)
-    expect(p.eventAttendee.findMany.mock.calls[0][0].where).toEqual({ eventId: 'e1', status: 'approved', userId: { not: 'ch' } })
+    // Banned/deleted accounts are filtered too (host panel review): createNotification
+    // skips them but reports them handled, so `sent` counted people nobody reached.
+    expect(p.eventAttendee.findMany.mock.calls[0][0].where).toEqual({ eventId: 'e1', status: 'approved', userId: { not: 'ch' }, user: { status: { notIn: ['banned', 'deleted'] } } })
     expect((await res.json()).sent).toBe(2)
     expect((createNotification as any).mock.calls.map((c: any) => c[0])).toEqual(['u1', 'u2'])
   })

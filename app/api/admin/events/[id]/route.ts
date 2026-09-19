@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isTier } from '@/lib/standingPolicy'
 import { prisma } from '@/lib/prisma'
+import { claimOnce, releaseClaim, rateLimit } from '@/lib/rateLimit'
 import { hostIdError } from '@/lib/eventHostCheck'
+import { notifyCityStaff } from '@/lib/staffNotify'
 import { venueIdInput } from '@/lib/eventVenue'
 import { ensurePendingVenueBusiness } from '@/lib/venueDirectory'
 import { activeAttendeeWhere } from '@/lib/attendance'
@@ -60,9 +62,12 @@ export async function DELETE(_: NextRequest, { params }: Params) {
     // outside their home city, and creating the event there worked, so the
     // home-city check 403'd every later delete of their own event.
     if (!isAdmin(session) && !clubHost) {
+      // A moderator's own event in a city they host (not their home city)
+      // is theirs to run as its host.
       const cityOk = cityHostOf.length > 0
         ? cityHostOf.includes(eventScope.cityId)
-        : session.cityId === eventScope.cityId
+        : session.cityId === eventScope.cityId ||
+          (eventScope.hostId === session.id && (await hostCityIds(session.id)).includes(eventScope.cityId))
       if (!cityOk) return NextResponse.json({ error: 'Cross-city moderation is admin-only' }, { status: 403 })
     }
 
@@ -169,12 +174,19 @@ export async function PUT(req: NextRequest, { params }: Params) {
     // outside their home city, and every edit/cancel of an event they could
     // create there answered 403.
     if (!isAdmin(session) && !clubHost) {
+      // A moderator's own event in a city they host (not their home city)
+      // is theirs to run as its host.
       const cityOk = cityHostOf.length > 0
         ? cityHostOf.includes(before.cityId)
-        : session.cityId === before.cityId
+        : session.cityId === before.cityId ||
+          (before.hostId === session.id && (await hostCityIds(session.id)).includes(before.cityId))
       if (!cityOk) return NextResponse.json({ error: 'Cross-city moderation is admin-only' }, { status: 403 })
     }
 
+    // Edits are bounded for hosts: each one could bell the whole room.
+    if (!admin && !await rateLimit(`event-edit:${session.id}`, 60, 60 * 60_000)) {
+      return NextResponse.json({ error: 'Too many changes — try again in a while' }, { status: 429 })
+    }
     const body = await req.json()
     const { tagIds, applyToSeries } = body
 
@@ -252,10 +264,45 @@ export async function PUT(req: NextRequest, { params }: Params) {
     // 'pending' at creation exactly like a club host's, and this block was
     // scoped to `clubHost` alone — so a city host could PUT
     // {status:'published', featured:true} straight past the review queue.
-    const host = clubHost || cityHostOf.length > 0
+    // A moderator editing their own event in a city they host (not their home)
+    // is its host there, under the host rules — status gates included.
+    const host = clubHost || cityHostOf.length > 0 ||
+      (!isAdmin(session) && session.cityId !== before.cityId && before.hostId === session.id)
     if (host) {
       delete rest.hostId
       delete rest.featured
+      // Capacity is staff's to change (the host form shows it read-only).
+      delete rest.totalSpots
+      // A host's status moves: park (draft/postponed), cancel, or reopen what
+      // staff opened (below). An event staff took down or haven't approved
+      // (flagged, unpublished, pending) only goes to cancelled — flagged →
+      // draft → published undid a moderator's takedown — and nothing a host
+      // sends archives an event (the standing sweep reads archived as held).
+      if ('status' in rest && rest.status !== before.status) {
+        // Resubmitting: a flagged or unpublished event, edited, goes back into
+        // the review queue ('pending') — never straight to live.
+        const resubmitting = rest.status === 'pending' && (before.status === 'flagged' || before.status === 'unpublished')
+        const HOST_STATUSES = ['draft', 'postponed', 'published', 'cancelled']
+        if (typeof rest.status !== 'string' || (!HOST_STATUSES.includes(rest.status) && !resubmitting)) {
+          return NextResponse.json({ error: 'That status is set by staff' }, { status: 403 })
+        }
+        if (['flagged', 'unpublished', 'pending'].includes(before.status) && rest.status !== 'cancelled' && !resubmitting) {
+          return NextResponse.json({ error: 'This event is with the moderators — it goes live when they approve it' }, { status: 403 })
+        }
+        if (resubmitting) {
+          notifyCityStaff(before.cityId, 'system_alert', '📝 Event resubmitted for review',
+            `"${before.title}" was edited and resubmitted by its host.`, '/admin/moderation?tab=events').catch(() => {})
+        }
+        // An event that has started is over for cancelling or postponing: a
+        // host cancelling last week's event emailed everyone "cancelled" and
+        // rewrote the attendance the standing record reads.
+        // Draft too: it takes the event out of what the standing sweep and
+        // close-out read, the same rewrite of the record.
+        if ((rest.status === 'cancelled' || rest.status === 'postponed' || rest.status === 'draft') &&
+            eventStartsAt(before, await getCityTz(before.cityId)).getTime() <= Date.now()) {
+          return NextResponse.json({ error: 'This event has already started — it can\'t be cancelled, postponed or moved to draft now' }, { status: 409 })
+        }
+      }
       // Collecting payment through Smileys is arranged by staff (the host edit
       // page says so, and never sends these). A host could still PUT
       // {payTo:'smileys', paymentContact:<their own link>} on a live event:
@@ -428,6 +475,12 @@ export async function PUT(req: NextRequest, { params }: Params) {
       if (tier === before.tierOverride) {
         delete data.tierOverride
       } else {
+        // Stricter rules for people already going are staff's call: a host
+        // turning an open event scarce moved everyone's cancel cutoff out to
+        // 24 hours after they'd joined under 2.
+        if (!admin && tier === 'scarce' && await prisma.eventAttendee.count({ where: { eventId: id, status: 'approved' } }) > 0) {
+          return NextResponse.json({ error: 'People have already joined — ask a moderator to change the seat commitment' }, { status: 403 })
+        }
         if (await startedForStanding()) {
           return NextResponse.json({ error: "This event has started — ask an admin to change its seat commitment." }, { status: 403 })
         }
@@ -567,7 +620,12 @@ export async function PUT(req: NextRequest, { params }: Params) {
     const seriesIds = spotsTouched && seriesQuery
       ? (await prisma.event.findMany(seriesQuery)).map(s => s.id)
       : []
-    const SERIES_EXCLUDED = new Set(['date', 'registrationDeadline', 'seriesId', 'tags'])
+    // Status and its companions never ride a series edit: each event's status
+    // goes through its own gates (review, cancel emails, seat release). A
+    // host re-saving a live event "to the series" published every pending
+    // copy, and cancelled future ones with nobody told.
+    const SERIES_EXCLUDED = new Set(['date', 'registrationDeadline', 'seriesId', 'tags',
+      'status', 'cancelledAt', 'cancelReason', 'featured', 'approvalRequired', 'hostId'])
     const seriesData: Record<string, unknown> = {}
     for (const [k, v] of Object.entries(data)) {
       if (!SERIES_EXCLUDED.has(k)) seriesData[k] = v
@@ -683,16 +741,30 @@ export async function PUT(req: NextRequest, { params }: Params) {
     }
 
     // Notify attendees if date, time, or location changed
-    const changed = (body.date && body.date !== before.date) ||
-                    // The normalised value: '19.30' resent for a stored '19:30' is no change.
-                    (data.time && data.time !== before.time) ||
-                    (body.location && body.location !== before.location)
-    if (changed) {
+    const whenChanged = (body.date && body.date !== before.date) ||
+                        // The normalised value: '19.30' resent for a stored '19:30' is no change.
+                        (data.time && data.time !== before.time)
+    const whereChanged = body.location && body.location !== before.location
+    if (whenChanged || whereChanged) {
       ;(async () => {
-        const attendees = await prisma.eventAttendee.findMany({ where: { eventId: id, status: 'approved' }, select: { userId: true } })
-        await Promise.all(attendees.map(a =>
-          createNotification(a.userId, 'event_updated', 'Event details changed 📅', `"${before.title}" has been updated — check the new time or location`, `/events/${id}`)
-        ))
+        // A time or place copied to the rest of the series changed their
+        // guests' plans too.
+        const siblings = applyToSeries && seriesQuery && ('time' in seriesData || 'location' in seriesData)
+          ? (await prisma.event.findMany({ where: seriesQuery.where, select: { id: true } })).map(e => e.id)
+          : []
+        for (const eventId of [id, ...siblings]) {
+          // A new date or time always goes out. A place change from a host is
+          // told once an hour per event — edits were a broadcast with no
+          // limit — and a claim on a room nobody has joined is handed back,
+          // so the first real change still reaches the people who come.
+          const key = `event-details-changed:${eventId}`
+          if (!whenChanged && !admin && !await claimOnce(key, 60 * 60_000)) continue
+          const attendees = await prisma.eventAttendee.findMany({ where: { eventId, status: 'approved' }, select: { userId: true } })
+          if (attendees.length === 0) { if (!whenChanged && !admin) await releaseClaim(key); continue }
+          await Promise.all(attendees.map(a =>
+            createNotification(a.userId, 'event_updated', 'Event details changed 📅', `"${before.title}" has been updated — check the new time or location`, `/events/${eventId}`)
+          ))
+        }
       })().catch(() => {})
     }
 

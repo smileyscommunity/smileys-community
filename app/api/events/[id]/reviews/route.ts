@@ -4,6 +4,7 @@ import { getSession } from '@/lib/session'
 import { trackServer } from '@/lib/posthog-server'
 import { todayInCity } from '@/lib/city'
 import { rateLimit } from '@/lib/rateLimit'
+import { getEventById, canSeeEvent } from '@/lib/db'
 import { Attendance } from '@/lib/constants'
 import { CardStatus } from '@/lib/noShowPolicy'
 
@@ -23,8 +24,12 @@ export async function GET(_: NextRequest, { params }: Params) {
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { id: eventId } = await params
+    // Only for an event the member may see — the reviewer list of a private
+    // club's or an unpublished event was readable to any member with its id.
+    const event = await getEventById(eventId)
+    if (!event || !await canSeeEvent(event, session)) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     const reviews = await prisma.review.findMany({
-      where: { eventId },
+      where: { eventId, user: { status: 'approved' } },
       orderBy: { createdAt: 'desc' },
       include: {
         // id: the page finds "your review" by it. Without it the review form

@@ -9,6 +9,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // into published, but every other status move on their own event still works,
 // and editing an already-published event is untouched.
 
+// Edits and invitations are rate-limited and claimed (rate_limits table).
+vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn(async () => true), claimOnce: vi.fn(async () => true), releaseClaim: vi.fn(async () => {}) }))
 vi.mock('@/lib/session', () => ({ getSession: vi.fn() }))
 vi.mock('@/lib/access', () => ({
   isAdmin:            (s: any) => s?.role === 'admin',
@@ -27,6 +29,8 @@ vi.mock('@/lib/prisma', () => ({
     event: { findUnique: vi.fn(), update: vi.fn(async ({ data }: any) => ({ id: 'e1', ...data })), updateMany: vi.fn() },
     eventAttendee: { findMany: vi.fn(async () => []), updateMany: vi.fn(async () => ({ count: 0 })) },
     waitlistEntry: { deleteMany: vi.fn(async () => ({ count: 0 })) },
+    // Cancel/postpone check whether the event has started, on its city's clock.
+    city: { findUnique: vi.fn(async () => ({ timezone: 'Europe/Istanbul' })) },
   },
 }))
 
@@ -52,7 +56,7 @@ class NextRequestLike {
 // question is purely the status transition, not ownership.
 function existing(status: string) {
   return {
-    hostId: 'h1', clubId: 'club1', cityId: 'c1', date: '2026-09-01', time: '19:00',
+    hostId: 'h1', clubId: 'club1', cityId: 'c1', date: '2099-09-01', time: '19:00',
     location: 'x', title: 'T', neighborhood: 'x', price: null, memberPrice: null,
     totalSpots: 10, emoji: '🎉', isPremium: false, membersOnly: false,
     limitedSpots: false, isFirstTimerFriendly: false, status, seriesId: null,

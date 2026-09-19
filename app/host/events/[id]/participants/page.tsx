@@ -7,12 +7,15 @@ import { withCapacityConfirm } from '@/lib/admin/overCapacity'
 
 import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
+import { useAuth } from '@/contexts/AuthContext'
+import { toastApiError } from '@/lib/apiError'
 import UserAvatar from '@/components/UserAvatar'
 import NoShowCardBadge from '@/components/NoShowCardBadge'
 import StandingBadge from '@/components/StandingBadge'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { DEFAULT_TZ, todayInTz } from '@/lib/cityTime'
+import { eventHasStarted } from '@/lib/eventTime'
 import { loadFailure } from '@/lib/admin/useAdminLoad'
 import { toCsv } from '@/lib/admin/participantsView'
 
@@ -21,6 +24,9 @@ interface AttendeeUser {
 }
 interface Attendee {
   userId: string; status: string; checkedIn: boolean; joinedAt: string; user: AttendeeUser
+  // The host or a co-host (the roster route tags them). They are listed, but
+  // they are not guests: no counts, no broadcast, no CSV, no remove.
+  isStaff?: boolean
   // Pending rows only: the member's active no-show cards across all events.
   activeCards?: { yellow: number; red: number }
   standing?: 'yellow' | 'red' | null
@@ -48,6 +54,7 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
 
   const [eventTitle, setEventTitle] = useState('')
   const [eventDate,  setEventDate]  = useState('')
+  const [eventTime,  setEventTime]  = useState('')
   const [attendees,  setAttendees]  = useState<Attendee[]>([])
   const [waitlist,   setWaitlist]   = useState<WaitlistEntry[]>([])
   // No-show cards issued from this event — the host clears one here when the
@@ -65,6 +72,16 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
   const [addBusy,      setAddBusy]      = useState<string | null>(null)
   const [reviews,        setReviews]        = useState<Review[]>([])
   const [reviewsLoaded,  setReviewsLoaded]  = useState(false)
+  const [rowBusy,        setRowBusy]        = useState<string | null>(null)
+  // Members invited from this page in this visit. A host's add is an
+  // invitation (the member takes the spot themselves), so they don't join the
+  // list — this only stops the search offering them again.
+  const [invited,        setInvited]        = useState<Set<string>>(new Set())
+  const [eventCityId,    setEventCityId]    = useState('')
+  const [eventTz,        setEventTz]        = useState<string | null>(null)
+  const { user: viewer } = useAuth()
+  // Only an admin's add seats the member; everyone else's sends an invitation.
+  const seatsDirectly = viewer?.role === 'admin'
 
   async function waiveNoShow(card: NoShowCard) {
     const reason = await promptToast(`Clear ${card.user.name}'s no-show? Say why — it goes in the audit log.`,
@@ -101,6 +118,8 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
       const data = await strict(rosterRes)
       if (ev.title) setEventTitle(ev.title)
       if (ev.date)  setEventDate(ev.date)
+      if (typeof ev.time === 'string') setEventTime(ev.time)
+      if (typeof ev.cityId === 'string') setEventCityId(ev.cityId)
       setAttendees(Array.isArray(data.attendees) ? data.attendees : [])
       setWaitlist(Array.isArray(data.waitlist) ? data.waitlist : [])
       setNoShowCards(Array.isArray(data.noShowCards) ? data.noShowCards : [])
@@ -110,6 +129,30 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
 
   const retryLoad = () => { setLoading(true); setReloadTick(t => t + 1) }
 
+  // A background re-read after a change the server may have rippled (a
+  // removal promoting the next waitlister). No spinner; a failure keeps
+  // what's on screen.
+  function refreshRoster() {
+    fetch(`/app/api/admin/events/${id}/participants`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data) return
+        if (Array.isArray(data.attendees)) setAttendees(data.attendees)
+        if (Array.isArray(data.waitlist))  setWaitlist(data.waitlist)
+      })
+      .catch(() => {})
+  }
+
+  // The event's own city clock for "is it past" — the event read carries only
+  // the city id. Until it answers (or if it can't), the browsed city's.
+  useEffect(() => {
+    if (!eventCityId) return
+    fetch(`/app/api/city/current?cityId=${encodeURIComponent(eventCityId)}`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (typeof d?.timezone === 'string') setEventTz(d.timezone) })
+      .catch(() => {})
+  }, [eventCityId])
+
   useEffect(() => {
     if (addSearch.trim().length < 2) { setSearchResults([]); return }
     const timer = setTimeout(async () => {
@@ -118,13 +161,13 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
         const res = await fetch(`/app/api/search?q=${encodeURIComponent(addSearch)}&type=members`, { credentials: 'include' })
         if (res.ok) {
           const data = await res.json()
-          const alreadyIn = new Set(attendees.map(a => a.userId))
+          const alreadyIn = new Set([...attendees.map(a => a.userId), ...invited])
           setSearchResults((data.members ?? []).filter((u: AttendeeUser) => !alreadyIn.has(u.id)).slice(0, 6))
         }
       } finally { setSearching(false) }
     }, 250)
     return () => clearTimeout(timer)
-  }, [addSearch, attendees])
+  }, [addSearch, attendees, invited])
 
   async function loadReviews() {
     if (reviewsLoaded) return
@@ -138,9 +181,13 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
     if (t === 'reviews') loadReviews()
   }
 
-  // "Past" on the city's clock, not the host's device.
-  const today  = todayInTz(useCurrentCity()?.timezone ?? DEFAULT_TZ)
+  // "Past" on the event's city's clock, not the host's device.
+  const browsedTz = useCurrentCity()?.timezone ?? DEFAULT_TZ
+  const today  = todayInTz(eventTz ?? browsedTz)
   const isPast = eventDate ? eventDate < today : false
+  // Started, on the event city's clock: after that a seat is part of the
+  // attendance record, and the server refuses host removals.
+  const started = !!eventDate && eventHasStarted({ date: eventDate, time: eventTime || '00:00' }, eventTz ?? browsedTz)
 
   async function approve(userId: string) {
     // A full event refuses the seat; "exceed capacity?" first, override on yes.
@@ -167,31 +214,101 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
 
   async function reject(userId: string) {
     if (!(await confirmToast('Reject this request?'))) return
-    const res = await fetch(`/app/api/admin/events/${id}/participants`, {
-      method: 'PATCH', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, action: 'reject' }),
-    })
-    if (res.ok) { setAttendees(prev => prev.filter(a => a.userId !== userId)); toast('Rejected') }
+    try {
+      const res = await fetch(`/app/api/admin/events/${id}/participants`, {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, action: 'reject' }),
+      })
+      // A refusal (a withdrawn request's 404, the ops rate limit) used to
+      // leave the row sitting there with no word.
+      if (!res.ok) { await toastApiError(res, 'Could not reject'); return }
+      setAttendees(prev => prev.filter(a => a.userId !== userId)); toast('Rejected')
+    } catch { toast.error('Could not reject — check your connection') }
+  }
+
+  // Take an approved guest off the event, or a waitlisted one off the queue.
+  // The route frees the seat and, before the event starts, seats the next
+  // person on the waitlist who fits.
+  async function removeGuest(userId: string, name: string, from: 'approved' | 'waitlist') {
+    const question = from === 'waitlist'
+      ? `Take ${name} off the waitlist? They're told nothing and can join the queue again.`
+      : `Remove ${name} from this event? Their spot goes to the next person on the waitlist.`
+    if (!(await confirmToast(question, { confirmLabel: 'Remove', cancelLabel: 'Keep' }))) return
+    setRowBusy(userId)
+    try {
+      const res = await fetch(`/app/api/admin/events/${id}/participants`, {
+        method: 'DELETE', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(from === 'waitlist' ? { userId, type: 'waitlist' } : { userId }),
+      })
+      if (!res.ok) { await toastApiError(res, 'Could not remove'); return }
+      if (from === 'waitlist') setWaitlist(prev => prev.filter(w => w.userId !== userId))
+      else {
+        setAttendees(prev => prev.filter(a => a.userId !== userId))
+        // The route may have seated someone from the waitlist: re-read the
+        // lists quietly so they show where they are now.
+        if (waitlist.length > 0) refreshRoster()
+      }
+      toast(`${name} removed`)
+    } catch { toast.error('Could not remove — check your connection') }
+    finally { setRowBusy(null) }
+  }
+
+  // Hand an approved guest's spot back without taking them off the event:
+  // they go to the end of the waitlist and are told so.
+  async function moveToWaitlist(a: Attendee) {
+    if (!(await confirmToast(`Move ${a.user.name} to the waitlist? They lose their spot and are told they're on the waitlist.`,
+      { confirmLabel: 'Move to waitlist', cancelLabel: 'Keep' }))) return
+    setRowBusy(a.userId)
+    try {
+      const res = await fetch(`/app/api/admin/events/${id}/participants`, {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: a.userId, action: 'toWaitlist' }),
+      })
+      if (!res.ok) { await toastApiError(res, 'Could not move to the waitlist'); return }
+      const d = await res.json().catch(() => ({}))
+      setAttendees(prev => prev.filter(x => x.userId !== a.userId))
+      // The route hands back the real waitlist row; its id and time are the
+      // database's, not made up here.
+      const row = d?.waitlisted
+      setWaitlist(prev => [
+        ...prev.filter(w => w.userId !== a.userId),
+        { id: row?.id ?? a.userId, userId: a.userId, createdAt: row?.createdAt ?? new Date().toISOString(), user: a.user },
+      ])
+      toast(`${a.user.name} moved to the waitlist`)
+    } catch { toast.error('Could not move to the waitlist — check your connection') }
+    finally { setRowBusy(null) }
   }
 
   async function addParticipant(user: AttendeeUser) {
     setAddBusy(user.id)
-    const res = await withCapacityConfirm(allowOverCapacity => fetch(`/app/api/admin/events/${id}/participants`, {
-      method: 'PUT', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: user.id, ...(allowOverCapacity ? { allowOverCapacity: true } : {}) }),
-    }))
-    if (!res) { setAddBusy(null); return }
-    if (res.ok) {
-      setAttendees(prev => [...prev, { userId: user.id, status: 'approved', checkedIn: false, joinedAt: new Date().toISOString(), user }])
-      toast.success(`${user.name} added ✓`)
+    try {
+      const res = await withCapacityConfirm(allowOverCapacity => fetch(`/app/api/admin/events/${id}/participants`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, ...(allowOverCapacity ? { allowOverCapacity: true } : {}) }),
+      }))
+      if (!res) return
+      if (!res.ok) { await toastApiError(res, seatsDirectly ? 'Could not add participant' : 'Could not send the invitation'); return }
+      const d = await res.json().catch(() => ({}))
       setAddSearch('')
-    } else {
-      const err = await res.json()
-      toast.error(err.error ?? 'Could not add participant')
+      // A host's add is an invitation: nobody is seated until the member
+      // accepts, so nobody moves into the list here.
+      if (d?.invited) {
+        setInvited(prev => new Set(prev).add(user.id))
+        toast.success(`Invitation sent — ${user.name} will get a spot when they accept`)
+        return
+      }
+      setAttendees(prev => [...prev, { userId: user.id, status: 'approved', checkedIn: false, joinedAt: new Date().toISOString(), user }])
+      setWaitlist(prev => prev.filter(w => w.userId !== user.id))
+      toast.success(`${user.name} added ✓`)
+    } catch {
+      toast.error('Could not reach the server — check your connection')
+    } finally {
+      setAddBusy(null)
     }
-    setAddBusy(null)
   }
 
   async function promoteWaitlist(entry: WaitlistEntry) {
@@ -215,11 +332,15 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
 
   const pending  = attendees.filter(a => a.status === 'pending')
   const approved = attendees.filter(a => a.status === 'approved')
+  // The guests: the approved list without the host and co-hosts. Every count,
+  // the broadcast and the CSV read this — "Send to 12 attendees" counted the
+  // two people running the room.
+  const guests   = approved.filter(a => !a.isStaff)
 
   function exportCsv() {
     const rows = [
       ['Name', 'Checked In', 'Joined At'],
-      ...approved.map(a => [
+      ...guests.map(a => [
         a.user.name,
         a.checkedIn ? 'Yes' : 'No',
         new Date(a.joinedAt).toLocaleDateString('en-GB'),
@@ -244,14 +365,21 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
   async function broadcast() {
     if (!broadcastMsg.trim()) return
     setBroadcasting(true)
-    const res = await fetch(`/app/api/host/events/${id}/broadcast`, {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: broadcastMsg }),
-    })
-    if (res.ok) { setBroadcastMsg(''); setBroadcastSent(true); toast.success('Message sent to all attendees') }
-    else toast.error('Failed to send message')
-    setBroadcasting(false)
+    try {
+      const res = await fetch(`/app/api/host/events/${id}/broadcast`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: broadcastMsg }),
+      })
+      // The server's reason, not a generic failure: the hourly limit (429)
+      // says when it can go, which "Failed to send" never did.
+      if (!res.ok) { await toastApiError(res, 'Failed to send message'); return }
+      const d = await res.json().catch(() => ({}))
+      const sent = typeof d?.sent === 'number' ? d.sent : null
+      setBroadcastMsg(''); setBroadcastSent(true)
+      toast.success(sent === null ? 'Message sent' : `Message sent to ${sent} ${sent === 1 ? 'person' : 'people'}`)
+    } catch { toast.error('Failed to send message — check your connection') }
+    finally { setBroadcasting(false) }
   }
 
   if (loading) return <div className="p-8 text-center text-zinc-500 text-sm">Loading…</div>
@@ -280,7 +408,11 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
 
       {/* Add participant */}
       <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
-        <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-3">Add participant directly</p>
+        <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1">{seatsDirectly ? 'Add participant directly' : 'Invite a member'}</p>
+        {!seatsDirectly && (
+          <p className="text-xs text-zinc-500 mb-3">They get a notification with a link to the event and take a spot themselves.</p>
+        )}
+        {seatsDirectly && <div className="mb-2" />}
         <div className="relative">
           <input
             value={addSearch}
@@ -308,7 +440,7 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-white truncate">{u.name}</p>
                     </div>
-                    <span className="text-xs text-amber-400 font-semibold shrink-0">Add →</span>
+                    <span className="text-xs text-amber-400 font-semibold shrink-0">{seatsDirectly ? 'Add →' : 'Invite →'}</span>
                   </button>
                 ))}
               </div>
@@ -318,18 +450,18 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
       </div>
 
       {/* Message all attendees */}
-      {approved.length > 0 && (
+      {guests.length > 0 && (
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Message attendees</p>
-            <span className="text-xs text-zinc-600">{approved.length} approved</span>
+            <span className="text-xs text-zinc-600">{guests.length} approved</span>
           </div>
           <textarea
             maxLength={500}
             value={broadcastMsg}
             onChange={e => { setBroadcastMsg(e.target.value); setBroadcastSent(false) }}
             rows={3}
-            placeholder={`Send a message to all ${approved.length} confirmed attendees…`}
+            placeholder={`Send a message to all ${guests.length} confirmed attendees…`}
             className="w-full px-3 py-2.5 text-sm bg-zinc-800 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none"
           />
           <div className="flex items-center gap-2">
@@ -338,7 +470,7 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
               disabled={!broadcastMsg.trim() || broadcasting}
               className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-40"
             >
-              {broadcasting ? 'Sending…' : `Send to ${approved.length} attendees`}
+              {broadcasting ? 'Sending…' : `Send to ${guests.length} ${guests.length === 1 ? 'attendee' : 'attendees'}`}
             </button>
             <span className={`text-xs ml-auto ${broadcastMsg.length > 450 ? 'text-red-400' : 'text-zinc-600'}`}>
               {broadcastMsg.length}/500
@@ -348,10 +480,10 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
         </div>
       )}
 
-      <div className={`grid gap-3 ${isPast ? 'grid-cols-4' : 'grid-cols-3'}`}>
+      <div className={`grid gap-3 ${isPast ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3'}`}>
         {[
           { label: 'Pending',  value: pending.length,  color: pending.length > 0 ? 'text-amber-400' : 'text-white' },
-          { label: 'Approved', value: approved.length, color: 'text-green-400' },
+          { label: 'Approved', value: guests.length,   color: 'text-green-400' },
           { label: 'Waitlist', value: waitlist.length, color: waitlist.length > 0 ? 'text-violet-400' : 'text-white' },
           ...(isPast ? [{ label: 'Reviews', value: reviewsLoaded ? reviews.length : '…', color: 'text-amber-400' }] : []),
         ].map(s => (
@@ -365,7 +497,7 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
       <div className="flex gap-1 bg-zinc-800 rounded-xl p-1 w-fit flex-wrap">
         {([
           { key: 'pending',  label: `Pending (${pending.length})` },
-          { key: 'approved', label: `Approved (${approved.length})` },
+          { key: 'approved', label: `Approved (${guests.length})` },
           { key: 'waitlist', label: `Waitlist (${waitlist.length})` },
           ...(isPast ? [{ key: 'reviews' as const, label: '⭐ Reviews' }] : []),
           ...(noShowCards.length ? [{ key: 'noshows' as const, label: `No-shows (${noShowCards.length})` }] : []),
@@ -412,7 +544,7 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
           ) : (
             <>
               <div className="px-5 py-3 border-b border-zinc-800 flex items-center justify-between">
-                <span className="text-xs text-zinc-500">{approved.length} attendee{approved.length !== 1 ? 's' : ''}</span>
+                <span className="text-xs text-zinc-500">{guests.length} attendee{guests.length !== 1 ? 's' : ''}</span>
                 <button
                   onClick={exportCsv}
                   className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white border border-zinc-700 px-3 py-1.5 rounded-lg transition-colors"
@@ -431,7 +563,20 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
                     <p className="text-sm font-semibold text-white truncate">{a.user.name}</p>
                     {a.user.email && <p className="text-xs text-zinc-500 truncate">{a.user.email}</p>}
                   </div>
+                  {a.isStaff && <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 shrink-0">Host</span>}
                   {a.checkedIn && <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-green-500/10 text-green-400 shrink-0">Checked in</span>}
+                  {!a.isStaff && !started && (
+                    <div className="flex flex-wrap justify-end gap-1.5 shrink-0">
+                      <button onClick={() => moveToWaitlist(a)} disabled={rowBusy === a.userId}
+                        className="px-2.5 py-1.5 rounded-lg bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 text-xs font-semibold transition-colors disabled:opacity-40">
+                        To waitlist
+                      </button>
+                      <button onClick={() => removeGuest(a.userId, a.user.name, 'approved')} disabled={rowBusy === a.userId}
+                        className="px-2.5 py-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 text-xs font-semibold transition-colors disabled:opacity-40">
+                        Remove
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -454,7 +599,11 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
                     <p className="text-sm font-semibold text-white truncate">{w.user.name}</p>
                     <p className="text-xs text-zinc-500">{new Date(w.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</p>
                   </div>
-                  <button onClick={() => promoteWaitlist(w)} className="px-3 py-1.5 rounded-lg bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 text-xs font-semibold transition-colors shrink-0">Approve</button>
+                  <div className="flex flex-wrap justify-end gap-1.5 shrink-0">
+                    <button onClick={() => promoteWaitlist(w)} disabled={rowBusy === w.userId} className="px-3 py-1.5 rounded-lg bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 text-xs font-semibold transition-colors disabled:opacity-40">Approve</button>
+                    <button onClick={() => removeGuest(w.userId, w.user.name, 'waitlist')} disabled={rowBusy === w.userId}
+                      className="px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 text-xs font-semibold transition-colors disabled:opacity-40">Remove</button>
+                  </div>
                 </div>
               ))}
             </div>

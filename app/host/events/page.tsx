@@ -1,13 +1,18 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { confirmToast } from '@/lib/confirmToast'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import {resolveImageUrl} from '@/lib/data'
 import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
+import { useAuth } from '@/contexts/AuthContext'
+import { eventHasStarted } from '@/lib/eventTime'
+import { eventTz } from '@/lib/hostPanel'
+import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
+import { loadFailure } from '@/lib/admin/useAdminLoad'
 
 interface Event {
   id: string
@@ -21,15 +26,33 @@ interface Event {
   coverImage: string | null
   checkedInCount?: number
   _count?: { attendees: number }
+  endTime?: string | null
+  // The event's own city clock (/api/host/events); the browsed city's when absent.
+  timezone?: string | null
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  published: 'bg-green-500/10 text-green-400',
-  draft:     'bg-zinc-700/50 text-zinc-400',
-  cancelled: 'bg-red-500/10 text-red-400',
-  postponed: 'bg-amber-500/10 text-amber-400',
-  archived:  'bg-zinc-700/50 text-zinc-500',
+  published:   'bg-green-500/10 text-green-400',
+  draft:       'bg-zinc-700/50 text-zinc-400',
+  cancelled:   'bg-red-500/10 text-red-400',
+  postponed:   'bg-amber-500/10 text-amber-400',
+  archived:    'bg-zinc-700/50 text-zinc-500',
+  pending:     'bg-violet-500/10 text-violet-400',
+  flagged:     'bg-red-500/15 text-red-300',
+  unpublished: 'bg-zinc-700/50 text-zinc-400',
 }
+
+// The raw status words meant nothing to a host: "flagged" read like a
+// warning about a member, "pending" like a payment.
+const STATUS_LABELS: Record<string, string> = {
+  pending:     'Awaiting review',
+  flagged:     'Not approved',
+  unpublished: 'Unpublished',
+}
+
+// Statuses only a moderator moves an event out of. A host may still cancel
+// one (the PUT route refuses every other move), so that is all the menu offers.
+const STAFF_HELD = new Set(['pending', 'flagged', 'unpublished'])
 
 // Asked before a host parks a published event. Draft/Postponed used to read
 // like a harmless toggle; it takes the event off the public feed.
@@ -42,18 +65,26 @@ function parkLiveEventMessage(status: string) {
 
 type Tab = 'upcoming' | 'pending' | 'past'
 
-function StatusMenu({ e, saving, onStatusChange }: { e: Event; saving: boolean; onStatusChange: (id: string, status: string) => void }) {
+function StatusMenu({ e, started, isStaff, saving, onStatusChange }: { e: Event; started: boolean; isStaff: boolean; saving: boolean; onStatusChange: (id: string, status: string) => void }) {
   const [open, setOpen] = useState(false)
+  // Once the event has started there is nothing to cancel or postpone — the
+  // guests are there (or not), and the PUT route refuses both with a 409.
+  const held = STAFF_HELD.has(e.status)
   const actions = [
-    e.status !== 'cancelled'  && { label: 'Cancel',    status: 'cancelled',  cls: 'text-red-400' },
+    !started && e.status !== 'cancelled'  && { label: 'Cancel',    status: 'cancelled',  cls: 'text-red-400' },
     // A cancelled event stays cancelled through these moves — no spots come
     // back and only a moderator can publish it again.
-    e.status !== 'postponed'  && { label: e.status === 'cancelled' ? 'Postpone (stays cancelled)' : 'Postpone',  status: 'postponed',  cls: 'text-amber-400' },
-    e.status !== 'archived'   && { label: e.status === 'cancelled' ? 'Archive (stays cancelled)'  : 'Archive',   status: 'archived',   cls: 'text-zinc-400' },
+    !held && !started && e.status !== 'postponed'  && { label: e.status === 'cancelled' ? 'Postpone (stays cancelled)' : 'Postpone',  status: 'postponed',  cls: 'text-amber-400' },
+    // Archiving is staff's: the standing sweep reads an archived event as
+    // held, so the PUT route refuses it from a host.
+    isStaff && !held && e.status !== 'archived'   && { label: e.status === 'cancelled' ? 'Archive (stays cancelled)'  : 'Archive',   status: 'archived',   cls: 'text-zinc-400' },
     // Publishing is a staff decision (the edit route blocks a host's move
     // INTO published) — offering it here produced a failure every time.
-    e.status !== 'draft'      && { label: e.status === 'cancelled' ? 'Draft (stays cancelled)'    : 'Draft',     status: 'draft',      cls: 'text-zinc-400' },
+    // Nor Draft once it has started: that too rewrites what was held.
+    !held && !started && e.status !== 'draft'      && { label: e.status === 'cancelled' ? 'Draft (stays cancelled)'    : 'Draft',     status: 'draft',      cls: 'text-zinc-400' },
   ].filter(Boolean) as { label: string; status: string; cls: string }[]
+
+  if (actions.length === 0) return null
 
   return (
     <div className="relative">
@@ -84,7 +115,7 @@ function StatusMenu({ e, saving, onStatusChange }: { e: Event; saving: boolean; 
   )
 }
 
-function EventRow({ e, saving, onDuplicate, onStatusChange, isPast }: { e: Event; saving: boolean; onDuplicate: () => void; onStatusChange: (id: string, status: string) => void; isPast?: boolean }) {
+function EventRow({ e, started, isStaff, saving, onDuplicate, onStatusChange, isPast }: { e: Event; started: boolean; isStaff: boolean; saving: boolean; onDuplicate: () => void; onStatusChange: (id: string, status: string) => void; isPast?: boolean }) {
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-3">
       {/* Top: image + info */}
@@ -102,9 +133,14 @@ function EventRow({ e, saving, onDuplicate, onStatusChange, isPast }: { e: Event
               {e.title}
             </Link>
             <span className={`text-xs px-2 py-0.5 rounded-full font-semibold shrink-0 ${STATUS_COLORS[e.status] ?? STATUS_COLORS.draft}`}>
-              {e.status}
+              {STATUS_LABELS[e.status] ?? e.status}
             </span>
           </div>
+          {/* A declined event used to sit in the list as "flagged" with no word
+              on what that meant or what to do next. */}
+          {e.status === 'flagged' && (
+            <p className="text-xs text-red-300/90 mb-1">A moderator didn&apos;t approve this — open Edit to change it and resubmit for review, or contact the team.</p>
+          )}
           <div className="text-xs text-zinc-400 truncate">{e.date} · {e.time}</div>
           <div className="text-xs text-zinc-500 mt-0.5">{e._count?.attendees ?? 0} / {e.totalSpots} attendees · {e.location}</div>
           {isPast && (e.checkedInCount ?? 0) > 0 && (() => {
@@ -149,35 +185,51 @@ function EventRow({ e, saving, onDuplicate, onStatusChange, isPast }: { e: Event
           className="p-2 rounded-lg bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-amber-400 border border-zinc-700 transition-colors">
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
         </button>
-        <StatusMenu e={e} saving={saving} onStatusChange={onStatusChange} />
+        <StatusMenu e={e} started={started} isStaff={isStaff} saving={saving} onStatusChange={onStatusChange} />
       </div>
     </div>
   )
 }
 
 export default function HostEventsPage() {
-  // "Today" is the CITY's calendar day — a member abroad, or a city in
-  // another zone, must not get a different Tuesday than the community means.
+  return <Suspense><HostEventsList /></Suspense>
+}
+
+function HostEventsList() {
+  // "Today" is each event's CITY's calendar day (its `timezone`, falling back
+  // to the browsed city's) — a member abroad, or a city in another zone, must
+  // not get a different Tuesday than the community means.
   const tz = useCurrentCity()?.timezone ?? DEFAULT_TZ
   const router   = useRouter()
+  const searchParams = useSearchParams()
+  const { user } = useAuth()
+  const isStaff  = user?.role === 'admin' || user?.role === 'moderator'
   const [events,       setEvents]       = useState<Event[]>([])
   const [loading,      setLoading]      = useState(true)
+  const [loadError,    setLoadError]    = useState<string | null>(null)
+  const [reloadTick,   setReloadTick]   = useState(0)
   const [savingId,     setSavingId]     = useState<string | null>(null)
-  const [tab,          setTab]          = useState<Tab>('upcoming')
+  // ?tab=pending: where the create form lands a host whose event went to
+  // review, so the event they just made is the first thing they see.
+  const initialTab = searchParams.get('tab')
+  const [tab,          setTab]          = useState<Tab>(initialTab === 'pending' || initialTab === 'past' ? initialTab : 'upcoming')
 
+  // A failed load showed "No upcoming events — create your first" to a host
+  // with a full calendar. It raises a Retry banner instead.
   useEffect(() => {
+    setLoadError(null)
     fetch('/app/api/host/events', { credentials: 'include' })
-      .then(r => r.json())
+      .then(async r => { if (!r.ok) throw await loadFailure(r); return r.json() })
       .then(d => setEvents(Array.isArray(d) ? d : []))
+      .catch((e: Error) => setLoadError(e?.message ?? 'Failed to load'))
       .finally(() => setLoading(false))
-  }, [])
+  }, [reloadTick])
 
   async function handleDuplicate(id: string) {
     try {
       const res = await fetch(`/app/api/events/${id}`, { credentials: 'include' })
       if (!res.ok) { toast.error('Failed to duplicate event'); return }
       const event = await res.json()
-      sessionStorage.setItem(`smileys_dup_event_${id}`, JSON.stringify(event))
       sessionStorage.setItem('smileys_dup_event', JSON.stringify(event))
       router.push('/host/events/new')
     } catch { toast.error('Failed to duplicate event') }
@@ -202,10 +254,11 @@ export default function HostEventsPage() {
     setSavingId(null)
   }
 
-  const today    = todayInTz(tz)
+  const todayOf  = (e: Event) => todayInTz(eventTz(e, tz))
+  const started  = (e: Event) => eventHasStarted(e, eventTz(e, tz))
   const pending  = events.filter(e => e.status === 'pending')
-  const upcoming = events.filter(e => e.date >= today && e.status !== 'pending').sort((a, b) => a.date.localeCompare(b.date))
-  const past     = events.filter(e => e.date < today && e.status !== 'pending').sort((a, b) => b.date.localeCompare(a.date))
+  const upcoming = events.filter(e => e.date >= todayOf(e) && e.status !== 'pending').sort((a, b) => a.date.localeCompare(b.date))
+  const past     = events.filter(e => e.date < todayOf(e) && e.status !== 'pending').sort((a, b) => b.date.localeCompare(a.date))
   const displayed = tab === 'upcoming' ? upcoming : tab === 'pending' ? pending : past
 
   return (
@@ -217,15 +270,16 @@ export default function HostEventsPage() {
         </Link>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 border-b border-zinc-800 mb-6">
+      {/* Tabs — one row that scrolls sideways on a phone; wrapped, the
+          active underline landed on a second line under the wrong tab. */}
+      <div className="flex gap-1 border-b border-zinc-800 mb-6 overflow-x-auto scrollbar-hide">
         {([
           { key: 'upcoming', label: 'Upcoming',       count: upcoming.length,               accent: false },
-          ...(pending.length > 0 ? [{ key: 'pending', label: 'Awaiting Review', count: pending.length, accent: true  }] : []),
+          ...(pending.length > 0 || tab === 'pending' ? [{ key: 'pending', label: 'Awaiting Review', count: pending.length, accent: true  }] : []),
           { key: 'past',     label: 'Past',            count: past.length,                   accent: false },
         ] as { key: Tab; label: string; count: number; accent: boolean }[]).map(t => (
           <button key={t.key} onClick={() => setTab(t.key)}
-            className={`px-5 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors ${
+            className={`shrink-0 whitespace-nowrap px-5 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors ${
               tab === t.key
                 ? t.accent ? 'border-violet-500 text-violet-400' : 'border-amber-500 text-amber-400'
                 : 'border-transparent text-zinc-500 hover:text-zinc-200'
@@ -244,6 +298,9 @@ export default function HostEventsPage() {
 
       {loading ? (
         <div className="text-zinc-500 text-sm">Loading…</div>
+      ) : loadError ? (
+        <LoadErrorBanner message={loadError} title="Couldn't load your events"
+          onRetry={() => { setLoading(true); setReloadTick(t => t + 1) }} />
       ) : displayed.length === 0 ? (
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-12 text-center">
           <div aria-hidden="true" className="text-4xl mb-3">{tab === 'upcoming' ? '🎉' : tab === 'pending' ? '✅' : '📚'}</div>
@@ -251,7 +308,7 @@ export default function HostEventsPage() {
             {tab === 'upcoming' ? 'No upcoming events' : tab === 'pending' ? 'Nothing awaiting review' : 'No past events'}
           </div>
           <div className="text-zinc-500 text-sm mb-6">
-            {tab === 'upcoming' ? 'Create your first event to get started.' : tab === 'pending' ? 'All your events are approved.' : 'Past events will appear here.'}
+            {tab === 'upcoming' ? 'Create your first event to get started.' : tab === 'pending' ? 'Nothing of yours is waiting on a moderator.' : 'Past events will appear here.'}
           </div>
           {tab === 'upcoming' && (
             <Link href="/host/events/new" className="inline-block bg-amber-500 hover:bg-amber-600 text-white text-sm px-5 py-2.5 rounded-xl font-medium transition-colors">
@@ -261,7 +318,10 @@ export default function HostEventsPage() {
         </div>
       ) : (
         <div className={`space-y-3 ${tab === 'past' ? 'opacity-75' : ''}`}>
-          {displayed.map(e => <EventRow key={e.id} e={e} saving={savingId === e.id} onDuplicate={() => handleDuplicate(e.id)} onStatusChange={handleStatusChange} isPast={tab === 'past'} />)}
+          {tab === 'pending' && (
+            <p className="text-xs text-zinc-500">A moderator checks new events before they go live. You&apos;ll be notified when one is approved.</p>
+          )}
+          {displayed.map(e => <EventRow key={e.id} e={e} started={started(e)} isStaff={isStaff} saving={savingId === e.id} onDuplicate={() => handleDuplicate(e.id)} onStatusChange={handleStatusChange} isPast={tab === 'past'} />)}
         </div>
       )}
     </div>

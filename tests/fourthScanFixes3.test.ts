@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { readFileSync } from 'fs'
 
 vi.mock('@/lib/session', () => ({ getSession: vi.fn() }))
-vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn().mockResolvedValue(true) }))
-vi.mock('@/lib/access',  () => ({ isAdmin: (s: any) => s?.role === 'admin', isClubHost: vi.fn(), canManageEventOps: vi.fn(async () => true) }))
+vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn().mockResolvedValue(true), claimOnce: vi.fn(async () => true), releaseClaim: vi.fn(async () => {}) }))
+vi.mock('@/lib/access',  () => ({ isAdmin: (s: any) => s?.role === 'admin', isClubHost: vi.fn(), canManageEventOps: vi.fn(async () => true), hostCityIds: vi.fn(async () => []) }))
 vi.mock('@/lib/notify',  () => ({ createNotification: vi.fn(async () => {}) }))
 vi.mock('@/lib/email',   () => ({ sendEventApprovedEmail: vi.fn(), sendEventRejectedEmail: vi.fn(), recordEmailFailure: vi.fn() }))
 vi.mock('@/lib/autoJoinClub', () => ({ autoJoinClub: vi.fn(async () => {}) }))
@@ -21,12 +21,15 @@ vi.mock('@/lib/prisma', () => ({ prisma: {
   waitlistEntry: { findUnique: vi.fn(), findMany: vi.fn(async () => []) },
   payment:       { findMany: vi.fn(async () => []) },
   noShowCard:    { findMany: vi.fn(async () => []) },
+  // Walk-in and started checks read the event city's clock.
+  city:          { findUnique: vi.fn(async () => ({ timezone: 'Europe/Istanbul' })) },
 } }))
 
 import { GET, PUT, POST } from '@/app/api/admin/events/[id]/participants/route'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import { hasQuotaRoomFor } from '@/lib/eventQuota'
+import { isClubHost } from '@/lib/access'
 
 const read = (p: string) => readFileSync(p, 'utf-8')
 const params = { params: Promise.resolve({ id: 'e1' }) }
@@ -45,6 +48,9 @@ beforeEach(() => {
 
 describe('7 manual seats follow the balance quota', () => {
   it('PUT add refuses a seat the quota has closed, without writing', async () => {
+    // Seating by hand is an admin's; anyone else sends an invitation.
+    ;(getSession as any).mockResolvedValue({ id: 'adm', name: 'A', role: 'admin' })
+    p.user.findUnique.mockResolvedValue({ status: 'approved', suspendedUntil: null, hiddenFromMembers: false, cityId: 'c1' })
     ;(hasQuotaRoomFor as any).mockResolvedValue({ ok: false, reason: 'male_quota' })
     const res = await PUT(req({ userId: 'u1' }), params)
     expect(res.status).toBe(409)
@@ -98,9 +104,15 @@ describe('8 participants contact details', () => {
     expect(attendees[0].user).not.toHaveProperty('phone')
     expect(attendees[0].user).toMatchObject({ gender: 'female', nationality: 'Turkey' })
   })
-  it('the primary host and admins still see them', async () => {
+  it('the primary host (while still a host) sees emails; phone numbers are an admin\'s', async () => {
     ;(getSession as any).mockResolvedValue({ id: 'h1', name: 'H', role: 'member' })
-    expect((await (await GET(req({}), params)).json()).attendees[0].user.email).toBe('a@x.io')
+    ;(isClubHost as any).mockResolvedValue(true)
+    const hostView = (await (await GET(req({}), params)).json()).attendees[0].user
+    expect(hostView.email).toBe('a@x.io')
+    expect(hostView).not.toHaveProperty('phone')
+    // A host who lost the role keeps running their event, without the emails.
+    ;(isClubHost as any).mockResolvedValue(false)
+    expect((await (await GET(req({}), params)).json()).attendees[0].user).not.toHaveProperty('email')
     ;(getSession as any).mockResolvedValue({ id: 'adm', name: 'A', role: 'admin' })
     expect((await (await GET(req({}), params)).json()).attendees[0].user.phone).toBe('+90555')
   })

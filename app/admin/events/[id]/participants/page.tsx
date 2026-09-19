@@ -348,8 +348,14 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
     }))
     if (!res) { setBusy(null); return }
     if (res.ok) {
-      setAttendees(prev => [...prev, { userId: user.id, status: 'approved', checkedIn: false, joinedAt: new Date().toISOString(), user }])
-      toast.success(`${user.name} added ✓`)
+      const d = await res.json().catch(() => ({}))
+      // Anyone but an admin sends an invitation — nobody is seated yet.
+      if (d?.invited) {
+        toast.success(`Invitation sent to ${user.name} — they'll get a spot when they accept`)
+      } else {
+        setAttendees(prev => [...prev, { userId: user.id, status: 'approved', checkedIn: false, joinedAt: new Date().toISOString(), user }])
+        toast.success(`${user.name} added ✓`)
+      }
       setAddSearch('')
     } else {
       const err = await res.json()

@@ -38,11 +38,13 @@ export default function ScanResultToast({
   if (!result) return null
   const style = TYPE_STYLE[result.type]
   const positionCls = position === 'top'
-    ? 'top-4'
+    ? 'top-[calc(1rem+env(safe-area-inset-top))]'
     : 'bottom-[calc(4.5rem+env(safe-area-inset-bottom))] md:bottom-6'
+  // Above the scanner overlay (QRScanner, z-[60]): a result that lands while
+  // the camera is still up must not render underneath it.
   return (
     <div
-      className={`fixed z-50 inset-x-4 mx-auto w-fit max-w-[calc(100vw-2rem)] px-5 py-3 rounded-2xl shadow-2xl text-sm font-semibold flex items-center gap-2 ${style.cls} ${positionCls}`}
+      className={`fixed z-[70] inset-x-4 mx-auto w-fit max-w-[calc(100vw-2rem)] px-5 py-3 rounded-2xl shadow-2xl text-sm font-semibold flex items-center gap-2 ${style.cls} ${positionCls}`}
       role="status"
       aria-live="polite"
     >

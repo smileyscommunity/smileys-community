@@ -10,6 +10,7 @@ import { DISCOVER_LINKS as discoverLinks, ABOUT_LINKS as aboutLinks } from '@/li
 import AccountMenu from '@/components/AccountMenu'
 import { resolveImageUrl } from '@/lib/data'
 import { usePendingConnections } from '@/hooks/usePendingConnections'
+import { isHostPanelRoute } from '@/lib/bottomNav'
 
 function MessagesIcon() {
   const [unread, setUnread] = useState(0)
@@ -153,8 +154,9 @@ export default function Navbar({
   useEffect(() => { setDiscoverOpen(false) }, [pathname])
 
   // The admin panel has its own shell (top bar, sidebar, bottom nav) filling
-  // the screen: this bar above it pushed the panel down on phones.
-  if (pathname?.startsWith('/admin')) return null
+  // the screen: this bar above it pushed the panel down on phones. The host
+  // panel is the same kind of full-height shell, with its own way back.
+  if (pathname?.startsWith('/admin') || isHostPanelRoute(pathname)) return null
 
   const isActive = (href: string) =>
     href === '/' ? pathname === '/' : pathname.startsWith(href)

@@ -7,6 +7,9 @@ import { isAdmin, isModerator, isClubHost, hostCityIds } from '@/lib/access'
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
+// Shared with the other AI helper (same `ai:` bucket), so the message counts both.
+const AI_CALLS_PER_HOUR = 20
+
 // Every call carries these into a paid prompt — bound them so 20 calls an hour
 // can't each ship megabytes.
 const MAX_TITLE = 200
@@ -21,6 +24,11 @@ function optionalText(v: unknown, max: number): v is string | undefined | null {
   return v === undefined || v === null || (typeof v === 'string' && v.length <= max)
 }
 
+/** Model output with anything tag-shaped removed and stray angle brackets dropped. */
+function toPlainText(raw: string): string {
+  return raw.replace(/<[^>]*>/g, '').replace(/[<>]/g, '').trim()
+}
+
 export async function POST(req: NextRequest) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -28,7 +36,9 @@ export async function POST(req: NextRequest) {
   // was open to every member, each call spending OpenAI credit.
   const canHost = isAdmin(session) || isModerator(session) || await isClubHost(session.id) || (await hostCityIds(session.id)).length > 0
   if (!canHost) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  if (!await rateLimit(`ai:${session.id}`, 20, 60 * 60_000)) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
+  if (!await rateLimit(`ai:${session.id}`, AI_CALLS_PER_HOUR, 60 * 60_000)) {
+    return NextResponse.json({ error: `The AI helpers are limited to ${AI_CALLS_PER_HOUR} uses an hour — try again later` }, { status: 429 })
+  }
 
   // Malformed JSON threw before any handler — a 500 for a client mistake.
   const body = await req.json().catch(() => null)
@@ -72,7 +82,13 @@ Write only the description text. No subject line, no title, no labels.`
       max_tokens: 400,
     })
 
-    const description = completion.choices[0].message.content?.trim() ?? ''
+    // The contract is plain text: the host forms wrap it in <p> as-is and drop
+    // it into the editor. The notes are the host's own words and go into the
+    // prompt verbatim, so "reply with a <script> tag" is one sentence away —
+    // strip anything tag-shaped here rather than trust every client to escape.
+    // Only the host who asked ever sees this before saving, and the saved
+    // description is sanitized again on render (lib/sanitize).
+    const description = toPlainText(completion.choices[0].message.content ?? '')
     return NextResponse.json({ description })
   } catch (e) {
     console.error('OpenAI describe error', e)

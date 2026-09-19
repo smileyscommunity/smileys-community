@@ -42,7 +42,12 @@ describe('14 host UI offers only what the API allows', () => {
     expect(list).not.toMatch(/label: 'Publish'/)
     expect(list).toMatch(/toast\.error\(\(await res\.json\(\)\.catch\(\(\) => \(\{\}\)\)\)\?\.error \?\? 'Failed to update status'\)/)
     // Keyed on the status as loaded, so a host who picks Draft can still switch back.
-    expect(read('app/host/events/[id]/edit/page.tsx')).toMatch(/\{\(loadedStatus === 'published' \|\| isStaff\) && <option value="published">/)
+    // (Host panel review, 2026-09: a host's list starts with the loaded status —
+    // so Published is there exactly when the event is — and only adds it again
+    // as "Publish again" for a parked event.)
+    const edit = read('app/host/events/[id]/edit/page.tsx')
+    expect(edit).toContain(`{ value: loadedStatus, label: STATUS_NAMES[loadedStatus] ?? loadedStatus },`)
+    expect(edit).not.toMatch(/\{ value: 'published', label: 'Published \(live\)' \}/)
   })
   it('the club picker keys on /api/auth/me, not on the city-host club list', () => {
     expect(read('app/host/events/[id]/edit/page.tsx')).toMatch(/const isClubHost = \(viewer as \{ isClubHost\?: boolean \} \| null\)\?\.isClubHost === true/)

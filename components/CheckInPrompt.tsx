@@ -1,17 +1,20 @@
 'use client'
 
 import Link from 'next/link'
-import { awaitingCheckIn, type CheckInPromptEvent } from '@/lib/checkInPrompt'
+import { type CheckInPromptEvent } from '@/lib/checkInPrompt'
 import { DEFAULT_TZ } from '@/lib/cityTime'
+import { awaitingCheckInPerEvent } from '@/lib/hostPanel'
 
 // The host-facing prompt itself. The rule for which events land here — and
 // why they land here at all — lives in lib/checkInPrompt, next to the policy
 // it mirrors and where the tests can reach it.
 
+// `tz` is only the fallback: each event's deadline runs on its own city's
+// clock when the list carries it (/api/host/events sends `timezone`).
 export default function CheckInPrompt({
   events, tz = DEFAULT_TZ,
-}: { events: CheckInPromptEvent[]; tz?: string }) {
-  const pending = awaitingCheckIn(events, tz)
+}: { events: (CheckInPromptEvent & { timezone?: string | null })[]; tz?: string }) {
+  const pending = awaitingCheckInPerEvent(events, tz)
   if (pending.length === 0) return null
 
   return (
@@ -24,9 +27,16 @@ export default function CheckInPrompt({
               ? 'One event still needs its check-in'
               : `${pending.length} events still need their check-in`}
           </h3>
+          {/* The settle rule (lib/standing settleAttendance): an unmarked guest
+              becomes a no-show only if they were told they weren't checked in
+              and didn't answer; one who never got that notice is recorded as
+              attended. Said plainly, because "recorded as attended" alone
+              read as "nothing can go wrong". */}
           <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
-            A day after the event, anyone not marked is recorded as attended. Check
-            people in, and mark the rest as no-show, before then.
+            At midnight the day after the event, anyone you haven&apos;t marked is
+            settled: guests we told they weren&apos;t checked in, who didn&apos;t
+            reply, become no-shows; anyone who never got that message is recorded
+            as attended. Check people in, and mark who didn&apos;t come, before then.
           </p>
 
           <div className="mt-4 space-y-2">

@@ -1,7 +1,13 @@
 import { prisma } from './prisma'
 
 /**
- * Was this event ever put live by STAFF?
+ * Is staff's LATEST word on this event "live"?
+ *
+ * It used to ask whether staff had EVER published it — so after a moderator
+ * flagged a live event over a complaint, the host moved it to draft and
+ * published it again, and the takedown was undone with no moderator. Now the
+ * most recent staff decision wins: a flag, unpublish or send-back-to-review
+ * after the publish closes the door again.
  *
  * Publication is a staff decision (the event PUT route blocks a host moving an
  * unpublished event into 'published'), but that made Draft/Postponed a one-way
@@ -23,15 +29,23 @@ import { prisma } from './prisma'
  * message to staff; wrongly allowing one puts an unreviewed event in front of
  * the whole city.
  */
+// The moderator PATCH writes `event.<status>`; these take an event down.
+const STAFF_TAKEDOWNS = ['event.flagged', 'event.unpublished', 'event.pending'] as const
+
 export async function wasStaffPublished(eventId: string): Promise<boolean> {
   try {
     const rows = await prisma.auditLog.findMany({
-      where:   { targetType: 'event', targetId: eventId, action: { in: ['event.published', 'event.update'] } },
+      where:   { targetType: 'event', targetId: eventId, action: { in: [...STAFF_TAKEDOWNS, 'event.published', 'event.update'] } },
       select:  { action: true, meta: true },
       orderBy: { createdAt: 'desc' },
       take:    100,
     })
-    return rows.some(r => r.action === 'event.published' || publishedInDiff(r.meta))
+    // Newest first: the first staff decision found is the one that stands.
+    for (const r of rows) {
+      if ((STAFF_TAKEDOWNS as readonly string[]).includes(r.action)) return false
+      if (r.action === 'event.published' || publishedInDiff(r.meta)) return true
+    }
+    return false
   } catch (e) {
     // An audit lookup that fails must not hand out a publish.
     console.error('[wasStaffPublished] audit lookup failed', { eventId, err: String(e) })

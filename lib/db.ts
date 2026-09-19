@@ -133,6 +133,11 @@ function mapEvent(e: any, spotsLeft?: number): Event {
     // and made the button read "Join waitlist" while the API approved.
     spotsLeft:    spotsLeft ?? (e.limitedSpots ? Math.max(0, e.spotsLeft ?? 0) : (e.spotsLeft ?? 0)),
     limitedSpots: e.limitedSpots,
+    // The standing settings staff set, carried so the edit forms load them:
+    // without them a form saved '' back and wiped the setting, or (after the
+    // start) refused every save for a field nobody touched.
+    tierOverride:      e.tierOverride ?? null,
+    cancelCutoffHours: e.cancelCutoffHours ?? null,
     soldOut:      e.soldOut ?? false,
     isPremium:    e.isPremium,
     membersOnly:  e.membersOnly,

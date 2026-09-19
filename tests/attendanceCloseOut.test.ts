@@ -4,7 +4,7 @@ vi.mock('@/lib/session',   () => ({ getSession: vi.fn() }))
 vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn().mockResolvedValue(true), claimOnce: vi.fn().mockResolvedValue(false) }))
 vi.mock('@/lib/notify',    () => ({ createNotification: vi.fn().mockResolvedValue(true) }))
 vi.mock('@/lib/audit',     () => ({ writeAudit: vi.fn().mockResolvedValue(undefined) }))
-vi.mock('@/lib/access',    () => ({ canManageEventOps: vi.fn(), isAdmin: (s: any) => s?.role === 'admin' }))
+vi.mock('@/lib/access',    () => ({ canManageEventOps: vi.fn(), isAdmin: (s: any) => s?.role === 'admin', isClubHost: vi.fn(async () => true), hostCityIds: vi.fn(async () => []) }))
 vi.mock('@/lib/city',      () => ({ getCityTz: vi.fn().mockResolvedValue('Europe/Istanbul') }))
 vi.mock('@/lib/prisma', () => ({ prisma: {
   event:         { findUnique: vi.fn() },

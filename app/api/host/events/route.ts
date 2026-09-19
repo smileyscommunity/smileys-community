@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin, isClubHost, hostCityIds } from '@/lib/access'
 import { doorEventsWhere } from '@/lib/checkInPrompt'
+import { safeTz, DEFAULT_TZ } from '@/lib/cityTime'
 
 export async function GET(req: NextRequest) {
   try {
@@ -40,10 +41,15 @@ export async function GET(req: NextRequest) {
         _count: { select: { attendees: { where: { status: 'approved' } } } },
         attendees: { where: { status: 'approved' }, select: { userId: true, checkedIn: true } },
         cohosts:   { select: { userId: true } },
+        // Each event's own city: a host of events in two cities, browsing
+        // one of them, had the other city's events judged today / started /
+        // upcoming on the browsed city's clock.
+        cityId:    true,
+        city:      { select: { timezone: true } },
       },
     })
 
-    return NextResponse.json(events.map(({ attendees, cohosts, hostId, ...e }) => {
+    return NextResponse.json(events.map(({ attendees, cohosts, hostId, city, ...e }) => {
       // The no-show sweeper judges check-in on the room WITHOUT the host and
       // co-hosts (lib/noShow settleEvent). Counting them here, host + one guest
       // scanned out of four approved read 2/4 "credible" on the prompt and 1/3
@@ -52,6 +58,7 @@ export async function GET(req: NextRequest) {
       const room  = attendees.filter(a => !staff.has(a.userId))
       return {
         ...e,
+        timezone:       safeTz(city?.timezone ?? DEFAULT_TZ),
         checkedInCount: attendees.filter(a => a.checkedIn).length,
         roomApproved:   room.length,
         roomCheckedIn:  room.filter(a => a.checkedIn).length,

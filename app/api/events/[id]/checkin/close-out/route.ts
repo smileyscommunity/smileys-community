@@ -57,6 +57,12 @@ export async function POST(_: NextRequest, { params }: Params) {
     if (event.cancelledAt || event.status === 'cancelled') {
       return NextResponse.json({ error: 'This event was cancelled — there is no attendance to record' }, { status: 400 })
     }
+    // Only a room that was open to members has attendance to record: a
+    // pending, draft or flagged event (or one archived without ever going
+    // live) could otherwise be used to mark people who never saw it.
+    if (event.status !== 'published' && event.status !== 'archived') {
+      return NextResponse.json({ error: 'This event was never live — there is no attendance to record' }, { status: 400 })
+    }
     if (event.noShowProcessedAt) return NextResponse.json(SETTLED, { status: 409 })
 
     const tz    = await getCityTz(event.cityId)

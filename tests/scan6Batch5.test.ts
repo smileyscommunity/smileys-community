@@ -42,7 +42,9 @@ vi.mock('@/lib/session',        () => ({ getSession: h.getSession }))
 vi.mock('@/lib/rateLimit',      () => ({ rateLimit: vi.fn(async () => true) }))
 vi.mock('@/lib/notify',         () => ({ createNotification: h.createNotification }))
 vi.mock('@/lib/city',           () => h.city)
-vi.mock('@/lib/access',         () => ({ isAdmin: vi.fn(), isClubHost: vi.fn(), canManageEventOps: vi.fn(async () => true) }))
+// Removal after the start is an admin's (a host is refused — the seat is part
+// of the attendance record); these run as the admin set in beforeEach.
+vi.mock('@/lib/access',         () => ({ isAdmin: (s: any) => s?.role === 'admin', isClubHost: vi.fn(), canManageEventOps: vi.fn(async () => true), hostCityIds: vi.fn(async () => []) }))
 vi.mock('@/lib/email',          () => ({ sendEventApprovedEmail: vi.fn(async () => {}), sendEventRejectedEmail: vi.fn(async () => {}), recordEmailFailure: vi.fn() }))
 vi.mock('@/lib/audit',          () => ({ writeAudit: vi.fn() }))
 vi.mock('@/lib/autoJoinClub',   () => ({ autoJoinClub: vi.fn(async () => {}) }))

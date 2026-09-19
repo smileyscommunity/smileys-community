@@ -130,6 +130,8 @@ export interface Event {
   clubName: string
   description: string
   limitedSpots: boolean
+  tierOverride?: string | null
+  cancelCutoffHours?: number | null
   spotsLeft: number
   totalSpots: number
   // Set by a host or admin; see lib/soldOut.ts for how it combines with the

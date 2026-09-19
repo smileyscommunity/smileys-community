@@ -1,4 +1,5 @@
 import sanitizeHtml from 'sanitize-html'
+import { isUploadedImageUrl } from '@/lib/uploadedImageUrl'
 
 const ALLOWED_TAGS = [
   'p', 'br', 'b', 'i', 'em', 'strong', 'u', 's',
@@ -23,6 +24,10 @@ export function sanitize(html: string): string {
     allowedSchemes:    ['https', 'mailto'],
     // The scheme allowlist means nothing while `//host` slips through.
     allowProtocolRelative: false,
+    // Member-written HTML shows images from our own uploads only: any https
+    // image was allowed, and an event description could carry a pixel that
+    // logged the IP of everyone who opened the page, guests included.
+    exclusiveFilter: frame => frame.tag === 'img' && !isUploadedImageUrl(frame.attribs.src),
     transformTags: {
       a: sanitizeHtml.simpleTransform('a', { target: '_blank', rel: 'noopener noreferrer' }),
     },
