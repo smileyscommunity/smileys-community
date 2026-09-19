@@ -58,7 +58,12 @@ export async function GET() {
       where:  { OR: [{ blockerId: session.id }, { blockedId: session.id }] },
       select: { blockerId: true, blockedId: true },
     })
-    const blockedIds = new Set(blocks.map(b => (b.blockerId === session.id ? b.blockedId : b.blockerId)))
+    // Someone who blocked ME: the thread is closed, so it leaves the inbox.
+    const blockedMe  = new Set(blocks.filter(b => b.blockerId !== session.id).map(b => b.blockerId))
+    // Someone I blocked: the thread stays, read-only. Dropping it left the
+    // history with no way in — and reporting a harasser is exactly the moment
+    // a member needs it.
+    const iBlocked   = new Set(blocks.filter(b => b.blockerId === session.id).map(b => b.blockedId))
 
     // The same rule the rest of the product applies: a connections-only
     // member the viewer isn't connected to is a first name and no photo. This
@@ -71,7 +76,7 @@ export async function GET() {
       .flatMap(r => {
         const pid = r.fromId === session.id ? r.toId : r.fromId
         const partner = partnerById.get(pid)
-        if (!partner || blockedIds.has(pid)) return []
+        if (!partner || blockedMe.has(pid)) return []
         const isRestricted = restricted.has(pid)
         return [{
           partner: {
@@ -85,18 +90,22 @@ export async function GET() {
           // every conversation's last message went to the browser to render
           // one clipped line. A photo with no caption had nothing to show.
           preview: { text: r.text.slice(0, 120), hasImage: !!r.imageUrl },
-          lastMessage: { text: r.text.slice(0, 120), fromMe: r.fromId === session.id, createdAt: r.createdAt.toISOString() },
-          unread: unreadBySender.get(pid) ?? 0,
+          fromMe: r.fromId === session.id,
+          // Nothing new can arrive in a thread I closed, and an unread count
+          // on it could never be cleared.
+          unread: iBlocked.has(pid) ? 0 : (unreadBySender.get(pid) ?? 0),
+          blocked: iBlocked.has(pid),
           lastAt: r.createdAt.toISOString(),
         }]
       })
 
-    return NextResponse.json({
-      conversations,
-      // The badge counts what the inbox shows: unreads from a blocked member
-      // are no longer reachable, so they must not sit in the total either.
-      totalUnread: conversations.reduce((n, c) => n + c.unread, 0),
-    })
+    // Every thread's unreads, not just this page of 100 — the badge has to
+    // agree with the inbox for someone with more conversations than that.
+    // Blocked either way is excluded: unreachable, so never clearable.
+    const totalUnread = unreadRows.reduce(
+      (n, r) => (blockedMe.has(r.fromId) || iBlocked.has(r.fromId) ? n : n + r._count._all), 0)
+
+    return NextResponse.json({ conversations, totalUnread })
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

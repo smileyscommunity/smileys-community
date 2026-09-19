@@ -72,13 +72,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
     const session = await getSession()
     if (!session) return new NextResponse('Forbidden', { status: 403 })
     const url = `/app/api/files/messages/${file}`
+    // No staff bypass: the DM route says plainly that no route serves a
+    // member's messages to a moderator, and a photo is a message. Staff who
+    // need one for a report get it through the report, not by URL.
     const seen = await prisma.directMessage.findFirst({
-      where:  { imageUrl: url, OR: [{ fromId: session.id }, { toId: session.id }] },
+      where:  { imageUrl: url, deletedAt: null, OR: [{ fromId: session.id }, { toId: session.id }] },
       select: { id: true },
     })
-    if (!seen && !isAdminOrModerator(session)) {
-      return new NextResponse('Forbidden', { status: 403 })
-    }
+    if (!seen) return new NextResponse('Forbidden', { status: 403 })
   }
 
   const filePath = normalize(join(UPLOAD_ROOT, folder, file))
@@ -138,8 +139,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
   // `public` would let any shared cache (nginx proxy_cache, corporate
   // proxy, shared-machine browser) store the body and re-serve it to
   // viewers the route itself would 403.
-  const cacheControl = folder === 'applications' || folder === 'reports' || privateFile
-    ? 'private, no-store'
+  const cacheControl =
+    folder === 'applications' || folder === 'reports' ? 'private, no-store'
+    // A DM photo may be cached by the one browser that fetched it — five
+    // minutes, so scrolling back through a thread doesn't re-fetch (and
+    // re-check) it on every navigation — but never by a shared cache.
+    : privateFile ? 'private, max-age=300'
     : `public, max-age=${86400 * 7}, immutable`
 
   // Cast to Uint8Array — Buffer<ArrayBufferLike> no longer

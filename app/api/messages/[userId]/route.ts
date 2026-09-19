@@ -4,23 +4,29 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { createNotification } from '@/lib/notify'
 import { isAdminOrModerator, isClubHost } from '@/lib/access'
-import { rateLimit } from '@/lib/rateLimit'
+import { rateLimit, claimOnce } from '@/lib/rateLimit'
 import { authorProjector } from '@/lib/authorProjection'
 import { firstNameOf } from '@/lib/data'
 import { MESSAGE_FOLDERS } from '@/lib/uploadedImageUrl'
 
 type Params = { params: Promise<{ userId: string }> }
 
-type QuoteRow = { id: string; text: string; imageUrl: string | null; deletedAt: Date | null; from: { id: string; name: string } }
+type QuoteRow = {
+  id: string; text: string; imageUrl: string | null; deletedAt: Date | null
+  from: { id: string; name: string; color: string; profilePhoto: string | null; profileVisibility: string | null }
+}
 
 // Deleted messages are filtered out of the thread, but a reply's quote chip
 // embeds its parent — which carried the deleted text and photo straight back
 // to both parties. Keep the chip (so the reply still reads as a reply) and
 // withhold the content behind a deleted flag.
-function redactDeletedQuote(q: QuoteRow | null) {
+function redactDeletedQuote(q: QuoteRow | null, show: (a: QuoteRow['from']) => { id: string; name: string }) {
   if (!q) return null
-  const { deletedAt, ...rest } = q
-  return deletedAt ? { ...rest, text: null, imageUrl: null, deleted: true } : rest
+  const { deletedAt, from, ...rest } = q
+  const author = { id: show(from).id, name: show(from).name }
+  return deletedAt
+    ? { ...rest, from: author, text: null, imageUrl: null, deleted: true }
+    : { ...rest, from: author }
 }
 
 export async function GET(req: NextRequest, { params }: Params) {
@@ -91,26 +97,30 @@ export async function GET(req: NextRequest, { params }: Params) {
             text: true,
             imageUrl: true,
             deletedAt: true,
-            from: { select: { id: true, name: true } },
+            from: { select: { id: true, name: true, color: true, profilePhoto: true, profileVisibility: true } },
           },
         },
       },
     })
 
-    // Mark incoming messages as read
-    await prisma.directMessage.updateMany({
-      where: { fromId: otherId, toId: session.id, isRead: false },
-      data:  { isRead: true },
-    })
+    // Mark incoming messages as read. Skipped on a poll tick that brought
+    // nothing and on paging back through history — two writes every four
+    // seconds per open thread, for nothing.
+    if (!since || messages.length > 0) {
+      await prisma.directMessage.updateMany({
+        where: { fromId: otherId, toId: session.id, isRead: false },
+        data:  { isRead: true },
+      })
     // …and the bell entry that announced them. The send path skips notifying
     // while an unread "message" notification from this sender exists, and
     // nothing here cleared it — so after the first message, every later one
     // arrived with no bell and no push until the member happened to open
     // /notifications. Reading the thread IS reading the notice.
-    await prisma.notification.updateMany({
-      where: { userId: session.id, type: 'message', link: `/messages/${otherId}`, isRead: false },
-      data:  { isRead: true },
-    })
+      await prisma.notification.updateMany({
+        where: { userId: session.id, type: 'message', link: `/messages/${otherId}`, isRead: false },
+        data:  { isRead: true },
+      })
+    }
 
     // Initial load was fetched desc — reverse to chronological order for the client.
     const ordered = since && !before ? messages : [...messages].reverse()
@@ -118,10 +128,16 @@ export async function GET(req: NextRequest, { params }: Params) {
     // profile does — first name, no photo. This route sent both in full, and
     // a DM thread can exist with no connection at all (they answered your
     // board listing, or the connection was removed afterwards).
-    const show = await authorProjector(session, ordered.map(m => m.from))
+    // Quoted authors go through it too: the chip on a reply carried the
+    // quoted member's full name while the bubble above it showed a first name.
+    const show = await authorProjector(session, [
+      ...ordered.map(m => m.from),
+      ...ordered.flatMap(m => (m.replyTo ? [m.replyTo.from] : [])),
+    ])
     return NextResponse.json({
-      messages: ordered.map(m => ({ ...m, from: show(m.from), replyTo: redactDeletedQuote(m.replyTo) })),
+      messages: ordered.map(m => ({ ...m, from: show(m.from), replyTo: redactDeletedQuote(m.replyTo, show) })),
       readOnly,
+      reason: readOnly ? 'blocked' as const : undefined,
       // A full page of older history means there may be more behind it.
       hasMore: !since && messages.length === 100,
     })
@@ -247,20 +263,23 @@ export async function POST(req: NextRequest, { params }: Params) {
       include: {
         from:      { select: { id: true, name: true, color: true, profilePhoto: true, profileVisibility: true } },
         reactions: { select: { userId: true, emoji: true } },
-        replyTo:   { select: { id: true, text: true, imageUrl: true, deletedAt: true, from: { select: { id: true, name: true } } } },
+        replyTo:   { select: { id: true, text: true, imageUrl: true, deletedAt: true, from: { select: { id: true, name: true, color: true, profilePhoto: true, profileVisibility: true } } } },
       },
     })
     // Same quote shape as GET (the parent could be deleted between the check
     // above and this create).
     const { profileVisibility, ...fromShown } = message.from
-    const shaped = { ...message, from: fromShown, replyTo: redactDeletedQuote(message.replyTo) }
+    // The quoted author is named the way the sender would see them.
+    const showQuote = await authorProjector(session, message.replyTo ? [message.replyTo.from] : [])
+    const shaped = { ...message, from: fromShown, replyTo: redactDeletedQuote(message.replyTo, showQuote) }
 
-    // One bell entry per burst, not per message: skipped while an unread one
-    // from this sender is still sitting there. Reading the thread now marks
-    // that entry read (GET above), so the next message notifies again — it
-    // used to stay unread for ever, which silenced every message after the
-    // first. The four-hour bound is the backstop for a recipient who never
-    // opens it at all.
+    // One ping per burst. Two things have to be true at once: no unread
+    // notice from this sender is already waiting (that one used to be the
+    // whole rule, and since nothing marked it read, every message after the
+    // first was silent), and we haven't pinged this pair in the last ten
+    // minutes (without that, a live back-and-forth pings on every message
+    // the moment the recipient's open thread marks the last one read — the
+    // same claim the hangout chat uses).
     const recentNotif = await prisma.notification.findFirst({
       where: {
         userId: toId, type: 'message', link: `/messages/${session.id}`, isRead: false,
@@ -268,7 +287,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       },
       select: { id: true },
     })
-    if (!recentNotif) {
+    if (!recentNotif && await claimOnce(`dm-ping:${toId}:${session.id}`, 10 * 60_000)) {
       const preview = hasText ? text.trim().slice(0, 80) : '📷 Photo'
       // The sender is named the way the recipient would see them on their
       // profile: a connections-only member who isn't connected is a first

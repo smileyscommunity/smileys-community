@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { resolveImageUrl, getInitials } from '@/lib/data'
 import EmptyState from '@/components/EmptyState'
 import { SkeletonList } from '@/components/Skeleton'
@@ -19,6 +20,7 @@ function Avatar({ user }: { user: { name: string; color: string; profilePhoto: s
 }
 
 export default function MessagesPage() {
+  const router = useRouter()
   // null means "nothing has loaded yet" — distinct from an inbox the server
   // says is empty, which is the only thing that may show the empty state.
   const [convs,       setConvs]       = useState<Conversation[] | null>(null)
@@ -33,6 +35,9 @@ export default function MessagesPage() {
     // tick put it back.
     try {
       const res = await fetch('/app/api/messages', { credentials: 'include' })
+      // A signed-out session isn't a blip: "couldn't refresh, retrying" would
+      // spin for ever on a page that will never answer again.
+      if (res.status === 401) { router.replace('/login'); return }
       const inbox = readInbox(res.ok ? await res.json().catch(() => null) : null)
       if (!inbox) { setStale(true); return }
       setConvs(inbox.conversations)
@@ -104,6 +109,9 @@ export default function MessagesPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2 mb-0.5">
                     <span className={`text-sm font-semibold text-gray-900 truncate min-w-0 ${c.unread > 0 ? 'font-bold' : ''}`}>{c.partner.name}</span>
+                    {/* A member you blocked: the history stays readable (it's
+                        what a report is made of), nothing new can arrive. */}
+                    {c.blocked && <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide shrink-0">Blocked</span>}
                     <span className="text-xs text-gray-400 shrink-0">{timeAgo(c.lastAt)}</span>
                   </div>
                   <p className={`text-sm truncate ${c.unread > 0 ? 'text-gray-900 font-medium' : 'text-gray-600'}`}>

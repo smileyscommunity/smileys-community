@@ -1854,6 +1854,9 @@ model DirectMessage {
   to        User                    @relation("ReceivedMessages", fields: [toId], references: [id], onDelete: Cascade)
 
   @@index([fromId, toId])
+  // Serving a photo from a message checks the requester is in that
+  // conversation, by the URL (app/api/files).
+  @@index([imageUrl])
   @@index([toId, isRead])
   @@index([createdAt])
   @@index([replyToId])

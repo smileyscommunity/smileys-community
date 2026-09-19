@@ -27,8 +27,10 @@ describe('photos in a conversation', () => {
   it('a DM photo is served only to the two people in the conversation, and never cached publicly', () => {
     const files = src('app/api/files/[...path]/route.ts')
     expect(files).toContain("if (folder === 'messages') {")
-    expect(files).toContain('where:  { imageUrl: url, OR: [{ fromId: session.id }, { toId: session.id }] }')
-    expect(files).toContain("folder === 'applications' || folder === 'reports' || privateFile")
+    expect(files).toContain('where:  { imageUrl: url, deletedAt: null, OR: [{ fromId: session.id }, { toId: session.id }] }')
+    // No staff bypass, and never a shared cache.
+    expect(files).toContain('if (!seen) return new NextResponse(\'Forbidden\', { status: 403 })')
+    expect(files).toContain(": privateFile ? 'private, max-age=300'")
     // And it isn't in the publicly-referenceable set.
     expect(src('lib/uploadedImageUrl.ts')).toMatch(/const PUBLIC_FOLDERS = \[(?!.*'messages')[^\]]*\]/)
     expect(src('lib/uploadedImageUrl.ts')).toContain("export const MESSAGE_FOLDERS = ['messages'] as const")
@@ -44,6 +46,10 @@ describe('being told about a message', () => {
     expect(route).toContain("where: { userId: session.id, type: 'message', link: `/messages/${otherId}`, isRead: false },")
     // …and the skip has a backstop for someone who never opens it.
     expect(route).toContain('createdAt: { gte: new Date(Date.now() - 4 * 60 * 60_000) },')
+    // A live back-and-forth pings once per burst, not once per message: with
+    // the thread open, the reader clears the notice within four seconds, so
+    // the unread check alone would let every message through.
+    expect(route).toContain('await claimOnce(`dm-ping:${toId}:${session.id}`, 10 * 60_000)')
   })
 })
 
@@ -54,7 +60,7 @@ describe('who the other person appears to be', () => {
     expect(inbox).toContain('name:         isRestricted ? firstNameOf(partner.name) : partner.name,')
     expect(inbox).toContain('profilePhoto: isRestricted ? null : partner.profilePhoto,')
     const thread = src('app/api/messages/[userId]/route.ts')
-    expect(thread).toContain('const show = await authorProjector(session, ordered.map(m => m.from))')
+    expect(thread).toContain('...ordered.flatMap(m => (m.replyTo ? [m.replyTo.from] : [])),')
     // The push and bell name them the same way.
     expect(thread).toContain('const senderName = senderRestricted ? firstNameOf(session.name) : session.name')
   })
@@ -74,9 +80,12 @@ describe('blocking', () => {
     expect(thread).toContain('if (blocks.some(b => b.blockerId === otherId)) {')
     expect(thread).toContain('readOnly = blocks.length > 0')
     const inbox = src('app/api/messages/route.ts')
-    expect(inbox).toContain('if (!partner || blockedIds.has(pid)) return []')
-    // The badge counts what the inbox shows.
-    expect(inbox).toContain('totalUnread: conversations.reduce((n, c) => n + c.unread, 0),')
+    // Only a thread where THEY blocked me leaves the inbox; one I closed
+    // stays, read-only — reporting a harasser needs the history.
+    expect(inbox).toContain('if (!partner || blockedMe.has(pid)) return []')
+    expect(inbox).toContain('blocked: iBlocked.has(pid),')
+    // The badge counts every thread, not just this page of 100.
+    expect(inbox).toContain('const totalUnread = unreadRows.reduce(')
     for (const c of ['components/Navbar.tsx', 'components/BottomNav.tsx']) {
       expect(src(c), c).toContain("if (typeof d?.totalUnread === 'number') setUnread(d.totalUnread)")
     }
@@ -126,8 +135,34 @@ describe('sending', () => {
 describe('opening a chat', () => {
   it('is not a profile view, and the header can show presence', () => {
     const members = src('app/api/members/[id]/route.ts')
-    expect(members).toContain("recordView(session, id, self || req.nextUrl.searchParams.get('context') === 'dm')")
+    expect(members).toContain("const fromChat = req.nextUrl.searchParams.get('context') === 'dm'")
+    expect(members).toContain('recordView(session, id, self || fromChat)')
     expect(members).toContain('lastActive:   fullAccess ? user.lastActive : null,')
     expect(src('app/(member)/messages/[userId]/page.tsx')).toContain('context=dm')
+  })
+})
+
+describe('the fixes\' own follow-ups', () => {
+  it('a photo lookup has an index behind it', () => {
+    expect(src('prisma/schema.prisma')).toContain('@@index([imageUrl])')
+    expect(src('prisma/migrations/20260920000002_dm_image_index/migration.sql'))
+      .toContain('CREATE INDEX "direct_messages_imageUrl_idx"')
+  })
+
+  it('a chat header costs four fields, not the whole profile', () => {
+    expect(src('app/api/members/[id]/route.ts')).toContain('if (fromChat) {')
+  })
+
+  it('reading marks nothing when a poll tick brought nothing', () => {
+    expect(src('app/api/messages/[userId]/route.ts')).toContain('if (!since || messages.length > 0) {')
+  })
+
+  it('a tab away for more than a page starts again instead of leaving a hole', () => {
+    expect(src('app/(member)/messages/messageData.ts'))
+      .toContain('if (opts.full && opts.pageSize && incoming.length >= opts.pageSize && current.length > 0 && oldestIncoming > newest) {')
+  })
+
+  it('a locked thread keeps checking back, slowly', () => {
+    expect(src('app/(member)/messages/[userId]/page.tsx')).toContain('const every = lock ? 60_000 : 4_000')
   })
 })

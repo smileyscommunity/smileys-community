@@ -58,7 +58,10 @@ const FULL_REFRESH_EVERY = 5
 // lastActive is refreshed every 15 minutes, so anything inside 20 is someone
 // who was here since the last refresh. The old 5 minutes called a member who
 // was reading right now "Last seen 12m ago".
-const ONLINE_WITHIN_MIN = 20
+// lastActive is stamped at most every 15 minutes (api/auth/me), so a tighter
+// window would call someone offline while they are typing. 25 keeps the green
+// dot honest in the other direction too — it never means "19 minutes ago".
+const ONLINE_WITHIN_MIN = 25
 // Roughly the reaction popover's height, for deciding whether it fits below.
 const PICKER_HEIGHT = 52
 // How near the bottom still counts as "following the conversation".
@@ -184,7 +187,10 @@ export default function ThreadPage({ params }: { params: Promise<{ userId: strin
         setMessages(prev => mergeMessages(prev, incoming))
       } else {
         const keep = [...justSentRef.current].filter(([, at]) => at >= startedAt).map(([id]) => id)
-        setMessages(prev => mergeMessages(prev, incoming, { full: true, keep }))
+        // pageSize lets the merge notice a full page that starts after
+        // everything on screen — a tab that was away long enough to miss more
+        // than one page, where merging would leave an unreachable gap.
+        setMessages(prev => mergeMessages(prev, incoming, { full: true, keep, pageSize: PAGE_SIZE }))
         // Only claim there's older history while we haven't hit the end of it
         // — a full refresh always comes back full once a thread is busy.
         if (!olderDoneRef.current) {
@@ -225,14 +231,18 @@ export default function ThreadPage({ params }: { params: Promise<{ userId: strin
   // interval only ran when it had one — so on an empty thread the first
   // message the other person sent never appeared until a reload.
   useEffect(() => {
-    if (lock) return
+    // A locked thread still checks back, slowly: a block can be lifted, and
+    // until it is re-checked the screen stays on "you can't message this
+    // person" until the member thinks to reload.
+    const every = lock ? 60_000 : 4_000
     const timer = setInterval(() => {
       if (document.visibilityState === 'hidden') return
+      if (lock) { load(); return }
       tickRef.current += 1
       const since = cursorRef.current
       if (!since || tickRef.current % FULL_REFRESH_EVERY === 0) load()
       else load(since)
-    }, 4_000)
+    }, every)
     return () => clearInterval(timer)
   }, [load, lock])
 

@@ -130,7 +130,26 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   // Not from a chat window: the thread polls this every minute for the
   // partner's name, which filed the reader on the partner's visitor list
   // over and over. Chatting isn't looking someone up.
-  recordView(session, id, self || req.nextUrl.searchParams.get('context') === 'dm')
+  const fromChat = req.nextUrl.searchParams.get('context') === 'dm'
+  recordView(session, id, self || fromChat)
+
+  // A chat header needs a name, a colour, a photo and when they were last
+  // here. The full answer below is eight queries plus shared context and a
+  // referral count — run every minute, per open conversation, for four
+  // fields.
+  if (fromChat) {
+    const locked = viewLevel === 'locked'
+    return NextResponse.json({
+      id:           user.id,
+      name:         locked ? firstNameOf(user.name) : user.name,
+      color:        user.color,
+      profilePhoto: locked ? null : user.profilePhoto,
+      lastActive:   fullAccess ? user.lastActive : null,
+      viewLevel,
+      viewerHasFullProfile: fullAccess,
+      isConnected:  connected,
+    })
+  }
 
   if (viewLevel === 'locked') {
     return NextResponse.json({

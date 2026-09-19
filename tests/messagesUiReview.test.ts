@@ -200,8 +200,10 @@ describe('7-18 the thread pages behave', () => {
     expect(threadSrc).toContain('?context=dm')
   })
 
-  it('presence is 20 minutes, and silent for a locked partner', () => {
-    expect(threadSrc).toContain('ONLINE_WITHIN_MIN = 20')
+  it('presence is a little wider than the stamp interval, and silent for a locked partner', () => {
+    // lastActive is written at most every 15 minutes, so a 20-minute window
+    // could call someone offline mid-conversation.
+    expect(threadSrc).toContain('ONLINE_WITHIN_MIN = 25')
     expect(threadSrc).toContain('if (partner.locked || lock) return null')
   })
 

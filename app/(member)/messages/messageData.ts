@@ -23,6 +23,9 @@ export interface Conversation {
   preview: { text: string; hasImage: boolean }
   unread: number
   lastAt: string
+  // A member this viewer blocked: the history stays readable, nothing new
+  // can arrive, and it carries no unread count.
+  blocked?: boolean
 }
 
 export interface Inbox {
@@ -95,8 +98,19 @@ export interface Mergeable { id: string; createdAt: string }
 export function mergeMessages<T extends Mergeable>(
   current: readonly T[],
   incoming: readonly T[],
-  opts: { full?: boolean; keep?: readonly string[] } = {},
+  opts: { full?: boolean; keep?: readonly string[]; pageSize?: number } = {},
 ): T[] {
+  // A full page whose oldest row is newer than everything on screen means the
+  // thread moved on further than one page while this tab was away — merging
+  // would splice a silent hole between the stale rows and the new ones, and
+  // neither the poll (which only looks forward) nor "load older" (which pages
+  // back from the stale bottom) could ever fill it. Start again from what the
+  // server just sent.
+  const newest = current.reduce<string>((max, m) => (m.createdAt > max ? m.createdAt : max), '')
+  const oldestIncoming = incoming.reduce<string>((min, m) => (m.createdAt < min ? m.createdAt : min), incoming[0]?.createdAt ?? '')
+  if (opts.full && opts.pageSize && incoming.length >= opts.pageSize && current.length > 0 && oldestIncoming > newest) {
+    return [...incoming].sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0))
+  }
   const byId = new Map(incoming.map(m => [m.id, m]))
   // Oldest instant the response actually covered. An empty full response
   // covers everything — the thread really is empty.
