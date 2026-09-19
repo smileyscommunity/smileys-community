@@ -18,7 +18,11 @@ function MessagesIcon() {
   const load = useCallback(() => {
     fetch('/app/api/messages', { credentials: 'include' })
       .then(r => r.json())
-      .then((d: any[]) => setUnread(Array.isArray(d) ? d.reduce((s, c) => s + (c.unread ?? 0), 0) : 0))
+      // The inbox answers with { conversations, totalUnread } — a count that
+      // already leaves out conversations with a blocked member, which used to
+      // sit in this badge with no way to clear them. A failed fetch leaves the
+      // badge alone rather than blanking it.
+      .then((d: { totalUnread?: number }) => { if (typeof d?.totalUnread === 'number') setUnread(d.totalUnread) })
       .catch(() => {})
   }, [])
   useEffect(() => {

@@ -9,7 +9,7 @@ import { todayInCity, resolveCityId } from '@/lib/city'
 import { firstNameOf } from '@/lib/data'
 import { countedReferralsWhere } from '@/lib/referrals'
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -127,7 +127,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     : 'member'
   const fullAccess = viewLevel === 'full'
 
-  recordView(session, id, self)
+  // Not from a chat window: the thread polls this every minute for the
+  // partner's name, which filed the reader on the partner's visitor list
+  // over and over. Chatting isn't looking someone up.
+  recordView(session, id, self || req.nextUrl.searchParams.get('context') === 'dm')
 
   if (viewLevel === 'locked') {
     return NextResponse.json({
@@ -195,6 +198,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     socialStyles: user.socialStyles,
     profilePhoto: user.profilePhoto,
     joinedAt:     user.joinedAt,
+    // Presence, for the chat header's "Online / last seen". Only for a
+    // viewer who sees the profile in full — a locked card says nothing
+    // about when someone was last here.
+    lastActive:   fullAccess ? user.lastActive : null,
     role:         user.role,
     membershipType: user.membershipType,
     foundingMember: user.foundingMember,

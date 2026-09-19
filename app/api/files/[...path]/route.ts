@@ -4,6 +4,7 @@ import { join, extname, normalize } from 'path'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
 import { uploadRoot } from '@/lib/uploadRoot'
+import { prisma } from '@/lib/prisma'
 import sharp from 'sharp'
 
 export const runtime = 'nodejs'
@@ -30,7 +31,7 @@ const MIME: Record<string, string> = {
 // precisely so Next can't serve them statically around this gate. See
 // lib/uploadRoot.
 const UPLOAD_ROOT = uploadRoot()
-const VALID_FOLDERS = ['events', 'clubs', 'users', 'general', 'applications', 'posts', 'neighborhoods', 'directory', 'listings', 'hangouts', 'guide', 'reports']
+const VALID_FOLDERS = ['events', 'clubs', 'users', 'general', 'applications', 'posts', 'neighborhoods', 'directory', 'listings', 'hangouts', 'guide', 'reports', 'messages']
 const VALID_FILE = /^[\w\-]+\.(jpg|jpeg|png|webp|gif)$/i
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
@@ -57,6 +58,25 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
   if (folder === 'applications' || folder === 'reports') {
     const session = await getSession()
     if (!session || !isAdminOrModerator(session)) {
+      return new NextResponse('Forbidden', { status: 403 })
+    }
+  }
+
+  // messages/ is a photo somebody sent in a private conversation. Only the two
+  // people in it may fetch it — a DM photo has no business being readable by
+  // anyone who comes across the URL, and it must not be cached by a proxy
+  // either (the public branch below sets a week of shared caching).
+  let privateFile = false
+  if (folder === 'messages') {
+    privateFile = true
+    const session = await getSession()
+    if (!session) return new NextResponse('Forbidden', { status: 403 })
+    const url = `/app/api/files/messages/${file}`
+    const seen = await prisma.directMessage.findFirst({
+      where:  { imageUrl: url, OR: [{ fromId: session.id }, { toId: session.id }] },
+      select: { id: true },
+    })
+    if (!seen && !isAdminOrModerator(session)) {
       return new NextResponse('Forbidden', { status: 403 })
     }
   }
@@ -118,7 +138,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
   // `public` would let any shared cache (nginx proxy_cache, corporate
   // proxy, shared-machine browser) store the body and re-serve it to
   // viewers the route itself would 403.
-  const cacheControl = folder === 'applications' || folder === 'reports'
+  const cacheControl = folder === 'applications' || folder === 'reports' || privateFile
     ? 'private, no-store'
     : `public, max-age=${86400 * 7}, immutable`
 

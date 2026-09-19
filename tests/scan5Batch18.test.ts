@@ -15,10 +15,12 @@ vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn(async () => true) }))
 vi.mock('@/lib/access',    () => ({ isAdminOrModerator: () => false, isClubHost: vi.fn(async () => false) }))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
-    memberBlock:      { findFirst: vi.fn() },
+    // The read path reads both directions now: the blocker keeps read-only
+    // access to their own history.
+    memberBlock:      { findFirst: vi.fn(), findMany: vi.fn(async () => []) },
     memberConnection: { findFirst: vi.fn() },
     user:             { findUnique: vi.fn() },
-    notification:     { findFirst: vi.fn() },
+    notification:     { findFirst: vi.fn(), updateMany: vi.fn(async () => ({ count: 0 })) },
     directMessage:    { findMany: vi.fn(), updateMany: vi.fn(), findUnique: vi.fn(), findFirst: vi.fn(), create: vi.fn() },
   },
 }))
@@ -38,7 +40,8 @@ beforeEach(() => {
   ;(getSession as any).mockResolvedValue(me)
   p.memberBlock.findFirst.mockResolvedValue(null)
   p.memberConnection.findFirst.mockResolvedValue({ id: 'conn' })
-  p.user.findUnique.mockResolvedValue({ id: 'u-a', name: 'A' })
+  // The send path refuses a recipient who isn't a live member (2026-09-20).
+  p.user.findUnique.mockResolvedValue({ id: 'u-a', name: 'A', status: 'approved', suspendedUntil: null })
   p.notification.findFirst.mockResolvedValue({ id: 'n' })
   p.directMessage.updateMany.mockResolvedValue({ count: 0 })
 })
@@ -47,11 +50,13 @@ describe('61 deleted DMs stay deleted inside quotes', () => {
   it('GET nulls the text and photo of a deleted quote and flags it', async () => {
     // fetched desc for the initial load
     p.directMessage.findMany.mockResolvedValue([
-      { id: 'm3', text: 'reply 2', replyTo: { id: 'm0', text: 'still here', imageUrl: null, deletedAt: null, from } },
-      { id: 'm2', text: 'reply 1', replyTo: { id: 'm1', text: 'secret', imageUrl: '/app/api/files/messages/a.jpg', deletedAt: new Date(), from } },
+      { id: 'm3', text: 'reply 2', from: { ...from, color: '#000', profilePhoto: null, profileVisibility: 'everyone' }, replyTo: { id: 'm0', text: 'still here', imageUrl: null, deletedAt: null, from } },
+      { id: 'm2', text: 'reply 1', from: { ...from, color: '#000', profilePhoto: null, profileVisibility: 'everyone' }, replyTo: { id: 'm1', text: 'secret', imageUrl: '/app/api/files/messages/a.jpg', deletedAt: new Date(), from } },
     ])
     const res = await GET(new Request('https://x/app/api/messages/u-a') as never, params)
-    const body = await res.json()
+    // { messages, readOnly, hasMore } since the blocker keeps read-only
+    // access to their own history (2026-09-20).
+    const { messages: body } = await res.json()
     expect(body.map((m: any) => m.id)).toEqual(['m2', 'm3'])
     expect(body[0].replyTo).toEqual({ id: 'm1', text: null, imageUrl: null, deleted: true, from })
     expect(JSON.stringify(body)).not.toContain('secret')
@@ -79,7 +84,11 @@ describe('61 deleted DMs stay deleted inside quotes', () => {
   it('POST still accepts a live in-thread reply target', async () => {
     p.directMessage.findUnique.mockResolvedValue({ fromId: 'u-a', toId: 'u-b', deletedAt: null })
     p.directMessage.create.mockResolvedValue({
-      id: 'm9', text: 'hi', replyTo: { id: 'm1', text: 'hello', imageUrl: null, deletedAt: null, from },
+      id: 'm9', text: 'hi',
+      // The sender rides along so the reply can be named the way the
+      // recipient would see them (a private member is a first name).
+      from: { ...from, color: '#000', profilePhoto: null, profileVisibility: 'everyone' },
+      replyTo: { id: 'm1', text: 'hello', imageUrl: null, deletedAt: null, from },
     })
     const res = await post({ text: 'hi', replyToId: 'm1' })
     expect(res.status).toBe(200)

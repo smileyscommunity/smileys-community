@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
     // 'general' — staff-only here — so every member's screenshot 403'd and the
     // report went in without it. Its own folder rather than opening 'general':
     // the files route serves reports/ to staff only.
-    const isMemberUpload = folder === 'events' || folder === 'clubs' || folder === 'hangouts' || folder === 'listings' || folder === 'directory' || folder === 'reports'
+    const isMemberUpload = folder === 'events' || folder === 'clubs' || folder === 'hangouts' || folder === 'listings' || folder === 'directory' || folder === 'reports' || folder === 'messages'
 
     if (!isPrivileged && !isMemberUpload && folder !== 'users') {
       return NextResponse.json({ error: 'You can only upload profile photos.' }, { status: 403 })
@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Only JPG, PNG, WebP, GIF allowed' }, { status: 400 })
     }
 
-    const validFolders = ['events', 'clubs', 'users', 'general', 'posts', 'hangouts', 'directory', 'listings', 'guide', 'reports']
+    const validFolders = ['events', 'clubs', 'users', 'general', 'posts', 'hangouts', 'directory', 'listings', 'guide', 'reports', 'messages']
     const subfolder  = validFolders.includes(folder ?? '') ? folder! : 'general'
     const filename   = `${Date.now()}-${randomBytes(6).toString('hex')}.jpg`
     const uploadDir  = join(uploadRoot(), subfolder)

@@ -18,6 +18,15 @@
 // the member-referenceable subset.
 const PUBLIC_FOLDERS = ['events', 'clubs', 'users', 'general', 'posts', 'neighborhoods', 'directory', 'listings', 'hangouts', 'guide'] as const
 
+// A photo sent in a direct message. NOT public: the files route serves it only
+// to the two people in that conversation, so it is never in PUBLIC_FOLDERS —
+// pass it explicitly (isUploadedImageUrl(url, MESSAGE_FOLDERS)) from the DM
+// route. Attaching a photo was broken outright before this existed: the
+// composer uploaded to a folder nothing accepted, so members got "you can only
+// upload profile photos", and an admin's upload landed in general/, which is
+// served to anyone holding the URL.
+export const MESSAGE_FOLDERS = ['messages'] as const
+
 const EXT = '(jpg|jpeg|png|webp|gif)'
 
 /**

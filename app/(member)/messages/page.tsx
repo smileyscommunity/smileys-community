@@ -5,24 +5,8 @@ import Link from 'next/link'
 import { resolveImageUrl, getInitials } from '@/lib/data'
 import EmptyState from '@/components/EmptyState'
 import { SkeletonList } from '@/components/Skeleton'
-
-interface Conversation {
-  partner: { id: string; name: string; color: string; profilePhoto: string | null }
-  lastMessage: { text: string; fromMe: boolean; createdAt: string }
-  unread: number
-}
-
-function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime()
-  const m = Math.floor(diff / 60000)
-  if (m < 1)  return 'just now'
-  if (m < 60) return `${m}m ago`
-  const h = Math.floor(m / 60)
-  if (h < 24) return `${h}h ago`
-  const d = Math.floor(h / 24)
-  if (d < 7)  return `${d}d ago`
-  return new Date(dateStr).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
-}
+import { readInbox, type Conversation } from './messageData'
+import { timeAgo } from './messageTime'
 
 function Avatar({ user }: { user: { name: string; color: string; profilePhoto: string | null } }) {
   const photo = resolveImageUrl(user.profilePhoto)
@@ -35,17 +19,26 @@ function Avatar({ user }: { user: { name: string; color: string; profilePhoto: s
 }
 
 export default function MessagesPage() {
-  const [convs,   setConvs]   = useState<Conversation[]>([])
-  const [loading, setLoading] = useState(true)
+  // null means "nothing has loaded yet" — distinct from an inbox the server
+  // says is empty, which is the only thing that may show the empty state.
+  const [convs,       setConvs]       = useState<Conversation[] | null>(null)
+  const [totalUnread, setTotalUnread] = useState(0)
+  const [stale,       setStale]       = useState(false)
+  const [loading,     setLoading]     = useState(true)
 
   const load = useCallback(async () => {
-    // Polls every 5s — swallow transient network failures (offline, tab
-    // backgrounded, deploy blip). An uncaught reject here fired "Failed to
-    // fetch" into error tracking on every hiccup; the next tick recovers.
+    // Polls every 5s. A failed tick must change nothing: this used to write
+    // `Array.isArray(d) ? d : []`, so every blip — offline, a deploy restart,
+    // a backgrounded tab — wiped the list to "No messages yet" and the next
+    // tick put it back.
     try {
-      const d = await fetch('/app/api/messages', { credentials: 'include' }).then(r => r.json())
-      setConvs(Array.isArray(d) ? d : [])
-    } catch { /* transient — next poll retries */ }
+      const res = await fetch('/app/api/messages', { credentials: 'include' })
+      const inbox = readInbox(res.ok ? await res.json().catch(() => null) : null)
+      if (!inbox) { setStale(true); return }
+      setConvs(inbox.conversations)
+      setTotalUnread(inbox.totalUnread)
+      setStale(false)
+    } catch { setStale(true) }
   }, [])
 
   useEffect(() => {
@@ -53,8 +46,6 @@ export default function MessagesPage() {
     const timer = setInterval(load, 5_000)
     return () => clearInterval(timer)
   }, [load])
-
-  const totalUnread = convs.reduce((s, c) => s + c.unread, 0)
 
   return (
     <div className="min-h-screen bg-warm pb-20 md:pb-0">
@@ -78,7 +69,14 @@ export default function MessagesPage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         <div className="max-w-3xl">
-        {loading ? (
+        {/* A refresh that didn't land says so instead of rearranging the page
+            — what's below is still the last good answer. */}
+        {stale && (
+          <p role="status" className="mb-3 text-xs text-gray-500 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+            Couldn&apos;t refresh — retrying…
+          </p>
+        )}
+        {loading || !convs ? (
           <SkeletonList rows={3} />
         ) : convs.length === 0 ? (
           <EmptyState
@@ -106,11 +104,11 @@ export default function MessagesPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2 mb-0.5">
                     <span className={`text-sm font-semibold text-gray-900 truncate min-w-0 ${c.unread > 0 ? 'font-bold' : ''}`}>{c.partner.name}</span>
-                    <span className="text-xs text-gray-400 shrink-0">{timeAgo(c.lastMessage.createdAt)}</span>
+                    <span className="text-xs text-gray-400 shrink-0">{timeAgo(c.lastAt)}</span>
                   </div>
                   <p className={`text-sm truncate ${c.unread > 0 ? 'text-gray-900 font-medium' : 'text-gray-600'}`}>
-                    {c.lastMessage.fromMe && <span className="text-gray-400">You: </span>}
-                    {c.lastMessage.text}
+                    {/* A photo with no caption is still something to see. */}
+                    {c.preview.hasImage && !c.preview.text ? '📷 Photo' : c.preview.text}
                   </p>
                 </div>
               </Link>

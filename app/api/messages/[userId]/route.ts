@@ -5,6 +5,9 @@ import { getSession } from '@/lib/session'
 import { createNotification } from '@/lib/notify'
 import { isAdminOrModerator, isClubHost } from '@/lib/access'
 import { rateLimit } from '@/lib/rateLimit'
+import { authorProjector } from '@/lib/authorProjection'
+import { firstNameOf } from '@/lib/data'
+import { MESSAGE_FOLDERS } from '@/lib/uploadedImageUrl'
 
 type Params = { params: Promise<{ userId: string }> }
 
@@ -32,19 +35,29 @@ export async function GET(req: NextRequest, { params }: Params) {
     const sinceRaw = searchParams.get('since')
     const since = sinceRaw && !isNaN(new Date(sinceRaw).getTime()) ? sinceRaw : null
 
-    // Block gate — a blocked user shouldn't keep reading the thread (the send
-    // path already blocks; the read path didn't). Admins/moderators bypass so
-    // they can read any conversation for moderation, matching POST.
+    // A block closes the thread to the person who was blocked. The BLOCKER
+    // keeps reading their own history: blocking a harasser used to lock the
+    // blocker out of the very messages they need to report, and the inbox
+    // then showed the thread as "No messages yet. Say hi!".
+    let readOnly = false
     if (!isAdminOrModerator(session)) {
-      const block = await prisma.memberBlock.findFirst({
+      const blocks = await prisma.memberBlock.findMany({
         where: { OR: [
           { blockerId: session.id, blockedId: otherId },
           { blockerId: otherId, blockedId: session.id },
         ] },
-        select: { id: true },
+        select: { blockerId: true },
       })
-      if (block) return NextResponse.json({ error: 'You cannot view this conversation' }, { status: 403 })
+      if (blocks.some(b => b.blockerId === otherId)) {
+        return NextResponse.json({ error: 'You cannot view this conversation', reason: 'blocked' }, { status: 403 })
+      }
+      readOnly = blocks.length > 0
     }
+
+    // Older history, for "load older messages" — the thread was capped at the
+    // newest 100 with no way back.
+    const beforeRaw = searchParams.get('before')
+    const before = beforeRaw && !isNaN(new Date(beforeRaw).getTime()) ? beforeRaw : null
 
     const messages = await prisma.directMessage.findMany({
       where: {
@@ -54,14 +67,17 @@ export async function GET(req: NextRequest, { params }: Params) {
         ],
         deletedAt: null,
         ...(since ? { createdAt: { gt: new Date(since) } } : {}),
+        ...(before ? { createdAt: { lt: new Date(before) } } : {}),
       },
       // Initial load: fetch last 100 in desc order and reverse — gives the
       // most-recent 100 in chronological order without a two-query skip/take.
       // Poll path (since provided): asc, no limit — incremental and small.
-      orderBy: { createdAt: since ? 'asc' : 'desc' },
-      take: since ? undefined : 100,
+      orderBy: { createdAt: since && !before ? 'asc' : 'desc' },
+      // The poll's delta is capped too: `?since=` far enough back used to
+      // return the entire thread in one response.
+      take: 100,
       include: {
-        from: { select: { id: true, name: true, color: true, profilePhoto: true } },
+        from: { select: { id: true, name: true, color: true, profilePhoto: true, profileVisibility: true } },
         // Reactions ship with the message so the UI doesn't need a second
         // request per message. Small list (1 row per reactor) so payload
         // stays compact.
@@ -86,10 +102,29 @@ export async function GET(req: NextRequest, { params }: Params) {
       where: { fromId: otherId, toId: session.id, isRead: false },
       data:  { isRead: true },
     })
+    // …and the bell entry that announced them. The send path skips notifying
+    // while an unread "message" notification from this sender exists, and
+    // nothing here cleared it — so after the first message, every later one
+    // arrived with no bell and no push until the member happened to open
+    // /notifications. Reading the thread IS reading the notice.
+    await prisma.notification.updateMany({
+      where: { userId: session.id, type: 'message', link: `/messages/${otherId}`, isRead: false },
+      data:  { isRead: true },
+    })
 
     // Initial load was fetched desc — reverse to chronological order for the client.
-    const ordered = since ? messages : [...messages].reverse()
-    return NextResponse.json(ordered.map(m => ({ ...m, replyTo: redactDeletedQuote(m.replyTo) })))
+    const ordered = since && !before ? messages : [...messages].reverse()
+    // A connections-only member the viewer isn't connected to shows as their
+    // profile does — first name, no photo. This route sent both in full, and
+    // a DM thread can exist with no connection at all (they answered your
+    // board listing, or the connection was removed afterwards).
+    const show = await authorProjector(session, ordered.map(m => m.from))
+    return NextResponse.json({
+      messages: ordered.map(m => ({ ...m, from: show(m.from), replyTo: redactDeletedQuote(m.replyTo) })),
+      readOnly,
+      // A full page of older history means there may be more behind it.
+      hasMore: !since && messages.length === 100,
+    })
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
@@ -109,11 +144,10 @@ export async function POST(req: NextRequest, { params }: Params) {
     //     person while staying under the 60/min ceiling
     //   - 200/day total stops sustained harassment campaigns across multiple
     //     targets that would otherwise stay under both per-minute limits
-    if (!await rateLimit(`dm:${session.id}`,          60,  60_000))    return NextResponse.json({ error: 'Sending too fast — slow down' }, { status: 429 })
-    if (!await rateLimit(`dm-to:${session.id}:${toId}`, 20, 60 * 60_000)) return NextResponse.json({ error: 'You\'ve messaged this person too many times in the last hour' }, { status: 429 })
-    if (!await rateLimit(`dm-day:${session.id}`,      200, 24 * 60 * 60_000)) return NextResponse.json({ error: 'Daily message cap reached' }, { status: 429 })
-
-    const { text, imageUrl, replyToId } = await req.json()
+    // Spent below, once the request is known to be a real send: a member
+    // repeatedly trying to write to someone who isn't connected used to eat
+    // the hourly and daily budgets without a single message going out.
+    const { text, imageUrl, replyToId } = await req.json().catch(() => ({}))
     const hasText  = typeof text === 'string' && text.trim().length > 0
     const hasImage = typeof imageUrl === 'string' && imageUrl.length > 0
     if (!hasText && !hasImage) return NextResponse.json({ error: 'Message cannot be empty' }, { status: 400 })
@@ -121,7 +155,11 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     // Image must be a path produced by our /api/upload (same regex enforced
     // for event/listing photos) — prevents injecting external trackers.
-    const safeImageUrl = hasImage && isUploadedImageUrl(imageUrl) ? imageUrl : null
+    // messages/ only: a DM photo lives in its own folder, served to the two
+    // people in the conversation and nobody else (app/api/files). Accepting
+    // the public folders here would let a member attach — and thereby
+    // re-serve — an image from anywhere else in the pipeline.
+    const safeImageUrl = hasImage && isUploadedImageUrl(imageUrl, MESSAGE_FOLDERS) ? imageUrl : null
     if (hasImage && !safeImageUrl) return NextResponse.json({ error: 'Invalid image URL' }, { status: 400 })
 
     // Verify the replyToId (if present) belongs to this conversation — prevents
@@ -164,7 +202,9 @@ export async function POST(req: NextRequest, { params }: Params) {
         where:  { fromId: toId, toId: session.id },
         select: { id: true },
       })
-      if (!connection && !inboundThread) return NextResponse.json({ error: 'You can only message connected members' }, { status: 403 })
+      if (!connection && !inboundThread) {
+        return NextResponse.json({ error: 'You can only message connected members', reason: 'not_connected' }, { status: 403 })
+      }
     }
 
     // Personal blocks override connection/club-host privileges. Only admins/moderators
@@ -179,11 +219,22 @@ export async function POST(req: NextRequest, { params }: Params) {
         },
         select: { id: true },
       })
-      if (block) return NextResponse.json({ error: 'You cannot message this user' }, { status: 403 })
+      if (block) return NextResponse.json({ error: 'You cannot message this person', reason: 'blocked' }, { status: 403 })
     }
 
-    const recipient = await prisma.user.findUnique({ where: { id: toId }, select: { id: true, name: true } })
-    if (!recipient) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    // A live account. Writing into a banned or deleted row wrote a message
+    // nobody would ever read.
+    const recipient = await prisma.user.findUnique({
+      where: { id: toId }, select: { id: true, name: true, status: true, suspendedUntil: true },
+    })
+    if (!recipient || recipient.status !== 'approved') {
+      return NextResponse.json({ error: 'That member is no longer here' }, { status: 404 })
+    }
+
+    // Only now, when the message is really going to be sent.
+    if (!await rateLimit(`dm:${session.id}`,          60,  60_000))    return NextResponse.json({ error: 'Sending too fast — slow down' }, { status: 429 })
+    if (!await rateLimit(`dm-to:${session.id}:${toId}`, 20, 60 * 60_000)) return NextResponse.json({ error: 'You\'ve messaged this person too many times in the last hour' }, { status: 429 })
+    if (!await rateLimit(`dm-day:${session.id}`,      200, 24 * 60 * 60_000)) return NextResponse.json({ error: 'Daily message cap reached' }, { status: 429 })
 
     const message = await prisma.directMessage.create({
       data: {
@@ -194,22 +245,44 @@ export async function POST(req: NextRequest, { params }: Params) {
         replyToId: safeReplyToId,
       },
       include: {
-        from:      { select: { id: true, name: true, color: true, profilePhoto: true } },
+        from:      { select: { id: true, name: true, color: true, profilePhoto: true, profileVisibility: true } },
         reactions: { select: { userId: true, emoji: true } },
         replyTo:   { select: { id: true, text: true, imageUrl: true, deletedAt: true, from: { select: { id: true, name: true } } } },
       },
     })
     // Same quote shape as GET (the parent could be deleted between the check
     // above and this create).
-    const shaped = { ...message, replyTo: redactDeletedQuote(message.replyTo) }
+    const { profileVisibility, ...fromShown } = message.from
+    const shaped = { ...message, from: fromShown, replyTo: redactDeletedQuote(message.replyTo) }
 
-    // Notify recipient — only if no recent unread notification from this sender
+    // One bell entry per burst, not per message: skipped while an unread one
+    // from this sender is still sitting there. Reading the thread now marks
+    // that entry read (GET above), so the next message notifies again — it
+    // used to stay unread for ever, which silenced every message after the
+    // first. The four-hour bound is the backstop for a recipient who never
+    // opens it at all.
     const recentNotif = await prisma.notification.findFirst({
-      where: { userId: toId, type: 'message', link: `/messages/${session.id}`, isRead: false },
+      where: {
+        userId: toId, type: 'message', link: `/messages/${session.id}`, isRead: false,
+        createdAt: { gte: new Date(Date.now() - 4 * 60 * 60_000) },
+      },
+      select: { id: true },
     })
     if (!recentNotif) {
       const preview = hasText ? text.trim().slice(0, 80) : '📷 Photo'
-      createNotification(toId, 'message', `${session.name} sent you a message 💬`, preview, `/messages/${session.id}`)
+      // The sender is named the way the recipient would see them on their
+      // profile: a connections-only member who isn't connected is a first
+      // name (the listing-contact route already got this right).
+      const senderRestricted = profileVisibility === 'connections' && !privileged
+        && !await prisma.memberConnection.findFirst({
+          where: { status: 'accepted', OR: [
+            { requesterId: session.id, receiverId: toId },
+            { requesterId: toId, receiverId: session.id },
+          ] },
+          select: { id: true },
+        })
+      const senderName = senderRestricted ? firstNameOf(session.name) : session.name
+      createNotification(toId, 'message', `${senderName} sent you a message 💬`, preview, `/messages/${session.id}`)
         .catch(() => {})
     }
 
@@ -226,15 +299,22 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     if (!session) return NextResponse.json({ error: 'Not logged in' }, { status: 401 })
 
     const { userId: otherId } = await params
-    const { messageId } = await req.json()
+    const { messageId } = await req.json().catch(() => ({}))
+    // The one body field that reached Prisma unchecked: a non-string threw
+    // inside the query and surfaced as a 500.
+    if (typeof messageId !== 'string' || !messageId) {
+      return NextResponse.json({ error: 'messageId required' }, { status: 400 })
+    }
 
     const msg = await prisma.directMessage.findUnique({ where: { id: messageId } })
     if (!msg) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     if (msg.fromId !== session.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-    // Soft-delete — keep the row for abuse-report audit trail. The GET
-    // handler filters `deletedAt: null` so the message is hidden from
-    // both parties' views while remaining accessible to admins.
+    // Soft-delete — the row stays as the record behind an abuse report, and
+    // GET filters `deletedAt: null` so it leaves both parties' views. (Staff
+    // read it from the database if a report needs it; no route serves it,
+    // deliberately — a moderator's bypass here would be a way to read any
+    // member's messages.)
     await prisma.directMessage.update({ where: { id: messageId }, data: { deletedAt: new Date() } })
     return NextResponse.json({ ok: true })
   } catch (e) {
