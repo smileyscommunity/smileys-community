@@ -251,8 +251,10 @@ export default function SettingsPage() {
         setEmailChangeErr(data.error ?? 'Failed')
         return
       }
+      const sentTo = newEmail.trim()
       setNewEmail(''); setEmailPassword(''); setEmailTotp(''); setEmailNeedsTotp(false)
-      toast.success('Email updated — check your inbox to verify')
+      // Nothing has changed yet: the new address has to confirm it first.
+      toast.success(`Check ${sentTo} for a link to confirm — you'll keep signing in with your current email until you click it.`, { duration: 8000 })
     } catch { setEmailChangeErr('Something went wrong') }
     finally { setEmailChanging(false) }
   }

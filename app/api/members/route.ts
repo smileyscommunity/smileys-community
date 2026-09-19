@@ -6,6 +6,8 @@ import { rateLimit } from '@/lib/rateLimit'
 import { isAdminOrModerator, isClubHost } from '@/lib/access'
 import { resolveCityId } from '@/lib/city'
 import { LOOKING_FOR_VALUES } from '@/lib/profileOptions'
+import { firstNameOf } from '@/lib/data'
+import { nameSearchWhere } from '@/lib/memberPrivacy'
 
 const PAGE_SIZE = 100
 
@@ -48,12 +50,12 @@ export async function GET(req: NextRequest) {
 
   const searchFilter: Prisma.UserWhereInput = search ? {
     OR: [
-      { name: { contains: search, mode: 'insensitive' } },
+      await nameSearchWhere(session, search, 'contains'),
       // Neighborhood + nationality are hidden on a private member's locked
       // card, so only match them on publicly-visible profiles — otherwise a
       // search could confirm a 'connections only' member's hidden attributes
       // (binary-search a nationality string against the redacted card).
-      { profileVisibility: 'everyone', neighborhood: { contains: search, mode: 'insensitive' } },
+      { profileVisibility: 'everyone', neighborhoodVisible: true, neighborhood: { contains: search, mode: 'insensitive' } },
       { profileVisibility: 'everyone', nationality:  { contains: search, mode: 'insensitive' } },
     ],
   } : {}
@@ -94,6 +96,16 @@ export async function GET(req: NextRequest) {
   const connectionIds = new Set(conns.map(c => c.requesterId === session.id ? c.receiverId : c.requesterId))
   const privileged = isAdminOrModerator(session) || await isClubHost(session.id)
 
+  // The filters below read fields a locked card hides — languages, what
+  // they're open to, what they're looking for, a live pulse. A connections-
+  // only member the viewer can't see in full isn't matched on them, or the
+  // filter would say what the card withholds ("free now" under a card that
+  // says nothing).
+  const filtersHidden = !!(openTo || lookingFor || speaksMyLang || aroundNow)
+  const visibleWhere: Prisma.UserWhereInput = filtersHidden && !privileged
+    ? { OR: [{ profileVisibility: { not: 'connections' } }, { id: { in: [session.id, ...connectionIds] } }] }
+    : {}
+
   const roleIn = ['member', 'moderator', 'admin']
 
   // Build the full where — each clause is ANDed together by Prisma's default.
@@ -112,6 +124,10 @@ export async function GET(req: NextRequest) {
       // Admin-hidden accounts (staff, test, opted-out members) never
       // appear in the directory, for any viewer.
       { hiddenFromMembers: false },
+      // A suspended member is off the member surfaces until it lifts — the
+      // profile page 404s for them, so the card pointed at nothing.
+      { OR: [{ suspendedUntil: null }, { suspendedUntil: { lte: new Date() } }] },
+      visibleWhere,
       openFilter,
       lookingForFilter,
       langFilter,
@@ -122,7 +138,7 @@ export async function GET(req: NextRequest) {
       aroundNow
         ? { OR: [
             { availabilityPulses: { some: { until: { gte: new Date() } } } },
-            { hangouts: { some: { status: 'active', endsAt: { gte: new Date() } } } },
+            { hangouts: { some: { status: 'active', startsAt: { lte: new Date() }, endsAt: { gte: new Date() } } } },
           ] }
         : {},
       savedOnly && savedIds !== null
@@ -143,16 +159,16 @@ export async function GET(req: NextRequest) {
       skip: offset,
       select: {
         id: true, name: true, color: true, bio: true,
-        neighborhood: true, nationality: true, interests: true,
+        neighborhood: true, neighborhoodVisible: true, nationality: true, interests: true,
         languages: true, profilePhoto: true, joinedAt: true, role: true,
         instagram: true, linkedin: true, lastActive: true, socialStyles: true, lookingFor: true,
         profileVisibility: true, membershipType: true, foundingMember: true,
         openToCoffee: true, openToLanguage: true, openToHosting: true,
         clubMemberships: {
-          where: { status: 'approved' },
+          where: { status: 'approved', club: { isActive: true } },
           select: {
             role: true,
-            club: { select: { id: true, name: true, emoji: true, slug: true } },
+            club: { select: { id: true, name: true, emoji: true, slug: true, isPrivate: true } },
           },
         },
         _count: { select: { joinedEvents: { where: { status: 'approved' } } } },
@@ -196,36 +212,42 @@ export async function GET(req: NextRequest) {
       !connectionIds.has(m.id)
 
     if (restricted) {
-      // Minimal locked card: identity + neighborhood only. Personal
-      // details (bio, interests, languages, socials, clubs) are gated
-      // behind a connection — the full profile 404s for non-connections.
+      // Minimal locked card, the same one the profile page shows: first
+      // name and colour. The full name and photo went out here while the
+      // profile itself withheld them.
       return {
-        id: m.id, name: m.name, color: m.color, bio: null,
+        id: m.id, name: firstNameOf(m.name), color: m.color, bio: null,
         // The profile route withholds neighborhood without a connection; the
         // locked card handed it out.
         neighborhood: null, nationality: null,
         interests: [] as string[], languages: [] as string[],
         socialStyles: [] as string[], lookingFor: [] as string[],
-        profilePhoto: m.profilePhoto, joinedAt: m.joinedAt,
+        profilePhoto: null, joinedAt: m.joinedAt,
         role: m.role, instagram: null, linkedin: null, lastActive: null,
         membershipType: m.membershipType, foundingMember: m.foundingMember,
         isHost: false, clubs: [] as { id: string; name: string; emoji: string | null; slug: string; isHost: boolean }[],
         eventsCount: 0,
-        activePulse: pulseUserIds.has(m.id),
+        activePulse: false,
         restricted: true,
       }
     }
 
+    const full = fullFor(m.id)
     return {
       id: m.id, name: m.name, color: m.color, bio: m.bio,
-      neighborhood: m.neighborhood, nationality: m.nationality,
+      // Only for members who chose to be listed by neighbourhood.
+      neighborhood: full || m.neighborhoodVisible ? m.neighborhood : null, nationality: m.nationality,
       interests: m.interests, languages: m.languages,
       socialStyles: m.socialStyles, lookingFor: m.lookingFor,
       profilePhoto: m.profilePhoto, joinedAt: m.joinedAt,
       role: m.role, instagram: fullFor(m.id) ? m.instagram : null, linkedin: fullFor(m.id) ? m.linkedin : null, lastActive: fullFor(m.id) ? m.lastActive : null,
       membershipType: m.membershipType, foundingMember: m.foundingMember,
       isHost:      m.clubMemberships.some(cm => cm.role === 'host'),
-      clubs:       m.clubMemberships.map(cm => ({ ...cm.club, isHost: cm.role === 'host' })),
+      // A private club's membership is for its members to know; connections
+      // and staff see them all.
+      clubs:       m.clubMemberships
+                     .filter(cm => full || !cm.club.isPrivate)
+                     .map(({ club, role }) => ({ id: club.id, name: club.name, emoji: club.emoji, slug: club.slug, isHost: role === 'host' })),
       eventsCount: m._count.joinedEvents,
       activePulse: pulseUserIds.has(m.id),
       restricted: false,

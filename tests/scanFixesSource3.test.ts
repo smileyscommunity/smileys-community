@@ -24,8 +24,11 @@ describe('pro waitlist', () => {
 describe('member profile live signals', () => {
   const src = read('app/api/members/[id]/route.ts')
   it('gate the pulse note and both neighborhoods like the profile neighborhood', () => {
-    expect(src).toMatch(/neighborhood: fullAccess \? activePulse\.neighborhood : null, note: fullAccess \? activePulse\.note : null/)
-    expect(src).toMatch(/neighborhood: fullAccess \? activeHangout\.neighborhood : null/)
+    // Profile review 2026-09-19: a public profile's neighbourhood shows when
+    // its owner chose to be listed by it; the note stays for connections. A
+    // hangout's neighbourhood is where the hangout is, as on the hangouts feed.
+    expect(src).toMatch(/neighborhood: fullAccess \|\| user\.neighborhoodVisible \? activePulse\.neighborhood : null, note: fullAccess \? activePulse\.note : null/)
+    expect(src).toMatch(/neighborhood: activeHangout\.neighborhood/)
   })
 })
 

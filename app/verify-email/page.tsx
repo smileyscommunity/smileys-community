@@ -9,6 +9,7 @@ function VerifyEmailContent() {
   const token        = searchParams.get('token') ?? ''
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
   const [error,  setError]  = useState('')
+  const [changed, setChanged] = useState(false)
 
   useEffect(() => {
     if (!token) { setStatus('error'); setError('Invalid verification link.'); return }
@@ -20,7 +21,7 @@ function VerifyEmailContent() {
     })
       .then(res => res.json())
       .then(data => {
-        if (data.ok) setStatus('success')
+        if (data.ok) { setChanged(!!data.emailChanged); setStatus('success') }
         else { setStatus('error'); setError(data.error ?? 'Verification failed') }
       })
       .catch(() => { setStatus('error'); setError('Something went wrong') })
@@ -41,8 +42,10 @@ function VerifyEmailContent() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <h2 className="text-lg font-bold text-gray-900">Email verified!</h2>
-          <p className="text-sm text-gray-600">Your account is now fully active.</p>
+          <h2 className="text-lg font-bold text-gray-900">{changed ? 'Email changed!' : 'Email verified!'}</h2>
+          <p className="text-sm text-gray-600">
+            {changed ? 'Sign in with this address from now on. Other devices will ask you to sign in again.' : 'Your account is now fully active.'}
+          </p>
           <Link href="/dashboard" className="inline-block px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors">
             Go to dashboard
           </Link>

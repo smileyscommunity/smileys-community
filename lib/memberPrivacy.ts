@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { isAdminOrModerator, isClubHost } from '@/lib/access'
 import type { SessionUser } from '@/lib/session'
@@ -50,4 +51,32 @@ export async function isBlockedEitherWay(a: string, b: string): Promise<boolean>
     select: { id: true },
   })
   return !!block
+}
+
+/**
+ * The Prisma filter for "members whose name matches `q`", as this viewer may
+ * search it. A connections-only member the viewer isn't connected to shows
+ * as a first name, so they match only on the start of it — searching a
+ * surname (or "first last") used to confirm a surname their card hides.
+ * Everyone else matches the way `mode` says. Privileged viewers match all.
+ */
+export async function nameSearchWhere(
+  session: SessionUser,
+  q: string,
+  mode: 'contains' | 'startsWith',
+): Promise<Prisma.UserWhereInput> {
+  const match = { [mode]: q, mode: 'insensitive' as const }
+  if (isAdminOrModerator(session) || (await isClubHost(session.id))) return { name: match }
+  const conns = await prisma.memberConnection.findMany({
+    where:  { status: 'accepted', OR: [{ requesterId: session.id }, { receiverId: session.id }] },
+    select: { requesterId: true, receiverId: true },
+  })
+  const connected = conns.map(c => (c.requesterId === session.id ? c.receiverId : c.requesterId))
+  return {
+    OR: [
+      { profileVisibility: { not: 'connections' }, name: match },
+      { id: { in: [session.id, ...connected] }, name: match },
+      ...(/\s/.test(q) ? [] : [{ profileVisibility: 'connections', name: { startsWith: q, mode: 'insensitive' as const } }]),
+    ],
+  }
 }

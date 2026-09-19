@@ -43,7 +43,9 @@ export function AuthProvider({ children, initialUser = null }: { children: React
     // Still refreshed even when the server seeded us: /me carries the full
     // profile (club-host flags, joined events…) the slim session doesn't.
     fetch('/app/api/auth/me')
-      .then(res => res.json())
+      // A server error isn't "signed out" — /me no longer ends the session on
+      // one, so keep whoever the server seeded rather than downgrading.
+      .then(res => res.status >= 500 ? Promise.reject(res.status) : res.json())
       .then(data => {
         if (data?.id) {
           const initials = data.name.trim().split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)

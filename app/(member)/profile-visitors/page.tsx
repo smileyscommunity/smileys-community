@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { resolveImageUrl, getInitials } from '@/lib/data'
+import { resolveImageUrl, getInitials, firstNameOf } from '@/lib/data'
 
 interface Visitor {
   id: string
@@ -25,6 +25,7 @@ export default function ProfileVisitorsPage() {
     fetch('/app/api/members/profile-views', { credentials: 'include' })
       .then(r => r.ok ? r.json() : [])
       .then(d => setVisitors(Array.isArray(d) ? d : []))
+      .catch(() => setVisitors([]))
       .finally(() => setLoading(false))
   }, [])
 
@@ -33,7 +34,7 @@ export default function ProfileVisitorsPage() {
       <div className="bg-white/90 backdrop-blur border-b border-gray-100 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
           <div className="max-w-3xl flex items-center gap-3">
-          <Link href="/dashboard" className="p-1.5 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors">
+          <Link href="/dashboard" aria-label="Back" className="p-1.5 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
@@ -70,7 +71,13 @@ export default function ProfileVisitorsPage() {
           <div className="space-y-2">
             <p className="text-xs text-gray-400 mb-3">{visitors.length} visitor{visitors.length !== 1 ? 's' : ''} in the last 30 days</p>
             {visitors.map(v => {
-              const photo = resolveImageUrl(v.viewer.photo ?? null)
+              // A connections-only viewer you aren't connected to appears the
+              // way their profile would show them to you: first name and
+              // colour, no photo. The list used to print their full name and
+              // photo — more than their own profile page reveals.
+              const restricted = v.viewer.restricted
+              const name  = restricted ? firstNameOf(v.viewer.name) : v.viewer.name
+              const photo = restricted ? null : resolveImageUrl(v.viewer.photo ?? null)
               const timeAgo = (() => {
                 const diff = Date.now() - new Date(v.viewedAt).getTime()
                 const days = Math.floor(diff / 86400000)
@@ -84,11 +91,11 @@ export default function ProfileVisitorsPage() {
                 <div className="bg-white rounded-2xl p-4 flex items-center gap-3 shadow-card">
                   <div className="relative shrink-0">
                     {photo ? (
-                      <img src={photo} alt={v.viewer.name} className={`w-12 h-12 rounded-full object-cover ${v.viewer.restricted ? 'opacity-40' : ''}`} />
+                      <img src={photo} alt="" className="w-12 h-12 rounded-full object-cover" />
                     ) : (
                       <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white text-sm font-bold ${v.viewer.restricted ? 'opacity-40' : ''}`}
                         style={{ backgroundColor: v.viewer.color }}>
-                        {getInitials(v.viewer.name)}
+                        {getInitials(name)}
                       </div>
                     )}
                     {v.viewer.restricted && (
@@ -96,7 +103,7 @@ export default function ProfileVisitorsPage() {
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-900 truncate">{v.viewer.name}</p>
+                    <p className="text-sm font-semibold text-gray-900 truncate">{name}</p>
                     {v.viewer.restricted ? (
                       <p className="text-xs text-gray-400">Connections-only profile</p>
                     ) : v.viewer.neighborhood ? (
@@ -107,9 +114,9 @@ export default function ProfileVisitorsPage() {
                 </div>
               )
 
-              return v.viewer.restricted ? (
-                <div key={v.id}>{card}</div>
-              ) : (
+              // Restricted viewers link too: their profile now opens as a
+              // locked card with Connect, rather than a 404.
+              return (
                 <Link key={v.id} href={`/members/${v.viewer.id}`} className="block hover:shadow-md transition-shadow rounded-2xl">
                   {card}
                 </Link>

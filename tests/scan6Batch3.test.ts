@@ -38,6 +38,8 @@ vi.mock('@/lib/audit',             () => ({ writeAudit: h.writeAudit, getDiff: v
 vi.mock('@/lib/email',             () => ({
   sendVerificationEmail:   vi.fn(async () => {}),
   sendEmailChangedNotice:  vi.fn(async () => {}),
+  sendConfirmEmailChange:  vi.fn(async () => {}),
+  sendEmailChangeRequestedNotice: vi.fn(async () => {}),
   sendPremiumUpgradeEmail: vi.fn(async () => {}),
   recordEmailFailure:      vi.fn(async () => {}),
 }))
@@ -52,6 +54,7 @@ vi.mock('@/lib/neighborhoodsDb',   () => ({ normalizeNeighborhoodInput: vi.fn(as
 vi.mock('bcryptjs',                () => ({ default: { compare: vi.fn(async () => true) } }))
 
 import { POST as updateEmailPOST }   from '@/app/api/auth/update-email/route'
+import { POST as verifyEmailPOST }   from '@/app/api/auth/verify-email/route'
 import { POST as deleteAccountPOST } from '@/app/api/auth/delete-account/route'
 import { PATCH as adminUserPATCH }   from '@/app/api/admin/users/[id]/route'
 import { planRelink, isLiveUser, normPhone, normName, firstLastKey, APPROVAL_TIMING_WINDOW_MS, type RelinkApplication, type RelinkUser } from '@/scripts/relink-email-changed-applications'
@@ -66,39 +69,79 @@ beforeEach(() => {
 })
 
 // ── a. self-service email change ───────────────────────────────────────────
-describe('a. update-email moves the application with the address', () => {
+// Since the profile review (2026-09-19) the change is two steps: the request
+// only files the new address on a confirmation token; clicking the link sent
+// to it (verify-email) moves the account — and the application — over.
+describe('a. an email change moves the application when the new address confirms', () => {
   beforeEach(() => {
     h.getSession.mockResolvedValue({ id: 'u1', name: 'Jane', email: 'jane@old.com', role: 'member', totpVerified: false })
     // Looked up by id → the member; by the new address → nobody holds it.
     h.results['user.findUnique'] = (args: any) => args.where.id
-      ? { id: 'u1', email: 'Jane@Old.com', password: 'hash', totpEnabled: false, totpSecret: null }
+      ? { id: 'u1', name: 'Jane', email: 'Jane@Old.com', password: 'hash', totpEnabled: false, totpSecret: null, status: 'approved', tokenVersion: 3 }
       : null
   })
 
-  it('moves rows under the old address (case-insensitive) inside the transaction', async () => {
+  it('the request changes nothing yet — the new address waits on a token', async () => {
     const res = await updateEmailPOST(jsonReq({ email: ' Jane@New.com ', password: 'pw' }))
     expect(res.status).toBe(200)
+    expect(all('user.update')).toEqual([])
+    expect(all('memberApplication.updateMany')).toEqual([])
+    expect(all('emailVerificationToken.create')[0].data).toMatchObject({ userId: 'u1', newEmail: 'jane@new.com', tokenVersion: 3 })
+    expect(h.writeAudit).toHaveBeenCalledWith('u1', 'Jane', 'user.email_change_requested', 'u1', 'user',
+      expect.objectContaining({ from: 'Jane@Old.com', to: 'jane@new.com' }), expect.any(String))
+  })
 
+  const confirm = () => {
+    h.results['emailVerificationToken.findUnique'] = { userId: 'u1', newEmail: 'jane@new.com', tokenVersion: 3, expiresAt: new Date(Date.now() + 3600_000) }
+    return verifyEmailPOST(jsonReq({ token: 'tok' }))
+  }
+
+  it('confirming moves rows under the old address (case-insensitive) inside the transaction', async () => {
+    const res = await confirm()
+    expect(res.status).toBe(200)
     const moved = all('tx:memberApplication.updateMany')
     expect(moved).toEqual([{ where: { email: { equals: 'Jane@Old.com', mode: 'insensitive' } }, data: { email: 'jane@new.com' } }])
     // Not a separate, non-atomic write on the outer client.
     expect(all('memberApplication.updateMany')).toHaveLength(1)
-    expect(all('tx:user.update')[0].data.email).toBe('jane@new.com')
+    expect(all('tx:user.update')[0].data).toMatchObject({ email: 'jane@new.com', emailVerified: true })
   })
 
-  it('records the change so self-deletion can find the earlier address', async () => {
-    await updateEmailPOST(jsonReq({ email: 'jane@new.com', password: 'pw' }))
+  it('confirming records the change so self-deletion can find the earlier address', async () => {
+    await confirm()
     expect(h.writeAudit).toHaveBeenCalledWith('u1', 'Jane', 'user.email_change', 'u1', 'user',
       expect.objectContaining({ from: 'Jane@Old.com', to: 'jane@new.com' }), expect.any(String))
   })
 
-  it('an address already in use moves nothing', async () => {
+  it('a change asked for before a password change (or any sign-out-everywhere) is dead', async () => {
     h.results['user.findUnique'] = (args: any) => args.where.id
-      ? { id: 'u1', email: 'jane@old.com', password: 'hash', totpEnabled: false }
-      : { id: 'someone-else' }
-    const res = await updateEmailPOST(jsonReq({ email: 'taken@x.com', password: 'pw' }))
-    expect(res.status).toBe(409)
+      ? { id: 'u1', name: 'Jane', email: 'Jane@Old.com', status: 'approved', tokenVersion: 4 }
+      : null
+    expect((await confirm()).status).toBe(400)
+    expect(all('user.update')).toEqual([])
     expect(all('memberApplication.updateMany')).toEqual([])
+  })
+
+  it('a banned account\'s pending change is dead', async () => {
+    h.results['user.findUnique'] = (args: any) => args.where.id
+      ? { id: 'u1', name: 'Jane', email: 'Jane@Old.com', status: 'banned', tokenVersion: 3 }
+      : null
+    expect((await confirm()).status).toBe(400)
+    expect(all('user.update')).toEqual([])
+  })
+
+  it('the confirming write only lands at the version it was asked at', async () => {
+    await confirm()
+    expect(all('tx:user.update')[0].where).toEqual({ id: 'u1', tokenVersion: 3 })
+  })
+
+  it('an address already in use moves nothing, at either step', async () => {
+    h.results['user.findUnique'] = (args: any) => args.where.id
+      ? { id: 'u1', name: 'Jane', email: 'jane@old.com', password: 'hash', totpEnabled: false, status: 'approved', tokenVersion: 3 }
+      : { id: 'someone-else' }
+    expect((await updateEmailPOST(jsonReq({ email: 'taken@x.com', password: 'pw' }))).status).toBe(409)
+    expect((await confirm()).status).toBe(409)
+    expect(all('memberApplication.updateMany')).toEqual([])
+    expect(all('user.update')).toEqual([])
     expect(h.writeAudit).not.toHaveBeenCalled()
   })
 })

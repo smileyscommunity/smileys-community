@@ -6,6 +6,9 @@ import { isClubHost, hostCityIds } from '@/lib/access'
 import { formatName } from '@/lib/data'
 import { getDefaultCityId } from '@/lib/city'
 import { normalizeNeighborhoodInput } from '@/lib/neighborhoodsDb'
+import { validateProfileField } from '@/lib/profileFields'
+import { writeAudit } from '@/lib/audit'
+import { todayInCity } from '@/lib/city'
 
 // Pull userAgent + IP from the inbound request when /me has no NextRequest
 // argument (GET). Same shape as lib/rateLimit.ts getIp — kept inline to
@@ -20,12 +23,12 @@ async function fingerprint() {
   }
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await getSession()
   if (!session) return NextResponse.json(null)
   try {
     const FIFTEEN_MINUTES = 15 * 60 * 1000
-    const [user, clubHostCount, cityIds, cohostCount] = await Promise.all([
+    const [user, clubHostCount, cityIds, cohostCount, stats] = await Promise.all([
       prisma.user.findUnique({
         where: { id: session.id },
         select: {
@@ -56,6 +59,10 @@ export async function GET() {
       prisma.eventCoHost.count({
         where: { userId: session.id, event: { cancelledAt: null, date: { gte: new Date(Date.now() - 8 * 86400000).toISOString().slice(0, 10) } } },
       }).catch(() => 0),
+      // Only the profile page shows these; every page load calls /me.
+      req.nextUrl.searchParams.get('stats') === '1'
+        ? ownStats(session.id, session.cityId ?? null).catch(() => null)
+        : Promise.resolve(undefined),
     ])
     const stale = !user?.lastActive || (Date.now() - new Date(user.lastActive).getTime()) > FIFTEEN_MINUTES
     if (stale) {
@@ -91,11 +98,34 @@ export async function GET() {
     }
     if (!user) { await deleteSession(); return NextResponse.json(null) }
     const isClubHost = clubHostCount > 0
-    return NextResponse.json({ ...user, isClubHost, hostCityIds: cityIds, runsEvents: cohostCount > 0 })
-  } catch {
-    await deleteSession()
-    return NextResponse.json(null)
+    return NextResponse.json({ ...user, isClubHost, hostCityIds: cityIds, runsEvents: cohostCount > 0, stats })
+  } catch (e) {
+    // A database hiccup is not a reason to sign someone out — every page
+    // that polls /me used to drop the session on any thrown error, so a
+    // blip logged out whoever was online. Ban, suspension and role changes
+    // above still end the session; a failure here just fails the request.
+    console.error('[auth/me]', e)
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
+}
+
+// The counts on the member's own profile. They used to be the lengths of
+// "events I'm attending" (upcoming and pending included) and "clubs I've
+// asked to join" — so a member who'd RSVP'd to five things and gone to none
+// read "5 events". Now: past events they were approved for and didn't
+// no-show, and approved memberships in clubs that still exist.
+async function ownStats(userId: string, cityId: string | null) {
+  const today = await todayInCity(cityId ?? await getDefaultCityId())
+  const [eventsAttended, clubs] = await Promise.all([
+    prisma.eventAttendee.count({
+      where: {
+        userId, status: 'approved', attendance: { not: 'no_show' },
+        event: { date: { lt: today }, status: { in: ['published', 'archived'] }, cancelledAt: null },
+      },
+    }),
+    prisma.clubMembership.count({ where: { userId, status: 'approved', club: { isActive: true } } }),
+  ])
+  return { eventsAttended, clubs }
 }
 
 export async function PATCH(req: NextRequest) {
@@ -108,9 +138,15 @@ export async function PATCH(req: NextRequest) {
                      'phone', 'gender', 'nationality', 'languages', 'interests', 'profileVisibility', 'socialStyles', 'emailMarketing',
                      'openToCoffee', 'openToLanguage', 'openToHosting', 'neighborhoodVisible',
                      'industry', 'professionalRole', 'professionalStatus']
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
+    }
     const data: Record<string, unknown> = {}
     for (const key of allowed) {
-      if (key in body) data[key] = body[key]
+      if (!(key in body)) continue
+      const checked = validateProfileField(key, body[key])
+      if (!checked.ok) return NextResponse.json({ error: checked.error }, { status: 400 })
+      data[key] = checked.value
     }
 
     // Booleans were previously copied through unchecked, so a non-boolean
@@ -208,12 +244,6 @@ export async function PATCH(req: NextRequest) {
       if (!name.includes(' ')) return NextResponse.json({ error: 'Last name is required' }, { status: 400 })
       data.name = name
     }
-    if (data.bio && String(data.bio).length > 1000)
-      return NextResponse.json({ error: 'Bio too long' }, { status: 400 })
-    if (data.instagram && String(data.instagram).length > 100)
-      return NextResponse.json({ error: 'Instagram handle too long' }, { status: 400 })
-    if (data.linkedin && String(data.linkedin).length > 100)
-      return NextResponse.json({ error: 'LinkedIn too long' }, { status: 400 })
 
     // Hosts can't go private — members must be able to find and view the
     // people running events/clubs. Silently force club hosts back to
@@ -222,7 +252,21 @@ export async function PATCH(req: NextRequest) {
       data.profileVisibility = 'everyone'
     }
 
+    // Gender stays editable, but a change is on the record: the connection-
+    // abuse scans key on it (they read the application's copy, so an edit
+    // here can't slip anyone past them), and staff should be able to see
+    // when and from what it changed.
+    const before = 'gender' in data
+      ? await prisma.user.findUnique({ where: { id: session.id }, select: { gender: true } })
+      : null
+
     const updated = await prisma.user.update({ where: { id: session.id }, data })
+
+    if (before && before.gender !== updated.gender) {
+      await writeAudit(session.id, session.name, 'member.gender_changed', session.id, 'user',
+        { from: before.gender, to: updated.gender, cityId: updated.cityId },
+        `Changed their gender from ${before.gender ?? 'unset'} to ${updated.gender ?? 'unset'}`)
+    }
 
     // Same legacy-vs-tracked branch as the GET partner-refresh path.
     const opts = session.sessionId
@@ -242,7 +286,21 @@ export async function PATCH(req: NextRequest) {
       opts,
     )
 
-    return NextResponse.json({ ok: true })
+    // What was saved, after normalising — the editor refreshes from this so
+    // a formatted name or a URL turned into a handle shows as stored.
+    return NextResponse.json({
+      ok: true,
+      user: {
+        name: updated.name, color: updated.color, bio: updated.bio, neighborhood: updated.neighborhood,
+        instagram: updated.instagram, linkedin: updated.linkedin, lookingFor: updated.lookingFor,
+        profileVisibility: updated.profileVisibility, phone: updated.phone, gender: updated.gender,
+        nationality: updated.nationality, languages: updated.languages, interests: updated.interests,
+        socialStyles: updated.socialStyles, profilePhoto: updated.profilePhoto,
+        openToCoffee: updated.openToCoffee, openToLanguage: updated.openToLanguage, openToHosting: updated.openToHosting,
+        neighborhoodVisible: updated.neighborhoodVisible,
+        industry: updated.industry, professionalRole: updated.professionalRole, professionalStatus: updated.professionalStatus,
+      },
+    })
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

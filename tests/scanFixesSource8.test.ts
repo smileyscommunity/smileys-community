@@ -43,9 +43,9 @@ describe('36 visitors', () => {
 describe('37 neighborhood of a connections-only member', () => {
   it('is withheld without a connection on the list, profile views, connections and search', () => {
     expect(read('app/api/members/route.ts')).toMatch(/neighborhood: null, nationality: null,/)
-    expect(read('app/api/members/profile-views/route.ts')).toMatch(/neighborhood: restricted\.has\(v\.viewer\.id\) \? null : v\.viewer\.neighborhood/)
+    expect(read('app/api/members/profile-views/route.ts')).toMatch(/neighborhood: restricted\.has\(v\.viewer\.id\) \|\| !v\.viewer\.neighborhoodVisible \? null : v\.viewer\.neighborhood/)
     expect(read('app/api/connections/route.ts')).toMatch(/restricted\.has\(p\.id\) \? \{ \.\.\.rest, neighborhood: null \} : rest/)
-    expect(read('app/api/search/route.ts')).toMatch(/neighborhood: restricted\.has\(m\.id\) \? null : m\.neighborhood/)
+    expect(read('app/api/search/route.ts')).toMatch(/neighborhood: restricted\.has\(m\.id\) \|\| !neighborhoodVisible \? null : m\.neighborhood/)
   })
 })
 
@@ -112,8 +112,11 @@ describe('41 admin hygiene', () => {
 describe('42 client hygiene', () => {
   it('withdraw checks its response and block has an error path', () => {
     const src = read('app/(member)/members/[id]/MemberProfileClient.tsx')
-    expect(src).toMatch(/if \(!res\.ok\) \{ toast\.error\('Could not withdraw the request/)
-    expect(src).toMatch(/async function handleBlock\(\) \{\s*setBlocking\(true\)\s*try \{/)
+    // A 404 is "no pending request any more" (declined, hidden from the
+    // sender) and reads as a withdrawal; any other failure still errors.
+    expect(src).toMatch(/if \(!res\.ok && res\.status !== 404\) \{ toast\.error\('Could not withdraw the request/)
+    // Block now confirms with a toast first, then keeps its error path.
+    expect(src).toMatch(/async function handleBlock\(\) \{[\s\S]*?confirmToast\([\s\S]*?setBlocking\(true\)\s*try \{[\s\S]*?catch \{\s*toast\.error\('Could not block/)
   })
   it('password change and push enable recover from a failed request', () => {
     const src = read('app/(member)/settings/page.tsx')

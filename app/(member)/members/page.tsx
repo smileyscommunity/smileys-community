@@ -847,10 +847,14 @@ function MemberFlashCards({ members, currentUserId, connections, onConnectionCha
 
   const status      = getConnectionStatus(m.id)
   const isConnected = status === 'accepted' || status === 'privileged'
+  // A public profile's bio, interests and (if listed) neighbourhood are for
+  // every member, as on the profile page; the API already withholds what a
+  // viewer may not see.
+  const seesProfile = isConnected || !m.restricted
   const isSelf      = m.id === currentUserId
   const flag        = countryFlag(m.nationality)
   const photo       = resolveImageUrl(m.profilePhoto)
-  const displayName = isConnected || isSelf ? m.name : firstNameOf(m.name)
+  const displayName = seesProfile || isSelf ? m.name : firstNameOf(m.name)
 
   const go = (dir: 1 | -1) => {
     setDx(0)
@@ -887,7 +891,7 @@ function MemberFlashCards({ members, currentUserId, connections, onConnectionCha
                 {displayName} {flag && <span className="text-xl">{flag}</span>}
               </p>
               <p className="text-white/80 text-xs mt-0.5">
-                {isConnected && m.neighborhood ? `📍 ${m.neighborhood} · ` : ''}
+                {seesProfile && m.neighborhood ? `📍 ${m.neighborhood} · ` : ''}
                 Joined {new Date(m.joinedAt).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}
               </p>
             </div>
@@ -899,15 +903,15 @@ function MemberFlashCards({ members, currentUserId, connections, onConnectionCha
         </button>
 
         <div className="p-4 space-y-3">
-          {isConnected && m.bio ? (
+          {seesProfile && m.bio ? (
             <p className="text-sm text-gray-600 leading-relaxed line-clamp-3">{m.bio}</p>
           ) : !isConnected && !isSelf ? (
             <p className="text-xs text-gray-400">
-              🔒 {m.restricted ? `${displayName} keeps their profile to connections only.` : 'Bio and interests unlock when you connect.'}
+              🔒 {m.restricted ? `${displayName} keeps their profile to connections only.` : 'Instagram and LinkedIn unlock when you connect.'}
             </p>
           ) : null}
 
-          {isConnected && m.interests.length > 0 && (
+          {seesProfile && m.interests.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {m.interests.slice(0, 5).map(int => (
                 <span key={int} className="px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-100 rounded-full text-xs font-medium">{int}</span>

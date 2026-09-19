@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
+import { SCAN_GENDER_CTE } from '@/lib/scanGender'
 
 // Read-only connection-request abuse report for moderators/admins.
 //
@@ -52,7 +53,8 @@ export async function GET() {
     // Declined and withdrawn requests are hard-DELETED (api/connections/[id]),
     // so only pending + accepted rows survive — these counts understate the
     // true send volume. Thresholds are set with that in mind.
-    // Gender is free text; normalize with lower+trim ('Male'/'MALE'/etc.).
+    // Gender comes from lib/scanGender: what the member applied with, not the
+    // profile value they can edit (normalised lower+trim there).
     const rows = await prisma.$queryRaw<{
       requesterId: string
       requesterGender: string | null
@@ -62,18 +64,20 @@ export async function GET() {
       toFemale: number
       toMale: number
     }[]>`
+      WITH ${SCAN_GENDER_CTE}
       SELECT mc."requesterId",
-             lower(trim(qu.gender))                                          AS "requesterGender",
+             qg.gender                                                       AS "requesterGender",
              COUNT(*)::int                                                   AS "sent",
              COUNT(*) FILTER (WHERE mc.status = 'accepted')::int             AS "accepted",
              COUNT(*) FILTER (WHERE mc.status = 'pending')::int              AS "pending",
-             COUNT(*) FILTER (WHERE lower(trim(ru.gender)) = 'female')::int  AS "toFemale",
-             COUNT(*) FILTER (WHERE lower(trim(ru.gender)) = 'male')::int    AS "toMale"
+             COUNT(*) FILTER (WHERE rg.gender = 'female')::int               AS "toFemale",
+             COUNT(*) FILTER (WHERE rg.gender = 'male')::int                 AS "toMale"
       FROM member_connections mc
-      JOIN users ru ON ru.id = mc."receiverId"
       JOIN users qu ON qu.id = mc."requesterId" AND qu.role = 'member'
+      JOIN scan_gender qg ON qg.id = mc."requesterId"
+      JOIN scan_gender rg ON rg.id = mc."receiverId"
       WHERE mc."createdAt" >= ${since}
-      GROUP BY mc."requesterId", qu.gender
+      GROUP BY mc."requesterId", qg.gender
       HAVING COUNT(*) >= ${MIN_SENT}
     `
 
@@ -84,7 +88,10 @@ export async function GET() {
       const highIgnore = r.pending / r.sent >= HIGH_IGNORE
       const genderSkew = genderKnown >= MIN_GENDER_KNOWN
         && Math.max(r.toFemale, r.toMale) / genderKnown >= GENDER_SKEW
-        && requesterGender !== dominantGender  // cross-gender only
+        // Cross-gender only. "Not the dominant gender" rather than "the
+        // other one": a requester with no gender, or one who chose not to
+        // say, spraying women is still flagged.
+        && requesterGender !== dominantGender
       if (!lowAcceptance && !highIgnore && !genderSkew) return []
       const reasons = [
         ...(lowAcceptance ? ['low-acceptance'] : []),

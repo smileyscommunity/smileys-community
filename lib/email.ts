@@ -302,6 +302,57 @@ export async function sendEmailChangedNotice(oldEmail: string, name: string, new
   }, { policy: 'account' })
 }
 
+// Sent to the NEW address when a member asks to change their login email.
+// Nothing changes until this link is clicked — see api/auth/verify-email.
+export async function sendConfirmEmailChange(newEmail: string, name: string, token: string) {
+  const url = `${APP_URL}/verify-email?token=${token}`
+  await send('sendConfirmEmailChange', {
+    from: FROM, to: newEmail,
+    subject: 'Confirm your new Smileys login email',
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <div style="text-align:center;margin-bottom:32px">
+          <span style="font-size:40px">😊</span>
+          <h1 style="font-size:22px;font-weight:800;color:#111;margin:8px 0 4px">Hi ${esc(name)},</h1>
+          <p style="color:#6b7280;font-size:14px;margin:0">Confirm this address to make it your Smileys login. Until you do, your account keeps its current email.</p>
+        </div>
+        <a href="${url}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:24px">
+          Confirm my new email
+        </a>
+        <p style="color:#9ca3af;font-size:12px;text-align:center">
+          This link expires in 24 hours. If you didn't ask for this, ignore this email.
+        </p>
+        <hr style="border:none;border-top:1px solid #f3f4f6;margin:24px 0"/>
+        <p style="color:#d1d5db;font-size:11px;text-align:center">Or copy this link: ${url}</p>
+      </div>
+    `,
+  }, { policy: 'account', throwOnError: true })
+}
+
+// Sent to the CURRENT address when a change is requested — the owner's
+// signal if someone else is trying to move their login.
+export async function sendEmailChangeRequestedNotice(oldEmail: string, name: string, newEmail: string) {
+  await send('sendEmailChangeRequestedNotice', {
+    from: FROM, to: oldEmail,
+    subject: 'A change to your Smileys login email was requested',
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <div style="text-align:center;margin-bottom:24px">
+          <span style="font-size:40px">😊</span>
+          <h1 style="font-size:22px;font-weight:800;color:#111;margin:8px 0 4px">Hi ${esc(name)},</h1>
+          <p style="color:#6b7280;font-size:14px;margin:0">Someone signed in to your Smileys account asked to change its login email to <strong>${esc(newEmail)}</strong>. It changes only once that address confirms it.</p>
+        </div>
+        <p style="color:#6b7280;font-size:13px;text-align:center;margin:0 0 24px">
+          If this was you, no action is needed.
+        </p>
+        <p style="color:#b91c1c;font-size:13px;text-align:center;font-weight:600">
+          If this was NOT you, change your password now and reply to this email so we can secure your account.
+        </p>
+      </div>
+    `,
+  }, { policy: 'account' })
+}
+
 // Sent when someone re-registers an email that has an UNVERIFIED account.
 // Rides the reset flow on purpose: clicking proves inbox ownership, and
 // setting a password REPLACES whatever password sits on the row — so if a

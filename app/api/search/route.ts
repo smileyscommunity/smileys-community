@@ -5,7 +5,8 @@ import { getSession } from '@/lib/session'
 import { resolveCityId, todayInCity, getCityConfig } from '@/lib/city'
 import { postCityScopeSql } from '@/lib/postScope'
 import { rateLimit } from '@/lib/rateLimit'
-import { restrictedSetFor } from '@/lib/memberPrivacy'
+import { restrictedSetFor, nameSearchWhere } from '@/lib/memberPrivacy'
+import { firstNameOf } from '@/lib/data'
 import { categoryMeta } from '@/lib/handbook-categories'
 
 const EMPTY = { events: [], members: [], clubs: [], listings: [], handbook: [] }
@@ -72,12 +73,15 @@ export async function GET(req: NextRequest) {
         hiddenFromMembers: false,
         cityId,
         id: { notIn: blockedIds },
-        OR: [
-          { name:         { contains: q, mode: 'insensitive' } },
-          { neighborhood: { contains: q, mode: 'insensitive' } },
-        ],
+        OR: [{ suspendedUntil: null }, { suspendedUntil: { lte: new Date() } }],
+        AND: [{ OR: [
+          await nameSearchWhere(session, q, 'contains'),
+          // Only for public members who chose to be listed by neighbourhood —
+          // otherwise a search confirms a neighbourhood the profile hides.
+          { neighborhood: { contains: q, mode: 'insensitive' }, neighborhoodVisible: true, profileVisibility: { not: 'connections' } },
+        ] }],
       },
-      select: { id: true, name: true, color: true, profilePhoto: true, neighborhood: true, profileVisibility: true },
+      select: { id: true, name: true, color: true, profilePhoto: true, neighborhood: true, neighborhoodVisible: true, profileVisibility: true },
       take: 5,
     }),
     prisma.club.findMany({
@@ -122,9 +126,12 @@ export async function GET(req: NextRequest) {
   // command palette can show a 🔒 hint. Strip profileVisibility from the
   // payload — the boolean is all the client needs.
   const restricted = await restrictedSetFor(session, members)
-  const membersOut = members.map(({ profileVisibility, ...m }) => ({
+  // A restricted member shows as their profile does to this viewer: first
+  // name, no photo.
+  const membersOut = members.map(({ profileVisibility, neighborhoodVisible, ...m }) => ({
     ...m,
-    neighborhood: restricted.has(m.id) ? null : m.neighborhood,
+    ...(restricted.has(m.id) ? { name: firstNameOf(m.name), profilePhoto: null } : {}),
+    neighborhood: restricted.has(m.id) || !neighborhoodVisible ? null : m.neighborhood,
     restricted: restricted.has(m.id),
   }))
 

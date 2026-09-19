@@ -1340,6 +1340,16 @@ model EmailVerificationToken {
   token     String   @unique
   expiresAt DateTime
   createdAt DateTime @default(now())
+  // Set when the token confirms a change of login email: the account keeps
+  // its current address until the new one is proven by clicking this link.
+  // A typo used to switch the login straight to an inbox nobody owned.
+  newEmail  String?
+  // The account's tokenVersion when the change was asked for. Anything that
+  // signs the account out everywhere — a password change or reset, a ban, a
+  // role change — moves it, and a pending change dies with it: the notice to
+  // the current address tells the owner to change their password, and that
+  // has to stop a change someone else asked for.
+  tokenVersion Int?
 
   @@index([userId])
   @@map("email_verification_tokens")

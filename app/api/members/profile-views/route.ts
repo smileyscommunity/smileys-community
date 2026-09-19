@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { restrictedSetFor } from '@/lib/memberPrivacy'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { firstNameOf } from '@/lib/data'
 
 // GET — return list of people who viewed my profile (last 30 days)
 export async function GET() {
@@ -22,26 +23,35 @@ export async function GET() {
       viewedId:  session.id,
       createdAt: { gte: since },
       viewerId:  { not: session.id, notIn: [...blockedIds] },
+      // Live members only, and not staff or club hosts: views are no longer
+      // recorded for those (they open profiles to do their jobs), and rows
+      // from before that change shouldn't list them either. A banned,
+      // hidden or suspended viewer isn't on any member surface.
+      viewer: {
+        status: 'approved', hiddenFromMembers: false, role: 'member',
+        OR: [{ suspendedUntil: null }, { suspendedUntil: { lte: new Date() } }],
+        clubMemberships: { none: { role: 'host', status: 'approved', club: { isActive: true } } },
+      },
     },
     orderBy: { createdAt: 'desc' },
     take: 50,
     include: {
-      viewer: { select: { id: true, name: true, color: true, profilePhoto: true, neighborhood: true, profileVisibility: true } },
+      viewer: { select: { id: true, name: true, color: true, profilePhoto: true, neighborhood: true, neighborhoodVisible: true, profileVisibility: true } },
     },
   })
 
-  // A connections-only viewer the profile owner isn't connected to keeps
-  // their neighborhood, as on their profile.
+  // A connections-only viewer the profile owner isn't connected to shows as
+  // on their profile: first name, no photo, no neighbourhood.
   const restricted = await restrictedSetFor(session, views.map(v => v.viewer))
   return NextResponse.json(views.map(v => ({
     id: v.id,
     viewedAt: v.createdAt,
     viewer: {
       id:           v.viewer.id,
-      name:         v.viewer.name,
+      name:         restricted.has(v.viewer.id) ? firstNameOf(v.viewer.name) : v.viewer.name,
       color:        v.viewer.color,
-      photo:        v.viewer.profilePhoto,
-      neighborhood: restricted.has(v.viewer.id) ? null : v.viewer.neighborhood,
+      photo:        restricted.has(v.viewer.id) ? null : v.viewer.profilePhoto,
+      neighborhood: restricted.has(v.viewer.id) || !v.viewer.neighborhoodVisible ? null : v.viewer.neighborhood,
       restricted:   restricted.has(v.viewer.id),
     },
   })))

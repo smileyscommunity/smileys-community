@@ -291,7 +291,7 @@ describe('session host flags ignore inactive clubs', () => {
   it.each([['hDead', false], ['hActive', true]])('me: %s → isClubHost %s', async (id, flag) => {
     as(id)
     p.user.findUnique.mockResolvedValue(userRow(id))
-    const body = await (await meGET()).json()
+    const body = await (await meGET(new NextRequest('http://x.test/app/api/auth/me'))).json()
     expect(body.isClubHost).toBe(flag)
   })
 })

@@ -16,7 +16,7 @@
 //     targets ignore rather than decline, requests pile up pending and
 //     inflate acceptRate, so a big backlog (>=50%) flags on its own.
 //     Same-gender skew (esp. women->women) is normal friend-seeking — the
-//     ⚠️ flag fires only on cross-gender skew >= 75% for male members with
+//     ⚠️ flag fires only on cross-gender skew >= 75% for non-female members with
 //     15+ requests, when acceptRate < 30% OR ignoreRate >= 50%.
 //   - Live rows understate history: declines older than 2026-07-17 were
 //     hard-deleted. cross-check notifications for full send counts.
@@ -31,6 +31,7 @@
 
 import { prisma } from '@/lib/prisma'
 import { Resend } from 'resend'
+import { SCAN_GENDER_CTE } from '@/lib/scanGender'
 
 // Collected so EMAIL_REPORT can ship the same text it printed.
 const report: string[] = []
@@ -51,20 +52,25 @@ async function main() {
     name: string; gender: string | null; role: string; suspended: boolean
     sent: number; to_f: number; pend: number; acc: number
   }[] = await prisma.$queryRaw`
-    SELECT u.name, u.gender, u.role,
+    WITH ${SCAN_GENDER_CTE}
+    SELECT u.name, ug.gender, u.role,
            (u."suspendedUntil" IS NOT NULL AND u."suspendedUntil" > NOW()) AS suspended,
            COUNT(*)::int AS sent,
-           SUM(CASE WHEN r.gender = 'female' THEN 1 ELSE 0 END)::int AS to_f,
+           SUM(CASE WHEN rg.gender = 'female' THEN 1 ELSE 0 END)::int AS to_f,
            SUM(CASE WHEN mc.status = 'pending'  THEN 1 ELSE 0 END)::int AS pend,
            SUM(CASE WHEN mc.status = 'accepted' THEN 1 ELSE 0 END)::int AS acc
     FROM member_connections mc
     JOIN users u ON u.id = mc."requesterId"
-    JOIN users r ON r.id = mc."receiverId"
+    JOIN scan_gender ug ON ug.id = u.id
+    JOIN scan_gender rg ON rg.id = mc."receiverId"
     WHERE mc."createdAt" >= ${cutoff}
-    GROUP BY u.id
+    GROUP BY u.id, ug.gender
     HAVING COUNT(*) >= ${MIN_REQUESTS}
     ORDER BY COUNT(*) DESC`
 
+  // Said in the report so a reviewer checks it before acting: a misclick on
+  // /apply stays on the record, and a profile edit doesn't change it.
+  log('Gender is the one given on the application (else before the first profile edit) — confirm before acting on a flag.')
   log(`--- Connection requests (${MIN_REQUESTS}+ in ${windowLabel}, as requester) ---`)
   for (const x of requests) {
     const pctF   = Math.round(100 * x.to_f / x.sent)
@@ -75,7 +81,10 @@ async function main() {
     // <30% accept threshold (e.g. Zabdawi/Ntamen/Khristy, 2026-07-18).
     // Treat a heavy backlog of unanswered requests as its own red flag.
     const ignorePct = Math.round(100 * x.pend / x.sent)
-    const flag = x.gender === 'male' && x.role === 'member' && !x.suspended
+    // Gender is the one the member applied with (lib/scanGender), and the flag
+    // is "not female" rather than "male": an unset or undisclosed gender used
+    // to exempt the sender entirely.
+    const flag = x.gender !== 'female' && x.role === 'member' && !x.suspended
       && pctF >= 75 && (accPct < 30 || ignorePct >= 50) ? '  ⚠️ REVIEW' : ''
     log(`${x.name}${x.suspended ? ' [suspended]' : ''}: sent=${x.sent} toWomen=${pctF}% pending=${x.pend} (${ignorePct}% ignored) acceptRate=${accPct}%${flag}`)
   }
@@ -84,27 +93,28 @@ async function main() {
   // connection to even exist, so it catches the "get accepted, then work
   // the inbox" variant the request scan misses.
   const dms: { name: string; gender: string | null; suspended: boolean; partners: number; f: number; noreply: number }[] = await prisma.$queryRaw`
-    WITH threads AS (
+    WITH ${SCAN_GENDER_CTE}, threads AS (
       SELECT "fromId", "toId", COUNT(*) AS n FROM direct_messages
       WHERE "createdAt" >= ${cutoff} GROUP BY "fromId", "toId"
     )
-    SELECT u.name, u.gender,
+    SELECT u.name, ug.gender,
            (u."suspendedUntil" IS NOT NULL AND u."suspendedUntil" > NOW()) AS suspended,
            COUNT(*)::int AS partners,
-           SUM(CASE WHEN p.gender = 'female' THEN 1 ELSE 0 END)::int AS f,
+           SUM(CASE WHEN pg.gender = 'female' THEN 1 ELSE 0 END)::int AS f,
            SUM(CASE WHEN rev."fromId" IS NULL THEN 1 ELSE 0 END)::int AS noreply
     FROM threads t
     JOIN users u ON u.id = t."fromId" AND u.role = 'member'
-    JOIN users p ON p.id = t."toId"
+    JOIN scan_gender ug ON ug.id = u.id
+    JOIN scan_gender pg ON pg.id = t."toId"
     LEFT JOIN threads rev ON rev."fromId" = t."toId" AND rev."toId" = t."fromId"
-    GROUP BY u.id
+    GROUP BY u.id, ug.gender
     HAVING COUNT(*) >= ${MIN_DM_PARTNERS}
     ORDER BY COUNT(*) DESC`
 
   log(`--- DMs (${MIN_DM_PARTNERS}+ distinct partners in ${windowLabel}, members only) ---`)
   for (const x of dms) {
     const pctF = Math.round(100 * x.f / x.partners)
-    const flag = x.gender === 'male' && !x.suspended && pctF >= 80 ? '  ⚠️ REVIEW' : ''
+    const flag = x.gender !== 'female' && !x.suspended && pctF >= 80 ? '  ⚠️ REVIEW' : ''
     log(`${x.name}${x.suspended ? ' [suspended]' : ''}: partners=${x.partners} women=${pctF}% neverReplied=${x.noreply}${flag}`)
   }
 }

@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client'
 import { getSession } from '@/lib/session'
 import { createNotification } from '@/lib/notify'
 import { rateLimit } from '@/lib/rateLimit'
+import { isBlockedEitherWay } from '@/lib/memberPrivacy'
 
 // Hangout references — the trust signal that makes spontaneous meetups
 // safe to scale past close friends. See HangoutReference model in
@@ -124,6 +125,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
   if (now.getTime() - ctx.hangout.endsAt.getTime() > WRITE_WINDOW_MS) {
     return NextResponse.json({ error: 'Reference window has closed' }, { status: 400 })
+  }
+
+  // A blocked pair doesn't rate each other: a "good" reference arrives as a
+  // notification carrying the writer's name, which is contact the block was
+  // meant to stop, and a no-show report after a block reads as retaliation.
+  // The other participants' reports still count.
+  if (await isBlockedEitherWay(session.id, body.toUserId)) {
+    return NextResponse.json({ error: 'Target was not a participant' }, { status: 400 })
   }
 
   const newVibe = body.vibe as Vibe

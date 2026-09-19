@@ -2,18 +2,20 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { loadViewerFacts, sharedContextFor } from '@/lib/sharedContext'
-import { rateLimit, getIp } from '@/lib/rateLimit'
-import { createNotification } from '@/lib/notify'
+import { rateLimit } from '@/lib/rateLimit'
 import { isAdminOrModerator, isClubHost } from '@/lib/access'
+import { isBlockedEitherWay } from '@/lib/memberPrivacy'
 import { todayInCity, resolveCityId } from '@/lib/city'
 import { firstNameOf } from '@/lib/data'
 import { countedReferralsWhere } from '@/lib/referrals'
 
-export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  if (!await rateLimit(`member-profile:${getIp(req)}`, 30, 60_000)) {
+  // Keyed on the member, not the address: a shared café or office Wi-Fi put
+  // everyone behind one IP on one budget.
+  if (!await rateLimit(`member-profile:${session.id}`, 30, 60_000)) {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
   }
 
@@ -25,7 +27,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       where: { id, status: 'approved', role: { in: ['member', 'moderator', 'admin'] } },
       select: {
         id: true, name: true, color: true, bio: true,
-        neighborhood: true, nationality: true, interests: true,
+        neighborhood: true, neighborhoodVisible: true, hiddenFromMembers: true, suspendedUntil: true,
+        nationality: true, interests: true,
         languages: true, profilePhoto: true, joinedAt: true, role: true,
         instagram: true, linkedin: true, socialStyles: true, lastActive: true, profileVisibility: true, membershipType: true,
         foundingMember: true,
@@ -33,8 +36,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         goodHangouts: true,
         industry: true, professionalRole: true, professionalStatus: true,
         clubMemberships: {
-          where: { status: 'approved', role: 'host' },
-          select: { club: { select: { id: true, name: true, emoji: true, slug: true, bgColor: true } } },
+          where: { status: 'approved', role: 'host', club: { isActive: true } },
+          select: { club: { select: { id: true, name: true, emoji: true, slug: true, bgColor: true, isPrivate: true } } },
         },
       },
     }),
@@ -81,7 +84,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     // Active hangout this member is hosting right now — powers a live
     // "hosting a hangout now" badge alongside the pulse badge.
     prisma.hangout.findFirst({
-      where:   { userId: id, status: 'active', endsAt: { gte: new Date() } },
+      // Started and not yet ended — one planned for tonight isn't "now".
+      where:   { userId: id, status: 'active', startsAt: { lte: new Date() }, endsAt: { gte: new Date() } },
       orderBy: { startsAt: 'asc' },
       select:  { id: true, title: true, neighborhood: true, startsAt: true },
     }),
@@ -89,29 +93,63 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   if (!user) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  // Private-account model: a 'connections only' member's full profile is
-  // gated. Viewing your own always works; everyone else needs an accepted
-  // MemberConnection. Admins, moderators, and club hosts are exempt
-  // (moderation / event management). 404 rather than 403 so the viewer
-  // can't tell whether the profile exists. Reuses the connection row
-  // already fetched above — no extra query.
-  const privileged = isAdminOrModerator(session) || await isClubHost(session.id)
-  if (
-    session.id !== id &&
-    user.profileVisibility === 'connections' &&
-    connection?.status !== 'accepted' &&
-    !privileged
-  ) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  const self = session.id === id
+  const staff = isAdminOrModerator(session)
+  // A suspended member is off the member surfaces until it lifts; a blocked
+  // pair never sees each other. 404 either way so neither can tell which.
+  // Hidden (hiddenFromMembers) means unlisted, not unreachable: those members
+  // keep full access, and their connections, DM partners and hangout joiners
+  // still open their profile from a direct link.
+  if (!self && !staff) {
+    if (user.suspendedUntil && user.suspendedUntil > new Date()) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    }
+    if (await isBlockedEitherWay(session.id, id)) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    }
   }
 
-  // Connection gating for everyone else. The UI promise (modal lock copy)
-  // is "bio, interests, clubs, and social links are only visible to
-  // connected members" — enforce it HERE rather than trusting each client
-  // surface: the standalone profile page was rendering all of it to any
-  // logged-in member. Non-connected viewers get identity + public activity
-  // (first name, flag, photo, join date, hosted events, trust badges) only.
-  const fullAccess = session.id === id || connection?.status === 'accepted' || privileged
+  // Three levels, the same ones the directory list uses:
+  //   full   — self, an accepted connection, staff or a club host: everything.
+  //   member — a public profile seen by another member: who they are (full
+  //            name, photo, bio, interests, the clubs they host) but not
+  //            how to reach them — Instagram, LinkedIn and work details are
+  //            for connections.
+  //   locked — a connections-only profile seen by someone not connected:
+  //            first name and the connection state only. It used to be a
+  //            404, which left the receiver of a request from a private
+  //            member with nothing to accept it from.
+  const privileged = staff || await isClubHost(session.id)
+  const connected = connection?.status === 'accepted'
+  const viewLevel: 'full' | 'member' | 'locked' =
+    self || connected || privileged ? 'full'
+    : user.profileVisibility === 'connections' ? 'locked'
+    : 'member'
+  const fullAccess = viewLevel === 'full'
+
+  recordView(session, id, self)
+
+  if (viewLevel === 'locked') {
+    return NextResponse.json({
+      id: user.id,
+      name: firstNameOf(user.name),
+      color: user.color,
+      profilePhoto: null,
+      viewLevel,
+      viewerHasFullProfile: false,
+      bio: null, neighborhood: null, nationality: null, interests: [], languages: [], socialStyles: [],
+      joinedAt: null, role: null, membershipType: null, foundingMember: false,
+      instagram: null, linkedin: null, industry: null, professionalRole: null, professionalStatus: null,
+      clubs: [], upcomingEvents: [], sharedContext: null,
+      isConnected: false,
+      connectionId: connection?.id ?? null,
+      connectionStatus: connection?.status ?? null,
+      connectionIsRequester: connection ? connection.requesterId === session.id : null,
+      goodHangouts: 0, hangoutsHosted: 0, hangoutsJoined: 0, broughtInCount: 0,
+      isSaved: savedRow !== null,
+      activePulse: null, activeHangout: null,
+    })
+  }
 
   // Shared context (Members brief §28) — deliberately NOT behind
   // fullAccess. Every fact here is an INTERSECTION with something the
@@ -121,7 +159,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   // reason a non-connected viewer would have to reach out — gating it
   // would leave "Connect" with nothing to say. Never computed for the
   // viewer's own profile.
-  const sharedCtx = session.id === id ? null : await (async () => {
+  const sharedCtx = self ? null : await (async () => {
     const viewer = await loadViewerFacts(session.id)
     const map = await sharedContextFor(viewer, [id])
     const c = map.get(id)
@@ -144,45 +182,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     ? await prisma.memberApplication.count({ where: countedReferralsWhere(user.referralCode) })
     : 0
 
-  // Block check — return 404 so blocker/blocked don't know they're blocked
-  if (session.id !== id) {
-    const blocked = await prisma.memberBlock.findFirst({
-      where: { OR: [{ blockerId: session.id, blockedId: id }, { blockerId: id, blockedId: session.id }] },
-    })
-    if (blocked) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  }
-
-  // Record profile view (fire-and-forget, skip own profile)
-  if (session.id !== id) {
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
-    prisma.profileView.findUnique({
-      where: { viewerId_viewedId: { viewerId: session.id, viewedId: id } },
-      select: { createdAt: true },
-    }).then(existing => {
-      const isFirstView = !existing
-      prisma.profileView.upsert({
-        where: { viewerId_viewedId: { viewerId: session.id, viewedId: id } },
-        create: { viewerId: session.id, viewedId: id },
-        update: { createdAt: new Date() },
-      }).then(() => {
-        // Notify profile owner only on first view or if last view was > 24h ago
-        if (isFirstView || (existing && existing.createdAt < oneDayAgo)) {
-          createNotification(id, 'profile_view', 'Someone viewed your profile 👀',
-            'A member just looked at your profile.', '/profile-visitors')
-        }
-      }).catch(() => {})
-    }).catch(() => {})
-  }
-
   return NextResponse.json({
     id:           user.id,
-    name:         fullAccess ? user.name : firstNameOf(user.name),
+    name:         user.name,
     color:        user.color,
-    bio:          fullAccess ? user.bio : null,
-    neighborhood: fullAccess ? user.neighborhood : null,
+    bio:          user.bio,
+    // Where they live is shown only if they chose to be listed by it.
+    neighborhood: fullAccess || user.neighborhoodVisible ? user.neighborhood : null,
     nationality:  user.nationality,
-    interests:    fullAccess ? user.interests : [],
-    languages:    fullAccess ? user.languages : [],
+    interests:    user.interests,
+    languages:    user.languages,
     socialStyles: user.socialStyles,
     profilePhoto: user.profilePhoto,
     joinedAt:     user.joinedAt,
@@ -198,8 +207,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     industry:           fullAccess && user.professionalStatus && user.professionalStatus !== 'social_only' ? user.industry           : null,
     professionalRole:   fullAccess && user.professionalStatus && user.professionalStatus !== 'social_only' ? user.professionalRole   : null,
     professionalStatus: fullAccess && user.professionalStatus && user.professionalStatus !== 'social_only' ? user.professionalStatus : null,
-    clubs:        fullAccess ? user.clubMemberships.map(cm => cm.club) : [],
+    // A private club's name is for its members; staff and connections see them all.
+    clubs:        user.clubMemberships.map(cm => cm.club)
+                    .filter(c => fullAccess || !c.isPrivate)
+                    .map(c => ({ id: c.id, name: c.name, emoji: c.emoji, slug: c.slug, bgColor: c.bgColor })),
     upcomingEvents,
+    viewLevel,
     // True when the viewer sees the ungated profile (self / connected /
     // admin / moderator / club host) — drives the lock notice client-side.
     viewerHasFullProfile: fullAccess,
@@ -222,12 +235,30 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     // Where and the free-text note follow the same gate as `neighborhood`
     // above; the fact that they are free right now does not.
     activePulse: activePulse
-      ? { neighborhood: fullAccess ? activePulse.neighborhood : null, note: fullAccess ? activePulse.note : null, until: activePulse.until }
+      ? { neighborhood: fullAccess || user.neighborhoodVisible ? activePulse.neighborhood : null, note: fullAccess ? activePulse.note : null, until: activePulse.until }
       : null,
     // Live "hosting a hangout now" signal — null unless they have an active
     // hangout that hasn't ended.
     activeHangout: activeHangout
-      ? { id: activeHangout.id, title: activeHangout.title, neighborhood: fullAccess ? activeHangout.neighborhood : null, startsAt: activeHangout.startsAt }
+      ? { id: activeHangout.id, title: activeHangout.title, neighborhood: activeHangout.neighborhood, startsAt: activeHangout.startsAt }
       : null,
   })
+}
+
+// The member's own /profile-visitors list. Nobody is notified of a view any
+// more — "someone viewed your profile" is the kind of nudge that brings
+// people back to check who, not out to meet anyone. Staff and club hosts
+// open profiles to do their jobs, and a hidden account isn't on the member
+// surfaces, so none of them land on anyone's visitor list.
+function recordView(session: { id: string; role: string }, viewedId: string, self: boolean) {
+  if (self || isAdminOrModerator(session as never)) return
+  void (async () => {
+    const viewer = await prisma.user.findUnique({ where: { id: session.id }, select: { hiddenFromMembers: true } })
+    if (!viewer || viewer.hiddenFromMembers || await isClubHost(session.id)) return
+    await prisma.profileView.upsert({
+      where:  { viewerId_viewedId: { viewerId: session.id, viewedId } },
+      create: { viewerId: session.id, viewedId },
+      update: { createdAt: new Date() },
+    })
+  })().catch(() => {})
 }

@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
-import { getSession, createSession } from '@/lib/session'
-import { sendVerificationEmail, sendEmailChangedNotice, recordEmailFailure } from '@/lib/email'
-import { rateLimit, getIp } from '@/lib/rateLimit'
+import { getSession } from '@/lib/session'
+import { sendConfirmEmailChange, sendEmailChangeRequestedNotice, recordEmailFailure } from '@/lib/email'
+import { rateLimit } from '@/lib/rateLimit'
 import { hashToken } from '@/lib/tokenHash'
 import { verifySync } from 'otplib/functional'
 import { decryptTotpSecret } from '@/lib/totpCrypto'
@@ -59,73 +59,42 @@ export async function POST(req: NextRequest) {
     }
 
     const newEmail = email.toLowerCase().trim()
-    if (newEmail === session.email) return NextResponse.json({ error: 'That is already your email' }, { status: 400 })
+    if (newEmail === user.email.toLowerCase()) return NextResponse.json({ error: 'That is already your email' }, { status: 400 })
 
     const existing = await prisma.user.findUnique({ where: { email: newEmail } })
     if (existing) return NextResponse.json({ error: 'Email already in use' }, { status: 409 })
 
-    // Send verification to new email — generate the token before the
-    // transaction so we can include both the email-change verification
-    // setup AND the session rotation in a single atomic step. See the
-    // change-password route for the same reasoning.
+    // The change waits for the new address to prove itself. It used to
+    // switch the login on the spot and mark it unverified, so one typo moved
+    // the account to an inbox nobody owned — and the password reset that
+    // could have recovered it went there too. Now the account keeps its
+    // address until the link sent to the new one is clicked (verify-email
+    // applies it). Any earlier pending change is replaced.
     const token     = randomBytes(32).toString('hex')
     const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24)
-    const hashedToken = hashToken(token)
-
-    const { tokenVersion, newSessionId } = await prisma.$transaction(async tx => {
-      const u = await tx.user.update({
-        where: { id: session.id },
-        // Bump tokenVersion so a stolen JWT can't keep using the account.
-        data:  { email: newEmail, emailVerified: false, tokenVersion: { increment: 1 } },
-        select: { tokenVersion: true },
-      })
-      // Applications are keyed by email, not userId. Left on the old address
-      // the row looks like a departed member's (the orphan scrub erased six
-      // live members' applications that way on 2026-09-14) and self-deletion
-      // can no longer find it to scrub. Moves with the address, atomically.
-      await tx.memberApplication.updateMany({
-        where: { email: { equals: user.email, mode: 'insensitive' } },
-        data:  { email: newEmail },
-      })
-      await tx.emailVerificationToken.deleteMany({ where: { userId: session.id } })
-      await tx.emailVerificationToken.create({ data: { userId: session.id, token: hashedToken, expiresAt } })
-      await tx.session.deleteMany({ where: { userId: session.id } })
-      const row = await tx.session.create({
-        data: {
-          userId:    session.id,
-          userAgent: req.headers.get('user-agent')?.slice(0, 500) ?? null,
-          ip:        getIp(req),
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-        },
-        select: { id: true },
-      })
-      return { tokenVersion: u.tokenVersion, newSessionId: row.id }
-    })
-    // The trail self-deletion reads to find applications still filed under an
-    // earlier address — same action and meta shape as the admin email edit.
-    await writeAudit(session.id, session.name, 'user.email_change', session.id, 'user',
+    await prisma.$transaction([
+      prisma.emailVerificationToken.deleteMany({ where: { userId: session.id, newEmail: { not: null } } }),
+      prisma.emailVerificationToken.create({ data: { userId: session.id, token: hashToken(token), expiresAt, newEmail, tokenVersion: user.tokenVersion } }),
+    ])
+    await writeAudit(session.id, session.name, 'user.email_change_requested', session.id, 'user',
       { from: user.email, to: newEmail, self: true },
-      `${session.name} changed their own email`,
+      `${session.name} asked to change their email`,
     )
-    // Fire-and-forget mail sends AFTER the tx commits — slow SMTP shouldn't
-    // hold a DB transaction open. The OLD address gets a change notice: it's
-    // the owner's only signal if a hijacked session rotated their email.
-    sendVerificationEmail(newEmail, session.name, token)
-      .catch(err => recordEmailFailure({ helper: 'sendVerificationEmail', recipient: newEmail, error: err, context: { userId: session.id } }))
-    sendEmailChangedNotice(user.email, session.name, newEmail).catch(async err => {
+    // The confirmation is awaited: if it can't be sent, the member has to
+    // know, or they'd wait for a link that never comes. The notice to the
+    // current address is fire-and-forget.
+    try {
+      await sendConfirmEmailChange(newEmail, session.name, token)
+    } catch (err) {
+      await recordEmailFailure({ helper: 'sendConfirmEmailChange', recipient: newEmail, error: err, context: { userId: session.id } })
+      return NextResponse.json({ error: "We couldn't send the confirmation email just now. Please try again in a few minutes." }, { status: 502 })
+    }
+    sendEmailChangeRequestedNotice(user.email, session.name, newEmail).catch(async err => {
       console.error('[update-email] change notice failed', { userId: session.id, err: String(err) })
-      await recordEmailFailure({ helper: 'sendEmailChangedNotice', recipient: user.email, error: err, context: { userId: session.id } })
+      await recordEmailFailure({ helper: 'sendEmailChangeRequestedNotice', recipient: user.email, error: err, context: { userId: session.id } })
     })
 
-    // Re-issue the JWT cookie pointing at the freshly-created Session row.
-    // totpVerified carries forward — minting it as false here would demote a
-    // 2FA-verified session on every email change (isAdminStrict's signal).
-    await createSession(
-      { ...session, email: newEmail, emailVerified: false, tokenVersion },
-      { reuseSessionId: newSessionId, totpVerified: session.totpVerified },
-    )
-
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ ok: true, pending: true })
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

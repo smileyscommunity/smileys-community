@@ -59,6 +59,8 @@ vi.mock('@/lib/prisma',         () => ({ prisma: h.prisma }))
 vi.mock('@/lib/session',        () => ({ getSession: h.getSession }))
 vi.mock('@/lib/rateLimit',      () => ({ rateLimit: h.rateLimit, claimOnce: h.claimOnce, releaseClaim: h.releaseClaim }))
 vi.mock('@/lib/notify',         () => ({ createNotification: h.createNotification }))
+// The references route refuses a blocked pair (profile review 2026-09-19).
+vi.mock('@/lib/memberPrivacy',  () => ({ isBlockedEitherWay: vi.fn(async () => false) }))
 vi.mock('@/lib/email',          () => h.email)
 vi.mock('@/lib/city',           () => h.city)
 vi.mock('@/lib/access',         () => ({ isAdmin: vi.fn(() => false) }))

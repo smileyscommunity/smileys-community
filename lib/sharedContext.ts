@@ -77,20 +77,22 @@ export async function sharedContextFor(
   const [members, clubRows, eventRows, hangoutRows] = await Promise.all([
     prisma.user.findMany({
       where:  { id: { in: memberIds } },
-      select: { id: true, neighborhood: true, interests: true },
+      select: { id: true, neighborhood: true, neighborhoodVisible: true, interests: true },
     }),
     viewer.clubIds.size > 0
       ? prisma.clubMembership.findMany({
-          where:  { userId: { in: memberIds }, status: 'approved', clubId: { in: [...viewer.clubIds] } },
+          where:  { userId: { in: memberIds }, status: 'approved', clubId: { in: [...viewer.clubIds] }, club: { isActive: true } },
           select: { userId: true, club: { select: { id: true, name: true, emoji: true, slug: true } } },
         })
       : Promise.resolve([]),
     viewer.eventIds.size > 0
       ? prisma.eventAttendee.findMany({
           where:  {
-            userId: { in: memberIds }, status: 'approved',
+            // Someone who joined invisibly isn't named as going, here or
+            // anywhere else; a cancelled event isn't something in common.
+            userId: { in: memberIds }, status: 'approved', stealth: false,
             eventId: { in: [...viewer.eventIds] },
-            event: { date: { gte: today } },
+            event: { date: { gte: today }, status: 'published', cancelledAt: null },
           },
           select: { userId: true, event: { select: { id: true, title: true, date: true, emoji: true } } },
         })
@@ -113,7 +115,8 @@ export async function sharedContextFor(
   for (const m of members) {
     const ctx = out.get(m.id)
     if (!ctx) continue
-    if (viewer.neighborhood && m.neighborhood === viewer.neighborhood) ctx.neighborhood = m.neighborhood
+    // Only for members who chose to be listed by neighbourhood.
+    if (viewer.neighborhood && m.neighborhoodVisible && m.neighborhood === viewer.neighborhood) ctx.neighborhood = m.neighborhood
     ctx.interests = m.interests.filter(i => viewerInterests.has(i)).slice(0, 3)
     ctx.weight =
       ctx.clubs.length * 5 +
