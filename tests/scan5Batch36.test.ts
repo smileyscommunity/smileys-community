@@ -51,11 +51,6 @@ vi.mock('@/lib/access', async (orig) => ({
   ...(await orig<typeof import('@/lib/access')>()),
   canManageEventOps: vi.fn(async () => true),
 }))
-vi.mock('@/lib/noShow', async (orig) => ({
-  ...(await orig<typeof import('@/lib/noShow')>()),
-  resolveCard: h.resolveCard,
-  waiveCard:   h.waiveCard,
-}))
 
 process.env.RESEND_API_KEY = 'test-key'
 
@@ -261,32 +256,10 @@ describe('104a who is never carded', () => {
     expect(eventRunners({ hostId: 'h', cohosts: [], club: null }).clubHostIds).toEqual([])
   })
 
-  it('settleEvent cards neither club hosts nor staff, and leaves them out of the check-in room', async () => {
-    const { settleEvent } = await import('@/lib/noShow')
-    h.prisma.event.findUnique.mockResolvedValue({
-      id: 'e1', date: '2026-09-12', time: '19:00', endTime: '23:59', hostId: 'host', clubId: 'club1',
-      price: 0, memberPrice: null, payTo: null, ticketUrl: null, paymentContact: null,
-      status: 'archived', cancelledAt: null, noShowProcessedAt: null,
-      city: { timezone: 'Europe/Istanbul' }, cohosts: [{ userId: 'co' }],
-      club: { memberships: [{ userId: 'clubhost' }] },
-    })
-    const row = (id: string, role: string, o: object = {}) =>
-      ({ id, userId: id, status: 'approved', checkedIn: false, cancelledAt: null, cancelledBy: null, user: { role }, ...o })
-    h.prisma.eventAttendee.findMany.mockResolvedValue([
-      row('p1', 'member', { checkedIn: true }), row('p2', 'member', { checkedIn: true }),
-      row('absent', 'member'), row('hostrole', 'host'),
-      row('clubhost', 'member'), row('mod', 'moderator'), row('adm', 'admin'), row('co', 'member'),
-    ])
-    h.prisma.noShowCard.findMany.mockResolvedValue([])
-    h.prisma.noShowCard.createMany.mockResolvedValue({ count: 2 })
-    // 2 of 4 checked in = credible. Counting the four exempt seats would make it 2 of 8 and skip.
-    const r = await settleEvent('e1', new Date('2026-09-12T23:30:00Z'))
-    expect(r.skipped).toBeUndefined()
-    expect(r.noShows).toBe(2)
-    const carded = h.prisma.noShowCard.createMany.mock.calls[0][0].data.map((c: { userId: string }) => c.userId)
-    expect(carded.sort()).toEqual(['absent', 'hostrole'])
-    expect(h.prisma.eventAttendee.updateMany).toHaveBeenCalledWith({ where: { id: { in: ['absent', 'hostrole'] } }, data: { attendance: 'no_show' } })
-  })
+  // The settleEvent half of this went with v1. Its rule — runners and staff
+  // are never carded — is covered above against noShowExemptionReason
+  // directly, and through the v2 settle in standing.test.
+
 })
 
 // ── 104b. conflict of interest ─────────────────────────────────────────────
@@ -294,23 +267,11 @@ describe('104a who is never carded', () => {
 // no-show cards route and page were deleted — the rule they protect is now
 // enforced on standing's offence decision, and that is where it is covered.
 // The host waiver below still has a live route, so it stays.
-describe('104b a runner cannot clear their own card', () => {
-  const MOD   = { id: 'm1', role: 'moderator', cityId: 'ist', name: 'Mod' }
-  it('the host waiver refuses a runner clearing their own card', async () => {
-    const { POST } = await import('@/app/api/events/[id]/no-shows/waive/route')
-    const waive = () => POST(
-      new NextRequest('http://x', { method: 'POST', body: JSON.stringify({ cardId: 'card1', reason: 'missed scan' }) }),
-      { params: Promise.resolve({ id: 'e1' }) })
-    h.session.current = { id: 'clubhost', role: 'member', cityId: 'ist', name: 'CH' }
-    h.prisma.noShowCard.findUnique.mockResolvedValue({ eventId: 'e1', userId: 'clubhost' })
-    expect((await waive()).status).toBe(403)
-    expect(h.waiveCard).not.toHaveBeenCalled()
-    h.prisma.noShowCard.findUnique.mockResolvedValue({ eventId: 'e1', userId: 'someone' })
-    expect((await waive()).status).toBe(200)
-    expect(h.waiveCard).toHaveBeenCalledTimes(1)
-  })
+// 104b's runner-waiver test went with v1's waive route. The rule it guarded is
+// structural in v2 rather than enforced: noShowExemptionReason excludes anyone
+// running the event from unmarkedGuests and noShowCandidates alike, so a
+// runner cannot hold an absence to clear in the first place.
 
-})
 
 // ── 104c. the audit script ─────────────────────────────────────────────────
 describe('104c scripts/audit-noshow-cards-conflicts planning', () => {

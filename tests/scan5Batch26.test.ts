@@ -73,9 +73,6 @@ vi.mock('@/lib/reconfirmToken', () => ({ reconfirmUrl: () => 'https://x/confirm'
 vi.mock('@/lib/autoJoinClub',   () => ({ autoJoinClub: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('@/lib/firstEvent',     () => ({ stampFirstEventRsvp: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('@/lib/posthog-server', () => ({ trackServer: vi.fn() }))
-vi.mock('@/lib/noShow', () => ({
-  checkRsvpAllowed: vi.fn().mockResolvedValue({ ok: true }), getRsvpGate: vi.fn(), gateErrorBody: vi.fn(), recordYellowAcknowledgement: vi.fn(),
-}))
 vi.mock('@/lib/sharedContext', () => ({
   loadViewerFacts:  vi.fn().mockResolvedValue({ clubIds: new Set(), eventIds: new Set(), neighborhood: null }),
   sharedContextFor: vi.fn().mockResolvedValue(new Map()),

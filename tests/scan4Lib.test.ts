@@ -65,7 +65,6 @@ vi.mock('@/lib/prisma', () => ({ prisma: {
 
 import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notify'
-import { gateErrorBody, getRsvpGate, notifyIssuedCards, activateRedCards, resolveCard, sweepNoShows } from '@/lib/noShow'
 import { PATCH as checkinPatch } from '@/app/api/events/[id]/checkin/route'
 import { buildWeeklyDigest } from '@/lib/newsletterDigest'
 import { getInitials } from '@/lib/data'
@@ -91,123 +90,11 @@ beforeEach(() => {
 
 // ── 1 ────────────────────────────────────────────────────────────────────────
 
-describe('1. no-show dates are read on the member’s city clock', () => {
-  const blocked = { ok: false as const, code: 'red_card_blocked' as const, cardId: 'r', restrictionEndsAt: ENDS, appealDeadlineAt: null }
-
-  it('gateErrorBody dates the block in the given city, DEFAULT_TZ otherwise', () => {
-    expect(gateErrorBody(blocked, 'Asia/Tbilisi').error).toBe('RSVPs are paused until 15 Oct')
-    expect(gateErrorBody({ ...blocked, tz: 'Asia/Tbilisi' }).error).toBe('RSVPs are paused until 15 Oct')
-    expect(gateErrorBody(blocked).error).toBe('RSVPs are paused until 14 Oct')
-  })
-
-  it('getRsvpGate attaches the member’s timezone to a red block, so the join routes print the right day', async () => {
-    const now = new Date('2026-10-01T12:00:00Z')
-    p.noShowCard.findMany.mockResolvedValue([{ id: 'r', kind: 'red', status: 'active', eventId: 'e', occurredAt: new Date('2026-09-01T00:00:00Z'),
-      acknowledgedAt: null, appealDeadlineAt: new Date('2026-09-03T00:00:00Z'), restrictionStartsAt: new Date('2026-09-03T00:00:00Z'), restrictionEndsAt: ENDS }])
-    p.user.findUnique.mockResolvedValue(TBILISI)
-    const gate = await getRsvpGate('u1', now)
-    expect(gate.ok).toBe(false)
-    if (gate.ok) return
-    expect(gateErrorBody(gate).error).toBe('RSVPs are paused until 15 Oct')
-    expect(p.user.findUnique.mock.calls[0][0].where).toEqual({ id: 'u1' })
-  })
-
-  it('a member with no readable city falls back to DEFAULT_TZ', async () => {
-    p.noShowCard.findMany.mockResolvedValue([{ id: 'r', kind: 'red', status: 'active', eventId: 'e', occurredAt: new Date('2026-09-01T00:00:00Z'),
-      acknowledgedAt: null, appealDeadlineAt: null, restrictionStartsAt: new Date('2026-09-03T00:00:00Z'), restrictionEndsAt: ENDS }])
-    p.user.findUnique.mockResolvedValue(null)
-    const gate = await getRsvpGate('u1', new Date('2026-10-01T12:00:00Z'))
-    if (gate.ok) throw new Error('expected a block')
-    expect(gateErrorBody(gate).error).toBe('RSVPs are paused until 14 Oct')
-  })
-
-  it('notifyIssuedCards writes the red card’s dates in the member’s city', async () => {
-    p.noShowCard.findMany.mockResolvedValue([{
-      id: 'r', kind: 'red', userId: 'u1', user: { id: 'u1', name: 'A', email: 'a@x', ...TBILISI },
-      event: { id: 'e1', title: 'T', emoji: '🎉', hostId: 'host' },
-      appealDeadlineAt: ENDS, restrictionStartsAt: ENDS, restrictionEndsAt: ENDS,
-    }])
-    await notifyIssuedCards()
-    const [, , title, body] = (createNotification as any).mock.calls.find((c: any[]) => c[1] === 'no_show_red')
-    expect(title).toContain('paused from 15 Oct')
-    expect(body).toContain('Until 15 Oct')
-    expect(body).toContain('appeal until 15 Oct')
-    expect(p.noShowCard.findMany.mock.calls[0][0].include.user.select.city).toEqual({ select: { timezone: true } })
-  })
-
-  it('activateRedCards tells the member the end date on their clock', async () => {
-    p.noShowCard.findMany.mockResolvedValue([{ id: 'r', userId: 'u1', restrictionEndsAt: ENDS, user: TBILISI }])
-    p.waitlistEntry.findMany.mockResolvedValue([])
-    await activateRedCards(new Date('2026-10-01T00:00:00Z'))
-    expect(createNotification).toHaveBeenCalledWith('u1', 'no_show_restriction_active', 'RSVPs paused until 15 Oct', expect.any(String), '/no-show')
-  })
-
-  it('a rejected appeal says when the pause starts on the member’s clock', async () => {
-    // Far-future deadline: the restriction starts AT the deadline, not now.
-    const deadline = new Date('2099-10-14T20:30:00Z')
-    p.noShowCard.findUnique.mockResolvedValue({ id: 'r', userId: 'u1', kind: 'red', status: 'appeal_pending', appealStatus: 'pending',
-      eventId: 'e1', appealDeadlineAt: deadline, occurredAt: new Date(), event: { title: 'T' }, user: TBILISI })
-    expect(await resolveCard({ cardId: 'r', action: 'reject', actor: { id: 'admin', name: 'Admin' } })).toBe('ok')
-    const [, , , body] = (createNotification as any).mock.calls.find((c: any[]) => c[1] === 'no_show_appeal_resolved')
-    expect(body).toContain('RSVPs pause from 15 Oct')
-  })
-})
-
-// ── 2 ────────────────────────────────────────────────────────────────────────
-
-describe('2. the sweep settles in end-time order, so the second no-show is the red one', () => {
-  it('B (ends 21:00) listed before A (ends 20:00) still gives A yellow, then B red', async () => {
-    const EVENTS: Record<string, any> = {
-      B: { id: 'B', date: '2026-09-12', time: '19:00', endTime: '21:00' },
-      A: { id: 'A', date: '2026-09-12', time: '19:00', endTime: '20:00' },
-    }
-    p.city.findMany.mockResolvedValue([{ id: 'c1', timezone: 'Europe/Istanbul' }])
-    p.event.findMany.mockResolvedValue([EVENTS.B, EVENTS.A])
-    p.event.findUnique.mockImplementation(async ({ where }: any) => ({
-      ...EVENTS[where.id], hostId: 'host', price: 0, memberPrice: null, payTo: null, ticketUrl: null, paymentContact: null,
-      status: 'archived', cancelledAt: null, noShowProcessedAt: null, city: { timezone: 'Europe/Istanbul' }, cohosts: [],
-    }))
-    p.event.update.mockResolvedValue({})
-    p.eventAttendee.findMany.mockImplementation(async ({ where }: any) => [
-      { id: `${where.eventId}-here`, userId: 'present', status: 'approved', checkedIn: true,  cancelledAt: null, cancelledBy: null },
-      { id: `${where.eventId}-u1`,   userId: 'u1',      status: 'approved', checkedIn: false, cancelledAt: null, cancelledBy: null },
-    ])
-    p.eventAttendee.updateMany.mockResolvedValue({ count: 1 })
-
-    // A tiny card store: what one settlement writes, the next one reads.
-    const store: any[] = []
-    p.noShowCard.createMany.mockImplementation(async ({ data }: any) => { store.push(...data); return { count: data.length } })
-    p.noShowCard.findMany.mockImplementation(async ({ where }: any) => {
-      if (where?.userId?.in) {
-        return store.filter(c => where.userId.in.includes(c.userId)
-          && c.occurredAt.getTime() >= where.occurredAt.gte.getTime()
-          && c.occurredAt.getTime() <= where.occurredAt.lte.getTime()
-          && !where.attendeeId.notIn.includes(c.attendeeId))
-      }
-      return []
-    })
-
-    const r = await sweepNoShows(new Date('2026-09-13T12:00:00Z'))
-    expect(r.settled).toBe(2)
-    expect(p.event.findUnique.mock.calls.map((c: any[]) => c[0].where.id)).toEqual(['A', 'B'])
-    expect(store.map(c => [c.eventId, c.kind])).toEqual([['A', 'yellow'], ['B', 'red']])
-  })
-
-  it('orders across cities by the instant the event ends, not by city', async () => {
-    // Tbilisi 21:30 (17:30Z) ends before Istanbul 21:00 (18:00Z).
-    p.city.findMany.mockResolvedValue([{ id: 'ist', timezone: 'Europe/Istanbul' }, { id: 'tbs', timezone: 'Asia/Tbilisi' }])
-    p.event.findMany.mockImplementation(async ({ where }: any) => where.cityId === 'ist'
-      ? [{ id: 'IST', date: '2026-09-12', time: '19:00', endTime: '21:00' }]
-      : [{ id: 'TBS', date: '2026-09-12', time: '19:00', endTime: '21:30' }])
-    p.event.findUnique.mockResolvedValue(null)
-    p.noShowCard.findMany.mockResolvedValue([])
-    await sweepNoShows(new Date('2026-09-13T12:00:00Z'))
-    expect(p.event.findUnique.mock.calls.map((c: any[]) => c[0].where.id)).toEqual(['TBS', 'IST'])
-  })
-})
-
-// ── 3 ────────────────────────────────────────────────────────────────────────
-
+// 1 and 2 went with v1. The first covered gateErrorBody's block date, and v2
+// has no dated block — a red card says what clears it, not when it lifts. The
+// second covered sweepNoShows processing events in end-time order so the
+// SECOND absence got the red; decideIssuance sorts offences by occurredAt, so
+// the order they are processed in cannot decide a card's colour any more.
 describe('3. check-in is closed on cancelled and settled events', () => {
   const patch = (body: unknown) => checkinPatch(
     new NextRequest('http://localhost/api/events/e1/checkin', { method: 'PATCH', body: JSON.stringify(body) }),

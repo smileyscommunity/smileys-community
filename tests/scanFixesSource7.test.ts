@@ -22,7 +22,12 @@ describe('RSVP-tied emails', () => {
   it('no longer carry an "unsubscribe from event reminders" link that only switched off newsletters', () => {
     const src = read('lib/email.ts')
     expect(src).not.toContain('Unsubscribe from event reminders')
-    expect((src.match(/you have a spot at this event\. <a href="\$\{APP_URL\}\/settings"/g) ?? []).length).toBe(6)
+    // A census, not a rule: this counts the RSVP-tied emails that carry the
+    // settings link, so it moves whenever one is added or removed. It went
+    // 6 → 4 when v1's yellow/red card emails were deleted with lib/noShow.
+    // The rule itself is the assertion above — no "unsubscribe from event
+    // reminders" link that only switches off newsletters.
+    expect((src.match(/you have a spot at this event\. <a href="\$\{APP_URL\}\/settings"/g) ?? []).length).toBe(4)
   })
 })
 

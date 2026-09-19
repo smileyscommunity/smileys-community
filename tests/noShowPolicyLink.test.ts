@@ -22,23 +22,22 @@ vi.mock('@/lib/unsubscribe', () => ({
 
 process.env.RESEND_API_KEY = 'test-key'
 
-const { sendYellowCardEmail, sendRedCardEmail, sendNoShowEmail } = await import('@/lib/email')
+const { sendNoShowRecordedEmail, sendAttendanceCheckEmail, sendNoShowEmail } = await import('@/lib/email')
 
 beforeEach(() => { sent.length = 0 })
 
 describe('no-show emails link to the policy article', () => {
-  it('yellow card', async () => {
-    await sendYellowCardEmail('u1', 'a@example.test', 'Ada Lovelace', 'Coffee Morning', '☕')
+  // v1's yellow and red card emails carried this; standing's two do the same
+  // job and did NOT, so the rule had quietly stopped applying to every email
+  // a member actually receives about an absence.
+  it('the recorded-absence email', async () => {
+    await sendNoShowRecordedEmail('a@example.test', 'Ada Lovelace', 'Coffee Morning', '☕', 'defaulted')
     expect(sent).toHaveLength(1)
     expect(sent[0].html).toContain(NO_SHOW_POLICY_PATH)
   })
 
-  it('red card', async () => {
-    await sendRedCardEmail('u1', 'a@example.test', 'Ada Lovelace', 'Coffee Morning', '☕', {
-      appealDeadlineAt:    new Date('2026-09-05T12:00:00Z'),
-      restrictionStartsAt: new Date('2026-09-05T12:00:00Z'),
-      restrictionEndsAt:   new Date('2026-10-05T12:00:00Z'),
-    })
+  it('the "you weren\u2019t checked in" warning — a member\u2019s first contact with the rules', async () => {
+    await sendAttendanceCheckEmail('a@example.test', 'Ada Lovelace', 'Coffee Morning', '☕', 'e1')
     expect(sent).toHaveLength(1)
     expect(sent[0].html).toContain(NO_SHOW_POLICY_PATH)
   })

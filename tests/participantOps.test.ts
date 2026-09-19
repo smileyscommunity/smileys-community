@@ -1,5 +1,8 @@
+// The seat gate is standing's now, not v1's: a red card blocks a host
+// seating someone by hand, same as it blocks the member's own tap.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+vi.mock('@/lib/standingRead', () => ({ redCardBlocksSeat: vi.fn(async () => false), standingLevelsFor: vi.fn(async () => new Map()), standingLevelFor: vi.fn(async () => 'good') }))
 vi.mock('@/lib/session', () => ({ getSession: vi.fn() }))
 vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn().mockResolvedValue(true) }))
 vi.mock('@/lib/access',  () => ({ isAdmin: vi.fn(), isClubHost: vi.fn(), canManageEventOps: vi.fn().mockResolvedValue(true) }))
@@ -9,7 +12,6 @@ vi.mock('@/lib/autoJoinClub', () => ({ autoJoinClub: vi.fn().mockResolvedValue(u
 vi.mock('@/lib/spotsLeft',    () => ({ recomputeSpotsLeft: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('@/lib/audit',        () => ({ writeAudit: vi.fn() }))
 vi.mock('@/lib/eventQuota',   () => ({ findPromotableFromWaitlist: vi.fn(), hasQuotaRoomFor: vi.fn(), quotaEventSelect: {} }))
-vi.mock('@/lib/noShow',       () => ({ getRsvpGate: vi.fn(), gateErrorBody: vi.fn() }))
 // DELETE now asks the city's clock whether the event has started; these rows
 // carry no date, so they read as not started and promotion runs as before.
 vi.mock('@/lib/city', async (orig) => ({ ...(await orig<any>()), getCityTz: vi.fn().mockResolvedValue('Europe/Istanbul') }))
@@ -32,7 +34,6 @@ import { createNotification } from '@/lib/notify'
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 import { writeAudit } from '@/lib/audit'
 import { findPromotableFromWaitlist, hasQuotaRoomFor } from '@/lib/eventQuota'
-import { getRsvpGate } from '@/lib/noShow'
 
 // The host/admin door controls: remove (with waitlist promotion), promote,
 // move to waitlist, and the paid checklist. lib/attendance runs for real so
@@ -53,7 +54,6 @@ beforeEach(() => {
   vi.clearAllMocks()
   ;(getSession as any).mockResolvedValue({ id: 'h1', name: 'Host', role: 'host' })
   ;(canManageEventOps as any).mockResolvedValue(true)
-  ;(getRsvpGate as any).mockResolvedValue({ ok: true })
   ;(hasQuotaRoomFor as any).mockResolvedValue({ ok: true })
   ;(findPromotableFromWaitlist as any).mockResolvedValue(null)
   p.$transaction.mockImplementation(async (ops: any) => Array.isArray(ops) ? Promise.all(ops) : ops(p))

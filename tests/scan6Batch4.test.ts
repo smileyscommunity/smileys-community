@@ -104,7 +104,6 @@ vi.mock('@/lib/session', () => ({
 }))
 vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn(async () => true), claimOnce: vi.fn(async () => true), getIp: () => '1.2.3.4' }))
 vi.mock('@/lib/notify', () => ({ createNotification: vi.fn(async () => {}) }))
-vi.mock('@/lib/noShow', () => ({ waiveCard: vi.fn(async () => 'waived'), getRsvpGate: vi.fn(), gateErrorBody: vi.fn() }))
 vi.mock('@/lib/email', () => ({
   sendEventApprovedEmail: vi.fn(), sendEventRejectedEmail: vi.fn(), recordEmailFailure: vi.fn(),
   sendNewDeviceLoginEmail: vi.fn(async () => {}), sendAccountLockedEmail: vi.fn(async () => {}),
@@ -128,11 +127,9 @@ import { NextRequest } from 'next/server'
 import { SignJWT } from 'jose'
 import { canManageEventOps, isClubHostFor, isClubHost } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
-import { waiveCard } from '@/lib/noShow'
 import { GET as eventParticipantsGET } from '@/app/api/admin/events/[id]/participants/route'
 import { POST as broadcastPOST } from '@/app/api/host/events/[id]/broadcast/route'
 import { GET as checkinGET, PATCH as checkinPATCH } from '@/app/api/events/[id]/checkin/route'
-import { POST as waivePOST } from '@/app/api/events/[id]/no-shows/waive/route'
 import { GET as inboxGET } from '@/app/api/admin/participants/route'
 import { POST as loginPOST } from '@/app/api/auth/login/route'
 import { POST as verifyPOST } from '@/app/api/auth/2fa/verify/route'
@@ -228,15 +225,9 @@ describe('event ops routes refuse an inactive club\'s host', () => {
     expect((await res.json()).map((a: any) => a.userId)).toEqual(['m1'])
   })
 
-  it('waive: 403 and no card touched; active host still waives', async () => {
-    as('hDead')
-    expect((await waivePOST(jsonReq({ cardId: 'card1', reason: 'scanner broke' }), ev('e-off'))).status).toBe(403)
-    expect(waiveCard).not.toHaveBeenCalled()
-
-    as('hActive')
-    await waivePOST(jsonReq({ cardId: 'card1', reason: 'scanner broke' }), ev('e-on'))
-    expect(waiveCard).toHaveBeenCalledWith(expect.objectContaining({ cardId: 'card1' }))
-  })
+  // The waive half went with v1's route. Its rule — an inactive club's host
+  // has no authority — is the canManageEventOps gate, proved just above on
+  // the check-in route with the same hDead/hActive pair.
 })
 
 describe('admin/participants inbox', () => {

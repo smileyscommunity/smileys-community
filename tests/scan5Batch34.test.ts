@@ -85,10 +85,6 @@ vi.mock('@/lib/rsvpConfirmed', () => ({
 vi.mock('@/lib/eventQuota', () => ({
   findPromotableFromWaitlist: h.findPromotable, hasQuotaRoomFor: vi.fn(async () => ({ ok: true })), quotaEventSelect: {},
 }))
-vi.mock('@/lib/noShow', () => ({
-  getRsvpGate: vi.fn(async () => ({ ok: true })), gateErrorBody: vi.fn(), waiveCard: vi.fn(),
-  checkRsvpAllowed: vi.fn(async () => ({ ok: true })), recordYellowAcknowledgement: vi.fn(),
-}))
 
 import { DELETE as participantsDELETE, PATCH as participantsPATCH, POST as participantsPOST, PUT as participantsPUT } from '@/app/api/admin/events/[id]/participants/route'
 import { PUT as eventPUT } from '@/app/api/admin/events/[id]/route'
@@ -568,15 +564,15 @@ describe('k. the automated sweeps leave postponed events alone', () => {
   })
 
   it('no-show settling, surveys, reminders, auto-archive and the first-RSVP nudge only read published/archived', () => {
-    const noShow = read('lib/noShow.ts')
-    expect(noShow).toContain("if (event.cancelledAt || !['published', 'archived'].includes(event.status)) return")
-    expect(noShow).toContain("status: { in: ['published', 'archived'] },")
+    // Standing's sweep carries this rule now that v1's settleEvent is gone:
+    // a postponed or draft event has no door to judge.
+    expect(read('lib/standing.ts')).toContain("status: { in: ['published', 'archived'] },")
     expect(read('app/api/cron/sweep-event-surveys/route.ts').match(/status: +\{ in: \['published', 'archived'\] \},/g)).toHaveLength(2)
     const reminders = read('app/api/admin/cron/reminders/route.ts')
     expect(reminders).toContain("where: { OR: before(todayGroups), status: 'published' },")
     expect(reminders).toContain("where: { OR: onDay(todayOrTomorrow), status: 'published' },")
     expect(read('lib/firstRsvpNudge.ts')).toContain("where: { status: 'published', date:")
-    for (const f of ['lib/noShow.ts', 'lib/reconfirm.ts', 'app/api/cron/sweep-event-surveys/route.ts', 'app/api/admin/cron/reminders/route.ts']) {
+    for (const f of ['lib/standing.ts', 'lib/reconfirm.ts', 'app/api/cron/sweep-event-surveys/route.ts', 'app/api/admin/cron/reminders/route.ts']) {
       expect(read(f), f).not.toContain("'postponed'")
     }
   })

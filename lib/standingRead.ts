@@ -1,6 +1,6 @@
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
-import { STANDING_ENFORCE_SETTING, LIVE_CARD_STATUSES, standingLevel, type StandingLevel } from '@/lib/standingPolicy'
+import { STANDING_ENFORCE_SETTING, LIVE_CARD_STATUSES, standingLevel, type StandingLevel, blocksRsvp, eventTier } from '@/lib/standingPolicy'
 
 // ── Standing, read side ─────────────────────────────────────────────────────
 //
@@ -46,4 +46,23 @@ export async function standingLevelsFor(userIds: string[], enforcement?: Standin
 
 export async function standingLevelFor(userId: string, enforcement?: StandingEnforcement): Promise<StandingLevel> {
   return (await standingLevelsFor([userId], enforcement)).get(userId) ?? 'good'
+}
+
+/**
+ * Does a red card stop this member taking a seat on this event?
+ *
+ * The same question the RSVP route asks, for the paths where a HOST seats
+ * someone by hand — approve, add, promote. v1 enforced this through
+ * getRsvpGate against a table that is now empty, so the rule had quietly
+ * stopped applying to host actions while still applying to the member's own
+ * tap: a rule for one button only. It loads the event's tier itself because
+ * the three call sites have it in scope at different points, and one query on
+ * an admin action is cheaper than three subtly different versions of this.
+ */
+export async function redCardBlocksSeat(userId: string, eventId: string): Promise<boolean> {
+  const [level, event] = await Promise.all([
+    standingLevelFor(userId),
+    prisma.event.findUnique({ where: { id: eventId }, select: { limitedSpots: true, tierOverride: true } }),
+  ])
+  return !!event && blocksRsvp(level, eventTier(event))
 }

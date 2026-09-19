@@ -13,7 +13,6 @@ vi.mock('@/lib/posthog-server', () => ({ trackServer: vi.fn() }))
 vi.mock('@/lib/eventQuota',     () => ({ hasQuotaRoomFor: vi.fn() }))
 vi.mock('@/lib/city',           () => ({ todayInCity: vi.fn().mockResolvedValue('2026-09-10'), getCityTz: vi.fn().mockResolvedValue('Europe/Istanbul') }))
 // Nobody in these cases has a no-show card; the gate is exercised in noShowEnforcement.test.ts.
-vi.mock('@/lib/noShow', () => ({ checkRsvpAllowed: vi.fn().mockResolvedValue({ ok: true }), getRsvpGate: vi.fn().mockResolvedValue({ ok: true }), gateErrorBody: vi.fn() }))
 vi.mock('@/lib/prisma', () => ({ prisma: {
   $transaction:  vi.fn(),
   event:         { findUnique: vi.fn() },

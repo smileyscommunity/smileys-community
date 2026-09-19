@@ -64,7 +64,6 @@ vi.mock('@/lib/access', () => ({
 }))
 vi.mock('@/lib/email', () => ({ sendEventCancelledEmail: vi.fn(async () => {}), recordEmailFailure: vi.fn(async () => {}) }))
 vi.mock('@/lib/rsvpConfirmed', () => ({ backfillSeatPayments: vi.fn(async () => 0), collectsSeatPayment: vi.fn(() => false) }))
-vi.mock('@/lib/noShow', () => ({ waiveCard: vi.fn() }))
 
 import { POST as cohostPOST, DELETE as cohostDELETE } from '@/app/api/admin/events/[id]/cohosts/route'
 import { PUT as eventPUT } from '@/app/api/admin/events/[id]/route'

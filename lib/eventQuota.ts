@@ -19,7 +19,6 @@ import { prisma } from './prisma'
 import type { Prisma, PrismaClient } from '@prisma/client'
 
 type Db = PrismaClient | Prisma.TransactionClient
-import { getRsvpGate } from './noShow'
 import { standingLevelsFor } from './standingRead'
 import { eventTier, blocksRsvp, orderWaitlist } from './standingPolicy'
 
@@ -160,11 +159,6 @@ export async function findPromotableFromWaitlist(
     if (!user) continue
     const room = await hasQuotaRoomFor(eventId, event, user)
     if (!room.ok) continue
-    // A member whose RSVPs are paused keeps their place in line only until
-    // the block starts (activation clears their waitlists); between the two
-    // sweeps this is what keeps them from being promoted into a spot.
-    const gate = await getRsvpGate(entry.userId)
-    if (!gate.ok && gate.code === 'red_card_blocked') continue
     return { id: entry.id, userId: entry.userId, stealth: entry.stealth }
   }
   return null
@@ -221,8 +215,6 @@ export async function countSeatableFromWaitlist(eventId: string, event: QuotaEve
     if (seated >= free) break
     const user = byId.get(entry.userId)
     if (!user) continue
-    const gate = await getRsvpGate(entry.userId)
-    if (!gate.ok && gate.code === 'red_card_blocked') continue
     const gender    = (user.gender ?? '').trim().toLowerCase()
     const trNational = TURKEY_VARIANTS.some(v => v.toLowerCase() === (user.nationality ?? '').trim().toLowerCase())
     if (gender === 'male') {

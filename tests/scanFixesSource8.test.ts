@@ -60,9 +60,11 @@ describe('39 hangout edges', () => {
     expect(read('app/api/hangouts/[id]/references/route.ts')).toMatch(/ctx\.hangout\.status === 'cancelled'/)
     expect(read('app/api/hangouts/[id]/route.ts')).toMatch(/if \(startDate\.getTime\(\) !== hangout\.startsAt\.getTime\(\)\) data\.notifiedStartingAt = null/)
   })
-  it('the nudge clears only expired tokens; hosts hear about stamped cards; no-shows get no survey', () => {
+  it('the nudge clears only expired tokens; no-shows get no survey', () => {
     expect(read('app/api/cron/sweep-login-nudge/route.ts')).toMatch(/deleteMany\(\{ where: \{ userId: user\.id, expiresAt: \{ lt: now \} \} \}\)/)
-    expect(read('lib/noShow.ts')).toMatch(/await notifyHosts\(notified\)/)
+    // "hosts hear about stamped cards" was v1's notifyHosts. Standing tells a
+    // host the morning after instead — by bell AND email — which
+    // standing.test covers end to end.
     expect(read('app/api/cron/sweep-event-surveys/route.ts')).toMatch(/NOT: \[\{ attendance: 'no_show', event: \{ noShowProcessedAt: \{ not: null \} \} \}, \{ attendance: 'excused' \}\]/)
   })
 })

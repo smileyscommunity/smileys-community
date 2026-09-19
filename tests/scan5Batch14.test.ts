@@ -22,7 +22,6 @@ vi.mock('@/lib/autoJoinClub',   () => ({ autoJoinClub: vi.fn().mockResolvedValue
 vi.mock('@/lib/firstEvent',     () => ({ stampFirstEventRsvp: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('@/lib/posthog-server', () => ({ trackServer: vi.fn() }))
 vi.mock('@/lib/eventQuota',     () => ({ hasQuotaRoomFor: vi.fn().mockResolvedValue({ ok: true }), quotaEventSelect: {} }))
-vi.mock('@/lib/noShow', () => ({ checkRsvpAllowed: vi.fn().mockResolvedValue({ ok: true }), getRsvpGate: vi.fn().mockResolvedValue({ ok: true }), gateErrorBody: vi.fn(), recordYellowAcknowledgement: vi.fn() }))
 vi.mock('@/lib/city', () => ({ todayInCity: vi.fn().mockResolvedValue('2026-09-12'), getCityTz: vi.fn().mockResolvedValue('Europe/Istanbul') }))
 vi.mock('@/lib/prisma', () => ({ prisma: {
   $transaction:           vi.fn(),

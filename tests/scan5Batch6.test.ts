@@ -19,7 +19,6 @@ vi.mock('@/lib/access', () => ({
   isAdmin: (s: { role: string }) => s.role === 'admin',
   canModerateReports: (s: { role: string; cityId?: string }, cityId?: string) => s.role === 'moderator' && (cityId === undefined || cityId === s.cityId),
 }))
-vi.mock('@/lib/noShow', () => ({ resolveCard: h.resolveCard }))
 vi.mock('@/lib/session', () => ({ getSession: vi.fn(async () => h.session.current) }))
 
 import { checkSeriesId, seriesScopeFor } from '@/lib/seriesOwnership'

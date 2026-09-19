@@ -39,7 +39,6 @@ vi.mock('@/lib/email',               () => ({ sendEventCancelledEmail: vi.fn(), 
 vi.mock('@/lib/spotsLeft',           () => ({ recomputeSpotsLeft: vi.fn(async () => {}) }))
 vi.mock('@/lib/rsvpConfirmed',       () => ({ backfillSeatPayments: vi.fn(async () => {}), collectsSeatPayment: vi.fn(() => false) }))
 vi.mock('@/lib/eventPublishHistory', () => ({ wasStaffPublished: vi.fn(async () => true) }))
-vi.mock('@/lib/noShow',              () => ({ waiveCard: vi.fn() }))
 vi.mock('@/lib/seriesOwnership',     () => ({ checkSeriesId: vi.fn(async () => ({ ok: true })), seriesScopeFor: vi.fn(() => ({})) }))
 vi.mock('@/lib/eventCapacity', () => ({
   lockEventRow: vi.fn(), seatState: vi.fn(), shrinkVerdict: vi.fn(() => ({ ok: true })),

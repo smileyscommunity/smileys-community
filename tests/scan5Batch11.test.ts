@@ -21,7 +21,6 @@ vi.mock('@/lib/notify', () => ({ createNotification: vi.fn(() => Promise.resolve
 vi.mock('@/lib/audit',  () => ({ writeAudit: vi.fn(), getDiff: vi.fn(() => null) }))
 vi.mock('@/lib/email',  () => ({ sendEventCancelledEmail: vi.fn(async () => {}), recordEmailFailure: vi.fn() }))
 vi.mock('@/lib/spotsLeft', () => ({ recomputeSpotsLeft: vi.fn(async () => {}) }))
-vi.mock('@/lib/noShow', () => ({ waiveCard: vi.fn(async () => {}) }))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     $transaction:  vi.fn(async (ops: any) => Promise.all(ops)),

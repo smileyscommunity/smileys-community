@@ -843,6 +843,7 @@ export async function sendAttendanceCheckEmail(email: string, name: string, even
           I was there →
         </a>
         <p style="color:#9ca3af;font-size:12px;text-align:center">If you didn't make it, there's nothing to do.</p>
+        ${policyLine()}
       </div>
     `,
   })
@@ -921,6 +922,7 @@ export async function sendNoShowRecordedEmail(email: string, name: string, event
         <a href="${url}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin:20px 0 0">
           Your standing →
         </a>
+        ${policyLine()}
       </div>
     `,
   })
@@ -1488,136 +1490,9 @@ function fmtDate(d: Date, tz: string = DEFAULT_TZ): string {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: tz })
 }
 
-export async function sendYellowCardEmail(
-  userId: string, email: string, name: string,
-  eventTitle: string, eventEmoji: string,
-) {
-  const unsub     = unsubscribeUrl(userId)
-  const firstName = firstNameOf(name)
-  const url       = `${APP_URL}/no-show`
-  await send('sendYellowCardEmail', {
-    from: FROM, to: email,
-    subject: safeSubject(`We missed you at ${eventTitle} ${eventEmoji}`),
-    html: `
-      <div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
-        <div style="text-align:center;margin-bottom:28px">
-          <span style="font-size:40px">${esc(eventEmoji)}</span>
-          <h1 style="font-size:22px;font-weight:800;color:#111;margin:8px 0 4px">We missed you, ${esc(firstName)}</h1>
-          <p style="color:#6b7280;font-size:14px;margin:0">You had a spot at <strong>${esc(eventTitle)}</strong>, check-in ran, and we didn't see you.</p>
-        </div>
-        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:16px 20px;margin-bottom:24px">
-          <p style="color:#92400e;font-size:14px;margin:0 0 8px"><strong>This is a heads-up, nothing more.</strong> Spots are limited and someone on the waitlist could have had yours.</p>
-          <p style="color:#92400e;font-size:14px;margin:0">Next time you RSVP we'll ask you to confirm you're really coming. A second no-show within ${NO_SHOW_ROLLING_WINDOW_DAYS} days pauses your RSVPs for a while — cancelling at least ${NO_SHOW_CANCELLATION_CUTOFF_HOURS} hours ahead always keeps you clear.</p>
-        </div>
-        <a href="${url}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:16px">
-          See the details →
-        </a>
-        <p style="color:#9ca3af;font-size:12px;text-align:center">If this is a mistake — you were there, or the host missed your check-in — the host can clear it.</p>
-        ${policyLine()}
-        <p style="color:#9ca3af;font-size:11px;text-align:center;margin-top:20px">
-          You're getting this because you have a spot at this event. <a href="${APP_URL}/settings" style="color:#9ca3af">Manage notifications</a>
-        </p>
-      </div>
-    `,
-    tags: [{ name: 'type', value: 'no_show_yellow' }],
-  })
-}
 
-export async function sendRedCardEmail(
-  userId: string, email: string, name: string,
-  eventTitle: string, eventEmoji: string,
-  dates: { appealDeadlineAt: Date; restrictionStartsAt: Date; restrictionEndsAt: Date },
-  tz: string = DEFAULT_TZ,
-) {
-  const unsub     = unsubscribeUrl(userId)
-  const firstName = firstNameOf(name)
-  const url       = `${APP_URL}/no-show`
-  await send('sendRedCardEmail', {
-    from: FROM, to: email,
-    subject: safeSubject(`Your RSVPs are paused — second no-show at ${eventTitle}`),
-    html: `
-      <div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
-        <div style="text-align:center;margin-bottom:28px">
-          <span style="font-size:40px">${esc(eventEmoji)}</span>
-          <h1 style="font-size:22px;font-weight:800;color:#111;margin:8px 0 4px">Hi ${esc(firstName)}, this is your second no-show</h1>
-          <p style="color:#6b7280;font-size:14px;margin:0">You had a spot at <strong>${esc(eventTitle)}</strong>, check-in ran, and we didn't see you — the second time in the last few months.</p>
-        </div>
-        <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:16px 20px;margin-bottom:24px">
-          <p style="color:#991b1b;font-size:14px;margin:0 0 8px"><strong>From ${fmtDate(dates.restrictionStartsAt, tz)} to ${fmtDate(dates.restrictionEndsAt, tz)}</strong> you won't be able to RSVP or join waitlists. Everything else stays open.</p>
-          <p style="color:#991b1b;font-size:14px;margin:0">Think this is wrong? You can appeal until <strong>${fmtDate(dates.appealDeadlineAt, tz)}</strong>, and nothing is paused while an appeal is open.</p>
-        </div>
-        <a href="${url}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:16px">
-          Review or appeal →
-        </a>
-        <p style="color:#9ca3af;font-size:12px;text-align:center">We'd rather have you at events than not. Cancelling ${NO_SHOW_CANCELLATION_CUTOFF_HOURS} hours ahead is all it takes.</p>
-        ${policyLine()}
-        <p style="color:#9ca3af;font-size:11px;text-align:center;margin-top:20px">
-          You're getting this because you have a spot at this event. <a href="${APP_URL}/settings" style="color:#9ca3af">Manage notifications</a>
-        </p>
-      </div>
-    `,
-    tags: [{ name: 'type', value: 'no_show_red' }],
-  })
-}
 
-// Host: cards were issued from your event — the one person who knows whether
-// the door was run properly, told the moment it matters.
-export async function sendHostNoShowCardsEmail(
-  email: string, name: string,
-  eventTitle: string, eventEmoji: string,
-  counts: { yellow: number; red: number },
-  eventId: string,
-) {
-  const firstName = firstNameOf(name)
-  const url       = `${APP_URL}/host/events/${eventId}/participants`
-  const total     = counts.yellow + counts.red
-  const what      = [
-    counts.yellow ? `${counts.yellow} first-time warning${counts.yellow === 1 ? '' : 's'}` : null,
-    counts.red    ? `${counts.red} second no-show${counts.red === 1 ? '' : 's'} (RSVPs paused)` : null,
-  ].filter(Boolean).join(' and ')
-  await send('sendHostNoShowCardsEmail', {
-    from: FROM, to: email,
-    subject: safeSubject(`${total} no-show${total === 1 ? '' : 's'} recorded for ${eventTitle} ${eventEmoji}`),
-    html: `
-      <div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
-        <div style="text-align:center;margin-bottom:28px">
-          <span style="font-size:40px">${esc(eventEmoji)}</span>
-          <h1 style="font-size:22px;font-weight:800;color:#111;margin:8px 0 4px">Attendance settled, ${esc(firstName)}</h1>
-          <p style="color:#6b7280;font-size:14px;margin:0">Check-in ran at <strong>${esc(eventTitle)}</strong>, so members who held a spot and weren't checked in are now recorded as no-shows: ${esc(what)}.</p>
-        </div>
-        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:16px 20px;margin-bottom:24px">
-          <p style="color:#92400e;font-size:14px;margin:0"><strong>Was anyone actually there?</strong> A missed scan or a mistake at the door is one tap to clear — the record is corrected and nothing counts against them.</p>
-        </div>
-        <a href="${url}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:16px">
-          Review the no-shows →
-        </a>
-        <p style="color:#9ca3af;font-size:12px;text-align:center">Nothing to do if the record is right.</p>
-      </div>
-    `,
-    tags: [{ name: 'type', value: 'no_show_host' }],
-  })
-}
 
-// Admins: an appeal is waiting. Same single ADMIN_EMAIL as the application
-// and directory pings — the bell alone can sit unseen past the deadline.
-export async function sendAdminNoShowAppealEmail(memberName: string, eventTitle: string, appealDeadlineAt: Date) {
-  const adminEmail = process.env.ADMIN_EMAIL ?? 'info@smileyscommunity.com'
-  await send('sendAdminNoShowAppealEmail', {
-    from: FROM, to: adminEmail,
-    subject: safeSubject(`No-show appeal: ${memberName}`),
-    html: `
-      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
-        <h2 style="font-size:18px;font-weight:700;color:#111;margin:0 0 16px">No-show appeal to review</h2>
-        <p style="color:#374151;font-size:14px;margin:0 0 8px"><strong>Member:</strong> ${esc(memberName)}</p>
-        <p style="color:#374151;font-size:14px;margin:0 0 8px"><strong>Event:</strong> ${esc(eventTitle)}</p>
-        <p style="color:#374151;font-size:14px;margin:0 0 24px"><strong>Window closes:</strong> ${esc(fmtDate(appealDeadlineAt))} — nothing is paused for them while the appeal is open.</p>
-        <a href="${APP_URL}/admin/standing" style="display:inline-block;background:#111;color:#fff;font-weight:600;font-size:14px;padding:12px 24px;border-radius:10px;text-decoration:none">
-          Review appeal →
-        </a>
-      </div>
-    `,
-  })
-}
 
 // ── Day-before reconfirmation ───────────────────────────────────────────────
 

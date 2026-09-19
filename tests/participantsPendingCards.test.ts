@@ -15,7 +15,6 @@ vi.mock('@/lib/autoJoinClub', () => ({ autoJoinClub: vi.fn() }))
 vi.mock('@/lib/spotsLeft',    () => ({ recomputeSpotsLeft: vi.fn() }))
 vi.mock('@/lib/audit',        () => ({ writeAudit: vi.fn() }))
 vi.mock('@/lib/eventQuota',   () => ({ findPromotableFromWaitlist: vi.fn(), hasQuotaRoomFor: vi.fn(), quotaEventSelect: {} }))
-vi.mock('@/lib/noShow',       () => ({ getRsvpGate: vi.fn(), gateErrorBody: vi.fn() }))
 vi.mock('@/lib/prisma', () => ({ prisma: {
   eventAttendee: { findMany: vi.fn() },
   waitlistEntry: { findMany: vi.fn().mockResolvedValue([]) },

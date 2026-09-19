@@ -9,7 +9,6 @@ import { ensurePendingVenueBusiness } from '@/lib/venueDirectory'
 import { activeAttendeeWhere } from '@/lib/attendance'
 import { restoreSeatsReleasedByCancel, type PaidOnWaitlist } from '@/lib/eventRestore'
 import { backfillSeatPayments, collectsSeatPayment } from '@/lib/rsvpConfirmed'
-import { waiveCard } from '@/lib/noShow'
 import { getSession } from '@/lib/session'
 import { isAdmin, isAdminOrModerator, isClubHost, isClubHostFor, hostCityIds } from '@/lib/access'
 import { createNotification, notifyNewEvent } from '@/lib/notify'
@@ -92,13 +91,6 @@ export async function DELETE(_: NextRequest, { params }: Params) {
     // No-show cards cascade with the event. Close the open ones properly
     // first — audited, member told, a dependent red card downgraded — so a
     // deleted event never silently erases (or silently keeps) a consequence.
-    const openCards = await prisma.noShowCard.findMany({
-      where:  { eventId: id, status: { in: ['active', 'appeal_pending'] } },
-      select: { id: true },
-    })
-    for (const c of openCards) {
-      await waiveCard({ cardId: c.id, actor: { id: session.id, name: session.name }, reason: 'Event deleted' })
-    }
     // Payment.event has no onDelete (→ Restrict), so any priced event that
     // ever had an RSVP was undeletable — P2003 rolled the whole transaction
     // back as a generic 500. Snapshot the ledger rows into PaymentLog
@@ -130,7 +122,7 @@ export async function DELETE(_: NextRequest, { params }: Params) {
     // The row is gone, so writeAudit's lookup can't find its city — pass it,
     // or the delete drops out of the city-scoped audit view.
     writeAudit(session.id, session.name, 'event.delete', id, 'event',
-      { title: eventScope.title, date: eventScope.date, attendeesRemoved: attendeeCount, noShowCardsClosed: openCards.length, cityId: eventScope.cityId },
+      { title: eventScope.title, date: eventScope.date, attendeesRemoved: attendeeCount, cityId: eventScope.cityId },
       `Deleted event "${eventScope.title}" (${eventScope.date}, ${attendeeCount} attendees removed)`,
     )
     return NextResponse.json({ ok: true })

@@ -54,7 +54,6 @@ vi.mock('@/lib/city',               () => ({
   resolveTargetCityId: vi.fn(), getCityTz: vi.fn(async () => 'Europe/Istanbul'), DEFAULT_CITY_SLUG: 'istanbul',
 }))
 vi.mock('@/lib/cronHealth',         () => ({ recordCronRun: vi.fn() }))
-vi.mock('@/lib/noShow',             () => ({ waiveCard: vi.fn(async () => {}) }))
 vi.mock('@/lib/spotsLeft',          () => ({ recomputeSpotsLeft: vi.fn(async () => {}), expectedSpotsLeft: vi.fn(async () => 0) }))
 vi.mock('@/lib/admin/userHistory',  () => ({ snapshotUserHistory: vi.fn(async () => ({})) }))
 vi.mock('@/lib/survey',             () => ({ computeEventSurveyRollup: vi.fn(async () => new Map()), aggregateRollup: vi.fn(() => null) }))

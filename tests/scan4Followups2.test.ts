@@ -19,13 +19,12 @@ vi.mock('@/lib/notify', () => ({ createNotification: vi.fn(async () => true) }))
 import { autoJoinClub } from '@/lib/autoJoinClub'
 import { getIp } from '@/lib/rateLimit'
 
-describe('1. red-card email dates follow the member city', () => {
-  it('the email formats in the zone it is given, and the sweep passes the member zone', () => {
-    const email = read('lib/email.ts')
-    expect(email).toMatch(/function fmtDate\(d: Date, tz: string = DEFAULT_TZ\)/)
-    expect(email).toContain('${fmtDate(dates.restrictionEndsAt, tz)}')
-    expect(email).toContain('${fmtDate(dates.appealDeadlineAt, tz)}')
-    expect(read('lib/noShow.ts')).toContain('restrictionEndsAt: c.restrictionEndsAt }, tz)')
+// 1 went with v1's red-card email, which had a restriction period and an
+// appeal deadline to date. A v2 red card has neither: it says what clears it,
+// not when it lifts, so there are no dates to format in anyone's city.
+describe('1. dates in email still format in the zone they are given', () => {
+  it('fmtDate takes a zone and defaults to DEFAULT_TZ', () => {
+    expect(read('lib/email.ts')).toMatch(/function fmtDate\(d: Date, tz: string = DEFAULT_TZ\)/)
   })
 })
 
@@ -72,11 +71,10 @@ describe('3. a claimed scheduled newsletter is aged from its claim', () => {
   })
 })
 
-describe('4. a late-settling event sees cards on both sides of it', () => {
-  it('the prior-card window extends a full window past this event', () => {
-    expect(read('lib/noShow.ts')).toContain('lte: new Date(endsAt.getTime() + NO_SHOW_ROLLING_WINDOW_DAYS * DAY)')
-  })
-})
+// 4 covered v1's prior-card window query. Standing decides a card from the
+// offence ledger inside windowStart(now) rather than by querying cards around
+// an event, and standingPolicy's tests cover that window directly.
+
 
 describe('5. editing a scheduled newsletter retires the original in one request', () => {
   const api  = read('app/api/admin/newsletter/route.ts')

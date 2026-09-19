@@ -34,7 +34,6 @@ vi.mock('@/lib/access', () => ({
 vi.mock('@/lib/autoJoinClub', () => ({ autoJoinClub: vi.fn(async () => {}) }))
 vi.mock('@/lib/spotsLeft', () => ({ recomputeSpotsLeft: vi.fn(async () => {}) }))
 vi.mock('@/lib/eventQuota', () => ({ findPromotableFromWaitlist: vi.fn(), hasQuotaRoomFor: vi.fn(async () => ({ ok: true })), quotaEventSelect: {} }))
-vi.mock('@/lib/noShow', () => ({ getRsvpGate: vi.fn(async () => ({ ok: true })), gateErrorBody: vi.fn() }))
 
 import { PATCH as reportPATCH } from '@/app/api/admin/moderation/[id]/route'
 import { PATCH as participantsPATCH } from '@/app/api/admin/events/[id]/participants/route'

@@ -55,8 +55,8 @@ export const SWEEPER_INTERVAL_MIN: Record<string, number> = {
   // scripts and surface via /var/log/<name>.log + emailed reports):
   //   db-backup, sweep-connection-abuse, sweep-neighborhood-hygiene.
   //
-  // sweep-no-shows paused 2026-09-15 for the v2 standing rework (deploy.sh
-  // strips its crontab line). Re-add at 60 when it is registered again.
+  // sweep-no-shows is gone, not paused: v1's engine was deleted on
+  // 2026-09-20 and sweep-standing does this work. Nothing to re-add.
   'sweep-newsletters':      5,
   'sweep-event-surveys':    60,
   'sweep-reconfirm':        60,

@@ -12,8 +12,13 @@ const p = vi.hoisted(() => ({
 }))
 const gate = vi.hoisted(() => ({ blocked: new Set<string>() }))
 vi.mock('@/lib/prisma', () => ({ prisma: p }))
-vi.mock('@/lib/noShow', () => ({
-  getRsvpGate: vi.fn(async (userId: string) => gate.blocked.has(userId) ? { ok: false, code: 'red_card_blocked' } : { ok: true }),
+// A paused member is a red card now, read through standing rather than v1's
+// gate. The rule is the same and still enforced: blocksRsvp keeps a red card
+// out of the seatable count, so an open seat it could not take covers nobody.
+vi.mock('@/lib/standingRead', () => ({
+  standingLevelsFor: vi.fn(async (ids: string[]) =>
+    new Map(ids.map(id => [id, gate.blocked.has(id) ? 'red' : 'good']))),
+  standingLevelFor: vi.fn(async (id: string) => gate.blocked.has(id) ? 'red' : 'good'),
 }))
 
 import { countSeatableFromWaitlist } from '@/lib/eventQuota'
@@ -22,7 +27,9 @@ import { projectEventsForMember } from '@/lib/db'
 beforeEach(() => { vi.clearAllMocks(); gate.blocked.clear() })
 
 describe('6. an open seat covers only a waiter who could take it', () => {
-  const balanced = { genderBalance: true, maleQuota: null, femaleQuota: null, turkishMaleQuota: null, totalSpots: 10 }
+  // limitedSpots matters: a red card only blocks a seat on a limited event,
+  // so without it eventTier reads 'open' and the paused member is seatable.
+  const balanced = { genderBalance: true, maleQuota: null, femaleQuota: null, turkishMaleQuota: null, totalSpots: 10, limitedSpots: true, tierOverride: null }
   const setup = (queue: { userId: string; gender: string }[], males: number, females: number) => {
     p.waitlistEntry.findMany.mockResolvedValue(queue.map(q => ({ userId: q.userId })))
     p.user.findMany.mockResolvedValue(queue.map(q => ({ id: q.userId, gender: q.gender, nationality: 'France' })))

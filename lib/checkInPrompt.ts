@@ -4,7 +4,7 @@ import { DEFAULT_TZ } from '@/lib/cityTime'
 
 // ── "You haven't checked anyone in" ─────────────────────────────────────────
 //
-// The host-facing counterpart to NoShowBanner. The standing sweep reads an
+// The host-facing prompt to finish the door. The standing sweep reads an
 // unchecked seat as a no-show only on events where the host actually ran
 // check-in; with nobody scanned it skips the event
 // entirely rather than hand cards to the whole room. That guard is right,

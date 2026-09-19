@@ -11,8 +11,7 @@ import { createSeatPayment } from '@/lib/rsvpConfirmed'
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 import { writeAudit } from '@/lib/audit'
 import { activateAttendee, activeAttendeeWhere, cancelAttendeeOp, isActiveAttendee, type CancelActor } from '@/lib/attendance'
-import { getRsvpGate, gateErrorBody } from '@/lib/noShow'
-import { standingLevelsFor } from '@/lib/standingRead'
+import { standingLevelsFor, redCardBlocksSeat } from '@/lib/standingRead'
 import { CardStatus } from '@/lib/noShowPolicy'
 import { DEFAULT_CURRENCY } from '@/lib/data'
 import { rateLimit, claimOnce, releaseClaim } from '@/lib/rateLimit'
@@ -437,11 +436,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // A red-card block holds here as it does for PUT/POST: approving gives a
     // seat, and "to waitlist" gives a place in the queue — neither for a
     // member whose RSVPs are paused. Reject and remove stay open.
-    if (action === 'approve' || action === 'toWaitlist') {
-      const gate = await getRsvpGate(userId)
-      if (!gate.ok && gate.code === 'red_card_blocked') {
-        return NextResponse.json(gateErrorBody(gate), { status: 409 })
-      }
+    if ((action === 'approve' || action === 'toWaitlist') && await redCardBlocksSeat(userId, eventId)) {
+      return NextResponse.json({ error: 'Their standing is paused for events with limited spots. Three check-ins at any event restores it.', code: 'red_card_blocked' }, { status: 409 })
     }
 
     // Normalize so 'Male' / 'MALE' / 'male' and 'Türkiye' / 'Turkey' / 'TR'
@@ -760,9 +756,8 @@ export async function PUT(req: NextRequest, { params }: Params) {
     // A red-card block holds for a host's manual add too — otherwise it is
     // a rule for one button only. (A yellow card's confirmation is the
     // member's own promise, not something a host makes for them.)
-    const gate = await getRsvpGate(userId)
-    if (!gate.ok && gate.code === 'red_card_blocked') {
-      return NextResponse.json(gateErrorBody(gate), { status: 409 })
+    if (await redCardBlocksSeat(userId, eventId)) {
+      return NextResponse.json({ error: 'Their standing is paused for events with limited spots. Three check-ins at any event restores it.', code: 'red_card_blocked' }, { status: 409 })
     }
     // A seat added by hand is still a seat: the balance rule that approve,
     // the member's own RSVP and the waitlist promotion apply holds here too.
@@ -844,9 +839,8 @@ export async function POST(req: NextRequest, { params }: Params) {
     }
 
     // Same rule as the PUT add-member path above.
-    const gate = await getRsvpGate(userId)
-    if (!gate.ok && gate.code === 'red_card_blocked') {
-      return NextResponse.json(gateErrorBody(gate), { status: 409 })
+    if (await redCardBlocksSeat(userId, eventId)) {
+      return NextResponse.json({ error: 'Their standing is paused for events with limited spots. Three check-ins at any event restores it.', code: 'red_card_blocked' }, { status: 409 })
     }
     const quotaBlock = await quotaBlockFor(eventId, eventMeta, userId)
     if (quotaBlock) return quotaBlock

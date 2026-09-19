@@ -61,7 +61,6 @@ vi.mock('@/lib/rsvpConfirmed', () => ({ createSeatPayment: h.createSeatPayment, 
 vi.mock('@/lib/eventQuota', () => ({
   findPromotableFromWaitlist: vi.fn(async () => null), hasQuotaRoomFor: vi.fn(async () => ({ ok: true })), quotaEventSelect: {},
 }))
-vi.mock('@/lib/noShow', () => ({ getRsvpGate: vi.fn(async () => ({ ok: true })), gateErrorBody: vi.fn() }))
 
 import { restoreSeatsReleasedByCancel } from '@/lib/eventRestore'
 import { PATCH as participantsPATCH } from '@/app/api/admin/events/[id]/participants/route'

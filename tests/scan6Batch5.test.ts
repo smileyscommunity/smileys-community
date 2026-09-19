@@ -54,10 +54,6 @@ vi.mock('@/lib/spotsLeft',      () => ({ recomputeSpotsLeft: h.recompute }))
 vi.mock('@/lib/spotOpened',     () => ({ announceSpotOpened: h.announceSpotOpened }))
 vi.mock('@/lib/rsvpConfirmed',  () => ({ createSeatPayment: h.createSeatPayment, announceConfirmedSeat: vi.fn(async () => {}) }))
 vi.mock('@/lib/eventQuota',     () => ({ findPromotableFromWaitlist: h.findPromotable, hasQuotaRoomFor: vi.fn(async () => ({ ok: true })), quotaEventSelect: { totalSpots: true } }))
-vi.mock('@/lib/noShow', () => ({
-  getRsvpGate: vi.fn(async () => ({ ok: true })), gateErrorBody: vi.fn(),
-  checkRsvpAllowed: vi.fn(async () => ({ ok: true })), recordYellowAcknowledgement: vi.fn(),
-}))
 
 import { DELETE as participantsDELETE } from '@/app/api/admin/events/[id]/participants/route'
 import { POST as rsvpPOST, DELETE as rsvpDELETE } from '@/app/api/events/[id]/rsvp/route'

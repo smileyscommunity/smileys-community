@@ -1,3 +1,5 @@
+// The seat gate is standing's now, not v1's: a red card blocks a host
+// seating someone by hand, same as it blocks the member's own tap.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { readFileSync } from 'fs'
 import { join } from 'path'
@@ -8,6 +10,7 @@ import { join } from 'path'
 // lib/access and lib/attendance run for real so the assertions are on what
 // the routes would actually allow and write.
 
+vi.mock('@/lib/standingRead', () => ({ redCardBlocksSeat: vi.fn(async () => false), standingLevelsFor: vi.fn(async () => new Map()), standingLevelFor: vi.fn(async () => 'good') }))
 vi.mock('@/lib/session',   () => ({ getSession: vi.fn() }))
 vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn(), claimOnce: vi.fn(), getIp: vi.fn(() => '1.1.1.1') }))
 vi.mock('@/lib/notify',    () => ({ createNotification: vi.fn().mockResolvedValue(undefined) }))
@@ -21,7 +24,6 @@ vi.mock('@/lib/autoJoinClub', () => ({ autoJoinClub: vi.fn().mockResolvedValue(u
 vi.mock('@/lib/spotsLeft',    () => ({ recomputeSpotsLeft: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('@/lib/audit',        () => ({ writeAudit: vi.fn() }))
 vi.mock('@/lib/eventQuota',   () => ({ findPromotableFromWaitlist: vi.fn().mockResolvedValue(null), hasQuotaRoomFor: vi.fn().mockResolvedValue({ ok: true }), quotaEventSelect: {} }))
-vi.mock('@/lib/noShow',       () => ({ getRsvpGate: vi.fn(), gateErrorBody: vi.fn() }))
 vi.mock('@/lib/prisma', () => ({ prisma: {
   $queryRaw:     vi.fn().mockResolvedValue([]),
   $transaction:     vi.fn(),
@@ -53,7 +55,6 @@ import { getSession } from '@/lib/session'
 import { rateLimit, claimOnce } from '@/lib/rateLimit'
 import { canManageEventOps } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
-import { getRsvpGate } from '@/lib/noShow'
 import { prisma } from '@/lib/prisma'
 
 const p = prisma as any
@@ -73,7 +74,6 @@ beforeEach(() => {
   vi.clearAllMocks()
   ;(rateLimit as any).mockResolvedValue(true)
   ;(claimOnce as any).mockResolvedValue(true)
-  ;(getRsvpGate as any).mockResolvedValue({ ok: true })
   p.$transaction.mockImplementation(async (ops: any) => Array.isArray(ops) ? Promise.all(ops) : ops(p))
   p.clubMembership.findUnique.mockResolvedValue(null)
   p.clubMembership.findMany.mockResolvedValue([])

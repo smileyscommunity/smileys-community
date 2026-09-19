@@ -73,10 +73,6 @@ vi.mock('@/lib/posthog-server', () => ({ trackServer: vi.fn() }))
 vi.mock('@/lib/eventQuota', () => ({
   findPromotableFromWaitlist: vi.fn(), hasQuotaRoomFor: vi.fn(async () => ({ ok: true })), quotaEventSelect: {},
 }))
-vi.mock('@/lib/noShow', () => ({
-  getRsvpGate: vi.fn(async () => ({ ok: true })), gateErrorBody: vi.fn(), waiveCard: vi.fn(),
-  checkRsvpAllowed: vi.fn(async () => ({ ok: true })), recordYellowAcknowledgement: vi.fn(),
-}))
 
 import { backfillSeatPayments } from '@/lib/rsvpConfirmed'
 import { DELETE as participantsDELETE, PATCH as participantsPATCH, POST as participantsPOST, PUT as participantsPUT } from '@/app/api/admin/events/[id]/participants/route'
