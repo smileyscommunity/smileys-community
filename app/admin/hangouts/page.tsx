@@ -10,6 +10,8 @@ import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { wallClockInTz, fromWallClockInTz, DEFAULT_TZ } from '@/lib/cityTime'
 import { downscaleImage } from '@/lib/image-resize'
+import { useAuth } from '@/contexts/AuthContext'
+import { memberHref } from '@/lib/adminNav'
 
 const STATUS_OPTS = [
   { id: 'active',    label: 'Active'    },
@@ -76,6 +78,10 @@ function cityInputToISO(local: string, tz: string) {
 }
 
 export default function AdminHangoutsPage() {
+  // This page is moderator-visible, and /admin/users/:id is admin-only — the
+  // layout bounces a moderator to Mod Home, so the host link was a dead end
+  // for exactly the people the page is for. See memberHref.
+  const { user: me } = useAuth()
   const [hangouts, setHangouts] = useState<Hangout[]>([])
   const [total, setTotal]       = useState(0)
   const [hasMore, setHasMore]   = useState(false)
@@ -418,9 +424,10 @@ export default function AdminHangoutsPage() {
                     </Link>
                   </td>
 
-                  {/* Host — click-through to their admin user page */}
+                  {/* Host — click-through to their profile (admin page for
+                      admins, member profile for moderators). */}
                   <td className="px-4 py-4 hidden md:table-cell">
-                    <Link href={`/admin/users/${h.user.id}`}
+                    <Link href={memberHref(h.user.id, me?.role)}
                       className="flex items-center gap-2 hover:text-amber-400 transition-colors group/m">
                       <Avatar name={h.user.name} color={h.user.color} />
                       <div className="min-w-0">

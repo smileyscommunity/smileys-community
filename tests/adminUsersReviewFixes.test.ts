@@ -58,6 +58,7 @@ import { GET as detailGET, PATCH as detailPATCH } from '@/app/api/admin/users/[i
 import { GET as listGET } from '@/app/api/admin/users/route'
 import { POST as draftPOST } from '@/app/api/admin/users/reengage/route'
 import { mayReengage } from '@/app/api/admin/users/reengage/gate'
+import { existsSync } from 'fs'
 import { memberHref, isModeratorPageAllowed, navItems } from '@/lib/adminNav'
 
 const read = (p: string) => readFileSync(p, 'utf8')
@@ -435,11 +436,28 @@ describe('9. member links a moderator can open', () => {
     expect(isModeratorPageAllowed('/admin/users/u1')).toBe(false)
   })
 
-  it('Retention links through it', () => {
-    for (const p of ['app/admin/retention/page.tsx']) {
+  // Was a hardcoded list of one page, which is why the same dead end was
+  // reintroduced on /admin/abuse. Derived from the nav instead: any page a
+  // moderator can open must route member links through memberHref, or every
+  // one of them bounces the moderator to Mod Home.
+  it('every moderator-visible page links through it', () => {
+    const modPages = navItems
+      .filter(i => i.roles.includes('moderator'))
+      .map(i => `app${i.href.split('?')[0]}/page.tsx`)
+      .filter(f => existsSync(f))
+    expect(modPages.length).toBeGreaterThan(3)   // the list resolved to real files
+    for (const p of modPages) {
       const page = read(p)
-      expect(page, p).not.toContain('href={`/admin/users/')
-      expect(page, p).toContain('memberHref(')
+      if (!page.match(/href=\{`\/admin\/users\//)) continue   // no raw member links
+      // A raw /admin/users/ link is fine if a moderator never sees it —
+      // Moderation has two, one behind `isAdmin &&` and one on an adminOnly
+      // tab. This is a coarse check (it reads the file, not the JSX tree), so
+      // it asks for evidence of either fix: route through memberHref, or gate
+      // on isAdmin. A page with member links and neither is the bug.
+      expect(
+        page.includes('memberHref(') || page.includes('isAdmin'),
+        `${p}: links to /admin/users/ but neither routes through memberHref nor gates on isAdmin — moderators will bounce to Mod Home`,
+      ).toBe(true)
     }
   })
 })
