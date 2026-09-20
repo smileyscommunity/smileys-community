@@ -61,7 +61,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     await Promise.all(noShows.map(async (a) => {
       const { user } = a
       await Promise.allSettled([
-        sendNoShowEmail(user.id, user.email, user.name, event.title, event.emoji ?? '📅', event.id)
+        sendNoShowEmail(user.email, user.name, event.title, event.emoji ?? '📅')
           .then(() => { emailed++ }),
         createNotification(
           user.id,

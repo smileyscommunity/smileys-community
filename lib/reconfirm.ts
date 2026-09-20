@@ -103,7 +103,7 @@ export async function askEvent(event: {
     const body  = `Tap to confirm your spot. Unanswered spots may go to the waitlist from ${fmtTime(deadline, tz)}.`
     // createNotification sends the push itself (and honours quiet hours).
     await createNotification(a.userId, 'reconfirm_ask', `${emoji} Still coming to ${event.title} ${day}?`, body, `/events/${event.id}`)
-    sendReconfirmEmail(a.user.id, a.user.email, a.user.name ?? 'Member', event.title, emoji,
+    sendReconfirmEmail(a.user.email, a.user.name ?? 'Member', event.title, emoji,
       fmtWhen(startsAt, tz), fmtTime(deadline, tz), reconfirmUrl(a.user.id, event.id), event.id, day)
       .catch(async err => {
         console.error('[reconfirm] sendReconfirmEmail failed', { eventId: event.id, userId: a.userId, err: String(err) })
@@ -165,7 +165,7 @@ export async function releaseEvent(event: {
       // the ask can land on the event's own day.
       'We asked earlier and didn\'t hear back, and someone was waiting. Still want to come? You can rejoin if a spot is open.',
       `/events/${event.id}`)
-    sendSpotReleasedEmail(a.user.id, a.user.email, a.user.name ?? 'Member', event.title, emoji, event.id)
+    sendSpotReleasedEmail(a.user.email, a.user.name ?? 'Member', event.title, emoji, event.id)
       .catch(async err => {
         console.error('[reconfirm] sendSpotReleasedEmail failed', { eventId: event.id, userId: a.userId, err: String(err) })
         await recordEmailFailure({ helper: 'sendSpotReleasedEmail', recipient: a.user.email, error: err, context: { eventId: event.id, userId: a.userId } })

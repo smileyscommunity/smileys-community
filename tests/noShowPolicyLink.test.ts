@@ -45,7 +45,7 @@ describe('no-show emails link to the policy article', () => {
   // The manual "Notify no-shows" button a host presses by hand. Same message
   // to the member, so the same obligation to explain what follows.
   it('the host-sent notify email', async () => {
-    await sendNoShowEmail('u1', 'a@example.test', 'Ada Lovelace', 'Coffee Morning', '☕', 'e1')
+    await sendNoShowEmail('a@example.test', 'Ada Lovelace', 'Coffee Morning', '☕')
     expect(sent).toHaveLength(1)
     expect(sent[0].html).toContain(NO_SHOW_POLICY_PATH)
   })

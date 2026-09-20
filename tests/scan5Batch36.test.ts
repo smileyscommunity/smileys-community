@@ -181,7 +181,7 @@ describe('103 the email send path skips banned recipients', () => {
   it('a reminder to a banned address is not sent', async () => {
     const { sendEventReminderEmail } = await import('@/lib/email')
     h.prisma.user.findMany.mockResolvedValue([{ email: 'ban@example.test' }])
-    await sendEventReminderEmail('u1', 'Ban@Example.test', 'Ban Ned', 'Walk', '🚶', '2026-09-20', 'Moda', 'e1')
+    await sendEventReminderEmail('Ban@Example.test', 'Ban Ned', 'Walk', '🚶', '2026-09-20', 'Moda', 'e1')
     expect(h.resendSend).not.toHaveBeenCalled()
     expect(h.prisma.user.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ status: { in: ['banned', 'deleted'] } }),

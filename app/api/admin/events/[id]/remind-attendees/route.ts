@@ -56,7 +56,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     await Promise.all(attendees.map(async (a) => {
       const { user } = a
       await Promise.allSettled([
-        sendEventReminderEmail(user.id, user.email, user.name, event.title, emoji, eventDate, eventLocation, event.id, { cancelCutoffHours: eventTier(event) === 'scarce' ? cancelCutoffHours(event) : null })
+        sendEventReminderEmail(user.email, user.name, event.title, emoji, eventDate, eventLocation, event.id, { cancelCutoffHours: eventTier(event) === 'scarce' ? cancelCutoffHours(event) : null })
           .then(() => { emailed++ }),
         createNotification(
           user.id,

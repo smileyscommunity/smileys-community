@@ -4,8 +4,8 @@ import { APP_URL as ENV_APP_URL } from '@/lib/env'
 import { prisma } from '@/lib/prisma'
 import type { Prisma } from '@prisma/client'
 import type { CreateEmailOptions, CreateEmailRequestOptions, CreateEmailResponse } from 'resend'
-import { DEFAULT_TZ, formatDay } from '@/lib/cityTime'
-import { NO_SHOW_CANCELLATION_CUTOFF_HOURS, NO_SHOW_ROLLING_WINDOW_DAYS, NO_SHOW_POLICY_PATH } from '@/lib/noShowPolicy'
+import { formatDay } from '@/lib/cityTime'
+import { NO_SHOW_POLICY_PATH } from '@/lib/noShowPolicy'
 import { firstNameOf } from './data'
 
 const FROM    = process.env.EMAIL_FROM ?? 'Smileys Community <info@smileyscommunity.com>'
@@ -1389,7 +1389,6 @@ export async function sendNewsletterBatch(
 }
 
 export async function sendEventReminderEmail(
-  userId: string,
   email: string,
   name: string,
   eventTitle: string,
@@ -1400,7 +1399,6 @@ export async function sendEventReminderEmail(
   // Set for a limited event: its cancellation cutoff, named in the footer.
   opts: { cancelCutoffHours?: number | null } = {},
 ) {
-  const unsub     = unsubscribeUrl(userId)
   const firstName = firstNameOf(name)
   const url       = `${APP_URL}/events/${eventId}`
   await send('sendEventReminderEmail', {
@@ -1431,15 +1429,13 @@ export async function sendEventReminderEmail(
 }
 
 export async function sendNoShowEmail(
-  userId: string,
   email: string,
   name: string,
   eventTitle: string,
   eventEmoji: string,
-  eventId: string,
 ) {
-  const unsub     = unsubscribeUrl(userId)
   const firstName = firstNameOf(name)
+  // The upcoming list, not the event they missed — that one is over.
   const url       = `${APP_URL}/events`
   await send('sendNoShowEmail', {
     from: FROM, to: email,
@@ -1468,27 +1464,15 @@ export async function sendNoShowEmail(
   }, { throwOnError: true })
 }
 
-// ── No-show cards ───────────────────────────────────────────────────────────
-// Same voice as sendNoShowEmail above: factual, no scolding. The policy
-// values are interpolated from lib/noShowPolicy so copy and rules can't drift.
-
-// Every card email ends here. The primary button sends a member to their own
-// standing (/no-show, "what happened to me"); this line sends them to the
-// rules themselves ("why this is a thing at all"). Before the article existed
-// the card emails were the first and only place a member met the policy,
-// which is how 13 people ended up reading about a card with nowhere to look
-// the rules up.
+// Every email that tells a member they missed something ends here: the body
+// says what happened, this line says why it is a thing at all. Before the
+// article existed those emails were the only place a member met the policy,
+// which is how 13 people read about a card with nowhere to look the rules up.
 const policyLine = (color = '#9ca3af') =>
   `<p style="color:${color};font-size:12px;text-align:center;margin-top:14px">
      <a href="${APP_URL}${NO_SHOW_POLICY_PATH}" style="color:${color};text-decoration:underline">How free-event spots work →</a>
    </p>`
 
-function fmtDate(d: Date, tz: string = DEFAULT_TZ): string {
-  // Policy dates are member-level: callers that know the member's city pass
-  // its zone (a Tbilisi red card ending 00:30 on the 15th is the 15th there,
-  // the 14th in Istanbul). The founding zone is only the fallback.
-  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: tz })
-}
 
 
 
@@ -1497,14 +1481,13 @@ function fmtDate(d: Date, tz: string = DEFAULT_TZ): string {
 // ── Day-before reconfirmation ───────────────────────────────────────────────
 
 export async function sendReconfirmEmail(
-  userId: string, email: string, name: string,
+  email: string, name: string,
   eventTitle: string, eventEmoji: string, whenText: string, deadlineText: string,
   confirmUrl: string, eventId: string,
   // 'today' / 'tomorrow' / 'on Friday' (lib/reconfirm dayPhrase) — a fixed
   // "tomorrow" was wrong whenever the ask landed on the event's own day.
   dayText = 'tomorrow',
 ) {
-  const unsub     = unsubscribeUrl(userId)
   const firstName = firstNameOf(name)
   const eventUrl  = `${APP_URL}/events/${eventId}`
   await send('sendReconfirmEmail', {
@@ -1536,10 +1519,9 @@ export async function sendReconfirmEmail(
 }
 
 export async function sendSpotReleasedEmail(
-  userId: string, email: string, name: string,
+  email: string, name: string,
   eventTitle: string, eventEmoji: string, eventId: string,
 ) {
-  const unsub     = unsubscribeUrl(userId)
   const firstName = firstNameOf(name)
   const eventUrl  = `${APP_URL}/events/${eventId}`
   await send('sendSpotReleasedEmail', {
