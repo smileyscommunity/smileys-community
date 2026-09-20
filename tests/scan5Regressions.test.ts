@@ -127,7 +127,11 @@ describe('4. the orphan sweep takes a last look before each delete', () => {
 describe('5. check-in screens show why the server refused', () => {
   it('host page, admin page, scan hook and toast all carry the server reason', () => {
     // The reason is read once, where the PATCH is made, and carried to every screen.
-    expect(read('lib/checkinQueue.ts')).toContain("return { kind: 'refused', error: typeof d?.error === 'string' ? d.error : 'Check-in update failed. Please try again.' }")
+    // …and the machine-readable code beside it, so the door can say "ask
+    // them to reopen the app" rather than repeating the sentence.
+    const queueSrc = read('lib/checkinQueue.ts')
+    expect(queueSrc).toContain("error: typeof d?.error === 'string' ? d.error : 'Check-in update failed. Please try again.',")
+    expect(queueSrc).toContain("...(typeof d?.code === 'string' ? { code: d.code } : {}),")
     expect(read('app/host/checkin/page.tsx')).toContain("const failure = outcome.kind === 'refused' ? outcome.error : null")
     expect(read('app/admin/checkin/page.tsx')).toContain("${a.user.name} — ${outcome.error}")
     expect(read('lib/checkin.ts')).toContain("message: outcome.kind === 'refused' ? outcome.error : 'No connection — the check-in was not saved.'")

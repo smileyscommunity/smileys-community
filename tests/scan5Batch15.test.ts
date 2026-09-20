@@ -80,7 +80,12 @@ describe('55b logout removes this device\'s push subscription first', () => {
   const ctx = read('contexts/AuthContext.tsx')
   const lib = read('lib/pushDevice.ts')
   it('forgets the device before the logout request drops the cookie', () => {
-    expect(ctx).toMatch(/async function logout\(\) \{[\s\S]*?await forgetPushDevice\(\)\s*await fetch\('\/app\/api\/auth\/logout'/)
+    // Everything this device kept for the member is dropped between the two
+    // — the door roster, a queued tap, the card code — but the push
+    // subscription still goes first, while the cookie can still authorise it.
+    expect(ctx).toMatch(/async function logout\(\) \{[\s\S]*?await forgetPushDevice\(\)[\s\S]*?await fetch\('\/app\/api\/auth\/logout'/)
+    const logoutBody = ctx.slice(ctx.indexOf('async function logout()'), ctx.indexOf("await fetch('/app/api/auth/logout'"))
+    expect(logoutBody.indexOf('forgetPushDevice()')).toBeLessThan(logoutBody.indexOf('clearCachedRosters()'))
   })
   it('DELETEs the endpoint, unsubscribes locally, and cannot hang or throw', () => {
     expect(lib).toMatch(/!\('serviceWorker' in navigator\)\) return/)

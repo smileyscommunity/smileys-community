@@ -100,7 +100,10 @@ describe('check-in prompt counts the room the sweeper counts (item 20)', () => {
 describe('once-only broadcasts and reports claim in rate_limits (item 21)', () => {
   it('doors-open is claimed per event, not counted from notifications', () => {
     const src = read('app/api/events/[id]/checkin/route.ts')
-    expect(src).toContain("if (checkedInCount <= 2 && await claimOnce(`checkin-started:${eventId}`")
+    // …and only once the evening is actually near: a host testing the
+    // scanner at noon used to tell the whole room people were arriving, and
+    // spend the stamp (member-card review, 2026-09-20).
+    expect(src).toContain("if (nearStart && await claimOnce(`checkin-started:${eventId}`")
     expect(src).not.toContain('prisma.notification.count')
   })
   it.each([

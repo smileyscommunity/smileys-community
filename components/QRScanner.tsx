@@ -22,6 +22,10 @@ const FALLBACK_INTERVAL_MS = 100
 // A member card fills the window; a downscaled frame reads just as well and
 // costs a phone a fraction of the time of a full 1080p one.
 const FALLBACK_MAX_WIDTH = 640
+// The camera stays on between people, so the same card sitting in front of
+// the lens would otherwise fire a scan every frame. A code is reported once
+// and then ignored until it has been out of shot for this long.
+const REPEAT_IGNORE_MS = 2000
 
 async function createDetector(): Promise<Detect> {
   if ('BarcodeDetector' in window) {
@@ -97,15 +101,25 @@ export default function QRScanner({ onScan, onClose }: Props) {
             video.srcObject = s
             video.play().catch(() => {})
 
+            // The last code seen, so a card held in front of the lens isn't
+            // read over and over.
+            let lastValue = ''
+            let lastSeen  = 0
+
             async function scan() {
               if (!active || !videoRef.current) return
               try {
                 const value = await detect(videoRef.current)
                 if (value && active) {
-                  // Camera off as soon as a code is read, whatever the parent does next.
-                  stop()
-                  onScanRef.current(value)
-                  return
+                  // Kept running rather than torn down on the first read: a
+                  // door of thirty people was thirty camera cold-starts, and
+                  // the host had to tap "Scan QR" again between each one.
+                  // The parent closes it when the door is done.
+                  const now    = performance.now()
+                  const repeat = value === lastValue && now - lastSeen < REPEAT_IGNORE_MS
+                  lastValue = value
+                  lastSeen  = now
+                  if (!repeat) onScanRef.current(value)
                 }
               } catch {}
               if (active) frame = requestAnimationFrame(scan)
@@ -171,7 +185,7 @@ export default function QRScanner({ onScan, onClose }: Props) {
           </div>
 
           <p className="absolute bottom-[calc(2.5rem+env(safe-area-inset-bottom))] left-0 right-0 text-center text-white/70 text-sm z-10">
-            Point at the member's QR code
+            Point at the member's QR code — it keeps scanning, close it when the door is done
           </p>
         </div>
       )}

@@ -16,12 +16,20 @@ export interface QueuedCheckin {
   userId:    string
   checkedIn: boolean
   at:        number
+  // The scanned card code, when the tap came from a scan. The server
+  // verifies it (lib/cardToken) — it is what tells a real card from a
+  // screenshot of someone else's — so a tap that waited for signal has to
+  // carry it too, or the replay arrives unproven.
+  cardToken?: string
 }
 
 export type SendOutcome =
   | { kind: 'saved' }
   | { kind: 'offline' }
-  | { kind: 'refused'; error: string }
+  // `code` is the server's machine-readable reason (card_expired,
+  // card_outdated, card_invalid, attendance_settled…), so the door can say
+  // something better than the sentence — "ask them to reopen the app".
+  | { kind: 'refused'; error: string; code?: string }
 
 export const CHECKIN_QUEUE_KEY = 'smileys:checkin-queue'
 
@@ -83,27 +91,52 @@ export async function flushQueue(
 
 /** One door tap, classified: saved, no network (queue it), or refused by the server. */
 /** `scannedAt`: the tap time, sent with a REPLAY so a check-in that waited past the settle point is still taken. */
-export async function patchCheckin(eventId: string, userId: string, checkedIn: boolean, scannedAt?: number): Promise<SendOutcome> {
+export async function patchCheckin(
+  eventId: string, userId: string, checkedIn: boolean, scannedAt?: number, cardToken?: string,
+): Promise<SendOutcome> {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return { kind: 'offline' }
   let res: Response
   try {
     res = await fetch(`/app/api/events/${eventId}/checkin`, {
       method: 'PATCH', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, checkedIn, ...(scannedAt ? { scannedAt } : {}) }),
+      body: JSON.stringify({ userId, checkedIn, ...(scannedAt ? { scannedAt } : {}), ...(cardToken ? { cardToken } : {}) }),
     })
   } catch {
     return { kind: 'offline' }
   }
   if (res.ok) return { kind: 'saved' }
   const d = await res.json().catch(() => null)
-  return { kind: 'refused', error: typeof d?.error === 'string' ? d.error : 'Check-in update failed. Please try again.' }
+  return {
+    kind: 'refused',
+    error: typeof d?.error === 'string' ? d.error : 'Check-in update failed. Please try again.',
+    ...(typeof d?.code === 'string' ? { code: d.code } : {}),
+  }
+}
+
+/**
+ * Send whatever is still waiting, and answer how many could not go. Called on
+ * sign-out: the door banner says "saved on this device, sending as soon as
+ * it's back online", and clearing the queue with the rest of the session's
+ * leftovers threw those arrivals away — on the shared iPad, which is exactly
+ * where a host is told to sign out. Best effort: still offline, they stay,
+ * and the next signed-in host at that door replays them.
+ */
+export async function drainQueue(): Promise<number> {
+  const items = freshOnly(loadQueue())
+  if (items.length === 0) return 0
+  const { sent, refused, remaining } = await flushQueue(items, item =>
+    patchCheckin(item.eventId, item.userId, item.checkedIn, item.at, item.cardToken))
+  const done = new Set([...sent, ...refused.map(r => r.item)].map(i => `${i.eventId}:${i.userId}:${i.at}`))
+  saveQueue(loadQueue().filter(q => !done.has(`${q.eventId}:${q.userId}:${q.at}`)))
+  return remaining.length
 }
 
 function isQueuedCheckin(v: unknown): v is QueuedCheckin {
   const q = v as QueuedCheckin | null
   return !!q && typeof q.eventId === 'string' && typeof q.userId === 'string'
     && typeof q.checkedIn === 'boolean' && typeof q.at === 'number'
+    && (q.cardToken === undefined || typeof q.cardToken === 'string')
 }
 
 // Fail-soft storage: private mode, blocked site data or a full quota must

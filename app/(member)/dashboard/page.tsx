@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { formatDate, formatTime, formatPrice, resolveImageUrl, avatarUrl, BLUR_PLACEHOLDER, getInitials, firstNameOf} from '@/lib/data'
 import { articleCover } from '@/lib/articleCover'
+import { isPremium } from '@/lib/membership'
 import { neighborhoodToSlug } from '@/lib/neighborhoods'
 import { prisma } from '@/lib/prisma'
 import { postCityScope } from '@/lib/postScope'
@@ -1138,8 +1139,11 @@ export default async function DashboardPage() {
                         {getInitials(session.name)}
                       </div>
                     )}
-                    {userProfile?.membershipType === 'member' && (
-                      <span className="absolute -bottom-1 -right-1 text-sm">⭐</span>
+                    {/* 'member' was never a tier (free | premium | vip), so
+                        this star has never appeared for anyone. It marks a
+                        paying membership, like the badge on the card. */}
+                    {isPremium(userProfile?.membershipType) && (
+                      <span className="absolute -bottom-1 -right-1 text-sm" title="Premium member">⭐</span>
                     )}
                   </div>
                   <Link href="/profile"

@@ -91,6 +91,23 @@ export function saveRoster<A extends WithUser>(eventId: string, roster: Omit<Cac
   }
 }
 
+/**
+ * Everything this device cached for the door. Called on sign-out: the roster
+ * is names, photos, who was marked absent and who said they came, and it sat
+ * in the browser for three days — on the door iPad or a borrowed phone, the
+ * next person to use it could read a guest list they have no access to.
+ */
+export function clearCachedRosters(): void {
+  try {
+    const keys: string[] = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)
+      if (k && k.startsWith(ROSTER_PREFIX)) keys.push(k)
+    }
+    for (const k of keys) localStorage.removeItem(k)
+  } catch { /* private mode, or storage disabled */ }
+}
+
 export function readRoster<A>(eventId: string): CachedRoster<A> | null {
   try {
     const raw = localStorage.getItem(ROSTER_PREFIX + eventId)

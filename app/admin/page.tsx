@@ -186,7 +186,9 @@ export default function AdminPage() {
     Promise.all([
       fetch(`/app/api/admin/stats${cityId ? `?city=${encodeURIComponent(cityId)}` : ''}`, { credentials: 'include' }),
       // Recent Activity follows the chosen city like every other card.
-      fetch(`/app/api/admin/audit?take=8${cityQ}`,                                    { credentials: 'include' }),
+      // Door taps are audited but not news: forty of them would be this
+      // whole strip (see the audit route).
+      fetch(`/app/api/admin/audit?take=8&exclude=checkin.${cityQ}`,                   { credentials: 'include' }),
       fetch(`/app/api/admin/events?status=published&from=${today}&take=6${cityQ}`,     { credentials: 'include' }),
     ]).then(async ([sRes, aRes, eRes]) => {
       if (!sRes.ok) throw new Error('stats')

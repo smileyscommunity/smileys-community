@@ -80,9 +80,15 @@ export function noShowCandidates<R extends CloseOutRow>(rows: R[], runners: Even
  * The page's count of what a close-out would mark, from the roster the check-in
  * GET returns (`exempt` is decided on the server, where the roles are).
  */
-export function restToClose<R extends { checkedIn: boolean; attendance?: string; exempt?: boolean }>(rows: R[]): R[] {
+export function restToClose<R extends { checkedIn: boolean; attendance?: string; exempt?: boolean; status?: string; listed?: boolean }>(rows: R[]): R[] {
   // An RSVP the sweep already resolved, or one the host excused, isn't "the rest" either.
-  return rows.filter(r => !r.checkedIn && (r.attendance ?? Attendance.Unknown) === Attendance.Unknown && !r.exempt)
+  // Nor is anyone without a seat: since the door roster started carrying
+  // waitlisted and pending rows (so a scan can name them rather than call
+  // them strangers), "mark the rest as no-show" was counting people who were
+  // never let in — the button offered to mark twelve and the server, which
+  // only ever touches approved seats, marked none.
+  const seated = (r: R) => r.listed ?? (r.status === undefined || r.status === AttendeeStatus.Approved)
+  return rows.filter(r => seated(r) && !r.checkedIn && (r.attendance ?? Attendance.Unknown) === Attendance.Unknown && !r.exempt)
 }
 
 /**

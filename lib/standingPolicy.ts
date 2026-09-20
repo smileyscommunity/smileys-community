@@ -53,7 +53,12 @@ export const LATE_SEAT_HOURS               = 3
 // with no signal, lib/checkinQueue) is still taken for this long after the
 // settle point. Only a check-IN, only with the tap time before the line: an
 // un-check or a fresh scan days later stays refused.
-export const LATE_REPLAY_GRACE_HOURS       = 48
+// A tap queued on a phone with no signal, arriving after the room settled.
+// Six hours, not the two days it used to be: the tap time comes from the
+// client, so the window is also how long a door-holder could claim a scan
+// that never happened and erase a no-show the sweep wrote. A host who gets
+// signal back the same night is covered; anything later is a dispute.
+export const LATE_REPLAY_GRACE_HOURS       = 6
 // While a dispute waits, no new card is issued for that member — for this
 // long. After it the ledger stands as it is: an unread dispute must not hold
 // cards off indefinitely, nor be a way to.
@@ -162,8 +167,17 @@ export function attendanceReviewOpensAt(e: EventClock, tz: string): Date {
 }
 
 /** A queued check-in replayed after the room settled: tapped before the line, arriving within the grace. */
-export function lateReplayAllowed(scannedAt: unknown, settlesAt: Date, now: Date): boolean {
+export function lateReplayAllowed(
+  scannedAt: unknown,
+  settlesAt: Date,
+  now: Date,
+  // When the door was actually open. A queued tap has to fall inside it:
+  // without this, any millisecond before the settle line was accepted, so a
+  // claimed "scan" from three days earlier reopened a closed record.
+  doorWindow?: { opensAt: number; closesAt: number },
+): boolean {
   if (typeof scannedAt !== 'number' || !Number.isFinite(scannedAt)) return false
+  if (doorWindow && (scannedAt < doorWindow.opensAt || scannedAt > doorWindow.closesAt)) return false
   return scannedAt < settlesAt.getTime()
     && now.getTime() >= settlesAt.getTime()
     && now.getTime() < settlesAt.getTime() + LATE_REPLAY_GRACE_HOURS * HOUR

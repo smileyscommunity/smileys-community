@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation'
 import posthog from 'posthog-js'
 import { resetCurrentCity } from '@/hooks/useCurrentCity'
 import { forgetPushDevice } from '@/lib/pushDevice'
+import { clearCachedRosters } from '@/lib/hostPanel'
+import { drainQueue } from '@/lib/checkinQueue'
+import { forgetCachedCardToken } from '@/lib/memberCard'
 import type { ReactNode } from 'react'
 import type { AppUser } from '@/lib/auth'
 
@@ -70,6 +73,20 @@ export function AuthProvider({ children, initialUser = null }: { children: React
     // pushes. Removed first, while the session cookie can still authorize the
     // DELETE. Never throws and never waits on a missing service worker.
     await forgetPushDevice()
+    // Same reasoning, for what the door left behind: the cached roster of
+    // any event this host ran (names, photos, who was marked absent) and any
+    // check-in tap still waiting for signal. Both outlive the session and
+    // neither is keyed to the member who cached it.
+    clearCachedRosters()
+    // The member's own card code, cached so the card opens with no signal.
+    // Keyed by member id, so it was never another member's to read — but a
+    // signed credential shouldn't outlive the session that fetched it.
+    forgetCachedCardToken()
+    // Check-ins tapped at a door with no signal go first, before anything is
+    // cleared: the banner promised they would send. Whatever still can't go
+    // stays on the device — it is a list of ids, not a profile, and throwing
+    // away arrivals would turn people who came into no-shows.
+    await drainQueue().catch(() => 0)
     await fetch('/app/api/auth/logout', { method: 'POST' })
     resetCurrentCity()
     // Drop the auth-scoped SW cache (/app/api/events/attending) so on a

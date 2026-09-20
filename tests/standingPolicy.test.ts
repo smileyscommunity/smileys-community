@@ -286,12 +286,23 @@ describe('a check-in replayed after the room settled', () => {
   const settles = new Date('2026-10-11T21:00:00Z')
   const tapped  = settles.getTime() - 5 * H
   it('is taken when tapped before the line and sent within the grace, and not otherwise', () => {
-    expect(lateReplayAllowed(tapped, settles, new Date(settles.getTime() + 6 * H))).toBe(true)
-    expect(lateReplayAllowed(tapped, settles, new Date(settles.getTime() + 49 * H))).toBe(false)   // grace over
+    // The grace is 6h since the member-card review (2026-09-20): the tap
+    // time comes from the client, so the window is also how long a claimed
+    // scan could erase a no-show the sweep wrote.
+    expect(lateReplayAllowed(tapped, settles, new Date(settles.getTime() + 5 * H))).toBe(true)
+    expect(lateReplayAllowed(tapped, settles, new Date(settles.getTime() + 7 * H))).toBe(false)    // grace over
     expect(lateReplayAllowed(settles.getTime() + H, settles, new Date(settles.getTime() + 2 * H))).toBe(false)  // tapped after the line
     expect(lateReplayAllowed(undefined, settles, new Date(settles.getTime() + H))).toBe(false)     // a live tap carries no time
     expect(lateReplayAllowed('yesterday', settles, new Date(settles.getTime() + H))).toBe(false)
     expect(lateReplayAllowed(tapped, settles, new Date(settles.getTime() - H))).toBe(false)         // not settled yet: the normal path
+  })
+
+  it('refuses a tap claimed from outside the hours the door was open', () => {
+    const door = { opensAt: settles.getTime() - 30 * H, closesAt: settles.getTime() }
+    const sentAt = new Date(settles.getTime() + 2 * H)
+    expect(lateReplayAllowed(tapped, settles, sentAt, door)).toBe(true)
+    // Three days before anyone could have been at the door.
+    expect(lateReplayAllowed(settles.getTime() - 72 * H, settles, sentAt, door)).toBe(false)
   })
 })
 

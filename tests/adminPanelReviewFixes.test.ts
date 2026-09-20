@@ -240,7 +240,9 @@ describe('dashboard stats', () => {
     const page = read('app/admin/page.tsx')
     expect(page).not.toContain('revenueCollected')
     expect(page).not.toMatch(/formatMoney\([^)]*, cur\)/)
-    expect(page).toContain('fetch(`/app/api/admin/audit?take=8${cityQ}`')
+    // …and without the door taps, which would be the whole strip after a
+    // forty-person event (member-card review, 2026-09-20).
+    expect(page).toContain('fetch(`/app/api/admin/audit?take=8&exclude=checkin.${cityQ}`')
   })
 })
 

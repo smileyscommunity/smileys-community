@@ -87,6 +87,35 @@ const CACHE = 'smileys-v17'
 // per-user cache name (e.g. `auth-${userId}`) generated at login.
 const OFFLINE_APIS = []
 
+// ── Why /app/card is NOT cached here ───────────────────────────────────────
+//
+// The member card is the one screen that has to open at a door in a basement
+// with no signal, so caching its navigation is the obvious thing to want. It
+// is also the thing this file has already been burnt by (v13). The root
+// layout resolves the session server-side and hands it to AuthProvider as
+// `initialUser`, so the HTML *and* the RSC payload for EVERY route — the
+// card included — carry the signed-in member's name and id. Caching that
+// document is caching an auth-bearing response in a cache the SW cannot
+// scope to a user: on a shared phone, the next member to open /app/card
+// offline would be looking at the previous member's card.
+//
+// Logout clears what it knows about (the message handler below), but logout
+// is exactly what doesn't happen on a shared phone, and a login can't clear
+// anything because the SW is never told one happened.
+//
+// So the card works offline the honest way instead, entirely in the page
+// (app/(member)/card/page.tsx + lib/memberCard.ts): it renders from the
+// session the app already holds rather than waiting on /api/auth/me, and it
+// shows the QR token this device last minted — kept under the member's own
+// id in localStorage, which IS per-user — with a line saying so when it
+// couldn't be refreshed. The JS and CSS it needs are already cache-first
+// below.
+//
+// Doing better needs a per-user cache the SW can pick between: the page
+// telling the SW which member it belongs to at login, and a cache name that
+// carries the id. That's a change to the SW's contract with AuthContext, not
+// a cache rule, so it isn't done here on the quiet.
+
 self.addEventListener('install', () => self.skipWaiting())
 
 // Auth-scoped cache eviction on logout. The fetch handler below caches

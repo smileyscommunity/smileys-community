@@ -73,7 +73,9 @@ describe('35. a dropped connection never leaves a false check-in', () => {
   // back. What must still never happen is a check-in on screen that is
   // neither saved nor queued — and a refusal from the server always rolls back.
   it.each([
-    ['app/host/checkin/page.tsx',  /const outcome = await send\(userId, next\)[\s\S]*?if \(failure\) \{\s*setAttendees\(prev => prev\.map\(a => a\.userId === userId \? \{ \.\.\.a, checkedIn: current/],
+    // `cardToken` since the member-card review (2026-09-20): a check-in that
+    // came from a scan carries the scanned code for the server to verify.
+    ['app/host/checkin/page.tsx',  /const outcome = await send\(userId, next, cardToken\)[\s\S]*?if \(failure\) \{\s*setAttendees\(prev => prev\.map\(a => a\.userId === userId \? \{ \.\.\.a, checkedIn: current/],
     ['app/admin/checkin/page.tsx', /const outcome = await send\(a\.userId, next\)\s*if \(outcome\.kind === 'refused'\) \{\s*\/\/ Roll back the optimistic flip/],
     ['lib/checkin.ts',             /if \(outcome\.kind === 'refused' \|\| \(outcome\.kind === 'offline' && !send\)\) \{\s*setAttendees\(prev => prev\.map\(a => a\.userId === userId \? \{ \.\.\.a, checkedIn: false \}/],
   ])('%s rolls back a tap that was neither saved nor queued', (file, pattern) => {
@@ -82,6 +84,8 @@ describe('35. a dropped connection never leaves a false check-in', () => {
 
   it('only a request that never reached the server is queued', () => {
     expect(read('lib/checkinQueue.ts')).toMatch(/\} catch \{\s*return \{ kind: 'offline' \}/)
-    expect(read('hooks/useCheckinSync.ts')).toContain("if (outcome.kind === 'offline') update(queue => enqueue(queue, { eventId, userId, checkedIn, at: Date.now() }))")
+    // The queued tap carries its scanned card code too, so the replay still
+    // proves itself (member-card review, 2026-09-20).
+    expect(read('hooks/useCheckinSync.ts')).toContain("if (outcome.kind === 'offline') update(queue => enqueue(queue, { eventId, userId, checkedIn, at: Date.now(), ...(cardToken ? { cardToken } : {}) }))")
   })
 })

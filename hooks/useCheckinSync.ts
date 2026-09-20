@@ -44,7 +44,7 @@ export function useCheckinSync(
         loadQueue().some(q => q.eventId === item.eventId && q.userId === item.userId && q.at === item.at)
       const { sent, refused } = await flushQueue(items, item =>
         // A newer tap for the same person was sent directly meanwhile: this one is stale.
-        stillQueued(item) ? patchCheckin(item.eventId, item.userId, item.checkedIn, item.at) : Promise.resolve<SendOutcome>({ kind: 'saved' }))
+        stillQueued(item) ? patchCheckin(item.eventId, item.userId, item.checkedIn, item.at, item.cardToken) : Promise.resolve<SendOutcome>({ kind: 'saved' }))
       const done = [...sent, ...refused.map(r => r.item)]
       update(queue => queue.filter(q => !done.some(d => d.eventId === q.eventId && d.userId === q.userId && d.at === q.at)))
       for (const r of refused) onRefusedRef.current?.(r.item, r.error)
@@ -68,9 +68,11 @@ export function useCheckinSync(
     }
   }, [eventId, flush])
 
-  const send = useCallback(async (userId: string, checkedIn: boolean): Promise<SendOutcome> => {
-    const outcome = await patchCheckin(eventId, userId, checkedIn)
-    if (outcome.kind === 'offline') update(queue => enqueue(queue, { eventId, userId, checkedIn, at: Date.now() }))
+  // `cardToken` is the raw scanned code, carried through to the server and
+  // kept with a queued tap so an offline scan still proves itself on replay.
+  const send = useCallback(async (userId: string, checkedIn: boolean, cardToken?: string): Promise<SendOutcome> => {
+    const outcome = await patchCheckin(eventId, userId, checkedIn, undefined, cardToken)
+    if (outcome.kind === 'offline') update(queue => enqueue(queue, { eventId, userId, checkedIn, at: Date.now(), ...(cardToken ? { cardToken } : {}) }))
     // Saved or refused, this tap supersedes anything still queued for them.
     else update(queue => dequeue(queue, eventId, userId))
     return outcome

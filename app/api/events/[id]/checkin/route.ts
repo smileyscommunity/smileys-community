@@ -4,6 +4,8 @@ import { getSession } from '@/lib/session'
 import { isAdmin, canManageEventOps, isClubHost, hostCityIds } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
 import { rateLimit, claimOnce } from '@/lib/rateLimit'
+import { verifyCardToken } from '@/lib/cardToken'
+import { CHECKIN_QUEUE_MAX_AGE_MS } from '@/lib/checkinQueue'
 import { Attendance } from '@/lib/constants'
 import { eventStartsAt, eventEndsAt } from '@/lib/eventTime'
 import { attendanceSettlesAt, lateReplayAllowed } from '@/lib/standingPolicy'
@@ -32,8 +34,11 @@ export async function GET(_: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
+    // Approved seats, plus the people a scan would otherwise report as
+    // strangers: someone on the waitlist IS registered, and "not registered
+    // for this event" was the only thing the door could say about them.
     const attendees = await prisma.eventAttendee.findMany({
-      where: { eventId, status: 'approved' },
+      where: { eventId, status: { in: ['approved', 'waitlisted', 'pending'] } },
       include: { user: { select: { id: true, name: true, color: true, email: true, profilePhoto: true, role: true } } },
       orderBy: { joinedAt: 'asc' },
     })
@@ -67,6 +72,9 @@ export async function GET(_: NextRequest, { params }: Params) {
       return {
         ...a,
         exempt: isExemptFromNoShow(a.userId, role, runners),
+        // The door lists only approved seats; the rest ride along so a scan
+        // can name what it found.
+        listed: a.status === 'approved',
         saysCame: saysCame.has(a.userId),
         user:   canSeeEmail ? { ...publicUser, email } : publicUser,
       }
@@ -93,12 +101,54 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const { userId, checkedIn, scannedAt } = await req.json()
+    const { userId, checkedIn, scannedAt, cardToken } = await req.json()
     if (!userId || typeof userId !== 'string') {
       return NextResponse.json({ error: 'userId must be a non-empty string' }, { status: 400 })
     }
     if (typeof checkedIn !== 'boolean') {
       return NextResponse.json({ error: 'checkedIn must be a boolean' }, { status: 400 })
+    }
+
+    // A scan has to prove itself. The card's QR is signed and expires
+    // (lib/cardToken) because the old one was the member's bare id: anyone
+    // could draw another member's code, and a screenshot of a real card
+    // worked for ever, at any event — which since standing v2 is a way to
+    // clear your own no-show card without leaving the house. A host's own
+    // tap on the list carries no token and is unaffected: they are already
+    // authorised for this event, and they can see who is in front of them.
+    if (cardToken !== undefined && cardToken !== null) {
+      // Judged at the moment of the tap, not of the request: a scan taken at
+      // the door on a phone with no signal is replayed hours later
+      // (lib/checkinQueue), and against "now" a card that was valid in the
+      // room would be refused when the queue finally drains. A tap time is
+      // only trusted backwards — a future one falls back to now, and the
+      // settle rules below still bound how late a replay may land.
+      // Bounded by how long the queue keeps a tap at all: without a floor,
+      // a request could claim a scan from weeks back and present a card from
+      // that week — and the audit row's `viaScan` would say a scan happened.
+      const oldestReplay = Date.now() - CHECKIN_QUEUE_MAX_AGE_MS
+      const tapped = typeof scannedAt === 'number' && Number.isFinite(scannedAt)
+        && scannedAt <= Date.now() && scannedAt >= oldestReplay
+        ? new Date(scannedAt)
+        : new Date()
+      const card = verifyCardToken(cardToken, tapped)
+      if (!card.ok) {
+        // The codes this replaced — a bare member id, or the old
+        // event-specific one — still sit in cached pages and screenshots.
+        // Told apart from a forgery so the door says something useful.
+        const outdated = typeof cardToken === 'string'
+          && (cardToken.startsWith('smileys:member:') || cardToken.startsWith('smileys-checkin:'))
+        return NextResponse.json(
+          outdated
+            ? { error: 'That card is out of date — ask them to open the app again.', code: 'card_outdated' }
+            : card.reason === 'expired'
+            ? { error: 'That card has expired — ask them to open the app again to refresh it.', code: 'card_expired' }
+            : { error: "That code isn't a valid member card.", code: 'card_invalid' },
+          { status: 400 })
+      }
+      if (card.userId !== userId) {
+        return NextResponse.json({ error: "That code belongs to a different member.", code: 'card_invalid' }, { status: 400 })
+      }
     }
 
     // The door is only open while the event is. A cancelled event has no
@@ -135,7 +185,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // no-show the settle wrote for that seat (overturnCorrected).
     const tz = await getCityTz(event.cityId)
     const settlesAt  = attendanceSettlesAt(event, tz)
-    const lateReplay = checkedIn === true && lateReplayAllowed(scannedAt, settlesAt, new Date())
+    const doorOpensAt  = eventStartsAt(event, tz).getTime() - CHECKIN_OPENS_HOURS_BEFORE * 60 * 60_000
+    const doorClosesAt = settlesAt.getTime()
+    const lateReplay = checkedIn === true
+      && lateReplayAllowed(scannedAt, settlesAt, new Date(), { opensAt: doorOpensAt, closesAt: doorClosesAt })
     if (Date.now() >= settlesAt.getTime() && !lateReplay) {
       return NextResponse.json({
         error: "Attendance for this event is settled — check-in closed at the end of the day after it.",
@@ -181,6 +234,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // event, and gets the morning-after list with its hosts (lib/standing
     // sendAttendanceReviews). A claim, so a busy door writes one row.
     if (checkedIn) await claimOnce(doorKey(eventId, session.id), 30 * 86_400_000).catch(() => {})
+    // Who marked whom, and when. Every other attendance write is audited —
+    // excuse, close-out, waive, removal — and this one, the one that clears
+    // a standing card and counts towards a host's own numbers, was not. A
+    // room checked in by a host for friends who never came left no trace at
+    // all beyond a single "ran the door" row.
+    await writeAudit(session.id, session.name, checkedIn ? 'checkin.set' : 'checkin.cleared', eventId, 'event',
+      { userId, checkedIn, viaScan: cardToken !== undefined && cardToken !== null, cityId: event.cityId },
+      `${checkedIn ? 'Checked in' : 'Un-checked'} a member at the door`)
     if (lateReplay) {
       await writeAudit(session.id, session.name, 'checkin_late_replay', eventId, 'event',
         { userId, scannedAt: new Date(scannedAt).toISOString(), settledAt: settlesAt.toISOString() },
@@ -189,6 +250,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     // A check-in made in the morning-after review is a correction, not an
     // arrival: no "welcome", no live count, no "doors are open".
+    // The block below re-reads the event for its title and host, shadowing
+    // this one — keep the clock fields before it.
+    const eventClock = event
     if (checkedIn && Date.now() < eventEndsAt(event, tz).getTime()) {
       const [event, checkedInUser, checkedInCount, totalCount] = await Promise.all([
         prisma.event.findUnique({
@@ -232,7 +296,17 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         // counted zero sent and pushed every attendee twice, and clearing a
         // bell re-armed it. `<= 2` keeps that race covered when both
         // requests count each other's write.
-        if (checkedInCount <= 2 && await claimOnce(`checkin-started:${eventId}`, 3 * 86_400_000)) {
+        // …and not before the evening itself. The door opens twelve hours
+        // ahead, so a host testing the scanner at noon told the whole room
+        // "people are arriving" eight hours early — and because the stamp is
+        // spent, nobody heard anything when the doors really opened.
+        //
+        // The count is only the race guard (two hosts scanning the first two
+        // people at once): it must not gate the announcement as well, or a
+        // host who scans five early arrivals before the window opens means
+        // nobody is ever told. The claim is what makes this once per event.
+        const nearStart = Date.now() >= eventStartsAt(eventClock, tz).getTime() - 60 * 60_000
+        if (nearStart && await claimOnce(`checkin-started:${eventId}`, 3 * 86_400_000)) {
           const [admins, otherAttendees] = await Promise.all([
             prisma.user.findMany({
               where:  { role: 'admin', status: 'approved' },

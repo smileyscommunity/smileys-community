@@ -8,12 +8,14 @@ import { useCheckinSync } from '@/hooks/useCheckinSync'
 import { useCloseOut } from '@/hooks/useCloseOut'
 import { useExcuse, excusable } from '@/hooks/useExcuse'
 import WalkInAdd from '@/components/WalkInAdd'
+import { withCapacityConfirm, OVERRIDE_FLAG } from '@/lib/admin/overCapacity'
 import { applyPending, loadQueue, pendingFor } from '@/lib/checkinQueue'
 import { useSearchParams, useRouter } from 'next/navigation'
 import {resolveImageUrl, avatarUrl, getInitials} from '@/lib/data'
 import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
-import { vibrate, useScanCheckin } from '@/lib/checkin'
+import { vibrate, useScanCheckin, isSeated } from '@/lib/checkin'
+import { hasCardShape } from '@/lib/cardTokenShape'
 import { type CheckInPromptEvent } from '@/lib/checkInPrompt'
 import { awaitingCheckInPerEvent, eventTz, matchesName, readRoster, saveRoster } from '@/lib/hostPanel'
 import { stillCorrectable } from '@/lib/checkInPrompt'
@@ -31,6 +33,13 @@ type HostEvent = CheckInPromptEvent & { timezone?: string | null }
 interface Attendee {
   userId: string
   checkedIn: boolean
+  // 'approved' | 'waitlisted' | 'pending'. The roster carries the waitlist
+  // and the unapproved as well as the seated now, so a scan can name what it
+  // found — but only the seated belong on the list, in the counts, or in
+  // "mark the rest".
+  status?: string
+  /** The server's own word for "this is a seat" (checkin GET). */
+  listed?: boolean
   // 'unknown' | 'attended' | 'no_show' | 'excused' (lib/constants Attendance)
   attendance?: string
   // Runs the event or is staff: never a no-show, never in "mark the rest".
@@ -157,9 +166,34 @@ function CheckInScanner() {
   })
   const pendingIds = new Set(pending.map(q => q.userId))
 
+  // The whole roster goes to the scanner — a waitlisted or unapproved person
+  // scanning their card must be named, not called a stranger — while the
+  // screen below only ever shows seats.
   const { scanning, setScanning, scanResult, handleScan } = useScanCheckin({
     eventId, attendees, setAttendees, send,
   })
+  const seated = useMemo(() => attendees.filter(isSeated), [attendees])
+
+  // A card that nobody on tonight's list is carrying. Held past the toast so
+  // the host can act on it without closing the camera and typing a name. The
+  // scanned string is held with it: seating checks them in, and a check-in
+  // from a scan has to send the code for the server to verify.
+  const [unknownScan, setUnknownScan] = useState<{ userId: string; cardToken: string } | null>(null)
+  const [seating,     setSeating]     = useState(false)
+  useEffect(() => {
+    if (!scanResult) return
+    // Any other result is the next person: the offer belongs to the card that
+    // raised it, not to the door.
+    //
+    // Only for something shaped like a card. `smileys:card:<any member id>`
+    // with no signature, and a retired `smileys:member:` screenshot, both
+    // parse far enough to name someone — offering to seat and check in on one
+    // of those hands out exactly what the signing exists to prevent. They
+    // still get the toast; they just get no button.
+    setUnknownScan(scanResult.type === 'notfound' && hasCardShape(scanResult.cardToken)
+      ? { userId: scanResult.userId, cardToken: scanResult.cardToken }
+      : null)
+  }, [scanResult])
 
   useEffect(() => {
     if (!eventId) return
@@ -205,7 +239,11 @@ function CheckInScanner() {
 
   const retryLoad = () => { setLoading(true); setReloadTick(t => t + 1) }
 
-  async function toggleCheckin(userId: string, current: boolean) {
+  // `cardToken` is set only when this check-in came from a scan — the server
+  // verifies it and refuses a forged, expired or retired code. A host's own
+  // tap on the list sends none; they are already authorised for this event
+  // and can see who is in front of them.
+  async function toggleCheckin(userId: string, current: boolean, cardToken?: string) {
     setToggling(userId)
     setToggleError(null)
     const next = !current
@@ -215,7 +253,7 @@ function CheckInScanner() {
     // card instead" can't be fixed by retrying, and a generic "try again" sent
     // hosts round in circles. No signal is not a failure: the tap waits on the
     // phone and goes when the connection does (useCheckinSync).
-    const outcome = await send(userId, next)
+    const outcome = await send(userId, next, cardToken)
     const failure = outcome.kind === 'refused' ? outcome.error : null
     if (!failure && next) vibrate.success()
     if (failure) {
@@ -231,21 +269,61 @@ function CheckInScanner() {
 
   // A walk-in was just seated (components/WalkInAdd): reload the roster so
   // the row exists here with its server-decided fields, then check them in.
-  async function seatedWalkIn(userId: string) {
+  async function seatedWalkIn(userId: string, cardToken?: string) {
     const att = await fetch(`/app/api/events/${eventId}/checkin`, { credentials: 'include' }).then(r => r.json())
     if (Array.isArray(att)) setAttendees(applyPending(att, pendingFor(loadQueue(), eventId)))
-    await toggleCheckin(userId, false)
+    await toggleCheckin(userId, false, cardToken)
   }
 
-  const checkedInCount = attendees.filter(a => a.checkedIn).length
+  // Seating the card that just scanned and matched nobody. The host is
+  // standing in front of whoever holds it; the alternative was closing the
+  // camera, opening the walk-in box and typing a name they may not know how
+  // to spell. Same door as WalkInAdd — the staff add, capacity question and
+  // all — so nothing about the seat is decided here.
+  async function seatUnknownScan(userId: string, cardToken: string) {
+    if (seating) return
+    setSeating(true)
+    try {
+      const res = await withCapacityConfirm(allow => fetch(`/app/api/admin/events/${eventId}/participants`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, walkIn: true, ...(allow ? { [OVERRIDE_FLAG]: true } : {}) }),
+      }))
+      if (!res) return                                  // said no to exceeding capacity
+      const d = await res.json().catch(() => null)
+      if (!res.ok) {
+        toast.error(typeof d?.error === 'string' ? d.error : "Couldn't seat them.")
+        return
+      }
+      // Outside the door window the server sends an invitation instead of a
+      // seat — say so rather than claim a check-in that didn't happen.
+      if (d?.invited) {
+        toast.success("Invitation sent — they'll get a spot when they accept")
+      } else {
+        // The scanned code rides along: this is a check-in from a scan, and
+        // the server has to be the one that decides the card was real.
+        await seatedWalkIn(userId, cardToken)
+        toast.success('Seated and checked in')
+      }
+      setUnknownScan(null)
+    } catch {
+      toast.error('No connection — nothing was changed.')
+    } finally {
+      setSeating(false)
+    }
+  }
+
+  // Seats only: the roster now carries the waitlist and the unapproved too,
+  // and counting them here would say "4 / 30 checked in" for a room of nine.
+  const checkedInCount = seated.filter(a => a.checkedIn).length
   // "Mark the rest" (hooks/useCloseOut). The day is the gate here; the
   // server holds the exact start.
   const started = !!eventDate && todayInTz(tz) >= eventDate
   const { rest, noShowCount, closing, markRest } = useCloseOut({
-    eventId, attendees, setAttendees, onError: setToggleError,
+    eventId, attendees: seated, setAttendees, onError: setToggleError,
   })
   // Turkish-aware: "sukru" finds Şükrü, "ilker" finds İlker (lib/hostPanel).
-  const visible = attendees.filter(a => matchesName(a.user.name, search))
+  const visible = seated.filter(a => matchesName(a.user.name, search))
 
   if (loading) return (
     <div className="space-y-4">
@@ -293,6 +371,36 @@ function CheckInScanner() {
 
       <ScanResultToast result={scanResult} position="top" />
 
+      {/* Above the camera (z-[60]) and the toast (z-[70]): the whole point is
+          that the host answers it without leaving the scanner. */}
+      {unknownScan && (
+        <div className="fixed inset-x-4 bottom-[calc(2rem+env(safe-area-inset-bottom))] z-[75] mx-auto max-w-sm rounded-2xl bg-zinc-900 border border-zinc-700 shadow-2xl p-4 space-y-3">
+          <p className="text-sm font-semibold text-white">That card isn&apos;t on tonight&apos;s list</p>
+          <p className="text-xs text-zinc-400">
+            {started
+              ? 'If they belong in the room, seat them as a walk-in and they go straight onto the list, checked in.'
+              : "Check-in opens 12 hours before the event — there's no seat to give yet."}
+          </p>
+          <div className="flex gap-2">
+            {started && (
+              <button
+                onClick={() => seatUnknownScan(unknownScan.userId, unknownScan.cardToken)}
+                disabled={seating}
+                className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold transition-colors disabled:opacity-50"
+              >
+                {seating ? 'Seating…' : 'Seat as walk-in'}
+              </button>
+            )}
+            <button
+              onClick={() => setUnknownScan(null)}
+              className="px-4 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-semibold transition-colors"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center gap-3">
         <button onClick={() => router.push('/host/checkin')} className="p-2 rounded-lg text-zinc-400 hover:bg-zinc-800 transition-colors">
@@ -302,7 +410,7 @@ function CheckInScanner() {
         </button>
         <div className="flex-1 min-w-0">
           <h2 className="text-base font-bold text-white truncate">{eventName}</h2>
-          <p className="text-xs text-zinc-400">{checkedInCount} / {attendees.length} checked in{noShowCount > 0 ? ` · ${noShowCount} no-show` : ''}</p>
+          <p className="text-xs text-zinc-400">{checkedInCount} / {seated.length} checked in{noShowCount > 0 ? ` · ${noShowCount} no-show` : ''}</p>
         </div>
         <button
           onClick={() => setScanning(true)}
@@ -319,7 +427,7 @@ function CheckInScanner() {
       <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
         <div
           className="h-full bg-amber-500 rounded-full transition-all"
-          style={{ width: attendees.length > 0 ? `${(checkedInCount / attendees.length) * 100}%` : '0%' }}
+          style={{ width: seated.length > 0 ? `${(checkedInCount / seated.length) * 100}%` : '0%' }}
         />
       </div>
 
@@ -415,7 +523,9 @@ function CheckInScanner() {
       )}
 
       {started && (
-        <WalkInAdd eventId={eventId} exclude={new Set(attendees.map(a => a.userId))} onAdded={seatedWalkIn} />
+        /* Seats, not the whole roster: someone on the waitlist has no seat
+           yet, and seating them at the door is exactly what this is for. */
+        <WalkInAdd eventId={eventId} exclude={new Set(seated.map(a => a.userId))} onAdded={seatedWalkIn} />
       )}
 
       {/* Close out the door. Counts the whole roster, not the search. */}

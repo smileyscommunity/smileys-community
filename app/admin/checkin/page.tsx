@@ -7,7 +7,7 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { toast } from 'sonner'
 import { Suspense } from 'react'
 import {getInitials} from '@/lib/data'
-import { vibrate, useScanCheckin } from '@/lib/checkin'
+import { vibrate, useScanCheckin, isSeated } from '@/lib/checkin'
 import { applyPending, loadQueue, pendingFor } from '@/lib/checkinQueue'
 import { useCheckinSync } from '@/hooks/useCheckinSync'
 import { useExcuse, excusable } from '@/hooks/useExcuse'
@@ -35,6 +35,13 @@ interface Attendee {
   id: string
   userId: string
   checkedIn: boolean
+  // 'approved' | 'waitlisted' | 'pending'. The roster carries the waitlist and
+  // the unapproved as well as the seated, so a scan can name what it found —
+  // but only the seated belong on the list, in the counts, or in "mark the
+  // rest" (lib/checkin isSeated).
+  status?: string
+  /** The server's own word for "this is a seat" (checkin GET). */
+  listed?: boolean
   // 'unknown' | 'attended' | 'no_show' | 'excused' (lib/constants Attendance)
   attendance?: string
   // Runs the event or is staff: never a no-show, never in "mark the rest".
@@ -184,17 +191,25 @@ function CheckInPageInner() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId, pathname, router])
 
+  // Seats only, everywhere below: the roster now carries the waitlist and the
+  // unapproved so a scan can name them, but they hold no seat. Counted here
+  // they made "4 / 32 checked in" out of a room of nine; listed here they
+  // looked like ordinary attendees whose row 404s on a tap; and in "mark the
+  // rest" they padded the button with people the close-out then skipped.
+  // The scanner still gets the whole roster.
+  const seated = useMemo(() => attendees.filter(isSeated), [attendees])
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
-    const byView = view === 'in' ? attendees.filter(a => a.checkedIn)
-      : view === 'remaining' ? attendees.filter(a => !a.checkedIn)
-      : attendees
+    const byView = view === 'in' ? seated.filter(a => a.checkedIn)
+      : view === 'remaining' ? seated.filter(a => !a.checkedIn)
+      : seated
     // Null-safe: lower-casing a missing email threw on the first keystroke
     // for co-hosts, whose rows carry no email.
     return q ? byView.filter(a => matchesPersonSearch(a.user, q)) : byView
-  }, [attendees, search, view])
+  }, [seated, search, view])
 
-  const checkedInCount = attendees.filter(a => a.checkedIn).length
+  const checkedInCount = seated.filter(a => a.checkedIn).length
   const event = events.find(e => e.id === selectedId)
 
   // Event picker scope. Default to "today + future" so a kiosk left
@@ -233,7 +248,7 @@ function CheckInPageInner() {
   })
   const pendingIds = new Set(pending.map(q => q.userId))
   // "Mark the rest" — the same action as /host/checkin (hooks/useCloseOut).
-  const { rest, closing, markRest } = useCloseOut({ eventId: selectedId, attendees, setAttendees })
+  const { rest, closing, markRest } = useCloseOut({ eventId: selectedId, attendees: seated, setAttendees })
   const started = !!event && todayInTz(tz) >= event.date
   const { excusing, excuse } = useExcuse({ eventId: selectedId, setAttendees })
 
@@ -360,7 +375,7 @@ function CheckInPageInner() {
           </>
         )}
 
-        {event && attendees.length > 0 && (
+        {event && seated.length > 0 && (
           <>
             {/* Tiles double as filters — tap Checked in / Remaining to
                 narrow the list, tap again (or Total) to show everyone. */}
@@ -372,7 +387,7 @@ function CheckInPageInner() {
               </button>
               <button onClick={() => setView(v => v === 'remaining' ? 'all' : 'remaining')}
                 className={`flex-1 bg-zinc-900 rounded-xl p-2 sm:p-3 text-center border active:scale-[0.98] transition-all ${view === 'remaining' ? 'border-amber-500' : 'border-transparent'}`}>
-                <div className="text-xl sm:text-2xl font-bold">{attendees.length - checkedInCount}</div>
+                <div className="text-xl sm:text-2xl font-bold">{seated.length - checkedInCount}</div>
                 {/* "Expected" used to live here, which read like "the
                     planned count" — actually this is the still-to-arrive
                     delta. "Remaining" is what an operator at the door
@@ -381,14 +396,14 @@ function CheckInPageInner() {
               </button>
               <button onClick={() => setView('all')}
                 className="flex-1 bg-zinc-900 rounded-xl p-2 sm:p-3 text-center border border-transparent active:scale-[0.98] transition-all">
-                <div className="text-xl sm:text-2xl font-bold text-zinc-400">{attendees.length}</div>
+                <div className="text-xl sm:text-2xl font-bold text-zinc-400">{seated.length}</div>
                 <div className="text-xs text-zinc-500 mt-0.5">Total</div>
               </button>
             </div>
             <div className="mt-3 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
               <div
                 className="h-full bg-green-500 rounded-full transition-all duration-300"
-                style={{ width: `${(checkedInCount / attendees.length) * 100}%` }}
+                style={{ width: seated.length > 0 ? `${(checkedInCount / seated.length) * 100}%` : '0%' }}
               />
             </div>
           </>
@@ -503,7 +518,9 @@ function CheckInPageInner() {
 
       {started && selectedId && !loadingAtts && (
         <div className="px-4 pt-5">
-          <WalkInAdd eventId={selectedId} exclude={new Set(attendees.map(a => a.userId))} onAdded={seatedWalkIn} />
+          {/* Seats, not the whole roster: someone on the waitlist has no seat
+              yet, and seating them at the door is exactly what this is for. */}
+          <WalkInAdd eventId={selectedId} exclude={new Set(seated.map(a => a.userId))} onAdded={seatedWalkIn} />
         </div>
       )}
 

@@ -7,6 +7,7 @@ import {formatPrice, formatShortDate, formatTime, resolveImageUrl} from '@/lib/d
 import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { useAuth } from '@/contexts/AuthContext'
+import { loadCardToken, type CardTokenState } from '@/lib/memberCard'
 import dynamic from 'next/dynamic'
 import EmptyState from '@/components/EmptyState'
 import { SkeletonList } from '@/components/Skeleton'
@@ -85,8 +86,24 @@ export default function MyEventsPage() {
   const [hosting, setHosting] = useState<MyEvent[]>([])
   const [saved,   setSaved]   = useState<MyEvent[]>([])
   const [qrEvent, setQrEvent] = useState<MyEvent | null>(null)
+  // One code, one mental model: the same signed card token the member card
+  // shows (lib/memberCard). This modal used to mint a per-event string of its
+  // own out of the event id and the member id — a second format for the door
+  // to know about, and one anybody who had seen an event page could write.
+  const [card, setCard] = useState<CardTokenState | null>(null)
 
   const today = todayInTz(tz)
+
+  useEffect(() => {
+    // On `card?.token`, not on `card`: one open with no signal resolves a
+    // perfectly truthy state whose token is null, and guarding on the object
+    // meant "No code on this phone yet" for the life of the page — reopening
+    // the modal never tried again. A state without a code is not an answer.
+    if (!qrEvent || card?.token || !user.id || user.id === 'guest') return
+    let live = true
+    loadCardToken(user.id).then(s => { if (live) setCard(s) })
+    return () => { live = false }
+  }, [qrEvent, card?.token, user.id])
 
   useEffect(() => {
     Promise.all([
@@ -119,9 +136,18 @@ export default function MyEventsPage() {
             <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Your check-in QR</p>
             <p className="font-bold text-gray-900 mb-5 leading-snug">{qrEvent.title}</p>
             <div className="flex justify-center mb-5">
-              <QRCode value={`smileys-checkin:${qrEvent.id}:${user.id}`} size={200} />
+              {card?.token ? (
+                <QRCode value={card.token.token} size={200} label="Your check-in code" />
+              ) : (
+                <div className="w-[200px] h-[200px] flex items-center justify-center text-xs text-gray-400 text-center px-4 leading-snug">
+                  {card ? 'No code on this phone yet — open the app once with signal.' : 'Loading your code…'}
+                </div>
+              )}
             </div>
             <p className="text-xs text-gray-400 mb-4">Show this to the host at the event entrance.</p>
+            {card?.expired && (
+              <p className="text-xs text-amber-600 mb-4">Reopen when you have signal to refresh this code.</p>
+            )}
             <button onClick={() => setQrEvent(null)} className="w-full py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-200 transition-colors">
               Close
             </button>

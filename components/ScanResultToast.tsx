@@ -6,18 +6,28 @@ import type { ScanResult } from '@/lib/checkin'
 // pages and the host page's "X — already checked in" sat next to the
 // admin page's "X already checked in" because no shared source.
 const TYPE_STYLE: Record<ScanResult['type'], { cls: string; icon: string }> = {
-  success:  { cls: 'bg-green-500 text-white', icon: '✓' },
-  already:  { cls: 'bg-amber-500 text-white', icon: '↩' },
-  notfound: { cls: 'bg-red-500 text-white',   icon: '✕' },
-  invalid:  { cls: 'bg-red-500 text-white',   icon: '✕' },
-  error:    { cls: 'bg-red-500 text-white',   icon: '✕' },
+  success:    { cls: 'bg-green-500 text-white', icon: '✓' },
+  already:    { cls: 'bg-amber-500 text-white', icon: '↩' },
+  // Registered, but not in a seat: the host has something to do about it,
+  // which is not the same as turning someone away.
+  waitlisted: { cls: 'bg-amber-500 text-white', icon: '⏳' },
+  pending:    { cls: 'bg-amber-500 text-white', icon: '⏳' },
+  notfound:   { cls: 'bg-red-500 text-white',   icon: '✕' },
+  invalid:    { cls: 'bg-red-500 text-white',   icon: '✕' },
+  expired:    { cls: 'bg-amber-500 text-white', icon: '⏳' },
+  outdated:   { cls: 'bg-amber-500 text-white', icon: '⏳' },
+  error:      { cls: 'bg-red-500 text-white',   icon: '✕' },
 }
 
 function copy(r: ScanResult): string {
-  if (r.type === 'success')  return `${r.name} checked in!`
-  if (r.type === 'already')  return `${r.name} already checked in`
-  if (r.type === 'notfound') return 'Not registered for this event'
-  if (r.type === 'invalid')  return 'Invalid QR code'
+  if (r.type === 'success')    return `${r.name} checked in!`
+  if (r.type === 'already')    return `${r.name} already checked in`
+  if (r.type === 'waitlisted') return `${r.name} is on the waitlist — seat them from the list to check in`
+  if (r.type === 'pending')    return `${r.name} asked to join, not approved yet`
+  if (r.type === 'notfound')   return "This card isn't on tonight's list"
+  if (r.type === 'invalid')    return "That code isn't valid"
+  if (r.type === 'expired')    return 'Their card expired — ask them to reopen the app'
+  if (r.type === 'outdated')   return 'Out-of-date card — ask them to reopen the app'
   if (r.message) return r.name ? `${r.name}: ${r.message}` : r.message
   return r.name ? `Check-in failed for ${r.name}` : 'Check-in failed'
 }

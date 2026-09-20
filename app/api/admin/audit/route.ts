@@ -28,6 +28,14 @@ export async function GET(req: NextRequest) {
 
   const where: Prisma.AuditLogWhereInput = {}
   if (action) where.action = { contains: action }
+  // The dashboard's "recent activity" strip asks for the last eight rows.
+  // Since every door tap is audited (member-card review), a forty-person
+  // event would fill all eight with "checked in a member at the door" and
+  // push out the things that strip exists to surface. They stay on the full
+  // audit page; `exclude=checkin.` is how the strip asks for the rest.
+  const excludePrefixes: string[] = []
+  const exclude = searchParams.get('exclude')
+  if (exclude) excludePrefixes.push(exclude)
   // City scope. Rows carry the target's city since 2026-09-03; earlier rows
   // and platform-wide actions are null. A moderator sees their own city's
   // rows plus the city-less ones — the null arm is what keeps the history
@@ -37,10 +45,14 @@ export async function GET(req: NextRequest) {
     where.OR = [{ cityId: failClosedCityId(session) }, { cityId: null }]
     // Blacklist entries are an admin's (the blacklist itself is admin-only):
     // city-less, they reached every city's moderators, email and all.
-    where.NOT = { action: { startsWith: 'blacklist.' } }
+    excludePrefixes.push('blacklist.')
   } else if (city) {
     where.cityId = city
   }
+  // NOT takes a list, so the two reasons to hide a row (the caller's
+  // `exclude`, and the blacklist rows a moderator may not read) can't
+  // overwrite each other.
+  if (excludePrefixes.length) where.NOT = excludePrefixes.map(p => ({ action: { startsWith: p } }))
   if (Object.keys(createdAt).length) where.createdAt = createdAt
   if (search) {
     // Free-text search across the fields a moderator would actually type:
