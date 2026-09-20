@@ -434,6 +434,12 @@ echo "→ Pruning retained chunks from old builds..."
 # runs scripts/scan-connection-abuse.ts directly (no HTTP endpoint) and emails
 # the ranked report to ADMIN_EMAIL. See scripts/sweep-connection-abuse.sh.
 #
+# Weekly threshold-reachability scan — Mondays 06:40 UTC. Read-only: checks
+# that each admin threshold is one a member can actually cross, after three
+# surfaces were found on 2026-09-20 showing nothing because their bar was set
+# above anything in the data. Emails ADMIN_EMAIL only when one is unreachable.
+# See scripts/sweep-dead-thresholds.sh.
+#
 # Weekly neighborhood-hygiene scan — Mondays 06:20 UTC, 20 min after the
 # connection-abuse scan so two tsx processes don't start together. Read-only:
 # it emails ADMIN_EMAIL a report of member neighborhoods that don't match their
@@ -551,6 +557,10 @@ echo '  ✓ name-hygiene'
 chmod +x $REMOTE/scripts/sweep-connection-abuse.sh
 (crontab -l 2>/dev/null | grep -v 'sweep-connection-abuse' ; echo '0 6 * * 1 $REMOTE/scripts/sweep-connection-abuse.sh >> /var/log/sweep-connection-abuse.log 2>&1') | crontab -
 echo '  ✓ connection-abuse'
+
+chmod +x $REMOTE/scripts/sweep-dead-thresholds.sh
+(crontab -l 2>/dev/null | grep -v 'sweep-dead-thresholds' ; echo '40 6 * * 1 $REMOTE/scripts/sweep-dead-thresholds.sh >> /var/log/sweep-dead-thresholds.log 2>&1') | crontab -
+echo '  ✓ dead-thresholds'
 
 chmod +x $REMOTE/scripts/sweep-neighborhood-hygiene.sh
 (crontab -l 2>/dev/null | grep -v 'sweep-neighborhood-hygiene' ; echo '20 6 * * 1 $REMOTE/scripts/sweep-neighborhood-hygiene.sh >> /var/log/sweep-neighborhood-hygiene.log 2>&1') | crontab -
