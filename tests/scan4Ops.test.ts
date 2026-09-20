@@ -194,11 +194,14 @@ describe('2 sweep wrappers', () => {
   })
 
   it('a connection failure logs HTTP 000, not 000000', async () => {
-    const probe = createServer()
-    await new Promise<void>(r => probe.listen(0, '127.0.0.1', r))
-    const port = (probe.address() as AddressInfo).port
-    await new Promise<void>(r => probe.close(() => r()))   // nothing listens there now
-    const out = await runWrapper({ PATH: `${stubBin}:${process.env.PATH}`, SMILEYS_ENV_FILE: envFile, SMILEYS_SWEEP_ENDPOINT: `http://127.0.0.1:${port}/app/api/cron/sweep-orphan-uploads` })
+    // Port 1 on loopback, not a just-released ephemeral one. This used to
+    // bind port 0, read the number, close the server and assume nothing
+    // took it — but the OS is free to hand that port straight to another
+    // vitest worker, and when something answered, the expected HTTP 000
+    // never came. It flaked exactly when the suite was busiest. Ports below
+    // 1024 need root to bind, the tests run unprivileged, so nothing in the
+    // suite can occupy this one and the connection always refuses.
+    const out = await runWrapper({ PATH: `${stubBin}:${process.env.PATH}`, SMILEYS_ENV_FILE: envFile, SMILEYS_SWEEP_ENDPOINT: 'http://127.0.0.1:1/app/api/cron/sweep-orphan-uploads' })
     expect(out.code).toBe(0)
     expect(out.stdout).toMatch(/FAILED HTTP 000: /)
     expect(out.stdout).not.toContain('000000')
