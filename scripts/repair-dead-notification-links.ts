@@ -42,7 +42,7 @@
 export const PAGE_ROUTES = [
   '/', '/[city]', '/[city]/board', '/[city]/clubs', '/[city]/directory', '/[city]/events',
   '/about', '/activate', '/admin', '/admin/analytics', '/admin/announcements', '/admin/applications',
-  '/admin/attendance-review', '/admin/audit',
+  '/admin/abuse', '/admin/attendance-review', '/admin/audit',
   '/admin/banners', '/admin/campaigns', '/admin/campaigns/[id]', '/admin/checkin', '/admin/cities', '/admin/club-requests', '/admin/clubs',
   '/admin/clubs/[id]', '/admin/content', '/admin/directory', '/admin/engagement', '/admin/events',
   '/admin/events/[id]/edit', '/admin/events/[id]/participants', '/admin/events/new', '/admin/feedback', '/admin/guide',

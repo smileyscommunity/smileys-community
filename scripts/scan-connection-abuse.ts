@@ -19,18 +19,15 @@
 //     rather than decline, requests pile up pending and inflate acceptRate.
 //   - Live rows understate history: declines older than 2026-07-17 were
 //     hard-deleted. Cross-check notifications for full send counts.
-//   - WINDOWED. Ranking on ALL-TIME rows buried a live 2026-09 cohort
-//     (10-request sprays to women, brand-new accounts) under last quarter's
-//     high-volume history, and kept resurfacing suspended-then-returned
-//     members whose flagged rows predate their suspension. So the scan ranks
-//     on the last WINDOW_DAYS (default 60) only: an offender who has stopped
-//     drops off, and a low-volume active one rises.
-//     WINDOW_DAYS=0 restores the all-time view for a historical audit.
+//   - LIFETIME. This ranked on a 60-day window, so an offender who stopped
+//     dropped off it — the 2026-07 case the scan was built for had aged out
+//     of its own report by September. Nothing ages out now; `last=` on each
+//     line is what tells a live spree from settled history.
 
 import { prisma } from '@/lib/prisma'
 import { Resend } from 'resend'
 import {
-  thresholds, cutoffFor, DEFAULT_WINDOW_DAYS, requestScanSql, dmScanSql,
+  THRESHOLDS as t, requestScanSql, dmScanSql,
   requestReasons, dmReasons, pct, type RequestRow, type DmRow,
 } from '@/lib/connectionAbuse'
 
@@ -41,31 +38,28 @@ function log(line: string) {
   console.log(line)
 }
 
-async function main() {
-  const WINDOW_DAYS = process.env.WINDOW_DAYS === undefined ? DEFAULT_WINDOW_DAYS : Number(process.env.WINDOW_DAYS)
-  const cutoff = cutoffFor(WINDOW_DAYS)
-  const t = thresholds(WINDOW_DAYS)
-  const windowLabel = WINDOW_DAYS > 0 ? `last ${WINDOW_DAYS} days` : 'all time'
+const day = (d: Date) => new Date(d).toISOString().slice(0, 10)
 
-  const requests: RequestRow[] = await prisma.$queryRaw(requestScanSql(cutoff, t.MIN_REQUESTS))
+async function main() {
+  const requests: RequestRow[] = await prisma.$queryRaw(requestScanSql())
 
   // Said in the report so a reviewer checks it before acting: a misclick on
   // /apply stays on the record, and a profile edit doesn't change it.
   log('Gender is the one given on the application (else before the first profile edit) — confirm before acting on a flag.')
-  log(`--- Connection requests (${t.MIN_REQUESTS}+ in ${windowLabel}, as requester) ---`)
+  log(`--- Connection requests (${t.MIN_REQUESTS}+ ever, as requester) ---`)
   for (const x of requests) {
-    const reasons = requestReasons(x, t)
+    const reasons = requestReasons(x)
     const flag = reasons.length ? `  ⚠️ REVIEW (${reasons.join(', ')})` : ''
-    log(`${x.name}${x.suspended ? ' [suspended]' : ''}: sent=${x.sent} toWomen=${pct(x.toFemale, x.sent)}% toMen=${pct(x.toMale, x.sent)}% pending=${x.pending} (${pct(x.pending, x.sent)}% ignored) acceptRate=${pct(x.accepted, x.sent)}%${flag}`)
+    log(`${x.name}${x.suspended ? ' [suspended]' : ''}: sent=${x.sent} toWomen=${pct(x.toFemale, x.sent)}% toMen=${pct(x.toMale, x.sent)}% pending=${x.pending} (${pct(x.pending, x.sent)}% ignored) acceptRate=${pct(x.accepted, x.sent)}% last=${day(x.lastAt)}${flag}`)
   }
 
-  const dms: DmRow[] = await prisma.$queryRaw(dmScanSql(cutoff, t.MIN_DM_PARTNERS))
+  const dms: DmRow[] = await prisma.$queryRaw(dmScanSql())
 
-  log(`--- DMs (${t.MIN_DM_PARTNERS}+ distinct partners in ${windowLabel}, members only) ---`)
+  log(`--- DMs (${t.MIN_DM_PARTNERS}+ distinct partners ever, members only) ---`)
   for (const x of dms) {
-    const reasons = dmReasons(x, t)
+    const reasons = dmReasons(x)
     const flag = reasons.length ? `  ⚠️ REVIEW (${reasons.join(', ')})` : ''
-    log(`${x.name}${x.suspended ? ' [suspended]' : ''}: partners=${x.partners} women=${pct(x.toFemale, x.partners)}% men=${pct(x.toMale, x.partners)}% neverReplied=${x.noReply}${flag}`)
+    log(`${x.name}${x.suspended ? ' [suspended]' : ''}: partners=${x.partners} women=${pct(x.toFemale, x.partners)}% men=${pct(x.toMale, x.partners)}% neverReplied=${x.noReply} last=${day(x.lastAt)}${flag}`)
   }
 }
 

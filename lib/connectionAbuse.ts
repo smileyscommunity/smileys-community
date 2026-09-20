@@ -22,31 +22,27 @@ import { SCAN_GENDER_CTE } from '@/lib/scanGender'
 // Someone checking the panel and seeing nothing could not conclude all-clear.
 // Now both import this, so a threshold moves in one place or not at all.
 
-// Window-dependent, because a rolling window sees fewer rows than all time.
-// WINDOW_DAYS=0 (a historical audit) raises the counts back.
-export function thresholds(windowDays: number) {
-  const windowed = windowDays > 0 && windowDays <= 90
-  return {
-    MIN_REQUESTS:     windowed ? 10 : 15,
-    MIN_DM_PARTNERS:  windowed ?  6 :  8,
-    // Acceptance and ignore are companions: targets who ignore rather than
-    // decline leave requests pending, which inflates the acceptance
-    // denominator and hides the sender under the acceptance test
-    // (Zabdawi/Ntamen/Khristy, 2026-07-18). A heavy unanswered backlog is
-    // its own signal.
-    LOW_ACCEPTANCE:   0.30,
-    HIGH_IGNORE:      0.50,
-    GENDER_SKEW:      0.75,
-    DM_GENDER_SKEW:   0.80,
-    // Small samples skew trivially; a 3-of-3 run is not a pattern.
-    MIN_GENDER_KNOWN: 10,
-  }
-}
-export type Thresholds = ReturnType<typeof thresholds>
-
-export const DEFAULT_WINDOW_DAYS = 60
-export const cutoffFor = (windowDays: number) =>
-  windowDays > 0 ? new Date(Date.now() - windowDays * 86_400_000) : new Date(0)
+// Lifetime, not a rolling window. The scan used to rank on the last 60 days,
+// which meant an offender who stopped simply disappeared: Eric Lopez, the
+// case the whole scan was built for, sent his last request on 2026-07-13 and
+// had aged out by September. A report you cannot look back through is not a
+// record, so nothing ages out now — `lastAt` on every row is what separates
+// a live spree from old history, rather than deleting the old history.
+export const THRESHOLDS = {
+  MIN_REQUESTS:     10,
+  MIN_DM_PARTNERS:   6,
+  // Acceptance and ignore are companions: targets who ignore rather than
+  // decline leave requests pending, which inflates the acceptance denominator
+  // and hides the sender under the acceptance test (Zabdawi/Ntamen/Khristy,
+  // 2026-07-18). A heavy unanswered backlog is its own signal.
+  LOW_ACCEPTANCE:   0.30,
+  HIGH_IGNORE:      0.50,
+  GENDER_SKEW:      0.75,
+  DM_GENDER_SKEW:   0.80,
+  // Small samples skew trivially; a 3-of-3 run is not a pattern.
+  MIN_GENDER_KNOWN: 10,
+} as const
+export type Thresholds = typeof THRESHOLDS
 
 export interface RequestRow {
   userId:    string
@@ -59,6 +55,7 @@ export interface RequestRow {
   pending:   number
   toFemale:  number
   toMale:    number
+  lastAt:    Date
 }
 
 export interface DmRow {
@@ -70,6 +67,7 @@ export interface DmRow {
   toFemale:  number
   toMale:    number
   noReply:   number
+  lastAt:    Date
 }
 
 // Gender is the one the member applied with (lib/scanGender), never the
@@ -91,8 +89,11 @@ function skew(toFemale: number, toMale: number, gender: string | null, min: numb
 // A flag is a reason to look, never a reason to act: both callers are
 // read-only and every sanction stays a human decision on the warn/suspend
 // tools. The reasons ride along so the panel can say which test fired.
-export function requestReasons(r: RequestRow, t: Thresholds): string[] {
-  if (r.role !== 'member' || r.suspended) return []
+export function requestReasons(r: RequestRow, t: Thresholds = THRESHOLDS): string[] {
+  // Hosts and moderators fan out legitimately. A suspended member is NOT
+  // skipped: that they were caught and acted on is the record, and hiding
+  // them is how the panel lost every case it had ever resolved.
+  if (r.role !== 'member') return []
   const { hit } = skew(r.toFemale, r.toMale, r.gender, t.MIN_GENDER_KNOWN, t.GENDER_SKEW)
   if (!hit) return []
   // Skew alone is not enough. Requiring a volume signal with it is what keeps
@@ -104,8 +105,7 @@ export function requestReasons(r: RequestRow, t: Thresholds): string[] {
   return reasons.length ? ['gender-skew', ...reasons] : []
 }
 
-export function dmReasons(r: DmRow, t: Thresholds): string[] {
-  if (r.suspended) return []
+export function dmReasons(r: DmRow, t: Thresholds = THRESHOLDS): string[] {
   // Denominator is every partner, not just the gender-known ones, matching
   // the scan this came from: an unknown-gender partner is evidence against
   // the pattern, not absent evidence.
@@ -115,11 +115,11 @@ export function dmReasons(r: DmRow, t: Thresholds): string[] {
   return r.noReply > 0 ? ['dm-skew', 'never-replied'] : ['dm-skew']
 }
 
-// Requests sent in the window, per requester. Declined and withdrawn rows are
+// Every request a member has ever sent, per requester. Declined and withdrawn rows are
 // hard-DELETED (api/connections/[id]), so only pending + accepted survive and
 // these counts understate the true send volume — the thresholds are set with
 // that in mind.
-export const requestScanSql = (cutoff: Date, minRequests: number) => Prisma.sql`
+export const requestScanSql = (minRequests: number = THRESHOLDS.MIN_REQUESTS) => Prisma.sql`
   WITH ${SCAN_GENDER_CTE}
   SELECT u.id                                                       AS "userId",
          u.name                                                     AS "name",
@@ -130,12 +130,12 @@ export const requestScanSql = (cutoff: Date, minRequests: number) => Prisma.sql`
          COUNT(*) FILTER (WHERE mc.status = 'accepted')::int         AS "accepted",
          COUNT(*) FILTER (WHERE mc.status = 'pending')::int          AS "pending",
          COUNT(*) FILTER (WHERE rg.gender = 'female')::int           AS "toFemale",
-         COUNT(*) FILTER (WHERE rg.gender = 'male')::int             AS "toMale"
+         COUNT(*) FILTER (WHERE rg.gender = 'male')::int             AS "toMale",
+         MAX(mc."createdAt")                                         AS "lastAt"
   FROM member_connections mc
   JOIN users u ON u.id = mc."requesterId"
   JOIN scan_gender ug ON ug.id = u.id
   JOIN scan_gender rg ON rg.id = mc."receiverId"
-  WHERE mc."createdAt" >= ${cutoff}
   GROUP BY u.id, ug.gender
   HAVING COUNT(*) >= ${minRequests}
   ORDER BY COUNT(*) DESC`
@@ -143,10 +143,10 @@ export const requestScanSql = (cutoff: Date, minRequests: number) => Prisma.sql`
 // DM fan-out: many one-way threads. Requires an accepted connection to exist
 // at all, so it catches the "get accepted, then work the inbox" variant the
 // request scan cannot see.
-export const dmScanSql = (cutoff: Date, minPartners: number) => Prisma.sql`
+export const dmScanSql = (minPartners: number = THRESHOLDS.MIN_DM_PARTNERS) => Prisma.sql`
   WITH ${SCAN_GENDER_CTE}, threads AS (
-    SELECT "fromId", "toId", COUNT(*) AS n FROM direct_messages
-    WHERE "createdAt" >= ${cutoff} GROUP BY "fromId", "toId"
+    SELECT "fromId", "toId", MAX("createdAt") AS last_at FROM direct_messages
+    GROUP BY "fromId", "toId"
   )
   SELECT u.id                                                       AS "userId",
          u.name                                                     AS "name",
@@ -155,7 +155,8 @@ export const dmScanSql = (cutoff: Date, minPartners: number) => Prisma.sql`
          COUNT(*)::int                                              AS "partners",
          SUM(CASE WHEN pg.gender = 'female' THEN 1 ELSE 0 END)::int  AS "toFemale",
          SUM(CASE WHEN pg.gender = 'male'   THEN 1 ELSE 0 END)::int  AS "toMale",
-         SUM(CASE WHEN rev."fromId" IS NULL THEN 1 ELSE 0 END)::int  AS "noReply"
+         SUM(CASE WHEN rev."fromId" IS NULL THEN 1 ELSE 0 END)::int  AS "noReply",
+         MAX(t.last_at)                                              AS "lastAt"
   FROM threads t
   JOIN users u ON u.id = t."fromId" AND u.role = 'member'
   JOIN scan_gender ug ON ug.id = u.id

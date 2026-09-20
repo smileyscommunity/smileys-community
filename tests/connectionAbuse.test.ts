@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'fs'
 import {
-  thresholds, cutoffFor, requestReasons, dmReasons, pct,
+  THRESHOLDS as t, requestReasons, dmReasons, pct,
   type RequestRow, type DmRow,
 } from '@/lib/connectionAbuse'
 
@@ -12,28 +12,38 @@ import {
 // email required skew AND a volume signal, and had no DM scan at all. A
 // moderator who checked the panel and saw nothing could not conclude
 // all-clear. These guard the single source and the two call sites.
-
-const t = thresholds(60)
+//
+// The scan is also lifetime now. On a 60-day window an offender who stopped
+// simply left the report: the July 2026 case it was built for had aged out of
+// it by September, which is not what a record is for.
 
 const req = (over: Partial<RequestRow> = {}): RequestRow => ({
   userId: 'u1', name: 'Sender', gender: 'male', role: 'member', suspended: false,
-  sent: 20, accepted: 1, pending: 15, toFemale: 19, toMale: 1, ...over,
+  sent: 20, accepted: 1, pending: 15, toFemale: 19, toMale: 1,
+  lastAt: new Date('2026-07-13'), ...over,
 })
 const dm = (over: Partial<DmRow> = {}): DmRow => ({
   userId: 'u1', name: 'Sender', gender: 'male', suspended: false,
-  partners: 10, toFemale: 9, toMale: 1, noReply: 8, ...over,
+  partners: 10, toFemale: 9, toMale: 1, noReply: 8,
+  lastAt: new Date('2026-07-13'), ...over,
 })
 
-describe('thresholds', () => {
-  it('are looser on a rolling window than all-time, because it sees fewer rows', () => {
-    expect(thresholds(60).MIN_REQUESTS).toBe(10)
-    expect(thresholds(60).MIN_DM_PARTNERS).toBe(6)
-    expect(thresholds(0).MIN_REQUESTS).toBe(15)
-    expect(thresholds(0).MIN_DM_PARTNERS).toBe(8)
+describe('the scan is lifetime', () => {
+  it('neither query filters on a date — nothing ages out of the record', async () => {
+    const { requestScanSql, dmScanSql } = await import('@/lib/connectionAbuse')
+    for (const sql of [requestScanSql(), dmScanSql()]) {
+      expect(sql.sql).not.toMatch(/mc\."createdAt" >=/)
+      expect(sql.sql).not.toMatch(/direct_messages\s+WHERE "createdAt" >=/)
+    }
   })
-  it('WINDOW_DAYS=0 means all time, not "zero days ago"', () => {
-    expect(cutoffFor(0).getTime()).toBe(0)
-    expect(cutoffFor(60).getTime()).toBeLessThan(Date.now())
+  it('both queries report when the behaviour last happened, which is what replaces the window', async () => {
+    const { requestScanSql, dmScanSql } = await import('@/lib/connectionAbuse')
+    expect(requestScanSql().sql).toContain('"lastAt"')
+    expect(dmScanSql().sql).toContain('"lastAt"')
+  })
+  it('keeps the lower thresholds, so nobody the windowed scan caught is lost', () => {
+    expect(t.MIN_REQUESTS).toBe(10)
+    expect(t.MIN_DM_PARTNERS).toBe(6)
   })
 })
 
@@ -67,8 +77,10 @@ describe('request flags', () => {
   it('leaves hosts and moderators alone — fanning out is their job', () => {
     expect(requestReasons(req({ role: 'host' }), t)).toEqual([])
   })
-  it('leaves an already-suspended member alone', () => {
-    expect(requestReasons(req({ suspended: true }), t)).toEqual([])
+  // Was skipped. Hiding a suspended member hid every case that had ever been
+  // resolved, which is exactly the history this page exists to show.
+  it('still flags a suspended member — the resolved case is the record', () => {
+    expect(requestReasons(req({ suspended: true }), t)).toContain('gender-skew')
   })
 })
 
@@ -82,6 +94,9 @@ describe('DM flags', () => {
   it('same-gender skew is not the pattern', () => {
     expect(dmReasons(dm({ gender: 'female' }), t)).toEqual([])
   })
+  it('still flags a suspended member, same reason as the request scan', () => {
+    expect(dmReasons(dm({ suspended: true }), t)).toContain('dm-skew')
+  })
   it('a mixed inbox is not skew', () => {
     expect(dmReasons(dm({ toFemale: 5, toMale: 5 }), t)).toEqual([])
   })
@@ -94,7 +109,7 @@ describe('DM flags', () => {
 
 describe('both callers read the shared module', () => {
   const script = readFileSync('scripts/scan-connection-abuse.ts', 'utf-8')
-  const route  = readFileSync('app/api/admin/users/connection-flags/route.ts', 'utf-8')
+  const route  = readFileSync('app/api/admin/abuse/route.ts', 'utf-8')
 
   it.each([['script', script], ['route', route]])('%s imports the rules instead of restating them', (_n, src) => {
     expect(src).toMatch(/from '@\/lib\/connectionAbuse'/)
@@ -115,13 +130,13 @@ describe('both callers read the shared module', () => {
   })
 
   it('the route reports the DM half too — it used to have none', () => {
-    expect(route).toMatch(/dmFlagged/)
+    expect(route).toMatch(/dms:/)
   })
 
   it('neither caller mutates: this is a report, sanctions stay human', () => {
     for (const src of [script, route]) {
       expect(src).not.toMatch(/prisma\.user\.update/)
-      expect(src).not.toMatch(/suspendedUntil:\s/)
+      expect(src).not.toMatch(/data:\s*\{[^}]*suspendedUntil/)
     }
   })
 })

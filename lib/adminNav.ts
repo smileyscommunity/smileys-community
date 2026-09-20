@@ -28,6 +28,10 @@ export const NAV_GROUPS: { label: string; items: AdminNavItem[] }[] = [
       // "Reports" used to point at a misnamed analytics page; the actual
       // member-reports queue lives at /admin/moderation (default tab).
       { label: 'Moderation',   href: '/admin/moderation',   exact: false, roles: ['admin', 'moderator'],  icon: 'moderation'   },
+      // Fan-out signals (connection requests, DMs), counted over a member's
+      // whole time here. Separate from Moderation because nobody reported
+      // these people — the scan found them.
+      { label: 'Abuse',        href: '/admin/abuse',        exact: false, roles: ['admin', 'moderator'],  icon: 'moderation'   },
       // Moderators get Retention because they can't see Analytics (admin-only
       // API). Admins see the same data under Analytics > Members, but this is
       // the page with the per-member Nudge, so it is listed for them too.
