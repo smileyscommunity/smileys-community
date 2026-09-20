@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
+import { firstNameOf } from '@/lib/data'
 import { isBlockedEitherWay } from '@/lib/memberPrivacy'
 
 // "✋ I'm free too" — one-tap response to an availability pulse. Cheaper
@@ -45,10 +46,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       await prisma.pulseWave.create({ data: { pulseId: pulse.id, userId: session.id } })
       // Deep-link the poster straight into a DM with the waver — the wave
       // is the mutual signal, the message is the plan.
+      // The waver is any neighbour, not necessarily a connection: a
+      // connections-only member waving is a first name here too.
+      const me = await prisma.user.findUnique({
+        where: { id: session.id }, select: { profileVisibility: true },
+      })
+      const connected = me?.profileVisibility !== 'connections' || !!await prisma.memberConnection.findFirst({
+        where: { status: 'accepted', OR: [
+          { requesterId: session.id, receiverId: pulse.userId },
+          { requesterId: pulse.userId, receiverId: session.id },
+        ] },
+        select: { id: true },
+      })
       createNotification(
         pulse.userId,
         'pulse_wave',
-        `✋ ${session.name} is free too`,
+        `✋ ${connected ? session.name : firstNameOf(session.name)} is free too`,
         'You’re both around right now — send a message and make it happen.',
         `/messages/${session.id}`,
       ).catch(() => {})

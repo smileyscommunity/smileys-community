@@ -63,8 +63,11 @@ describe('92a. notification actions report failure and roll back', () => {
     expect(src).not.toMatch(/body: JSON\.stringify\(\{ id: n\.id \}\),\s*\}\)\.catch\(\(\) => \{\}\)/)
     // `.finally(settle)`: scan 6 batch 22 releases the poll overlay before any rollback.
     expect(src).toMatch(/if \(!await sendNotificationAction\('PATCH', \{ markAll: true \}[^)]*\)(?:\.finally\(settle\))?\) \{\s*set\w+\(prev => setReadFor\(prev, ids, false\)\)/)
-    expect(src).toMatch(/if \(!await sendNotificationAction\('DELETE', \{ id \}[^)]*\)(?:\.finally\(settle\))?\) \{\s*set\w+\(prev => restoreAt\(prev, removed, index\)\)/)
-    expect(src).toMatch(/sendNotificationAction\('PATCH', \{ id: n\.id \}[^)]*\)(?:\.finally\(settle\))?\.then\(ok => \{\s*if \(!ok\) set\w+\(prev => setReadFor\(prev, ids, false\)\)/)
+    // The dismiss rollback puts the row back where it was. The bell sends the
+    // DELETE on the click; the page holds it behind an Undo window first, so
+    // the row it restores travels on the pending entry.
+    expect(src).toMatch(/sendNotificationAction\('DELETE', \{ id \}[^)]*\)(?:\.finally\((?:settle|entry\.settle)\))?[\s\S]{0,120}?set\w+\(prev => restoreAt\(prev, (?:removed, index|entry\.row, entry\.index)\)\)/)
+    expect(src).toMatch(/sendNotificationAction\('PATCH', \{ id: n\.id \}[^)]*\)(?:\.finally\(settle\))?\.then\(ok => \{\s*if \(!ok\) \{?\s*set\w+\(prev => setReadFor\(prev, ids, false\)\)/)
   })
 
   it('say hi toasts a network failure instead of silently resetting', () => {

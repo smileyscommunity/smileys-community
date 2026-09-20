@@ -205,7 +205,10 @@ self.addEventListener('push', e => {
     body:    payload.body  ?? '',
     icon:    '/app/icons/icon-192.png',
     badge:   '/app/icons/icon-192.png',
-    data:    { link: payload.link ?? '/app' },
+    // No link on the payload means the push has nowhere of its own to go —
+    // the notifications list is where it can be read in full, which is where
+    // the bell sends the same linkless notification.
+    data:    { link: payload.link ?? '/app/notifications' },
     vibrate: [100, 50, 100],
   }
 
@@ -216,7 +219,7 @@ self.addEventListener('notificationclick', e => {
   e.notification.close()
   const raw = e.notification.data?.link ?? ''
   // Ensure the link is within the SW scope (/app/)
-  const link = raw.startsWith('/app') ? raw : `/app${raw || '/dashboard'}`
+  const link = raw.startsWith('/app') ? raw : `/app${raw || '/notifications'}`
   e.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
       for (const client of list) {

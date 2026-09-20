@@ -219,13 +219,16 @@ describe('bell and notifications page wiring', () => {
     expect(src).toMatch(/const \[source\] = useState\(createNotificationSourceId\)/)
     // subscribe inside an effect whose cleanup is the unsubscribe; receive
     // counts as newer before the list is touched
-    expect(src).toMatch(new RegExp(`useEffect\\(\\(\\) => \\{\\s*return subscribeNotificationChanges\\(source, change => \\{\\s*sync\\.receive\\(change\\)\\s*${setter}\\(prev => applyNotificationChange\\(prev, change\\)\\)\\s*\\}\\)\\s*\\}, \\[source, sync\\]\\)`))
-    // mark-all: rollback returns before the emit
-    expect(src).toMatch(new RegExp(`\\.finally\\(settle\\)\\) \\{\\s*${setter}\\(prev => setReadFor\\(prev, ids, false\\)\\)\\s*return\\s*\\}\\s*(?://[^\\n]*\\n\\s*)*emitNotificationChange\\(\\{ kind: 'readAll' \\}, source\\)`))
+    expect(src).toMatch(new RegExp(`useEffect\\(\\(\\) => \\{\\s*return subscribeNotificationChanges\\(source, change => \\{\\s*sync\\.receive\\(change\\)\\s*${setter}\\(prev => applyNotificationChange\\(prev, change\\)\\)`))
+    // the unread count follows the same change, and the effect's cleanup is
+    // still the unsubscribe
+    expect(src).toMatch(/setUnread\(c => unreadCountAfterChange\(c, change\)\)\s*\}\)\s*\}, \[source, sync\]\)/)
+    // mark-all: rollback (list and count) returns before the emit
+    expect(src).toMatch(new RegExp(`\\.finally\\(settle\\)\\) \\{\\s*${setter}\\(prev => setReadFor\\(prev, ids, false\\)\\)\\s*setUnread\\(before\\)\\s*return\\s*\\}\\s*(?://[^\\n]*\\n\\s*)*emitNotificationChange\\(\\{ kind: 'readAll' \\}, source\\)`))
     // dismiss: restore returns before the emit
-    expect(src).toMatch(new RegExp(`${setter}\\(prev => restoreAt\\(prev, removed, index\\)\\)\\s*return\\s*\\}\\s*emitNotificationChange\\(\\{ kind: 'dismiss', ids: \\[id\\] \\}, source\\)`))
+    expect(src).toMatch(new RegExp(`${setter}\\(prev => restoreAt\\(prev, (?:removed, index|entry\\.row, entry\\.index)\\)\\)[\\s\\S]{0,80}?return\\s*\\}\\s*emitNotificationChange\\(\\{ kind: 'dismiss', ids: \\[id\\] \\}, source\\)`))
     // single read: emit only on the ok branch
-    expect(src).toMatch(new RegExp(`if \\(!ok\\) ${setter}\\(prev => setReadFor\\(prev, ids, false\\)\\)\\s*(?://[^\\n]*\\n\\s*)*else emitNotificationChange\\(\\{ kind: 'read', ids: \\[n\\.id\\] \\}, source\\)`))
+    expect(src).toMatch(new RegExp(`if \\(!ok\\) \\{?\\s*${setter}\\(prev => setReadFor\\(prev, ids, false\\)\\)[\\s\\S]{0,80}?(?://[^\\n]*\\n\\s*)*else emitNotificationChange\\(\\{ kind: 'read', ids: \\[n\\.id\\] \\}, source\\)`))
     // no emit anywhere else (e.g. before the request, or on a rollback path)
     const expected = file.includes('page.tsx') ? 4 : 3
     expect(src.match(/emitNotificationChange\(/g)).toHaveLength(expected)
@@ -233,7 +236,7 @@ describe('bell and notifications page wiring', () => {
 
   it('clear-all emits inside the res.ok branch only', () => {
     const src = read('app/(member)/notifications/page.tsx')
-    expect(src).toMatch(/if \(res\.ok\) \{\s*clearedAt\.current = Date\.now\(\)\s*setNotifications\(\[\]\)\s*setConfirmClear\(false\)\s*emitNotificationChange\(\{ kind: 'clearAll' \}, source\)\s*\} else \{/)
+    expect(src).toMatch(/if \(res\.ok\) \{\s*clearedAt\.current = Date\.now\(\)[\s\S]{0,300}?setNotifications\(\[\]\)[\s\S]{0,200}?setConfirmClear\(false\)\s*emitNotificationChange\(\{ kind: 'clearAll' \}, source\)[\s\S]{0,300}?\} else \{/)
   })
 
   it('the helpers stay in lib/notificationActions (no per-component copies)', () => {

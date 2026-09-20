@@ -88,8 +88,11 @@ const mod   = { id: 'm1', name: 'Mod',   role: 'moderator', cityId: 'c1' }
 const host  = { id: 'h1', name: 'Host',  role: 'member', cityId: 'c1' }
 const stamp = new Date('2026-09-10T12:00:00.000Z')
 
+// The date has to stay in the future: a host can't move a started event to
+// draft, so a fixture dated "today" passed until today arrived (2026-09-20,
+// which is the day it did).
 const existing = (o: Record<string, unknown> = {}) => ({
-  hostId: 'h1', clubId: 'club1', cityId: 'c1', date: '2026-09-20', time: '19:00', endTime: null,
+  hostId: 'h1', clubId: 'club1', cityId: 'c1', date: '2099-09-20', time: '19:00', endTime: null,
   location: 'x', title: 'Picnic', neighborhood: 'x', price: 0, memberPrice: null, payTo: 'venue',
   totalSpots: 10, emoji: '🧺', isPremium: false, membersOnly: false, limitedSpots: false,
   isFirstTimerFriendly: false, status: 'cancelled', seriesId: null, cancelledAt: stamp, approvalRequired: false,

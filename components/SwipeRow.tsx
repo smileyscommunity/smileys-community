@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import { swipeAxis } from '@/lib/swipeAxis'
 
 interface Props {
   onSwipeLeft?:  () => void
@@ -26,10 +27,8 @@ export default function SwipeRow({ onSwipeLeft, onSwipeRight, threshold = 80, ch
     const deltaX = e.touches[0].clientX - startX.current
     const deltaY = e.touches[0].clientY - startY.current
 
-    if (!axis.current) {
-      if (Math.abs(deltaX) > Math.abs(deltaY) + 4) axis.current = 'h'
-      else if (Math.abs(deltaY) > Math.abs(deltaX) + 4) axis.current = 'v'
-    }
+    // lib/swipeAxis: a scroll that drifts sideways must not turn into a swipe.
+    if (!axis.current) axis.current = swipeAxis(deltaX, deltaY)
     if (axis.current !== 'h') return
 
     const min = onSwipeLeft  ? -(threshold * 1.4) : 0

@@ -72,6 +72,10 @@ export interface NotificationSync {
   // Register an action whose request is going out; call the returned settle
   // once it resolves (before any rollback). Settling twice is harmless.
   begin(action: PendingNotificationAction): () => void
+  // Rows fetched outside the poll cycle — "load older" — with whatever is
+  // still in flight applied to them. Without it a row dismissed seconds ago
+  // (its delete waiting out the undo window) comes back as "older" and stays.
+  applyPending<T extends { id: string; isRead: boolean }>(list: T[]): T[]
   // A change the other list (or another tab) already made on the server. It
   // counts as newer than any poll out now, but rather than dropping that poll
   // the change is replayed onto it — dropping /notifications' first load left
@@ -94,6 +98,7 @@ export function createNotificationSync(): NotificationSync {
   }
   return {
     startPoll: () => seq,
+    applyPending(list) { return overlayPending(list, pending.values()) },
     resolvePoll(token, list) {
       if (token < floor) return null
       let out = list

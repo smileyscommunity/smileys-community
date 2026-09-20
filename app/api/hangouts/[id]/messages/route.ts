@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
+import { blockedIdsFor } from '@/lib/memberPrivacy'
 import { claimOnce } from '@/lib/rateLimit'
 
 // Comment thread on a hangout — coordination chat ("running 10min late",
@@ -87,7 +88,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }).then(async joins => {
     const recipientIds = new Set(joins.map(j => j.userId))
     if (hangout.userId !== session.id) recipientIds.add(hangout.userId)
+    // A block reaches into someone else's hangout too: the pair are unseated
+    // from each other's own plans, but a third party's kept delivering one
+    // member's name and words to the other.
+    const blocked = await blockedIdsFor(session.id)
     for (const uid of recipientIds) {
+      if (blocked.has(uid)) continue
       // One ping per person per ten minutes of chatter, not one per message:
       // a ten-person hangout with one chatty member was hundreds of pushes.
       if (!await claimOnce(`hangout-msg-ping:${hangoutId}:${uid}`, 10 * 60_000)) continue

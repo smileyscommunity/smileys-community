@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
+import { blockedIdsFor } from '@/lib/memberPrivacy'
 import { canManageEventOps } from '@/lib/access'
 import { getCityTz } from '@/lib/city'
 import { todayInTz, discussionLockDay } from '@/lib/cityTime'
@@ -105,6 +106,9 @@ export async function POST(req: NextRequest, { params }: Params) {
         ])
         const recipients = new Set<string>([event.hostId, ...attendees.map(a => a.userId), ...cohosts.map(c => c.userId)])
         recipients.delete(session.id)
+        // Same room, same rule as the hangout chat: a block means they stop
+        // hearing from each other, including through an event they both joined.
+        for (const uid of await blockedIdsFor(session.id)) recipients.delete(uid)
 
         const title = `💬 ${created.user.name} in ${event.title}`
         const body  = created.message.slice(0, 140)

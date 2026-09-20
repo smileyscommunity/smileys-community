@@ -43,7 +43,10 @@ describe('host RSVP notifications', () => {
   it('pending requests carry their own link and only "joined" notifications seed a bundle', () => {
     expect(read('app/api/events/[id]/rsvp/route.ts')).toMatch(/participants\?tab=pending`\)/)
     const notify = read('lib/notify.ts')
-    expect(notify).toMatch(/if \(existing && \/joined\|signed up\/\.test/)
+    // Decided on the link now, not on the words: an event whose own title
+    // contained "joined" turned pending requests into "2 people joined"
+    // (notifications review, 2026-09-20).
+    expect(notify).toMatch(/if \(existing && !existing\.link\?\.includes\('tab=pending'\) && !link\.includes\('tab=pending'\)\)/)
     expect(notify).toMatch(/existing\.body\.match\(\/"\(\[\^"\]\+\)"\/\)/)
   })
 })

@@ -84,6 +84,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       target.replyId ? '🚩 Board reply reported' : '🚩 Board post reported',
       `"${post.title.slice(0, 80)}" — ${reason}`,
       '/admin/moderation',
+      // …and never to the member it is about or the one reporting: the queue
+      // hides such a report from both, so a moderator whose own post was
+      // reported must not get it as a push either.
+      [target.userId, session.id],
     ).catch(() => {})
 
     return NextResponse.json({ ok: true }, { status: 201 })

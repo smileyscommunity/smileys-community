@@ -119,8 +119,16 @@ async function notifyAllMembers(
 ) {
   const members = await prisma.clubMembership.findMany({
     // Approved members with a live account: a banned member's row is kept,
-    // and got a notification for every post.
-    where: { clubId, status: 'approved', userId: { not: excludeUserId }, user: { status: 'approved' } },
+    // and got a notification for every post. A suspended member is kept out
+    // too — both wall types are on the suspended-skip list (lib/notify), and
+    // this path, writing rows itself, was the one place that didn't honour it.
+    where: {
+      clubId, status: 'approved', userId: { not: excludeUserId },
+      user: {
+        status: 'approved',
+        OR: [{ suspendedUntil: null }, { suspendedUntil: { lte: new Date() } }],
+      },
+    },
     select: { userId: true },
   })
   if (!members.length) return
@@ -132,6 +140,12 @@ async function notifyAllMembers(
   const optedOutIds = new Set(optedOut.map(p => p.userId))
   const toNotify = memberIds.filter(id => !optedOutIds.has(id))
   if (!toNotify.length) return
+  // Deliberately rows only, in one write, and no push: a club of 300 with a
+  // member posting ten times a minute is 3,000 buzzing phones, and a wall
+  // post is something you read when you next look — not something that
+  // should reach for anyone's pocket. (createNotification per member would
+  // also be 300 concurrent lookups + pushes against a pool of ten; see the
+  // batching note in lib/notify.)
   await prisma.notification.createMany({
     data: toNotify.map(userId => ({ userId, type, title, body, link })),
   })

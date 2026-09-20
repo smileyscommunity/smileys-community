@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit, claimOnce, releaseClaim } from '@/lib/rateLimit'
-import { createNotification } from '@/lib/notify'
+import { notifyCityStaff } from '@/lib/staffNotify'
 
 // Mirrors the board post report route: same Report table, same reasons,
 // same staff notification — neighborhood wall flags land in the existing
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
 
     const post = await prisma.neighborhoodPost.findUnique({
       where:  { id: postId },
-      select: { id: true, content: true, userId: true },
+      select: { id: true, content: true, userId: true, cityId: true },
     })
     if (!post) return NextResponse.json({ error: 'Post not found' }, { status: 404 })
     if (post.userId === session.id) {
@@ -61,18 +61,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
       // or a retry is refused as a duplicate of a report that doesn't exist.
       .catch(async (e: unknown) => { await releaseClaim(`report-wall:${session.id}:${postId}`); throw e })
 
-    const staff = await prisma.user.findMany({
-      where:  { role: { in: ['admin', 'moderator'] } },
-      select: { id: true },
-    })
-    for (const s of staff) {
-      createNotification(
-        s.id, 'system_alert',
-        '🚩 Neighborhood post reported',
-        `"${post.content.slice(0, 80)}" — ${reason}`,
-        '/admin/moderation',
-      ).catch(() => {})
-    }
+    // The post's city's staff — the queue files this report under that city,
+    // so every other city's moderators were getting a stranger's words they
+    // couldn't act on. Never to the member it names, nor the reporter: the
+    // queue hides it from both.
+    await notifyCityStaff(
+      post.cityId, 'system_alert',
+      '🚩 Neighborhood post reported',
+      `"${post.content.slice(0, 80)}" — ${reason}`,
+      '/admin/moderation',
+      [post.userId, session.id],
+    ).catch(() => {})
 
     return NextResponse.json({ ok: true }, { status: 201 })
   } catch (e) {

@@ -117,6 +117,16 @@ export async function DELETE(_: NextRequest, { params }: Params) {
       prisma.eventAttendee.deleteMany({ where: { eventId: id } }),
       prisma.waitlistEntry.deleteMany({ where: { eventId: id } }),
       prisma.review.deleteMany({ where: { eventId: id } }),
+      // The bell rows that point at it — the attendees' and the host's and
+      // the door's. Nothing cleared these, so everyone kept "⏰ Event
+      // tomorrow" (or "New RSVP 🎉") linking at a page that now 404s, a dead
+      // end arriving from a push.
+      prisma.notification.deleteMany({
+        where: { OR: [
+          `/events/${id}`, `/host/events/${id}`, `/admin/events/${id}`,
+          `/host/checkin?event=${id}`, `/admin/checkin?event=${id}`,
+        ].map(prefix => ({ link: { startsWith: prefix } })) },
+      }),
       prisma.event.delete({ where: { id } }),
     ])
     // The row is gone, so writeAudit's lookup can't find its city — pass it,

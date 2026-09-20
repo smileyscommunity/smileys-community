@@ -5,6 +5,8 @@ import { resolveCityId } from '@/lib/city'
 import { resolvePostingCityId } from '@/lib/cityMembership'
 import { rateLimit } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
+import { restrictedSetFor } from '@/lib/memberPrivacy'
+import { firstNameOf } from '@/lib/data'
 import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
 
 // Everyone the member has blocked or been blocked by. A pulse is a live
@@ -44,7 +46,7 @@ export async function GET(req: NextRequest) {
     orderBy: { createdAt: 'desc' },
     take: 50,
     include: {
-      user:  { select: { id: true, name: true, color: true, profilePhoto: true, goodHangouts: true, nationality: true } },
+      user:  { select: { id: true, name: true, color: true, profilePhoto: true, goodHangouts: true, nationality: true, profileVisibility: true } },
       waves: { select: { userId: true }, orderBy: { createdAt: 'asc' } },
     },
   })
@@ -57,6 +59,12 @@ export async function GET(req: NextRequest) {
     : []
   const waverName = new Map(wavers.map(u => [u.id, u.name]))
 
+  // The same rule the rest of the product applies: a connections-only member
+  // the viewer isn't connected to is a first name, no photo, and none of the
+  // attributes their locked card withholds. The feed sent all of it to the
+  // whole city.
+  const restricted = await restrictedSetFor(session, pulses.map(p => p.user))
+
   return NextResponse.json({
     pulses: pulses.map(p => ({
       id:           p.id,
@@ -64,12 +72,25 @@ export async function GET(req: NextRequest) {
       note:         p.note,
       until:        p.until,
       createdAt:    p.createdAt,
-      user:         p.user,
+      user:         {
+        id:           p.user.id,
+        name:         restricted.has(p.user.id) ? firstNameOf(p.user.name) : p.user.name,
+        color:        p.user.color,
+        profilePhoto: restricted.has(p.user.id) ? null : p.user.profilePhoto,
+        nationality:  restricted.has(p.user.id) ? null : p.user.nationality,
+        goodHangouts: p.user.goodHangouts,
+      },
       isMine:       p.userId === session.id,
       waves: {
         count: p.waves.length,
         mine:  p.waves.some(w => w.userId === session.id),
-        users: p.waves.slice(0, 5).map(w => ({ id: w.userId, name: waverName.get(w.userId) ?? 'A member' })),
+        // Who waved is the poster's business — the page only renders these on
+        // their own pulse, and sending them for everyone else's put a full
+        // name in the payload for every member of the city to read, including
+        // wavers whose profile shows a first name. First names either way.
+        users: p.userId === session.id
+          ? p.waves.slice(0, 5).map(w => ({ id: w.userId, name: firstNameOf(waverName.get(w.userId) ?? 'A member') }))
+          : [],
       },
     })),
   })
@@ -163,8 +184,25 @@ export async function POST(req: NextRequest) {
         if (audience.length === 0) return
 
         const title = safeNeighborhood ? '🟢 A neighbor is free to meet' : '🟢 A connection is free to meet'
-        const body  = `${session.name} is around${safeNeighborhood ? ` in ${safeNeighborhood}` : ''}${created.note ? ` — ${created.note}` : ''}`
+        // A connections-only member is a first name to everyone they aren't
+        // connected to — their profile, the directory and the visitor board
+        // all hold that line. This pushed their full name to every
+        // unconnected person living in the neighbourhood.
+        const me = await prisma.user.findUnique({
+          where: { id: session.id }, select: { profileVisibility: true },
+        })
+        let connectedIds = new Set<string>()
+        if (me?.profileVisibility === 'connections') {
+          const conns = await prisma.memberConnection.findMany({
+            where:  { status: 'accepted', OR: [{ requesterId: session.id }, { receiverId: session.id }] },
+            select: { requesterId: true, receiverId: true },
+          })
+          connectedIds = new Set(conns.map(c => (c.requesterId === session.id ? c.receiverId : c.requesterId)))
+        }
+        const shownName = (uid: string) =>
+          me?.profileVisibility === 'connections' && !connectedIds.has(uid) ? firstNameOf(session.name) : session.name
         for (const uid of audience) {
+          const body = `${shownName(uid)} is around${safeNeighborhood ? ` in ${safeNeighborhood}` : ''}${created.note ? ` — ${created.note}` : ''}`
           createNotification(uid, 'availability_pulse', title, body, '/hangouts').catch(() => {})
         }
       } catch (e) {

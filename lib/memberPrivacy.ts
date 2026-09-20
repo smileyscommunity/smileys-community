@@ -80,3 +80,18 @@ export async function nameSearchWhere(
     ],
   }
 }
+
+/**
+ * Everyone this member has a block with, either direction — for a fan-out
+ * that would otherwise notify them. A block severs the connection and unseats
+ * the pair from each other's hangouts, but a third party's hangout or a
+ * shared event still put them in the same room: the chat there kept pushing
+ * one member's name and words to the other, every few minutes.
+ */
+export async function blockedIdsFor(userId: string): Promise<Set<string>> {
+  const rows = await prisma.memberBlock.findMany({
+    where:  { OR: [{ blockerId: userId }, { blockedId: userId }] },
+    select: { blockerId: true, blockedId: true },
+  })
+  return new Set(rows.map(b => (b.blockerId === userId ? b.blockedId : b.blockerId)))
+}

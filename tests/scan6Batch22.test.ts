@@ -126,13 +126,32 @@ describe('a — bell and notifications page wiring', () => {
     const start = src.indexOf('const poll = sync.startPoll()')
     expect(start).toBeGreaterThan(-1)
     expect(start).toBeLessThan(src.indexOf("fetch('/app/api/notifications', { credentials: 'include' })"))
-    expect(src).toMatch(/const next = sync\.resolvePoll\(poll, Array\.isArray\(d\)/)
-    expect(src).toContain(`if (next) ${setter}(next)`)
+    // The body is parsed before it reaches the sync (lib/notificationFeed), so
+    // a refused or unreadable response stops there instead of resolving into
+    // an empty list the way `Array.isArray(d) ? d : []` did.
+    expect(src).toMatch(/const feed = parseNotificationFeed\(/)
+    expect(src).toMatch(/if \(!feed\) \{? ?(?:return|setLoadError)/)
+    expect(src).toMatch(/const next = sync\.resolvePoll\(poll, feed\.notifications\)/)
+    // The page folds the poll into any "Load older" pages already on screen;
+    // the bell only ever holds the newest.
+    expect(src).toMatch(new RegExp(`${setter}\\((?:next|prev => mergeRefresh\\(prev, next\\))\\)`))
     expect(src).not.toMatch(new RegExp(`${setter}\\(Array\\.isArray\\(d\\)`))
-    // each action registers before its optimistic change and settles before rollback
-    expect(src).toMatch(new RegExp(`const settle = sync\\.begin\\(\\{ kind: 'read', ids \\}\\)\\s*${setter}\\(prev => setReadFor\\(prev, ids, true\\)\\)\\s*if \\(!await sendNotificationAction\\('PATCH', \\{ markAll: true \\}[^)]*\\)\\.finally\\(settle\\)\\)`))
-    expect(src).toMatch(new RegExp(`const settle = sync\\.begin\\(\\{ kind: 'dismiss', id \\}\\)\\s*${setter}\\(prev => prev\\.filter\\(n => n\\.id !== id\\)\\)\\s*if \\(!await sendNotificationAction\\('DELETE', \\{ id \\}[^)]*\\)\\.finally\\(settle\\)\\)`))
+    // each action registers before its optimistic change and settles before
+    // rollback (the unread count rides along with the list)
+    expect(src).toMatch(new RegExp(`const settle = sync\\.begin\\(\\{ kind: 'read', ids \\}\\)\\s*${setter}\\(prev => setReadFor\\(prev, ids, true\\)\\)\\s*setUnread\\([^)]*\\)\\s*if \\(!await sendNotificationAction\\('PATCH', \\{ markAll: true \\}[^)]*\\)\\.finally\\(settle\\)\\)`))
+    expect(src).toMatch(new RegExp(`const settle = sync\\.begin\\(\\{ kind: 'dismiss', id \\}\\)\\s*${setter}\\(prev => prev\\.filter\\(n => n\\.id !== id\\)\\)`))
     expect(src).toMatch(/const settle = sync\.begin\(\{ kind: 'read', ids \}\)[\s\S]{0,400}?sendNotificationAction\('PATCH', \{ id: n\.id \}[^)]*\)\.finally\(settle\)\.then\(ok =>/)
+  })
+
+  it('the dismiss request settles the sync on whichever surface sends it', () => {
+    // The bell sends the DELETE on the click.
+    expect(read('components/NotificationBell.tsx'))
+      .toMatch(/if \(!await sendNotificationAction\('DELETE', \{ id \}[^)]*\)\.finally\(settle\)\)/)
+    // The page holds it behind an Undo window, so the settle travels with the
+    // pending entry — the overlay has to outlive the whole window, or a poll
+    // in the meantime puts the row back under the member's finger.
+    expect(read('app/(member)/notifications/page.tsx'))
+      .toMatch(/sendNotificationAction\('DELETE', \{ id \}[^)]*\)\.finally\(entry\.settle\)/)
   })
 
   it('clear-all invalidates a refetch already out', () => {

@@ -7,6 +7,8 @@ import { hasHostAuthority } from '@/lib/auth'
 import { resolveImageUrl } from '@/lib/data'
 import { isBottomNavRoute } from '@/lib/bottomNav'
 import { usePendingConnections } from '@/hooks/usePendingConnections'
+import { meBadgeCount, parseUnreadCount, unreadCountAfterChange } from '@/lib/notificationFeed'
+import { createNotificationSourceId, subscribeNotificationChanges } from '@/lib/notificationActions'
 import { useState, useEffect, useCallback } from 'react'
 import AccountMenu from '@/components/AccountMenu'
 import CitiesMenu from '@/components/CitiesMenu'
@@ -33,21 +35,52 @@ function useUnreadMessages(isLoggedIn: boolean) {
   return unread
 }
 
+// A badge needs a number, not a page of notifications: this used to pull the
+// newest 30 rows — titles, message previews and all — once a minute to count
+// the unread ones, and read a non-array (a 500, an expired session) as zero,
+// so a badge that should have stayed put silently cleared. `?count=1` answers
+// with the count alone, and anything else leaves the badge as it is.
 function useUnreadNotifications(isLoggedIn: boolean) {
   const [unread, setUnread] = useState(0)
+  // The unread `message` rows inside `unread`, when the route breaks them out;
+  // null means it doesn't (see meBadgeCount).
+  const [messageNotifications, setMessageNotifications] = useState<number | null>(null)
+  // Who we are when the bell or /notifications says something changed.
+  const [source] = useState(createNotificationSourceId)
+
   const load = useCallback(() => {
-    fetch('/app/api/notifications', { credentials: 'include' })
-      .then(r => r.json())
-      .then((d: any[]) => setUnread(Array.isArray(d) ? d.filter((n: any) => !n.isRead).length : 0))
+    fetch('/app/api/notifications?count=1', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        const counts = parseUnreadCount(d)
+        if (!counts) return
+        setUnread(counts.unreadCount)
+        setMessageNotifications(counts.messageNotifications)
+      })
       .catch(() => {})
   }, [])
+
   useEffect(() => {
     if (!isLoggedIn) return
     load()
     const t = setInterval(load, 60_000)
     return () => clearInterval(t)
   }, [isLoggedIn, load])
-  return unread
+
+  // Marking everything read on /notifications or in the bell left this badge
+  // counting until its next 60s poll — the two surfaces that hold a list have
+  // listened for each other's changes for a while; the badge never did.
+  useEffect(() => {
+    if (!isLoggedIn) return
+    return subscribeNotificationChanges(source, change => {
+      setUnread(c => unreadCountAfterChange(c, change))
+      // 'dismiss' can't be resolved from a count, and the others are only an
+      // optimistic guess — ask the server for the real number behind it.
+      load()
+    })
+  }, [isLoggedIn, source, load])
+
+  return { unread, messageNotifications }
 }
 
 export default function BottomNav({
@@ -65,7 +98,14 @@ export default function BottomNav({
   const { isLoggedIn, user } = useAuth()
   const pendingConnections    = usePendingConnections()
   const unreadMessages        = useUnreadMessages(isLoggedIn)
-  const unreadNotifications   = useUnreadNotifications(isLoggedIn)
+  const notifications         = useUnreadNotifications(isLoggedIn)
+  // Every DM also writes a `message` notification, so the two counts overlap —
+  // adding them showed 2 for one unread message. lib/notificationFeed.
+  const meBadge = meBadgeCount({
+    unreadMessages,
+    unreadNotifications: notifications.unread,
+    messageNotifications: notifications.messageNotifications,
+  })
   // Mobile-only account sheet — opens when the avatar tab is tapped, gives
   // mobile users reach to everything in the desktop dropdown (Sign out,
   // Settings, Perks, Hangouts recap, etc.) that was otherwise unreachable.
@@ -197,9 +237,9 @@ export default function BottomNav({
                   ? <img src={photo} alt={user.name} className="w-full h-full object-cover" />
                   : user.initials}
               </div>
-              {(unreadMessages + unreadNotifications) > 0 && (
+              {meBadge > 0 && (
                 <span className="absolute -top-1 -right-0.5 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
-                  {(unreadMessages + unreadNotifications) > 9 ? '9+' : (unreadMessages + unreadNotifications)}
+                  {meBadge > 9 ? '9+' : meBadge}
                   <span className="sr-only">unread</span>
                 </span>
               )}

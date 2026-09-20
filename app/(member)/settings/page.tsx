@@ -164,9 +164,12 @@ function PushNotificationsSection({ userId }: { userId: string }) {
   )
 }
 
-function Section({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
+// `id` gives a section a link of its own: /settings#notifications is where the
+// bell's gear now lands, and without the scroll margin the sticky header sits
+// on top of the heading it just jumped to.
+function Section({ id, title, description, children }: { id?: string; title: string; description?: string; children: React.ReactNode }) {
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+    <div id={id} className={`bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden${id ? ' scroll-mt-24' : ''}`}>
       <div className="px-5 py-4 border-b border-gray-50">
         <h2 className="text-sm font-bold text-gray-900">{title}</h2>
         {description && <p className="text-xs text-gray-400 mt-0.5">{description}</p>}
@@ -624,7 +627,7 @@ export default function SettingsPage() {
             each describe one of the several types they mute, so members
             turned off "New events" and stopped hearing about new articles
             without ever being told they would. */}
-        <Section title="Notifications" description={savingPref ? 'Saving…' : prefsOk ? '✓ Saved' : 'Choose what you hear about'}>
+        <Section id="notifications" title="Notifications" description={savingPref ? 'Saving…' : prefsOk ? '✓ Saved' : 'Choose what you hear about'}>
           {prefsState === 'error' ? (
             <div className="space-y-2">
               <p className="text-sm text-red-600">

@@ -28,6 +28,9 @@ vi.mock('@/lib/prisma', () => ({
     eventAttendee: { findMany: vi.fn(async () => []), updateMany: vi.fn(async () => ({ count: 0 })), count: vi.fn(async () => 0), deleteMany: vi.fn(async () => ({ count: 0 })) },
     waitlistEntry: { deleteMany: vi.fn(async () => ({ count: 0 })) },
     review:        { deleteMany: vi.fn(async () => ({ count: 0 })) },
+    // Deleting an event also clears the bell rows pointing at it, or they
+    // link at a 404 (notifications review, 2026-09-20).
+    notification:  { deleteMany: vi.fn(async () => ({ count: 0 })) },
     payment:       { count: vi.fn(async () => 0), findMany: vi.fn(async () => []), deleteMany: vi.fn(async () => ({ count: 0 })) },
     paymentLog:    { createMany: vi.fn(async () => ({ count: 0 })) },
     noShowCard:    { findMany: vi.fn(async () => []) },

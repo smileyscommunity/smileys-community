@@ -106,18 +106,27 @@ const PREF_KEY: Record<string, 'newEvents' | 'reminders' | 'eventUpdates' | 'joi
   // doesn't silently swallow the community-pulse signal.
   event_survey:       null,
   nps_survey:         null,
-  // No-show cards — transactional, every one. A warning, a block, an appeal
-  // outcome or a waiver is something the member must always hear about;
-  // the admin one is the appeals inbox ping.
-  no_show_yellow:              null,
-  no_show_red:                 null,
-  no_show_restriction_active:  null,
-  no_show_waived:              null,
-  no_show_downgraded:          null,
-  no_show_appeal:              null,
-  no_show_appeal_resolved:     null,
-  no_show_waitlist_removed:    null,
-  no_show_cards_issued:        null,   // host: cards issued from your event
+  // The no_show_* keys of the v1 engine are gone with it (it was deleted in
+  // 2026-09); standing_* above is what a card notifies under now.
+  //
+  // A change to a plan you joined belongs to the same switch as a change to
+  // an event you joined — it was in no bucket at all, so "Event updates: off"
+  // silenced the event and not the hangout.
+  hangout_updated:             'eventUpdates',
+  // Transactional, listed rather than missing: each is a thing that happened
+  // to the member, or a seat that depends on an answer.
+  good_reference:              null,
+  spot_opened:                 null,
+  waitlist_joined:             null,
+  listing_expiry:              null,
+  payment_reminder:            null,
+  report_reviewed:             null,
+  directory_review_nudge:      null,
+  city_launch:                 null,
+  story_submission:            null,
+  testimonial_submission:      null,
+  checkin_started:             null,
+  checkin_count:               null,
   // Day-before "still coming?" and its consequence. Transactional: a seat
   // depends on the answer.
   reconfirm_ask:               'reminders',   // the push waits out quiet hours; the email still goes
@@ -180,6 +189,14 @@ export const SUSPENDED_SKIPPED_TYPES: ReadonlySet<string> = new Set([
 // email goes regardless.) Quiet hours never suppressed these before —
 // they had no preference key at all — and silencing them would be a
 // regression dressed as a fix.
+// Wide fan-outs: sent to a city, a neighbourhood or a whole club, not to one
+// member about their own business. Used when the recipient's account can't be
+// read — see createNotification.
+export const BROADCAST_TYPES: ReadonlySet<string> = new Set([
+  'new_event', 'new_hangout', 'new_article', 'announcement', 'availability_pulse',
+  'pulse_wave', 'listing_new', 'visitor_announced', 'connection_suggestion', 'profile_view',
+])
+
 export const QUIET_HOURS_EXEMPT: ReadonlySet<string> = new Set([
   'hangout_starting', 'checkin_nudge', 'spot_opened', 'reconfirm_released',
 ])
@@ -200,12 +217,23 @@ export function recipientSkipReason(user: NotificationRecipient | null, type: st
   return null
 }
 
-/** null = no such user (Prisma's not-found). undefined = unreadable: fail open and deliver. */
+/**
+ * null = no such user (Prisma's not-found). undefined = unreadable.
+ *
+ * One retry before that: a pool timeout used to mean "deliver anyway", and
+ * the thing most likely to be waiting behind a busy pool is a fan-out — so a
+ * banned member's bell filled up on exactly the runs where the check failed.
+ */
 async function loadRecipient(userId: string): Promise<NotificationRecipient | null | undefined> {
+  const select = { status: true, suspendedUntil: true, cityId: true }
   try {
-    return await prisma.user.findUnique({ where: { id: userId }, select: { status: true, suspendedUntil: true, cityId: true } })
+    return await prisma.user.findUnique({ where: { id: userId }, select })
   } catch {
-    return undefined
+    try {
+      return await prisma.user.findUnique({ where: { id: userId }, select })
+    } catch {
+      return undefined
+    }
   }
 }
 
@@ -236,7 +264,13 @@ export async function createNotification(
 
     const user = recipient ?? await loadRecipient(userId)
     // Skipped counts as handled: a sweep must not hand the claim back and retry a banned member forever.
-    if (user !== undefined && recipientSkipReason(user, type)) return true
+    // Unreadable (undefined) still delivers anything addressed to one member
+    // — a pool timeout must not swallow somebody's message or RSVP, and the
+    // caller would be told it was handled. Only the wide fan-outs are
+    // dropped: they are the ones that filled a banned member's bell on the
+    // very runs where the check couldn't be read, and one missed broadcast
+    // costs nobody anything.
+    if (user === undefined ? BROADCAST_TYPES.has(type) : !!recipientSkipReason(user, type)) return true
 
     // Quiet hours suppress only the push ping — the in-app bell entry is still
     // recorded, so a notification sent during a member's quiet window is there
@@ -265,8 +299,10 @@ export async function createNotification(
         orderBy: { createdAt: 'desc' },
       })
       // Only a "joined" notification is a bundle seed; an "awaiting
-      // approval" one (same type, its own link) must keep its cue.
-      if (existing && /joined|signed up/.test(`${existing.title} ${existing.body}`)) {
+      // approval" one (same type, its own link) must keep its cue. Decided
+      // on the link, not the words: an event called "Newly joined mixer"
+      // turned two pending requests into "2 people joined your event".
+      if (existing && !existing.link?.includes('tab=pending') && !link.includes('tab=pending')) {
         const match = existing.title.match(/^(\d+) people/)
         const count = match ? parseInt(match[1]) + 1 : 2
         // First quoted run: the confirmed body ends `for "Title"`, and a
@@ -274,7 +310,9 @@ export async function createNotification(
         const eventName = existing.body.match(/"([^"]+)"/)?.[1] ?? 'your event'
         await prisma.notification.update({
           where: { id: existing.id },
-          data: { title: `${count} people joined your event`, body: `${count} people have joined "${eventName}"` },
+          // Stamped again: the list is newest-first, so a bundle that kept
+          // its first row's time sank below newer arrivals while it grew.
+          data: { title: `${count} people joined your event`, body: `${count} people have joined "${eventName}"`, createdAt: new Date() },
         })
         return true
       }
@@ -296,7 +334,7 @@ export async function createNotification(
         const eventName = existing.body.match(/"(.+)"/)?.[1] ?? 'an event you attended'
         await prisma.notification.update({
           where: { id: existing.id },
-          data: { title: `📸 ${count} new photos`, body: `${count} photos were added to "${eventName}"` },
+          data: { title: `📸 ${count} new photos`, body: `${count} photos were added to "${eventName}"`, createdAt: new Date() },
         })
         return true
       }
@@ -316,7 +354,7 @@ export async function createNotification(
         const postTitle = existing.body.match(/"([^"]+)"/)?.[1] ?? 'your post'
         await prisma.notification.update({
           where: { id: existing.id },
-          data: { title: `💬 ${count} new replies`, body: `${count} new replies on "${postTitle}"` },
+          data: { title: `💬 ${count} new replies`, body: `${count} new replies on "${postTitle}"`, createdAt: new Date() },
         })
         return true
       }

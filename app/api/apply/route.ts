@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { Role } from '@/lib/constants'
 import { sendApplicationReceivedEmail, sendAdminNewApplicationEmail, sendAlreadyRegisteredEmail, recordEmailFailure } from '@/lib/email'
 import { rateLimit, getIp } from '@/lib/rateLimit'
-import { createNotification } from '@/lib/notify'
+import { notifyCityStaff } from '@/lib/staffNotify'
 import { LOOKING_FOR_VALUES } from '@/lib/profileOptions'
 import { verifyTurnstile } from '@/lib/turnstile'
 import { areApplicationsOpen, newApplicationEmailsEnabled } from '@/lib/communitySettings'
@@ -289,8 +289,11 @@ export async function POST(req: NextRequest) {
     const blacklistNames = await prisma.blacklist.findMany({ select: { name: true } })
     const nameSimilar = blacklistNames.some(b => b.name && nameDistance(fullName, b.name) < 0.35)
 
-    // Notify admins if known device/IP or suspicious signals
-    const admins = await prisma.user.findMany({ where: { role: { in: [Role.Admin, Role.Moderator] } }, select: { id: true } })
+    // Staff of the city applied to — every admin, and that city's moderators
+    // (lib/staffNotify). It used to be every moderator everywhere, so a
+    // Bursa moderator got an Istanbul applicant's name, sometimes a second
+    // member's name, and the device/timezone signals behind a queue they
+    // can't even open.
 
     if (velocityBlock) {
       // Still save but mark as rejected immediately
@@ -304,8 +307,8 @@ export async function POST(req: NextRequest) {
           targetCityId,
         },
       })
-      admins.forEach(a => createNotification(a.id, 'application', '⚠️ Velocity block triggered',
-        `${fullName} was auto-rejected — same IP applied 3+ times in 24h`, '/admin/applications').catch(() => {}))
+      await notifyCityStaff(targetCityId, 'application', '⚠️ Velocity block triggered',
+        `${fullName} was auto-rejected — same IP applied 3+ times in 24h`, '/admin/applications')
       return NextResponse.json({ error: 'This application cannot be accepted.' }, { status: 403 })
     }
 
@@ -385,7 +388,7 @@ export async function POST(req: NextRequest) {
       ? `${fullName.trim()} — ${flags.join(' · ')}`
       : `${fullName.trim()} has applied to join Smileys.`
 
-    await Promise.all(admins.map(a => createNotification(a.id, 'application', notifTitle, notifBody, '/admin/applications')))
+    await notifyCityStaff(targetCityId, 'application', notifTitle, notifBody, '/admin/applications')
 
     Promise.all([
       sendApplicationReceivedEmail(cleanEmail, fullName.trim()),

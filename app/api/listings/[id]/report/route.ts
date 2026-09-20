@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit, claimOnce, releaseClaim } from '@/lib/rateLimit'
-import { createNotification } from '@/lib/notify'
+import { notifyCityStaff } from '@/lib/staffNotify'
 
 // Mirrors /api/reports POST but derives reportedId from the listing's owner so
 // the client only needs to send the reason. Reuses the existing Report model
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const listing = await prisma.listing.findUnique({
       where:  { id: listingId },
-      select: { id: true, title: true, userId: true, user: { select: { name: true } } },
+      select: { id: true, title: true, userId: true, cityId: true, user: { select: { name: true } } },
     })
     if (!listing) return NextResponse.json({ error: 'Listing not found' }, { status: 404 })
     if (listing.userId === session.id) {
@@ -64,17 +64,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       // or a retry is refused as a duplicate of a report that doesn't exist.
       .catch(async (e: unknown) => { await releaseClaim(`report-listing:${session.id}:${listingId}`); throw e })
 
-    const staff = await prisma.user.findMany({
-      where:  { role: { in: ['admin', 'moderator'] } },
-      select: { id: true },
-    })
-    staff.forEach(s => createNotification(
-      s.id,
-      'report',
-      '🚨 Listing reported',
+    // The queue files a listing report under the listing's city, so the
+    // alert goes there too — and never to the two members it names, either
+    // of whom may hold the role (lib/staffNotify).
+    await notifyCityStaff(listing.cityId, 'report', '🚨 Listing reported',
       `${session.name} flagged "${listing.title}" for ${reason}.`,
-      '/admin/moderation',
-    ).catch(() => {}))
+      '/admin/moderation', [listing.userId, session.id])
 
     return NextResponse.json(report, { status: 201 })
   } catch (e) {

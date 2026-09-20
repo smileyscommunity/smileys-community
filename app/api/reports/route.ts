@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit, getIp, claimOnce, releaseClaim } from '@/lib/rateLimit'
-import { createNotification } from '@/lib/notify'
+import { notifyCityStaff } from '@/lib/staffNotify'
 
 export async function POST(req: NextRequest) {
   try {
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
 
     const reportedUser = await prisma.user.findUnique({
       where: { id: reportedId },
-      select: { id: true, name: true, status: true },
+      select: { id: true, name: true, status: true, cityId: true },
     })
     if (!reportedUser || reportedUser.status === 'banned') {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
@@ -74,14 +74,15 @@ export async function POST(req: NextRequest) {
       .catch(async (e: unknown) => { await releaseClaim(`report:${session.id}:${reportedId}`); throw e })
 
     const reasonLabel = reason.replace(/_/g, ' ')
-    const staff = await prisma.user.findMany({ where: { role: { in: ['admin', 'moderator'] } }, select: { id: true } })
-    staff.forEach(s => createNotification(
-      s.id,
-      'report',
-      '🚨 New report',
+    // Never to the member it is about, and never to the one who raised it —
+    // either could hold a staff role, and the queue hides the report from
+    // both of them precisely so a reporter stays anonymous to the person they
+    // reported. The alert used to name them both, to every moderator of every
+    // city, on a lock screen, unmutable.
+    const staffExcept = [reportedId, session.id] as const
+    await notifyCityStaff(reportedUser.cityId, 'report', '🚨 New report',
       `${session.name} reported ${reportedUser.name} for ${reasonLabel}.`,
-      '/admin/moderation'
-    ).catch(() => {}))
+      '/admin/moderation', staffExcept)
 
     // Pattern alert — count distinct reports against this user in the last
     // 30 days. ≥3 means people are organically flagging the same person, not
@@ -94,13 +95,10 @@ export async function POST(req: NextRequest) {
           where: { reportedId, createdAt: { gte: monthAgo } },
         })
         if (recentCount >= 3) {
-          staff.forEach(s => createNotification(
-            s.id,
-            'report',
+          await notifyCityStaff(reportedUser.cityId, 'report',
             `⚠️ ${reportedUser.name} has ${recentCount} reports in 30 days`,
-            `Pattern alert — ≥3 different reports about the same member. Worth reviewing the account directly.`,
-            `/admin/users/${reportedId}`,
-          ).catch(() => {}))
+            'Pattern alert — ≥3 different reports about the same member. Worth reviewing the account directly.',
+            `/admin/users/${reportedId}`, staffExcept)
         }
       } catch (e) { console.error('[report aggregation alert]', e) }
     })()

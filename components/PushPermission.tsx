@@ -143,8 +143,11 @@ export default function PushPermission() {
 
   if (state !== 'prompt') return null
 
+  // The offset clears the bottom nav — h-16 plus whatever the home indicator
+  // takes, which bottom-20 alone doesn't on a notched iPhone, where this card
+  // sat over the tabs.
   return (
-    <div className="fixed bottom-20 left-4 right-4 z-50 md:left-auto md:right-6 md:w-80">
+    <div className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-4 right-4 z-50 md:left-auto md:right-6 md:w-80">
       <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-4">
         <div className="flex items-start gap-3">
           <span className="text-2xl shrink-0">🔔</span>
