@@ -26,7 +26,7 @@ vi.mock('@/lib/prisma', () => ({
   prisma: {
     event:         { findUnique: vi.fn() },
     eventAttendee: { findMany: vi.fn(async () => [{ userId: 'm1', user: { id: 'm1', name: 'Mia', email: 'mia@x' } }]) },
-    noShowCard:    { findMany: vi.fn(async () => []) },
+    notification:  { findMany: vi.fn(async () => []) },
     user: {
       findMany:   vi.fn(),
       findUnique: vi.fn(async () => ({ id: 'm1', name: 'Mia', email: 'mia@x', password: null, status: 'approved', city: { name: 'Izmir' } })),
@@ -78,6 +78,20 @@ describe('audit rows on the routes that email members', () => {
     const call = auditedAs('event.notify_noshows')
     expect(call[3]).toBe('e2')
     expect(call[5]).toMatchObject({ noShows: 1, emailed: 1 })
+  })
+
+  it('notify-noshows skips whoever standing already warned', async () => {
+    // The skip list read v1's card table, which stopped being written when v1
+    // was retired — so it was always empty and this button re-mailed every
+    // member standing had already told. The warning notification is the
+    // record now (the same row settleAttendance reads).
+    ;(prisma.event.findUnique as any).mockResolvedValue({ id: 'e2', title: 'Picnic', emoji: '🧺', date: '2000-01-01', cityId: 'c-ist' })
+    ;(prisma.notification.findMany as any).mockResolvedValue([{ userId: 'm1' }])
+    const res = await noShowsPOST(req, params('e2'))
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ emailed: 0, notified: 0, alreadyWarned: 1 })
+    const where = (prisma.notification.findMany as any).mock.calls[0][0].where
+    expect(where).toMatchObject({ type: 'attendance_check', link: { contains: 'e2' } })
   })
 
   it('login-nudge writes users.login_nudge when someone was nudged', async () => {

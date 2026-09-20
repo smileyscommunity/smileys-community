@@ -21,7 +21,7 @@ vi.mock('@/lib/prisma', () => ({ prisma: {
   eventCoHost:    { findMany: vi.fn().mockResolvedValue([]) },
   event:          { findUnique: vi.fn().mockResolvedValue({ hostId: 'h1' }), findMany: vi.fn() },
   payment:        { findMany: vi.fn().mockResolvedValue([]) },
-  noShowCard:     { findMany: vi.fn().mockResolvedValue([]) },
+  notification:   { findMany: vi.fn().mockResolvedValue([]) },
   user:           { findMany: vi.fn() },
   clubMembership: { findMany: vi.fn().mockResolvedValue([]) },
 } }))
@@ -134,7 +134,7 @@ describe('d) no club / deleted host / deleted member', () => {
     p.eventCoHost.findMany.mockResolvedValue([])
     p.event.findUnique.mockResolvedValue({ hostId: 'h1' })
     p.payment.findMany.mockResolvedValue([])
-    p.noShowCard.findMany.mockResolvedValue([])
+    p.notification.findMany.mockResolvedValue([])
     p.clubMembership.findMany.mockResolvedValue([])
   })
 

@@ -38,16 +38,23 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       return NextResponse.json({ error: 'No-show notices were sent for this event recently — try again later.' }, { status: 429 })
     }
 
-    // Members the no-show sweep already wrote to (a card carries its own
-    // email) are skipped — one "we missed you" per event is plenty.
-    const carded = new Set((await prisma.noShowCard.findMany({ where: { eventId: id }, select: { userId: true } })).map(c => c.userId))
+    // Members standing already wrote to are skipped — one "we missed you" per
+    // event is plenty. This used to read v1's card table; that table stopped
+    // being written when v1 was retired, so the skip list was always empty
+    // and this button re-mailed everyone standing had already warned. The
+    // warning notification is the record now — the same row settleAttendance
+    // reads to decide who may be defaulted absent (lib/standing).
+    const carded = new Set((await prisma.notification.findMany({
+      where:  { type: 'attendance_check', link: { contains: id } },
+      select: { userId: true },
+    })).map(n => n.userId))
     const noShows = (await prisma.eventAttendee.findMany({
       where: { eventId: id, status: 'approved', checkedIn: false },
       include: { user: { select: { id: true, name: true, email: true } } },
     })).filter(a => !carded.has(a.userId))
 
     if (noShows.length === 0) {
-      return NextResponse.json({ emailed: 0, notified: 0, alreadyCarded: carded.size })
+      return NextResponse.json({ emailed: 0, notified: 0, alreadyWarned: carded.size })
     }
 
     let emailed = 0, notified = 0
@@ -67,11 +74,11 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     }))
 
     await writeAudit(session.id, session.name, 'event.notify_noshows', event.id, 'event',
-      { emailed, notified, noShows: noShows.length, alreadyCarded: carded.size, cityId: event.cityId },
+      { emailed, notified, noShows: noShows.length, alreadyWarned: carded.size, cityId: event.cityId },
       `Sent no-show notices for "${event.title}" to ${noShows.length} members (${emailed} emailed, ${notified} notified)`,
     )
 
-    return NextResponse.json({ emailed, notified, alreadyCarded: carded.size })
+    return NextResponse.json({ emailed, notified, alreadyWarned: carded.size })
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

@@ -12,7 +12,6 @@ import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 import { writeAudit } from '@/lib/audit'
 import { activateAttendee, activeAttendeeWhere, cancelAttendeeOp, isActiveAttendee, type CancelActor } from '@/lib/attendance'
 import { standingLevelsFor, redCardBlocksSeat } from '@/lib/standingRead'
-import { CardStatus } from '@/lib/noShowPolicy'
 import { DEFAULT_CURRENCY } from '@/lib/data'
 import { rateLimit, claimOnce, releaseClaim } from '@/lib/rateLimit'
 import { isBlockedEitherWay } from '@/lib/memberPrivacy'
@@ -139,7 +138,7 @@ export async function GET(_: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const [attendeesRaw, waitlistRaw, cohosts, eventRow, payments, noShowCards] = await Promise.all([
+    const [attendeesRaw, waitlistRaw, cohosts, eventRow, payments] = await Promise.all([
       prisma.eventAttendee.findMany({
         where: { eventId, ...activeAttendeeWhere },
         include: { user: { select: userSelect } },
@@ -158,13 +157,6 @@ export async function GET(_: NextRequest, { params }: Params) {
         select:  { id: true, userId: true, status: true, amount: true, currency: true },
         orderBy: { createdAt: 'asc' },
       }),
-      // No-show cards from this event, for the host's waive button. Includes
-      // late-cancel cards, whose attendee rows are not in the list above.
-      prisma.noShowCard.findMany({
-        where:   { eventId },
-        select:  { id: true, userId: true, kind: true, status: true, waivedAt: true, notifiedAt: true, user: { select: { id: true, name: true } } },
-        orderBy: { issuedAt: 'asc' },
-      }),
     ])
 
     const excludeIds = new Set([
@@ -172,35 +164,29 @@ export async function GET(_: NextRequest, { params }: Params) {
       ...cohosts.map(c => c.userId),
     ].filter(Boolean) as string[])
 
-    // A yellow card is a private warning to the member — hosts never see it
+    // Standing is private to the member everywhere else — hosts never see it
     // on the approved list or the waitlist. The one place it informs a
-    // decision is the approval queue, so pending rows (and only those) carry
-    // the member's ACTIVE cards from any event, as counts, not history. Red
-    // cards enforce themselves at RSVP time, so a red here means the request
-    // predates the restriction.
+    // decision is the approval queue, so pending rows, and only those, carry
+    // the member's level. A red here means the request predates the
+    // restriction, since a red enforces itself at RSVP time.
     const pendingIds = attendeesRaw.filter(a => a.status === 'pending').map(a => a.userId)
-    const activeCardRows = pendingIds.length
-      ? await prisma.noShowCard.findMany({
-          where:  { userId: { in: pendingIds }, status: { in: [CardStatus.Active, CardStatus.AppealPending] } },
-          select: { userId: true, kind: true },
-        })
-      : []
-    const activeCards = new Map<string, { yellow: number; red: number }>()
-    for (const c of activeCardRows) {
-      const cur = activeCards.get(c.userId) ?? { yellow: 0, red: 0 }
-      if (c.kind === 'red') cur.red++; else cur.yellow++
-      activeCards.set(c.userId, cur)
-    }
-
-    // Standing (switched on only), pending rows only: on a scarce event a red
-    // card is why the request is in this queue at all.
     const standingLevels = await standingLevelsFor(pendingIds)
+
+    // Who standing has already told they weren't checked in. The "Notify
+    // no-shows" button skips these (same rows, same filter, in that route),
+    // so the client needs them to count only who a send would actually
+    // reach. This replaces the v1 card list the page used to read for it.
+    const warnedRows = await prisma.notification.findMany({
+      where:   { type: 'attendance_check', link: { contains: eventId } },
+      select:  { userId: true, createdAt: true },
+      orderBy: { createdAt: 'asc' },
+    })
 
     // Keep all in the list for display, but tag host/cohost so client can distinguish
     const attendees = attendeesRaw.map(a => ({
       ...a,
       isStaff: excludeIds.has(a.userId),
-      ...(a.status === 'pending' ? { activeCards: activeCards.get(a.userId) ?? { yellow: 0, red: 0 }, standing: standingLevels.get(a.userId) ?? null } : {}),
+      ...(a.status === 'pending' ? { standing: standingLevels.get(a.userId) ?? null } : {}),
     }))
 
     const waitlistUserIds = waitlistRaw.map(w => w.userId)
@@ -232,7 +218,12 @@ export async function GET(_: NextRequest, { params }: Params) {
       return { ...row, user: canSeeContact ? { ...user, email } : user } as T
     }
 
-    return NextResponse.json({ attendees: attendees.map(stripContact), waitlist: waitlist.map(stripContact), payments, noShowCards })
+    return NextResponse.json({
+      attendees: attendees.map(stripContact),
+      waitlist:  waitlist.map(stripContact),
+      payments,
+      warned:    warnedRows.map(n => ({ userId: n.userId, notifiedAt: n.createdAt })),
+    })
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

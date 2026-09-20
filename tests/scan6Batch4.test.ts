@@ -76,7 +76,9 @@ const h = vi.hoisted(() => {
     },
     waitlistEntry: { findMany: vi.fn(async () => []) },
     payment:       { findMany: vi.fn(async () => []) },
-    noShowCard:    { findMany: vi.fn(async () => []), findUnique: vi.fn(async () => ({ eventId: 'e-on', userId: 'm1' })) },
+    notification:  { findMany: vi.fn(async () => []) },
+    // lib/audit still resolves the city of the 95 surviving v1 card audit rows.
+    noShowCard:    { findUnique: vi.fn(async () => ({ eventId: 'e-on', userId: 'm1' })) },
     user: {
       findUnique: vi.fn(),
       findMany:   vi.fn(async () => []),

@@ -82,32 +82,35 @@ describe('2. restoring a cancelled event brings its seats back', () => {
   })
 })
 
-describe('3. a cleared no-show card no longer blocks the review', () => {
+describe('3. a no-show cannot review, and a waive is what clears it', () => {
+  // Rewritten for standing. This used to gate on v1's card table AND on
+  // event.noShowProcessedAt. Standing writes neither: it settles an absence
+  // on the attendee row and stamps no event, so the old gate's second
+  // conjunct went permanently false and the whole check silently stopped
+  // blocking anyone. The attendance mark is the test now, and a host waive
+  // (lib/standing) is what lifts it — it puts the row back to 'attended'.
   const call = () => reviewPOST(
     new Request('http://x/api/events/e1/reviews', { method: 'POST', body: JSON.stringify({ rating: 5 }) }) as never,
     { params: Promise.resolve({ id: 'e1' }) })
   beforeEach(() => {
-    p.event.findUnique.mockResolvedValue({ id: 'e1', cityId: 'c1', date: '2026-09-01', noShowProcessedAt: new Date('2026-09-02') })
-    p.eventAttendee.findUnique.mockResolvedValue({ id: 'att1', status: 'approved', attendance: 'no_show' })
+    p.event.findUnique.mockResolvedValue({ id: 'e1', cityId: 'c1', date: '2026-09-01' })
     p.review.findUnique.mockResolvedValue(null)
     p.review.create.mockResolvedValue({ id: 'r1' })
   })
-  it('a no-show whose card was waived or overturned can review', async () => {
-    p.noShowCard.findFirst.mockResolvedValue({ id: 'card1' })
-    expect((await call()).status).toBe(200)
-    expect(p.noShowCard.findFirst.mock.calls[0][0].where).toEqual({ attendeeId: 'att1', status: { in: ['waived', 'overturned'] } })
-  })
-  it('a no-show with no cleared card still cannot', async () => {
-    p.noShowCard.findFirst.mockResolvedValue(null)
+  it('a member standing marked absent cannot review the night they missed', async () => {
+    p.eventAttendee.findUnique.mockResolvedValue({ id: 'att1', status: 'approved', attendance: 'no_show' })
     expect((await call()).status).toBe(403)
     expect(p.review.create).not.toHaveBeenCalled()
   })
-  it('a host-declared no-show on an unsettled event does not silence the review', async () => {
-    // A close-out mark (lib/attendanceCloseOut) has no card behind it.
-    p.noShowCard.findFirst.mockClear()
-    p.event.findUnique.mockResolvedValue({ id: 'e1', cityId: 'c1', date: '2026-09-01', noShowProcessedAt: null })
+  it('…and no event stamp is needed for that — standing never writes one', async () => {
+    // The regression this guards: with noShowProcessedAt absent (which is now
+    // every event) the gate used to let the absentee through.
+    p.eventAttendee.findUnique.mockResolvedValue({ id: 'att1', status: 'approved', attendance: 'no_show', attendanceAutoResolvedAt: new Date('2026-09-02') })
+    expect((await call()).status).toBe(403)
+  })
+  it('a waived absence can review — the waive put the row back to attended', async () => {
+    p.eventAttendee.findUnique.mockResolvedValue({ id: 'att1', status: 'approved', attendance: 'attended' })
     expect((await call()).status).toBe(200)
-    expect(p.noShowCard.findFirst).not.toHaveBeenCalled()
   })
 })
 

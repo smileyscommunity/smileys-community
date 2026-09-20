@@ -6,7 +6,6 @@ import { todayInCity } from '@/lib/city'
 import { rateLimit } from '@/lib/rateLimit'
 import { getEventById, canSeeEvent } from '@/lib/db'
 import { Attendance } from '@/lib/constants'
-import { CardStatus } from '@/lib/noShowPolicy'
 
 // Bodies are untyped JSON: rating "3" or 4.5 reached Prisma's Int column and
 // 500'd, text: 123 threw on .trim, and PATCH rating "abc" slipped past a
@@ -80,25 +79,18 @@ export async function POST(req: NextRequest, { params }: Params) {
     const attended = await prisma.eventAttendee.findUnique({
       where: { userId_eventId: { userId: session.id, eventId } },
     })
-    // A settled no-show keeps status 'approved' (lib/attendance), so status
-    // alone let someone who never came review the night. A no-show whose card
-    // was later cleared did come — the host waived it ("was there, the scanner
-    // missed them") or an admin overturned it. The attendee row keeps its
-    // no_show mark as the trail (lib/noShow waiveCard), so the card decides.
+    // A no-show keeps status 'approved' (lib/attendance), so status alone let
+    // someone who never came review the night. The no_show mark is the test.
     //
-    // Only a SETTLED no-show blocks (noShowProcessedAt: the sweep issued a
-    // card on it). A no_show mark can also be a host's close-out
-    // (lib/attendanceCloseOut) — a declaration no card backs and nobody can
-    // appeal — and a host who skipped scanning must not be able to close out
-    // the room and so silence its reviews.
-    let noShow = attended?.attendance === Attendance.NoShow && !!event.noShowProcessedAt
-    if (attended && noShow) {
-      const cleared = await prisma.noShowCard.findFirst({
-        where:  { attendeeId: attended.id, status: { in: [CardStatus.Waived, CardStatus.Overturned] } },
-        select: { id: true },
-      })
-      if (cleared) noShow = false
-    }
+    // It used to also require event.noShowProcessedAt, because under v1 only
+    // a card-bearing absence was appealable and a host's bare close-out was
+    // not. Standing settles absences on the attendee row and stamps no event,
+    // so that conjunct went permanently false when v1 was retired and this
+    // gate silently stopped blocking anyone. Under standing every absence is
+    // the same thing — warned, and disputable for 30 days — so the mark alone
+    // is the right test, and the escape hatch is the mark itself: a waive
+    // (lib/standing) puts the row back to 'attended'.
+    const noShow = attended?.attendance === Attendance.NoShow
     if (!attended || attended.status !== 'approved' || noShow) {
       return NextResponse.json({ error: 'You must have attended this event to review it' }, { status: 403 })
     }

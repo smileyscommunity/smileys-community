@@ -19,7 +19,9 @@ vi.mock('@/lib/prisma', () => ({ prisma: {
   eventCoHost:   { findMany: vi.fn(async () => []) },
   waitlistEntry: { findUnique: vi.fn(), findMany: vi.fn(async () => []) },
   payment:       { findMany: vi.fn(async () => []) },
-  noShowCard:    { findMany: vi.fn(async () => []) },
+  // Standing's "you weren't checked in" warnings — the roster reports who
+  // it already reached so the Notify button counts honestly.
+  notification:  { findMany: vi.fn(async () => []) },
   // Walk-in and started checks read the event city's clock.
   city:          { findUnique: vi.fn(async () => ({ timezone: 'Europe/Istanbul' })) },
 } }))
