@@ -24,7 +24,11 @@ import { getIp } from '@/lib/rateLimit'
 // not when it lifts, so there are no dates to format in anyone's city.
 describe('1. dates in email still format in the zone they are given', () => {
   it('fmtDate takes a zone and defaults to DEFAULT_TZ', () => {
-    expect(read('lib/email.ts')).toMatch(/function fmtDate\(d: Date, tz: string = DEFAULT_TZ\)/)
+    // lib/email's own fmtDate was replaced by lib/cityTime's formatDay
+    // (373b41d); the point of the test is that a date in an email is
+    // formatted on a city's clock, not by whatever zone the server is in.
+    expect(read('lib/email.ts')).toContain("import { formatDay } from '@/lib/cityTime'")
+    expect(read('lib/email.ts')).toMatch(/formatDay\(d, \{ weekday: 'long', day: 'numeric', month: 'long' \}\)/)
   })
 })
 

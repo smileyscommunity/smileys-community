@@ -169,7 +169,9 @@ describe('b. reconfirmation wording follows the event date in the city', () => {
     const now = new Date('2026-09-14T06:00:00Z')   // 09:00 Istanbul, same day, inside the ask window
     await askEvent(ev, startsAt, 'Europe/Istanbul', now)
     expect(h.createNotification.mock.calls[0][2]).toBe('🎷 Still coming to Late Jazz today?')
-    expect(h.email.sendReconfirmEmail.mock.calls[0][9]).toBe('today')
+    // Argument 8 since the no-show v1 engine went and its policy link with
+    // it (373b41d) — the phrase itself is unchanged.
+    expect(h.email.sendReconfirmEmail.mock.calls[0][8]).toBe('today')
   })
 })
 
