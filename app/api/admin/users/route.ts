@@ -5,6 +5,11 @@ import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
 import { AttendeeStatus, Attendance } from '@/lib/constants'
 
+// Named so the page can say when it was hit. Raising it in 2026-09 fixed the
+// day's problem, not the failure mode: the list simply stopped at the cap and
+// every tab, count and bulk action ran over a silently short roster.
+const USER_LIST_CAP = 5000
+
 export async function GET(req: NextRequest) {
   try {
     const session = await getSession()
@@ -58,7 +63,7 @@ export async function GET(req: NextRequest) {
       // from every admin tab (at 1000 with 1179 users, the first ~180
       // joiners — including 3 of the 13 suspended in the 2026-07 abuse
       // wave — were invisible unless searched for by name).
-      take: 5000,
+      take: USER_LIST_CAP,
       select: {
         id: true, name: true, email: true, role: true,
         color: true, emailVerified: true, joinedAt: true,
@@ -93,6 +98,24 @@ export async function GET(req: NextRequest) {
     })
     const noShowMap = new Map(noShowRows.map(r => [r.userId, r._count._all]))
 
+    // How many accounts share each fingerprint, counted over every user —
+    // not over the rows this request returns. The page used to derive this
+    // from its own list, so a device shared across two cities stopped looking
+    // shared as soon as a city filter was applied, or for any moderator
+    // (who is always city-scoped). Counts only: the other accounts' identities
+    // are not exposed, and an admin can still search the fingerprint to see
+    // them.
+    const fpOnPage = [...new Set(users.map(u => u.lastFingerprint).filter((f): f is string => !!f))]
+    const fpCounts = new Map<string, number>()
+    if (fpOnPage.length) {
+      const grouped = await prisma.user.groupBy({
+        by:     ['lastFingerprint'],
+        where:  { lastFingerprint: { in: fpOnPage } },
+        _count: { _all: true },
+      })
+      for (const g of grouped) if (g.lastFingerprint) fpCounts.set(g.lastFingerprint, g._count._all)
+    }
+
     const isAdmin = canManageUsers(session)
 
     // Self-deleted ("Deleted Member") accounts: attach the retained, admin-only
@@ -116,9 +139,18 @@ export async function GET(req: NextRequest) {
     const mapped = users.map(({ email, phone, password, ...u }) => {
       const displayEmail = isAdmin ? email : (email.split('@')[0].slice(0, 3) + '...@' + email.split('@')[1])
       const displayPhone = isAdmin ? phone : (phone ? phone.slice(0, 4) + '...' + phone.slice(-2) : null)
-      return { ...u, email: displayEmail, phone: displayPhone, hasPassword: !!password, noShowCount: noShowMap.get(u.id) ?? 0, deletedIdentity: identityMap.get(u.id) ?? null }
+      return {
+        ...u, email: displayEmail, phone: displayPhone, hasPassword: !!password,
+        noShowCount: noShowMap.get(u.id) ?? 0,
+        sharedDeviceAccounts: u.lastFingerprint ? (fpCounts.get(u.lastFingerprint) ?? 1) : 1,
+        deletedIdentity: identityMap.get(u.id) ?? null,
+      }
     })
-    return NextResponse.json(mapped)
+    // Header rather than a wrapper object: the body stays a bare array, which
+    // is what every existing caller expects.
+    return NextResponse.json(mapped, {
+      headers: { 'X-Result-Truncated': users.length >= USER_LIST_CAP ? '1' : '0' },
+    })
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

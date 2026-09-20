@@ -424,6 +424,51 @@ describe('8. users list', () => {
   it('a self-deleted account shows no Unban', () => {
     expect(src).toContain("{u.status === 'banned' && !isDeletedAccount(u) && (")
   })
+
+  // ── from the 2026-09-20 review ──────────────────────────────────────────
+
+  // The No-shows tab filtered >= 3. The most any member has ever had settled
+  // against them is 2, so the tab read 0 forever and the row badge never
+  // rendered, while 23 members had standing offences. Tying it to standing's
+  // own bar is what stops it drifting back out of reach.
+  it('the no-show bar is standing\'s, not a hardcoded number', () => {
+    expect(src).not.toMatch(/noShowCount\s*>=\s*\d/)
+    expect(src).toContain('const NO_SHOW_FLAG_AT = YELLOW_AFTER_OFFENCES')
+    expect(src).toMatch(/noShowCount >= NO_SHOW_FLAG_AT/)
+    // the same count, on the same bar, wherever it is shown
+    const participants = read('app/admin/events/[id]/participants/page.tsx')
+    expect(participants).not.toMatch(/noShowCount \?\? 0\) >= \d/)
+    expect(participants).toContain('>= YELLOW_AFTER_OFFENCES')
+  })
+
+  // Bulk ban has prompted for a reason since it banned a batch as "Banned by
+  // admin". The single-user path — the one actually used — still wrote that
+  // placeholder, and banReason is what backs an appeal.
+  it('a single ban asks for a reason, like the bulk one', () => {
+    expect(src).not.toContain("banReason: 'Banned by admin'")
+    expect(src).toMatch(/async function banUser[\s\S]*?promptToast\([\s\S]*?banReason: reason\.trim\(\)/)
+  })
+
+  // Derived from the fetched rows, a device shared across two cities stopped
+  // looking shared the moment a city filter was applied — and always, for a
+  // city-scoped moderator.
+  it('shared-device counts come from the server, not the fetched page', () => {
+    expect(src).not.toContain('const fingerprintCounts')
+    expect(src).toContain('u.sharedDeviceAccounts')
+    const api = read('app/api/admin/users/route.ts')
+    expect(api).toContain("by:     ['lastFingerprint'],")
+    expect(api).toContain('sharedDeviceAccounts:')
+  })
+
+  // Raising the cap in 2026-09 fixed that day's problem, not the silence.
+  it('the list says when it was truncated', () => {
+    const api = read('app/api/admin/users/route.ts')
+    expect(api).toContain('const USER_LIST_CAP = 5000')
+    expect(api).toContain('take: USER_LIST_CAP,')
+    expect(api).toMatch(/'X-Result-Truncated': users\.length >= USER_LIST_CAP/)
+    expect(src).toContain("r.headers.get('X-Result-Truncated') === '1'")
+    expect(src).toContain('Showing a partial roster')
+  })
 })
 
 // ── 9. moderator-safe member links ─────────────────────────────────────────

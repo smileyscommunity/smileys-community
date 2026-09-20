@@ -13,6 +13,14 @@ import { useAuth } from '@/contexts/AuthContext'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import { loadFailure } from '@/lib/admin/useAdminLoad'
 import { membersCsv } from '@/lib/admin/csvExports'
+import { YELLOW_AFTER_OFFENCES } from '@/lib/standingPolicy'
+
+// The No-shows tab counted 3+, which nothing could reach: the most any member
+// has ever had settled against them is 2, so the tab read 0 forever and the
+// row badge never rendered — while 23 members had standing offences. The bar
+// is standing's own now (2 = a yellow card), so the two surfaces agree and
+// this cannot drift back into being unreachable.
+const NO_SHOW_FLAG_AT = YELLOW_AFTER_OFFENCES
 
 type TabKey = 'all' | 'member' | 'moderator' | 'admin' | 'banned' | 'suspended' | 'inactive' | 'warned' | 'noshows' | 'deleted'
 
@@ -37,6 +45,9 @@ interface DBUser {
   // Used for cross-account risk flagging — if two accounts share this,
   // they were last logged in from the same device.
   lastFingerprint: string | null
+  // How many accounts in total share this user's lastFingerprint (1 = only
+  // them). Computed server-side across the whole roster — see the row badge.
+  sharedDeviceAccounts?: number
   // ISO string. User is "suspended" iff this is set and in the future.
   // Status enum doesn't have a 'suspended' value, so this is the only
   // source of truth — see isSuspended() below.
@@ -143,6 +154,10 @@ function AdminUsersPageInner() {
   const [selected,    setSelected]    = useState<Set<string>>(new Set())
   const [bulkSaving,  setBulkSaving]  = useState(false)
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
+  // The API caps its page. At the old cap the oldest ~180 joiners silently
+  // vanished from every tab and nothing said so; raising the cap fixed that
+  // day, not the silence. The server flags when it hits it.
+  const [capHit,      setCapHit]      = useState(false)
   const [, setTick] = useState(0)  // forces re-render so the "Updated Xs ago" label ages
 
   // load() runs the initial fetch and the auto-refresh poll. background=true
@@ -172,11 +187,16 @@ function AdminUsersPageInner() {
     if (cityFilter)               params.set('city', cityFilter)
     const q = params.size ? `?${params}` : ''
     fetch(`/app/api/admin/users${q}`, { credentials: 'include' })
-      .then(async r => { if (!r.ok) throw await loadFailure(r); return r.json() })
-      .then(data => {
+      .then(async r => {
+        if (!r.ok) throw await loadFailure(r)
+        const truncated = r.headers.get('X-Result-Truncated') === '1'
+        return { data: await r.json(), truncated }
+      })
+      .then(({ data, truncated }) => {
         if (seq !== loadSeq.current) return
         if (Array.isArray(data)) {
           setUsers(data)
+          setCapHit(truncated)
           setLastRefresh(new Date())
           setLoadError(null)
         }
@@ -270,11 +290,16 @@ function AdminUsersPageInner() {
   }
 
   async function banUser(u: DBUser) {
-    if (!(await confirmToast(`Ban ${u.name}? They will be signed out and blocked.`))) return
+    // The reason backs the appeal and is what /admin/moderation shows. Bulk
+    // ban has asked for one since it banned a batch as "Banned by admin";
+    // this path, the one actually used, was still writing that placeholder.
+    const reason = await promptToast(`Ban ${u.name}? They will be signed out and blocked.`,
+      { placeholder: 'Ban reason', confirmLabel: 'Ban' })
+    if (!reason?.trim()) return
     const res = await fetch(`/app/api/admin/users/${u.id}`, {
       method: 'PATCH', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'banned', banReason: 'Banned by admin' }),
+      body: JSON.stringify({ status: 'banned', banReason: reason.trim() }),
     })
     if (res.ok) {
       setUsers(prev => prev.map(x => x.id === u.id ? { ...x, status: 'banned' } : x))
@@ -481,18 +506,6 @@ function AdminUsersPageInner() {
     setTimeout(() => URL.revokeObjectURL(url), 200)
   }
 
-  // Map of fingerprint → count of accounts sharing it. Used to surface a
-  // "⚠ Same device" risk badge when two or more accounts last signed in
-  // from the same FingerprintJS visitorId. Built once per `users` change so
-  // we don't recompute per row.
-  const fingerprintCounts = useMemo(() => {
-    const m = new Map<string, number>()
-    for (const u of users) {
-      if (!u.lastFingerprint) continue
-      m.set(u.lastFingerprint, (m.get(u.lastFingerprint) ?? 0) + 1)
-    }
-    return m
-  }, [users])
 
   // Search + date-range filter. Runs once and memoizes, so the tab counts
   // below ALL reflect the narrowed set instead of pretending nothing was
@@ -531,7 +544,7 @@ function AdminUsersPageInner() {
       !u.lastActive || new Date(u.lastActive).getTime() < ninetyDaysAgo
     ).length,
     warned:     searchFiltered.filter(u => u.warningCount > 0).length,
-    noshows:    searchFiltered.filter(u => u.noShowCount >= 3).length,
+    noshows:    searchFiltered.filter(u => u.noShowCount >= NO_SHOW_FLAG_AT).length,
   }), [searchFiltered, ninetyDaysAgo])
 
   const visible = useMemo(() => {
@@ -543,7 +556,7 @@ function AdminUsersPageInner() {
       if (tab === 'deleted')    return isDeletedAccount(u)
       if (tab === 'suspended')  return isSuspended(u)
       if (tab === 'warned')     return u.warningCount > 0
-      if (tab === 'noshows')    return u.noShowCount >= 3
+      if (tab === 'noshows')    return u.noShowCount >= NO_SHOW_FLAG_AT
       if (tab === 'inactive') {
         return !u.lastActive || new Date(u.lastActive).getTime() < ninetyDaysAgo
       }
@@ -769,6 +782,18 @@ function AdminUsersPageInner() {
 
         <div className="divide-y divide-zinc-800">
           <LoadErrorBanner message={loadError} onRetry={() => load(false)} title="Couldn't load members" className="m-4" />
+          {/* The one thing worse than a truncated list is a truncated list
+              that looks complete: every tab, count and bulk action below is
+              computed over what was fetched. */}
+          {capHit && (
+            <div className="m-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+              <p className="text-sm font-semibold text-amber-300">Showing a partial roster</p>
+              <p className="text-xs text-amber-200/70 mt-0.5">
+                This list hit its size cap, so the oldest members are missing and every tab count below is understated.
+                Search or filter by city to reach them — both run against the whole roster.
+              </p>
+            </div>
+          )}
           {/* Skeleton rows — match the real row height so the layout doesn't
               jump when data arrives. Matches the bar pattern on /admin
               (dashboard) and /admin/posts. */}
@@ -791,7 +816,11 @@ function AdminUsersPageInner() {
             // nationality is Turkish (was unconditional before, which
             // broke non-Turkish users' local-format numbers).
             const waLink = u.phone ? whatsappUrl(u.phone, u.nationality) : null
-            const sharedFp = u.lastFingerprint ? (fingerprintCounts.get(u.lastFingerprint) ?? 0) > 1 : false
+            // Counted server-side over every user, not over the rows this
+            // page fetched: with a city filter on — and always, for a
+            // city-scoped moderator — a device shared across cities used to
+            // stop being shared, which is exactly when it matters most.
+            const sharedFp = (u.sharedDeviceAccounts ?? 0) > 1
             const userActions = (
               <div className="flex gap-1.5 items-center">
                 <Link href={`/messages/${u.id}`} onClick={e => e.stopPropagation()}
@@ -907,8 +936,8 @@ function AdminUsersPageInner() {
                           {u.hiddenFromMembers && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20" title="Not shown in the members list">hidden</span>}
                           {isSuspended(u) && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20" title={`Until ${new Date(u.suspendedUntil!).toLocaleDateString('en-GB')}`}>suspended</span>}
                           {u.warningCount > 0 && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20">⚠ {u.warningCount} warning{u.warningCount !== 1 ? 's' : ''}</span>}
-                          {u.noShowCount >= 3 && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20" title="Registered but didn't show up 3+ times">✗ {u.noShowCount} no-shows</span>}
-                          {sharedFp && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20" title={`Shares device fingerprint with ${(fingerprintCounts.get(u.lastFingerprint!) ?? 1) - 1} other account(s)`}>⚠ Same device</span>}
+                          {u.noShowCount >= NO_SHOW_FLAG_AT && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20" title={`Registered but didn't show up ${NO_SHOW_FLAG_AT}+ times — a yellow card in standing`}>✗ {u.noShowCount} no-shows</span>}
+                          {sharedFp && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20" title={`Shares device fingerprint with ${(u.sharedDeviceAccounts ?? 1) - 1} other account(s)`}>⚠ Same device</span>}
                         </div>
                       )}
                     </div>
@@ -939,14 +968,14 @@ function AdminUsersPageInner() {
                           : <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">banned</span>)}
                         {u.hiddenFromMembers && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20" title="Not shown in the members list">hidden</span>}
                         {isSuspended(u) && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20" title={`Until ${new Date(u.suspendedUntil!).toLocaleDateString('en-GB')}`}>suspended</span>}
-                        {sharedFp && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20" title={`Shares device fingerprint with ${(fingerprintCounts.get(u.lastFingerprint!) ?? 1) - 1} other account(s)`}>⚠ Same device</span>}
+                        {sharedFp && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20" title={`Shares device fingerprint with ${(u.sharedDeviceAccounts ?? 1) - 1} other account(s)`}>⚠ Same device</span>}
                       </div>
                       <div className="text-xs text-zinc-500 flex items-center gap-2 flex-wrap">
                         <span>Joined {new Date(u.joinedAt).toLocaleDateString('en-GB')}</span>
                         {u.lastActive && <span className="text-zinc-600">· Active {new Date(u.lastActive).toLocaleDateString('en-GB')}</span>}
                         {u.phone && <span className="text-zinc-600">· 📱 {u.phone}</span>}
                         {u.warningCount > 0 && <span className="text-orange-400 font-semibold">⚠ {u.warningCount}</span>}
-                        {u.noShowCount >= 3 && <span className="text-red-400 font-semibold" title="Registered but didn't show up 3+ times">✗ {u.noShowCount} no-shows</span>}
+                        {u.noShowCount >= NO_SHOW_FLAG_AT && <span className="text-red-400 font-semibold" title={`Registered but didn't show up ${NO_SHOW_FLAG_AT}+ times — a yellow card in standing`}>✗ {u.noShowCount} no-shows</span>}
                         {isDeletedAccount(u) && u.deletedIdentity?.name && <span className="text-amber-400/80 font-medium" title={`Admin-only safety record · ${u.deletedIdentity.email ?? ''}`}>· was {u.deletedIdentity.name}</span>}
                       </div>
                     </div>

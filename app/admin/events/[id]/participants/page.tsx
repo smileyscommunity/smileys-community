@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useRef, use } from 'react'
 import { confirmToast } from '@/lib/confirmToast'
+// Same bar as standing's yellow card. This was a hardcoded 3, which no
+// member has ever reached, so the badge never rendered for anyone.
+import { YELLOW_AFTER_OFFENCES } from '@/lib/standingPolicy'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { toastApiError } from '@/lib/apiError'
@@ -800,8 +803,8 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
                   <div className="flex-1 min-w-[8rem]">
                     <div className="flex items-center gap-1.5">
                       <p className="text-sm font-semibold text-white truncate">{a.user.name}</p>
-                      {(a.user.noShowCount ?? 0) >= 3 && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20 shrink-0" title="Registered but didn't show up 3+ times">
+                      {(a.user.noShowCount ?? 0) >= YELLOW_AFTER_OFFENCES && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20 shrink-0" title={`Registered but didn't show up ${YELLOW_AFTER_OFFENCES}+ times — a yellow card in standing`}>
                           ✗ {a.user.noShowCount}
                         </span>
                       )}
