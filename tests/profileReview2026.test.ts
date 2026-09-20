@@ -144,16 +144,25 @@ describe('saving your own profile', () => {
 })
 
 describe('abuse scans read the gender a member applied with', () => {
-  it('both scans join lib/scanGender and flag anyone who isn\'t female', () => {
+  // The two scans (weekly email, admin panel) used to carry their own copies
+  // of this SQL and their own flag rules, which drifted. Both queries and
+  // both rules now live in lib/connectionAbuse; tests/connectionAbuse covers
+  // the rules themselves, this keeps the gender source honest.
+  it('the shared scan joins lib/scanGender for both queries', () => {
     const cte = src('lib/scanGender.ts')
     expect(cte).toContain('COALESCE(a.gender, e.gender, NULLIF(lower(trim(u.gender)), \'\'))')
-    const route = src('app/api/admin/users/connection-flags/route.ts')
-    expect(route).toContain('WITH ${SCAN_GENDER_CTE}')
-    expect(route).not.toContain('lower(trim(qu.gender))')
-    const script = src('scripts/scan-connection-abuse.ts')
-    expect(script.match(/WITH \$\{SCAN_GENDER_CTE\}/g)).toHaveLength(2)
-    expect(script).not.toContain("x.gender === 'male'")
-    expect(script.match(/x\.gender !== 'female'/g)).toHaveLength(2)
+    const shared = src('lib/connectionAbuse.ts')
+    expect(shared.match(/WITH \$\{SCAN_GENDER_CTE\}/g)).toHaveLength(2)
+    // Never the profile value, which the member can edit to drop out of a
+    // test that only fires cross-gender.
+    expect(shared).not.toContain('lower(trim(qu.gender))')
+    expect(shared).not.toContain('lower(trim(u.gender))')
+  })
+  it('an unset gender is not exempt — the rule is cross-gender, not "not female"', () => {
+    const shared = src('lib/connectionAbuse.ts')
+    expect(shared).not.toContain("gender === 'male'")
+    expect(shared).not.toMatch(/gender !== 'female'/)
+    expect(shared).toContain('gender !== dominant')
   })
 })
 

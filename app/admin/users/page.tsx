@@ -63,11 +63,11 @@ function isDeletedAccount(u: { email: string }): boolean {
   return u.email.endsWith('@deleted.smileys')
 }
 
-// One row of /api/admin/users/connection-flags — a member whose outbound
-// connection requests over the report window look like directory-trawling
-// (high volume + low acceptance, big ignored backlog, and/or heavy
-// cross-gender receiver skew). Same heuristics as the weekly
-// scan-connection-abuse cron, surfaced live instead of by email.
+// Rows of /api/admin/users/connection-flags — members whose outbound
+// connection requests, or DM threads, over the report window look like
+// directory-trawling rather than networking. The detector is shared with the
+// weekly scan-connection-abuse cron (lib/connectionAbuse), surfaced live here
+// instead of waiting for Monday's email.
 interface ConnectionFlag {
   id: string
   name: string
@@ -81,7 +81,26 @@ interface ConnectionFlag {
   pending: number
   toFemale: number
   toMale: number
-  reasons: string[]  // 'low-acceptance' | 'high-ignore' | 'gender-skew'
+  reasons: string[]  // 'gender-skew' + 'low-acceptance' and/or 'high-ignore'
+  city?: { name: string; slug: string } | null
+}
+
+// The DM fan-out half: many one-way threads, heavily skewed. Needs an
+// accepted connection to exist at all, so it catches the "get accepted, then
+// work the inbox" variant the request scan cannot see.
+interface DmFlag {
+  id: string
+  name: string
+  email: string
+  role: string
+  color: string
+  status: string
+  warningCount: number
+  partners: number
+  toFemale: number
+  toMale: number
+  noReply: number
+  reasons: string[]  // 'dm-skew' and/or 'never-replied'
   city?: { name: string; slug: string } | null
 }
 
@@ -169,6 +188,7 @@ function AdminUsersPageInner() {
   // of data, so the 30s roster poll would be wasted work). Panel renders
   // only when something is flagged.
   const [connFlags,      setConnFlags]      = useState<ConnectionFlag[]>([])
+  const [connDmFlags,    setConnDmFlags]    = useState<DmFlag[]>([])
   const [connWindowDays, setConnWindowDays] = useState(60)
 
   // load() runs the initial fetch and the auto-refresh poll. background=true
@@ -217,10 +237,10 @@ function AdminUsersPageInner() {
     fetch('/app/api/admin/users/connection-flags', { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
       .then(d => {
-        if (d && Array.isArray(d.flagged)) {
-          setConnFlags(d.flagged)
-          setConnWindowDays(d.windowDays ?? 60)
-        }
+        if (!d) return
+        if (Array.isArray(d.flagged))   setConnFlags(d.flagged)
+        if (Array.isArray(d.dmFlagged)) setConnDmFlags(d.dmFlagged)
+        if (d.windowDays) setConnWindowDays(d.windowDays)
       })
       .catch(() => {})
   }, [])
@@ -709,6 +729,55 @@ function AdminUsersPageInner() {
                     </div>
                     <div className="text-xs text-zinc-500">
                       {f.sent} requests · {f.accepted} accepted · {f.pending} still pending
+                    </div>
+                  </div>
+                  <Link href={`/admin/users/${f.id}`} className="shrink-0 px-3 py-1.5 text-xs font-semibold rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 transition-colors">
+                    Review
+                  </Link>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* DM fan-out signals — the other half of the same report. A member can
+          keep a clean request record and still work the inbox once accepted,
+          which is exactly what this catches. Same rules as the Monday email
+          (lib/connectionAbuse); review only. */}
+      {connDmFlags.length > 0 && (
+        <div className="bg-rose-500/5 border border-rose-500/20 rounded-2xl p-4 space-y-3">
+          <div>
+            <h2 className="text-sm font-bold text-rose-300 flex items-center gap-2">
+              ⚠ Direct message signals
+              <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-rose-500/10 text-rose-400">{connDmFlags.length}</span>
+            </h2>
+            <p className="text-xs text-zinc-500 mt-0.5">
+              Messaged many different people in the last {connWindowDays} days with heavy gender skew. &ldquo;Never replied&rdquo; counts partners who did not write back at all. Review only — nothing automatic happens.
+            </p>
+          </div>
+          <div className="divide-y divide-rose-500/10">
+            {connDmFlags.map(f => {
+              const skewPct = f.partners > 0 ? Math.round(Math.max(f.toFemale, f.toMale) / f.partners * 100) : 0
+              const skewWho = f.toFemale >= f.toMale ? 'women' : 'men'
+              return (
+                <div key={f.id} className="py-2.5 first:pt-0 last:pb-0 flex items-center gap-3">
+                  <Link href={`/admin/users/${f.id}`} className="shrink-0">
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold" style={{ backgroundColor: f.color }}>{getInitials(f.name)}</div>
+                  </Link>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <Link href={`/admin/users/${f.id}`} className="font-semibold text-sm text-white truncate hover:text-amber-400 transition-colors">{f.name}</Link>
+                      <CityBadge city={f.city} cities={cities} />
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20">{skewPct}% to {skewWho}</span>
+                      {f.reasons.includes('never-replied') && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20">{f.noReply} never replied</span>
+                      )}
+                      {f.status === 'banned' && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">banned</span>}
+                      {f.warningCount > 0 && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20">⚠ {f.warningCount}</span>}
+                    </div>
+                    <div className="text-xs text-zinc-500">
+                      {f.partners} people messaged · {f.noReply} never replied
                     </div>
                   </div>
                   <Link href={`/admin/users/${f.id}`} className="shrink-0 px-3 py-1.5 text-xs font-semibold rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 transition-colors">
