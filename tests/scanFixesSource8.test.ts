@@ -44,7 +44,10 @@ describe('37 neighborhood of a connections-only member', () => {
   it('is withheld without a connection on the list, profile views, connections and search', () => {
     expect(read('app/api/members/route.ts')).toMatch(/neighborhood: null, nationality: null,/)
     expect(read('app/api/members/profile-views/route.ts')).toMatch(/neighborhood: restricted\.has\(v\.viewer\.id\) \|\| !v\.viewer\.neighborhoodVisible \? null : v\.viewer\.neighborhood/)
-    expect(read('app/api/connections/route.ts')).toMatch(/restricted\.has\(p\.id\) \? \{ \.\.\.rest, neighborhood: null \} : rest/)
+    // The name and the photo go too now (members directory review,
+    // 2026-09-20): sending a request was a way to read the card's full name.
+    expect(read('app/api/connections/route.ts'))
+      .toContain('? { ...rest, name: firstNameOf(p.name), profilePhoto: null, neighborhood: null }')
     expect(read('app/api/search/route.ts')).toMatch(/neighborhood: restricted\.has\(m\.id\) \|\| !neighborhoodVisible \? null : m\.neighborhood/)
   })
 })

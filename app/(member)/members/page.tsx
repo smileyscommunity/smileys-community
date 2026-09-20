@@ -18,6 +18,12 @@ import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { cityBadge } from '@/lib/cityBadge'
 import { LOOKING_FOR_OPTIONS } from '@/lib/profileOptions'
 import { notifyConnectionsChanged } from '@/lib/pendingConnections'
+import { fold } from '@/lib/turkishFold'
+import {
+  ROLE_FILTERS, buildMemberQuery, filtersActive as queryNarrowed,
+  mergeById, seesProfileOf, foldedIncludes,
+  type RoleFilter, type SortOption, type OpenToFilter,
+} from './memberList'
 
 interface ConnectionUser {
   id: string; name: string; color: string
@@ -77,12 +83,13 @@ interface Member {
   socialStyles: string[]
   lookingFor?: string[]
   profilePhoto: string | null
-  joinedAt: string
-  role: string
+  // A locked card carries no joined date, role or membership tier — the
+  // API stopped sending them, so nothing here may assume they arrived.
+  joinedAt?: string | null
+  role?: string | null
   isHost: boolean
   clubs: MemberClub[]
   eventsCount: number
-  eventIds?: string[]
   instagram: string | null
   linkedin: string | null
   lastActive: string | null
@@ -106,31 +113,15 @@ function displayRole(m: Member): { label: string; cls: string } {
   return { label: 'Member', cls: 'bg-gray-100 text-gray-600' }
 }
 
-function Avatar({ m, size = 'md' }: { m: Member; size?: 'md' | 'lg' }) {
-  // #7 perf: ask the file route for a 256-wide variant for the
-  // large card (96px CSS = retina 192px) and a 128-wide for the
-  // medium card (56px CSS). Originals are 1200×1200 quality-82
-  // JPEGs (~150–300 KB); the thumbnails land at ~3–10 KB.
-  // Members directory loads dozens of these per scroll, so the
-  // wire-bytes saving is what makes the page snappy on cellular.
-  const photoLg = avatarUrl(m.profilePhoto, 256)
-  const photoMd = avatarUrl(m.profilePhoto, 128)
-  if (size === 'lg') {
-    return photoLg ? (
-      <img src={photoLg} alt={m.name} loading="lazy" decoding="async" className="w-24 h-24 rounded-full object-cover shrink-0 border-4 border-white shadow-md" />
-    ) : (
-      <div className="w-24 h-24 rounded-full flex items-center justify-center text-white font-bold text-2xl shrink-0 border-4 border-white shadow-md" style={{ backgroundColor: m.color }}>
-        {getInitials(m.name)}
-      </div>
-    )
-  }
-  return photoMd ? (
-    <img src={photoMd} alt={m.name} loading="lazy" decoding="async" className="w-14 h-14 rounded-full object-cover shrink-0" />
-  ) : (
-    <div className="w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-lg shrink-0" style={{ backgroundColor: m.color }}>
-      {getInitials(m.name)}
-    </div>
-  )
+// "Joined Sep 2026" — or nothing at all when the card didn't come with a
+// date (a locked card doesn't), rather than "Invalid Date".
+function joinedLabel(joinedAt: string | null | undefined): string | null {
+  if (!joinedAt) return null
+  const d = new Date(joinedAt)
+  if (Number.isNaN(d.getTime())) return null
+  // 'numeric', not '2-digit': "Sep 26" reads as the 26th of September,
+  // not September 2026.
+  return `Joined ${d.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}`
 }
 
 function ConnectButton({ m, currentUserId, connections, onConnectionChange }: {
@@ -183,6 +174,12 @@ function ConnectButton({ m, currentUserId, connections, onConnectionChange }: {
         body: JSON.stringify({ action: 'accept' }),
       })
       if (!res.ok) {
+        // Already withdrawn from the other side — there's nothing to
+        // accept and nothing the member did wrong. Clear the row.
+        if (res.status === 404) {
+          onConnectionChange(null, conn.id)
+          return
+        }
         toast.error('Could not accept request')
         return
       }
@@ -202,6 +199,14 @@ function ConnectButton({ m, currentUserId, connections, onConnectionChange }: {
         method: 'DELETE', credentials: 'include',
       })
       if (!res.ok) {
+        // 404 means the row is already gone — the other side declined or
+        // withdrew while this button sat there saying "Pending…". Drop it
+        // from state; an error toast would blame the member for a state
+        // that simply moved on.
+        if (res.status === 404) {
+          onConnectionChange(null, conn.id)
+          return
+        }
         // Different copy depending on what state we're cancelling.
         const what = conn.status === 'pending'
           ? (iRequested ? 'cancel request' : 'decline request')
@@ -280,18 +285,20 @@ function ConnectButton({ m, currentUserId, connections, onConnectionChange }: {
   )
 }
 
-function MemberModal({ m, onClose, currentUserId, currentUserRole, viewerPrivileged, myClubIds, myEventIds, members, connections, onConnectionChange }: {
+function MemberModal({ m, onClose, currentUserId, currentUserRole, viewerPrivileged, myClubIds, connections, onConnectionChange, onBlocked, isSaved, onToggleSave }: {
   m: Member; onClose: () => void; currentUserId: string; currentUserRole: string
   viewerPrivileged: boolean
-  myClubIds: string[]; myEventIds: string[]; members: Member[]
+  myClubIds: string[]
   connections: ConnectionRecord[]
   onConnectionChange: (updated: ConnectionRecord | null, removed?: string) => void
+  onBlocked: (memberId: string) => void
+  isSaved: boolean
+  onToggleSave: (memberId: string) => void
 }) {
   const flag        = countryFlag(m.nationality)
   const photo       = resolveImageUrl(m.profilePhoto)
   const role        = displayRole(m)
-  const commonClubs = m.clubs.filter(c => myClubIds.includes(c.id))
-  const commonEvents = myEventIds.filter(id => (m.eventIds ?? []).includes(id)).length
+  const joined      = joinedLabel(m.joinedAt)
 
   // Admins, moderators, and club hosts see full profiles regardless of
   // connection. currentUserRole still drives nothing else here.
@@ -302,6 +309,11 @@ function MemberModal({ m, onClose, currentUserId, currentUserRole, viewerPrivile
     (c.receiverId === currentUserId && c.requesterId === m.id)
   )
   const isConnected = isPrivileged || conn?.status === 'accepted'
+  const isSelf      = m.id === currentUserId
+  // Same rule as the grid card and the flash-card deck — this modal used
+  // to gate everything on isConnected and tell a member their public
+  // neighbour's bio was private while the card behind it showed that bio.
+  const seesProfile = isSelf || seesProfileOf(m, isConnected)
 
   const [blocked,    setBlocked]    = useState(false)
   const [blocking,   setBlocking]   = useState(false)
@@ -325,6 +337,10 @@ function MemberModal({ m, onClose, currentUserId, currentUserRole, viewerPrivile
       }
       setBlocked(true)
       toast.success(`Blocked ${firstNameOf(m.name)}`)
+      // The API hides a blocked pair from each other from here on, so the
+      // card, their pending request and their hangout have to go too —
+      // otherwise Accept 404s on a request that shouldn't be on screen.
+      onBlocked(m.id)
       onClose()
     } catch {
       toast.error('Network error — check your connection')
@@ -369,7 +385,16 @@ function MemberModal({ m, onClose, currentUserId, currentUserRole, viewerPrivile
     requestAnimationFrame(() => {
       panelRef.current?.querySelector<HTMLButtonElement>('button')?.focus()
     })
-    return () => { triggerRef.current?.focus() }
+    // Hold the page still underneath. Without this a scroll gesture that
+    // starts on the backdrop — or runs off the end of the panel — scrolls
+    // the grid behind, and closing the modal drops the member somewhere
+    // else in the directory.
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = previousOverflow
+      triggerRef.current?.focus()
+    }
   }, [])
 
   useEffect(() => {
@@ -425,7 +450,9 @@ function MemberModal({ m, onClose, currentUserId, currentUserRole, viewerPrivile
     : <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${role.cls}`}>{role.label}</span>
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center md:p-6" onClick={onClose}>
+    // z-[60], like the QR scanner: the bottom nav is also z-50 and paints
+    // later, so at z-50 it sat on top of the card on a phone.
+    <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center md:p-6" onClick={onClose}>
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
       <div
         ref={panelRef}
@@ -462,8 +489,8 @@ function MemberModal({ m, onClose, currentUserId, currentUserRole, viewerPrivile
               <div className="flex-1 min-w-0 pt-1 pr-7">
                 <div className="flex items-center gap-2 flex-wrap">
                   <h2 className="text-lg font-extrabold text-gray-900 leading-tight">
-                    {isConnected || m.id === currentUserId ? m.name : firstNameOf(m.name)}
-                    {(isConnected || m.id === currentUserId) && flag && <span className="ml-1.5 text-base font-normal">{flag}</span>}
+                    {seesProfile ? m.name : firstNameOf(m.name)}
+                    {seesProfile && flag && <span className="ml-1.5 text-base font-normal">{flag}</span>}
                   </h2>
                   <MembershipBadge membershipType={m.membershipType} className="shrink-0 text-[10px] px-2 py-0.5" />
                   {m.foundingMember && (
@@ -473,10 +500,15 @@ function MemberModal({ m, onClose, currentUserId, currentUserRole, viewerPrivile
                       'Member' is the default and just eats space. */}
                   {(m.isHost || m.role === 'admin' || m.role === 'moderator') && roleBadge}
                 </div>
-                <p className="text-xs text-gray-400 mt-1.5">
-                  {(isConnected || m.id === currentUserId) && m.neighborhood ? <>📍 {m.neighborhood} · </> : null}
-                  Joined {new Date(m.joinedAt).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}
-                </p>
+                {/* A locked card has no neighbourhood and no joined date to
+                    show, so this line disappears rather than printing
+                    "Joined Invalid Date". */}
+                {(seesProfile && m.neighborhood) || joined ? (
+                  <p className="text-xs text-gray-400 mt-1.5">
+                    {seesProfile && m.neighborhood ? <>📍 {m.neighborhood}{joined ? ' · ' : ''}</> : null}
+                    {joined}
+                  </p>
+                ) : null}
                 {conn?.status === 'accepted' && (
                   <span className="inline-flex items-center gap-0.5 mt-1.5 text-xs font-semibold bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">
                     <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -522,41 +554,62 @@ function MemberModal({ m, onClose, currentUserId, currentUserRole, viewerPrivile
                 )}
               </div>
             )}
+
+            {/* Save + the way out to the full profile. Nothing on this page
+                could save anyone before, which left the Saved filter with
+                an empty shelf, and nothing linked to /members/[id] — the
+                page with shared context, hosted events and hangouts. */}
+            <div className="flex items-center justify-between gap-3 mt-3">
+              {!isSelf ? (
+                <button
+                  onClick={() => onToggleSave(m.id)}
+                  aria-pressed={isSaved}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-colors ${
+                    isSaved
+                      ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                      : 'bg-white text-gray-600 border-gray-200 hover:border-amber-200 hover:text-amber-700'
+                  }`}>
+                  <span aria-hidden="true">🔖</span> {isSaved ? 'Saved' : 'Save'}
+                </button>
+              ) : <span />}
+              <Link href={`/members/${m.id}`} onClick={onClose}
+                className="text-xs font-bold text-amber-600 hover:text-amber-700">
+                View full profile →
+              </Link>
+            </div>
           </div>
 
-          {/* Locked state — not connected. Restricted (the member chose
-              'connections only') gets privacy-specific copy; everyone else
-              gets the general "connect to see more" gating. */}
-          {!isConnected && m.id !== currentUserId && (
+          {/* Locked state — only for a 'connections only' member the viewer
+              isn't connected to. A public profile is shown in full below,
+              exactly as the card behind this modal and /members/[id] show
+              it; what a connection adds is Instagram, LinkedIn and work
+              details, and that's all this used to claim it added. */}
+          {!seesProfile && (
             <div className="px-4 pb-5 pt-3 flex flex-col items-center text-center gap-2">
               <div className="text-3xl">🔒</div>
-              {m.restricted ? (
-                <>
-                  <p className="text-sm font-semibold text-gray-700">This profile is private</p>
-                  <p className="text-xs text-gray-400">{firstNameOf(m.name)} keeps their profile to connections only. Send a request — once they accept, you’ll see their full profile.</p>
-                </>
-              ) : (
-                <>
-                  <p className="text-sm font-semibold text-gray-700">Connect to see more</p>
-                  <p className="text-xs text-gray-400">Bio, interests, clubs, and social links are only visible to connected members.</p>
-                </>
-              )}
+              <p className="text-sm font-semibold text-gray-700">This profile is private</p>
+              <p className="text-xs text-gray-400">{firstNameOf(m.name)} keeps their profile to connections only. Send a request — once they accept, you’ll see their full profile.</p>
             </div>
           )}
 
-          {/* Full profile — connected or own profile */}
-          {(isConnected || m.id === currentUserId) && (
+          {/* Full profile — anyone whose profile this viewer may see */}
+          {seesProfile && (
             <>
               {/* Stats row — flag/neighborhood/joined moved into the header,
                   so this is just the activity numbers now */}
               <div className="flex divide-x divide-gray-100 border-y border-gray-100 mx-4 my-3">
                 <div className="flex-1 py-2 text-center">
                   <p className="text-sm font-extrabold text-gray-900">🎟 {m.eventsCount}</p>
-                  <p className="text-xs text-gray-400">{commonEvents > 0 ? `${commonEvents} shared` : 'Events'}</p>
+                  {/* Was "N shared", counted from an eventIds array the API
+                      has never sent — so it read 0 shared for everyone. */}
+                  <p className="text-xs text-gray-400">Events</p>
                 </div>
                 <div className="flex-1 py-2 text-center">
                   <p className="text-sm font-extrabold text-gray-900">🏛 {m.clubs.length}</p>
-                  <p className="text-xs text-gray-400">Clubs</p>
+                  {/* Without a connection the API sends only the clubs
+                      they host, so "Clubs" would be counting a fraction
+                      of their membership and calling it the whole. */}
+                  <p className="text-xs text-gray-400">{isConnected || isSelf ? 'Clubs' : 'Clubs hosted'}</p>
                 </div>
               </div>
 
@@ -650,7 +703,15 @@ function MemberModal({ m, onClose, currentUserId, currentUserRole, viewerPrivile
                   </div>
                 )}
 
-                {m.id !== currentUserId && (
+                {/* What a connection actually adds, now that the rest of
+                    the profile is no longer claimed to be behind it. */}
+                {!isConnected && !isSelf && (
+                  <p className="text-xs text-gray-400">
+                    <span aria-hidden="true">🔒</span> Instagram, LinkedIn and work details unlock once you connect.
+                  </p>
+                )}
+
+                {!isSelf && (
                   <div className="pt-2 border-t border-gray-100 flex items-center gap-4">
                     <ReportButton reportedId={m.id} reportedName={m.name} />
                     <span className="w-px h-3 bg-gray-200 shrink-0" />
@@ -661,8 +722,9 @@ function MemberModal({ m, onClose, currentUserId, currentUserRole, viewerPrivile
             </>
           )}
 
-          {/* Report + Block — accessible when not connected */}
-          {!isConnected && m.id !== currentUserId && (
+          {/* Report + Block — the locked card has no profile body to hang
+              them off, so they get their own row. */}
+          {!seesProfile && (
             <div className="px-4 pb-4 border-t border-gray-100 pt-3 flex items-center gap-4">
               <ReportButton reportedId={m.id} reportedName={m.name} />
               <span className="w-px h-3 bg-gray-200 shrink-0" />
@@ -682,8 +744,12 @@ const MemberCard = memo(function MemberCard({ m, onSelect, connectionStatus, han
     ? (Date.now() - new Date(m.lastActive).getTime()) < 20 * 60 * 1000
     : false
   const isConnected = connectionStatus === 'accepted' || connectionStatus === 'privileged'
+  // Same rule as the modal and the deck: a public member reads as
+  // themselves to every member; only a locked card is trimmed back.
+  const seesProfile = seesProfileOf(m, isConnected)
+  const joined      = joinedLabel(m.joinedAt)
 
-  const displayName = isConnected ? m.name : firstNameOf(m.name)
+  const displayName = seesProfile ? m.name : firstNameOf(m.name)
 
   return (
     <button
@@ -768,7 +834,7 @@ const MemberCard = memo(function MemberCard({ m, onSelect, connectionStatus, han
               <span className="shrink-0 text-[10px] font-semibold bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full">⭐ Founding</span>
             )}
           </div>
-          {isConnected && m.neighborhood && (
+          {seesProfile && m.neighborhood && (
             <p className="text-[11px] text-gray-400 truncate mt-0.5">📍 {m.neighborhood}</p>
           )}
           {m.restricted && (
@@ -801,16 +867,20 @@ const MemberCard = memo(function MemberCard({ m, onSelect, connectionStatus, han
           )}
           {m.eventsCount > 0 && m.clubs.length > 0 && <span className="text-gray-200">·</span>}
           {m.clubs.length > 0 && (
-            <span className="flex items-center gap-0.5">
+            // Only clubs they host come back without a connection, so the
+            // tooltip says which number this is.
+            <span className="flex items-center gap-0.5"
+              title={isConnected ? `${m.clubs.length} clubs` : `Hosts ${m.clubs.length} club${m.clubs.length !== 1 ? 's' : ''}`}>
               <span>🏛</span> {m.clubs.length}
             </span>
           )}
-          <span className="ml-auto text-[10px] text-gray-300">
-            {/* 'numeric', not '2-digit': "Sep 26" reads as the 26th of
-                September, not September 2026. Matches the joined date
-                everywhere else it's shown. */}
-            {new Date(m.joinedAt).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}
-          </span>
+          {/* A locked card carries no joined date — printing one would be
+              printing "Invalid Date". */}
+          {joined && (
+            <span className="ml-auto text-[10px] text-gray-300">
+              {joined.replace('Joined ', '')}
+            </span>
+          )}
         </div>
       </div>
     </button>
@@ -822,7 +892,7 @@ const MemberCard = memo(function MemberCard({ m, onSelect, connectionStatus, han
 // mirrors MemberCard/MemberModal: first-name-only, bio/neighborhood/interests
 // gated behind a connection. Deliberately NO swipe-left/right verdict
 // mechanic — it's a browse mode, not a rating game (no addictive loops).
-function MemberFlashCards({ members, currentUserId, connections, onConnectionChange, onSelect, getConnectionStatus, onNearEnd }: {
+function MemberFlashCards({ members, currentUserId, connections, onConnectionChange, onSelect, getConnectionStatus, onNearEnd, resetKey }: {
   members: Member[]
   currentUserId: string
   connections: ConnectionRecord[]
@@ -830,10 +900,16 @@ function MemberFlashCards({ members, currentUserId, connections, onConnectionCha
   onSelect: (m: Member) => void
   getConnectionStatus: (id: string) => string | undefined
   onNearEnd?: () => void
+  // Changes whenever the query behind the deck changes (filters, search,
+  // sort). A new list means a new first card — staying on card 14 of the
+  // old one left the member looking at someone the filter didn't ask for.
+  resetKey: string
 }) {
   const [index, setIndex] = useState(0)
   const [dx, setDx] = useState(0)
   const touchX = useRef<number | null>(null)
+
+  useEffect(() => { setIndex(0) }, [resetKey])
 
   // Filters can shrink the list under the cursor — clamp, don't crash.
   const i = members.length ? Math.min(index, members.length - 1) : 0
@@ -850,11 +926,12 @@ function MemberFlashCards({ members, currentUserId, connections, onConnectionCha
   // A public profile's bio, interests and (if listed) neighbourhood are for
   // every member, as on the profile page; the API already withholds what a
   // viewer may not see.
-  const seesProfile = isConnected || !m.restricted
   const isSelf      = m.id === currentUserId
+  const seesProfile = isSelf || seesProfileOf(m, isConnected)
   const flag        = countryFlag(m.nationality)
   const photo       = resolveImageUrl(m.profilePhoto)
-  const displayName = seesProfile || isSelf ? m.name : firstNameOf(m.name)
+  const displayName = seesProfile ? m.name : firstNameOf(m.name)
+  const joined      = joinedLabel(m.joinedAt)
 
   const go = (dir: 1 | -1) => {
     setDx(0)
@@ -890,10 +967,12 @@ function MemberFlashCards({ members, currentUserId, connections, onConnectionCha
               <p className="text-white text-2xl font-extrabold drop-shadow-sm truncate">
                 {displayName} {flag && <span className="text-xl">{flag}</span>}
               </p>
-              <p className="text-white/80 text-xs mt-0.5">
-                {seesProfile && m.neighborhood ? `📍 ${m.neighborhood} · ` : ''}
-                Joined {new Date(m.joinedAt).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}
-              </p>
+              {(seesProfile && m.neighborhood) || joined ? (
+                <p className="text-white/80 text-xs mt-0.5">
+                  {seesProfile && m.neighborhood ? `📍 ${m.neighborhood}${joined ? ' · ' : ''}` : ''}
+                  {joined}
+                </p>
+              ) : null}
             </div>
             {m.isHost && <span className="absolute top-3 left-3 text-[10px] font-bold px-2 py-1 rounded-full bg-blue-500 text-white shadow-sm">Host</span>}
             {m.restricted && (
@@ -907,7 +986,7 @@ function MemberFlashCards({ members, currentUserId, connections, onConnectionCha
             <p className="text-sm text-gray-600 leading-relaxed line-clamp-3">{m.bio}</p>
           ) : !isConnected && !isSelf ? (
             <p className="text-xs text-gray-400">
-              🔒 {m.restricted ? `${displayName} keeps their profile to connections only.` : 'Instagram and LinkedIn unlock when you connect.'}
+              <span aria-hidden="true">🔒</span> {m.restricted ? `${displayName} keeps their profile to connections only.` : 'Instagram, LinkedIn and work details unlock once you connect.'}
             </p>
           ) : null}
 
@@ -938,7 +1017,12 @@ function MemberFlashCards({ members, currentUserId, connections, onConnectionCha
           className="w-11 h-11 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center text-gray-600 disabled:opacity-30">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
         </button>
-        <p className="text-xs text-gray-400 font-medium">{i + 1} / {members.length}</p>
+        {/* Announced, because on a phone this counter is the only thing
+            that says the deck moved — the card itself is a picture. */}
+        <p className="text-xs text-gray-400 font-medium" aria-live="polite" aria-atomic="true">
+          <span aria-hidden="true">{i + 1} / {members.length}</span>
+          <span className="sr-only">{displayName}, member {i + 1} of {members.length}</span>
+        </p>
         <button onClick={() => go(1)} disabled={i === members.length - 1} aria-label="Next member"
           className="w-11 h-11 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center text-gray-600 disabled:opacity-30">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
@@ -948,11 +1032,6 @@ function MemberFlashCards({ members, currentUserId, connections, onConnectionCha
   )
 }
 
-type RoleFilter = 'All' | 'Hosts' | 'Admins' | 'Saved'
-type SortOption = 'newest' | 'active' | 'az'
-
-const ROLE_FILTERS: RoleFilter[] = ['All', 'Hosts', 'Admins', 'Saved']
-
 export default function MembersPage() {
   return <Suspense><MembersPageInner /></Suspense>
 }
@@ -961,20 +1040,33 @@ function MembersPageInner() {
   const searchParams   = useSearchParams()
   const neighborhoodParam = searchParams.get('neighborhood') ?? ''
   const { user } = useAuth()
+  // One list, whatever the query. The old second list (filteredMembers)
+  // is what made "Showing N of M" and "Load more" count the unfiltered
+  // directory while the grid showed a filtered page.
   const [members,      setMembers]      = useState<Member[]>([])
-  const [filteredMembers, setFilteredMembers] = useState<Member[] | null>(null)
+  // `total` describes whatever query is on screen; `directoryTotal` is the
+  // whole city, which is what the hero line and the All pill mean.
   const [total,        setTotal]        = useState(0)
+  const [directoryTotal, setDirectoryTotal] = useState(0)
   const [hostTotal,    setHostTotal]    = useState(0)
   const [adminTotal,   setAdminTotal]   = useState(0)
   const [savedTotal,   setSavedTotal]   = useState(0)
   const [hasMore,      setHasMore]      = useState(false)
   const [loadingMore,  setLoadingMore]  = useState(false)
   const [loading,      setLoading]      = useState(true)
-  const [filterLoading, setFilterLoading] = useState(false)
+  const [listLoading,  setListLoading]  = useState(false)
+  // What went wrong with the last list fetch, so the page can say so
+  // instead of claiming the directory is empty. 429 gets its own copy.
+  const [listError,    setListError]    = useState<'rate-limit' | 'failed' | null>(null)
+  // Who this viewer has bookmarked. Once the list has landed it — not the
+  // count that came with the member page — is what the Saved pill counts,
+  // so a save made here shows up without a refetch.
+  const [savedIds,     setSavedIds]     = useState<Set<string>>(new Set())
+  const [savedLoaded,  setSavedLoaded]  = useState(false)
   const [search,       setSearch]       = useState(neighborhoodParam)
   const [roleFilter,   setRoleFilter]   = useState<RoleFilter>('All')
   // ?openTo= filter — only one active at a time (matches the role-pill UX).
-  const [openToFilter, setOpenToFilter] = useState<'' | 'coffee' | 'language' | 'hosting'>('')
+  const [openToFilter, setOpenToFilter] = useState<OpenToFilter>('')
   // "Around now" — only members with a live availability pulse.
   const [aroundNow,    setAroundNow]    = useState(false)
   const [speaksMyLang, setSpeaksMyLang] = useState(false)
@@ -985,7 +1077,6 @@ function MembersPageInner() {
   const [view,         setView]         = useState<'grid' | 'cards'>('grid')
   const [selected,     setSelected]     = useState<Member | null>(null)
   const [myClubIds,    setMyClubIds]    = useState<string[]>([])
-  const [myEventIds,   setMyEventIds]   = useState<string[]>([])
   const [connections,  setConnections]  = useState<ConnectionRecord[]>([])
   // Active hangouts — drives the strip at the top and the "Hanging out" badge
   // on member cards, bridging /members and /hangouts so the live signal isn't
@@ -996,6 +1087,30 @@ function MembersPageInner() {
   // landing-page line and reads as an invitation.
   const city = useCurrentCity()
   const [hero, setHero] = useState({ badge: 'Members', headline: 'Meet the community.', subtitle: 'Discover people through the neighborhoods, interests and experiences you share.' })
+
+  // The rows on screen, readable from callbacks that mustn't re-bind on
+  // every list change (they'd re-render every card).
+  const membersRef = useRef<Member[]>([])
+  useEffect(() => { membersRef.current = members }, [members])
+
+  // Accepting flips what the API will send for that member: the row we
+  // hold was redacted when it arrived, so the modal would draw the full
+  // profile over a pile of nulls. Ask for that one member again by id — a
+  // name search would find whoever else shares the name — and swap the fresh
+  // row in, modal included. A miss leaves the stale row: nothing to tell the
+  // member.
+  const refreshMember = useCallback(async (memberId: string) => {
+    if (!memberId) return
+    try {
+      const res = await fetch(`/app/api/members?ids=${encodeURIComponent(memberId)}`, { credentials: 'include' })
+      if (!res.ok) return
+      const data = await res.json()
+      const fresh: Member | undefined = (Array.isArray(data?.members) ? data.members : []).find((x: Member) => x.id === memberId)
+      if (!fresh) return
+      setMembers(prev => prev.map(x => (x.id === memberId ? fresh : x)))
+      setSelected(prev => (prev && prev.id === memberId ? fresh : prev))
+    } catch { /* keep what we have */ }
+  }, [])
 
   const handleConnectionChange = useCallback((updated: ConnectionRecord | null, removed?: string) => {
     // Every accept / decline / withdraw on this page funnels through here —
@@ -1009,6 +1124,54 @@ function MembersPageInner() {
         if (idx >= 0) { const next = [...prev]; next[idx] = updated; return next }
         return [...prev, updated]
       })
+      if (updated.status === 'accepted') {
+        const otherId = updated.requesterId === user.id ? updated.receiverId : updated.requesterId
+        refreshMember(otherId)
+      }
+    }
+  }, [refreshMember, user.id])
+
+  // A block hides the pair from each other everywhere else, so the page
+  // has to let go too: the card, their still-visible pending request
+  // (whose Accept would 404) and their hangout.
+  const handleBlocked = useCallback((memberId: string) => {
+    setMembers(prev => prev.filter(m => m.id !== memberId))
+    // The server deletes the save both ways; the pill would otherwise keep
+    // counting them until a reload.
+    setSavedIds(prev => { if (!prev.has(memberId)) return prev; const next = new Set(prev); next.delete(memberId); return next })
+    setTotal(t => Math.max(0, t - 1))
+    setDirectoryTotal(t => Math.max(0, t - 1))
+    setConnections(prev => prev.filter(c => c.requesterId !== memberId && c.receiverId !== memberId))
+    setHangouts(prev => prev.filter(h => h.user.id !== memberId))
+    notifyConnectionsChanged()
+  }, [])
+
+  // Save / unsave from the modal. One POST toggles and answers with the
+  // side it landed on; the optimistic flip is rolled back if it doesn't.
+  const savedRef = useRef<Set<string>>(new Set())
+  useEffect(() => { savedRef.current = savedIds }, [savedIds])
+  const handleToggleSave = useCallback(async (memberId: string) => {
+    const wasSaved = savedRef.current.has(memberId)
+    const flip = (saved: boolean) => setSavedIds(prev => {
+      const next = new Set(prev)
+      if (saved) next.add(memberId); else next.delete(memberId)
+      return next
+    })
+    flip(!wasSaved)
+    try {
+      const res = await fetch('/app/api/members/saved', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ memberId }),
+      })
+      if (!res.ok) throw new Error(String(res.status))
+      // The toggle decides which side it landed on, not us — a double tap
+      // or a save made in another tab can disagree with the guess.
+      const data = await res.json().catch(() => null)
+      if (typeof data?.saved === 'boolean') flip(data.saved)
+    } catch {
+      flip(wasSaved)
+      toast.error(wasSaved ? 'Could not remove that bookmark' : 'Could not save that member')
     }
   }, [])
 
@@ -1032,6 +1195,12 @@ function MembersPageInner() {
         body:    JSON.stringify({ action }),
       })
       if (!res.ok) {
+        // Gone already (withdrawn, or the pair blocked each other) — drop
+        // the row rather than accusing the member of a failed tap.
+        if (res.status === 404) {
+          handleConnectionChange(null, reqId)
+          return
+        }
         toast.error(action === 'accept' ? 'Could not accept request' : 'Could not decline request')
         return
       }
@@ -1058,76 +1227,104 @@ function MembersPageInner() {
   useEffect(() => {
     Promise.all([
       fetch('/app/api/content',                                       ).then(r => r.json()).catch(() => null),
-      fetch('/app/api/members?offset=0',  { credentials: 'include' }).then(r => r.json()).catch(() => null),
       fetch('/app/api/clubs/memberships', { credentials: 'include' }).then(r => r.json()).catch(() => null),
-      fetch('/app/api/events/attending',  { credentials: 'include' }).then(r => r.json()).catch(() => null),
       fetch('/app/api/connections',       { credentials: 'include' }).then(r => r.json()).catch(() => null),
       fetch('/app/api/hangouts',          { credentials: 'include' }).then(r => r.json()).catch(() => null),
-    ]).then(([content, membersData, clubsData, eventsData, connData, hangoutsData]) => {
+      fetch('/app/api/members/saved',     { credentials: 'include' }).then(r => r.json()).catch(() => null),
+    ]).then(([content, clubsData, connData, hangoutsData, savedData]) => {
       if (content?.members) setHero(h => ({ ...h, ...content.members }))
-      setMembers(Array.isArray(membersData?.members) ? membersData.members : [])
-      setTotal(membersData?.total ?? 0)
-      setHostTotal(membersData?.hostTotal ?? 0)
-      setAdminTotal(membersData?.adminTotal ?? 0)
-      setSavedTotal(membersData?.savedTotal ?? 0)
-      setHasMore(membersData?.hasMore ?? false)
       setMyClubIds(Array.isArray(clubsData) ? clubsData.map((c: any) => c.clubId ?? c.id) : [])
-      setMyEventIds(Array.isArray(eventsData) ? eventsData.map((e: any) => e.eventId ?? e.id) : [])
       const sentList = Array.isArray(connData?.sent)     ? connData.sent     : []
       const rcvList  = Array.isArray(connData?.received) ? connData.received : []
       setConnections([...sentList, ...rcvList])
       setHangouts(Array.isArray(hangoutsData?.hangouts) ? hangoutsData.hangouts : [])
-    }).finally(() => setLoading(false))
+      if (Array.isArray(savedData?.savedIds)) {
+        setSavedIds(new Set<string>(savedData.savedIds))
+        setSavedLoaded(true)
+      }
+    })
   }, [])
 
-  useEffect(() => {
-    const trimmed = search.trim()
-    // No active filters at all → fall back to the initial member list.
-    if (roleFilter === 'All' && !openToFilter && !aroundNow && !speaksMyLang && !lookingForFilter && !trimmed) { setFilteredMembers(null); return }
+  const trimmedSearch = search.trim()
+  const query = useMemo(
+    () => ({ roleFilter, openTo: openToFilter, aroundNow, speaksMyLang, lookingFor: lookingForFilter, search, sort }),
+    [roleFilter, openToFilter, aroundNow, speaksMyLang, lookingForFilter, search, sort],
+  )
+  const filtersActive = queryNarrowed(query)
+  const queryParams   = useCallback((offset: number) => buildMemberQuery(query, offset), [query])
 
+  // Identifies the query a response belongs to, so a page that lands
+  // after the member changed a filter is dropped instead of appended.
+  const queryKey = queryParams(0).toString()
+  const queryKeyRef = useRef(queryKey)
+  const [reloadToken, setReloadToken] = useState(0)
+
+  useEffect(() => {
+    queryKeyRef.current = queryKey
     // Debounce search input so typing "yasemin" fires one fetch, not seven.
-    // role/openTo changes don't need debouncing (single click) but routing
-    // through the same timer keeps the effect simple.
-    const delay = trimmed ? 250 : 0
-    // Abort the in-flight fetch on filter change/clear — without it, a slow
-    // filtered response could land after "clear all" reset filteredMembers
-    // to null and re-apply the stale filtered list over the full one.
+    // Filter clicks don't need debouncing but route through the same timer.
+    const delay = trimmedSearch ? 250 : 0
+    // Abort the in-flight fetch on filter change — without it a slow
+    // response could land over a newer one.
     const ctrl = new AbortController()
-    const t = setTimeout(() => {
+    const t = setTimeout(async () => {
       // §55 — search/filter usage. Debounced with the fetch so we log
       // intents, not keystrokes.
-      if (trimmed) posthog.capture('member_search', { length: trimmed.length })
+      if (trimmedSearch) posthog.capture('member_search', { length: trimmedSearch.length })
       if (roleFilter !== 'All' || openToFilter || aroundNow || speaksMyLang || lookingForFilter) {
         posthog.capture('member_filter_used', { role: roleFilter, openTo: openToFilter || null, aroundNow, speaksMyLang, lookingFor: lookingForFilter || null })
       }
-      setFilterLoading(true)
-      const params = new URLSearchParams()
-      if (roleFilter === 'Hosts')  params.set('isHost', 'true')
-      if (roleFilter === 'Admins') params.set('adminOnly', 'true')
-      if (roleFilter === 'Saved')  params.set('savedOnly', 'true')
-      if (openToFilter)            params.set('openTo', openToFilter)
-      if (aroundNow)               params.set('aroundNow', 'true')
-      if (speaksMyLang)            params.set('speaksMyLang', 'true')
-      if (lookingForFilter)        params.set('lookingFor', lookingForFilter)
-      if (trimmed)                 params.set('search', trimmed)
-      fetch(`/app/api/members?${params}`, { credentials: 'include', signal: ctrl.signal })
-        .then(r => r.json())
-        .then(d => setFilteredMembers(Array.isArray(d?.members) ? d.members : []))
-        .catch((e: unknown) => {
-          if ((e as Error)?.name !== 'AbortError') setFilteredMembers([])
-        })
-        .finally(() => setFilterLoading(false))
+      setListLoading(true)
+      try {
+        const res = await fetch(`/app/api/members?${queryParams(0)}`, { credentials: 'include', signal: ctrl.signal })
+        if (!res.ok) {
+          // Every failure used to render as "No members found" — an empty
+          // directory is a very different thing from a request that was
+          // turned away, and the member can act on one of them.
+          setListError(res.status === 429 ? 'rate-limit' : 'failed')
+          return
+        }
+        const d = await res.json()
+        setListError(null)
+        setMembers(Array.isArray(d?.members) ? d.members : [])
+        setTotal(d?.total ?? 0)
+        // With no filter on, this query IS the directory.
+        if (!filtersActive) setDirectoryTotal(d?.total ?? 0)
+        setHostTotal(d?.hostTotal ?? 0)
+        setAdminTotal(d?.adminTotal ?? 0)
+        setSavedTotal(d?.savedTotal ?? 0)
+        setHasMore(!!d?.hasMore)
+      } catch (e: unknown) {
+        if ((e as Error)?.name === 'AbortError') return
+        setListError('failed')
+      } finally {
+        if (!ctrl.signal.aborted) { setListLoading(false); setLoading(false) }
+      }
     }, delay)
     return () => { clearTimeout(t); ctrl.abort() }
-  }, [roleFilter, openToFilter, aroundNow, speaksMyLang, lookingForFilter, search])
+    // queryParams carries every filter; reloadToken is the Retry button.
+  }, [queryParams, queryKey, filtersActive, reloadToken, roleFilter, openToFilter, aroundNow, speaksMyLang, lookingForFilter, trimmedSearch])
 
-  async function loadMore() {
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore) return
+    const key = queryKeyRef.current
     setLoadingMore(true)
     try {
-      const data = await fetch(`/app/api/members?offset=${members.length}`, { credentials: 'include' }).then(r => r.json())
-      if (data?.members) {
-        setMembers(prev => [...prev, ...data.members])
-        setHasMore(data.hasMore)
+      const res = await fetch(`/app/api/members?${queryParams(membersRef.current.length)}`, { credentials: 'include' })
+      if (!res.ok) {
+        toast.error(res.status === 429
+          ? 'You’re going faster than we can load — give it a moment.'
+          : 'Could not load more members')
+        return
+      }
+      const data = await res.json()
+      // The filter moved while this page was in flight; it belongs to a
+      // list that's no longer on screen.
+      if (queryKeyRef.current !== key) return
+      if (Array.isArray(data?.members)) {
+        setMembers(prev => mergeById(prev, data.members))
+        setTotal(data?.total ?? 0)
+        setHasMore(!!data?.hasMore)
       }
     } catch {
       // A network blip used to throw past setLoadingMore and freeze the
@@ -1136,47 +1333,48 @@ function MembersPageInner() {
     } finally {
       setLoadingMore(false)
     }
-  }
+  }, [hasMore, loadingMore, queryParams])
 
-  const activeMembers  = filteredMembers ?? members
-  const hangoutHostIds = useMemo(() => new Set(hangouts.map(h => h.user.id)), [hangouts])
+  // "Happening now" has to mean started. A plan for next Saturday is a
+  // hangout too, but it isn't live, and the strip claimed it was.
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 60_000)
+    return () => clearInterval(t)
+  }, [])
+  const liveHangouts = useMemo(
+    () => hangouts.filter(h => new Date(h.startsAt).getTime() <= now && new Date(h.endsAt).getTime() >= now),
+    [hangouts, now],
+  )
+  const hangoutHostIds = useMemo(() => new Set(liveHangouts.map(h => h.user.id)), [liveHangouts])
 
   const visible = useMemo(() => {
-    const q = search.toLowerCase()
-    // Relevance tier when a search is active: name matches on top, then
-    // interests/clubs/nationality, then neighborhood-only. Without this,
-    // searching "Levent" (a common Turkish name AND an Istanbul district)
-    // buried the actual Levents under everyone who lives in the
-    // neighborhood.
-    const nameHit = (m: typeof activeMembers[number]) => m.name.toLowerCase().includes(q)
-    const otherHit = (m: typeof activeMembers[number]) =>
-      m.nationality?.toLowerCase().includes(q) ||
-      m.interests.some(i => i.toLowerCase().includes(q)) ||
-      m.clubs.some(c => c.name.toLowerCase().includes(q))
-    const relevance = (m: typeof activeMembers[number]) =>
-      nameHit(m) ? 0 : otherHit(m) ? 1 : 2
+    // The server did the matching and the ordering (it can see the fields
+    // a redacted card hides, and the whole directory rather than the
+    // hundred rows loaded here). All this does is keep the browser from
+    // dropping a row the server just matched, and tier name matches above
+    // the rest — searching "Levent" (a common Turkish name AND an
+    // Istanbul district) buried the actual Levents under everyone who
+    // lives there.
+    const q = fold(search)
+    if (!q) return members
 
-    return activeMembers
-      .filter(m => {
-        if (!search) return true
-        return (
-          m.name.toLowerCase().includes(q) ||
-          m.neighborhood?.toLowerCase().includes(q) ||
-          m.nationality?.toLowerCase().includes(q) ||
-          m.interests.some(i => i.toLowerCase().includes(q)) ||
-          m.clubs.some(c => c.name.toLowerCase().includes(q))
-        )
-      })
-      .sort((a, b) => {
-        if (search) {
-          const rel = relevance(a) - relevance(b)
-          if (rel !== 0) return rel
-        }
-        if (sort === 'active')  return b.eventsCount - a.eventsCount
-        if (sort === 'az')      return a.name.localeCompare(b.name)
-        return new Date(b.joinedAt).getTime() - new Date(a.joinedAt).getTime()
-      })
-  }, [activeMembers, search, sort])
+    const nameHit  = (m: Member) => foldedIncludes(m.name, q)
+    const otherHit = (m: Member) =>
+      foldedIncludes(m.nationality, q) ||
+      m.interests.some(i => foldedIncludes(i, q)) ||
+      m.clubs.some(c => foldedIncludes(c.name, q))
+    // A locked card carries a first name and nothing else, so there's no
+    // way to tell here why the server matched it. Trust the server.
+    const relevance = (m: Member) => (nameHit(m) ? 0 : otherHit(m) || m.restricted ? 1 : 2)
+
+    // Stable, and applied to the whole list as one: sorting on every change
+    // let a second page lift its name matches above rows the reader was
+    // already looking at — the same reshuffle that moving sort to the server
+    // was meant to end. `sort` is stable in every engine we target, so rows
+    // of equal relevance keep the order the server sent them in.
+    return [...members].sort((a, b) => relevance(a) - relevance(b))
+  }, [members, search])
 
   const pendingRequests = connections.filter(c => c.receiverId === user.id && c.status === 'pending')
   const connectedCount  = connections.filter(c => c.status === 'accepted').length
@@ -1206,16 +1404,45 @@ function MembersPageInner() {
   const handleSelectMember = useCallback((m: Member) => setSelected(m), [])
 
   // Deck auto-pagination: when the flash-card cursor nears the end of the
-  // loaded list, fetch the next page. Same eligibility rules as the grid's
-  // "Load more" button (no server-side paging under search/role filters).
+  // loaded list, fetch the next page — of whatever query is on screen.
+  // The guard used to exclude filtered lists, which meant a short filtered
+  // deck kept firing against the unfiltered directory and walked the whole
+  // thing into the rate limit. `hasMore` now describes the filtered set,
+  // so an exhausted list simply stops asking.
   const handleDeckNearEnd = useCallback(() => {
-    if (hasMore && !loadingMore && !search && roleFilter === 'All') loadMore()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasMore, loadingMore, search, roleFilter, members.length])
+    if (hasMore && !loadingMore && !listLoading) loadMore()
+  }, [hasMore, loadingMore, listLoading, loadMore])
+
+  // "Clear search" cleared the search box and the role pill and left the
+  // other four filters on, so the grid stayed empty and the button looked
+  // broken. This clears everything the grid is narrowed by.
+  const clearAllFilters = useCallback(() => {
+    setSearch('')
+    setRoleFilter('All')
+    setOpenToFilter('')
+    setAroundNow(false)
+    setSpeaksMyLang(false)
+    setLookingForFilter('')
+  }, [])
+
+  // What's narrowing the list right now, in the words on the pills — an
+  // empty grid should say which filter emptied it.
+  const activeFilterLabels = useMemo(() => {
+    const labels: string[] = []
+    if (trimmedSearch)        labels.push(`“${trimmedSearch}”`)
+    if (roleFilter !== 'All') labels.push(roleFilter)
+    if (openToFilter)         labels.push(`open to ${openToFilter}`)
+    if (aroundNow)            labels.push('around now')
+    if (speaksMyLang)         labels.push('my language')
+    if (lookingForFilter)     labels.push(LOOKING_FOR_LABELS[lookingForFilter] ?? lookingForFilter)
+    return labels
+  }, [trimmedSearch, roleFilter, openToFilter, aroundNow, speaksMyLang, lookingForFilter])
+
+  const busy = loading || listLoading
 
   return (
     <div className="min-h-screen bg-warm pb-20 md:pb-0">
-      {selected && <MemberModal m={selected} onClose={() => setSelected(null)} currentUserId={user.id} currentUserRole={user.role} viewerPrivileged={isPrivilegedUser} myClubIds={myClubIds} myEventIds={myEventIds} members={members} connections={connections} onConnectionChange={handleConnectionChange} />}
+      {selected && <MemberModal m={selected} onClose={() => setSelected(null)} currentUserId={user.id} currentUserRole={user.role} viewerPrivileged={isPrivilegedUser} myClubIds={myClubIds} connections={connections} onConnectionChange={handleConnectionChange} onBlocked={handleBlocked} isSaved={savedIds.has(selected.id)} onToggleSave={handleToggleSave} />}
 
       <div className="bg-white border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-0">
@@ -1243,7 +1470,9 @@ function MembersPageInner() {
                   categories. The role-pill counts below already surface
                   the breakdowns where the user can act on them. */}
               <p className="text-base text-gray-600 mt-1 max-w-xl">{hero.subtitle}</p>
-              {!loading && <p className="text-sm text-gray-400 mt-1">{total} members</p>}
+              {/* The whole city, not the filtered query — the count under
+                  the headline answers "how big is this community". */}
+              {!loading && <p className="text-sm text-gray-400 mt-1">{directoryTotal} members</p>}
             </div>
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <div className="relative flex-1 sm:w-72">
@@ -1278,23 +1507,30 @@ function MembersPageInner() {
           {/* Active hangouts strip — bridges the gap between "Open to coffee"
               (settings opt-in) and actually showing up. Surfaces the live
               signal where members already browse. */}
-          {hangouts.length > 0 && (
-            <Link href="/hangouts" className="block mb-4 group">
-              <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-center gap-3 hover:from-amber-100 hover:to-orange-100 transition-colors">
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
-                  <span className="text-xs font-bold text-amber-800 uppercase tracking-wider">Live</span>
+          {/* "Happening now" only when something has actually started —
+              the feed carries plans up to 14 days out, and all of them
+              used to be announced as live. */}
+          {hangouts.length > 0 && (() => {
+            const live  = liveHangouts.length > 0
+            const shown = live ? liveHangouts : hangouts
+            return (
+              <Link href="/hangouts" className="block mb-4 group">
+                <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-center gap-3 hover:from-amber-100 hover:to-orange-100 transition-colors">
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className={`w-2 h-2 rounded-full ${live ? 'bg-amber-500 animate-pulse' : 'bg-amber-300'}`} />
+                    <span className="text-xs font-bold text-amber-800 uppercase tracking-wider">{live ? 'Live' : 'Soon'}</span>
+                  </div>
+                  <p className="text-sm text-amber-900 flex-1 truncate">
+                    <strong>{shown.length}</strong> hangout{shown.length !== 1 ? 's' : ''} {live ? 'happening now' : 'coming up'}
+                    {shown[0]?.neighborhood && (
+                      <span className="text-amber-700 font-normal"> · {live ? 'in' : 'starting in'} {shown[0].neighborhood}</span>
+                    )}
+                  </p>
+                  <span className="text-xs font-bold text-amber-600 shrink-0 group-hover:translate-x-0.5 transition-transform">See all →</span>
                 </div>
-                <p className="text-sm text-amber-900 flex-1 truncate">
-                  <strong>{hangouts.length}</strong> hangout{hangouts.length !== 1 ? 's' : ''} happening now
-                  {hangouts[0]?.neighborhood && (
-                    <span className="text-amber-700 font-normal"> · starting in {hangouts[0].neighborhood}</span>
-                  )}
-                </p>
-                <span className="text-xs font-bold text-amber-600 shrink-0 group-hover:translate-x-0.5 transition-transform">See all →</span>
-              </div>
-            </Link>
-          )}
+              </Link>
+            )
+          })()}
 
           {/* Role + open-to filter pills. The role pills swap the whole
               grid view (only one active at a time), so they get proper
@@ -1304,8 +1540,11 @@ function MembersPageInner() {
               parent flex wrap. */}
           <div className="flex flex-wrap gap-2 pb-4">
             <div role="tablist" aria-label="Filter members by role" className="contents">
-              {(['All', 'Hosts', 'Admins', 'Saved'] as RoleFilter[]).map(f => {
-                const count = f === 'Hosts' ? hostTotal : f === 'Admins' ? adminTotal : f === 'Saved' ? savedTotal : total
+              {ROLE_FILTERS.map((f, idx) => {
+                // The All pill counts the directory, not the query on
+                // screen; Saved counts what this viewer has bookmarked,
+                // which the save toggle changes without a refetch.
+                const count = f === 'Hosts' ? hostTotal : f === 'Admins' ? adminTotal : f === 'Saved' ? (savedLoaded ? savedIds.size : savedTotal) : directoryTotal
                 const isActive = roleFilter === f
                 // All four role pills share the same active style now (was
                 // gray-900 for All, violet-500 for Admins, amber-400 for
@@ -1314,9 +1553,27 @@ function MembersPageInner() {
                 return (
                   <button
                     key={f}
+                    id={`member-role-tab-${f}`}
                     onClick={() => setRoleFilter(f)}
                     role="tab"
                     aria-selected={isActive}
+                    // The grid below is the panel these tabs swap, and a
+                    // tablist without one is a lie to a screen reader.
+                    aria-controls="members-results"
+                    // Roving tabindex + arrow keys: a tablist is one stop
+                    // in the tab order, and Left/Right move within it.
+                    tabIndex={isActive ? 0 : -1}
+                    onKeyDown={e => {
+                      const next =
+                        e.key === 'ArrowRight' ? (idx + 1) % ROLE_FILTERS.length :
+                        e.key === 'ArrowLeft'  ? (idx - 1 + ROLE_FILTERS.length) % ROLE_FILTERS.length :
+                        e.key === 'Home'       ? 0 :
+                        e.key === 'End'        ? ROLE_FILTERS.length - 1 : null
+                      if (next === null) return
+                      e.preventDefault()
+                      setRoleFilter(ROLE_FILTERS[next])
+                      document.getElementById(`member-role-tab-${ROLE_FILTERS[next]}`)?.focus()
+                    }}
                     className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold border whitespace-nowrap transition-all ${
                       isActive
                         ? 'bg-amber-500 text-white border-amber-500'
@@ -1429,13 +1686,13 @@ function MembersPageInner() {
             full directory is demoted below. Hidden while a search or
             filter is active — the member is looking for someone specific
             then, not browsing. */}
-        {!search && roleFilter === 'All' && !openToFilter && !aroundNow && !speaksMyLang && !lookingForFilter && (
+        {!filtersActive && (
           <MemberDiscovery />
         )}
 
         {/* §43 — the full directory, explicitly framed as the layer below
             contextual discovery. */}
-        {!search && roleFilter === 'All' && !openToFilter && !aroundNow && !speaksMyLang && !lookingForFilter && (
+        {!filtersActive && (
           <div className="mb-4 pt-2 border-t border-gray-100">
             <h2 className="text-lg sm:text-xl font-extrabold tracking-tight text-gray-900 mt-6">Explore the community</h2>
             <p className="text-sm text-gray-600 mt-0.5">Everyone on Smileys — search, filter, browse.</p>
@@ -1507,59 +1764,107 @@ function MembersPageInner() {
           </p>
         )}
 
-        {(loading || filterLoading) && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-            {Array.from({ length: 12 }).map((_, i) => (
-              <SkeletonCard key={i} />
-            ))}
-          </div>
-        )}
+        {/* The panel the role tabs swap, and the one place the result
+            count is announced — nothing told a screen-reader user that
+            tapping a filter had changed anything. */}
+        <div id="members-results" role="tabpanel" aria-labelledby={`member-role-tab-${roleFilter}`}>
+          <p className="sr-only" aria-live="polite" aria-atomic="true">
+            {busy ? 'Loading members…'
+              : listError ? 'Could not load members.'
+              : `${visible.length}${hasMore ? ` of ${total}` : ''} member${total === 1 ? '' : 's'} shown${activeFilterLabels.length ? ` for ${activeFilterLabels.join(', ')}` : ''}.`}
+          </p>
 
-        {!loading && !filterLoading && visible.length === 0 && (
-          <EmptyState
-            icon="🔍"
-            title="No members found"
-            body="Try a different name, neighborhood, or interest."
-            action={{ label: 'Clear search', onClick: () => { setSearch(''); setRoleFilter('All') } }}
-          />
-        )}
-
-        {!loading && !filterLoading && visible.length > 0 && (
-          <>
-            {view === 'cards' && (
-              <div className="sm:hidden">
-                <MemberFlashCards
-                  members={visible}
-                  currentUserId={user.id}
-                  connections={connections}
-                  onConnectionChange={handleConnectionChange}
-                  onSelect={handleSelectMember}
-                  getConnectionStatus={getConnectionStatus}
-                  onNearEnd={handleDeckNearEnd}
-                />
-              </div>
-            )}
-            <div className={`grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 ${view === 'cards' ? 'hidden sm:grid' : 'grid'}`}>
-              {visible.map(m => (
-                <MemberCard key={m.id} m={m} onSelect={handleSelectMember} connectionStatus={getConnectionStatus(m.id)} hangingOut={hangoutHostIds.has(m.id)} />
+          {busy && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+              {Array.from({ length: 12 }).map((_, i) => (
+                <SkeletonCard key={i} />
               ))}
             </div>
-            {hasMore && !search && roleFilter === 'All' && (
-              // Deck auto-paginates, so the manual button is desktop/grid-only
-              // while cards view is active on mobile.
-              <div className={`flex-col items-center gap-2 mt-8 ${view === 'cards' ? 'hidden sm:flex' : 'flex'}`}>
-                <p className="text-sm text-gray-400">Showing {members.length} of {total} members</p>
-                <button
-                  onClick={loadMore}
-                  disabled={loadingMore}
-                  className="px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50"
-                >
-                  {loadingMore ? 'Loading…' : 'Load more members'}
+          )}
+
+          {/* A failed request is not an empty directory. When there are
+              still members on screen the list stays put and the banner
+              sits above it; otherwise the failure takes the whole slot. */}
+          {!busy && listError && (
+            visible.length > 0 ? (
+              <div className="mb-4 flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+                <p className="text-sm text-amber-900 flex-1">
+                  {listError === 'rate-limit'
+                    ? 'You’re going faster than we can load. Showing what we already had.'
+                    : 'Couldn’t refresh the list. Showing what we already had.'}
+                </p>
+                <button onClick={() => setReloadToken(t => t + 1)}
+                  className="shrink-0 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg transition-colors">
+                  Retry
                 </button>
               </div>
-            )}
-          </>
-        )}
+            ) : (
+              <EmptyState
+                icon={listError === 'rate-limit' ? '🐢' : '📡'}
+                title={listError === 'rate-limit' ? 'Slow down a second' : 'Couldn’t load members'}
+                body={listError === 'rate-limit'
+                  ? 'You’re browsing faster than we can keep up. Give it a minute and try again.'
+                  : 'Something went wrong on the way to the directory.'}
+                action={{ label: 'Retry', onClick: () => setReloadToken(t => t + 1) }}
+              />
+            )
+          )}
+
+          {!busy && !listError && visible.length === 0 && (
+            <EmptyState
+              icon="🔍"
+              title="No members found"
+              body={activeFilterLabels.length
+                ? `Nothing matches ${activeFilterLabels.join(' + ')}.`
+                : 'There’s nobody here yet.'}
+              action={activeFilterLabels.length
+                ? { label: activeFilterLabels.length === 1 && trimmedSearch ? 'Clear search' : 'Clear all filters', onClick: clearAllFilters }
+                : undefined}
+            />
+          )}
+
+          {!busy && visible.length > 0 && (
+            <>
+              {view === 'cards' && (
+                <div className="sm:hidden">
+                  <MemberFlashCards
+                    members={visible}
+                    currentUserId={user.id}
+                    connections={connections}
+                    onConnectionChange={handleConnectionChange}
+                    onSelect={handleSelectMember}
+                    getConnectionStatus={getConnectionStatus}
+                    onNearEnd={handleDeckNearEnd}
+                    resetKey={queryKey}
+                  />
+                </div>
+              )}
+              <div className={`grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 ${view === 'cards' ? 'hidden sm:grid' : 'grid'}`}>
+                {visible.map(m => (
+                  <MemberCard key={m.id} m={m} onSelect={handleSelectMember} connectionStatus={getConnectionStatus(m.id)} hangingOut={hangoutHostIds.has(m.id)} />
+                ))}
+              </div>
+              {/* Counts and paging follow the query on screen — both used
+                  to read the unfiltered directory, so under a filter the
+                  footer counted strangers and the button fetched pages
+                  that never rendered. */}
+              {hasMore && (
+                // Deck auto-paginates, so the manual button is desktop/grid-only
+                // while cards view is active on mobile.
+                <div className={`flex-col items-center gap-2 mt-8 ${view === 'cards' ? 'hidden sm:flex' : 'flex'}`}>
+                  <p className="text-sm text-gray-400">Showing {members.length} of {total} members</p>
+                  <button
+                    onClick={loadMore}
+                    disabled={loadingMore}
+                    className="px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50"
+                  >
+                    {loadingMore ? 'Loading…' : 'Load more members'}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   )

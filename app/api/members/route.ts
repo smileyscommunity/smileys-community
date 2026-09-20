@@ -8,8 +8,20 @@ import { resolveCityId } from '@/lib/city'
 import { LOOKING_FOR_VALUES } from '@/lib/profileOptions'
 import { firstNameOf } from '@/lib/data'
 import { nameSearchWhere } from '@/lib/memberPrivacy'
+import { searchableMemberIds } from '@/lib/memberSearch'
+import { fold } from '@/lib/turkishFold'
 
 const PAGE_SIZE = 100
+
+// The id keeps a page boundary stable when two members share a timestamp.
+// `active` puts nulls last explicitly: Postgres sorts NULLS FIRST on a DESC,
+// so "most active" opened with the 200 members who have never been seen.
+// (`name` is ordered in the handler — a Turkish A–Z is not the database's.)
+const SORTS = {
+  joined: [{ joinedAt: 'desc' as const }, { id: 'desc' as const }],
+  name:   [{ name: 'asc' as const }, { id: 'asc' as const }],
+  active: [{ lastActive: { sort: 'desc' as const, nulls: 'last' as const } }, { id: 'desc' as const }],
+}
 
 export async function GET(req: NextRequest) {
   const session = await getSession()
@@ -20,9 +32,21 @@ export async function GET(req: NextRequest) {
   }
 
   const offset    = Math.max(parseInt(req.nextUrl.searchParams.get('offset') ?? '0', 10) || 0, 0)
+  // Ordering belongs here, not in the browser: sorting A–Z client-side sorted
+  // the hundred rows that happened to be loaded, and re-shuffled the list
+  // under the reader whenever the next page arrived.
+  const sortParam = req.nextUrl.searchParams.get('sort') ?? 'joined'
+  const sort: keyof typeof SORTS = sortParam in SORTS ? sortParam as keyof typeof SORTS : 'joined'
   const isHost    = req.nextUrl.searchParams.get('isHost') === 'true'
   const adminOnly = req.nextUrl.searchParams.get('adminOnly') === 'true'
   const savedOnly = req.nextUrl.searchParams.get('savedOnly') === 'true'
+  // A handful of members by id — what the page asks for when a connection is
+  // accepted and the row it holds was redacted at fetch time. Bounded, and
+  // every visibility rule below still applies to them.
+  const ids = req.nextUrl.searchParams.get('ids')
+  const idFilter: Prisma.UserWhereInput = ids
+    ? { id: { in: ids.split(',').map(x => x.trim()).filter(Boolean).slice(0, 25) } }
+    : {}
   const aroundNow = req.nextUrl.searchParams.get('aroundNow') === 'true'
   const openTo    = req.nextUrl.searchParams.get('openTo')
   const lookingFor   = req.nextUrl.searchParams.get('lookingFor')
@@ -48,9 +72,15 @@ export async function GET(req: NextRequest) {
     if (viewer?.languages?.length) langFilter = { languages: { hasSome: viewer.languages } }
   }
 
+  // Name, interest and club — what the search box says it searches — with
+  // Turkish letters folded so "ipek" finds İpek (lib/memberSearch). Public
+  // members only: a locked member stays findable by the start of their first
+  // name and nothing else.
+  const searchIds = search ? await searchableMemberIds(search, await resolveCityId(session)) : []
   const searchFilter: Prisma.UserWhereInput = search ? {
     OR: [
       await nameSearchWhere(session, search, 'contains'),
+      ...(searchIds.length ? [{ id: { in: searchIds } }] : []),
       // Neighborhood + nationality are hidden on a private member's locked
       // card, so only match them on publicly-visible profiles — otherwise a
       // search could confirm a 'connections only' member's hidden attributes
@@ -101,7 +131,10 @@ export async function GET(req: NextRequest) {
   // only member the viewer can't see in full isn't matched on them, or the
   // filter would say what the card withholds ("free now" under a card that
   // says nothing).
-  const filtersHidden = !!(openTo || lookingFor || speaksMyLang || aroundNow)
+  // isHost/adminOnly belong here too: the host pill matches club membership
+  // — private clubs included — and a locked card that came back said
+  // `isHost: false` while its presence in the result proved otherwise.
+  const filtersHidden = !!(openTo || lookingFor || speaksMyLang || aroundNow || isHost || adminOnly)
   const visibleWhere: Prisma.UserWhereInput = filtersHidden && !privileged
     ? { OR: [{ profileVisibility: { not: 'connections' } }, { id: { in: [session.id, ...connectionIds] } }] }
     : {}
@@ -114,8 +147,11 @@ export async function GET(req: NextRequest) {
   const where: Prisma.UserWhereInput = {
     AND: [
       // Browse discovery lists the viewer's own city. Saved members stay
-      // cross-city — a save is a personal bookmark, not discovery.
-      ...(savedOnly ? [] : [{ cityId: await resolveCityId(session) }]),
+      // cross-city — a save is a personal bookmark, not discovery — and so
+      // does an explicit `ids=` fetch: the page asks for a member it already
+      // has a relationship with (a connection it just accepted), who may live
+      // anywhere. Every other rule below still applies to them.
+      ...(savedOnly || ids ? [] : [{ cityId: await resolveCityId(session) }]),
       // Everyone is listed regardless of privacy setting — 'connections
       // only' members appear as redacted cards (see result mapping), not
       // hidden. Discovery for all; details gated per-card.
@@ -127,6 +163,7 @@ export async function GET(req: NextRequest) {
       // A suspended member is off the member surfaces until it lifts — the
       // profile page 404s for them, so the card pointed at nothing.
       { OR: [{ suspendedUntil: null }, { suspendedUntil: { lte: new Date() } }] },
+      idFilter,
       visibleWhere,
       openFilter,
       lookingForFilter,
@@ -144,19 +181,51 @@ export async function GET(req: NextRequest) {
       savedOnly && savedIds !== null
         ? { id: { in: savedIds }, status: 'approved', role: { in: roleIn } }
         : isHost
-        ? { status: 'approved', role: { in: roleIn }, clubMemberships: { some: { role: 'host', status: 'approved' } } }
+        ? { status: 'approved', role: { in: roleIn }, clubMemberships: { some: { role: 'host', status: 'approved', club: { isActive: true } } } }
         : adminOnly
         ? { status: 'approved', role: 'admin' }
         : { status: 'approved', role: { in: roleIn } },
     ],
   }
 
+  // The visibility floor every count shares with the list: this city, live
+  // accounts, nobody hidden, suspended or blocked either way.
+  // The Hosts and Admins lists now exclude connections-only members (their
+  // filters joined `filtersHidden`), so their counts must too — otherwise the
+  // difference between the number and the list is a count of private hosts.
+  const pillVisible: Prisma.UserWhereInput = privileged ? {} : {
+    OR: [{ profileVisibility: { not: 'connections' } }, { id: { in: [session.id, ...connectionIds] } }],
+  }
+
+  const visibleBase: Prisma.UserWhereInput = {
+    status: 'approved',
+    hiddenFromMembers: false,
+    role: { in: roleIn },
+    cityId: await resolveCityId(session),
+    OR: [{ suspendedUntil: null }, { suspendedUntil: { lte: new Date() } }],
+    ...(blockedIds.length > 0 ? { id: { notIn: blockedIds } } : {}),
+  }
+
+  // A–Z is not the database's A–Z: both databases run the C collation, which
+  // files every Ç/Ö/Ş/Ü/İ name after Z — in an Istanbul directory that is
+  // most of the page. The ids are ordered here instead, folded the way the
+  // search box folds them (lib/turkishFold), then the page is read back by
+  // id. Bounded: a city's directory, ids only.
+  let nameOrderedIds: string[] | null = null
+  if (sort === 'name') {
+    const rows = await prisma.user.findMany({ where, select: { id: true, name: true }, take: 5000 })
+    nameOrderedIds = rows
+      .sort((a, b) => fold(a.name).localeCompare(fold(b.name), 'tr') || a.id.localeCompare(b.id))
+      .slice(offset, offset + PAGE_SIZE)
+      .map(r => r.id)
+  }
+
   const [members, total, hostTotal, adminTotal, savedTotal] = await Promise.all([
     prisma.user.findMany({
-      where,
-      orderBy: { joinedAt: 'desc' },
+      where: nameOrderedIds ? { id: { in: nameOrderedIds } } : where,
+      orderBy: SORTS[sort],
       take: PAGE_SIZE,
-      skip: offset,
+      skip: nameOrderedIds ? 0 : offset,
       select: {
         id: true, name: true, color: true, bio: true,
         neighborhood: true, neighborhoodVisible: true, nationality: true, interests: true,
@@ -175,17 +244,29 @@ export async function GET(req: NextRequest) {
       },
     }),
     prisma.user.count({ where }),
+    // The pills count what their own list would show: city, blocks,
+    // suspensions and all. They were network-wide, so a Bursa member read
+    // "Admins 4" and opened an empty list (the admins are in Istanbul), and
+    // the numbers quietly disclosed other cities' staff counts.
     prisma.user.count({
       where: {
-        status: 'approved',
-        hiddenFromMembers: false,
-        clubMemberships: { some: { role: 'host', status: 'approved' } },
+        ...(visibleBase as Prisma.UserWhereInput),
+        ...(pillVisible as Prisma.UserWhereInput),
+        clubMemberships: { some: { role: 'host', status: 'approved', club: { isActive: true } } },
       },
     }),
+    prisma.user.count({ where: { ...(visibleBase as Prisma.UserWhereInput), ...(pillVisible as Prisma.UserWhereInput), role: 'admin' } }),
+    // Saved counted raw while the saved LIST filters out blocked, hidden and
+    // suspended members — so "Saved 7" opening to six was a way to learn
+    // somebody had blocked you. No city clause: a save is a personal
+    // bookmark and the saved list is deliberately cross-city.
     prisma.user.count({
-      where: { status: 'approved', hiddenFromMembers: false, role: 'admin' },
+      where: {
+        ...(visibleBase as Prisma.UserWhereInput),
+        cityId: undefined,
+        savedByMembers: { some: { userId: session.id } },
+      },
     }),
-    prisma.memberSave.count({ where: { userId: session.id } }),
   ])
 
   // Which of the returned members currently have a live pulse — one batched
@@ -201,7 +282,11 @@ export async function GET(req: NextRequest) {
   // The profile route gates socials and last-active behind a connection
   // (self / connected / privileged); the list handed them to anyone.
   const fullFor = (id: string) => id === session.id || privileged || connectionIds.has(id)
-  const result = members.map(m => {
+  // Read back by id loses the order they were chosen in; put it back.
+  const ordered = nameOrderedIds
+    ? nameOrderedIds.flatMap(id => members.filter(m => m.id === id))
+    : members
+  const result = ordered.map(m => {
     // A 'connections only' member is redacted unless the viewer is
     // allowed full access: themselves, an accepted connection, or a
     // privileged role (admin/moderator/club host).
@@ -222,9 +307,11 @@ export async function GET(req: NextRequest) {
         neighborhood: null, nationality: null,
         interests: [] as string[], languages: [] as string[],
         socialStyles: [] as string[], lookingFor: [] as string[],
-        profilePhoto: null, joinedAt: m.joinedAt,
-        role: m.role, instagram: null, linkedin: null, lastActive: null,
-        membershipType: m.membershipType, foundingMember: m.foundingMember,
+        // Nothing the locked profile withholds: it returns no role, no join
+        // date and no tier, and the card was rendering all three.
+        profilePhoto: null, joinedAt: null,
+        role: null, instagram: null, linkedin: null, lastActive: null,
+        membershipType: null, foundingMember: false,
         isHost: false, clubs: [] as { id: string; name: string; emoji: string | null; slug: string; isHost: boolean }[],
         eventsCount: 0,
         activePulse: false,
@@ -238,17 +325,30 @@ export async function GET(req: NextRequest) {
       // Only for members who chose to be listed by neighbourhood.
       neighborhood: full || m.neighborhoodVisible ? m.neighborhood : null, nationality: m.nationality,
       interests: m.interests, languages: m.languages,
-      socialStyles: m.socialStyles, lookingFor: m.lookingFor,
+      socialStyles: m.socialStyles,
+      // Shown to any member, like interests: it is a discovery signal, and
+      // the "looking for" filter would confirm it one request at a time
+      // anyway. The profile route returns it at the same level.
+      lookingFor: m.lookingFor,
       profilePhoto: m.profilePhoto, joinedAt: m.joinedAt,
       role: m.role, instagram: fullFor(m.id) ? m.instagram : null, linkedin: fullFor(m.id) ? m.linkedin : null, lastActive: fullFor(m.id) ? m.lastActive : null,
       membershipType: m.membershipType, foundingMember: m.foundingMember,
       isHost:      m.clubMemberships.some(cm => cm.role === 'host'),
       // A private club's membership is for its members to know; connections
       // and staff see them all.
+      // Which clubs someone HOSTS is public (they run the room); which ones
+      // they merely belong to is for a connection — the same line the
+      // profile route draws.
       clubs:       m.clubMemberships
-                     .filter(cm => full || !cm.club.isPrivate)
+                     .filter(cm => full ? true : cm.role === 'host' && !cm.club.isPrivate)
                      .map(({ club, role }) => ({ id: club.id, name: club.name, emoji: club.emoji, slug: club.slug, isHost: role === 'host' })),
       eventsCount: m._count.joinedEvents,
+      // The three "open to" flags the card renders as ☕ 🗣️ 🏠 — selected
+      // for the filter since it shipped, never actually returned, so those
+      // pills could not appear on anybody.
+      openToCoffee:   m.openToCoffee,
+      openToLanguage: m.openToLanguage,
+      openToHosting:  m.openToHosting,
       activePulse: pulseUserIds.has(m.id),
       restricted: false,
     }

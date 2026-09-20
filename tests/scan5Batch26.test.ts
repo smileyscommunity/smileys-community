@@ -257,9 +257,12 @@ describe('d. member discovery host pool', () => {
     const res = await discoveryGET()
     expect(res.status).toBe(200)
     expect(p.event.findMany.mock.calls[0][0].where).toEqual({ cityId: 'tbilisi', date: { gte: '2026-09-15' }, status: 'published' })
-    const hostQuery = p.user.findMany.mock.calls.map(c => c[0].where).find((w: any) => w.AND)
+    // AND[0] is the suspension filter every pool carries; the host pool
+    // merges its own clause after it (members directory review, 2026-09-20).
+    const hostQuery = p.user.findMany.mock.calls.map(c => c[0].where).find((w: any) => w.AND?.length > 1)
     expect(hostQuery.cityId).toBe('tbilisi')
-    expect(hostQuery.AND[0].OR).toEqual([
+    expect(hostQuery.AND[0]).toEqual({ OR: [{ suspendedUntil: null }, { suspendedUntil: { lte: new Date() } }] })
+    expect(hostQuery.AND[1].OR).toEqual([
       { clubMemberships: { some: { role: 'host', status: 'approved', club: { OR: [{ cityId: 'tbilisi' }, { cityId: null }] } } } },
       { id: { in: ['hostT'] } },
     ])

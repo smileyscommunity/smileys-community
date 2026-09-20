@@ -59,14 +59,22 @@ describe('what a member sees of another', () => {
     }
     expect(src('app/api/members/search/route.ts')).toContain('photo:      restricted.has(u.id) ? null : u.profilePhoto,')
     // Filters on fields a locked card hides don't match locked members.
-    expect(src('app/api/members/route.ts')).toContain('const filtersHidden = !!(openTo || lookingFor || speaksMyLang || aroundNow)')
+    // The host/admin pills joined the list (members directory review,
+    // 2026-09-20): the host pill matched private-club membership, so a
+    // locked card appearing in the result proved what it said it wasn't.
+    expect(src('app/api/members/route.ts')).toContain('const filtersHidden = !!(openTo || lookingFor || speaksMyLang || aroundNow || isHost || adminOnly)')
   })
 
   it('the directory list shows a locked member the same way', () => {
     const list = src('app/api/members/route.ts')
     expect(list).toContain('id: m.id, name: firstNameOf(m.name), color: m.color, bio: null,')
-    expect(list).toContain('profilePhoto: null, joinedAt: m.joinedAt,')
-    expect(list).toContain('.filter(cm => full || !cm.club.isPrivate)')
+    // Nothing the locked profile withholds — it returns no join date, role
+    // or tier either (members directory review, 2026-09-20).
+    expect(list).toContain('profilePhoto: null, joinedAt: null,')
+    // Which clubs someone HOSTS is public; which they merely belong to is a
+    // connection's to read — the line the profile route draws (members
+    // directory review, 2026-09-20).
+    expect(list).toContain("cm.role === 'host' && !cm.club.isPrivate")
     expect(list).toContain('{ OR: [{ suspendedUntil: null }, { suspendedUntil: { lte: new Date() } }] }')
   })
 

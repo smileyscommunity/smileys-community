@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { rateLimit } from '@/lib/rateLimit'
 import { resolveCityId, getCityTz } from '@/lib/city'
 import { todayInTz } from '@/lib/cityTime'
 import { loadViewerFacts, sharedContextFor, contextLabel } from '@/lib/sharedContext'
@@ -22,7 +23,7 @@ import { rotationSeed, seededShuffle } from '@/lib/rotation'
 
 const CARD_SELECT = {
   id: true, name: true, color: true, profilePhoto: true,
-  neighborhood: true, interests: true, joinedAt: true, role: true,
+  neighborhood: true, neighborhoodVisible: true, interests: true, joinedAt: true, role: true,
 } as const
 
 // How many candidates each section pulls (ids only) before rotation, and
@@ -41,6 +42,12 @@ const SHOW = 8
 export async function GET() {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  // Seven pooled queries and a shared-context pass — the heaviest member
+  // route, and the only one that had no budget at all.
+  if (!await rateLimit(`member-discovery:${session.id}`, 30, 60_000)) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+  }
 
   const viewer = await loadViewerFacts(session.id)
   const seed = rotationSeed(session.id)
@@ -73,6 +80,16 @@ export async function GET() {
     // surface after the multi-city pass).
     cityId,
     id: { notIn: [...excluded] },
+    // A suspension takes a member off the people surfaces until it lifts —
+    // /api/members, search and the profile all say so, and the profile 404s,
+    // so discovery was offering cards that led nowhere.
+    //
+    // Spelled as "null OR past", not as a NOT: `NOT (suspendedUntil > now)`
+    // is NULL for the ~99% of members who have never been suspended, and a
+    // NULL predicate excludes the row — written that way this filter emptied
+    // every discovery pool in the product. The pools below spread this
+    // object, so any that add an AND of their own must merge with this one.
+    AND: [{ OR: [{ suspendedUntil: null }, { suspendedUntil: { lte: new Date() } }] }],
     OR: [
       { profileVisibility: 'everyone' },
       { id: { in: [...connectedIds] } },
@@ -118,7 +135,11 @@ export async function GET() {
     // §13 — around your neighborhood
     viewer.neighborhood
       ? prisma.user.findMany({
-          where:  { ...visibleWhere, neighborhood: viewer.neighborhood },
+          // Only members who chose to be listed by their neighbourhood: this
+          // pool doesn't just show the name, it gathers people BY it, which
+          // turned "don't list my neighbourhood" into "here are your
+          // neighbours, including the ones who asked not to be".
+          where:  { ...visibleWhere, neighborhood: viewer.neighborhood, neighborhoodVisible: true },
           select: { id: true },
           take:   POOL,
         })
@@ -146,7 +167,9 @@ export async function GET() {
     prisma.user.findMany({
       where: {
         ...visibleWhere,
-        AND: [{
+        // Merged, not replaced: a bare AND here would drop the suspension
+        // filter that visibleWhere carries.
+        AND: [...visibleWhere.AND, {
           OR: [
             // This city's clubs (or network-wide ones), not a host role
             // held in some other city.
@@ -196,7 +219,7 @@ export async function GET() {
     const c = ctx.get(m.id)
     return {
       id: m.id, name: m.name, color: m.color, profilePhoto: m.profilePhoto,
-      neighborhood: m.neighborhood,
+      neighborhood: m.neighborhoodVisible ? m.neighborhood : null,
       interests: m.interests.slice(0, 3),
       isHost: m.role === 'host',
       context: c ? { label: contextLabel(c), clubs: c.clubs.slice(0, 2) } : null,

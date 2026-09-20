@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
   }
 
-  const { userId } = await req.json()
+  const { userId } = await req.json().catch(() => ({}))
   if (!userId || typeof userId !== 'string' || userId === session.id) {
     return NextResponse.json({ error: 'Invalid' }, { status: 400 })
   }
@@ -39,16 +39,33 @@ export async function POST(req: NextRequest) {
       create: { blockerId: session.id, blockedId: userId },
       update: {},
     }),
-    // Sever the connection (any status, both directions) in the same stroke.
-    // An accepted connection that survived a block kept the blocked person
-    // in the blocker's hangout fan-out and in both connection lists; a
-    // pending one could even be accepted post-block. Re-requests after an
-    // unblock stay controlled: the connections POST refuses blocked pairs
-    // while the block stands.
+    // Sever the live connection (both directions). An accepted connection
+    // that survived a block kept the blocked person in the blocker's hangout
+    // fan-out and in both connection lists; a pending one could even be
+    // accepted post-block.
+    //
+    // A DECLINED row is not severed — it is the decline itself. Those rows
+    // are permanent and invisible on purpose (see api/connections): they are
+    // what stops someone re-sending a request that was already refused, and
+    // what the connection-abuse scan counts. Deleting them meant block →
+    // unblock → request again landed a fresh notification, repeatable daily,
+    // and scrubbed the sender's volume out of Monday's report.
     prisma.memberConnection.deleteMany({
+      where: {
+        status: { in: ['pending', 'accepted'] },
+        OR: [
+          { requesterId: session.id, receiverId: userId },
+          { requesterId: userId,     receiverId: session.id },
+        ],
+      },
+    }),
+    // A save is a relationship too: blocking someone shouldn't leave them
+    // bookmarked (and the saved list filters them out anyway, which made the
+    // saved count disagree with it).
+    prisma.memberSave.deleteMany({
       where: { OR: [
-        { requesterId: session.id, receiverId: userId },
-        { requesterId: userId,     receiverId: session.id },
+        { userId: session.id, savedId: userId },
+        { userId,             savedId: session.id },
       ] },
     }),
     // Unseat the pair from each other's live hangouts too — a pre-block
@@ -68,8 +85,14 @@ export async function DELETE(req: NextRequest) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { userId } = await req.json()
+  const { userId } = await req.json().catch(() => ({}))
   if (!userId || typeof userId !== 'string') return NextResponse.json({ error: 'Invalid' }, { status: 400 })
+
+  // Blocking is bounded; unblocking wasn't, and the pair of them is how a
+  // refused request could be re-sent.
+  if (!await rateLimit(`unblock:${session.id}`, 20, 60 * 60_000)) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+  }
 
   await prisma.memberBlock.deleteMany({
     where: { blockerId: session.id, blockedId: userId },

@@ -30,7 +30,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         neighborhood: true, neighborhoodVisible: true, hiddenFromMembers: true, suspendedUntil: true,
         nationality: true, interests: true,
         languages: true, profilePhoto: true, joinedAt: true, role: true,
-        instagram: true, linkedin: true, socialStyles: true, lastActive: true, profileVisibility: true, membershipType: true,
+        instagram: true, linkedin: true, socialStyles: true, lookingFor: true, lastActive: true, profileVisibility: true, membershipType: true,
         foundingMember: true,
         referralCode: true,
         goodHangouts: true,
@@ -215,6 +215,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     interests:    user.interests,
     languages:    user.languages,
     socialStyles: user.socialStyles,
+    // Shown at the same level as interests, and the same level the directory
+    // shows it — a discovery signal, not a contact detail.
+    lookingFor:   user.lookingFor,
     profilePhoto: user.profilePhoto,
     joinedAt:     user.joinedAt,
     // Presence, for the chat header's "Online / last seen". Only for a

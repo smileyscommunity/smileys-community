@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { firstNameOf } from '@/lib/data'
 import { restrictedSetFor } from '@/lib/memberPrivacy'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
@@ -37,11 +38,17 @@ export async function GET(req: NextRequest) {
   ])
 
   // A pending row is not a connection: a connections-only member on the
-  // other side keeps their neighborhood until it is accepted.
+  // other side is the same locked card here as everywhere else — first name,
+  // no photo, no neighbourhood — until it is accepted. Only the neighbourhood
+  // was withheld, so sending someone a request (and withdrawing it) was a way
+  // to read the full name and photo their card hides: ten members a day, per
+  // account, with the strip on /members rendering it straight back.
   const restricted = await restrictedSetFor(session, [...sent.map(c => c.receiver), ...received.map(c => c.requester)])
-  const redact = <T extends { id: string; neighborhood: string | null; profileVisibility?: string }>(p: T) => {
+  const redact = <T extends { id: string; name: string; profilePhoto: string | null; neighborhood: string | null; profileVisibility?: string }>(p: T) => {
     const { profileVisibility: _pv, ...rest } = p
-    return restricted.has(p.id) ? { ...rest, neighborhood: null } : rest
+    return restricted.has(p.id)
+      ? { ...rest, name: firstNameOf(p.name), profilePhoto: null, neighborhood: null }
+      : rest
   }
   return NextResponse.json({
     ...(wantSent     ? { sent:     sent.map(c => ({ ...c, receiver: redact(c.receiver) })) } : {}),
