@@ -9,25 +9,22 @@ import { prisma } from '@/lib/prisma'
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { DEFAULT_CITY_SLUG } from '@/lib/city'
+import { DEFAULT_TZ } from '@/lib/cityTime'
 import { resolveCityForPage, type CitySearch } from '@/lib/cityPageParam'
 import { shareCover } from '@/lib/shareCover'
 import { postCityScope } from '@/lib/postScope'
-import { resolveImageUrl, firstNameOf} from '@/lib/data'
-import { canonicalCategory, categoryMeta, categoryHero, CATEGORY_KEYS, HANDBOOK_CATEGORIES } from '@/lib/handbook-categories'
+import { articleCover } from '@/lib/articleCover'
+import { getSession } from '@/lib/session'
+import { storyBylines } from '@/lib/storyByline'
+import { canonicalCategory, categoryMeta, CATEGORY_KEYS, HANDBOOK_CATEGORIES } from '@/lib/handbook-categories'
 import { reviewLabel, readingTime } from '@/lib/handbook-review'
 import type { HandbookSearchItem } from '@/lib/handbook-search'
 import { APP_URL } from '@/lib/env'
 
-// Prefer explicit coverImage, then the first inline <img> in the body (most
-// articles paste a hero photo at the top via the rich-text editor rather than
-// setting the separate cover field), then the category banner as a last resort.
-const FIRST_BODY_IMG_RE = /<img\b[^>]*\bsrc=["']([^"']+)["']/i
-function articleCover(a: { coverImage: string | null; body: string; category: string }): string | null {
-  if (a.coverImage) return resolveImageUrl(a.coverImage)
-  const inline = a.body.match(FIRST_BODY_IMG_RE)?.[1]
-  if (inline) return resolveImageUrl(inline)
-  return categoryHero(a.category)?.src ?? null
-}
+// Card covers come from lib/articleCover: explicit cover, else the first
+// inline body image — OWN UPLOADS ONLY — else the category banner. A private
+// copy of that regex here took any host, so an external <img> the article
+// page strips was still fetched by every visitor to this index.
 
 // Scoped to the viewer's city by the shared rule in lib/postScope: this
 // city's own articles, its COUNTRY's national ones (residence permits, tax
@@ -40,8 +37,14 @@ const getHandbookArticles = unstable_cache(
     orderBy: { publishedAt: 'desc' },
     select:  {
       id: true, slug: true, title: true, excerpt: true, body: true, coverImage: true, category: true,
-      publishedAt: true, lastReviewedAt: true, reviewIntervalDays: true, tags: true, views: true,
-      author: { select: { name: true } },
+      publishedAt: true, lastReviewedAt: true, reviewIntervalDays: true, tags: true,
+      // The privacy columns ride along so the byline can be projected for
+      // this viewer AFTER the cache (lib/storyByline) — a card must not say
+      // "by Nate" for an author the article itself calls a Smileys member.
+      author: { select: {
+        id: true, name: true, color: true, profilePhoto: true,
+        profileVisibility: true, status: true, hiddenFromMembers: true,
+      } },
     },
   }),
   ['handbook-articles'],
@@ -71,9 +74,13 @@ export async function generateMetadata({ searchParams }: { searchParams?: Promis
   const isDefault    = city.slug === DEFAULT_CITY_SLUG
   const canonicalUrl = isDefault ? `${APP_URL}/handbook` : `${APP_URL}/handbook?city=${city.slug}`
   const title = `The ${name} Handbook — Understand ${name}`
+  // The default city's description names its topics — it has them. Another
+  // city's promises only what every city's handbook has: answers written by
+  // members who lived there. Tbilisi's was promising residence permits and
+  // banking above an empty index.
   const desc  = isDefault
     ? 'Understand Istanbul. Practical answers for living, moving and navigating life in Istanbul — residence permits, banking, healthcare, transport — written by Smileys members who actually lived it.'
-    : `Understand ${name}. Practical answers for living, moving and navigating life in ${name} — residence permits, banking, healthcare, transport — written by Smileys members who actually lived it.`
+    : `Understand ${name}. Practical answers for living, moving and navigating life in ${name} — written by Smileys members who actually lived it.`
   const alt = `The ${name} Handbook — Smileys Community`
 
   const image = shareCover('handbook', city, alt)
@@ -124,8 +131,13 @@ const START_HERE: { slug: string; emoji: string; label: string }[] = [
   { slug: 'family-life-in-istanbul-raising-children-with-confidence',                  emoji: '👨‍👩‍👧', label: 'Move with children' },
 ]
 
+// A review is a staff act, so it reads in the default city's day — the same
+// calendar reviewLabel() uses for the article page and the search results.
+// (The server is UTC; without a zone a review stamped at 00:30 Istanbul read
+// as the day before, and a viewer-city zone made the card and the article
+// disagree by a day for cities off Istanbul's offset.)
 function formatReviewedShort(d: Date | string) {
-  return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+  return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: DEFAULT_TZ })
 }
 
 // Quick-reference links (apps, official sites, practical how-tos) —
@@ -168,6 +180,7 @@ export default async function HandbookPage({ searchParams }: { searchParams?: Pr
 
   const city = { id: cityId, country: cfg.country ?? null, name: cfg.name, isDefault: cfg.slug === DEFAULT_CITY_SLUG }
   const articles = await getHandbookArticles(city.id, city.country)
+  const byline   = await storyBylines(await getSession(), articles.map(a => a.author))
 
   // Group by CANONICAL category so legacy-keyed rows land in the new IA
   // without a data migration. Dev-only: warn when an article's category
@@ -210,6 +223,12 @@ export default async function HandbookPage({ searchParams }: { searchParams?: Pr
       tags:     a.tags,
     } satisfies HandbookSearchItem
   })
+  // Whether a reviewed article is past its interval — the chip below must
+  // not stay green on a review that has lapsed while the article page says
+  // "⏳" for the same state.
+  const staleBySlug = new Map(articles.map(a => [a.slug,
+    reviewLabel({ category: canonicalCategory(a.category) ?? a.category, lastReviewedAt: a.lastReviewedAt, reviewIntervalDays: a.reviewIntervalDays })?.stale ?? false,
+  ]))
   const enrichedBySlug = new Map(enriched.map(e => [e.slug, e]))
 
   const startHere = (city.isDefault ? START_HERE : [])
@@ -325,11 +344,13 @@ export default async function HandbookPage({ searchParams }: { searchParams?: Pr
                       <div className="p-6 min-w-0">
                         <div className="flex items-center gap-2 mb-2 text-xs text-gray-600 flex-wrap">
                           <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-bold">{e?.category ?? a.category}</span>
-                          {a.author?.name && <span>by {firstNameOf(a.author.name)}</span>}
+                          <span>by {byline(a.author).name}</span>
                           <span>· {e?.minutes ?? 1} min read</span>
                           {a.lastReviewedAt && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 font-bold">
-                              <span aria-hidden="true">✓</span> Reviewed {formatReviewedShort(a.lastReviewedAt)}
+                            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-bold ${
+                              staleBySlug.get(a.slug) ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+                            }`}>
+                              <span aria-hidden="true">{staleBySlug.get(a.slug) ? '⏳' : '✓'}</span> Reviewed {formatReviewedShort(a.lastReviewedAt)}
                             </span>
                           )}
                         </div>
@@ -366,9 +387,13 @@ export default async function HandbookPage({ searchParams }: { searchParams?: Pr
         <section className="bg-white">
           <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
             <div aria-hidden="true" className="text-5xl mb-4">📝</div>
-            <h2 className="text-xl font-extrabold text-gray-900 mb-2">First articles landing soon</h2>
+            {/* Honest per city: Tbilisi's index claimed a seeding of twenty
+                articles under a description promising residence permits and
+                banking. Nothing is seeded; someone has to write it, and that
+                someone is the reader. */}
+            <h2 className="text-xl font-extrabold text-gray-900 mb-2">The {city.name} Handbook starts with its first article</h2>
             <p className="text-sm text-gray-600 max-w-md mx-auto mb-6">
-              The Handbook is being seeded with the first 20 essential articles. Lived through something the rest of us are about to face? Write the one you wish had existed when you arrived — members who contribute get a permanent <span className="font-semibold text-amber-600">Contributor badge</span>.
+              Nothing here yet for {city.name}. Lived through something the rest of us are about to face — a permit, a bank, a landlord? Tell us and we&apos;ll write it together, under your name.
             </p>
             <Link href="/contact?topic=handbook" className="inline-block px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm transition-colors">
               Pitch a topic →
@@ -382,8 +407,9 @@ export default async function HandbookPage({ searchParams }: { searchParams?: Pr
         <section className="bg-white">
           <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12 text-center border-t border-gray-100">
             <h2 className="text-xl font-extrabold text-gray-900 mb-2">Lived through something the rest of us are about to face?</h2>
+            {/* No badge is promised: none exists. */}
             <p className="text-sm text-gray-600 max-w-md mx-auto mb-6">
-              Members who write a Handbook article get a permanent <span className="font-semibold text-amber-600">Contributor badge</span> and our deep gratitude. DM us the topic and we&apos;ll edit it together.
+              Write the article you wish had existed when you arrived — it goes up under your name, and we edit it together. Tell us the topic.
             </p>
             <Link href="/contact?topic=handbook" className="inline-block px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm transition-colors">
               Pitch a topic →

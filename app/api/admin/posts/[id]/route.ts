@@ -8,6 +8,7 @@ import { canManagePosts, canActOnCityContent, isAdmin } from '@/lib/access'
 import { requireStepUp } from '@/lib/stepUp'
 import { writeAudit } from '@/lib/audit'
 import { notifyNewArticle, createNotification } from '@/lib/notify'
+import { parseHandbookFields } from '@/lib/handbook-review'
 import { isKind, normalizeCommunityCategory, normalizeHandbookCategory, TITLE_MAX, EXCERPT_MAX, BODY_MAX } from '@/app/admin/posts/constants'
 
 // Match POST. External cover URLs would leak visitor IPs on render.
@@ -29,7 +30,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!session || !canManagePosts(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { id } = await params
-  const { title, excerpt, body, coverImage, status, category, kind, cityId, country, authorId } = await req.json()
+  const payload = await req.json()
+  const { title, excerpt, body, coverImage, status, category, kind, cityId, country, authorId } = payload
   const existing = await prisma.post.findUnique({ where: { id } })
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (!canActOnCityContent(session, existing.cityId)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -37,6 +39,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   // omits it or sends a value outside the whitelist. Category is validated
   // against the *new* kind so a simultaneous kind+category change is coherent.
   const postKind = isKind(kind) ? kind : (existing.kind ?? 'community')
+  // Handbook-only fields, patched only for the keys the client sent (the
+  // inline editor sends none and must leave them alone).
+  const handbook = postKind === 'handbook' ? parseHandbookFields(payload) : { ok: true as const, data: {} }
+  if (!handbook.ok) return NextResponse.json({ error: handbook.error }, { status: 400 })
   const cleanTitle   = String(title   ?? '').trim()
   const cleanExcerpt = excerpt ? String(excerpt).trim() : ''
   const cleanBody    = String(body    ?? '').trim()
@@ -129,6 +135,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       publishedAt: nowPublished
         ? (wasPublished ? existing.publishedAt : new Date())
         : null,
+      ...handbook.data,
     },
   }).catch((e: { code?: string }) => { if (e?.code === 'P2025') return null; throw e })
   if (!post) {

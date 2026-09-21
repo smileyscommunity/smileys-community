@@ -108,8 +108,10 @@ describe('readingTime', () => {
 
 describe('parseOfficialSources', () => {
   it('accepts well-formed https sources', () => {
+    // `host` is parsed here since the Handbook review (2026-09-22) so the
+    // page never calls new URL() in the render — a malformed row 500'd it.
     expect(parseOfficialSources([{ label: 'Göç İdaresi', url: 'https://www.goc.gov.tr' }]))
-      .toEqual([{ label: 'Göç İdaresi', url: 'https://www.goc.gov.tr' }])
+      .toEqual([{ label: 'Göç İdaresi', url: 'https://www.goc.gov.tr', host: 'goc.gov.tr' }])
   })
 
   it('rejects non-https links — a cited authority must not be downgradable', () => {

@@ -39,12 +39,22 @@ export async function POST(_req: NextRequest, { params }: Params) {
   const key = { postId_userId: { postId: post.id, userId: session.id } }
   const existing = await prisma.postLike.findUnique({ where: key })
 
+  // Two taps at once (two devices, a double-tap): the second create hits the
+  // unique key and the second delete finds nothing. Neither is an error —
+  // the row ends in one state, and the response says which.
+  let liked = !existing
   if (existing) {
-    await prisma.postLike.delete({ where: key })
+    const gone = await prisma.postLike.deleteMany({ where: { postId: post.id, userId: session.id } })
+    if (gone.count === 0) liked = false
   } else {
-    await prisma.postLike.create({ data: { postId: post.id, userId: session.id } })
+    try {
+      await prisma.postLike.create({ data: { postId: post.id, userId: session.id } })
+    } catch (e) {
+      if ((e as { code?: string })?.code !== 'P2002') throw e
+      liked = true
+    }
   }
 
   const count = await prisma.postLike.count({ where: { postId: post.id } })
-  return NextResponse.json({ liked: !existing, count })
+  return NextResponse.json({ liked, count })
 }

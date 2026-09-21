@@ -81,12 +81,19 @@ export function readingTime(html: string): number {
   return Math.max(1, Math.ceil(words / WORDS_PER_MINUTE))
 }
 
-export type OfficialSource = { label: string; url: string }
+export type OfficialSource = { label: string; url: string; host: string }
+
+export const SOURCE_LABEL_MAX = 120
+export const SOURCE_URL_MAX   = 2048
+export const SOURCES_MAX      = 30
 
 /** Parse the `officialSources` JSON column defensively — it is free-form JSON
  *  in the DB, so a hand-edited row must not be able to crash the article page.
- *  Only https links survive: these are cited as authoritative, and an http one
- *  would be a mixed-content downgrade on a page members are told to trust. */
+ *  Only https links that actually parse survive: these are cited as
+ *  authoritative, an http one would be a mixed-content downgrade on a page
+ *  members are told to trust, and `"https://"` alone passed the old prefix
+ *  check and then threw inside `new URL()` in the render — a 500 for the
+ *  whole article. The hostname is computed here, once, for the same reason. */
 export function parseOfficialSources(raw: unknown): OfficialSource[] {
   if (!Array.isArray(raw)) return []
   const out: OfficialSource[] = []
@@ -95,10 +102,119 @@ export function parseOfficialSources(raw: unknown): OfficialSource[] {
     const { label, url } = item as Record<string, unknown>
     if (typeof label !== 'string' || typeof url !== 'string') continue
     const trimmed = url.trim()
-    if (!/^https:\/\//i.test(trimmed)) continue
-    const text = label.trim()
+    let parsed: URL
+    try { parsed = new URL(trimmed) } catch { continue }
+    if (parsed.protocol !== 'https:' || !parsed.hostname) continue
+    const text = label.trim().slice(0, SOURCE_LABEL_MAX)
     if (!text) continue
-    out.push({ label: text, url: trimmed })
+    // One row per link: the same URL twice is a duplicate React key on the
+    // article, which breaks hydration for the whole page.
+    if (out.some(s => s.url === trimmed)) continue
+    out.push({ label: text, url: trimmed, host: parsed.hostname.replace(/^www\./, '') })
+    if (out.length >= SOURCES_MAX) break
   }
   return out
+}
+
+/** The same check the admin form's rows get on write: a clear reason, or null. */
+export function officialSourceError(item: unknown): string | null {
+  if (!item || typeof item !== 'object') return 'Each source needs a label and an https link'
+  const { label, url } = item as Record<string, unknown>
+  if (typeof label !== 'string' || !label.trim()) return 'Each source needs a label'
+  if (label.trim().length > SOURCE_LABEL_MAX) return `Source labels are ${SOURCE_LABEL_MAX} characters at most`
+  if (typeof url !== 'string' || !url.trim()) return `"${label.trim()}" needs a link`
+  if (url.trim().length > SOURCE_URL_MAX) return `"${label.trim()}" has a link that is too long`
+  let parsed: URL
+  try { parsed = new URL(url.trim()) } catch { return `"${label.trim()}" has a link that is not a valid address` }
+  if (parsed.protocol !== 'https:') return `"${label.trim()}" has to link to an https:// page`
+  return null
+}
+
+// How many sources the article page shows before folding the rest. Bodrum's
+// article cites 31 — a reader who wants "the authority that sets this rule"
+// should not have to scan a bibliography to find it.
+export const SOURCES_SHOWN = 6
+
+export const TAGS_MAX     = 10
+export const TAG_LEN_MAX  = 40
+export const REVIEW_INTERVAL_MIN = 1
+export const REVIEW_INTERVAL_MAX = 730
+
+/** Normalise a tags payload from the admin form; null = invalid. */
+export function normalizeTags(raw: unknown): string[] | null {
+  if (raw === undefined || raw === null) return []
+  if (!Array.isArray(raw)) return null
+  const seen = new Set<string>()
+  for (const t of raw) {
+    if (typeof t !== 'string') return null
+    const v = t.trim()
+    if (!v) continue
+    if (v.length > TAG_LEN_MAX) return null
+    // The admin form round-trips tags as one comma-separated field, so a tag
+    // containing a comma would come back as two.
+    if (v.includes(',')) return null
+    seen.add(v)
+  }
+  if (seen.size > TAGS_MAX) return null
+  return [...seen]
+}
+
+// ── Admin-form fields ───────────────────────────────────────────────────────
+// The review lifecycle had no staff path at all: none of these columns was in
+// the form or read by the API, so "Last reviewed" could only move via a
+// server script — 12 of 16 articles said "Not yet reviewed" because nobody
+// who reviews could say otherwise. `lastReviewedAt` is deliberately NOT here:
+// it is set by the "Reviewed today" action alone, after a real check.
+export type HandbookFieldsPatch = {
+  reviewIntervalDays?: number | null
+  tags?:               string[]
+  officialSources?:    { label: string; url: string }[]
+}
+
+/** Validate the handbook fields of an admin write. Keys absent from `input`
+ *  are absent from the patch (a partial edit leaves them alone). */
+export function parseHandbookFields(input: unknown):
+  { ok: true; data: HandbookFieldsPatch } | { ok: false; error: string } {
+  const data: HandbookFieldsPatch = {}
+  // A body that isn't an object carries no fields to patch; the caller's own
+  // title/body validation is what answers it.
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return { ok: true, data }
+  if ('reviewIntervalDays' in input) {
+    const v = (input as Record<string, unknown>).reviewIntervalDays
+    if (v === null || v === '' || v === undefined) data.reviewIntervalDays = null
+    else {
+      if (typeof v !== 'number' && typeof v !== 'string') {
+        return { ok: false, error: `Review interval has to be a whole number of days between ${REVIEW_INTERVAL_MIN} and ${REVIEW_INTERVAL_MAX}` }
+      }
+      const n = Number(v)
+      if (!Number.isInteger(n) || n < REVIEW_INTERVAL_MIN || n > REVIEW_INTERVAL_MAX) {
+        return { ok: false, error: `Review interval has to be a whole number of days between ${REVIEW_INTERVAL_MIN} and ${REVIEW_INTERVAL_MAX}` }
+      }
+      data.reviewIntervalDays = n
+    }
+  }
+  if ('tags' in input) {
+    const tags = normalizeTags((input as Record<string, unknown>).tags)
+    if (!tags) return { ok: false, error: `Up to ${TAGS_MAX} tags, each ${TAG_LEN_MAX} characters at most` }
+    data.tags = tags
+  }
+  if ('officialSources' in input) {
+    const raw = (input as Record<string, unknown>).officialSources
+    if (raw === null || raw === undefined) data.officialSources = []
+    else {
+      if (!Array.isArray(raw)) return { ok: false, error: 'Sources have to be a list' }
+      if (raw.length > SOURCES_MAX) return { ok: false, error: `Up to ${SOURCES_MAX} sources` }
+      const out: { label: string; url: string }[] = []
+      for (const item of raw) {
+        const err = officialSourceError(item)
+        if (err) return { ok: false, error: err }
+        const { label, url } = item as { label: string; url: string }
+        // Same link twice is one source (a duplicate React key on the page).
+        if (out.some(s => s.url === url.trim())) continue
+        out.push({ label: label.trim(), url: url.trim() })
+      }
+      data.officialSources = out
+    }
+  }
+  return { ok: true, data }
 }

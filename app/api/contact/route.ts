@@ -23,6 +23,9 @@ const TOPIC_LABELS: Record<string, string> = {
   technical:   'Technical Issue',
   partnership: 'Partnership / Collaboration',
   press:       'Media & Press',
+  // A correction or an addition to a Handbook article — the article page's
+  // "Send a tip" lands here, with the slug in the message.
+  handbook:    'Handbook article',
   other:       'Other',
 }
 

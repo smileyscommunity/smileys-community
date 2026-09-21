@@ -10,11 +10,15 @@ import { postCityScope } from '@/lib/postScope'
 import { sanitizeArticle } from '@/lib/sanitize'
 import { resolveImageUrl } from '@/lib/data'
 import { firstBodyImage } from '@/lib/articleCover'
+import { isArticleImageSrc } from '@/lib/uploadedImageUrl'
 import { getNextInSeries } from '@/lib/postSeries'
 import { SITE_URL, APP_URL } from '@/lib/env'
 import { HANDBOOK_TO_GUIDE } from '@/lib/handbook-links'
+import { seeAlsoSlug } from '@/lib/handbookSeeAlso'
 import { canonicalCategory, categoryMeta, storedKeysFor } from '@/lib/handbook-categories'
-import { reviewLabel, readingTime, parseOfficialSources } from '@/lib/handbook-review'
+import { reviewLabel, readingTime, parseOfficialSources, SOURCES_SHOWN } from '@/lib/handbook-review'
+import { canManagePosts, canActOnCityContent } from '@/lib/access'
+import { storyBylines } from '@/lib/storyByline'
 import SocialShare from '@/components/SocialShare'
 import ArticleLike from '@/components/ArticleLike'
 import HandbookArticleTracker from '@/components/HandbookArticleTracker'
@@ -26,12 +30,10 @@ import EditableArticle from './EditableArticle'
 // image stays under the ~600 KB OG cap. When the article has no cover, fall
 // back to the /api/og title card (article title + category as the eyebrow)
 // so a shared link still gets a tailored preview, not the generic brand card.
+// Our own uploads only (lib/uploadedImageUrl): an external cover on a legacy
+// row would otherwise make every link-preview scraper fetch a third-party URL.
 function ogImageUrl(coverImage: string | null | undefined, title: string, category: string, handbookName: string): string {
-  const resolved = coverImage ? resolveImageUrl(coverImage) : ''
-  if (resolved.startsWith('http')) return resolved
-  // Only a rooted same-origin path is safe to prefix with the origin; a data:/
-  // relative src would build a malformed url, so fall through to the title card.
-  if (resolved.startsWith('/')) return `${SITE_URL}${resolved}?w=1200`
+  if (isArticleImageSrc(coverImage)) return `${SITE_URL}${resolveImageUrl(coverImage as string)}?w=1200`
   const params = new URLSearchParams({
     title,
     eyebrow: category ? `${category} · ${handbookName}` : handbookName,
@@ -39,10 +41,15 @@ function ogImageUrl(coverImage: string | null | undefined, title: string, catego
   return `${APP_URL}/api/og?${params.toString()}`
 }
 
+// The author's privacy columns ride along so the byline can be projected for
+// this viewer (lib/storyByline); only the projected name reaches the page.
 const getHandbookArticle = unstable_cache(
   async (slug: string) => prisma.post.findUnique({
     where:   { slug },
-    include: { author: { select: { name: true, color: true, profilePhoto: true, bio: true } } },
+    include: { author: { select: {
+      id: true, name: true, color: true, profilePhoto: true,
+      profileVisibility: true, status: true, hiddenFromMembers: true,
+    } } },
   }),
   ['handbook-article'],
   { revalidate: 300, tags: ['handbook'] },
@@ -68,6 +75,16 @@ const getHandbookRelated = unstable_cache(
   { revalidate: 300, tags: ['handbook'] },
 )
 
+// The article this one overlaps with (lib/handbookSeeAlso), if it is live.
+const getSeeAlso = unstable_cache(
+  async (slug: string) => prisma.post.findFirst({
+    where:  { slug, kind: 'handbook', status: 'published' },
+    select: { slug: true, title: true, excerpt: true, cityId: true },
+  }),
+  ['handbook-see-also'],
+  { revalidate: 300, tags: ['handbook'] },
+)
+
 const CATEGORY_STYLES: Record<string, string> = {
   'Getting Started':      'bg-sky-100 text-sky-700',
   'Getting Around':       'bg-violet-100 text-violet-700',
@@ -86,7 +103,7 @@ type Params = { params: Promise<{ slug: string }> }
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { slug } = await params
   const post = await getHandbookArticle(slug)
-  if (!post || post.kind !== 'handbook' || post.status !== 'published') return { title: 'Handbook — Smileys Community' }
+  if (!post || post.kind !== 'handbook' || post.status !== 'published') return { title: 'Handbook — Smileys Community', robots: { index: false, follow: false } }
   // A city-local article is named by ITS city — an Istanbul viewer reading
   // İzmir's transport guide is not reading the "Istanbul Handbook". Global
   // articles take the viewer's city; a crawler sends no cookie, so those
@@ -136,7 +153,14 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 export default async function HandbookArticlePage({ params }: Params) {
   const { slug } = await params
   const post = await getHandbookArticle(slug)
-  if (!post || post.kind !== 'handbook' || post.status !== 'published') notFound()
+  if (!post || post.kind !== 'handbook') notFound()
+
+  const session = await getSession()
+  // An unpublished article renders for the staff who can act on it — with the
+  // review chip, sources block and high-stakes box the queue cannot show —
+  // and 404s for everyone else, as before. Same gate as /posts.
+  const preview = post.status !== 'published'
+  if (preview && (!session || !canManagePosts(session) || !canActOnCityContent(session, post.cityId))) notFound()
 
   // Resolve the stored category to the canonical 10-category IA. A row whose
   // category matches nothing (an admin-form typo) still renders — it just
@@ -146,23 +170,27 @@ export default async function HandbookArticlePage({ params }: Params) {
   const catLabel  = meta?.label ?? post.category
   const catKey    = canonical ?? post.category
 
-  const cityId   = await resolveCityId(await getSession())
+  const cityId     = await resolveCityId(session)
+  const viewerCity = await getCityConfig(cityId)
   // Naming follows the article's own city when city-local (matches
   // generateMetadata); related-article scoping deliberately stays on the
   // VIEWER's city — see getHandbookRelated.
-  const cityName = (await getCityConfig(post.cityId ?? cityId)).name
+  const articleCity = post.cityId ? await getCityConfig(post.cityId) : viewerCity
+  const cityName    = articleCity.name
   // The "Quick links for this topic" callout deep-links into /handbook's
   // quick-reference block — Istanbul's link pack, rendered on the default
   // city's index only — so the callout follows the same gate (same rule as
   // handbookCity() on the index; per-city quick reference is the follow-up).
-  const viewerCityIsDefault = (await getCityConfig(cityId)).slug === DEFAULT_CITY_SLUG
+  const viewerCityIsDefault = viewerCity.slug === DEFAULT_CITY_SLUG
 
-  const related = await getHandbookRelated(
+  const related = preview ? [] : await getHandbookRelated(
     canonical ? storedKeysFor(canonical) : [post.category],
     post.id,
     cityId,
-    (await getCityConfig(cityId)).country ?? null,
+    viewerCity.country ?? null,
   )
+  const seeAlsoTarget = seeAlsoSlug(post.slug)
+  const seeAlso = seeAlsoTarget && !preview ? await getSeeAlso(seeAlsoTarget) : null
 
   // Null unless this category is listed as a real sequence in lib/postSeries.
   // Handbook categories are parallel by nature — "Getting Around" is six city
@@ -170,11 +198,14 @@ export default async function HandbookArticlePage({ params }: Params) {
   // publishedAt arrives as a Date on a cache miss and as an ISO STRING on a
   // hit — unstable_cache serialises its value to JSON, and Prisma's types
   // still claim Date, so typecheck cannot see it. new Date() accepts both.
-  const nextUp = await getNextInSeries(post.kind, post.category,
+  const nextUp = preview ? null : await getNextInSeries(post.kind, post.category,
     post.publishedAt ? new Date(post.publishedAt).toISOString() : null)
 
   // Freshness + sources are computed server-side so the client component gets
-  // settled strings (see EditableArticle's props comment).
+  // settled strings (see EditableArticle's props comment). The published date
+  // too: formatted here in the article city's day, so the server and the
+  // browser print the same string — a client-side toLocaleDateString had the
+  // server printing UTC and an Istanbul browser re-rendering the next day.
   const review   = reviewLabel({
     category:           catKey,
     lastReviewedAt:     post.lastReviewedAt,
@@ -182,11 +213,17 @@ export default async function HandbookArticlePage({ params }: Params) {
   })
   const minutes  = readingTime(post.body)
   const sources  = parseOfficialSources(post.officialSources)
+  const publishedText = post.publishedAt
+    ? `Published ${new Date(post.publishedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: articleCity.timezone })}`
+    : null
+  // The byline, as this viewer may see it — the rule every byline follows
+  // (lib/storyByline): a guest gets a first name; a writer no longer in good
+  // standing keeps the article but not the name.
+  const byline = (await storyBylines(session, [post.author]))(post.author)
 
   // Likes are read OUTSIDE getHandbookArticle's unstable_cache: the count
   // would go stale for 5 minutes, and "did you like this" is per-viewer so
   // it must never be shared across users by a cache entry.
-  const session   = await getSession()
   const likeCount = await prisma.postLike.count({ where: { postId: post.id } })
   const likedByMe = session
     ? (await prisma.postLike.findUnique({
@@ -208,7 +245,7 @@ export default async function HandbookArticlePage({ params }: Params) {
     image:             ogImageUrl(post.coverImage ?? firstBodyImage(post.body), post.title, post.category, `${cityName} Handbook`),
     datePublished:     post.publishedAt ? new Date(post.publishedAt).toISOString() : undefined,
     dateModified:      post.updatedAt ? new Date(post.updatedAt).toISOString() : undefined,
-    author:            { '@type': 'Person', name: post.author.name },
+    author:            { '@type': 'Person', name: byline.name },
     publisher:         { '@type': 'Organization', name: 'Smileys Community', url: SITE_URL },
     mainEntityOfPage:  pageUrl,
     articleSection:    catLabel,
@@ -218,52 +255,81 @@ export default async function HandbookArticlePage({ params }: Params) {
     ...(sources.length > 0 ? { citation: sources.map(s => s.url) } : {}),
   }
 
+  const shownSources  = sources.slice(0, SOURCES_SHOWN)
+  const foldedSources = sources.slice(SOURCES_SHOWN)
+
+  const sourceLink = (s: { label: string; url: string; host: string }) => (
+    <li key={s.url}>
+      <a href={s.url} target="_blank" rel="noopener noreferrer"
+        className="group flex items-start gap-2.5 rounded-xl border border-gray-200 bg-white px-4 py-3 hover:border-amber-300 hover:bg-amber-50/40 transition-colors">
+        <span aria-hidden="true" className="text-sm mt-0.5">🔗</span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-bold text-gray-900 group-hover:text-amber-700 transition-colors">{s.label}</span>
+          <span className="block text-xs text-gray-500 truncate">{s.host}</span>
+        </span>
+        <span aria-hidden="true" className="text-xs text-gray-400 shrink-0 mt-1 group-hover:translate-x-0.5 transition-transform">↗</span>
+      </a>
+    </li>
+  )
+
   return (
     <main className="bg-white">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: jsonLdHtml(articleJsonLd),
-        }}
-      />
-      <HandbookArticleTracker slug={post.slug} title={post.title} category={post.category} />
+      {!preview && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: jsonLdHtml(articleJsonLd),
+          }}
+        />
+      )}
+      {!preview && <HandbookArticleTracker slug={post.slug} title={post.title} category={post.category} />}
+      {preview && (
+        <div className="bg-amber-500 text-white text-sm font-semibold text-center px-4 py-2">
+          Preview — this article is a {post.status}, not published. Only staff can see this page.
+        </div>
+      )}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16"><article className="max-w-2xl">
         {/* Breadcrumb (the share affordance now lives only at the end of the
-            article — icons at the top were removed). */}
+            article — icons at the top were removed). A row whose category
+            matches nothing has no category page to link. */}
         <nav className="flex items-center gap-2 text-xs text-gray-600 flex-wrap mb-6">
           <Link href="/handbook" className="hover:text-amber-600 font-semibold">📖 Handbook</Link>
           <span>›</span>
-          <Link href={`/handbook/category/${encodeURIComponent(catKey)}`} className="hover:text-amber-600 font-semibold">{catLabel}</Link>
+          {canonical
+            ? <Link href={`/handbook/category/${encodeURIComponent(catKey)}`} className="hover:text-amber-600 font-semibold">{catLabel}</Link>
+            : <span className="font-semibold">{catLabel}</span>}
         </nav>
 
         {/* Header + quick summary + body live in a client component so staff can
             edit them inline (see EditableArticle). Content is still
-            server-rendered for SEO; the body arrives pre-sanitised. */}
+            server-rendered for SEO; the body arrives pre-sanitised, and the
+            raw body is fetched on demand when a staff member opens the editor
+            — it is not shipped to every reader. */}
         {/* sanitizeArticle, not sanitize: handbook bodies come from the same
             RichTextEditor as community articles, so the strict sanitizer
             silently dropped every colour the toolbar offers. */}
         <EditableArticle
           id={post.id}
+          cityId={post.cityId}
           title={post.title}
           excerpt={post.excerpt}
           sanitizedBody={sanitizeArticle(post.body)}
-          rawBody={post.body}
           category={post.category}
           categoryLabel={catLabel}
           catCls={catCls}
-          coverImage={post.coverImage}
+          coverImage={post.coverImage ? resolveImageUrl(post.coverImage) : null}
+          coverImageRaw={post.coverImage}
           status={post.status}
-          authorName={post.author.name}
-          authorColor={post.author.color}
-          publishedAt={post.publishedAt ? new Date(post.publishedAt).toISOString() : null}
-          views={post.views}
+          preview={preview}
+          byline={{ name: byline.name, color: byline.color }}
+          publishedText={publishedText}
           reviewText={review?.text ?? null}
           reviewStale={review?.stale ?? false}
           readingMinutes={minutes}
           highStakes={meta?.highStakes ?? false}
           hasSources={sources.length > 0}
         />
-        <ArticleViewBeacon slug={post.slug} />
+        {!preview && <ArticleViewBeacon slug={post.slug} />}
 
         {/* Official sources — the answer to "where can I verify this?". These
             sit immediately after the body, before the social/like row, because
@@ -272,53 +338,72 @@ export default async function HandbookArticlePage({ params }: Params) {
             something: an empty "Official Sources" heading would imply a rigour
             the article hasn't earned.
 
-            External links get rel=noopener noreferrer and open in a new tab so
-            a member mid-application doesn't lose their place. */}
+            The first few in full, the rest folded: a reader wants the
+            authority that sets the rule, not a bibliography. External links
+            get rel=noopener noreferrer and open in a new tab so a member
+            mid-application doesn't lose their place. */}
         {sources.length > 0 && (
           <section className="mt-10 pt-8 border-t border-gray-100">
-            <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-1">Official sources</h2>
+            <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-1">Sources</h2>
             <p className="text-xs text-gray-500 mb-4">
-              Verify the current rules yourself — these are the authorities that set them.
+              Verify the current rules yourself — where they come from.
             </p>
             <ul className="space-y-2">
-              {sources.map(s => (
-                <li key={s.url}>
-                  <a href={s.url} target="_blank" rel="noopener noreferrer"
-                    className="group flex items-start gap-2.5 rounded-xl border border-gray-200 bg-white px-4 py-3 hover:border-amber-300 hover:bg-amber-50/40 transition-colors">
-                    <span aria-hidden="true" className="text-sm mt-0.5">🔗</span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-bold text-gray-900 group-hover:text-amber-700 transition-colors">{s.label}</span>
-                      <span className="block text-xs text-gray-500 truncate">{new URL(s.url).hostname.replace(/^www\./, '')}</span>
-                    </span>
-                    <span aria-hidden="true" className="text-xs text-gray-400 shrink-0 mt-1 group-hover:translate-x-0.5 transition-transform">↗</span>
-                  </a>
-                </li>
-              ))}
+              {shownSources.map(sourceLink)}
             </ul>
+            {foldedSources.length > 0 && (
+              <details className="mt-3 group">
+                <summary className="cursor-pointer text-xs font-bold text-amber-600 hover:text-amber-700 list-none [&::-webkit-details-marker]:hidden">
+                  <span className="group-open:hidden">+ {foldedSources.length} more source{foldedSources.length === 1 ? '' : 's'}</span>
+                  <span className="hidden group-open:inline">Show fewer</span>
+                </summary>
+                <ul className="space-y-2 mt-3">
+                  {foldedSources.map(sourceLink)}
+                </ul>
+              </details>
+            )}
           </section>
         )}
 
         {/* Share — the handbook is public, so members can send an article
             to a friend who isn't in the community yet. cacheKey busts stale
             WhatsApp/Facebook link previews when the article is edited. */}
-        <div className="mt-10 pt-8 border-t border-gray-100">
-          {/* Like sits just above share: both are "I got something out of
-              this" actions, and grouping them keeps one end-of-article
-              row rather than two competing ones. */}
-          <div className="mb-6">
-            <ArticleLike
-              slug={post.slug}
-              initialCount={likeCount}
-              initialLiked={likedByMe}
-              isLoggedIn={session !== null}
+        {!preview && (
+          <div className="mt-10 pt-8 border-t border-gray-100">
+            {/* Like sits just above share: both are "I got something out of
+                this" actions, and grouping them keeps one end-of-article
+                row rather than two competing ones. */}
+            <div className="mb-6">
+              <ArticleLike
+                slug={post.slug}
+                initialCount={likeCount}
+                initialLiked={likedByMe}
+                isLoggedIn={session !== null}
+              />
+            </div>
+            <SocialShare
+              title={`${post.title} — Smileys Community ${cityName} Handbook`}
+              url={`${APP_URL}/handbook/${post.slug}`}
+              cacheKey={new Date(post.updatedAt ?? post.publishedAt ?? Date.now()).getTime().toString(36)}
             />
           </div>
-          <SocialShare
-            title={`${post.title} — Smileys Community ${cityName} Handbook`}
-            url={`${APP_URL}/handbook/${post.slug}`}
-            cacheKey={new Date(post.updatedAt ?? post.publishedAt ?? Date.now()).getTime().toString(36)}
-          />
-        </div>
+        )}
+
+        {/* The article this one overlaps with — two answers to one question
+            (lib/handbookSeeAlso), each now naming the other. */}
+        {seeAlso && (
+          <section className="mt-12 pt-8 border-t border-gray-100">
+            <p className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-3">See also</p>
+            <Link href={`/handbook/${seeAlso.slug}`}
+              className="block bg-white border border-gray-200 rounded-xl p-4 hover:border-amber-300 transition-colors group">
+              <p className="text-[11px] text-gray-500 mb-1">
+                {seeAlso.cityId ? 'The city-specific version of this topic' : 'The country-wide version of this topic'}
+              </p>
+              <h3 className="text-sm font-extrabold text-gray-900 group-hover:text-amber-600 transition-colors leading-tight mb-1">{seeAlso.title}</h3>
+              {seeAlso.excerpt && <p className="text-xs text-gray-600 line-clamp-1">{seeAlso.excerpt}</p>}
+            </Link>
+          </section>
+        )}
 
         {/* Cross-link to the matching City Guide section. The handbook
             article gives the *how*; the guide gives the *what links
@@ -341,17 +426,28 @@ export default async function HandbookArticlePage({ params }: Params) {
           </section>
         )}
 
-        {/* Member-tips placeholder — visible affordance even before
-            Q&A is shipped, so the layout doesn't visibly change later
-            when comments come online. */}
+        {/* A tip from a reader's own case goes to the people who edit the
+            article — that is how it gets in. (This promised "Member Q&A is
+            coming" for a season and offered guests a clubs link they could
+            not open.) */}
         <section className="mt-10 pt-8 border-t border-gray-100">
           <div className="bg-gray-50 border border-gray-200 rounded-2xl p-6 text-center">
             <p className="text-2xl mb-2">💬</p>
             <h3 className="text-base font-extrabold text-gray-900 mb-1">Got a tip or a twist your case taught you?</h3>
-            <p className="text-sm text-gray-600 mb-4 max-w-md mx-auto">Member Q&A is coming to handbook articles. For now, share what worked for you with the community.</p>
-            <Link href="/clubs" className="inline-block text-xs font-bold text-amber-600 hover:text-amber-700">
-              Ask in your clubs →
-            </Link>
+            <p className="text-sm text-gray-600 mb-4 max-w-md mx-auto">
+              Tell us and we&apos;ll fold it into the article, with credit.
+              {session ? ' Or ask the people who have done it — your clubs are the fastest answer.' : ''}
+            </p>
+            <div className="flex items-center justify-center gap-4 flex-wrap">
+              <Link href={`/contact?topic=handbook&article=${encodeURIComponent(post.slug)}`} className="inline-block text-xs font-bold text-amber-600 hover:text-amber-700">
+                Send a tip →
+              </Link>
+              {session && (
+                <Link href="/clubs" className="inline-block text-xs font-bold text-amber-600 hover:text-amber-700">
+                  Ask in your clubs →
+                </Link>
+              )}
+            </div>
           </div>
         </section>
 

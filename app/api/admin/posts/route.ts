@@ -9,6 +9,7 @@ import { slugify, truncateSlug } from '@/lib/slug'
 import { requireStepUp } from '@/lib/stepUp'
 import { writeAudit } from '@/lib/audit'
 import { notifyNewArticle } from '@/lib/notify'
+import { parseHandbookFields } from '@/lib/handbook-review'
 import { isKind, normalizeCommunityCategory, normalizeHandbookCategory, TITLE_MAX, EXCERPT_MAX, BODY_MAX } from '@/app/admin/posts/constants'
 
 // Cover image must be a local upload path (the shape /api/upload
@@ -35,7 +36,8 @@ export async function POST(req: NextRequest) {
   const session = await getSession()
   if (!session || !canManagePosts(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { title, excerpt, body, coverImage, status, category, kind, cityId, country, authorId } = await req.json()
+  const payload = await req.json()
+  const { title, excerpt, body, coverImage, status, category, kind, cityId, country, authorId } = payload
   const cleanTitle   = String(title   ?? '').trim()
   const cleanExcerpt = excerpt ? String(excerpt).trim() : ''
   const cleanBody    = String(body    ?? '').trim()
@@ -47,6 +49,10 @@ export async function POST(req: NextRequest) {
   if (cleanBody.length > BODY_MAX)       return NextResponse.json({ error: `Body too long (max ${BODY_MAX} chars)` }, { status: 400 })
 
   const cleanKind     = isKind(kind) ? kind : 'community'
+  // Review cadence, search tags and official sources — handbook only; a
+  // community story has none of these and the keys are ignored for it.
+  const handbook = cleanKind === 'handbook' ? parseHandbookFields(payload) : { ok: true as const, data: {} }
+  if (!handbook.ok) return NextResponse.json({ error: handbook.error }, { status: 400 })
   // Both kinds normalise: handbook categories onto the canonical IA key, and
   // the retired per-city guide names onto 'City Guide' — so editing an
   // article still stored under a legacy key migrates it instead of
@@ -120,6 +126,7 @@ export async function POST(req: NextRequest) {
       cityId:      postCityId,
       country:     postCountry,
       publishedAt: willPublish ? new Date() : null,
+      ...handbook.data,
     },
   })
 

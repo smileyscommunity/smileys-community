@@ -45,6 +45,9 @@ export async function GET(req: NextRequest) {
           // subscribed — a consent surface saying the opposite of the truth.
           emailMarketing: true,
           industry: true, professionalRole: true, professionalStatus: true,
+          // The home city, so client-side staff affordances (the handbook's
+          // inline Edit button) can follow the same city rule the routes do.
+          cityId: true,
         },
       }),
       prisma.clubMembership.count({

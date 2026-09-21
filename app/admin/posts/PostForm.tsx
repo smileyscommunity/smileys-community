@@ -23,7 +23,37 @@ interface PostFormProps {
     country?: string | null
     // Present on the edit page (the API row) — named in the review notice.
     author?: { name: string } | null
+    // Handbook-only review metadata. lastReviewedAt is read-only here: it
+    // moves via "Reviewed today" on the article page, never via this form.
+    reviewIntervalDays?: number | null
+    tags?: string[]
+    officialSources?: unknown
+    lastReviewedAt?: string | null
   }
+}
+
+type SourceRow = { label: string; url: string }
+
+const TAGS_MAX       = 10
+const TAG_LEN_MAX    = 40
+const SOURCES_MAX    = 30
+const SOURCE_LABEL_MAX = 120
+const REVIEW_DAYS_MIN = 1
+const REVIEW_DAYS_MAX = 730
+
+// The API row's officialSources is a Json column — only trust it if it is
+// actually an array of {label,url}-ish objects.
+function seedSources(raw: unknown): SourceRow[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .filter((s): s is Record<string, unknown> => !!s && typeof s === 'object')
+    .map(s => ({ label: typeof s.label === 'string' ? s.label : '', url: typeof s.url === 'string' ? s.url : '' }))
+}
+
+// Comma-separated input → the string[] the server takes: trimmed, no empties,
+// capped in count and length so the count shown in the form is the truth.
+function parseTags(raw: string): string[] {
+  return raw.split(',').map(t => t.trim().slice(0, TAG_LEN_MAX)).filter(Boolean).slice(0, TAGS_MAX)
 }
 
 export default function PostForm({ initial = {} }: PostFormProps) {
@@ -71,6 +101,11 @@ export default function PostForm({ initial = {} }: PostFormProps) {
       ? normalizeHandbookCategory(initial.category)
       : normalizeCommunityCategory(initial.category),
   )
+  // Handbook-only review metadata. Interval is kept as the raw input string so
+  // a blank stays blank ("use the category default") instead of becoming 0.
+  const [reviewDays,  setReviewDays]  = useState(initial.reviewIntervalDays != null ? String(initial.reviewIntervalDays) : '')
+  const [tagsText,    setTagsText]    = useState((initial.tags ?? []).join(', '))
+  const [sources,     setSources]     = useState<SourceRow[]>(() => seedSources(initial.officialSources))
   const [saving,      setSaving]      = useState(false)
   const [uploading,   setUploading]   = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -112,6 +147,17 @@ export default function PostForm({ initial = {} }: PostFormProps) {
         cityId: cityId || null,
         country: cityId ? null : (country || null),
         ...(authorId ? { authorId } : {}),
+        // Review metadata is a Handbook concern; a community post never
+        // sends it. Rows with only one of label/url are kept so the server
+        // can reject them with a clear message rather than silently drop
+        // half a source.
+        ...(kind === 'handbook' ? {
+          reviewIntervalDays: reviewDays.trim() === '' ? null : Number(reviewDays),
+          tags:               parseTags(tagsText),
+          officialSources:    sources
+            .map(s => ({ label: s.label.trim(), url: s.url.trim() }))
+            .filter(s => s.label || s.url),
+        } : {}),
       }
       const url    = isEdit ? `/app/api/admin/posts/${initial.id}` : '/app/api/admin/posts'
       const method = isEdit ? 'PUT' : 'POST'
@@ -346,6 +392,96 @@ export default function PostForm({ initial = {} }: PostFormProps) {
               ))}
             </div>
           </div>
+
+          {/* Review & sources — Handbook only. "Last reviewed" is shown, never
+              edited: the date only moves from the article page after a real
+              check against the sources listed here. */}
+          {kind === 'handbook' && (
+            <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-4">
+              <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-3">Review &amp; sources</p>
+
+              {initial.lastReviewedAt !== undefined && (
+                <p className="text-[11px] text-zinc-500 mb-3" suppressHydrationWarning>
+                  Last reviewed: {initial.lastReviewedAt ? new Date(initial.lastReviewedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : 'never'} — set from the article page after a real check.
+                </p>
+              )}
+
+              <label className="block text-xs font-semibold text-zinc-400 mb-1.5" htmlFor="post-review-days">Review every</label>
+              <input
+                id="post-review-days"
+                type="number"
+                inputMode="numeric"
+                min={REVIEW_DAYS_MIN}
+                max={REVIEW_DAYS_MAX}
+                value={reviewDays}
+                onChange={e => setReviewDays(e.target.value)}
+                placeholder="Category default"
+                className="w-full bg-zinc-900 border border-zinc-700 text-white text-sm rounded-lg px-3 py-2 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
+              />
+              <p className="text-[11px] text-zinc-500 mt-1.5 mb-3">Days between reviews — leave blank to use the category&rsquo;s own cadence.</p>
+
+              <label className="block text-xs font-semibold text-zinc-400 mb-1.5" htmlFor="post-tags">Tags</label>
+              <input
+                id="post-tags"
+                type="text"
+                value={tagsText}
+                onChange={e => setTagsText(e.target.value)}
+                placeholder="ikamet, vergi numarası, e-devlet"
+                className="w-full bg-zinc-900 border border-zinc-700 text-white text-sm rounded-lg px-3 py-2 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
+              />
+              <p className="text-[11px] text-zinc-500 mt-1.5 mb-3">
+                Search keywords a member would actually type — ikamet, vergi numarası, e-devlet. Up to {TAGS_MAX}.
+                <span className={`float-right ${parseTags(tagsText).length >= TAGS_MAX ? 'text-amber-400' : ''}`}>{parseTags(tagsText).length}/{TAGS_MAX}</span>
+              </p>
+
+              <p className="text-xs font-semibold text-zinc-400 mb-1.5">Official sources</p>
+              <div className="space-y-2">
+                {sources.map((s, i) => (
+                  <div key={i} className="flex gap-1.5">
+                    <div className="flex-1 space-y-1.5">
+                      <input
+                        type="text"
+                        value={s.label}
+                        maxLength={SOURCE_LABEL_MAX}
+                        onChange={e => setSources(prev => prev.map((row, j) => j === i ? { ...row, label: e.target.value } : row))}
+                        placeholder="Label — e.g. Göç İdaresi: residence permit"
+                        aria-label={`Source ${i + 1} label`}
+                        className="w-full bg-zinc-900 border border-zinc-700 text-white text-sm rounded-lg px-3 py-2 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      />
+                      <input
+                        type="url"
+                        value={s.url}
+                        onChange={e => setSources(prev => prev.map((row, j) => j === i ? { ...row, url: e.target.value } : row))}
+                        placeholder="https://"
+                        aria-label={`Source ${i + 1} URL`}
+                        className={`w-full bg-zinc-900 border text-white text-sm rounded-lg px-3 py-2 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500 ${
+                          s.url && !s.url.startsWith('https://') ? 'border-red-500' : 'border-zinc-700'
+                        }`}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSources(prev => prev.filter((_, j) => j !== i))}
+                      aria-label={`Remove source ${i + 1}`}
+                      className="self-start px-2 py-2 text-zinc-500 hover:text-red-400 transition-colors"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+              {sources.length < SOURCES_MAX && (
+                <button
+                  type="button"
+                  onClick={() => setSources(prev => [...prev, { label: '', url: '' }])}
+                  className="mt-2 text-xs font-semibold text-amber-400 hover:text-amber-300 transition-colors"
+                >
+                  + Add source
+                </button>
+              )}
+              <p className="text-[11px] text-zinc-500 mt-1.5">Official government / municipal / provider pages a reader can verify the facts on. https only.</p>
+            </div>
+          )}
 
           {/* Cover image */}
           <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-4">

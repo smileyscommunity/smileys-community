@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import dynamic from 'next/dynamic'
+import { confirmToast } from '@/lib/confirmToast'
 
 // TipTap is heavy — lazy-load it so anonymous handbook readers never pay
 // for the editor bundle; it only downloads when a staff member edits.
@@ -18,15 +19,19 @@ const RichTextEditor = dynamic(() => import('@/components/RichTextEditor'), {
 // so we never sanitize on the client); after a save we router.refresh() and
 // the PUT's revalidateTag('handbook') feeds fresh, re-sanitized HTML back.
 //
-// Edit is gated two ways: the button only shows to admins/moderators (a
-// client /api/auth/me check, kept out of the server render so the public
-// page stays cacheable), and the PUT itself enforces canManagePosts.
+// Edit is gated two ways: the button only shows to staff who can act on
+// this article's city (a client /api/auth/me check, kept out of the server
+// render so the public page stays cacheable), and the PUT itself enforces
+// canManagePosts + canActOnCityContent. The raw body is NOT shipped with
+// the page — it is fetched from the admin API when edit mode opens, so a
+// guest never downloads the unsanitized source of every article they read.
 interface Props {
   id:            string
   title:         string
   excerpt:       string | null
   sanitizedBody: string   // server-sanitized HTML for the read view
-  rawBody:       string   // raw HTML for the editor
+  // The article's city; null = national/global. Drives the moderator gate.
+  cityId:        string | null
   // The raw stored value, round-tripped verbatim through the save PUT so an
   // inline edit never silently rewrites a legacy category key.
   category:      string
@@ -34,12 +39,22 @@ interface Props {
   // while legacy rows are still stored under their old keys).
   categoryLabel: string
   catCls:        string
+  // Resolved to a servable URL for rendering only. The PUT must round-trip
+  // the RAW stored value (coverImageRaw) — the resolved URL would fail the
+  // server's cover-path check and the save with it.
   coverImage:    string | null
+  coverImageRaw: string | null
   status:        string
-  authorName:    string
-  authorColor:   string | null
-  publishedAt:   string | null   // ISO
-  views:         number
+  // Already projected for the viewer on the server — render as-is.
+  byline:        { name: string; color: string }
+  // Already formatted server-side in the city's timezone ("Published 30
+  // August 2026"). No Date math in this component: formatting here ran in
+  // the browser's locale and timezone and hydrated differently from the
+  // server render.
+  publishedText: string | null
+  // Unpublished row, staff viewer. The page renders the big banner; this
+  // component only adds a small note beside the toolbar.
+  preview:       boolean
   // Freshness is computed on the server (see lib/handbook-review) and passed
   // down as plain strings. Deriving it here from `new Date()` would risk a
   // hydration mismatch when a render straddles a review boundary — and the
@@ -54,36 +69,56 @@ interface Props {
   hasSources:    boolean
 }
 
-function formatDate(d: string | null) {
-  if (!d) return ''
-  return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
-}
-
 export default function EditableArticle(props: Props) {
   const router = useRouter()
   const [canEdit, setCanEdit] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [loadingEdit, setLoadingEdit] = useState(false)
   const [saving, setSaving]   = useState(false)
+  const [reviewing, setReviewing] = useState(false)
 
-  // Edit form state — only meaningful while editing; seeded from the
-  // current props each time edit mode opens, so it always reflects the
-  // latest saved content (props update after router.refresh()).
+  // Edit form state — only meaningful while editing; seeded from the admin
+  // API row each time edit mode opens, so it always reflects the latest
+  // saved content rather than whatever this page was rendered from.
   const [title, setTitle]     = useState(props.title)
   const [excerpt, setExcerpt] = useState(props.excerpt ?? '')
-  const [body, setBody]       = useState(props.rawBody)
+  const [body, setBody]       = useState('')
 
   useEffect(() => {
     fetch('/app/api/auth/me')
       .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (d && (d.role === 'admin' || d.role === 'moderator')) setCanEdit(true) })
+      .then(d => {
+        if (!d) return
+        // A moderator acts on their own city's content only (the PUT's
+        // canActOnCityContent is the real gate — this is the button that
+        // used to appear on every article, save, and read "Forbidden").
+        // A moderator with no home city can act on nothing: canActInCity
+        // fails closed for them, so they get no button either.
+        const ok = d.role === 'admin'
+          || (d.role === 'moderator' && props.cityId !== null && d.cityId === props.cityId)
+        if (ok) setCanEdit(true)
+      })
       .catch(() => {})
-  }, [])
+  }, [props.cityId])
 
-  function startEdit() {
-    setTitle(props.title)
-    setExcerpt(props.excerpt ?? '')
-    setBody(props.rawBody)
-    setEditing(true)
+  async function startEdit() {
+    setLoadingEdit(true)
+    try {
+      const res = await fetch(`/app/api/admin/posts/${props.id}`, { credentials: 'include' })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error(d.error ?? 'Could not load the article for editing')
+        return
+      }
+      setTitle(typeof d.title === 'string' ? d.title : props.title)
+      setExcerpt(typeof d.excerpt === 'string' ? d.excerpt : (props.excerpt ?? ''))
+      setBody(typeof d.body === 'string' ? d.body : '')
+      setEditing(true)
+    } catch {
+      toast.error('Network error — could not load the article for editing')
+    } finally {
+      setLoadingEdit(false)
+    }
   }
 
   async function save() {
@@ -100,7 +135,7 @@ export default function EditableArticle(props: Props) {
           title:      title.trim(),
           excerpt:    excerpt.trim(),
           body,
-          coverImage: props.coverImage,
+          coverImage: props.coverImageRaw,
           status:     props.status,
           category:   props.category,
         }),
@@ -117,6 +152,31 @@ export default function EditableArticle(props: Props) {
       toast.error('Network error — could not save')
     } finally {
       setSaving(false)
+    }
+  }
+
+  // "Reviewed today" is the only way lastReviewedAt moves — it is never a
+  // form field, because a date typed into a box is not a review.
+  async function markReviewed() {
+    const ok = await confirmToast(
+      'Mark this article as reviewed today? Only do this after checking it against the official sources.',
+      { confirmLabel: 'Mark reviewed' },
+    )
+    if (!ok) return
+    setReviewing(true)
+    try {
+      const res = await fetch(`/app/api/admin/posts/${props.id}/reviewed`, { method: 'POST', credentials: 'include' })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        toast.error(d.error ?? 'Could not mark as reviewed')
+        return
+      }
+      toast.success('Marked as reviewed today')
+      router.refresh()
+    } catch {
+      toast.error('Network error — could not mark as reviewed')
+    } finally {
+      setReviewing(false)
     }
   }
 
@@ -163,19 +223,27 @@ export default function EditableArticle(props: Props) {
   return (
     <>
       {canEdit && (
-        <div className="flex justify-end mb-3">
-          <button onClick={startEdit}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50 text-amber-700 text-xs font-bold hover:bg-amber-100 transition-colors">
-            ✏️ Edit article
+        <div className="flex flex-wrap items-center justify-end gap-2 mb-3">
+          {props.preview && (
+            <span className="mr-auto text-xs font-semibold text-amber-700">Preview — not published</span>
+          )}
+          <button onClick={markReviewed} disabled={reviewing || loadingEdit}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 text-xs font-bold hover:bg-emerald-100 disabled:opacity-50 transition-colors">
+            {reviewing ? 'Marking…' : '✓ Reviewed today'}
+          </button>
+          <button onClick={startEdit} disabled={loadingEdit || reviewing}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50 text-amber-700 text-xs font-bold hover:bg-amber-100 disabled:opacity-50 transition-colors">
+            {loadingEdit ? 'Loading…' : '✏️ Edit article'}
           </button>
         </div>
       )}
 
       {/* Hero: article cover only. Category-level banner fallback was removed —
-          articles without a cover open text-first. */}
+          articles without a cover open text-first. Decorative: the h1 right
+          below names the article, so the image carries no alt text of its own. */}
       {props.coverImage && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={props.coverImage} alt={props.title} className="w-full h-56 sm:h-72 object-cover rounded-2xl mb-8" />
+        <img src={props.coverImage} alt="" className="w-full h-56 sm:h-72 object-cover rounded-2xl mb-8" />
       )}
 
       <span className={`inline-block px-2 py-1 rounded-full text-[11px] font-bold ${props.catCls}`}>{props.categoryLabel}</span>
@@ -191,15 +259,14 @@ export default function EditableArticle(props: Props) {
       <div className="mb-8 pb-8 border-b border-gray-100">
         <div className="flex items-center gap-3 text-xs text-gray-600">
           <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0"
-            style={{ backgroundColor: props.authorColor ?? '#f59e0b' }}>
-            {props.authorName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+            style={{ backgroundColor: props.byline.color }}>
+            {props.byline.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
           </div>
           <div>
-            <p className="text-sm font-semibold text-gray-700">by {props.authorName}</p>
+            <p className="text-sm font-semibold text-gray-700">by {props.byline.name}</p>
             <p className="text-xs text-gray-400">
-              {props.publishedAt && `Published ${formatDate(props.publishedAt)}`}
-              {` · ${props.readingMinutes} min read`}
-              {props.views > 0 && ` · 👁 ${props.views.toLocaleString()} view${props.views === 1 ? '' : 's'}`}
+              {props.publishedText}
+              {props.publishedText ? ' · ' : ''}{props.readingMinutes} min read
             </p>
           </div>
         </div>
@@ -245,6 +312,10 @@ export default function EditableArticle(props: Props) {
         </div>
       )}
 
+      {/* `[&_span[style]_*]:text-[color:inherit]`: a child's own class beats a
+          colour inherited from a styled span, so bold inside a coloured
+          passage would lose the colour without it. (This note used to live
+          inside the className string and shipped in every article's HTML.) */}
       <div
         className="prose prose-sm sm:prose-base max-w-none
                    prose-headings:font-extrabold prose-headings:tracking-tight prose-headings:text-gray-900
@@ -253,9 +324,6 @@ export default function EditableArticle(props: Props) {
                    prose-p:text-gray-700 prose-p:leading-relaxed
                    prose-a:text-amber-600 hover:prose-a:underline prose-a:no-underline
                    prose-strong:text-gray-900
-                   /* A child's own class beats a colour inherited from a
-                      styled span, so bold inside a coloured passage would
-                      lose the colour without this. */
                    [&_span[style]_*]:text-[color:inherit]
                    prose-li:text-gray-700
                    prose-ul:my-4 prose-ol:my-4

@@ -16,10 +16,12 @@ import { postCityScope } from '@/lib/postScope'
 // board. Width conventions come from the mounting page — this renders only
 // the heading + grid, inside whatever container the page already uses.
 //
-// Surfaces that can be genuinely empty for a young city (guide, stories,
-// neighborhoods) hide their tile rather than link to a shelf with nothing on
-// it; handbook, directory and board always show (the handbook's global
-// articles apply everywhere, and the other two are useful from day one).
+// Surfaces that can be genuinely empty for a young city (guide, handbook,
+// stories, neighborhoods) hide their tile rather than link to a shelf with
+// nothing on it; directory and board always show (useful from day one). The
+// handbook used to be assumed non-empty — "its global articles apply
+// everywhere" — but the "global" ones are Turkish national, so Tbilisi's
+// handbook is empty and every other surface was pointing at it.
 
 export type ExploreMoreSurface =
   | 'guide' | 'handbook' | 'stories' | 'neighborhoods' | 'directory' | 'board'
@@ -31,13 +33,15 @@ export type ExploreMoreSurface =
 // past their own events; revalidate keeps the answer fresh within 5 min.
 const getSurfaceCounts = unstable_cache(
   async (cityId: string, country: string | null) => {
-    const [guideEntries, stories, neighborhoods] = await Promise.all([
+    const [guideEntries, stories, handbook, neighborhoods] = await Promise.all([
       prisma.guideEntry.count({ where: { cityId, status: 'published' } }),
-      // Same scope as /posts (lib/postScope): this city, its country's, global.
+      // Same scope as /posts and /handbook (lib/postScope): this city, its
+      // country's, global.
       prisma.post.count({ where: { kind: 'community', status: 'published', ...postCityScope(cityId, country) } }),
+      prisma.post.count({ where: { kind: 'handbook',  status: 'published', ...postCityScope(cityId, country) } }),
       prisma.neighborhood.count({ where: { cityId, active: true } }),
     ])
-    return { guideEntries, stories, neighborhoods }
+    return { guideEntries, stories, handbook, neighborhoods }
   },
   ['explore-more'],
   { revalidate: 300, tags: ['explore-more'] },
@@ -53,7 +57,7 @@ export default async function ExploreMore({ current, cityId, cityName }: {
 
   const surfaces: { key: ExploreMoreSurface; href: string; emoji: string; label: string; job: string; show: boolean }[] = [
     { key: 'guide',         href: '/guide',         emoji: '🗺️', label: 'Guide',         job: `Experience ${cityName}`,     show: counts.guideEntries > 0 },
-    { key: 'handbook',      href: '/handbook',      emoji: '📖', label: 'Handbook',      job: 'How the city works',         show: true },
+    { key: 'handbook',      href: '/handbook',      emoji: '📖', label: 'Handbook',      job: 'How the city works',         show: counts.handbook > 0 },
     { key: 'stories',       href: '/posts',         emoji: '📰', label: 'Stories',       job: "What we're writing",         show: counts.stories > 0 },
     { key: 'neighborhoods', href: '/neighborhoods', emoji: '🏘️', label: 'Neighborhoods', job: 'Find your part of the city', show: counts.neighborhoods > 0 },
     { key: 'directory',     href: '/directory',     emoji: '🏪', label: 'Directory',     job: 'Places members trust',       show: true },

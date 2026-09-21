@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Turnstile from '@/components/Turnstile'
 
@@ -10,6 +11,7 @@ const TOPICS = [
   { value: 'event',       label: 'Event Question',              icon: '📅' },
   { value: 'club',        label: 'Club Question',               icon: '⬡'  },
   { value: 'technical',   label: 'Technical Issue',             icon: '⚙️'  },
+  { value: 'handbook',    label: 'Handbook article',            icon: '📖' },
   { value: 'partnership', label: 'Partnership & Collaboration', icon: '🤝' },
   { value: 'press',       label: 'Media & Press',               icon: '📰' },
   { value: 'other',       label: 'Something else',              icon: '✦'  },
@@ -17,7 +19,14 @@ const TOPICS = [
 
 const inputCls = 'input'
 
+// useSearchParams needs a boundary under static rendering — the house
+// pattern (see app/host/events/new).
 export default function ContactPage() {
+  return <Suspense><ContactForm /></Suspense>
+}
+
+function ContactForm() {
+  const params = useSearchParams()
   const [form, setForm] = useState({ name: '', email: '', topic: 'general', message: '' })
   const [loading,   setLoading]   = useState(false)
   const [submitted, setSubmitted] = useState(false)
@@ -27,6 +36,21 @@ export default function ContactPage() {
   // Bumped after a failed submit — Turnstile tokens are single-use, so retries need a fresh one
   const [turnstileReset,  setTurnstileReset]  = useState(0)
   const loadedAt = useRef(Date.now())
+
+  // The Handbook's "Send a tip" and "Pitch a topic" links carry what they
+  // are about; the form used to drop both and arrive as a General Inquiry
+  // with no article named. Seeded once, and still fully editable.
+  useEffect(() => {
+    const topic   = params.get('topic')
+    const article = params.get('article')
+    if (!topic && !article) return
+    setForm(prev => ({
+      ...prev,
+      topic:   TOPICS.some(t => t.value === topic) ? topic! : prev.topic,
+      message: article && !prev.message ? `About the Handbook article "${article}":\n\n` : prev.message,
+    }))
+    // Once, on arrival: after that the form is the member's.
+  }, [params])
 
   function set(k: keyof typeof form, v: string) {
     setForm(prev => ({ ...prev, [k]: v }))

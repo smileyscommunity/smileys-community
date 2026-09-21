@@ -54,6 +54,9 @@ export default function HandbookSearch({ items }: { items: HandbookSearchItem[] 
         ))}
       </div>
 
+      {/* One live region around both outcomes, so a screen reader hears the
+          results arrive — or the empty state — as the member types. */}
+      <div role="status" aria-live="polite">
       {results.length > 0 && (
         <ul className="mt-4 space-y-2">
           {results.map(r => (
@@ -86,6 +89,7 @@ export default function HandbookSearch({ items }: { items: HandbookSearchItem[] 
           </Link>
         </div>
       )}
+      </div>
     </div>
   )
 }
