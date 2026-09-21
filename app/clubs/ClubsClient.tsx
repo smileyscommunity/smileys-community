@@ -33,6 +33,10 @@ interface Club {
   health?: ClubHealthLabel
   upcomingCount?: number
   activityThisWeek?: number
+  // What that total is made of. An upcoming event, a hangout that ran and a
+  // message on the board are not the same thing, and summing them under
+  // "activities" read as "things happening".
+  activityParts?: { events: number; posts: number; hangouts: number }
   faces?: { name: string; color: string; profilePhoto: string | null }[]
   nextEvent?: { title: string; date: string } | null
 }
@@ -575,7 +579,7 @@ function AppClubsPageInner() {
                     <span aria-hidden="true" className="text-xl shrink-0">{c.emoji}</span>
                     <p className="text-sm font-bold text-gray-900 truncate group-hover:text-amber-700 transition-colors">{c.name}</p>
                   </div>
-                  <p className="text-xs text-gray-500 mt-1.5">{c.activityThisWeek} activit{(c.activityThisWeek ?? 0) !== 1 ? 'ies' : 'y'} this week</p>
+                  <p className="text-xs text-gray-500 mt-1.5">{activitySummary(c)}</p>
                 </Link>
               ))}
             </div>
@@ -646,6 +650,29 @@ function AppClubsPageInner() {
       </div>
     </div>
   )
+}
+
+// What a club's week actually consisted of: "1 event · 1 post", not
+// "2 activities". The total is three different things added together — an
+// event in the next seven days, a hangout from the last seven, a board post
+// from the last seven — and one word for all three made the number look
+// wrong to anyone who knew what was on. Book Club's "2 activities" were one
+// Book Club Meeting and one Book Swap post.
+//
+// Parts that are zero are left out, so a club with one event reads "1 event"
+// and nothing else. Falls back to the bare total for a cached response from
+// before the parts existed.
+function activitySummary(c: { activityThisWeek?: number; activityParts?: { events: number; posts: number; hangouts: number } }): string {
+  const p = c.activityParts
+  const n = c.activityThisWeek ?? 0
+  if (!p) return `${n} activit${n !== 1 ? 'ies' : 'y'} this week`
+  const plural = (k: number, one: string, many = `${one}s`) => `${k} ${k === 1 ? one : many}`
+  const bits = [
+    p.events   ? plural(p.events,   'event')   : null,
+    p.hangouts ? plural(p.hangouts, 'hangout') : null,
+    p.posts    ? plural(p.posts,    'post')    : null,
+  ].filter(Boolean)
+  return bits.length ? bits.join(' · ') : `${n} activit${n !== 1 ? 'ies' : 'y'} this week`
 }
 
 export default function ClubsClient() {

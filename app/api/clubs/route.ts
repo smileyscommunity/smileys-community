@@ -100,7 +100,17 @@ const getDiscoveryClubs = unstable_cache(
       ...c,
       health:           health.get(c.id) ?? 'quiet',
       upcomingCount:    up.get(c.id) ?? 0,
+      // The total still ranks the strip, but it is three different things
+      // added up — an event coming, a hangout that ran, a message on the
+      // board — and "2 activities this week" read as two things happening.
+      // Book Club's two were one meeting and one Book Swap post. So the
+      // parts ride along and the strip says which is which.
       activityThisWeek: (we.get(c.id) ?? 0) + (wp.get(c.id) ?? 0) + (wh.get(c.id) ?? 0),
+      activityParts: {
+        events:   we.get(c.id) ?? 0,
+        posts:    wp.get(c.id) ?? 0,
+        hangouts: wh.get(c.id) ?? 0,
+      },
       faces:            facesByClub.get(c.id) ?? [],
     }))
   },
