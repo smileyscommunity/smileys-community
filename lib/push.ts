@@ -8,13 +8,33 @@ import { prisma } from './prisma'
 // to sit downstream of a notification. A push module should be inert until
 // someone pushes.
 let vapidReady = false
+// Said once per process, not once per send: without keys EVERY push is a
+// silent no-op, and the only evidence was members reporting they got
+// nothing. One line at startup beats a database query later.
+let vapidWarned = false
 function configureVapid(): boolean {
   if (vapidReady) return true
   const { VAPID_EMAIL, NEXT_PUBLIC_VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY } = process.env
-  if (!VAPID_EMAIL || !NEXT_PUBLIC_VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return false
+  if (!VAPID_EMAIL || !NEXT_PUBLIC_VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
+    if (!vapidWarned) {
+      vapidWarned = true
+      console.error('[push] VAPID is not configured — no push notification will be delivered', {
+        VAPID_EMAIL: !!VAPID_EMAIL,
+        NEXT_PUBLIC_VAPID_PUBLIC_KEY: !!NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+        VAPID_PRIVATE_KEY: !!VAPID_PRIVATE_KEY,
+      })
+    }
+    return false
+  }
   webpush.setVapidDetails(VAPID_EMAIL, NEXT_PUBLIC_VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY)
   vapidReady = true
   return true
+}
+
+// An endpoint is a capability URL — whoever holds it can push to that device
+// — so only its host goes in a log line.
+function endpointHost(endpoint: string): string {
+  try { return new URL(endpoint).host } catch { return 'unparseable' }
 }
 
 // Hard caps on payload field lengths. Browsers / push services cap the
@@ -95,7 +115,12 @@ export async function sendPushToUser(
   const safeTitle = sanitizeText(payload.title, MAX_TITLE)
   const safeBody  = sanitizeText(payload.body,  MAX_BODY)
   const safeLink  = sanitizeLink(payload.link)
-  if (!safeTitle || !safeBody) return  // empty after sanitization → drop
+  if (!safeTitle || !safeBody) {
+    // A caller passed something that sanitised away to nothing. The member
+    // gets no push and nothing else would ever say why.
+    console.warn('[push] dropped: empty after sanitisation', { userId, title: payload.title.slice(0, 40) })
+    return
+  }
 
   const data = JSON.stringify({
     title: safeTitle,
@@ -111,16 +136,31 @@ export async function sendPushToUser(
           { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
           data,
         )
-        .catch((err: { statusCode?: number }) => {
+        .catch((err: { statusCode?: number; body?: string; message?: string }) => {
           // 404/410 means the subscription expired — mark for cleanup
           if (err?.statusCode === 404 || err?.statusCode === 410) {
             stale.push(sub.id)
+            return
           }
+          // Everything else was swallowed whole: a rejected VAPID signature
+          // (401/403), an oversized payload (413), a throttled or broken push
+          // service (429/5xx) all looked exactly like a delivered push. These
+          // are rare by nature, so one line each is the right volume — and the
+          // first thing to read when someone says the push never arrived.
+          console.error('[push] send failed', {
+            userId,
+            host:   endpointHost(sub.endpoint),
+            status: err?.statusCode ?? null,
+            error:  (err?.body ?? err?.message ?? '').toString().slice(0, 200),
+          })
         }),
     ),
   )
 
   if (stale.length) {
     await prisma.pushSubscription.deleteMany({ where: { id: { in: stale } } })
+    // The device is gone for good — that is why a member's push count drops
+    // without anyone touching the settings toggle.
+    console.warn('[push] dropped expired subscriptions', { userId, count: stale.length })
   }
 }
