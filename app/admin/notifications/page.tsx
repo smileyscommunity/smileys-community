@@ -87,7 +87,6 @@ export default function AdminNotificationsPage() {
   const [title,     setTitle]     = useState('')
   const [message,   setMessage]   = useState('')
   const [sending,        setSending]        = useState(false)
-  const [running,        setRunning]        = useState(false)
   const [history,        setHistory]        = useState<BroadcastRecord[]>([])
   const [loadingHistory, setLoadingHistory] = useState(true)
   // A failed history load used to read "No broadcasts sent yet."
@@ -238,58 +237,12 @@ export default function AdminNotificationsPage() {
     } finally { setSending(false) }
   }
 
-  async function runCron() {
-    setRunning(true)
-    try {
-      const res  = await fetch('/app/api/admin/cron/reminders', { method: 'POST', credentials: 'include' })
-      const data = await res.json()
-      if (!res.ok) {
-        toast.error(data.error ?? `Cron failed (HTTP ${res.status})`)
-        return
-      }
-      // Surface every field the cron returns — previously we only showed
-      // 3 of 8. Hide zero-value lines so the toast stays scannable on a
-      // quiet day.
-      const lines: string[] = []
-      if (data.sent24h)          lines.push(`24h reminders: ${data.sent24h}`)
-      if (data.sent2h)           lines.push(`2h reminders: ${data.sent2h}`)
-      if (data.sentReviews)      lines.push(`Review nudges: ${data.sentReviews}`)
-      if (data.sentConnections)  lines.push(`Connection pings: ${data.sentConnections}`)
-      if (data.archivedCount)    lines.push(`Archived: ${data.archivedCount}`)
-      if (data.expiringListings) lines.push(`Expiring listings: ${data.expiringListings}`)
-      if (data.purgedPhotos)     lines.push(`Purged photos: ${data.purgedPhotos}`)
-      toast.success(lines.length ? `✓ ${lines.join(' · ')}` : '✓ Nothing to send right now')
-    } catch {
-      toast.error('Network error — please try again')
-    } finally { setRunning(false) }
-  }
-
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-3xl">
 
       <div>
-        <h1 className="text-white text-2xl font-extrabold">Notifications</h1>
-        <p className="text-zinc-400 text-sm mt-1">Send announcements and alerts to members</p>
-      </div>
-
-      {/* Scheduled jobs */}
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
-        <h2 className="text-white font-bold mb-1">Scheduled Jobs</h2>
-        <p className="text-zinc-500 text-xs mb-4">Run manually or set up a daily cron to hit these endpoints automatically.</p>
-        <div className="flex items-center justify-between gap-4 py-3 border-t border-zinc-800">
-          <div>
-            <p className="text-sm font-medium text-white">Event reminders + review requests</p>
-            <p className="text-xs text-zinc-500 mt-0.5">24h reminders · 2h reminders · post-event review nudges</p>
-            <code className="text-xs text-zinc-600 mt-1 block">/api/admin/cron/reminders</code>
-          </div>
-          <button
-            onClick={runCron}
-            disabled={running}
-            className="shrink-0 px-4 py-2 bg-zinc-700 hover:bg-zinc-600 text-white text-xs font-semibold rounded-xl transition-colors disabled:opacity-50"
-          >
-            {running ? 'Running…' : 'Run now'}
-          </button>
-        </div>
+        <h1 className="text-white text-2xl font-extrabold">Broadcasts</h1>
+        <p className="text-zinc-400 text-sm mt-1">Announcements and alerts you send to members</p>
       </div>
 
       <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
