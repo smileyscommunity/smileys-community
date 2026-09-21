@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'fs'
 import { join } from 'path'
+import { NAV_GROUPS, navItems, isModeratorPageAllowed } from '@/lib/adminNav'
 
 // 2026-09-22. /admin/notifications was called "Notifications" — the same name
 // the member-facing bell and /notifications already carry. An admin clicking
@@ -72,5 +73,41 @@ describe('the scheduled jobs moved out', () => {
     // across a render boundary — the trap the handbook review chip documents.
     expect(src('app/api/admin/jobs/route.ts')).toContain('const now = Date.now()')
     expect(src('app/admin/jobs/page.tsx')).not.toMatch(/intervalMin \* 2/)
+  })
+})
+
+// The rename and the new page reached the Command Palette first and the
+// sidebar second, which for a while left the sidebar saying "Notifications"
+// over a page headed "Broadcasts", and made /admin/jobs reachable only by
+// someone who knew to press ⌘K.
+describe('the admin sidebar agrees with both pages', () => {
+  const byLabel = (label: string) => navItems.filter(i => i.label === label)
+
+  it('names the broadcasts entry for the page it opens', () => {
+    expect(byLabel('Broadcasts').map(i => i.href)).toEqual(['/admin/notifications'])
+    expect(byLabel('Notifications')).toEqual([])
+  })
+
+  it('offers Jobs under System, where the other plumbing lives', () => {
+    const system = NAV_GROUPS.find(g => g.label === 'System')!.items
+    expect(system.map(i => i.href)).toContain('/admin/jobs')
+  })
+
+  it('shows Jobs to exactly the role the API answers', () => {
+    // app/api/admin/jobs returns 403 to a moderator. The gate is derived
+    // from this nav, so a 'moderator' role here would advertise the page
+    // and then bounce them — the 2026-09-05 drift, one entry at a time.
+    const jobs = navItems.find(i => i.href === '/admin/jobs')!
+    expect(jobs.roles).toEqual(['admin'])
+    expect(isModeratorPageAllowed('/admin/jobs')).toBe(false)
+  })
+
+  it('every nav entry has a glyph to draw', () => {
+    // A missing key renders nothing at all — no fallback, no error. Read as
+    // text because Sidebar.tsx holds module-level JSX vitest cannot parse.
+    const sidebar = src('components/admin/Sidebar.tsx')
+    const icons   = sidebar.slice(sidebar.indexOf('const ICONS'), sidebar.indexOf('export const ICON_PATHS'))
+    const missing = [...new Set(navItems.map(i => i.icon))].filter(n => !icons.includes(`\n  ${n}:`))
+    expect(missing).toEqual([])
   })
 })

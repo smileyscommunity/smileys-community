@@ -110,7 +110,11 @@ export const NAV_GROUPS: { label: string; items: AdminNavItem[] }[] = [
   {
     label: 'Content',
     items: [
-      { label: 'Notifications', href: '/admin/notifications',                 exact: false, roles: ['admin', 'moderator'],  icon: 'notifications' },
+      // "Broadcasts" because composing and sending one is all this page does
+      // now. The scheduled-sweeper block it used to carry moved to System >
+      // Jobs, so "Notifications" had come to name only half of what it meant
+      // — and the page's own heading already says Broadcasts.
+      { label: 'Broadcasts',    href: '/admin/notifications',                 exact: false, roles: ['admin', 'moderator'],  icon: 'notifications' },
       { label: 'Newsletter',    href: '/admin/newsletter',                    exact: false, roles: ['admin'],                icon: 'campaigns'     },
       // Announcements + Polls used to share /admin/announcements behind a ?tab=
       // query (a single-page tab nav). That left both tabs visible from either
@@ -133,6 +137,14 @@ export const NAV_GROUPS: { label: string; items: AdminNavItem[] }[] = [
   {
     label: 'System',
     items: [
+      // Sweeper health — which job the dashboard's red "stale sweepers" pill
+      // is counting, and why. Admin-only to match app/api/admin/jobs, which
+      // answers moderators 403: a sweeper is platform plumbing, its error
+      // strings quote internal state, and the one runnable job fans reminders
+      // out to a whole city. The role list has to stay in step with the route
+      // — MODERATOR_ALLOWED_PATHS below is derived from this list, so adding
+      // 'moderator' here would advertise a page the API refuses.
+      { label: 'Jobs',      href: '/admin/jobs',      exact: false, roles: ['admin'],  icon: 'jobs'     },
       { label: 'Settings',  href: '/admin/settings',  exact: false, roles: ['admin'],  icon: 'settings' },
       { label: 'Security',  href: '/admin/security',  exact: false, roles: ['admin'],  icon: 'security'  },
     ],
