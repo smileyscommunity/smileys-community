@@ -46,7 +46,9 @@ interface Attendee {
   exempt?: boolean
   // Said "I was there" in the morning-after review (the checkin GET).
   saysCame?: boolean
-  user: { id: string; name: string; color: string; email?: string; profilePhoto?: string | null }
+  // No email: the door roster is a public-facing screen and a name plus a
+  // photo is what checks someone in. See the checkin route.
+  user: { id: string; name: string; color: string; profilePhoto?: string | null }
 }
 
 function EventList() {
@@ -485,7 +487,6 @@ function CheckInScanner() {
                     {!a.checkedIn && a.attendance === 'excused' && <p className="text-xs font-semibold text-zinc-400">Excused</p>}
                     {!a.checkedIn && a.saysCame && <p className="text-xs font-semibold text-amber-300">🙋 Says they were there</p>}
                     {pendingIds.has(a.userId) && <p className="text-[11px] text-amber-400">Not sent yet</p>}
-                    {a.user.email && <p className="text-xs text-zinc-400 truncate">{a.user.email}</p>}
                   </div>
                   {excusable(a, started) && (
                     <button

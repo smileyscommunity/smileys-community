@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdmin, canManageEventOps, isClubHost, hostCityIds } from '@/lib/access'
+import { canManageEventOps } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
 import { rateLimit, claimOnce } from '@/lib/rateLimit'
 import { verifyCardToken } from '@/lib/cardToken'
@@ -39,12 +39,17 @@ export async function GET(_: NextRequest, { params }: Params) {
     // for this event" was the only thing the door could say about them.
     const attendees = await prisma.eventAttendee.findMany({
       where: { eventId, status: { in: ['approved', 'waitlisted', 'pending'] } },
-      include: { user: { select: { id: true, name: true, color: true, email: true, profilePhoto: true, role: true } } },
+      include: { user: { select: { id: true, name: true, color: true, profilePhoto: true, role: true } } },
       orderBy: { joinedAt: 'asc' },
     })
 
-    // Privacy Masking: Only Admins and the Primary Host see emails. 
-    // Co-hosts and Club Hosts only see Name/Photo for check-in.
+    // No email reaches the door. This used to send one to admins and to the
+    // primary host, on the reasoning that they are trusted — but trust was
+    // never the issue. The door roster is a screen held up in public, handed
+    // between people at the entrance and left open on a table, and an email
+    // address does not help anyone check a guest in: the name and photo do
+    // that. An admin who needs to contact someone has the participants page,
+    // which is not a screen you hold in a doorway.
     const event = await prisma.event.findUnique({
       where:  { id: eventId },
       select: {
@@ -53,10 +58,6 @@ export async function GET(_: NextRequest, { params }: Params) {
         club:    { select: { memberships: { where: { role: 'host', status: 'approved' }, select: { userId: true } } } },
       },
     })
-    // The same rule as the participants list: the primary host sees emails
-    // only while they still hold a host role.
-    const canSeeEmail = isAdmin(session) || (event?.hostId === session.id && (
-      session.role === 'moderator' || await isClubHost(session.id) || (await hostCityIds(session.id)).length > 0))
     // Guests who said "I was there" during the morning-after review.
     const claimPrefix = saysCameKey(eventId, '')
     const saysCame = new Set((await prisma.rateLimit.findMany({
@@ -68,7 +69,10 @@ export async function GET(_: NextRequest, { params }: Params) {
     // it is read from stays on the server.
     const runners = eventRunners(event)
     const mapped = attendees.map(a => {
-      const { email, role, ...publicUser } = a.user
+      // Two locks, because one of them is easy to pick open by accident: the
+      // select above does not ask for an email, and this drops one anyway if
+      // a later edit adds it back for some other purpose.
+      const { role, email: _email, ...publicUser } = a.user as typeof a.user & { email?: string }
       return {
         ...a,
         exempt: isExemptFromNoShow(a.userId, role, runners),
@@ -76,7 +80,7 @@ export async function GET(_: NextRequest, { params }: Params) {
         // can name what it found.
         listed: a.status === 'approved',
         saysCame: saysCame.has(a.userId),
-        user:   canSeeEmail ? { ...publicUser, email } : publicUser,
+        user:   publicUser,
       }
     })
 

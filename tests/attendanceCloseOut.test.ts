@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { readFileSync } from 'fs'
 
 vi.mock('@/lib/session',   () => ({ getSession: vi.fn() }))
 vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn().mockResolvedValue(true), claimOnce: vi.fn().mockResolvedValue(false) }))
@@ -230,15 +231,32 @@ describe('GET /events/[id]/checkin roster', () => {
     }
   })
 
-  it('the primary host still sees emails', async () => {
-    ;(getSession as any).mockResolvedValue({ id: 'h1', name: 'Host', role: 'member' })
+  // Was "the primary host still sees emails", and before that admins did too.
+  // Trust was never the question: the door roster is a screen held up at an
+  // entrance, passed between people and left open on a table, and an address
+  // checks nobody in — the name and the photo do. An admin who needs to reach
+  // someone has the participants page, which is not held in a doorway.
+  it.each([
+    ['the primary host', { id: 'h1',    name: 'Host',  role: 'member' }],
+    ['an admin',         { id: 'admin', name: 'Admin', role: 'admin'  }],
+  ])('%s gets no email at the door either', async (_who, session) => {
+    ;(getSession as any).mockResolvedValue(session)
     p.event.findUnique.mockResolvedValue({ hostId: 'h1', cohosts: [], club: null })
     p.eventAttendee.findMany.mockResolvedValue([
       { ...row('m1'), user: { id: 'm1', name: 'Guest', color: '#000', email: 'g@x.test', profilePhoto: null, role: 'member' } },
     ])
     const [r] = await (await roster(req(), params)).json()
-    expect(r.user.email).toBe('g@x.test')
+    expect(r.user.email).toBeUndefined()
     expect(r.user.role).toBeUndefined()
+    expect(r.user.name).toBe('Guest')   // still identifiable at the door
+  })
+
+  it('never asks the database for an address it cannot show', async () => {
+    const src = readFileSync('app/api/events/[id]/checkin/route.ts', 'utf8')
+    expect(src).not.toMatch(/select: \{[^}]*email: true/)
+    expect(src).not.toContain('canSeeEmail')
+    // …and the page has no field left to render it into.
+    expect(readFileSync('app/host/checkin/page.tsx', 'utf8')).not.toContain('a.user.email')
   })
 })
 
