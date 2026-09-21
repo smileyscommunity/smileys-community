@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { useAdminLoad } from '@/lib/admin/useAdminLoad'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import { useAuth } from '@/contexts/AuthContext'
-import { setOutsideTheApp } from '@/lib/announcement'
+import { setOutsideTheApp } from '@/lib/announcementShared'
 
 // Just the announcement banner editor. The polls editor lives at
 // /admin/polls — the two used to share this route behind a ?tab=

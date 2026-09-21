@@ -114,6 +114,19 @@ describe('one reader, used by everyone who reads it', () => {
     expect(src).toContain('updatedVia: payload.updatedVia')   // echoed to the client
   })
 
+  // The editor is a client component; importing the reader pulled `fs` into
+  // the browser bundle and broke `next build`. tsc and vitest both passed —
+  // only the build resolves that boundary, which is why this is pinned here.
+  it('the client editor imports the contract, never the file reader', () => {
+    const src = read('app/admin/announcements/page.tsx')
+    expect(src).toContain("'use client'")
+    expect(src).toContain("from '@/lib/announcementShared'")
+    expect(src).not.toMatch(/from '@\/lib\/announcement'/)
+    // and the shared half must stay free of anything server-only
+    const shared = read('lib/announcementShared.ts')
+    expect(shared).not.toMatch(/from 'fs'|from 'path'|process\.cwd/)
+  })
+
   it('the admin page shows the notice, and only once loaded', () => {
     const src = read('app/admin/announcements/page.tsx')
     expect(src).toContain('setOutsideTheApp(committed)')

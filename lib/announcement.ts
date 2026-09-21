@@ -19,33 +19,14 @@ import { join } from 'path'
 
 export const ANNOUNCEMENT_FILE = join(process.cwd(), 'data', 'announcement.json')
 
-export interface StoredAnnouncement {
-  text:      string
-  link:      string
-  active:    boolean
-  updatedAt: string | null
-  updatedBy: string | null
-  /**
-   * 'admin' when the POST route wrote it. Anything else — including absent,
-   * which is every announcement written before this field existed — means the
-   * file was changed some other way, so nothing guarantees the text is within
-   * the cap or the link passed isSafeHref. The admin page says so rather than
-   * presenting an unchecked banner as if the form had produced it.
-   */
-  updatedVia: string | null
-}
-
-export const EMPTY_ANNOUNCEMENT: StoredAnnouncement = {
-  text:       '',
-  link:       '',
-  active:     false,
-  updatedAt:  null,
-  updatedBy:  null,
-  updatedVia: null,
-}
-
-/** Written by the POST route, and only by it. */
-export const ADMIN_SOURCE = 'admin'
+// Re-exported so server callers have one import. The definitions live in
+// lib/announcementShared, which touches no filesystem, because the admin
+// editor is a client component and this module imports `fs`.
+export {
+  EMPTY_ANNOUNCEMENT, ADMIN_SOURCE, setOutsideTheApp,
+  type AnnouncementRecord, type AnnouncementRecord as StoredAnnouncement,
+} from '@/lib/announcementShared'
+import { EMPTY_ANNOUNCEMENT as EMPTY, type AnnouncementRecord } from '@/lib/announcementShared'
 
 /**
  * Normalise whatever is on disk into the stored shape. Every field is checked
@@ -53,7 +34,7 @@ export const ADMIN_SOURCE = 'admin'
  * missing file, invalid JSON or a number where a string belongs all come back
  * as the empty announcement rather than reaching a consumer.
  */
-export function readAnnouncement(): StoredAnnouncement {
+export function readAnnouncement(): AnnouncementRecord {
   try {
     const raw = JSON.parse(readFileSync(ANNOUNCEMENT_FILE, 'utf-8'))
     return {
@@ -64,24 +45,12 @@ export function readAnnouncement(): StoredAnnouncement {
       updatedBy:  typeof raw?.updatedBy  === 'string' ? raw.updatedBy  : null,
       updatedVia: typeof raw?.updatedVia === 'string' ? raw.updatedVia : null,
     }
-  } catch { return { ...EMPTY_ANNOUNCEMENT } }
+  } catch { return { ...EMPTY } }
 }
 
 /** The banner the dashboard should show, or null when there is nothing to show. */
-export function liveAnnouncement(): StoredAnnouncement | null {
+export function liveAnnouncement(): AnnouncementRecord | null {
   const a = readAnnouncement()
   return a.active && a.text ? a : null
 }
 
-/**
- * True when something is live that the admin form did not produce, so the
- * page can say the text and link were never checked. An empty announcement is
- * not "unverified" — there is nothing to verify.
- *
- * Takes the two fields it reads rather than the whole record, so the admin
- * page's own client-side type (where updatedVia is optional, since a response
- * cached before the field existed will not carry it) satisfies it too.
- */
-export function setOutsideTheApp(a: { updatedAt: string | null; updatedVia?: string | null }): boolean {
-  return !!a.updatedAt && a.updatedVia !== ADMIN_SOURCE
-}
