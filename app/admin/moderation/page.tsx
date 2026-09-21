@@ -15,6 +15,8 @@ import { formatDay } from '@/lib/cityTime'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import { loadFailure } from '@/lib/admin/useAdminLoad'
 import { notifyModerationChanged } from '@/lib/modCounts'
+import { timeAgo } from '@/lib/timeAgo'
+import { reportOrder, agingWait, waitedTooLong } from '@/lib/admin/reportQueue'
 
 interface Report {
   id: string
@@ -116,8 +118,11 @@ function ModerationPageInner() {
   // land on the same view. Whitelist guards against junk query strings.
   const initialTab = (TAB_KEYS as readonly string[]).includes(searchParams.get('tab') ?? '')
     ? (searchParams.get('tab') as TabKey) : 'reports'
+  // Lands on Pending, not All. This is a work queue; opening it on a list
+  // that mixes settled reports with outstanding ones makes "what still needs
+  // doing" something you have to go and ask for.
   const initialStatus = (STATUS_KEYS as readonly string[]).includes(searchParams.get('status') ?? '')
-    ? (searchParams.get('status') as StatusFilter) : 'all'
+    ? (searchParams.get('status') as StatusFilter) : 'pending'
 
   const [tab, setTab] = useState<TabKey>(initialTab)
   const [reports,   setReports]   = useState<Report[]>([])
@@ -478,7 +483,7 @@ function ModerationPageInner() {
     (statusFilter === 'all' || r.status === statusFilter)
     && (!surveyOnly || r.reason === 'post_event_survey')
     && matchReport(r)
-  )
+  ).sort(reportOrder)
   const visibleMessages  = messages.filter(matchMessage)
   const visibleQueue     = queue.filter(matchQueue)
   const visibleBanned    = banned.filter(matchBanned)
@@ -667,7 +672,17 @@ function ModerationPageInner() {
                     )}
                     {r.details && <p className="text-xs text-zinc-500 mb-1 line-clamp-2">"{r.details}"</p>}
                     <div className="text-xs text-zinc-600">
-                      By <span className="text-zinc-400">{r.reporter.name}</span> · {new Date(r.createdAt).toLocaleDateString()}
+                      By <span className="text-zinc-400">{r.reporter.name}</span>
+                      {' · '}
+                      {/* An age, not a date: "09/08/2026" does not read as
+                          neglect the way "43d ago" does, and the default
+                          cutover would have turned it back into a date after
+                          a week — exactly when it starts to matter. */}
+                      <span
+                        className={r.status !== 'pending' ? '' : waitedTooLong(r.createdAt) ? 'text-red-400 font-semibold' : agingWait(r.createdAt) ? 'text-amber-400 font-semibold' : ''}
+                        title={new Date(r.createdAt).toLocaleString()}>
+                        {timeAgo(r.createdAt, { cutoverDays: 3650 })}
+                      </span>
                     </div>
                     {r.reviewNote && (
                       <div className="text-xs text-zinc-500 mt-1 italic">Note: {r.reviewNote}</div>
