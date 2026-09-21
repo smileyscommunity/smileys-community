@@ -215,7 +215,7 @@ async function runSweep() {
       listing.userId,
       'listing_expiry',
       `Listing expiring in ${daysLeft} days ⏳`,
-      `"${listing.title}" will be removed from the Community Board soon — renew it to keep it visible.`,
+      `"${listing.title}" will be removed from the marketplace soon — renew it to keep it visible.`,
       listingLink,
     )) {
       await releaseClaim(expiryClaim)

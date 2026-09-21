@@ -1072,7 +1072,7 @@ export async function sendListingExpiryEmail(email: string, name: string, listin
           <span style="font-size:40px">📋</span>
           <h1 style="font-size:22px;font-weight:800;color:#111;margin:8px 0 4px">Hey ${esc(firstName)}, your listing is expiring soon</h1>
           <p style="color:#6b7280;font-size:14px;margin:0">
-            <strong>${esc(listingTitle)}</strong> will be removed from the Community Board in <strong>${daysLeft} day${daysLeft !== 1 ? 's' : ''}</strong>.
+            <strong>${esc(listingTitle)}</strong> will be removed from the marketplace in <strong>${daysLeft} day${daysLeft !== 1 ? 's' : ''}</strong>.
           </p>
         </div>
         <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:16px 20px;margin-bottom:24px">
@@ -1222,9 +1222,16 @@ export async function sendListingAlertEmail(
   name: string,
   categoryLabel: string,
   listing: { title: string; description: string },
+  // Where this alert actually points — the listing it announces, the sale,
+  // or the marketplace for a digest of several. It used to be `/board` for
+  // all of them, which since the split shows conversations: a member who
+  // asked to hear about rooms tapped through to no rooms at all.
+  path = '/marketplace',
 ) {
-  const url = `${APP_URL}/board`
-  const unsub = `${APP_URL}/settings`
+  const url = `${APP_URL}${path}`
+  // Unsubscribing goes to the marketplace too: that bell is where the alert
+  // was switched on, and /settings has no control for it.
+  const unsub = `${APP_URL}/marketplace`
   const excerpt = listing.description.length > 120 ? listing.description.slice(0, 120) + '…' : listing.description
   await send('sendListingAlertEmail', {
     from: FROM, to,
@@ -1233,7 +1240,7 @@ export async function sendListingAlertEmail(
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#fff">
         <div style="text-align:center;margin-bottom:28px">
           <span style="font-size:36px">😊</span>
-          <p style="color:#6b7280;font-size:12px;margin:4px 0 0;letter-spacing:0.08em;text-transform:uppercase">Smileys Community Board</p>
+          <p style="color:#6b7280;font-size:12px;margin:4px 0 0;letter-spacing:0.08em;text-transform:uppercase">Smileys Marketplace</p>
         </div>
         <p style="margin:0 0 12px;color:#374151;font-size:14px">Hey ${esc(name)},</p>
         <p style="margin:0 0 20px;color:#374151;font-size:14px">A new <strong>${esc(categoryLabel)}</strong> listing was just posted:</p>
@@ -1242,7 +1249,7 @@ export async function sendListingAlertEmail(
           <p style="font-size:13px;color:#6b7280;margin:0;line-height:1.5">${esc(excerpt)}</p>
         </div>
         <a href="${url}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:14px;padding:13px 24px;border-radius:10px;text-decoration:none;margin-bottom:24px">
-          View on Community Board →
+          See the listing →
         </a>
         <p style="color:#9ca3af;font-size:11px;text-align:center;line-height:1.6">
           You're getting this because you subscribed to ${esc(categoryLabel)} alerts.<br>

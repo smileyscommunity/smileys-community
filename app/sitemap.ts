@@ -2,6 +2,7 @@ import { MetadataRoute } from 'next'
 import { statSync } from 'fs'
 import { join } from 'path'
 import { prisma } from '@/lib/prisma'
+import { LIVE_BOARD_AUTHOR } from '@/lib/boardAccess'
 import { loadExperiences, loadRoutes } from '@/lib/guideContent'
 import { getDefaultCityId, getPublicCities, CITY_STATUS, DEFAULT_CITY_SLUG } from '@/lib/cities'
 import { NEIGHBORHOOD_META, neighborhoodToSlug } from '@/lib/neighborhoods'
@@ -51,8 +52,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }),
     // Marketplace listings are public — let Google crawl them so search hits
     // like "flats in Moda" can land on the listing.
+    // The same rows the listing page will actually serve: a sitemap that
+    // names a listing the page refuses (dead seller) or noindexes (expired)
+    // is a list of pages a crawler is told to fetch and then told to forget.
     prisma.listing.findMany({
-      where:   { status: 'active', cityId: { in: cityIds } },
+      where:   { status: 'active', expiresAt: { gte: new Date() }, cityId: { in: cityIds }, user: LIVE_BOARD_AUTHOR },
       select:  { id: true, updatedAt: true },
       orderBy: { createdAt: 'desc' },
       take:    500,

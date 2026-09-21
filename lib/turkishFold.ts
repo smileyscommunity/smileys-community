@@ -31,3 +31,12 @@ export function fold(s: string): string {
 // accented letters are the ones these names and interests actually use.
 export const SQL_FOLD_FROM = 'ıİşŞğĞçÇöÖüÜáàâäãåÁÀÂÄÃÅéèêëÉÈÊËíìîïÍÌÎÏóòôõÓÒÔÕúùûÚÙÛñÑýÿ'
 export const SQL_FOLD_TO   = 'iissggccoouuaaaaaaAAAAAAeeeeEEEEiiiiIIIIooooOOOOuuuUUUnNyy'
+
+/**
+ * Escapes the wildcards in a `contains` term. Without it, a search for `%`
+ * matches everything — which turns a filter into a probe when the count
+ * comes back to a caller who shouldn't be able to ask.
+ */
+export function likeSafe(term: string): string {
+  return term.replace(/[\\%_]/g, c => `\\${c}`)
+}

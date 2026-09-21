@@ -6,6 +6,7 @@ import Image from 'next/image'
 import { useAuth } from '@/contexts/AuthContext'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { resolveImageUrl, avatarUrl, firstNameOf} from '@/lib/data'
+import { statusPill, describeAttrs, contactRender, isAvailable, FILLED_LABEL } from '@/lib/listingDisplay'
 import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import posthog from 'posthog-js'
@@ -122,6 +123,10 @@ async function copyShare(id: string): Promise<boolean> {
   }
 }
 
+// The one deferred back() a closing sheet may leave behind — see the history
+// effect inside ListingModal for why it is deferred at all.
+let pendingSheetBack: ReturnType<typeof setTimeout> | null = null
+
 function ListingModal({ listing, currentUserId, isLoggedIn, isStaff, isSaved, onToggleSave, onClose, onDelete, onMarkFilled, onRenew, onEdit, neighborhoods }: {
   listing: Listing
   // null = not signed in. Previous shape used '' and 'guest' as
@@ -207,20 +212,80 @@ function ListingModal({ listing, currentUserId, isLoggedIn, isStaff, isSaved, on
     }
   }
 
-  const waHref = listing.contact
-    ? (listing.contact.startsWith('http')
-        ? listing.contact
-        : `https://wa.me/${listing.contact.replace(/\D/g, '')}`)
-    : null
+  // A phone number or a WhatsApp link — anything else keeps a neutral label
+  // instead of being announced as WhatsApp. See lib/listingDisplay.
+  const contact  = contactRender(listing.contact)
   const mailHref = listing.contactEmail
     ? `mailto:${listing.contactEmail}?subject=${encodeURIComponent(`Smileys: ${listing.title.slice(0, 60)}`)}`
     : null
+  const attrRows = describeAttrs(listing.attrs)
+  const pill     = statusPill(listing.status, listing.category)
+  const live     = isAvailable(listing.status)
+
+  // onClose is an inline arrow from the parent, so it's a new function on
+  // every render — the effects below read it through a ref instead of
+  // depending on it, or they'd tear down and re-run (and re-push history)
+  // each time a keystroke in the contact box re-renders the sheet.
+  const closeRef = useRef(onClose)
+  closeRef.current = onClose
+
+  // Hold the page still, and make Escape work. It used to be bound to the
+  // backdrop div, which never receives focus, so the key did nothing unless
+  // the member had tabbed into the overlay; meanwhile the grid behind
+  // scrolled under the sheet, so closing it dropped them somewhere else in
+  // the marketplace.
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') closeRef.current() }
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = previousOverflow
+    }
+  }, [])
+
+  // Android's back gesture left the marketplace entirely instead of closing
+  // the sheet. One history entry per open, pushed on top of Next's own state
+  // so the router keeps its bookkeeping: the gesture pops it (popstate →
+  // close) and a close from the UI spends it, so no phantom entry survives.
+  // Spent only while it's still the current entry — a Link inside the sheet
+  // navigates away, and the URL-sync effect below replaces state on a filter
+  // change; in both cases the marker is gone and calling back() would hijack
+  // a navigation the member asked for.
+  //
+  // The back() is deferred a tick and a remount cancels it. In development
+  // React runs every effect mount → cleanup → mount: with an immediate
+  // back(), the second mount pushed a second marker on top of the first, the
+  // queued pop then landed on THAT one, and the sheet closed itself the
+  // moment it opened. The remount adopts the marker the first mount left.
+  useEffect(() => {
+    let popped = false
+    if (pendingSheetBack !== null) {
+      clearTimeout(pendingSheetBack)
+      pendingSheetBack = null
+    } else {
+      window.history.pushState({ ...window.history.state, smileysListingSheet: true }, '')
+    }
+    function onPop() { popped = true; closeRef.current() }
+    window.addEventListener('popstate', onPop)
+    return () => {
+      window.removeEventListener('popstate', onPop)
+      if (!popped && window.history.state?.smileysListingSheet) {
+        pendingSheetBack = setTimeout(() => {
+          pendingSheetBack = null
+          if (window.history.state?.smileysListingSheet) window.history.back()
+        }, 0)
+      }
+    }
+  }, [])
 
   return (
+    // z-[60], like the member sheet on /members: the bottom nav is also z-50
+    // and paints later, so at z-50 the action row sat underneath it on a phone.
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4"
+      className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4"
       onClick={onClose}
-      onKeyDown={e => { if (e.key === 'Escape') onClose() }}
     >
       <div
         role="dialog"
@@ -296,10 +361,41 @@ function ListingModal({ listing, currentUserId, isLoggedIn, isStaff, isSaved, on
               <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700"><span aria-hidden="true">📍 </span>{listing.neighborhood}</span>
             )}
             {listing.price && <span className="text-sm font-bold text-gray-900 bg-gray-100 px-2.5 py-1 rounded-full">{listing.price}</span>}
+            {/* What happened to it. Only where it says something: the owner's
+                own rows, and anything that has stopped being available (a
+                saved listing that sold while it sat in the Saved tab). */}
+            {pill && (isOwner || !live) && (
+              <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${pill.cls}`}>{pill.label}</span>
+            )}
             <span className="text-xs text-gray-400 ml-auto">{timeAgo(listing.createdAt)}</span>
           </div>
           <h2 id="listing-modal-title" className="text-lg font-extrabold text-gray-900 leading-snug">{listing.title}</h2>
           <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">{listing.description}</p>
+          {/* The category fields the poster filled in (§9-12 of the form).
+              They were collected, validated and stored — and shown nowhere,
+              so "available from" and "furnished" existed only in the database. */}
+          {attrRows.length > 0 && (
+            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm bg-gray-50 border border-gray-100 rounded-xl px-4 py-3">
+              {attrRows.map(a => (
+                <div key={a.label} className="contents">
+                  <dt className="text-gray-400 font-semibold text-xs self-center">{a.label}</dt>
+                  <dd className="text-gray-800 font-medium">{a.value}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+          {!live && listing.status === 'expired' && (
+            <p className="text-sm text-amber-800 bg-amber-50 border border-amber-100 rounded-xl px-4 py-2.5">
+              This listing expired{isOwner ? ' — renew it below to put it back on the marketplace for another 30 days.' : '.'}
+            </p>
+          )}
+          {!live && listing.status === 'filled' && (
+            <p className="text-sm text-gray-600 bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
+              {isOwner
+                ? 'You marked this as done. It stays here for your records — post a new listing if it comes back.'
+                : 'This one is no longer available.'}
+            </p>
+          )}
           {/* §38 (Members brief) — the seller is a canonical member;
               signed-in viewers can open their profile. Guests keep the
               plain identity block (profiles are member-only). */}
@@ -338,7 +434,10 @@ function ListingModal({ listing, currentUserId, isLoggedIn, isStaff, isSaved, on
               endpoint bypasses the connection gate because a listing is an
               explicit invitation for contact; once-per-listing + 10/day +
               blocks + URL-stripping do the safety work server-side. */}
-          {isLoggedIn && !isOwner && !contactSent && (
+          {/* …and only while the listing is live: the endpoint 400s on a
+              filled or expired one, so offering the composer there would
+              promise a message that can't be sent. */}
+          {isLoggedIn && !isOwner && live && !contactSent && (
             !contactOpen ? (
               <button onClick={() => setContactOpen(true)}
                 className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-2xl transition-colors">
@@ -380,8 +479,18 @@ function ListingModal({ listing, currentUserId, isLoggedIn, isStaff, isSaved, on
               ✓ Sent — open the conversation →
             </Link>
           )}
-          {waHref && (
-            <a href={waHref} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 w-full py-3 bg-[#25D366] hover:bg-[#1ebe5d] text-white text-sm font-bold rounded-2xl transition-colors">
+          {contact?.kind === 'text' && (
+            <p className="text-center text-sm text-gray-600 bg-gray-50 border border-gray-100 rounded-2xl py-3 px-4 break-words">
+              Contact: <span className="font-semibold text-gray-900">{contact.text}</span>
+            </p>
+          )}
+          {contact?.kind === 'link' && (
+            <a href={contact.href} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 w-full py-3 bg-gray-100 hover:bg-gray-200 text-gray-800 text-sm font-bold rounded-2xl transition-colors">
+              Open the contact link the seller left
+            </a>
+          )}
+          {contact?.kind === 'whatsapp' && (
+            <a href={contact.href} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 w-full py-3 bg-[#25D366] hover:bg-[#1ebe5d] text-white text-sm font-bold rounded-2xl transition-colors">
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
                 <path d="M12 0C5.373 0 0 5.373 0 12c0 2.134.558 4.133 1.534 5.864L.057 23.57a.5.5 0 00.612.612l5.706-1.477A11.943 11.943 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.794 9.794 0 01-5.002-1.374l-.358-.213-3.724.964.991-3.621-.234-.373A9.79 9.79 0 012.182 12C2.182 6.57 6.57 2.182 12 2.182S21.818 6.57 21.818 12 17.43 21.818 12 21.818z"/>
@@ -469,10 +578,19 @@ function ListingModal({ listing, currentUserId, isLoggedIn, isStaff, isSaved, on
                 className="text-sm font-semibold text-gray-600 hover:bg-gray-100 px-4 py-2.5 rounded-xl transition-colors">
                 Edit
               </button>
-              {daysLeft <= 7
-                ? <button onClick={() => { onRenew(listing.id); onClose() }} className="flex-1 text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-white py-2.5 rounded-xl transition-colors">Renew listing</button>
-                : <button onClick={() => { posthog.capture('listing_resolved', { category: listing.category }); onMarkFilled(listing.id); onClose() }} className="flex-1 text-sm font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-xl transition-colors">{RESOLVE_LABEL[listing.category] ?? 'Mark as done'}</button>
-              }
+              {/* Resolve and renew are independent, and they used to be an
+                  either/or: inside the last 7 days the sheet swapped "Mark as
+                  sold" out for "Renew", so the week a listing is most likely
+                  to sell was the week its owner couldn't say so. Renew is an
+                  ADDITION near expiry — and the only action left once a
+                  listing has expired. A filled one can't be renewed (the API
+                  refuses); it takes a fresh listing. */}
+              {live && (
+                <button onClick={() => { posthog.capture('listing_resolved', { category: listing.category }); onMarkFilled(listing.id); onClose() }} className="flex-1 text-sm font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-xl transition-colors">{RESOLVE_LABEL[listing.category] ?? 'Mark as done'}</button>
+              )}
+              {((live && daysLeft <= 7) || listing.status === 'expired') && (
+                <button onClick={() => { onRenew(listing.id); onClose() }} className="flex-1 text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-white py-2.5 rounded-xl transition-colors">Renew listing</button>
+              )}
               {deleteConfirm ? (
                 <>
                   <button onClick={() => { onDelete(listing.id); onClose() }}
@@ -532,14 +650,19 @@ function ListingModal({ listing, currentUserId, isLoggedIn, isStaff, isSaved, on
   )
 }
 
-function ListingCard({ listing, onClick, isLoggedIn, isSaved, onToggleSave }: {
+function ListingCard({ listing, onClick, isLoggedIn, isSaved, onToggleSave, showStatus }: {
   listing: Listing
   onClick: () => void
   isLoggedIn: boolean
   isSaved: boolean
   onToggleSave: (id: string) => void
+  // Mine/Saved: where a row can be something other than live, and where the
+  // member is owed the answer. On the browse tabs everything is active, so a
+  // "Live" badge on every card would be noise.
+  showStatus: boolean
 }) {
   const photo = resolveImageUrl(listing.photo)
+  const pill  = showStatus ? statusPill(listing.status, listing.category) : null
   // #7 perf: 64-wide thumb for the avatar (w-6 css = 24px); listing
   // photo stays full-size.
   const avatar = avatarUrl(listing.user.profilePhoto, 64)
@@ -604,6 +727,11 @@ function ListingCard({ listing, onClick, isLoggedIn, isSaved, onToggleSave }: {
       )}
 
       <div className="p-4 flex flex-col gap-2.5">
+        {/* Outside the two header variants on purpose — it has to show whether
+            or not the listing has a photo. */}
+        {pill && (
+          <span className={`self-start text-[11px] font-bold px-2.5 py-1 rounded-full ${pill.cls}`}>{pill.label}</span>
+        )}
         <h3 className="font-bold text-gray-900 text-sm leading-snug line-clamp-2 group-hover:text-amber-600 transition-colors">{listing.title}</h3>
         <p className="text-xs text-gray-600 leading-relaxed line-clamp-2">{listing.description}</p>
         {listing.neighborhood && (
@@ -812,6 +940,9 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
   // tab showing Housing listings. Results are dropped unless their load is
   // still the newest one.
   const loadSeq = useRef(0)
+  // How many rows the server has already returned for the current filters —
+  // see the merge in fetchListings for why this can't be listings.length.
+  const serverOffset = useRef(0)
 
   const fetchListings = useCallback(async (cat: string, nbhd: string, q: string, offset: number, append = false, isCurrent: () => boolean = () => true) => {
     const params = new URLSearchParams({ offset: String(offset) })
@@ -829,7 +960,20 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
     if (!res.ok) throw new Error('Failed to load listings')
     const data = await res.json()
     if (!isCurrent()) return
-    setListings(prev => append ? [...prev, ...(data.listings ?? [])] : (data.listings ?? []))
+    const rows: Listing[] = data.listings ?? []
+    // The SERVER's offset, not `listings.length`. Deleting, marking filled or
+    // unsaving splices rows out of the array, so the rendered count drifts
+    // below the number of rows the server has already handed over — and "Load
+    // more" asked for page 2 starting one row too early, silently skipping
+    // whatever sat at the boundary. Dedupe on merge as well: the same drift in
+    // the other direction (a row added) would otherwise repeat a card, and a
+    // new listing posted between the two requests shifts the window anyway.
+    serverOffset.current = append ? serverOffset.current + rows.length : rows.length
+    setListings(prev => {
+      if (!append) return rows
+      const seen = new Set(prev.map(l => l.id))
+      return [...prev, ...rows.filter(l => !seen.has(l.id))]
+    })
     setSavedSet(prev => {
       const next = new Set(append ? prev : [])
       for (const id of (data.savedIds ?? [])) next.add(id)
@@ -872,7 +1016,7 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
     const seq = loadSeq.current
     setLoadingMore(true)
     try {
-      await fetchListings(category, neighborhood, debouncedSearch, listings.length, true, () => seq === loadSeq.current)
+      await fetchListings(category, neighborhood, debouncedSearch, serverOffset.current, true, () => seq === loadSeq.current)
     } catch {
       toast.error('Could not load more listings')
     } finally {
@@ -938,17 +1082,32 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
     setTotal(t => t - 1)
   }
 
+  // Both of these used to be write-and-say-nothing: no else branch, no toast.
+  // A failed renew looked exactly like a successful one — the sheet closed
+  // either way — so a member could believe a listing was back for 30 days
+  // while it quietly expired. Same shape as handleDelete now.
   async function handleMarkFilled(id: string) {
+    const listing = listings.find(l => l.id === id)
     const res = await fetch(`/app/api/listings/${id}`, {
       method: 'PATCH',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'filled' }),
-    })
-    if (res.ok) {
+    }).catch(() => null)
+    if (!res?.ok) {
+      const data = await res?.json().catch(() => ({})) ?? {}
+      toast.error(data.error ?? 'Could not update the listing')
+      return
+    }
+    // On Mine the row stays with a "Sold" pill — that IS the answer to "what
+    // happened to my listing". Everywhere else it has left the active feed.
+    if (category === 'MINE') {
+      setListings(prev => prev.map(l => l.id === id ? { ...l, status: 'filled' } : l))
+    } else {
       setListings(prev => prev.filter(l => l.id !== id))
       setTotal(t => t - 1)
     }
+    toast.success(`Marked as ${(FILLED_LABEL[listing?.category ?? ''] ?? 'done').toLowerCase()} — it's off the marketplace`)
   }
 
   async function handleRenew(id: string) {
@@ -957,11 +1116,15 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ renew: true }),
-    })
-    if (res.ok) {
-      const updated = await res.json()
-      setListings(prev => prev.map(l => l.id === id ? { ...l, expiresAt: updated.expiresAt } : l))
+    }).catch(() => null)
+    if (!res?.ok) {
+      const data = await res?.json().catch(() => ({})) ?? {}
+      toast.error(data.error ?? 'Could not renew the listing')
+      return
     }
+    const updated = await res.json()
+    setListings(prev => prev.map(l => l.id === id ? { ...l, ...updated } : l))
+    toast.success('Renewed — live for another 30 days')
   }
 
   async function handleEditListing(id: string, patch: { title: string; description: string; price: string; neighborhood: string; contact: string; contactEmail: string }) {
@@ -984,6 +1147,17 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
   }
 
   const activeCat = CATEGORIES.find(c => c.id === category)
+  // Which narrowings are in force, in words. The empty state used to know
+  // about the category and the search box only, so a marketplace with two
+  // hundred listings in it read "No listings yet — be the first to post
+  // something" the moment someone picked a quiet neighbourhood.
+  const activeFilters: string[] = []
+  if (debouncedSearch) activeFilters.push(`“${debouncedSearch}”`)
+  if (neighborhood)    activeFilters.push(neighborhood)
+  if (activeCat && !['ALL', 'MINE', 'SAVED'].includes(category)) activeFilters.push(activeCat.label.toLowerCase())
+  // Saved rows that sold or expired while they sat in the tab. They used to
+  // be dropped without a word — the tab just got shorter.
+  const savedGone = category === 'SAVED' ? listings.filter(l => !isAvailable(l.status)).length : 0
 
   return (
     <div className="min-h-screen bg-warm pb-24 md:pb-0">
@@ -1067,7 +1241,11 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
           </div>
 
           {view === 'market' && (<>
-          {/* Search bar */}
+          {/* Search bar. Hidden on the Moving tab: MovingSales renders its own
+              list from its own table and takes neither the query nor the area
+              filter, so both controls sat there accepting input that changed
+              nothing on screen. */}
+          {category !== 'MOVING' && (
           <div className="relative mb-4">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -1083,6 +1261,7 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
               <button onClick={() => setSearch('')} aria-label="Clear search" className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-lg leading-none"><span aria-hidden="true">×</span></button>
             )}
           </div>
+          )}
 
           {/* Category pills sit on their own row at every breakpoint.
               The neighborhood select + alert bell drop to a row below
@@ -1119,11 +1298,14 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
                   >
                     <span aria-hidden="true">{cat.emoji}</span>
                     {cat.label}
-                    {cat.id === 'ALL' && !loading && !debouncedSearch && (
-                      <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full ${isActive ? 'bg-white/20' : 'bg-gray-100 text-gray-400'}`}>
-                        {total}
-                      </span>
-                    )}
+                    {/* The "All" pill carried a count badge fed by `total`,
+                        which is the CURRENT filter's total — so browsing Jobs
+                        put the Jobs count on the All pill, i.e. a number that
+                        was wrong exactly when somebody might use it to decide
+                        whether to widen the view. There is no unfiltered total
+                        on this page to put there instead, so the badge goes;
+                        the count line above the grid already names what it
+                        counts. */}
                   </button>
                 )
               })}
@@ -1137,7 +1319,10 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
             )}
 
             <div className="flex items-center gap-2 shrink-0">
-            {/* Neighborhood filter */}
+            {/* Neighborhood filter — same story as the search box: the Moving
+                tab doesn't read it. The alert bell stays; Moving Sales is an
+                alertable category. */}
+            {category !== 'MOVING' && (
             <select
               value={neighborhood}
               onChange={e => setNeighborhood(e.target.value)}
@@ -1151,6 +1336,7 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
               <option value="">All areas</option>
               {neighborhoods.map(n => <option key={n} value={n}>{n}</option>)}
             </select>
+            )}
 
             {isLoggedIn && (
             <div className="relative shrink-0" ref={alertMenuRef}>
@@ -1339,20 +1525,22 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
               {debouncedSearch ? '🔍' : category === 'SAVED' ? '❤️' : activeCat?.emoji ?? '📋'}
             </div>
             <p className="text-xl font-bold text-gray-700">
-              {debouncedSearch
-                ? `No results for "${debouncedSearch}"`
+              {activeFilters.length > 0
+                ? 'Nothing matches these filters'
                 : category === 'SAVED'
                 ? 'No saved listings yet'
-                : category === 'ALL' ? 'No listings yet' : `No ${activeCat?.label.toLowerCase()} listings`}
+                : category === 'MINE'
+                ? 'You haven’t posted a listing yet'
+                : 'No listings yet'}
             </p>
             <p className="text-sm text-gray-400 mt-2 mb-8">
-              {debouncedSearch
-                ? 'Try a different search term'
+              {activeFilters.length > 0
+                ? <>Filtering {category === 'SAVED' ? 'saved listings' : category === 'MINE' ? 'your listings' : 'the marketplace'} by {activeFilters.join(' · ')}. Clear one and there may be plenty here.</>
                 : category === 'SAVED'
                 ? 'Tap the heart on any listing to save it for later'
-                : category === 'ALL'
-                ? 'Be the first to post something for the community'
-                : `Switch to All to see everything, or post a ${activeCat?.label.toLowerCase()} listing`}
+                : category === 'MINE'
+                ? 'Anything you post shows up here, with whether it’s live, sold or expired'
+                : 'Be the first to post something for the community'}
             </p>
             {/* Demand capture (phase 3): an empty category is the moment a
                 member most wants an alert — one tap here is what guarantees
@@ -1377,8 +1565,11 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
                 )}
               </div>
             )}
-            {category !== 'SAVED' && !debouncedSearch && (
-              <div className="flex items-center justify-center gap-3 flex-wrap">
+            {/* The way out is always on screen. It used to be hidden the
+                moment a search was running or the Saved tab was open — the
+                two states a member is most likely to be stuck in. */}
+            <div className="flex items-center justify-center gap-3 flex-wrap">
+              {category !== 'SAVED' && (
                 <Link
                   href={isLoggedIn ? '/board/new' : '/login?return=/board/new'}
                   className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold px-6 py-3 rounded-xl transition-colors shadow-sm"
@@ -1388,19 +1579,42 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
                   </svg>
                   {isLoggedIn ? 'Post a listing' : 'Sign in to post'}
                 </Link>
-                {category !== 'ALL' && (
-                  <button
-                    onClick={() => setCategory('ALL')}
-                    className="inline-flex items-center gap-2 bg-white border border-gray-200 text-gray-600 text-sm font-semibold px-6 py-3 rounded-xl hover:border-gray-300 transition-colors"
-                  >
-                    View all listings
-                  </button>
-                )}
-              </div>
-            )}
+              )}
+              {debouncedSearch && (
+                <button
+                  onClick={() => setSearch('')}
+                  className="inline-flex items-center gap-2 bg-white border border-gray-200 text-gray-600 text-sm font-semibold px-6 py-3 rounded-xl hover:border-gray-300 transition-colors"
+                >
+                  Clear the search
+                </button>
+              )}
+              {neighborhood && (
+                <button
+                  onClick={() => setNeighborhood('')}
+                  className="inline-flex items-center gap-2 bg-white border border-gray-200 text-gray-600 text-sm font-semibold px-6 py-3 rounded-xl hover:border-gray-300 transition-colors"
+                >
+                  Show all areas
+                </button>
+              )}
+              {category !== 'ALL' && (
+                <button
+                  onClick={() => setCategory('ALL')}
+                  className="inline-flex items-center gap-2 bg-white border border-gray-200 text-gray-600 text-sm font-semibold px-6 py-3 rounded-xl hover:border-gray-300 transition-colors"
+                >
+                  View all listings
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           <>
+            {savedGone > 0 && (
+              <p className="mb-5 text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3">
+                <span aria-hidden="true">🗂️ </span>
+                {savedGone} saved listing{savedGone !== 1 ? 's are' : ' is'} no longer available — sold, claimed or expired.
+                {' '}Unsave {savedGone !== 1 ? 'them' : 'it'} with the heart whenever you like.
+              </p>
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {listings.map(l => (
                 <ListingCard
@@ -1410,6 +1624,7 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
                   isLoggedIn={isLoggedIn}
                   isSaved={savedSet.has(l.id)}
                   onToggleSave={toggleSave}
+                  showStatus={category === 'MINE' || category === 'SAVED'}
                 />
               ))}
             </div>
@@ -1433,10 +1648,15 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
             Smileys connects members; it doesn't guarantee transactions. */}
         <div className="mt-10 bg-gray-50 border border-gray-200 rounded-2xl p-5">
           <p className="text-xs font-bold text-gray-700 uppercase tracking-widest mb-2">🛡️ Stay safe</p>
+          {/* Listings have no three-dot menu and never did — the report
+              link lives at the bottom of the listing itself, and it's
+              members-only, which the copy has to say or a signed-out reader
+              goes looking for a control they can't reach. */}
           <p className="text-xs text-gray-600 leading-relaxed">
             Meet in public when possible · inspect items before paying · never send deposits before
-            seeing a property and verifying who you&apos;re dealing with · report anything that feels off
-            via the <span className="font-semibold">•••</span> menu on any listing.
+            seeing a property and verifying who you&apos;re dealing with · {isLoggedIn
+              ? <>report anything that feels off with <span className="font-semibold">⚑ Report listing</span>, at the bottom of any listing you open.</>
+              : <><Link href="/login?return=/marketplace" className="font-semibold underline underline-offset-2">sign in</Link> to report anything that feels off — the report link sits at the bottom of every listing.</>}
           </p>
         </div>
         </>)}

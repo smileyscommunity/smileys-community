@@ -7,7 +7,12 @@ import { getPublicCity } from '@/lib/cities'
 import { resolvePostingCityId } from '@/lib/cityMembership'
 import { sendListingAlertEmail, recordEmailFailure } from '@/lib/email'
 import { createNotification } from '@/lib/notify'
-import { rateLimit } from '@/lib/rateLimit'
+import { rateLimit, getIp } from '@/lib/rateLimit'
+import { LIVE_BOARD_AUTHOR } from '@/lib/boardAccess'
+import { blockedIdsFor } from '@/lib/memberPrivacy'
+import { authorProjector } from '@/lib/authorProjection'
+import { likeSafe } from '@/lib/turkishFold'
+import { normalizeListingContact } from '@/lib/listingContact'
 import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
 import { redactListingForGuest } from '@/lib/listingsPublic'
 
@@ -25,6 +30,13 @@ export async function GET(req: NextRequest) {
     // the marketplace" pull for prospects). Session-only features
     // (?saved=true, savedIds) just no-op for anonymous users.
     const session = await getSession()
+
+    // Reading is public, but not unlimited: twenty rows a request with an
+    // unbounded offset is how a member (or a script) walks the whole city
+    // and keeps every seller's phone number and email.
+    if (!await rateLimit(`listings-browse:${session?.id ?? getIp(req)}`, 120, 60_000)) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+    }
 
     const { searchParams } = new URL(req.url)
     const category     = searchParams.get('category') || undefined
@@ -48,7 +60,19 @@ export async function GET(req: NextRequest) {
     // filter (mine) AND the owner scope (no session), returning every listing
     // of every status — incl. deleted/expired — to a logged-out visitor.
     const mineFilter = mine && session ? { userId: session.id } : {}
-    const statusFilter = mine && session ? {} : { status: 'active' }
+    // "Mine" shows every status the member can still act on — but not the
+    // ones a moderator removed, which looked live until an edit was refused.
+    // Saved keeps sold and expired rows too, carrying their status: they used
+    // to drop out of the list without a word, which reads as "I never saved
+    // that" rather than "it's gone".
+    const statusFilter = mine && session ? { status: { not: 'deleted' } }
+      : saved && session ? { status: { in: ['active', 'filled', 'expired'] } }
+      // Live means not past its date either: the hourly sweep is what flips
+      // the status, so for up to an hour a listing browsed as live, saved as
+      // live, and then refused the message — "no longer active".
+      : { status: 'active', expiresAt: { gte: new Date() } }
+
+    const blockedIds = session ? [...await blockedIdsFor(session.id)] : []
 
     // ?city=<slug> scopes the browse feed to that city: the /marketplace page
     // carries it so a shared link shows the city it names (lib/cityPageParam),
@@ -66,10 +90,24 @@ export async function GET(req: NextRequest) {
       ...(neighborhood ? { neighborhood } : {}),
       ...savedFilter,
       ...mineFilter,
-      ...(q ? { OR: [
-        { title:       { contains: q, mode: 'insensitive' as const } },
-        { description: { contains: q, mode: 'insensitive' as const } },
-      ]} : {}),
+      // A guest searches titles only. Searching the description let anyone
+      // ask "does any listing contain +9053…" and read the count back, one
+      // character at a time, until they had the phone number the teaser cuts
+      // off at eighty characters. `%` and `_` are escaped so a wildcard
+      // can't stand in for the characters being guessed.
+      ...(q ? (session
+        ? { OR: [
+            { title:       { contains: q, mode: 'insensitive' as const } },
+            { description: { contains: q, mode: 'insensitive' as const } },
+          ] }
+        : { title: { contains: likeSafe(q), mode: 'insensitive' as const } }
+      ) : {}),
+      // Whose listing it is matters as much as what it says: a banned or
+      // hidden seller's card kept its phone number on the marketplace for
+      // the thirty days until it expired, and a blocked pair could still
+      // read each other's. The board and moving sales already filtered both.
+      user: LIVE_BOARD_AUTHOR,
+      ...(blockedIds.length ? { userId: { notIn: blockedIds } } : {}),
     }
 
     const [listings, total] = await Promise.all([
@@ -78,7 +116,7 @@ export async function GET(req: NextRequest) {
         orderBy: { createdAt: 'desc' },
         skip: offset,
         take: PAGE_SIZE,
-        include: { user: { select: { id: true, name: true, color: true, profilePhoto: true } } },
+        include: { user: { select: { id: true, name: true, color: true, profilePhoto: true, profileVisibility: true } } },
       }),
       prisma.listing.count({ where }),
     ])
@@ -95,7 +133,25 @@ export async function GET(req: NextRequest) {
     // Guests see a teaser projection — no contact, no photo, truncated
     // description, anonymized poster. The page itself is public for SEO,
     // but the details are member-only.
-    const projected = session ? listings : listings.map(redactListingForGuest)
+    //
+    // Members see the seller the way every other surface shows them: a
+    // connections-only member they aren't connected to is a first name with
+    // no photo. This route sent the full name, the photo and the member id,
+    // while the same listing's permalink — which does project — showed a
+    // first name. Same listing, two answers.
+    const show = await authorProjector(session, listings.flatMap(l => (l.user ? [l.user] : [])))
+    // A listing that sold or expired is kept in Saved so the page can say
+    // so — but not with a working WhatsApp button. Before, the row dropped
+    // out and the number stopped circulating; keeping the row must not keep
+    // the number.
+    const dead = (l: { status: string; expiresAt: Date }) => l.status !== 'active' || l.expiresAt.getTime() < Date.now()
+    const projected = session
+      ? listings.map(l => ({
+          ...l,
+          user: l.user ? show(l.user) : null,
+          ...(dead(l) && l.userId !== session.id ? { contact: null, contactEmail: null } : {}),
+        }))
+      : listings.map(redactListingForGuest)
 
     return NextResponse.json({ listings: projected, total, hasMore: offset + PAGE_SIZE < total, savedIds })
   } catch (e) {
@@ -162,7 +218,11 @@ export async function POST(req: NextRequest) {
     const kept = Object.fromEntries(Object.entries(attrs).filter(([k, v]) => rules[k]?.(v)))
     if (Object.keys(kept).length > 0) safeAttrs = kept
   }
-  const safeContact = typeof contact === 'string' && contact.length <= 200 ? contact : null
+  // A phone number or a WhatsApp link — the button is branded as WhatsApp,
+  // so it must not be able to point anywhere else (lib/listingContact).
+  const checkedContact = normalizeListingContact(contact)
+  if (!checkedContact.ok) return NextResponse.json({ error: checkedContact.error }, { status: 400 })
+  const safeContact = checkedContact.value
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   const safeContactEmail = typeof contactEmail === 'string' && contactEmail.trim().length <= 200 && EMAIL_RE.test(contactEmail.trim())
     ? contactEmail.trim().toLowerCase() : null
@@ -192,7 +252,9 @@ export async function POST(req: NextRequest) {
       category,
       title: title.trim(),
       description: description.trim(),
-      price: price?.trim() || null,
+      // A number here threw inside the handler (500), and anything long was
+      // stored whole and rendered on every card.
+      price: typeof price === 'string' && price.trim() ? price.trim().slice(0, 50) : null,
       photo: safePhoto,
       photos: safePhotos,
       attrs: safeAttrs === null ? undefined : (safeAttrs as object),
@@ -223,7 +285,7 @@ export async function POST(req: NextRequest) {
     select: { id: true, email: true, name: true },
   }).then(alertees => {
     for (const u of alertees) {
-      sendListingAlertEmail(u.email, u.name, categoryLabel, { title: listing.title, description: listing.description })
+      sendListingAlertEmail(u.email, u.name, categoryLabel, { title: listing.title, description: listing.description }, `/board/${listing.id}`)
         .catch(async err => {
           console.error('[listings POST] sendListingAlertEmail failed', { listingId: listing.id, userId: u.id, err: String(err) })
           await recordEmailFailure({ helper: 'sendListingAlertEmail', recipient: u.email, error: err, context: { listingId: listing.id, userId: u.id, category } })

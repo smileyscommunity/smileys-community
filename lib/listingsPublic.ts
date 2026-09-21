@@ -8,6 +8,8 @@
 // photo (the visual is the listing's pull for prospects), category, title,
 // neighborhood, price, time, id (so deep links still resolve).
 
+import { redactBoardTextForGuest } from '@/lib/boardAccess'
+
 export const TEASER_DESCRIPTION_LIMIT = 80
 
 export type ListingWithUser = {
@@ -27,13 +29,22 @@ export type ListingWithUser = {
   user: { id: string; name: string; color: string; profilePhoto: string | null } | null
 }
 
-export function redactListingForGuest<T extends ListingWithUser>(listing: T): T {
-  const truncated = listing.description.length > TEASER_DESCRIPTION_LIMIT
-    ? listing.description.slice(0, TEASER_DESCRIPTION_LIMIT).trimEnd() + '…'
-    : listing.description
+export function redactListingForGuest<T extends ListingWithUser & { userId?: string }>(listing: T): T {
+  // Redact first, then cut: the first eighty characters are plenty of room
+  // for a phone number, and the board has held that line for its own text
+  // since it went public.
+  const safe = redactBoardTextForGuest(listing.description)
+  const truncated = safe.length > TEASER_DESCRIPTION_LIMIT
+    ? safe.slice(0, TEASER_DESCRIPTION_LIMIT).trimEnd() + '…'
+    : safe
+
+  // The poster's id rode through the spread while the object below claimed
+  // to strip their identity — enough for a scraper to group every listing by
+  // the same person, and to join them to any other id-keyed surface.
+  const { userId: _omitUserId, ...rest } = listing
 
   return {
-    ...listing,
+    ...(rest as T),
     description: truncated,
     contact: null,
     contactEmail: null,

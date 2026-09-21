@@ -4,6 +4,11 @@ import { getSession } from '@/lib/session'
 import { isAdmin, canActInCity } from '@/lib/access'
 import { redactListingForGuest } from '@/lib/listingsPublic'
 import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
+import { LIVE_BOARD_AUTHOR } from '@/lib/boardAccess'
+import { isBlockedEitherWay } from '@/lib/memberPrivacy'
+import { authorProjector } from '@/lib/authorProjection'
+import { normalizeListingContact } from '@/lib/listingContact'
+import { writeAudit } from '@/lib/audit'
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   // Public read — paired with the public /listings browse page so Google can
@@ -12,14 +17,23 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params
   const [listing, session] = await Promise.all([
     prisma.listing.findUnique({
-      where: { id, status: 'active' },
-      include: { user: { select: { id: true, name: true, color: true, profilePhoto: true } } },
+      // Live sellers only, the same rule the browse feed applies: a banned
+      // or hidden member's listing kept serving their phone number.
+      where: { id, status: 'active', expiresAt: { gte: new Date() }, user: LIVE_BOARD_AUTHOR },
+      include: { user: { select: { id: true, name: true, color: true, profilePhoto: true, profileVisibility: true } } },
     }),
     getSession(),
   ])
   if (!listing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  // A blocked pair sees nothing of each other.
+  if (session && listing.user && await isBlockedEitherWay(session.id, listing.user.id)) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
 
-  return NextResponse.json(session ? listing : redactListingForGuest(listing))
+  if (!session) return NextResponse.json(redactListingForGuest(listing))
+  // …and a connections-only seller is a first name here too.
+  const show = await authorProjector(session, listing.user ? [listing.user] : [])
+  return NextResponse.json({ ...listing, user: listing.user ? show(listing.user) : null })
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -47,14 +61,37 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'This listing was removed and can no longer be changed' }, { status: 403 })
   }
 
-  const body = await req.json()
-  const { status, renew, title, description, price, neighborhood, contact, contactEmail } = body
+  const body = await req.json().catch(() => ({}))
+  const { status, renew, title, description, price, neighborhood } = body
+  // The edit form sends every field back, changed or not. Only a CHANGE to
+  // the contact details is a change: re-validating a stored value locked an
+  // owner out of a title fix when their number was saved before the rule
+  // existed, and refused a moderator's every edit outright.
+  const contactChanged      = 'contact'      in body && (body.contact      ?? null) !== (listing.contact      ?? null)
+  const contactEmailChanged = 'contactEmail' in body && (body.contactEmail ?? null) !== (listing.contactEmail ?? null)
+  const contact      = contactChanged      ? body.contact      : undefined
+  const contactEmail = contactEmailChanged ? body.contactEmail : undefined
 
   if (isCityModerator && (renew || status !== undefined)) {
     return NextResponse.json({ error: 'Moderators can edit a listing, not renew it or change its status' }, { status: 403 })
   }
+  // Nor the contact details: rewriting where the money goes is not a
+  // moderation action, the owner is never told, and this route writes no
+  // audit row. Staff fix a title or a neighbourhood; a seller owns how they
+  // are reached.
+  if (isCityModerator && (contactChanged || contactEmailChanged)) {
+    return NextResponse.json({ error: "A listing's contact details are the seller's — ask them to change it" }, { status: 403 })
+  }
 
   if (renew) {
+    // Renewing an expired listing puts it back; renewing a SOLD one used to
+    // relist it, so the three-day warning email for something already gone
+    // brought it back with one tap.
+    if (listing.status === 'filled') {
+      return NextResponse.json({
+        error: 'This listing is marked as done. Post it again if it\'s available once more.',
+      }, { status: 400 })
+    }
     const expiresAt = new Date()
     expiresAt.setDate(expiresAt.getDate() + 30)
     const updated = await prisma.listing.update({ where: { id }, data: { expiresAt, status: 'active' } })
@@ -81,13 +118,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       data.description = description.trim()
     }
     if (price !== undefined) {
-      data.price = typeof price === 'string' && price.trim() ? price.trim() : null
+      // A number here used to throw inside the handler (500); anything long
+      // was stored whole and rendered on every card.
+      data.price = typeof price === 'string' && price.trim() ? price.trim().slice(0, 50) : null
     }
     if (neighborhood !== undefined) {
       data.neighborhood = await safeNeighborhoodFor(listing.cityId, neighborhood)
     }
     if (contact !== undefined) {
-      data.contact = typeof contact === 'string' && contact.trim() && contact.length <= 200 ? contact.trim() : null
+      const checked = normalizeListingContact(contact)
+      if (!checked.ok) return NextResponse.json({ error: checked.error }, { status: 400 })
+      data.contact = checked.value
     }
     if (contactEmail !== undefined) {
       const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -96,6 +137,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
 
     const updated = await prisma.listing.update({ where: { id }, data })
+    // A staff edit on someone else's listing leaves a trail — the admin twin
+    // of this route has always audited, this one never did.
+    if (isCityModerator) {
+      await writeAudit(session.id, session.name, 'listing.staff_edit', id, 'listing',
+        { fields: Object.keys(data), cityId: listing.cityId },
+        `Edited ${Object.keys(data).join(', ')} on another member's listing`)
+    }
     return NextResponse.json(updated)
   }
 

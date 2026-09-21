@@ -74,7 +74,12 @@ describe('19. board posts, replies and guide tips project their authors', () => 
 describe('20. moving sales show guests the sale, not the seller', () => {
   it('the API projects the seller, drops the neighborhood for guests, and skips hidden or banned sellers', () => {
     const src = read('app/api/moving-sales/route.ts')
-    expect(src).toContain("user: project(s.user), neighborhood: session ? s.neighborhood : null")
+    // Now a multi-line object: the note is redacted for guests too
+    // (marketplace review, 2026-09-21) — withholding the neighbourhood is
+    // pointless if the note reads "Cihangir, Akarsu Sok 12".
+    expect(src).toContain('user: project(s.user),')
+    expect(src).toContain('neighborhood: session ? s.neighborhood : null,')
+    expect(src).toContain('note: session ? s.note : (s.note ? redactBoardTextForGuest(s.note) : null),')
     expect(src).toContain("user: { status: 'approved', hiddenFromMembers: false } },")
   })
   it('the detail page and its public metadata do the same', () => {

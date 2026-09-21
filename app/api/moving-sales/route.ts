@@ -11,6 +11,7 @@ import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
 import { sendListingAlertEmail, recordEmailFailure } from '@/lib/email'
 import { createNotification } from '@/lib/notify'
 import { authorProjector } from '@/lib/authorProjection'
+import { redactBoardTextForGuest } from '@/lib/boardAccess'
 
 // Moving Sales (plan §13). Publicly readable like listings. The seller is
 // member content: guests get a first name and no photo, and no neighborhood
@@ -42,7 +43,18 @@ export async function GET(req: NextRequest) {
   })
   const project = await authorProjector(session, sales.map(s => s.user))
   return NextResponse.json({
-    sales: sales.map(s => ({ ...s, user: project(s.user), neighborhood: session ? s.neighborhood : null })),
+    sales: sales.map(s => ({
+      ...s,
+      user: project(s.user),
+      neighborhood: session ? s.neighborhood : null,
+      // Withholding the neighbourhood from guests is pointless if the note
+      // says "Cihangir, Akarsu Sok 12, leaving the 14th" — which is exactly
+      // what a sale note tends to say. Same redaction the board applies to
+      // its own text for guests.
+      note: session ? s.note : (s.note ? redactBoardTextForGuest(s.note) : null),
+      // Item names too: "IKEA sofa, call 0532…" is a note by another name.
+      items: session ? s.items : s.items.map(i => ({ ...i, name: redactBoardTextForGuest(i.name) })),
+    })),
   })
 }
 
@@ -110,7 +122,7 @@ export async function POST(req: NextRequest) {
     select: { id: true, email: true, name: true },
   }).then(alertees => {
     for (const u of alertees) {
-      sendListingAlertEmail(u.email, u.name, 'Moving sale', { title, description })
+      sendListingAlertEmail(u.email, u.name, 'Moving sale', { title, description }, `/moving-sales/${sale.id}`)
         .catch(async err => {
           console.error('[moving-sales POST] sendListingAlertEmail failed', { saleId: sale.id, userId: u.id, err: String(err) })
           await recordEmailFailure({ helper: 'sendListingAlertEmail', recipient: u.email, error: err, context: { saleId: sale.id, userId: u.id, category: 'MOVING' } })

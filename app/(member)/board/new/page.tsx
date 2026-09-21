@@ -8,6 +8,8 @@ import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { postingNeighborhoodsCity, neighborhoodIfListed } from '@/lib/postingNeighborhoods'
 import { downscaleImage, ImageUploadError } from '@/lib/image-resize'
+import { currencySymbol } from '@/lib/data'
+import { toast } from 'sonner'
 
 const CATEGORIES = [
   { id: 'ROOMS',    label: 'Room / Flat',        emoji: '🏠' },
@@ -52,6 +54,9 @@ function NewListingPageInner() {
   // neighborhoods. Null (city not loaded) fetches nothing instead of flashing
   // the browsed list.
   const neighborhoods = useCityNeighborhoods(postingNeighborhoodsCity(city))
+  // Price hints are written in the city's currency (currencySymbol falls back
+  // to the founding city's lira until /api/city/current answers).
+  const sym = currencySymbol(city?.currency).trim()
 
   // Prefill from query params — the moving-sale → rooms bridge arrives as
   // /board/new?category=ROOMS&neighborhood=…&availableFrom=…. Categories
@@ -150,7 +155,22 @@ function NewListingPageInner() {
       }),
     })
     if (res.ok) {
-      router.push('/board')
+      // Straight to the listing they just wrote. This used to push /board,
+      // which since the split is the community board — conversations, not
+      // listings — so the thing they'd just spent five minutes on was
+      // nowhere on the page they landed on. The 201 carries the new row, so
+      // its permalink is the destination; /marketplace is the fallback if a
+      // proxy ever strips the body.
+      const created = await res.json().catch(() => ({}))
+      // A listing is filed to the member's HOME city (resolvePostingCityId),
+      // so someone browsing another city needs telling where it went — the
+      // same mismatch the form warns about before they post.
+      toast.success(
+        city?.posting?.differs
+          ? `Your listing is live in ${city.posting.name} — the city you belong to`
+          : 'Your listing is live',
+      )
+      router.push(created?.id ? `/board/${created.id}` : '/marketplace')
     } else {
       const data = await res.json().catch(() => ({}))
       setError(data.error || 'Something went wrong')
@@ -240,7 +260,7 @@ function NewListingPageInner() {
               onChange={e => setTitle(e.target.value)}
               maxLength={120}
               placeholder={
-                category === 'ROOMS'    ? 'e.g. Furnished room near the centre, €400/mo' :
+                category === 'ROOMS'    ? `e.g. Furnished room near the centre, ${sym}400/mo` :
                 category === 'JOBS'     ? 'e.g. Looking for a React developer' :
                 category === 'SERVICES' ? 'e.g. English/Spanish tutoring, photography, design...' :
                 category === 'FREE'     ? 'e.g. IKEA desk — free, pick up from my place' :
@@ -375,13 +395,17 @@ function NewListingPageInner() {
             <label htmlFor="nl-price" className="block text-sm font-semibold text-gray-700 mb-1.5">
               Price <span className="text-gray-400 font-normal">(optional)</span>
             </label>
+            {/* The city's own money, like the moving-sale form already does:
+                a hardcoded euro sign is one country's answer on a platform
+                that prices in lira, and now lari too. maxLength matches the
+                API's 50-character cap on price. */}
             <input
               id="nl-price"
               type="text"
               value={price}
               onChange={e => setPrice(e.target.value)}
               maxLength={50}
-              placeholder="e.g. €500/mo · €120 · Free · Negotiable"
+              placeholder={`e.g. ${sym}500/mo · ${sym}120 · Free · Negotiable`}
               className="input"
             />
           </div>
