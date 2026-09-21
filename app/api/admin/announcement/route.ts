@@ -3,43 +3,11 @@ import { writeAudit } from '@/lib/audit'
 import { getSession } from '@/lib/session'
 import { isAdmin, isAdminOrModerator } from '@/lib/access'
 import { isSafeHref } from '@/lib/safeUrl'
-import { readFileSync, writeFileSync, renameSync } from 'fs'
-import { join } from 'path'
-
-const filePath = join(process.cwd(), 'data', 'announcement.json')
-
-interface StoredAnnouncement {
-  text:      string
-  link:      string
-  active:    boolean
-  updatedAt: string | null
-  updatedBy: string | null
-}
-
-const EMPTY: StoredAnnouncement = {
-  text:      '',
-  link:      '',
-  active:    false,
-  updatedAt: null,
-  updatedBy: null,
-}
-
-// Normalize whatever's on disk into the StoredAnnouncement shape so a
-// corrupt file or a manually-edited JSON with the wrong types can't
-// crash the consumers. Defensive on every read — cheap and avoids
-// downstream null deref in the dashboard / admin form.
-function read(): StoredAnnouncement {
-  try {
-    const raw = JSON.parse(readFileSync(filePath, 'utf-8'))
-    return {
-      text:      typeof raw?.text      === 'string'  ? raw.text      : '',
-      link:      typeof raw?.link      === 'string'  ? raw.link      : '',
-      active:    raw?.active === true,
-      updatedAt: typeof raw?.updatedAt === 'string'  ? raw.updatedAt : null,
-      updatedBy: typeof raw?.updatedBy === 'string'  ? raw.updatedBy : null,
-    }
-  } catch { return EMPTY }
-}
+import { writeFileSync, renameSync } from 'fs'
+import {
+  ANNOUNCEMENT_FILE as filePath, ADMIN_SOURCE, EMPTY_ANNOUNCEMENT as EMPTY,
+  readAnnouncement as read, type StoredAnnouncement,
+} from '@/lib/announcement'
 
 export async function GET() {
   // Public + member components (AnnouncementBanner) read this, so no auth gate
@@ -77,6 +45,11 @@ export async function POST(req: NextRequest) {
     active:    !!active,
     updatedAt: new Date().toISOString(),
     updatedBy: session.name,
+    // Stamped so the admin page can tell a banner this form produced — and
+    // therefore capped and isSafeHref-checked — from one written straight to
+    // the file on the server, which is how the 2026-09-19 announcement got
+    // there. See lib/announcement.
+    updatedVia: ADMIN_SOURCE,
   }
   // Atomic write — write to .tmp then rename, so a partially-written
   // JSON never gets read by a concurrent GET.
@@ -87,5 +60,5 @@ export async function POST(req: NextRequest) {
     { text: cleanText, link: rawLink, active: !!active },
     `${active ? 'Set' : 'Cleared'} the site announcement${cleanText ? `: "${cleanText.slice(0, 80)}"` : ''}`,
   )
-  return NextResponse.json({ ok: true, updatedAt: payload.updatedAt, updatedBy: payload.updatedBy })
+  return NextResponse.json({ ok: true, updatedAt: payload.updatedAt, updatedBy: payload.updatedBy, updatedVia: payload.updatedVia })
 }

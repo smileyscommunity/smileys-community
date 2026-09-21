@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { useAdminLoad } from '@/lib/admin/useAdminLoad'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import { useAuth } from '@/contexts/AuthContext'
+import { setOutsideTheApp } from '@/lib/announcement'
 
 // Just the announcement banner editor. The polls editor lives at
 // /admin/polls — the two used to share this route behind a ?tab=
@@ -19,14 +20,17 @@ interface Announcement {
   active:    boolean
   updatedAt: string | null
   updatedBy: string | null
+  // 'admin' when this form wrote it. See lib/announcement.
+  updatedVia?: string | null
 }
 
 const EMPTY: Announcement = {
-  text:      '',
-  link:      '',
-  active:    false,
-  updatedAt: null,
-  updatedBy: null,
+  text:       '',
+  link:       '',
+  active:     false,
+  updatedAt:  null,
+  updatedBy:  null,
+  updatedVia: null,
 }
 
 const LINK_MAX = 2000
@@ -114,6 +118,8 @@ export default function AnnouncementsPage() {
         ...data,
         updatedAt: d.updatedAt ?? new Date().toISOString(),
         updatedBy: d.updatedBy ?? data.updatedBy,
+        // This form just wrote it, so the notice above is no longer true.
+        updatedVia: d.updatedVia ?? 'admin',
       }
       setData(updated)
       setCommitted(updated)
@@ -138,6 +144,22 @@ export default function AnnouncementsPage() {
       </div>
 
       <LoadErrorBanner message={error} onRetry={retry} title="Couldn't load announcement" className="mb-6" />
+
+      {/* data/announcement.json is excluded from the deploy rsync so the live
+          text survives a deploy — which also means it can be edited straight
+          on the server, and the banner live on 2026-09-19 was. Such a banner
+          never passed the 300-character cap or the isSafeHref check below, and
+          left no audit entry, so the page says so instead of presenting it as
+          if this form had produced it. Saving here clears the notice. */}
+      {!loading && hydrated && setOutsideTheApp(committed) && (
+        <div className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 max-w-xl">
+          <p className="text-sm font-semibold text-amber-300">This banner wasn&apos;t set from here</p>
+          <p className="text-xs text-amber-200/70 mt-0.5">
+            It was written directly to the server, so its text and link were never checked and the change isn&apos;t in the audit log.
+            {isAdmin ? ' Saving from this page will validate it and record who changed it.' : ''}
+          </p>
+        </div>
+      )}
 
       {loading ? (
         // Page-shape skeleton matching the form layout.

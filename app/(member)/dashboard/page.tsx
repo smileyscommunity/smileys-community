@@ -27,6 +27,7 @@ import TestimonialPrompt from '@/components/TestimonialPrompt'
 import ReferralImpact from '@/components/ReferralImpact'
 import InviteBanner from '@/components/InviteBanner'
 import AnnouncementBanner from '@/components/AnnouncementBanner'
+import { liveAnnouncement } from '@/lib/announcement'
 import OnboardingCard from '@/components/OnboardingCard'
 import CommunityPollWidget from '@/components/CommunityPollWidget'
 import PendingConnectionsWidget from '@/components/PendingConnectionsWidget'
@@ -328,12 +329,11 @@ export default async function DashboardPage() {
     if (raw.userId) spotlightData = raw
   } catch { /* no spotlight set */ }
 
-  // Read announcement
-  let announcement: { text: string; link: string; active: boolean; updatedAt?: string } | null = null
-  try {
-    const raw = JSON.parse(readFileSync(join(process.cwd(), 'data', 'announcement.json'), 'utf-8'))
-    if (raw.active && raw.text) announcement = raw
-  } catch { /* no announcement */ }
+  // Read announcement. Through the shared reader, which type-checks every
+  // field: this file is hand-editable on the server (deploy.sh excludes it so
+  // the live text survives a deploy) and parsing it here meant a `text` that
+  // was not a string would reach the banner.
+  const announcement = liveAnnouncement()
 
   // Read dashboard ad banners from banners.json
   let adBanners: any[] = []
