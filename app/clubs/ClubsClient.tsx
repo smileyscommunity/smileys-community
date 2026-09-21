@@ -27,6 +27,10 @@ interface Club {
   // carried this alongside it all along (lib/db.ts) and the footer uses it
   // rather than printing a 0 that describes the city, not the club.
   globalMemberCount?: number
+  // null = a global club: one community listed in every city that opts in
+  // (getCityConfig showGlobalClubs), rather than this city's own. It changes
+  // what the member count means, so the card has to say which it is.
+  cityId?: string | null
   isPrivate: boolean
   coverImage?: string | null
   // Discovery enrichment (phase 3) — computed server-side, cached 120s.
@@ -49,6 +53,30 @@ interface Membership {
 
 type Tab = 'explore' | 'mine'
 
+// What "42 members" means depends on which kind of club it is. For a local
+// club it is the whole club. For a global one it counts only the people in
+// the city you are standing in — so "3 members" on a club of 225 described
+// three people here and read as somewhere not worth joining.
+//
+// Only split the number when splitting it tells you something. Istanbul holds
+// nearly every member of nearly every global club today: the real figures are
+// 272 of 276, 169 of 172, 118 of 120. Printing "272 here · 276 across
+// Smileys" is noise on seven cards to describe a four-person difference. The
+// split earns its place when a real share of the club is somewhere else,
+// which is the case this is for and the one other cities will create.
+const ELSEWHERE_SHARE = 0.8   // local members as a fraction of the whole club
+
+function memberLine(club: Club): string | null {
+  const here = club.memberCount
+  const all  = club.globalMemberCount
+  const plain = here > 0 ? `${here} member${here !== 1 ? 's' : ''}` : null
+  if (club.cityId != null) return plain               // a local club is all of itself
+  // A global club nobody local has joined yet: the network figure is the only
+  // honest number, and printing "0 members" would describe the city.
+  if (!here) return all ? `${all} across Smileys` : null
+  return all && here < all * ELSEWHERE_SHARE ? `${here} here · ${all} across Smileys` : plain
+}
+
 function ClubCard({ club, membership, toggling, onToggle }: {
   club: Club
   membership?: Membership
@@ -59,6 +87,7 @@ function ClubCard({ club, membership, toggling, onToggle }: {
   const isJoined  = membership?.status === 'approved'
   const isPending = membership?.status === 'pending'
   const isHost    = membership?.role === 'host'
+  const isGlobal  = club.cityId == null
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden flex flex-col group">
@@ -94,6 +123,19 @@ function ClubCard({ club, membership, toggling, onToggle }: {
               </span>
             )}
           </div>
+
+          {/* Global clubs sit in every opted-in city's grid, so without this
+              "Arabic" and "After Work" look like the same kind of thing and
+              a low member count reads as a dead club rather than a club whose
+              people are mostly elsewhere. Bottom-right, clear of the
+              category chip and the Joined/Pending badge. */}
+          {isGlobal && (
+            <div className="absolute bottom-3 right-3">
+              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${photo ? 'bg-white/90 text-gray-700' : 'bg-white/80 backdrop-blur-sm text-gray-700'}`}>
+                🌍 Across Smileys
+              </span>
+            </div>
+          )}
 
           {(isJoined || isPending) && (
             <div className="absolute top-3 right-3">
@@ -146,11 +188,7 @@ function ClubCard({ club, membership, toggling, onToggle }: {
                 ))}
               </span>
             )}
-            {club.memberCount > 0
-              ? `${club.memberCount} member${club.memberCount !== 1 ? 's' : ''}`
-              : club.globalMemberCount
-                ? `${club.globalMemberCount} across Smileys`
-                : null}
+            {memberLine(club)}
           </span>
           <div className="flex items-center gap-2">
             {/* Leave is now shown on every tab (was previously gated by a
