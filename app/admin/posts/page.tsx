@@ -15,18 +15,18 @@ interface Post {
   createdAt:    string
   updatedAt:    string
   views:        number
+  kind:         string
   // Author can be null if a future migration relaxes the FK to SetNull.
   // Defensive render path below.
   author:       { name: string } | null
 }
 
 const categoryColors: Record<string, string> = {
-  'Community':     'bg-amber-100 text-amber-700',
-  'Club Stories':  'bg-violet-100 text-violet-700',
-  'Events':        'bg-blue-100 text-blue-700',
-  'Istanbul Guide':'bg-green-100 text-green-700',
-  'Antalya Guide': 'bg-teal-100 text-teal-700',
-  'Tips':          'bg-pink-100 text-pink-700',
+  'Community':    'bg-amber-100 text-amber-700',
+  'Club Stories': 'bg-violet-100 text-violet-700',
+  'Events':       'bg-blue-100 text-blue-700',
+  'City Guide':   'bg-green-100 text-green-700',
+  'Tips':         'bg-pink-100 text-pink-700',
 }
 
 function timeAgo(iso: string): string {
@@ -45,11 +45,16 @@ function timeAgo(iso: string): string {
 export default function AdminPostsPage() {
   const [posts,   setPosts]   = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter,  setFilter]  = useState<'all' | 'published' | 'draft' | 'submitted'>('all')
+  const [filter,  setFilter]  = useState<'all' | 'published' | 'draft' | 'submitted' | 'declined'>('all')
   const [deleting, setDeleting] = useState<string | null>(null)
   // Inline-confirm replaces window.confirm — misclick doesn't nuke
   // the post immediately.
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  // Same inline pattern for declining a member story: the row opens a note
+  // box (optional, goes to the writer) with Confirm/Cancel — no modal.
+  const [declineFor,  setDeclineFor]  = useState<string | null>(null)
+  const [declineNote, setDeclineNote] = useState('')
+  const [declining,   setDeclining]   = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/app/api/admin/posts')
@@ -88,7 +93,41 @@ export default function AdminPostsPage() {
     }
   }
 
+  async function handleDecline(id: string) {
+    setDeclining(id)
+    try {
+      const res = await fetch(`/app/api/admin/posts/${id}/decline`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ note: declineNote.trim() }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        toast.error(d?.error ?? 'Failed to decline story')
+        return
+      }
+      setPosts(prev => prev.map(p => p.id === id ? { ...p, status: 'declined' } : p))
+      setDeclineFor(null)
+      setDeclineNote('')
+      toast.success('Declined — the writer has been told')
+    } catch {
+      toast.error('Network error — could not decline story')
+    } finally {
+      setDeclining(null)
+    }
+  }
+
   const filtered = posts.filter(p => filter === 'all' || p.status === filter)
+  const awaiting = posts.filter(p => p.status === 'submitted').length
+
+  // "Draft · created …" was shown for anything unpublished, which hid the
+  // review queue's two states from the one line staff actually scan.
+  function metaLine(post: Post): string {
+    if (post.publishedAt)              return `Published ${timeAgo(post.publishedAt)}`
+    if (post.status === 'submitted')   return `Submitted · ${timeAgo(post.createdAt)}`
+    if (post.status === 'declined')    return `Declined · ${timeAgo(post.updatedAt || post.createdAt)}`
+    return `Draft · created ${timeAgo(post.createdAt)}`
+  }
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
@@ -96,7 +135,10 @@ export default function AdminPostsPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-zinc-100">Articles</h1>
-          <p className="text-zinc-400 text-sm mt-0.5">{posts.length} total · {posts.filter(p => p.status === 'published').length} published</p>
+          <p className="text-zinc-400 text-sm mt-0.5">
+            {posts.length} total · {posts.filter(p => p.status === 'published').length} published
+            {awaiting > 0 && <> · <span className="text-amber-400">{awaiting} awaiting review</span></>}
+          </p>
         </div>
         <Link
           href="/admin/posts/new"
@@ -112,8 +154,9 @@ export default function AdminPostsPage() {
       {/* Filter tabs */}
       <div className="flex gap-1 mb-5 overflow-x-auto scrollbar-hide">
         {/* 'submitted' = member-written stories awaiting review (the
-            /share-story flow) — edit, then publish like any draft. */}
-        {(['all', 'published', 'draft', 'submitted'] as const).map(f => (
+            /share-story flow) — edit, then publish like any draft, or
+            decline. 'declined' keeps the ones we said no to. */}
+        {(['all', 'published', 'draft', 'submitted', 'declined'] as const).map(f => (
           <button
             key={f}
             onClick={() => setFilter(f)}
@@ -142,7 +185,7 @@ export default function AdminPostsPage() {
       ) : (
         <div className="space-y-2">
           {filtered.map(post => (
-            <div key={post.id} className="bg-zinc-800 border border-zinc-700 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+            <div key={post.id} className="bg-zinc-800 border border-zinc-700 rounded-xl p-4 flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 sm:gap-4">
               <div className="flex-1 min-w-0">
                 <div className="flex flex-wrap items-center gap-2 mb-1">
                   <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${categoryColors[post.category] ?? 'bg-zinc-700 text-zinc-300'}`}>
@@ -151,6 +194,7 @@ export default function AdminPostsPage() {
                   <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
                     post.status === 'published' ? 'bg-green-900/50 text-green-400'
                       : post.status === 'submitted' ? 'bg-amber-900/50 text-amber-400'
+                      : post.status === 'declined'  ? 'bg-zinc-800 text-zinc-500 line-through'
                       : 'bg-zinc-700 text-zinc-400'
                   }`}>
                     {post.status}
@@ -162,9 +206,7 @@ export default function AdminPostsPage() {
                 )}
                 <p className="text-xs text-zinc-500 mt-1">
                   By {post.author?.name ?? 'Unknown'} ·{' '}
-                  {post.publishedAt
-                    ? `Published ${timeAgo(post.publishedAt)}`
-                    : `Draft · created ${timeAgo(post.createdAt)}`}
+                  {metaLine(post)}
                   {/* Surface updatedAt when an article has been edited
                       after creation/publish — was previously hidden. */}
                   {post.updatedAt && post.updatedAt !== (post.publishedAt ?? post.createdAt) && (
@@ -177,14 +219,19 @@ export default function AdminPostsPage() {
               </div>
 
               <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-                {post.status === 'published' && (
+                {/* Each kind has its own page, and /posts no longer serves a
+                    handbook article (it did, by accident — a second URL). The
+                    story page renders unpublished rows for staff with a
+                    preview banner; the handbook page does not, so a handbook
+                    draft has no link rather than a dead one. */}
+                {(post.kind !== 'handbook' || post.status === 'published') && (
                   <a
-                    href={`/app/posts/${post.slug}`}
+                    href={post.kind === 'handbook' ? `/app/handbook/${post.slug}` : `/app/posts/${post.slug}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="px-3 py-2 rounded-lg text-xs font-semibold text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"
                   >
-                    View ↗
+                    {post.status === 'published' ? 'View ↗' : 'Preview ↗'}
                   </a>
                 )}
                 <Link
@@ -193,6 +240,14 @@ export default function AdminPostsPage() {
                 >
                   Edit
                 </Link>
+                {post.status === 'submitted' && declineFor !== post.id && (
+                  <button
+                    onClick={() => { setConfirmDelete(null); setDeclineFor(post.id); setDeclineNote('') }}
+                    className="px-3 py-2 rounded-lg text-xs font-semibold text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"
+                  >
+                    Decline
+                  </button>
+                )}
                 {confirmDelete === post.id ? (
                   <div className="flex items-center gap-1">
                     <button
@@ -218,6 +273,40 @@ export default function AdminPostsPage() {
                   </button>
                 )}
               </div>
+
+              {/* Decline note — opens under the row, full width, so the
+                  textarea isn't squeezed into the button strip. */}
+              {declineFor === post.id && (
+                <div className="w-full sm:basis-full border-t border-zinc-700 pt-3 mt-1 space-y-2">
+                  <textarea
+                    value={declineNote}
+                    onChange={e => setDeclineNote(e.target.value.slice(0, 300))}
+                    rows={2}
+                    maxLength={300}
+                    placeholder="Optional note to the writer — what would make it publishable?"
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-amber-500 transition-colors resize-none"
+                  />
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] text-zinc-500">{declineNote.length}/300 · sent to the writer as a notification</span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleDecline(post.id)}
+                        disabled={declining === post.id}
+                        className="px-3 py-2 rounded-lg text-xs font-semibold bg-zinc-600 text-zinc-100 hover:bg-zinc-500 transition-colors disabled:opacity-50"
+                      >
+                        {declining === post.id ? '…' : 'Confirm decline'}
+                      </button>
+                      <button
+                        onClick={() => { setDeclineFor(null); setDeclineNote('') }}
+                        disabled={declining === post.id}
+                        className="px-2 py-2 rounded-lg text-xs font-semibold text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 transition-colors disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>

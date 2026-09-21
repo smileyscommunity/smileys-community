@@ -34,6 +34,15 @@ const EXT = '(jpg|jpeg|png|webp|gif)'
  * servable folder. Pass `folders` to restrict further (e.g. ['guide'] for the
  * guide editor, ['general'] for city heroes).
  */
+/** An article body image we will serve ourselves: a public uploads path, with
+ *  or without the /app basePath prefix (the editor stores the former; the
+ *  scheme-less form is the same file before basePath). Never an external host
+ *  — see sanitizeArticle and firstBodyImage for why. */
+export function isArticleImageSrc(src: unknown): boolean {
+  if (typeof src !== 'string') return false
+  return isUploadedImageUrl(src.startsWith('/api/files/') ? `/app${src}` : src)
+}
+
 export function isUploadedImageUrl(url: unknown, folders: readonly string[] = PUBLIC_FOLDERS): boolean {
   if (typeof url !== 'string' || !url) return false
   const m = url.match(new RegExp(`^\\/app\\/api\\/files\\/([a-zA-Z0-9-]+)\\/[a-zA-Z0-9.-]+\\.${EXT}$`))

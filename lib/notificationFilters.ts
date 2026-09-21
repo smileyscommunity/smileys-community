@@ -62,6 +62,8 @@ export const FILTER_TYPES: Record<Filter, string[]> = {
     'directory_submission', 'directory_review_nudge', 'directory_review',
     // Things a member submits for review — they land in a moderator queue.
     'story_submission', 'testimonial_submission',
+    // …and the answer the writer gets back.
+    'story_published', 'story_declined',
   ],
 }
 
@@ -159,6 +161,8 @@ export const TYPE_ICON: Record<string, string> = {
   board_interest:      '🙋',
   board_reply:         '💬',
   story_submission:    '📝',
+  story_published:     '📰',
+  story_declined:      '📝',
   testimonial_submission: '🗣️',
   report_alert:        '🚩',
   report_reviewed:     '⚖️',

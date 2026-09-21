@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { confirmToast } from '@/lib/confirmToast'
 import { useAuth } from '@/contexts/AuthContext'
 import RichTextEditor from '@/components/RichTextEditor'
 
@@ -37,6 +38,19 @@ export default function ArticleInlineEditor({ postId, initial, children }: Props
   const [excerpt, setExcerpt] = useState(initial.excerpt)
   const [body,    setBody]    = useState(initial.body)
   const [saving,  setSaving]  = useState(false)
+
+  // Unsaved edits: a stray tab close or back-swipe used to drop a half-edited
+  // article without a word. The browser prompt only fires while there is
+  // something to lose. (Hook runs before the early return below — hooks must
+  // be unconditional.)
+  const dirty = title !== initial.title || excerpt !== initial.excerpt || body !== initial.body
+  const guard = editing && dirty
+  useEffect(() => {
+    if (!guard) return
+    const onBeforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [guard])
 
   if (!canEdit) return <>{children}</>
 
@@ -77,7 +91,8 @@ export default function ArticleInlineEditor({ postId, initial, children }: Props
     }
   }
 
-  function cancel() {
+  async function cancel() {
+    if (dirty && !(await confirmToast('Discard your changes?', { confirmLabel: 'Discard' }))) return
     setTitle(initial.title)
     setExcerpt(initial.excerpt)
     setBody(initial.body)

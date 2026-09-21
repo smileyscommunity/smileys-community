@@ -212,6 +212,11 @@ export async function POST(req: NextRequest) {
     await tx.hangoutMessage.updateMany({ where: { userId: id }, data: { body: DELETED_BODY } })
     await tx.clubPost.updateMany({ where: { userId: id }, data: { content: DELETED_BODY } })
     await tx.neighborhoodPost.updateMany({ where: { userId: id }, data: { content: DELETED_BODY, imageUrl: null } })
+    // Stories the member submitted but that never went live are theirs alone
+    // — nothing here was ever public, and a queued one could otherwise be
+    // published after they left. A published story stays: it is public
+    // writing already, and the byline reads "Deleted Member" like the rest.
+    await tx.post.deleteMany({ where: { authorId: id, status: { not: 'published' } } })
     // Listings carry their own contact COLUMNS (phone/WhatsApp string and an
     // email), and staff listing views return them — clearing only the
     // description left the member reachable after erasure. The gallery goes

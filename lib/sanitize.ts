@@ -1,5 +1,8 @@
 import sanitizeHtml from 'sanitize-html'
-import { isUploadedImageUrl } from '@/lib/uploadedImageUrl'
+import { isUploadedImageUrl, isArticleImageSrc } from '@/lib/uploadedImageUrl'
+
+// Re-exported: the article page and the OG builder take it from here.
+export { isArticleImageSrc }
 
 const ALLOWED_TAGS = [
   'p', 'br', 'b', 'i', 'em', 'strong', 'u', 's',
@@ -61,8 +64,20 @@ export function sanitizeArticle(html: string): string {
     allowedSchemes:    ['https', 'mailto'],
     // The scheme allowlist means nothing while `//host` slips through.
     allowProtocolRelative: false,
+    // Same rule as sanitize(): our own uploads only. The cover-image field
+    // refuses an external URL precisely because a public page would fetch it
+    // for every reader; the body allowed any https image, so a moderator's
+    // PUT with a raw <img src="https://…"> was the same tracking pixel with
+    // the cover check walked around — and firstBodyImage() then made it the
+    // og:image, so every link preview fetched it too. The editor stores
+    // uploads as /app/api/files/… (every live body does); a scheme-less
+    // /api/files/… form is the same file before basePath and passes too.
+    exclusiveFilter: frame => frame.tag === 'img' && !isArticleImageSrc(frame.attribs.src),
     transformTags: {
       a: sanitizeHtml.simpleTransform('a', { target: '_blank', rel: 'noopener noreferrer' }),
+      // The page already has its h1 (the title); a "Heading 1" picked in the
+      // editor is a section heading and renders as one.
+      h1: 'h2',
     },
   })
 }

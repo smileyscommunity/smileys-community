@@ -45,10 +45,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       where: { isActive: true, cityId: { in: cityIds } },
       select: { slug: true, createdAt: true },
     }),
+    // Unpinned articles (global / national) plus the live cities' own — a
+    // coming-soon city's stories were being indexed, and `take` with no order
+    // was an arbitrary 200 once the table passed that.
     prisma.post.findMany({
-      where: { status: 'published' },
-      select: { slug: true, publishedAt: true, kind: true },
-      take: 200,
+      where:   { status: 'published', OR: [{ cityId: null }, { cityId: { in: cityIds } }] },
+      select:  { slug: true, publishedAt: true, kind: true },
+      orderBy: { publishedAt: 'desc' },
+      take:    200,
     }),
     // Marketplace listings are public — let Google crawl them so search hits
     // like "flats in Moda" can land on the listing.

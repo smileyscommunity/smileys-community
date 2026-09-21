@@ -8,6 +8,8 @@ import { postCityScope } from '@/lib/postScope'
 import { avatarUrl } from '@/lib/data'
 import { articleCover } from '@/lib/articleCover'
 import { readingTime } from '@/lib/handbook-review'
+import { storyBylines } from '@/lib/storyByline'
+import { normalizeCommunityCategory } from '@/app/admin/posts/constants'
 import ExploreMore from '@/components/ExploreMore'
 
 // Scoped to the viewer's city by the shared rule in lib/postScope, same
@@ -19,14 +21,23 @@ import ExploreMore from '@/components/ExploreMore'
 // kind: 'community' so handbook articles don't leak into the /posts listing.
 // The Post table is shared between /posts (kind = 'community') and /handbook
 // (kind = 'handbook').
+//
+// The author's privacy columns ride along so the byline can be projected per
+// viewer (lib/storyByline) — only the projected name/photo reach the page.
+// Capped: the list has no paging, and each row carries its body (for the
+// reading time and the inline cover) into one cache entry.
 const getPosts = unstable_cache(
   async (cityId: string, country: string | null) => prisma.post.findMany({
     where:   { kind: 'community', status: 'published', ...postCityScope(cityId, country) },
     orderBy: { publishedAt: 'desc' },
+    take:    60,
     select:  {
       id: true, slug: true, title: true, excerpt: true, body: true, coverImage: true,
-      category: true, publishedAt: true,
-      author: { select: { name: true, color: true, profilePhoto: true } },
+      category: true, cityId: true, publishedAt: true,
+      author: { select: {
+        id: true, name: true, color: true, profilePhoto: true,
+        profileVisibility: true, status: true, hiddenFromMembers: true,
+      } },
     },
   }),
   ['posts-list'],
@@ -71,28 +82,29 @@ export const metadata = {
 }
 
 const categoryColors: Record<string, string> = {
-  'Community':     'bg-amber-100 text-amber-700',
-  'Club Stories':  'bg-violet-100 text-violet-700',
-  'Events':        'bg-blue-100 text-blue-700',
-  'Istanbul Guide':'bg-green-100 text-green-700',
-  'Antalya Guide': 'bg-teal-100 text-teal-700',
-  'Tips':          'bg-pink-100 text-pink-700',
+  'Community':    'bg-amber-100 text-amber-700',
+  'Club Stories': 'bg-violet-100 text-violet-700',
+  'Events':       'bg-blue-100 text-blue-700',
+  'City Guide':   'bg-green-100 text-green-700',
+  'Tips':         'bg-pink-100 text-pink-700',
 }
 
-function formatDate(d: Date | string | null) {
+// In the city's own day — the server is UTC.
+function formatDate(d: Date | string | null, timeZone: string) {
   if (!d) return ''
-  return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+  return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone })
 }
 
 // The small colour-dot avatar from the article page's byline, listing-sized.
 function AuthorDot({ author, size = 'w-6 h-6' }: {
-  author: { name: string; color: string | null; profilePhoto: string | null }
+  author: { name: string; color: string; profilePhoto: string | null }
   size?: string
 }) {
   return (
     <span
+      aria-hidden="true"
       className={`${size} rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0 overflow-hidden`}
-      style={{ backgroundColor: author.color ?? '#f59e0b' }}
+      style={{ backgroundColor: author.color }}
     >
       {author.profilePhoto
         ? <img src={avatarUrl(author.profilePhoto, 64)} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
@@ -102,11 +114,24 @@ function AuthorDot({ author, size = 'w-6 h-6' }: {
 }
 
 export default async function PostsPage() {
-  const cityId = await resolveCityId(await getSession())
+  const session = await getSession()
+  const cityId  = await resolveCityId(session)
   // Config first: the post scope needs the city's country. getCityConfig is
   // cached, so this costs nothing over the old parallel fetch.
-  const city   = await getCityConfig(cityId)
-  const posts  = await getPosts(cityId, city.country ?? null)
+  const city    = await getCityConfig(cityId)
+  const rows    = await getPosts(cityId, city.country ?? null)
+  const byline  = await storyBylines(session, rows.map(r => r.author))
+  // A city guide names its city; the category used to ("Istanbul Guide"),
+  // which left every other city's guides without a label.
+  const cityNames = new Map<string, string>()
+  for (const r of rows) {
+    if (r.cityId && !cityNames.has(r.cityId)) cityNames.set(r.cityId, (await getCityConfig(r.cityId)).name)
+  }
+  const posts = rows.map(r => {
+    const category = normalizeCommunityCategory(r.category)
+    const cityName = category === 'City Guide' && r.cityId ? cityNames.get(r.cityId) : null
+    return { ...r, author: byline(r.author), category, label: cityName ? `${category} · ${cityName}` : category }
+  })
 
   const featured = posts[0] ?? null
   const rest = posts.slice(1)
@@ -157,7 +182,7 @@ export default async function PostsPage() {
                     <div className="relative h-64 sm:h-80 overflow-hidden bg-gray-100">
                       <img
                         src={featuredCover}
-                        alt={featured.title}
+                        alt=""
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         decoding="async"
                       />
@@ -170,7 +195,7 @@ export default async function PostsPage() {
                   <div className="p-6 sm:p-8">
                     <div className="flex items-center gap-2 mb-3">
                       <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${categoryColors[featured.category] ?? 'bg-gray-100 text-gray-600'}`}>
-                        {featured.category}
+                        {featured.label}
                       </span>
                       <span aria-hidden="true" className="text-xs text-gray-300">·</span>
                       <span className="text-xs text-gray-400">Latest</span>
@@ -183,9 +208,9 @@ export default async function PostsPage() {
                     )}
                     <div className="flex items-center gap-2 text-sm text-gray-400">
                       <AuthorDot author={featured.author} />
-                      <span>{featured.author?.name || 'Smileys team'}</span>
+                      <span>{featured.author.name}</span>
                       <span aria-hidden="true">·</span>
-                      <span>{formatDate(featured.publishedAt)}</span>
+                      <span>{formatDate(featured.publishedAt, city.timezone)}</span>
                       <span aria-hidden="true">·</span>
                       <span>{readingTime(featured.body)} min read</span>
                     </div>
@@ -206,7 +231,7 @@ export default async function PostsPage() {
                           <div className="relative h-40 overflow-hidden shrink-0 bg-gray-100">
                             <img
                               src={cover}
-                              alt={post.title}
+                              alt=""
                               loading="lazy"
                               decoding="async"
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
@@ -219,7 +244,7 @@ export default async function PostsPage() {
                         )}
                         <div className="p-5 flex-1 flex flex-col">
                           <span className={`text-xs font-bold px-2 py-0.5 rounded-full self-start mb-2 ${categoryColors[post.category] ?? 'bg-gray-100 text-gray-600'}`}>
-                            {post.category}
+                            {post.label}
                           </span>
                           <h3 className="font-bold text-gray-900 group-hover:text-amber-600 transition-colors leading-snug mb-2 flex-1">
                             {post.title}
@@ -229,9 +254,9 @@ export default async function PostsPage() {
                           )}
                           <div className="flex items-center gap-1.5 text-xs text-gray-400 mt-auto">
                             <AuthorDot author={post.author} size="w-5 h-5" />
-                            <span className="truncate">{post.author?.name || 'Smileys team'}</span>
+                            <span className="truncate">{post.author.name}</span>
                             <span aria-hidden="true">·</span>
-                            <span className="whitespace-nowrap">{formatDate(post.publishedAt)}</span>
+                            <span className="whitespace-nowrap">{formatDate(post.publishedAt, city.timezone)}</span>
                           </div>
                         </div>
                       </div>

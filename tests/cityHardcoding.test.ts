@@ -102,8 +102,6 @@ const BASELINE: Record<string, number> = {
   'app/neighborhoods/[slug]/page.tsx': 5,
   'app/neighborhoods/page.tsx': 5,
   'app/page.tsx': 1,
-  'app/posts/[slug]/page.tsx': 2,
-  'app/posts/page.tsx': 6,
   'app/privacy/page.tsx': 2,
   'app/pro/page.tsx': 2,
   'app/visiting/VisitingClient.tsx': 1,

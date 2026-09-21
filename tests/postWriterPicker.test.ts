@@ -45,7 +45,10 @@ describe('the routes and the form use it', () => {
   it('create and update both go through pickWriter; update only when a writer was sent', () => {
     expect(read('app/api/admin/posts/route.ts')).toMatch(/authorId:\s+writer\.id/)
     const put = read('app/api/admin/posts/[id]/route.ts')
-    expect(put).toMatch(/if \(authorId\) \{\n\s+const writer = await pickWriter\(session, authorId\)/)
+    // Only a CHANGE is a pick (Stories review 2026-09-21): the form used to
+    // round-trip the current author, and for a member's story that id is not
+    // staff, so the story could not be published under the member's name.
+    expect(put).toMatch(/if \(authorId && authorId !== existing\.authorId\) \{\n\s+const writer = await pickWriter\(session, authorId\)/)
     expect(put).toMatch(/\.\.\.writerPatch,/)
   })
   it('the form sends the pick only when one was made, and hides the picker without writers', () => {

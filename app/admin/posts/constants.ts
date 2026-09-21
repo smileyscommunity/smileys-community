@@ -12,10 +12,21 @@ export function isKind(s: unknown): s is Kind {
   return typeof s === 'string' && (KINDS as readonly string[]).includes(s)
 }
 
-export const CATEGORIES = ['Community', 'Club Stories', 'Events', 'Istanbul Guide', 'Antalya Guide', 'Tips'] as const
+// One "City Guide" rather than a category per city: "Istanbul Guide" and
+// "Antalya Guide" were the taxonomy naming two of seven cities, and a story
+// pinned to İzmir had nowhere to go. Which city a guide is about is the
+// post's cityId, and the public pages label it from that.
+export const CATEGORIES = ['Community', 'Club Stories', 'Events', 'City Guide', 'Tips'] as const
 export type Category = (typeof CATEGORIES)[number]
+// The two retired names, accepted on write and folded into 'City Guide' so an
+// edit of an older row migrates it instead of resetting it to the default.
+const LEGACY_CITY_GUIDE = new Set(['Istanbul Guide', 'Antalya Guide'])
 export function isCategory(s: unknown): s is Category {
-  return typeof s === 'string' && (CATEGORIES as readonly string[]).includes(s)
+  return typeof s === 'string' && ((CATEGORIES as readonly string[]).includes(s) || LEGACY_CITY_GUIDE.has(s))
+}
+export function normalizeCommunityCategory(s: unknown): Category {
+  if (typeof s === 'string' && LEGACY_CITY_GUIDE.has(s)) return 'City Guide'
+  return isCategory(s) ? (s as Category) : CATEGORIES[0]
 }
 
 // Handbook categories are the 10-category IA in lib/handbook-categories — the
@@ -28,18 +39,10 @@ export const HANDBOOK_CATEGORIES = CATEGORY_KEYS as readonly string[]
 // this, saving an article still stored under 'Bureaucracy' would fail the
 // allowlist and get silently reset to the default category — a real data-loss
 // path, since the inline article editor round-trips category on every save.
-export function isHandbookCategory(s: unknown): boolean {
-  return typeof s === 'string' && canonicalCategory(s) !== null
-}
-
 /** The value to persist for a submitted category: canonical when it resolves,
  *  so editing a legacy article quietly migrates it onto the new IA. */
 export function normalizeHandbookCategory(s: unknown): string {
   return (typeof s === 'string' ? canonicalCategory(s) : null) ?? HANDBOOK_CATEGORIES[0]
-}
-
-export function isValidCategory(kind: string, cat: unknown): boolean {
-  return kind === 'handbook' ? isHandbookCategory(cat) : isCategory(cat)
 }
 
 // Soft caps mirrored client+server. The actual writes trim and re-cap

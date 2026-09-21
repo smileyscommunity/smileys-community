@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { pickWriter } from '@/lib/postWriter'
 import { toCountryCode } from '@/lib/country'
 import { getSession } from '@/lib/session'
 import { canManagePosts, canActOnCityContent, isAdmin, failClosedCityId } from '@/lib/access'
-import { slugify } from '@/lib/slug'
+import { slugify, truncateSlug } from '@/lib/slug'
+import { requireStepUp } from '@/lib/stepUp'
 import { writeAudit } from '@/lib/audit'
 import { notifyNewArticle } from '@/lib/notify'
-import { CATEGORIES, HANDBOOK_CATEGORIES, isKind, isValidCategory, normalizeHandbookCategory, TITLE_MAX, EXCERPT_MAX, BODY_MAX } from '@/app/admin/posts/constants'
+import { isKind, normalizeCommunityCategory, normalizeHandbookCategory, TITLE_MAX, EXCERPT_MAX, BODY_MAX } from '@/app/admin/posts/constants'
 
 // Cover image must be a local upload path (the shape /api/upload
 // returns). External URLs in cover-image fields render as <img src>
@@ -45,13 +47,13 @@ export async function POST(req: NextRequest) {
   if (cleanBody.length > BODY_MAX)       return NextResponse.json({ error: `Body too long (max ${BODY_MAX} chars)` }, { status: 400 })
 
   const cleanKind     = isKind(kind) ? kind : 'community'
-  const defaultCat    = cleanKind === 'handbook' ? HANDBOOK_CATEGORIES[0] : CATEGORIES[0]
-  // Handbook categories normalise to the canonical IA key, so editing an
-  // article still stored under a legacy key migrates it instead of preserving
-  // the old vocabulary forever.
-  const cleanCategory = !isValidCategory(cleanKind, category) ? defaultCat
-    : cleanKind === 'handbook' ? normalizeHandbookCategory(category)
-    : String(category)
+  // Both kinds normalise: handbook categories onto the canonical IA key, and
+  // the retired per-city guide names onto 'City Guide' — so editing an
+  // article still stored under a legacy key migrates it instead of
+  // preserving the old vocabulary forever (or resetting it to the default).
+  const cleanCategory = cleanKind === 'handbook'
+    ? normalizeHandbookCategory(category)
+    : normalizeCommunityCategory(category)
 
   // Reject external cover image URLs — they would render as <img src>
   // on the public posts page, leaking visitor IPs / referers to a
@@ -61,10 +63,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Cover image must be uploaded via the form — external URLs are not allowed' }, { status: 400 })
   }
 
-  const base = slugify(cleanTitle).slice(0, 80)
+  const base = truncateSlug(slugify(cleanTitle), 80) || 'story'
   let slug = base
   let i = 1
-  while (await prisma.post.findUnique({ where: { slug } })) {
+  while (await prisma.post.findUnique({ where: { slug }, select: { id: true } })) {
     slug = `${base}-${i++}`
   }
 
@@ -97,6 +99,13 @@ export async function POST(req: NextRequest) {
   if (!writer.ok) return NextResponse.json({ error: writer.error }, { status: writer.status })
 
   const willPublish = status === 'published'
+  // Publishing bells a whole city (or everyone). For an admin that is a
+  // step-up operation like the broadcast route; a moderator's publish stays
+  // on the plain capability check — requireStepUp would refuse them outright.
+  if (willPublish && isAdmin(session)) {
+    const gate = requireStepUp(session)
+    if (gate) return gate
+  }
   const post = await prisma.post.create({
     data: {
       title:       cleanTitle,
@@ -119,6 +128,13 @@ export async function POST(req: NextRequest) {
     { title: post.title, status: post.status, category: post.category, slug: post.slug },
     `${willPublish ? 'Published' : 'Drafted'} article "${post.title}" (${post.category})`,
   )
+  // The public lists are cached (unstable_cache, 300 s): without this a story
+  // published from "New article" was missing from /posts, /handbook and the
+  // Explore strip for five minutes while the notification below already
+  // linked to it. PUT and DELETE bust the same tags.
+  revalidateTag('posts')
+  revalidateTag('handbook')
+  revalidateTag('explore-more')
   // Notify the membership when an article goes live at creation time.
   // Fire-and-forget so the ~1k-member fan-out never blocks the save.
   if (willPublish) {

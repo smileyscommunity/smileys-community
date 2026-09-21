@@ -7,22 +7,36 @@ import { prisma } from '@/lib/prisma'
 import { resolveImageUrl, avatarUrl } from '@/lib/data'
 import { firstBodyImage } from '@/lib/articleCover'
 import { APP_URL, SITE_URL } from '@/lib/env'
-import { sanitize, sanitizeArticle } from '@/lib/sanitize'
+import { sanitize, sanitizeArticle, isArticleImageSrc } from '@/lib/sanitize'
+import { getSession } from '@/lib/session'
+import { resolveCityId, getCityConfig } from '@/lib/city'
+import { postCityScope } from '@/lib/postScope'
+import { canManagePosts, canActOnCityContent } from '@/lib/access'
+import { storyBylines } from '@/lib/storyByline'
+import { normalizeCommunityCategory } from '@/app/admin/posts/constants'
 import ArticleInlineEditor from '@/components/ArticleInlineEditor'
 import ArticleViewBeacon from '@/components/ArticleViewBeacon'
 
+// The author's privacy columns ride along so the byline can be projected for
+// this viewer (lib/storyByline); only the projected name/photo reach the
+// page, never these fields.
 const getPost = unstable_cache(
   async (slug: string) => prisma.post.findUnique({
     where:   { slug },
-    include: { author: { select: { name: true, color: true, profilePhoto: true } } },
+    include: { author: { select: {
+      id: true, name: true, color: true, profilePhoto: true,
+      profileVisibility: true, status: true, hiddenFromMembers: true,
+    } } },
   }),
   ['post'],
   { revalidate: 300, tags: ['posts'] },
 )
 
+// Same kind and the viewer's scope (lib/postScope) — this listed handbook
+// articles under "More from …" and İzmir's city-local stories to Istanbul.
 const getRelatedPosts = unstable_cache(
-  async (category: string, excludeSlug: string) => prisma.post.findMany({
-    where:   { status: 'published', category, slug: { not: excludeSlug } },
+  async (category: string, excludeSlug: string, cityId: string, country: string | null) => prisma.post.findMany({
+    where:   { kind: 'community', status: 'published', category, slug: { not: excludeSlug }, ...postCityScope(cityId, country) },
     orderBy: { publishedAt: 'desc' },
     take:    3,
     select:  { title: true, slug: true, excerpt: true, coverImage: true, publishedAt: true },
@@ -32,17 +46,18 @@ const getRelatedPosts = unstable_cache(
 )
 
 const categoryColors: Record<string, string> = {
-  'Community':     'bg-amber-100 text-amber-700',
-  'Club Stories':  'bg-violet-100 text-violet-700',
-  'Events':        'bg-blue-100 text-blue-700',
-  'Istanbul Guide':'bg-green-100 text-green-700',
-  'Antalya Guide': 'bg-teal-100 text-teal-700',
-  'Tips':          'bg-pink-100 text-pink-700',
+  'Community':    'bg-amber-100 text-amber-700',
+  'Club Stories': 'bg-violet-100 text-violet-700',
+  'Events':       'bg-blue-100 text-blue-700',
+  'City Guide':   'bg-green-100 text-green-700',
+  'Tips':         'bg-pink-100 text-pink-700',
 }
 
-function formatDate(d: Date | string | null) {
+// In the city's own day: the server is UTC, so a story published at 01:00 in
+// Istanbul carried yesterday's date.
+function formatDate(d: Date | string | null, timeZone: string) {
   if (!d) return ''
-  return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+  return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone })
 }
 
 // Bodies come from two eras. The original authoring flow stored a markdown-ish
@@ -148,23 +163,31 @@ function renderBody(text: string) {
   })
 }
 
+// Only a live community story gets a <head>. This built title, excerpt and
+// cover for any row it could find — a draft, or a member's unreviewed
+// submission, reachable by a slug minted from its title — and it served the
+// handbook's articles under a second URL with a self-canonical.
+function isLiveStory(post: { kind: string | null; status: string } | null) {
+  return !!post && post.kind === 'community' && post.status === 'published'
+}
+
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
   const post = await getPost(slug)
-  if (!post) return {}
+  if (!isLiveStory(post) || !post) return { robots: { index: false, follow: false } }
   // Prefer the article's own photo — explicit cover, else the first inline
   // <img> most authors paste at the top of the body — so shared links show a
   // real, article-specific image instead of the generic /api/og brand card.
   // ?w=1200 hits the file route's PREVIEW resize (1200-wide JPEG q75, aspect
   // preserved); WhatsApp / iMessage / X all drop OG images > ~600 KB, and the
   // original PNGs run multi-MB.
+  // Our own uploads only: an external body image would make every link
+  // preview fetch a third-party URL, the same leak sanitizeArticle now stops
+  // on the page itself.
   const cover    = post.coverImage ?? firstBodyImage(post.body)
-  const resolved = cover ? resolveImageUrl(cover) : ''
-  // Only trust a rooted same-origin path or an absolute https URL; a data:/
-  // relative src would build a malformed OG url, so fall back to the card.
-  const usable   = resolved.startsWith('/') || resolved.startsWith('http')
+  const usable   = isArticleImageSrc(cover)
   const imageUrl = usable
-    ? (resolved.startsWith('http') ? resolved : `${SITE_URL}${resolved}?w=1200`)
+    ? `${SITE_URL}${resolveImageUrl(cover)}?w=1200`
     : `${APP_URL}/api/og`
   // The /api/og card is exactly 1200×630; a real photo has a variable aspect,
   // so only assert dimensions for the card and let FB/X read a photo's true
@@ -198,15 +221,30 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 export default async function PostPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
   const post = await getPost(slug)
-  if (!post || post.status !== 'published') notFound()
+  if (!post || post.kind !== 'community') notFound()
 
-  const related = await getRelatedPosts(post.category, slug)
+  const session = await getSession()
+  // An unpublished story renders for the staff who can act on it — the queue
+  // had no way to see a submission as the reader will — and 404s for anyone
+  // else, exactly as before.
+  const preview = post.status !== 'published'
+  if (preview && (!session || !canManagePosts(session) || !canActOnCityContent(session, post.cityId))) notFound()
+
+  const cityId = await resolveCityId(session)
+  const city   = await getCityConfig(cityId)
+  const related = preview ? [] : await getRelatedPosts(post.category, slug, cityId, city.country ?? null)
   // Null unless this category is a real sequence — see lib/postSeries.
   // publishedAt arrives as a Date on a cache miss and as an ISO STRING on a
   // hit — unstable_cache serialises its value to JSON, and Prisma's types
   // still claim Date, so typecheck cannot see it. new Date() accepts both.
-  const nextUp = await getNextInSeries(post.kind, post.category,
+  const nextUp = preview ? null : await getNextInSeries(post.kind, post.category,
     post.publishedAt ? new Date(post.publishedAt).toISOString() : null)
+
+  const byline   = (await storyBylines(session, [post.author]))(post.author)
+  const category = normalizeCommunityCategory(post.category)
+  // A city guide says which city — the category used to carry the name
+  // ("Istanbul Guide"), which left the other cities without one.
+  const cityLabel = category === 'City Guide' && post.cityId ? (await getCityConfig(post.cityId)).name : null
 
   return (
     <main className="min-h-screen bg-warm">
@@ -222,12 +260,18 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
         </div>
       </div>
 
-      {/* Cover image */}
+      {preview && (
+        <div className="bg-amber-500 text-white text-sm font-semibold text-center px-4 py-2">
+          Preview — this story is {post.status === 'submitted' ? 'awaiting review' : post.status}, not published. Only staff can see this page.
+        </div>
+      )}
+
+      {/* Cover image — decorative here: the h1 right below names the story. */}
       {post.coverImage && (
         <div className="relative w-full h-64 sm:h-96 overflow-hidden">
           <img
             src={resolveImageUrl(post.coverImage)}
-            alt={post.title}
+            alt=""
             className="w-full h-full object-cover"
           />
         </div>
@@ -250,8 +294,8 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
        >
         {/* Meta */}
         <div className="flex items-center gap-2 mb-4">
-          <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${categoryColors[post.category] ?? 'bg-gray-100 text-gray-600'}`}>
-            {post.category}
+          <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${categoryColors[category] ?? 'bg-gray-100 text-gray-600'}`}>
+            {category}{cityLabel ? ` · ${cityLabel}` : ''}
           </span>
         </div>
 
@@ -265,25 +309,25 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
           </p>
         )}
 
-        {/* Author */}
+        {/* Author — projected for this viewer (lib/storyByline). No view
+            count: a number under the byline is the vanity metric the product
+            rules out, and it was a five-minute-stale one at that. */}
         <div className="flex items-center gap-3 mb-10 pb-8 border-b border-gray-100">
           <div
+            aria-hidden="true"
             className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 overflow-hidden"
-            style={{ backgroundColor: post.author.color ?? '#f59e0b' }}
+            style={{ backgroundColor: byline.color }}
           >
-            {post.author.profilePhoto
-              ? <img src={avatarUrl(post.author.profilePhoto, 64)} alt={post.author.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
-              : post.author.name[0].toUpperCase()}
+            {byline.profilePhoto
+              ? <img src={avatarUrl(byline.profilePhoto, 64)} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
+              : byline.name[0]?.toUpperCase() ?? 'S'}
           </div>
           <div>
-            <p className="text-sm font-semibold text-gray-900">{post.author.name}</p>
-            <p className="text-xs text-gray-400">
-              {formatDate(post.publishedAt)}
-              {post.views > 0 && ` · 👁 ${post.views.toLocaleString()} view${post.views === 1 ? '' : 's'}`}
-            </p>
+            <p className="text-sm font-semibold text-gray-900">{byline.name}</p>
+            <p className="text-xs text-gray-400">{formatDate(post.publishedAt, city.timezone)}</p>
           </div>
         </div>
-        <ArticleViewBeacon slug={post.slug} />
+        {!preview && <ArticleViewBeacon slug={post.slug} />}
 
         {/* Body */}
         {isHtmlBody(post.body)
@@ -299,7 +343,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
           >
             <span className="min-w-0">
               <span className="block text-xs font-bold uppercase tracking-widest text-amber-600 mb-1">
-                Next in {post.category}
+                Next in {category}
               </span>
               <span className="block font-bold text-gray-900 group-hover:text-amber-700 transition-colors leading-snug">
                 {nextUp.title}
@@ -311,32 +355,48 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
           </Link>
         )}
 
-        {/* CTA */}
-        <div className="mt-16 p-8 bg-amber-500 rounded-2xl text-center">
-          <p className="text-white font-extrabold text-xl mb-2">Ready to experience this?</p>
-          <p className="text-amber-100 text-sm mb-5">Join Smileys and become part of the most vibrant social community in your city.</p>
-          <div className="flex items-center justify-center gap-3 flex-wrap">
-            <Link href="/apply" className="px-6 py-2.5 rounded-xl bg-white text-amber-600 font-bold text-sm hover:bg-amber-50 transition-colors">
-              Apply to join
-            </Link>
-            <Link href="/events" className="px-6 py-2.5 rounded-xl border border-amber-400/50 text-white font-semibold text-sm hover:bg-amber-600 transition-colors">
-              Browse events
-            </Link>
+        {/* What to do next — a member was being asked to apply to the
+            community they are in. */}
+        {session ? (
+          <div className="mt-16 p-8 bg-amber-500 rounded-2xl text-center">
+            <p className="text-white font-extrabold text-xl mb-2">Have a story of your own?</p>
+            <p className="text-amber-100 text-sm mb-5">The best pages here are written by members. Tell yours in your own words — it goes up under your name.</p>
+            <div className="flex items-center justify-center gap-3 flex-wrap">
+              <Link href="/share-story" className="px-6 py-2.5 rounded-xl bg-white text-amber-600 font-bold text-sm hover:bg-amber-50 transition-colors">
+                Share your story
+              </Link>
+              <Link href="/events" className="px-6 py-2.5 rounded-xl border border-amber-400/50 text-white font-semibold text-sm hover:bg-amber-600 transition-colors">
+                Browse events
+              </Link>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="mt-16 p-8 bg-amber-500 rounded-2xl text-center">
+            <p className="text-white font-extrabold text-xl mb-2">Sound like your kind of {city.name}?</p>
+            <p className="text-amber-100 text-sm mb-5">Smileys is where people here meet in real life — dinners, walks, clubs. Small, curated, no feed to scroll.</p>
+            <div className="flex items-center justify-center gap-3 flex-wrap">
+              <Link href="/apply" className="px-6 py-2.5 rounded-xl bg-white text-amber-600 font-bold text-sm hover:bg-amber-50 transition-colors">
+                Apply to join
+              </Link>
+              <Link href="/events" className="px-6 py-2.5 rounded-xl border border-amber-400/50 text-white font-semibold text-sm hover:bg-amber-600 transition-colors">
+                Browse events
+              </Link>
+            </div>
+          </div>
+        )}
       </article>
 
       {/* Related articles */}
       {related.length > 0 && (
         <section className="bg-white border-t border-gray-100">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
-            <h2 className="text-xl font-extrabold text-gray-900 mb-6">More from {post.category}</h2>
+            <h2 className="text-xl font-extrabold text-gray-900 mb-6">More from {category}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
               {related.map(r => (
                 <Link key={r.slug} href={`/posts/${r.slug}`} className="group block bg-gray-50 hover:bg-amber-50 rounded-2xl p-5 border border-gray-100 hover:border-amber-200 transition-all">
                   <h3 className="font-bold text-gray-900 group-hover:text-amber-600 transition-colors text-sm leading-snug mb-2">{r.title}</h3>
                   {r.excerpt && <p className="text-xs text-gray-600 line-clamp-2">{r.excerpt}</p>}
-                  <p className="text-xs text-gray-400 mt-3">{formatDate(r.publishedAt)}</p>
+                  <p className="text-xs text-gray-400 mt-3">{formatDate(r.publishedAt, city.timezone)}</p>
                 </Link>
               ))}
             </div>

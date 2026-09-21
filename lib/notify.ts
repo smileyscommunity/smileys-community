@@ -124,6 +124,9 @@ const PREF_KEY: Record<string, 'newEvents' | 'reminders' | 'eventUpdates' | 'joi
   directory_review_nudge:      null,
   city_launch:                 null,
   story_submission:            null,
+  // The writer hearing back about their own story — never a broadcast.
+  story_published:             null,
+  story_declined:              null,
   testimonial_submission:      null,
   checkin_started:             null,
   checkin_count:               null,

@@ -6,7 +6,7 @@ import { countryName } from '@/lib/country'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import RichTextEditor from '@/components/RichTextEditor'
-import { CATEGORIES, HANDBOOK_CATEGORIES, normalizeHandbookCategory, TITLE_MAX, EXCERPT_MAX, BODY_MAX } from './constants'
+import { CATEGORIES, HANDBOOK_CATEGORIES, normalizeHandbookCategory, normalizeCommunityCategory, TITLE_MAX, EXCERPT_MAX, BODY_MAX } from './constants'
 import { downscaleImage } from '@/lib/image-resize'
 
 interface PostFormProps {
@@ -21,7 +21,8 @@ interface PostFormProps {
     category?: string
     cityId?: string | null
     country?: string | null
-    authorId?: string | null
+    // Present on the edit page (the API row) — named in the review notice.
+    author?: { name: string } | null
   }
 }
 
@@ -42,8 +43,12 @@ export default function PostForm({ initial = {} }: PostFormProps) {
   // Stories. Unpinned is the right default — most articles are network-wide.
   const [cityId,      setCityId]      = useState(initial.cityId ?? '')
   // Writer picker (admins only — the endpoint answers 403 for a moderator,
-  // and the picker simply doesn't render). '' means the signed-in account.
-  const [authorId,    setAuthorId]    = useState(initial.authorId ?? '')
+  // and the picker simply doesn't render). '' means the signed-in account on
+  // create and "keep the current writer" on edit. Never seeded from
+  // initial.authorId: a member-submitted story carries the MEMBER's id, and
+  // round-tripping it failed an admin's publish with "not a staff member"
+  // (and a moderator's with 403). Only an explicit pick is sent.
+  const [authorId,    setAuthorId]    = useState('')
   const [writers,     setWriters]     = useState<{ id: string; name: string; role: string }[]>([])
   useEffect(() => {
     let cancelled = false
@@ -57,17 +62,23 @@ export default function PostForm({ initial = {} }: PostFormProps) {
   // Residence permits and SIM cards are true across ONE country, not across
   // every city we run — see lib/postScope. Ignored when a city is pinned.
   const [country,     setCountry]     = useState(initial.country ?? '')
-  // A handbook article still stored under a legacy category key is shown
-  // pre-selected on its canonical successor — otherwise the select renders with
-  // nothing highlighted and an unwary save would land on the default category.
+  // An article still stored under a legacy category key is shown pre-selected
+  // on its successor (handbook → canonical IA key, "Istanbul Guide" → City
+  // Guide) — otherwise the select renders with nothing highlighted and an
+  // unwary save would land on the default category.
   const [category,    setCategory]    = useState(
     initial.kind === 'handbook'
       ? normalizeHandbookCategory(initial.category)
-      : (initial.category ?? 'Community'),
+      : normalizeCommunityCategory(initial.category),
   )
   const [saving,      setSaving]      = useState(false)
   const [uploading,   setUploading]   = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  // A member story in the review queue. Its status is only preserved by the
+  // server while it IS the row's current status (anything else coerces to
+  // draft), so a plain Save sends it back unchanged and the story stays in
+  // the queue; Publish or an explicit Draft moves it out.
+  const inReview = initial.status === 'submitted' || initial.status === 'declined'
 
   async function handleImageUpload(file: File) {
     setUploading(true)
@@ -115,6 +126,8 @@ export default function PostForm({ initial = {} }: PostFormProps) {
       // toast accurately reflects what happened.
       const msg = publishNow
         ? (initial.status === 'published' ? 'Article updated' : 'Article published!')
+        : status === 'submitted' ? 'Saved — still in the review queue'
+        : status === 'declined'  ? 'Saved — still declined'
         : 'Saved as draft'
       toast.success(msg)
       router.push('/admin/posts')
@@ -141,7 +154,7 @@ export default function PostForm({ initial = {} }: PostFormProps) {
             disabled={saving}
             className="px-4 py-2 rounded-xl text-sm font-semibold bg-zinc-700 hover:bg-zinc-600 text-zinc-100 transition-colors disabled:opacity-50"
           >
-            {saving ? 'Saving…' : 'Save draft'}
+            {saving ? 'Saving…' : inReview && status === initial.status ? 'Save' : 'Save draft'}
           </button>
           <button
             onClick={() => handleSave(true)}
@@ -228,7 +241,25 @@ export default function PostForm({ initial = {} }: PostFormProps) {
           {/* Status */}
           <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-4">
             <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-3">Status</p>
+            {inReview && (
+              <p className={`text-xs mb-3 ${initial.status === 'submitted' ? 'text-amber-400' : 'text-zinc-400'}`}>
+                {initial.status === 'submitted'
+                  ? `Submitted by ${initial.author?.name ?? 'a member'} — awaiting review`
+                  : 'Declined — the member was told'}
+              </p>
+            )}
             <div className="flex gap-2">
+              {/* Three-state while in review: the queue status is a label, not
+                  a target — you leave it by picking draft or publishing. */}
+              {inReview && (
+                <span className={`flex-1 py-2 rounded-lg text-xs font-semibold capitalize text-center ${
+                  status === initial.status
+                    ? initial.status === 'submitted' ? 'bg-amber-700 text-amber-100' : 'bg-zinc-600 text-zinc-300 line-through'
+                    : 'bg-zinc-700 text-zinc-500'
+                }`}>
+                  {initial.status}
+                </span>
+              )}
               {(['draft', 'published'] as const).map(s => (
                 <button
                   key={s}
