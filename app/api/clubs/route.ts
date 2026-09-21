@@ -48,9 +48,18 @@ const getDiscoveryClubs = unstable_cache(
         where: { clubId: { in: ids }, status: 'active', user: LIVE_BOARD_AUTHOR, createdAt: { gte: weekCutoff }, cityId },
         _count: { _all: true },
       }),
+      // A cancelled hangout is the absence of activity, not evidence of it,
+      // and 31 of the 77 ever created are cancelled. Without this the strip
+      // put Dancing up with "2 activities this week" on the strength of one
+      // meetup entered twice and called off both times, for a date already
+      // past — while the club had no event, no post and nothing on.
+      // `{ not: 'cancelled' }` rather than `'active'` because a hangout that
+      // has already happened is expired, and that one did happen: the club
+      // was alive that week. lib/clubHealth classifies these same clubs on
+      // exactly this filter; this query was the one that had not caught up.
       prisma.hangout.groupBy({
         by: ['clubId'],
-        where: { clubId: { in: ids }, createdAt: { gte: weekCutoff }, cityId },
+        where: { clubId: { in: ids }, status: { not: 'cancelled' }, createdAt: { gte: weekCutoff }, cityId },
         _count: { _all: true },
       }),
       // Four newest member faces per club in one window query — a

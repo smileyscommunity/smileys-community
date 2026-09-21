@@ -126,9 +126,11 @@ export async function getStatsFor(cityIds: string[]): Promise<Map<string, CitySt
       },
       select: { cityId: true },
     }),
+    // Same rule as the clubs grid and lib/clubHealth: a hangout somebody
+    // called off is not a sign the city is finding its feet.
     prisma.hangout.groupBy({
       by: ['cityId'],
-      where: { cityId: { in: cityIds }, createdAt: { gte: monthAgo } },
+      where: { cityId: { in: cityIds }, status: { not: 'cancelled' }, createdAt: { gte: monthAgo } },
       _count: { _all: true },
     }),
   ])
