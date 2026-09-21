@@ -114,7 +114,11 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
   // The club's city day — UTC put "Last event" and the next-event label on
   // the server's clock.
   const today = club.cityId ? await todayInCity(club.cityId) : todayInTz(DEFAULT_TZ)
-  const [totalEventCount, lastEvent, reviewStats] = await Promise.all([
+  // Counts for the tab labels. Only Events, Members and Reviews carried one,
+  // so on a club with nothing coming up — 156 of the 166 active ones — "Past
+  // Events" with three in it looked exactly like "Photos" with none, and the
+  // page gave no clue which was worth opening.
+  const [totalEventCount, lastEvent, reviewStats, pastEventCount, conversationCount, photoCount] = await Promise.all([
     prisma.event.count({ where: { clubId: club.id, status: { not: 'draft' } } }),
     prisma.event.findFirst({
       where: { clubId: club.id, date: { lt: today }, status: { in: ['published', 'archived', 'cancelled'] } },
@@ -130,6 +134,11 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
       _count: { _all: true },
       _avg:   { rating: true },
     }),
+    // Same shape the Past Events tab lists: anything that has happened and
+    // wasn't a draft.
+    prisma.event.count({ where: { clubId: club.id, date: { lt: today }, status: { in: ['published', 'archived', 'cancelled'] } } }),
+    prisma.clubPost.count({ where: { clubId: club.id } }),
+    prisma.clubPhoto.count({ where: { clubId: club.id } }),
   ])
 
   // Global clubs (cityId null) live in every city — say so rather than
@@ -303,6 +312,15 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
                     </svg>
                     {upcomingEvents.length} upcoming event{upcomingEvents.length === 1 ? '' : 's'}
                   </span>
+                  {/* The grid card carries this badge; without it here the
+                      distinction vanished the moment you clicked through, and
+                      the only trace was a "Location — Every Smileys city" row
+                      in the sidebar definition list far below. */}
+                  {club.cityId == null && (
+                    <span className="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">
+                      🌍 Across Smileys
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -492,6 +510,9 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
               memberCount={club.memberCount}
               reviewCount={reviewStats._count._all}
               reviewAvg={reviewStats._avg.rating}
+              pastEventCount={pastEventCount}
+              conversationCount={conversationCount}
+              photoCount={photoCount}
             />
           </div>
 

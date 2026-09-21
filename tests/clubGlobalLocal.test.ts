@@ -74,8 +74,11 @@ describe('what the member count claims', () => {
 describe('the card marks which kind of club it is', () => {
   const src = read('app/clubs/ClubsClient.tsx')
 
-  it('reads global off cityId, the field that decides it', () => {
-    expect(src).toContain('const isGlobal  = club.cityId == null')
+  it('prefers the API\'s own isGlobal, falling back to cityId', () => {
+    // lib/db already derives isGlobal from cityId. Deriving it a second time
+    // here was a quiet second source of truth: narrowing that select would
+    // have turned every global club local, badge and all.
+    expect(src).toContain('club.isGlobal ?? club.cityId == null')
     // == null on purpose: undefined (field absent) must read as global too,
     // the same way the API omits it.
     expect(src).not.toContain('club.cityId === null')

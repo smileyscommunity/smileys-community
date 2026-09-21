@@ -31,6 +31,10 @@ interface Club {
   // (getCityConfig showGlobalClubs), rather than this city's own. It changes
   // what the member count means, so the card has to say which it is.
   cityId?: string | null
+  // lib/db already derives this from cityId. Prefer it: deriving it a second
+  // time here meant the card quietly turned every club local if that select
+  // were ever narrowed, which is the thing the test guards against.
+  isGlobal?: boolean
   isPrivate: boolean
   coverImage?: string | null
   // Discovery enrichment (phase 3) — computed server-side, cached 120s.
@@ -70,7 +74,7 @@ function memberLine(club: Club): string | null {
   const here = club.memberCount
   const all  = club.globalMemberCount
   const plain = here > 0 ? `${here} member${here !== 1 ? 's' : ''}` : null
-  if (club.cityId != null) return plain               // a local club is all of itself
+  if (!(club.isGlobal ?? club.cityId == null)) return plain   // a local club is all of itself
   // A global club nobody local has joined yet: the network figure is the only
   // honest number, and printing "0 members" would describe the city.
   if (!here) return all ? `${all} across Smileys` : null
@@ -87,7 +91,7 @@ function ClubCard({ club, membership, toggling, onToggle }: {
   const isJoined  = membership?.status === 'approved'
   const isPending = membership?.status === 'pending'
   const isHost    = membership?.role === 'host'
-  const isGlobal  = club.cityId == null
+  const isGlobal  = club.isGlobal ?? club.cityId == null
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden flex flex-col group">
