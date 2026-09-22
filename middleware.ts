@@ -14,11 +14,9 @@ import type { NextRequest } from 'next/server'
 //    Generates a fresh nonce per request, embeds it in `script-src` with
 //    `'strict-dynamic'`, and exposes it as the `x-nonce` request header so
 //    layouts can read it via `headers()` and pass it to <Script> or
-//    <script> tags. `'unsafe-inline'` and `'unsafe-eval'` are kept for
-//    legacy-browser fallback and for libraries that still need eval
-//    (PostHog session replay); modern browsers see
-//    `'strict-dynamic'` + the nonce and ignore the unsafe-inline fallback,
-//    so stored/reflected XSS without a valid nonce is blocked.
+//    <script> tags. `'unsafe-inline'` is kept purely as a legacy-browser
+//    fallback; modern browsers see `'strict-dynamic'` + the nonce and ignore
+//    it, so stored/reflected XSS without a valid nonce is blocked.
 
 const PROTECTED_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
@@ -70,9 +68,25 @@ function buildCsp(nonce: string): string {
     // Modern browsers: `'strict-dynamic'` + nonce ignore everything else in
     // script-src and only run scripts with the matching nonce (or scripts
     // loaded by those). Legacy browsers fall back to `'unsafe-inline'` +
-    // host allowlist. `'unsafe-eval'` kept because PostHog session replay
-    // uses Function()/eval at runtime.
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com`,
+    // host allowlist.
+    //
+    // `'unsafe-eval'` was here "because PostHog session replay uses
+    // Function()/eval at runtime". That is no longer true, and unlike
+    // 'unsafe-inline' (which strict-dynamic makes inert) this one IS honoured
+    // by modern browsers, so it was the only real hole left in script-src.
+    // Checked before removing it: 0 eval/Function across posthog-js's 124
+    // dist files, 0 across Turnstile's 86KB loader, and in our own production
+    // bundle the only hits are the `Function("return this")` globalThis
+    // fallback in the webpack runtime (inside a try/catch that falls back to
+    // `window`) and the same fallback in core-js polyfills — both sit behind
+    // a `typeof globalThis == 'object'` check that every modern browser
+    // satisfies, so neither is ever reached.
+    //
+    // If something does need eval, the browser POSTs to report-uri below and
+    // app/api/csp-report logs it: grep the PM2 log for `[csp-report]` and
+    // look for "script-src-elem"/"eval". Rollback is putting the one token
+    // back on the line below.
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-inline' https://challenges.cloudflare.com`,
     // Inline styles are pervasive in this app (Tailwind utilities + styled-jsx
     // + emotion). Nonce-based style enforcement is impractical without a
     // larger refactor. Keep `'unsafe-inline'` — XSS impact via inline CSS is

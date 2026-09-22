@@ -1,10 +1,18 @@
-// ISR — the two Prisma groupBys (events-per-neighborhood, members-
-// per-neighborhood) don't change second-by-second, and the rest of
-// the page is static JSON. Revalidating every 5 min cuts the DB load
-// from every-request to once-per-5-min while keeping the "Live"
-// neighborhood ordering effectively current. The per-viewer CTA
-// moved to a small client island (./GuideCTA) so the cookie read
-// doesn't force-dynamic the whole route.
+// This `revalidate` does NOT currently do anything, and the page used to
+// claim otherwise: it said ISR cut the DB load "from every-request to
+// once-per-5-min". It didn't. The root layout awaits headers() for the CSP
+// nonce (app/layout.tsx), which forces EVERY route in the app to render per
+// request, so route-level ISR never engages — the live response says
+// `Cache-Control: no-store`. Moving the viewer CTA into a client island
+// (./GuideCTA) to keep the cookie read out of this route was real care
+// defeated one level up, and all four queries below ran on every hit of a
+// public page that crawlers fetch.
+//
+// The saving is now taken where the rendering mode can't cancel it:
+// unstable_cache is a DATA cache, independent of whether the route is static
+// or dynamic (same pattern as /posts, /why and the landing page). The export
+// stays because the intent is right and it costs nothing — if the nonce ever
+// stops needing headers(), ISR resumes for free.
 export const revalidate = 300
 
 import { readFileSync } from 'fs'
@@ -13,6 +21,7 @@ import { join } from 'path'
 import { Fragment } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
+import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { ACTIVATED_MEMBER_WHERE } from '@/lib/memberCount'
 import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
@@ -48,6 +57,67 @@ function loadBanner(): Banner | null {
 }
 
 
+
+// Cached reads for the four queries this page ran on every request. Each one
+// takes its scope as an ARGUMENT, because unstable_cache builds the key from
+// the arguments as well as the key parts — and every query here is per city.
+// A cityId left out of the key is the leak this page has already been bitten
+// by twice (see the comments below): Istanbul's events would rank Bodrum's
+// neighborhoods, and Istanbul's saves would decide what Bodrum calls popular.
+// `today` is an argument for the same reason — it is the city's day, so the
+// entry has to roll over when that day does rather than pin yesterday's.
+//
+// Everything returned below is strings and numbers, so the JSON round-trip
+// unstable_cache performs is lossless here — no Date fields to come back as
+// ISO strings on a hit (the trap documented in app/posts/[slug]/page.tsx).
+const getNeighborhoodCounts = unstable_cache(
+  async (cityId: string, today: string) => Promise.all([
+    prisma.event.groupBy({
+      by:      ['neighborhood'],
+      where:   { status: 'published', date: { gte: today }, cityId },
+      _count:  { _all: true },
+      orderBy: { _count: { neighborhood: 'desc' } },
+      take:    10,
+    }),
+    // "N local members" — activated members only (lib/memberCount).
+    prisma.user.groupBy({
+      by:    ['neighborhood'],
+      where: { ...ACTIVATED_MEMBER_WHERE, neighborhood: { not: null }, cityId },
+      _count: { _all: true },
+    }),
+  ]),
+  ['guide-neighborhood-counts'],
+  { revalidate: 300, tags: ['guide'] },
+)
+
+// The Stories strip at the page foot — latest city-relevant community
+// writing, by the shared scope in lib/postScope (this city, its country's,
+// and the global ones), same rule as /posts.
+const getLatestStories = unstable_cache(
+  async (cityId: string, country: string | null) => prisma.post.findMany({
+    where:   { kind: 'community', status: 'published', ...postCityScope(cityId, country) },
+    orderBy: { publishedAt: 'desc' },
+    take:    2,
+    select:  { slug: true, title: true },
+  }),
+  ['guide-latest-stories'],
+  { revalidate: 300, tags: ['guide', 'posts'] },
+)
+
+// §12 — Popular Right Now, from real save/recommend counts.
+const getPopularSaves = unstable_cache(
+  async (cityId: string) => prisma.guideSave.groupBy({
+    by: ['slug'],
+    // Within this city. Ranked network-wide, Istanbul's saves would
+    // decide what Bodrum calls popular.
+    where: { cityId, OR: [{ saved: true }, { recommended: true }] },
+    _count: { _all: true },
+    orderBy: { _count: { slug: 'desc' } },
+    take: 4,
+  }),
+  ['guide-popular-saves'],
+  { revalidate: 300, tags: ['guide'] },
+)
 
 export async function generateMetadata({ searchParams }: { searchParams?: Promise<{ for?: string } & CitySearch> }): Promise<Metadata> {
   const { city } = await resolveCityForPage(searchParams)
@@ -85,21 +155,7 @@ export default async function GuidePage({ searchParams }: { searchParams?: Promi
   const seasons     = seasonsFor(city.slug)
   const thisSeason  = seasonNow(city.timezone)
 
-  const [eventCounts, memberCounts] = await Promise.all([
-    prisma.event.groupBy({
-      by:      ['neighborhood'],
-      where:   { status: 'published', date: { gte: today }, cityId },
-      _count:  { _all: true },
-      orderBy: { _count: { neighborhood: 'desc' } },
-      take:    10,
-    }),
-    // "N local members" — activated members only (lib/memberCount).
-    prisma.user.groupBy({
-      by:    ['neighborhood'],
-      where: { ...ACTIVATED_MEMBER_WHERE, neighborhood: { not: null }, cityId },
-      _count: { _all: true },
-    }),
-  ])
+  const [eventCounts, memberCounts] = await getNeighborhoodCounts(cityId, today)
 
   const memberMap = Object.fromEntries(memberCounts.map(m => [m.neighborhood, m._count._all]))
 
@@ -147,15 +203,7 @@ export default async function GuidePage({ searchParams }: { searchParams?: Promi
   const allExperiences = await loadExperiences(cityId)
   const routes = await loadRoutes(cityId)
 
-  // The Stories strip at the page foot — latest city-relevant community
-  // writing, by the shared scope in lib/postScope (this city, its country's,
-  // and the global ones), same rule as /posts.
-  const latestStories = await prisma.post.findMany({
-    where:   { kind: 'community', status: 'published', ...postCityScope(cityId, city.country ?? null) },
-    orderBy: { publishedAt: 'desc' },
-    take:    2,
-    select:  { slug: true, title: true },
-  })
+  const latestStories = await getLatestStories(cityId, city.country ?? null)
 
   // §14 — audience curation. `?for=` narrows the whole catalog to one kind of
   // visitor; the audiences themselves are saved queries over this city's own
@@ -333,15 +381,7 @@ export default async function GuidePage({ searchParams }: { searchParams?: Promi
               Below the engagement floor it falls back to an editorial
               list HONESTLY labelled as curated — never faked numbers. */}
           {await (async () => {
-            const counts = await prisma.guideSave.groupBy({
-              by: ['slug'],
-              // Within this city. Ranked network-wide, Istanbul's saves would
-              // decide what Bodrum calls popular.
-              where: { cityId, OR: [{ saved: true }, { recommended: true }] },
-              _count: { _all: true },
-              orderBy: { _count: { slug: 'desc' } },
-              take: 4,
-            })
+            const counts = await getPopularSaves(cityId)
             const bySlug = new Map(experiences.map(e => [e.slug, e]))
             const dataDriven = counts.map(c => bySlug.get(c.slug)).filter((e): e is NonNullable<typeof e> => !!e)
             // Editorial fallback avoids everything already on screen above —

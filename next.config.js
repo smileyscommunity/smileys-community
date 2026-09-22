@@ -3,6 +3,9 @@ const { withPostHogConfig } = require('@posthog/nextjs-config')
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   basePath: '/app',
+  // No `X-Powered-By: Next.js` on every response. It tells a scanner which
+  // framework (and so which CVE list) to try and buys us nothing.
+  poweredByHeader: false,
   experimental: {
     // Next's default 10MB middleware body cap made oversized photo uploads
     // die as "Failed to parse body as FormData" 500s before the upload

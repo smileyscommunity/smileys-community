@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import posthog from 'posthog-js'
 import { type Experience, type GuideMood, type GuideTaxon } from '@/lib/guide'
 
@@ -94,9 +95,19 @@ export default function ExperienceExplorer({ experiences, moods }: { experiences
                   gradient otherwise — same fallback approach as the
                   neighborhood cards. */}
               {e.photo ? (
-                <div className="h-32 overflow-hidden">
-                  <img src={e.photo} alt="" loading="lazy" decoding="async"
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                <div className="relative h-32 overflow-hidden">
+                  {/* next/image, not a bare <img>: these are 1200px-wide
+                      source files (230-400KB each) rendering into a 128px-tall
+                      card, so the raw tag shipped ~1.8MB of photo to draw six
+                      thumbnails. The hero on this same page was already
+                      optimised — only the grid was still sending originals.
+                      `sizes` mirrors the grid below (1 / 2 / 3 columns) so the
+                      optimiser picks a variant per breakpoint instead of the
+                      widest one. e.photo already carries the /app basePath,
+                      same as the hero's src. */}
+                  <Image src={e.photo} alt="" fill
+                    sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+                    className="object-cover group-hover:scale-105 transition-transform duration-300" />
                 </div>
               ) : (
                 <div className="h-24 bg-gradient-to-br from-amber-100 via-orange-50 to-amber-50 flex items-center justify-center">
