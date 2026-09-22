@@ -512,7 +512,11 @@ function AdminUsersPageInner() {
   // filtered (the old code's counts ignored the search box, showing
   // misleading totals like "423 members" while only "1" was visible).
   const searchFiltered = useMemo(() => {
-    const s = search.toLowerCase()
+    // Trimmed, because the request above sent the TRIMMED term. Untrimmed
+    // here, one trailing space — what pasting a name out of a message gives
+    // you — and this asks whether "anna popova".includes("anna popova "),
+    // throwing away every row the server just matched. The box read as broken.
+    const s = search.trim().toLowerCase()
     // A 16+ char hex string is a device-fingerprint lookup handled server-side;
     // don't re-filter by name/email here or those matches would be hidden.
     const isFp = /^[a-f0-9]{16,}$/i.test(search.trim())

@@ -22,7 +22,10 @@ export async function GET(req: NextRequest) {
     }
 
     const params = new URL(req.url).searchParams
-    const search = params.get('search') ?? ''
+    // Trimmed here too, so a direct API call behaves like the page does.
+    // It also makes an all-whitespace term mean "no filter" rather than
+    // "names containing three spaces", which matched nobody.
+    const search = (params.get('search') ?? '').trim()
     const status = params.get('status') ?? ''
 
     // Search clause — exact match on lastFingerprint short-circuits the
