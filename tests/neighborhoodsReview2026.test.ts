@@ -175,6 +175,18 @@ describe('the page tells the truth about what it counts', () => {
   })
 })
 
+describe('a name is cut on the server, not at render', () => {
+  it('the local-picks quote carries a first name into the payload', () => {
+    // Caught by probing the LIVE page after the deploy: LocalFavorites
+    // rendered firstNameOf(quoteBy), so the screen was right, but the full
+    // name travelled in the RSC flight payload — eight of them readable in
+    // view-source on a logged-out /neighborhoods.
+    const index = read('app/neighborhoods/page.tsx')
+    expect(index).toContain("quoteBy:      firstNameOf(b.reviews[0]?.author?.name ?? '') || null,")
+    expect(index).not.toContain('quoteBy:      b.reviews[0]?.author?.name ?? null,')
+  })
+})
+
 describe('members named on a neighborhood page are named by the shared rules', () => {
   const sections = read('app/neighborhoods/[slug]/NeighborhoodSections.tsx')
 

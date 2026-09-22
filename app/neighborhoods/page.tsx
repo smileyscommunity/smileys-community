@@ -449,7 +449,12 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
     coverImage:   b.coverImage,
     reviewCount:  b._count.reviews,
     quote:        b.reviews[0]?.comment ?? null,
-    quoteBy:      b.reviews[0]?.author?.name ?? null,
+    // First name only, and cut HERE rather than at render. LocalFavorites
+    // already displayed firstNameOf(quoteBy), but the full name was serialised
+    // into its props and streamed to the browser in the RSC payload, so eight
+    // members' full names were in view-source on a logged-out page — the
+    // client gate hid the surname from the screen, not from the wire.
+    quoteBy:      firstNameOf(b.reviews[0]?.author?.name ?? '') || null,
   }))
 
   // ItemList of Place — deterministic, non-personalized (built from the
