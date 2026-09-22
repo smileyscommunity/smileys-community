@@ -4,7 +4,8 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin, canModerateReports, failClosedCityId } from '@/lib/access'
 import { reviewConflict, eventRunners } from '@/lib/noShowPolicy'
-import { LIVE_CARD_STATUSES, OffenceStatus, CardLevel, StandingCardStatus, windowStart } from '@/lib/standingPolicy'
+import { LIVE_CARD_STATUSES, OffenceStatus, CardLevel, StandingCardStatus, cardableSince } from '@/lib/standingPolicy'
+import { standingEnforcement } from '@/lib/standingRead'
 
 // Standing queues for the admin panel. Moderators see their own city's members
 // only (same scoping as the no-show inbox); admins see everything.
@@ -54,11 +55,18 @@ export async function GET(req: NextRequest) {
         },
       })
       // Warnings: what decideIssuance would count for this member right now —
-      // counting, open, unattached to a card, inside the window. One of these
-      // is a warning and nothing else; YELLOW_AFTER_OFFENCES of them is a card.
-      // Counted here rather than in the page so it can never drift from the
-      // rule that actually issues: same filter, same window.
+      // counting, open, unattached to a card, and no earlier than cardableSince.
+      // One of these is a warning and nothing else; YELLOW_AFTER_OFFENCES of
+      // them is a card. Counted here rather than in the page so it cannot drift
+      // from the rule that actually issues.
+      //
+      // That last promise was not kept until cardableSince existed: this read
+      // used windowStart alone, so an offence from before enforcement was
+      // switched on — inside the 90-day window, but cut from the ledger by
+      // evaluateMember and unable to reach a card — was still counted, showing
+      // admins members one short of a yellow who were nothing of the kind.
       const userIds = [...new Set(rows.map(r => r.userId))]
+      const cut = cardableSince(new Date(), await standingEnforcement())
       const loose = userIds.length ? await prisma.standingOffence.groupBy({
         by:    ['userId'],
         where: {
@@ -66,7 +74,7 @@ export async function GET(req: NextRequest) {
           counts:     true,
           status:     OffenceStatus.Open,
           cardId:     null,
-          occurredAt: { gte: windowStart(new Date()) },
+          occurredAt: { gte: cut },
         },
         _count: { _all: true },
       }) : []

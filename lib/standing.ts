@@ -14,6 +14,7 @@ import {
   RECOVERY_REQUIRES_CHECKIN, LIVE_CARD_STATUSES, OffenceKind, OffenceStatus, CardLevel, StandingCardStatus,
   eventTier, classifyRow, refilledLateCancels, offenceCounts, decideIssuance, isSuccessfulCommitment,
   recoveryOutcome, disputeHolds, standingLevel, countedCommitments, commitmentsNeeded, canDispute, windowStart,
+  cardableSince,
   attendanceReviewOpensAt, attendanceSettlesAt, doorOpened, unmarkedGuests, doorKey,
   type LedgerOffence,
 } from '@/lib/standingPolicy'
@@ -428,8 +429,11 @@ export async function evaluateMember(userId: string, now: Date): Promise<Evaluat
       select: { id: true, occurredAt: true, counts: true, status: true, cardId: true, disputedAt: true },
     })
     // Offences from before enforcement was switched on never make a real card.
-    const ledger: LedgerOffence[] = offences.filter(o =>
-      !enforcement.enforced || !enforcement.since || o.occurredAt.getTime() >= enforcement.since.getTime())
+    // cardableSince is the shared rule — the admin dashboard's warnings badge
+    // and nearlyCarded tile read it too, so a number there means what issuance
+    // would actually do.
+    const cut = cardableSince(now, enforcement)
+    const ledger: LedgerOffence[] = offences.filter(o => o.occurredAt.getTime() >= cut.getTime())
     const disputePending = disputeHolds(offences.filter(o => ledger.includes(o)), now)
 
     const liveCards = await tx.standingCard.findMany({
@@ -858,7 +862,9 @@ export async function memberStanding(userId: string, now: Date = new Date()) {
   const enforcement = await standingEnforcement()
   if (!enforcement.enforced) return { enforced: false as const, level: 'good' as const, card: null, offences: [] }
 
-  const floor = new Date(Math.max(windowStart(now).getTime(), enforcement.since?.getTime() ?? 0))
+  // The same floor issuance uses. This read already had it right; the admin
+  // dashboard's two were the ones deriving it from the window alone.
+  const floor = cardableSince(now, enforcement)
   const [cards, offences] = await Promise.all([
     prisma.standingCard.findMany({
       where:   { userId, shadow: false, status: { in: LIVE_CARD_STATUSES } },

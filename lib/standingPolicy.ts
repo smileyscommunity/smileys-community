@@ -76,7 +76,8 @@ export const STANDING_STARTS_AT            = new Date('2026-09-16T00:00:00Z')
 // Host inaction never makes a penalty, and it doesn't earn credit either.
 export const RECOVERY_REQUIRES_CHECKIN     = true
 // AppSetting key. 'true' turns on what members see and feel: notifications,
-// the waitlist order, host approval for red cards on scarce events.
+// the waitlist order, and the scarce-event block on red cards — a block, not
+// a referral to the host; see blocksRsvp below for why that changed.
 export const STANDING_ENFORCE_SETTING      = 'standing.enforce'
 
 export const Tier = { Scarce: 'scarce', Open: 'open' } as const
@@ -384,6 +385,29 @@ export function windowStart(now: Date): Date {
  * waiting is not carded until it is resolved.
  */
 /** A dispute recent enough to hold new cards back (DISPUTE_HOLD_DAYS). */
+/**
+ * The earliest an offence can have occurred and still put a member closer to a
+ * card: the 90-day window, or the moment enforcement was switched on, whichever
+ * is LATER. Offences from before the switch never reach a real card — see the
+ * ledger filter in lib/standing.evaluateMember.
+ *
+ * It lives here, taking both inputs, because it was previously implied in three
+ * places and applied in one. The admin dashboard's "N warnings" badge and its
+ * `nearlyCarded` tile each re-derived "what would card this member" from the
+ * window ALONE, both under a comment promising they could not drift from the
+ * issuing rule. They could, and did: after enforcement is switched off and on
+ * again, offences recorded during the off period sit inside the window with no
+ * card attached, so the dashboard counted them and issuance did not.
+ *
+ * Structural param rather than the StandingEnforcement type: lib/standingRead
+ * imports this module, so this module cannot import it back.
+ */
+export function cardableSince(now: Date, enforcement: { enforced: boolean; since: Date | null }): Date {
+  const window = windowStart(now)
+  if (!enforcement.enforced || !enforcement.since) return window
+  return enforcement.since.getTime() > window.getTime() ? enforcement.since : window
+}
+
 export function disputeHolds(offences: { status: string; disputedAt?: Date | null }[], now: Date): boolean {
   return offences.some(o => o.status === OffenceStatus.Disputed
     && (!o.disputedAt || now.getTime() - o.disputedAt.getTime() < DISPUTE_HOLD_DAYS * DAY))

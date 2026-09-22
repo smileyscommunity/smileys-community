@@ -4,7 +4,7 @@ import { getSession } from '@/lib/session'
 import { isAdmin, canModerateReports } from '@/lib/access'
 import { requireStepUp } from '@/lib/stepUp'
 import { standingEnforcement, setStandingEnforced } from '@/lib/standing'
-import { LIVE_CARD_STATUSES, OffenceStatus, CardLevel, windowStart, YELLOW_AFTER_OFFENCES } from '@/lib/standingPolicy'
+import { LIVE_CARD_STATUSES, OffenceStatus, CardLevel, cardableSince, YELLOW_AFTER_OFFENCES } from '@/lib/standingPolicy'
 
 // The standing switch, and the numbers to read before touching it. Until it is
 // on, the sweep records everything in shadow: nothing reaches members. Admins
@@ -42,10 +42,15 @@ export async function GET() {
     // How many members are one offence short of a card. Without it an empty
     // cards queue says nothing: it reads the same whether the system is
     // working and nobody has earned one, or it has quietly stopped issuing.
-    // Same filter decideIssuance uses, so the number means what it says.
+    //
+    // cardableSince, not windowStart — the same cut the warnings badge on
+    // ../standing makes, and the one evaluateMember applies to the ledger.
+    // Offences from before the switch sit inside the 90-day window but can
+    // never reach a card, so counting them overstated this number during
+    // exactly the period an admin reads it to decide whether to switch on.
     const loose = await prisma.standingOffence.groupBy({
       by:    ['userId'],
-      where: { counts: true, status: OffenceStatus.Open, cardId: null, occurredAt: { gte: windowStart(new Date()) } },
+      where: { counts: true, status: OffenceStatus.Open, cardId: null, occurredAt: { gte: cardableSince(new Date(), enforcement) } },
       _count: { _all: true },
     })
     // Excluding anyone who already holds a card: their next offence escalates

@@ -105,7 +105,7 @@ export default function AdminStandingPage() {
 
   async function toggle(on: boolean) {
     const ok = await confirmToast(on
-      ? 'Switch standing on? Members start seeing cards and notifications, red cards need host approval at limited events, and carded members join limited waitlists at the back. Shadow cards are retired and the count starts fresh.'
+      ? 'Switch standing on? Members start seeing cards and notifications, a red card can no longer take a seat at a limited event at all, and carded members join limited waitlists at the back. Open events are untouched — that is how a card is cleared. Shadow cards are retired and the count starts fresh.'
       : 'Switch standing off? Effects and notifications pause; cards keep their state.',
       { confirmLabel: on ? 'Switch on' : 'Switch off' })
     if (!ok) return
@@ -151,7 +151,7 @@ export default function AdminStandingPage() {
               </p>
               <p className="text-xs text-zinc-400 mt-0.5">
                 {overview.enforced
-                  ? 'Members see their cards; red cards need host approval at limited events.'
+                  ? 'Members see their cards; a red card cannot take a seat at a limited event.'
                   : 'Nothing reaches members. Cards issued now are shadow and are retired when this is switched on.'}
               </p>
             </div>
