@@ -70,9 +70,12 @@ describe('what the public page serves', () => {
     expect(page).toContain("where:   { kind: 'community', status: 'published', category, slug: { not: excludeSlug }, ...postCityScope(cityId, country) },")
   })
 
-  it('the byline is projected like every other byline, and the view count is gone', () => {
+  it('the byline is projected like every other byline, and the view count is read fresh', () => {
     expect(page).toContain('const byline   = (await storyBylines(session, [post.author]))(post.author)')
-    expect(page).not.toContain('views')
+    // Back by request 2026-09-22, but read outside getPost's cache — inside
+    // it the number was up to five minutes behind and jumped on refresh.
+    expect(page).toContain("const fresh    = preview ? null : await prisma.post.findUnique({ where: { id: post.id }, select: { views: true } })")
+    expect(page).toContain('👁 ${views.toLocaleString')
     expect(src('app/posts/page.tsx')).toContain('const byline  = await storyBylines(session, rows.map(r => r.author))')
   })
 

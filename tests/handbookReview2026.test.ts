@@ -35,7 +35,10 @@ describe('dates', () => {
     const editable = src('app/handbook/[slug]/EditableArticle.tsx')
     expect(editable).not.toContain('toLocaleDateString')
     expect(editable).not.toContain('rawBody')
-    expect(editable).not.toContain('views')
+    // The view count is back by request (2026-09-22) — as a settled number
+    // from the server, never computed in this client component.
+    expect(src('app/handbook/[slug]/page.tsx')).toContain("const fresh     = await prisma.post.findUnique({ where: { id: post.id }, select: { views: true } })")
+    expect(editable).toContain('👁 ${props.views.toLocaleString')
     expect(src('app/handbook/category/[key]/page.tsx')).toContain('formatDate(a.publishedAt, cfg.timezone)')
   })
 })

@@ -241,6 +241,13 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
     post.publishedAt ? new Date(post.publishedAt).toISOString() : null)
 
   const byline   = (await storyBylines(session, [post.author]))(post.author)
+  // Read OUTSIDE getPost's unstable_cache, the same way the handbook reads
+  // its likes: inside it the number is whatever it was up to five minutes
+  // ago, so a reader refreshing could watch it jump by dozens. Still one
+  // behind their own visit — the beacon fires after this renders — which is
+  // the nature of the thing, not a bug to chase.
+  const fresh    = preview ? null : await prisma.post.findUnique({ where: { id: post.id }, select: { views: true } })
+  const views    = fresh?.views ?? 0
   const category = normalizeCommunityCategory(post.category)
   // A city guide says which city — the category used to carry the name
   // ("Istanbul Guide"), which left the other cities without one.
@@ -324,7 +331,10 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
           </div>
           <div>
             <p className="text-sm font-semibold text-gray-900">{byline.name}</p>
-            <p className="text-xs text-gray-400">{formatDate(post.publishedAt, city.timezone)}</p>
+            <p className="text-xs text-gray-400">
+              {formatDate(post.publishedAt, city.timezone)}
+              {views > 0 && ` · 👁 ${views.toLocaleString('en-US')} view${views === 1 ? '' : 's'}`}
+            </p>
           </div>
         </div>
         {!preview && <ArticleViewBeacon slug={post.slug} />}

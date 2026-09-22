@@ -52,6 +52,9 @@ interface Props {
   // the browser's locale and timezone and hydrated differently from the
   // server render.
   publishedText: string | null
+  // Read fresh on the server (not from the article cache, which is five
+  // minutes behind). Zero renders nothing.
+  views:         number
   // Unpublished row, staff viewer. The page renders the big banner; this
   // component only adds a small note beside the toolbar.
   preview:       boolean
@@ -267,6 +270,7 @@ export default function EditableArticle(props: Props) {
             <p className="text-xs text-gray-400">
               {props.publishedText}
               {props.publishedText ? ' · ' : ''}{props.readingMinutes} min read
+              {props.views > 0 && ` · 👁 ${props.views.toLocaleString('en-US')} view${props.views === 1 ? '' : 's'}`}
             </p>
           </div>
         </div>

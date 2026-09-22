@@ -224,6 +224,9 @@ export default async function HandbookArticlePage({ params }: Params) {
   // Likes are read OUTSIDE getHandbookArticle's unstable_cache: the count
   // would go stale for 5 minutes, and "did you like this" is per-viewer so
   // it must never be shared across users by a cache entry.
+  // Views ride along for the same reason: the cached row's count is up to
+  // five minutes stale.
+  const fresh     = await prisma.post.findUnique({ where: { id: post.id }, select: { views: true } })
   const likeCount = await prisma.postLike.count({ where: { postId: post.id } })
   const likedByMe = session
     ? (await prisma.postLike.findUnique({
@@ -323,6 +326,7 @@ export default async function HandbookArticlePage({ params }: Params) {
           preview={preview}
           byline={{ name: byline.name, color: byline.color }}
           publishedText={publishedText}
+          views={fresh?.views ?? 0}
           reviewText={review?.text ?? null}
           reviewStale={review?.stale ?? false}
           readingMinutes={minutes}
