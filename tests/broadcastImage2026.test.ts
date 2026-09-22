@@ -97,8 +97,8 @@ describe('the ways it could go out wrong', () => {
     const route = src('app/api/admin/notifications/broadcast/route.ts')
     expect(route).toContain('if (imageUrl !== undefined) {')
     expect(route).toContain('imagePatch = { imageUrl: clean || null }')
-    // Both the fanned-out rows and the send record.
-    expect((route.match(/\.\.\.imagePatch/g) ?? []).length).toBe(2)
+    // The fanned-out rows, the send record — and the audit entry's "after".
+    expect((route.match(/\.\.\.imagePatch/g) ?? []).length).toBe(3)
   })
 
   it('the thumbnails ask for a sized variant, not the original', () => {

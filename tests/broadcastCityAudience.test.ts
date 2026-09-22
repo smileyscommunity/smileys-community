@@ -22,18 +22,18 @@ vi.mock('@/lib/totpPolicy', () => ({ ADMIN_2FA_REQUIRED: true }))
 //    reported as success is how a city's members silently miss an alert.
 
 vi.mock('@/lib/session', () => ({ getSession: vi.fn() }))
-vi.mock('@/lib/notify',  () => ({ createNotification: vi.fn(async () => {}) }))
+vi.mock('@/lib/notify',  () => ({ createNotification: vi.fn(async () => {}), recipientSkipReason: vi.fn(() => null) }))
 vi.mock('@/lib/email',   () => ({ sendBroadcastEmail: vi.fn(async () => {}), recordEmailFailure: vi.fn(async () => {}) }))
 // Every POST now claims its requestId (scan 5 item 45); a fresh id per call
 // always wins the claim, so these cases test audience scoping alone.
-vi.mock('@/lib/rateLimit', () => ({ claimOnce: vi.fn(async () => true), releaseClaim: vi.fn(async () => {}), rateLimit: vi.fn(async () => true) }))
+vi.mock('@/lib/rateLimit', () => ({ claimOnce: vi.fn(async () => true), releaseClaim: vi.fn(async () => {}), rateLimitRemaining: vi.fn(async () => 5), rateLimit: vi.fn(async () => true) }))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     city:      { findUnique: vi.fn() },
     user:      { findMany: vi.fn(async () => []) },
     event:     { findUnique: vi.fn() },
     club:      { findUnique: vi.fn() },
-    broadcast: { create: vi.fn(async () => ({})), findMany: vi.fn(async () => []) },
+    broadcast: { create: vi.fn(async () => ({ id: 'b1' })), update: vi.fn(async () => ({})), findMany: vi.fn(async () => []) },
     notificationPreference: { findMany: vi.fn(async () => []) },
   },
 }))
@@ -56,9 +56,14 @@ function post(body: Record<string, unknown>) {
   }) as never)
 }
 
+const member = { id: 'u1', name: 'U', email: 'u@x.test', emailMarketing: true, emailVerified: true, status: 'approved', suspendedUntil: null }
+
 beforeEach(() => {
   vi.clearAllMocks()
   ;(getSession as any).mockResolvedValue(admin)
+  // An audience with nobody in it is a 400 now, so every send that is meant
+  // to go through needs one live member behind it.
+  ;(prisma.user.findMany as any).mockResolvedValue([member])
   ;(prisma.city.findUnique as any).mockImplementation(async ({ where }: any) =>
     ['c-ist', 'c-bod'].includes(where.id) ? { id: where.id } : null)
 })
@@ -66,7 +71,7 @@ beforeEach(() => {
 describe('broadcast city audience', () => {
   it('sends to exactly the approved users of the named city', async () => {
     const res = await post({ audience: 'city', cityId: 'c-bod' })
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(202)
     expect((prisma.user.findMany as any).mock.calls[0][0].where)
       .toEqual({ status: 'approved', cityId: 'c-bod' })
     // The audit row records where the send went.
@@ -77,7 +82,7 @@ describe('broadcast city audience', () => {
   it('moderator may broadcast to their own city…', async () => {
     ;(getSession as any).mockResolvedValue(mod)
     const res = await post({ audience: 'city', cityId: 'c-ist' })
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(202)
     expect((prisma.user.findMany as any).mock.calls[0][0].where)
       .toEqual({ status: 'approved', cityId: 'c-ist' })
   })
@@ -104,7 +109,7 @@ describe('broadcast city audience', () => {
 
   it("plain 'all' still reaches everyone and records no city", async () => {
     const res = await post({ audience: 'all' })
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(202)
     expect((prisma.user.findMany as any).mock.calls[0][0].where).toEqual({ status: 'approved' })
     expect((prisma.broadcast.create as any).mock.calls[0][0].data).toMatchObject({ cityId: null })
   })
@@ -118,16 +123,34 @@ describe('broadcast city audience', () => {
     expect(prisma.broadcast.create).not.toHaveBeenCalled()
   })
 
-  it("an event audience with no eventId is the global list too, and gated the same", async () => {
-    ;(getSession as any).mockResolvedValue(stale)
+  // This used to pin the opposite: an event audience with no eventId WAS
+  // the global list, gated only by the (disabled) step-up. That fall-through
+  // is what the 2026-09-22 review removed — an audience is one of four
+  // named things, and a missing id is a 400 before anyone is fetched.
+  it('an event audience with no eventId is refused, not quietly everyone', async () => {
     const res = await post({ audience: 'event' })
-    expect(res.status).toBe(403)
+    expect(res.status).toBe(400)
+    expect(prisma.user.findMany).not.toHaveBeenCalled()
+    expect(prisma.broadcast.create).not.toHaveBeenCalled()
+  })
+
+  it('an audience that is not one of the four is refused the same way', async () => {
+    for (const audience of ['Club', 'everyone', '', undefined]) {
+      const res = await post({ audience })
+      expect(res.status, String(audience)).toBe(400)
+    }
+    expect(prisma.user.findMany).not.toHaveBeenCalled()
+  })
+
+  it('a filter object where an id should be is refused, not applied', async () => {
+    const res = await post({ audience: 'club', clubId: { not: null } })
+    expect(res.status).toBe(400)
     expect(prisma.user.findMany).not.toHaveBeenCalled()
   })
 
   it('a city send does not step up (a moderator can never pass it)', async () => {
     ;(getSession as any).mockResolvedValue(stale)
-    expect((await post({ audience: 'city', cityId: 'c-ist' })).status).toBe(200)
+    expect((await post({ audience: 'city', cityId: 'c-ist' })).status).toBe(202)
     expect(prisma.broadcast.create).toHaveBeenCalledTimes(1)
   })
 })

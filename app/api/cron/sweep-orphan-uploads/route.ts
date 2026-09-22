@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { readdir, stat, unlink } from 'fs/promises'
 import { join } from 'path'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 import { uploadRoot } from '@/lib/uploadRoot'
 import { recordCronRun } from '@/lib/cronHealth'
 
@@ -24,15 +25,18 @@ import { recordCronRun } from '@/lib/cronHealth'
 // Out of scope: the member upload folders (users/, events/, clubs/, …). Those
 // files are referenced from many more places and uploaded by signed-in
 // members under their own rate limits; reaping them needs its own reference
-// map. This sweep only ever reads and deletes inside applications/.
+// map. This sweep reads and deletes inside the folders in SWEPT_FOLDERS only.
 //
-// BEFORE widening this to another folder, add that folder's reference columns
-// to REFERENCE_COLUMNS in the same change — a folder listed here with its
-// references missing deletes live files. broadcasts/ (added 2026-09-22) is
-// referenced from TWO columns, broadcasts.imageUrl AND notifications.imageUrl:
-// the send record keeps one copy and every fanned-out row keeps another, so
-// scanning only the Broadcast table would reap an image thousands of live
-// notification cards still point at.
+// broadcasts/ (2026-09-22): every image an admin picked and then removed,
+// re-picked, or abandoned with the compose stayed on disk for ever, publicly
+// readable at its URL. It is referenced from TWO columns — broadcasts.imageUrl
+// on the send record and notifications.imageUrl on every fanned-out row — and
+// both are in REFERENCE_COLUMNS: scanning only the Broadcast table would reap
+// an image thousands of live notification cards still point at.
+//
+// BEFORE adding another folder here, add its reference columns to
+// REFERENCE_COLUMNS in the same change — a folder listed with its references
+// missing deletes live files.
 //
 // Dry run: `?dryRun=1` or a JSON body `{ "dryRun": true }` returns the list it
 // would delete and deletes nothing.
@@ -50,6 +54,21 @@ import { checkCronAuth } from '@/lib/cronAuth'
 
 const MIN_AGE_MS = 48 * 60 * 60 * 1000
 const MAX_DELETIONS_PER_RUN = 500
+
+// One folder's worth of everything below: the directory it lists, the path
+// segment a reference must contain, and the columns the last look before a
+// delete re-checks (the ones written with that folder's paths TODAY; the
+// full REFERENCE_COLUMNS scan is the snapshot, this is the race guard).
+const SWEPT_FOLDERS: readonly { folder: string; lastLook: readonly (readonly [table: string, column: string])[] }[] = [
+  { folder: 'applications', lastLook: [['member_applications', 'profilePhoto'], ['users', 'profilePhoto']] },
+  { folder: 'broadcasts',   lastLook: [['broadcasts', 'imageUrl'], ['notifications', 'imageUrl']] },
+]
+
+// Email failures keep the recipient's address so a bounce can be read back
+// against the member — and kept it for ever. Ninety days is long past any
+// bounce investigation; after that it is a list of member addresses for no
+// reason. Account deletion already purges its own rows.
+const EMAIL_FAILURE_RETENTION_MS = 90 * 24 * 60 * 60 * 1000
 
 // Same shape the upload route writes (`<ms>-<hex>.jpg`) and the file route
 // will serve. Anything else is not ours to judge.
@@ -97,60 +116,89 @@ const REFERENCE_COLUMNS: readonly (readonly [table: string, column: string])[] =
   ['app_settings',        'value'],
   ['newsletters',         'bodyHtml'],
   ['audit_logs',          'meta'],
+  // broadcasts/ — both copies, see the header.
+  ['broadcasts',          'imageUrl'],
+  ['notifications',       'imageUrl'],
 ]
 
-// Filenames after an `applications/` segment, whatever prefix precedes it
+// Filenames after a `<folder>/` segment, whatever prefix precedes it
 // (`/app/api/files/`, the pre-lockdown `/app/uploads/`, a bare path). Lower-
 // cased so a case difference can only ever keep a file, never delete one.
-const REF_NAME = /applications\/([\w.-]+)/gi
+// The folder names are ours (SWEPT_FOLDERS), never input, so building the
+// regex from one is safe.
+function refNameRe(folder: string): RegExp {
+  return new RegExp(`${folder}\\/([\\w.-]+)`, 'gi')
+}
 
-function referencedNames(values: readonly (string | null)[]): Set<string> {
+function referencedNames(folder: string, values: readonly (string | null)[]): Set<string> {
+  const re = refNameRe(folder)
   const names = new Set<string>()
   for (const v of values) {
     if (!v) continue
-    for (const m of v.matchAll(REF_NAME)) names.add(m[1].replace(/\.+$/, '').toLowerCase())
+    for (const m of v.matchAll(re)) names.add(m[1].replace(/\.+$/, '').toLowerCase())
   }
   return names
 }
 
-async function loadReferences(): Promise<Set<string>> {
+async function loadReferences(folder: string): Promise<Set<string>> {
   const values: (string | null)[] = []
   for (const [table, column] of REFERENCE_COLUMNS) {
-    // Identifiers come from the constant list above, never from input. ::text
+    // Identifiers come from the constant lists above, never from input. ::text
     // covers text, text[] (listings.photos) and jsonb alike.
     const rows = await prisma.$queryRawUnsafe<{ v: string | null }[]>(
-      `SELECT "${column}"::text AS v FROM "${table}" WHERE "${column}"::text LIKE '%applications/%'`,
+      `SELECT "${column}"::text AS v FROM "${table}" WHERE "${column}"::text LIKE '%${folder}/%'`,
     )
     for (const r of rows) values.push(r.v)
   }
-  return referencedNames(values)
+  return referencedNames(folder, values)
 }
 
 // The last look before a delete. The reference scan in runSweep is a snapshot
 // taken before up to MAX_DELETIONS_PER_RUN unlinks, and an application
-// submitted in between must keep its photo. Only the two columns written with
-// an applications/ path today need the second look. ILIKE, and `_` matching
-// any character, can only ever keep a file, never delete one.
-async function stillReferenced(name: string): Promise<boolean> {
-  const pattern = `%applications/${name}%`
-  const rows = await prisma.$queryRaw<{ hit: number }[]>`
-    SELECT 1 AS hit FROM member_applications WHERE "profilePhoto" ILIKE ${pattern}
-    UNION ALL
-    SELECT 1 AS hit FROM users WHERE "profilePhoto" ILIKE ${pattern}
-    LIMIT 1`
+// submitted — or a broadcast sent — in between must keep its image. Only the
+// columns written with that folder's paths today need the second look. ILIKE,
+// and `_` matching any character, can only ever keep a file, never delete one.
+async function stillReferenced(folder: string, lastLook: readonly (readonly [string, string])[], name: string): Promise<boolean> {
+  const pattern = `%${folder}/${name}%`
+  // Identifiers come from SWEPT_FOLDERS (ours, never input) via Prisma.raw;
+  // the pattern is bound once, up front, and each arm reads it back.
+  const arms = Prisma.raw(lastLook
+    .map(([t, c]) => `SELECT 1 AS hit FROM "${t}" WHERE "${c}" ILIKE (SELECT pat FROM p)`)
+    .join(' UNION ALL '))
+  const rows = await prisma.$queryRaw<{ hit: number }[]>`WITH p AS (SELECT ${pattern}::text AS pat) ${arms} LIMIT 1`
   return Array.isArray(rows) && rows.length > 0
 }
 
+type SweepCounts = { scanned: number; skippedUnrecognised: number; tooNew: number; referenced: number; eligible: number; deleted: number; failed: number; deferred: number; rescued: number; wouldDelete: string[] }
+const EMPTY: SweepCounts = { scanned: 0, skippedUnrecognised: 0, tooNew: 0, referenced: 0, eligible: 0, deleted: 0, failed: 0, deferred: 0, rescued: 0, wouldDelete: [] }
+
 async function runSweep(dryRun: boolean) {
-  const dir = join(uploadRoot(), 'applications')
+  // Each folder is its own pass with its own reference snapshot; the counts
+  // are summed for the run record and the per-folder detail kept beside them.
+  const perFolder: Record<string, SweepCounts> = {}
+  const total: SweepCounts = { ...EMPTY, wouldDelete: [] }
+  for (const swept of SWEPT_FOLDERS) {
+    const c = await sweepFolder(swept, dryRun)
+    perFolder[swept.folder] = c
+    for (const k of Object.keys(EMPTY) as (keyof SweepCounts)[]) {
+      if (k === 'wouldDelete') total.wouldDelete.push(...c.wouldDelete.map(n => `${swept.folder}/${n}`))
+      else (total[k] as number) += c[k] as number
+    }
+  }
+  const { wouldDelete, ...sums } = total
+  const counts = { dryRun, ...sums, folders: perFolder }
+  console.log('[cron sweep-orphan-uploads]', JSON.stringify({ dryRun, ...sums }))
+  return { ...counts, wouldDelete: dryRun ? wouldDelete : [] }
+}
+
+async function sweepFolder({ folder, lastLook }: (typeof SWEPT_FOLDERS)[number], dryRun: boolean): Promise<SweepCounts> {
+  const dir = join(uploadRoot(), folder)
   let entries: import('fs').Dirent[]
   try {
     entries = await readdir(dir, { withFileTypes: true })
   } catch (e) {
-    // No folder yet (fresh box, nothing ever uploaded) is an empty run.
-    if ((e as NodeJS.ErrnoException).code === 'ENOENT') {
-      return { dryRun, scanned: 0, skippedUnrecognised: 0, tooNew: 0, referenced: 0, eligible: 0, deleted: 0, failed: 0, deferred: 0, wouldDelete: [] as string[] }
-    }
+    // No folder yet (fresh box, nothing ever uploaded there) is an empty pass.
+    if ((e as NodeJS.ErrnoException).code === 'ENOENT') return { ...EMPTY, wouldDelete: [] }
     throw e
   }
 
@@ -169,7 +217,7 @@ async function runSweep(dryRun: boolean) {
   }
 
   // Throws on any failed query — before a single unlink.
-  const refs = await loadReferences()
+  const refs = await loadReferences(folder)
   const orphans = old.filter(name => !refs.has(name.toLowerCase())).sort()
   const referenced = old.length - orphans.length
   const batch = orphans.slice(0, MAX_DELETIONS_PER_RUN)
@@ -184,21 +232,32 @@ async function runSweep(dryRun: boolean) {
         // References first, then the age, then the delete at once. The apply
         // route refreshes a photo's mtime as it claims it, so an application
         // being submitted right now shows up in one check or the other.
-        if (await stillReferenced(name)) { rescued++; continue }
+        if (await stillReferenced(folder, lastLook, name)) { rescued++; continue }
         if ((await stat(join(dir, name))).mtimeMs >= cutoff) { rescued++; continue }
         await unlink(join(dir, name))
         deleted++
       } catch (e) {
         if ((e as NodeJS.ErrnoException).code === 'ENOENT') continue
         failed++
-        console.error('[cron sweep-orphan-uploads] could not delete', name, e)
+        console.error('[cron sweep-orphan-uploads] could not delete', `${folder}/${name}`, e)
       }
     }
   }
 
-  const counts = { dryRun, scanned: entries.length, skippedUnrecognised, tooNew, referenced, eligible: orphans.length, deleted, failed, deferred, rescued }
-  console.log('[cron sweep-orphan-uploads]', JSON.stringify(counts))
-  return { ...counts, wouldDelete: dryRun ? batch : [] }
+  return { scanned: entries.length, skippedUnrecognised, tooNew, referenced, eligible: orphans.length, deleted, failed, deferred, rescued, wouldDelete: dryRun ? batch : [] }
+}
+
+// Bookkeeping, not the sweep's job: a failure here is logged and does not
+// fail the run, the same rule recordCronRun follows.
+async function pruneEmailFailures(dryRun: boolean): Promise<number> {
+  if (dryRun) return 0
+  try {
+    const r = await prisma.emailFailure.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - EMAIL_FAILURE_RETENTION_MS) } } })
+    return r.count
+  } catch (e) {
+    console.error('[cron sweep-orphan-uploads] email_failures prune failed', String(e))
+    return 0
+  }
 }
 
 async function wantsDryRun(req: NextRequest): Promise<boolean> {
@@ -219,10 +278,11 @@ export async function POST(req: NextRequest) {
   const dryRun = await wantsDryRun(req)
   try {
     const result = await runSweep(dryRun)
+    const emailFailuresPruned = await pruneEmailFailures(dryRun)
     // A dry run is a human looking, not the nightly run: stamping it would
     // tell the staleness check the reaper ran when it deleted nothing.
     if (!dryRun) await recordCronRun('sweep-orphan-uploads', result.failed === 0)
-    return NextResponse.json({ ok: true, ...result })
+    return NextResponse.json({ ok: true, ...result, emailFailuresPruned })
   } catch (e) {
     console.error('[cron sweep-orphan-uploads]', e)
     if (!dryRun) await recordCronRun('sweep-orphan-uploads', false, e)

@@ -10,7 +10,7 @@ const read = (p: string) => readFileSync(p, 'utf8')
 
 const p = vi.hoisted(() => {
   const m: Record<string, any> = {
-    broadcast:      { findMany: vi.fn(async () => []), create: vi.fn(async () => ({})) },
+    broadcast:      { findMany: vi.fn(async () => []), create: vi.fn(async () => ({ id: 'b1' })), update: vi.fn(async () => ({})) },
     notificationPreference: { findMany: vi.fn(async () => []) },
     club:           { findUnique: vi.fn(), findMany: vi.fn(async () => []) },
     event:          { findUnique: vi.fn(), findMany: vi.fn(async () => []) },
@@ -39,10 +39,10 @@ const h = vi.hoisted(() => ({
 
 vi.mock('@/lib/prisma', () => ({ prisma: p }))
 vi.mock('@/lib/session', () => ({ getSession: vi.fn(async () => h.session.current) }))
-vi.mock('@/lib/notify', () => ({ createNotification: vi.fn(async () => true) }))
+vi.mock('@/lib/notify', () => ({ createNotification: vi.fn(async () => true), recipientSkipReason: vi.fn(() => null) }))
 vi.mock('@/lib/audit', () => ({ writeAudit: vi.fn() }))
 vi.mock('@/lib/email', () => ({ sendBroadcastEmail: vi.fn(async () => {}), recordEmailFailure: vi.fn(async () => {}) }))
-vi.mock('@/lib/rateLimit', () => ({ claimOnce: vi.fn(async () => true), releaseClaim: vi.fn(async () => {}), rateLimit: vi.fn(async () => true) }))
+vi.mock('@/lib/rateLimit', () => ({ claimOnce: vi.fn(async () => true), releaseClaim: vi.fn(async () => {}), rateLimitRemaining: vi.fn(async () => 5), rateLimit: vi.fn(async () => true) }))
 vi.mock('@/lib/stepUp', () => ({ requireStepUp: vi.fn(() => null) }))
 vi.mock('@/lib/communityStats', () => ({ getCommunityStats: vi.fn(async () => ({ members: 0, events: 0, clubs: 0 })) }))
 // data/*.json is served from h.files; every other path (the source pins
@@ -103,12 +103,14 @@ describe('42a — broadcasts to a global club', () => {
   it('a moderator still reaches a club in their own city', async () => {
     h.session.current = mod
     p.club.findUnique.mockResolvedValueOnce({ cityId: 'c-ist' })
-    expect((await send({ audience: 'club', clubId: 'k-ist' })).status).toBe(200)
+    p.clubMembership.findMany.mockResolvedValueOnce([{ user: { id: 'u1', name: 'U', email: 'u@x', emailMarketing: true, emailVerified: true, status: 'approved', suspendedUntil: null } }])
+    expect((await send({ audience: 'club', clubId: 'k-ist' })).status).toBe(202)
     expect(p.clubMembership.findMany).toHaveBeenCalledTimes(1)
   })
 
   it('an admin can broadcast to a global club', async () => {
-    expect((await send({ audience: 'club', clubId: 'k-global' })).status).toBe(200)
+    p.clubMembership.findMany.mockResolvedValueOnce([{ user: { id: 'u1', name: 'U', email: 'u@x', emailMarketing: true, emailVerified: true, status: 'approved', suspendedUntil: null } }])
+    expect((await send({ audience: 'club', clubId: 'k-global' })).status).toBe(202)
     expect(p.clubMembership.findMany).toHaveBeenCalledTimes(1)
   })
 })
@@ -128,7 +130,8 @@ describe('42a — broadcast history for moderators', () => {
     ])
     p.club.findMany.mockResolvedValueOnce([{ id: 'k-ist', cityId: 'c-ist' }, { id: 'k-bod', cityId: 'c-bod' }, { id: 'k-glo', cityId: null }])
     p.event.findMany.mockResolvedValueOnce([{ id: 'e-ist', cityId: 'c-ist' }, { id: 'e-bod', cityId: 'c-bod' }])
-    const rows = await (await broadcastGET()).json()
+    // GET answers { history, sendsLeftToday } since the 2026-09-22 review.
+    const { history: rows } = await (await broadcastGET()).json()
     expect(rows.map((r: { id: string }) => r.id)).toEqual(['b-city', 'b-club-ist', 'b-ev-ist'])
     // The query itself no longer asks for every cityId-null row.
     expect(p.broadcast.findMany.mock.calls[0][0].where.OR).not.toContainEqual({ cityId: null })
@@ -235,7 +238,7 @@ describe('43 — network-wide content writes are admin-only', () => {
 
 describe('44 — broadcast sends in chunks and reports what really happened', () => {
   it('never more than 50 emails in flight, failures recorded, counts honest', async () => {
-    const users = Array.from({ length: 120 }, (_, i) => ({ id: `u${i}`, name: `U ${i}`, email: `u${i}@x.test`, emailMarketing: true }))
+    const users = Array.from({ length: 120 }, (_, i) => ({ id: `u${i}`, name: `U ${i}`, email: `u${i}@x.test`, emailMarketing: true, emailVerified: true, status: 'approved', suspendedUntil: null }))
     p.user.findMany.mockResolvedValueOnce(users)
     let inFlight = 0, maxInFlight = 0
     ;(sendBroadcastEmail as any).mockImplementation(async (_id: string, email: string) => {
@@ -247,14 +250,22 @@ describe('44 — broadcast sends in chunks and reports what really happened', ()
     ;(createNotification as any).mockImplementation(async (id: string) => id !== 'u3')
 
     const res = await send({ audience: 'city', cityId: 'c-ist', channel: 'email' })
-    expect(res.status).toBe(200)
+    // 202: the row is written and the answer given BEFORE the fan-out — a
+    // whole-membership email is ~16 minutes of paced sends and nginx closes
+    // the connection at 60s, so the history has to answer "did it go" while
+    // it is still going. The response carries the list size; the counts of
+    // what actually went out land on the row when the fan-out finishes.
+    expect(res.status).toBe(202)
+    expect(await res.json()).toMatchObject({ queued: 120, emailEligible: 120 })
+    expect(p.broadcast.create.mock.calls[0][0].data).toMatchObject({ sentCount: 0, finishedAt: null })
+    await vi.waitFor(() => expect(p.broadcast.update).toHaveBeenCalled())
     expect(sendBroadcastEmail).toHaveBeenCalledTimes(120)
     expect(maxInFlight).toBe(50)
     expect(recordEmailFailure).toHaveBeenCalledTimes(1)
     expect(recordEmailFailure).toHaveBeenCalledWith(expect.objectContaining({ helper: 'sendBroadcastEmail', recipient: 'u7@x.test' }))
-    expect(await res.json()).toMatchObject({ recipients: 120, emailed: 119, emailFailed: 1, notified: 119, notifyFailed: 1, skipped: 0 })
-    // The history row records what went out, not the list size.
-    expect(p.broadcast.create.mock.calls[0][0].data.sentCount).toBe(119)
+    // The history row records what went out, not the list size — per channel.
+    expect(p.broadcast.update.mock.calls[0][0].data).toMatchObject({ emailedCount: 119, notifiedCount: 119, sentCount: 119 })
+    expect(p.broadcast.update.mock.calls[0][0].data.finishedAt).toBeInstanceOf(Date)
     ;(sendBroadcastEmail as any).mockImplementation(async () => {})
     ;(createNotification as any).mockImplementation(async () => true)
   })
@@ -274,7 +285,9 @@ describe('45 — one send per composed broadcast', () => {
     const res = await send({ audience: 'city', cityId: 'c-ist', requestId: 'req-abcdef12' })
     expect(res.status).toBe(409)
     expect((await res.json()).error).toBe('This broadcast was already sent')
-    expect(claimOnce).toHaveBeenCalledWith('broadcast:a1:req-abcdef12', 60 * 60_000)
+    // A day since 2026-09-22: a whole-membership email runs ~16 minutes and
+    // the same id pressed again after the old hour sent it all twice.
+    expect(claimOnce).toHaveBeenCalledWith('broadcast:a1:req-abcdef12', 24 * 60 * 60_000)
     expect(p.user.findMany).not.toHaveBeenCalled()
     expect(p.broadcast.create).not.toHaveBeenCalled()
   })
@@ -344,7 +357,9 @@ describe('pages — honest broadcast result and moderator-read-only network cont
     expect(send).toMatch(/toast\.warning\(MAYBE_SENT/)
     // Only a confirmed send (200 or 409) rotates the id.
     expect(send.match(/setRequestId\(newRequestId\(\)\)/g)).toHaveLength(2)
-    expect(send).toMatch(/emailFailed/)
+    // The 202 carries the list size; the per-channel counts land on the
+    // history row when the fan-out finishes (2026-09-22).
+    expect(send).toMatch(/data\.queued/)
     expect(src).toMatch(/crypto\.randomUUID\(\)/)
   })
 

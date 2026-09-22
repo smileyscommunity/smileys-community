@@ -28,13 +28,13 @@ const h = vi.hoisted(() => ({ session: { current: null as Record<string, unknown
 
 vi.mock('@/lib/prisma',    () => ({ prisma: p }))
 vi.mock('@/lib/session',   () => ({ getSession: vi.fn(async () => h.session.current) }))
-vi.mock('@/lib/notify',    () => ({ createNotification: vi.fn(async () => true) }))
+vi.mock('@/lib/notify',    () => ({ createNotification: vi.fn(async () => true), recipientSkipReason: vi.fn(() => null) }))
 vi.mock('@/lib/audit',     () => ({ writeAudit: vi.fn(async () => {}) }))
 vi.mock('@/lib/stepUp',    () => ({ requireStepUp: vi.fn(() => null) }))
 vi.mock('@/lib/rateLimit', () => ({
   rateLimit:    vi.fn(async () => true),
   claimOnce:    vi.fn(async () => true),
-  releaseClaim: vi.fn(async () => {}),
+  releaseClaim: vi.fn(async () => {}), rateLimitRemaining: vi.fn(async () => 5),
 }))
 vi.mock('@/lib/email', () => ({
   sendLoginNudgeEmail: vi.fn(async () => {}),
@@ -174,7 +174,8 @@ describe('85a — broadcast history for moderators', () => {
     ])
     p.club.findMany.mockResolvedValueOnce([{ id: 'k-glo', cityId: null }])
     p.event.findMany.mockResolvedValueOnce([{ id: 'e-x', cityId: null }])
-    const rows = await (await broadcastGET()).json()
+    // GET answers { history, sendsLeftToday } since the 2026-09-22 review.
+    const { history: rows } = await (await broadcastGET()).json()
     expect(rows).toEqual([])
   })
 })
@@ -187,25 +188,37 @@ describe('85b — editing a broadcast rewrites only that send', () => {
   it('narrows by link and by the window after the previous identical send', async () => {
     p.broadcast.findUnique.mockResolvedValueOnce({ id: 'b2', type: 'reminder', title: 'T', message: 'M', clubId: 'k1', eventId: null, createdAt: sentAt })
     const prevAt = new Date('2026-09-10T09:40:00Z')
-    p.broadcast.findFirst.mockResolvedValueOnce({ createdAt: prevAt })
+    // Two lookups now: the previous identical send (bounds the backward arm)
+    // and the next one (bounds the forward arm) — the row is written BEFORE
+    // its fan-out since 2026-09-22, so the send's own rows sit after it.
+    p.broadcast.findFirst.mockResolvedValueOnce({ createdAt: prevAt }).mockResolvedValueOnce(null)
     // Club links are /clubs/<slug> since scan5Batch37; rows sent before carry the id form.
     p.club.findUnique.mockResolvedValueOnce({ slug: 'k-one' })
     const res = await broadcastPATCH(jsonReq({ id: 'b2', title: 'T2', message: 'M2' }))
     expect(res.status).toBe(200)
     expect(p.broadcast.findFirst.mock.calls[0][0].where).toMatchObject({ id: { not: 'b2' }, title: 'T', message: 'M', clubId: 'k1', eventId: null })
     expect(p.notification.updateMany.mock.calls[0][0]).toEqual({
-      where: { type: 'announcement', title: 'T', body: 'M', link: { in: ['/clubs/k-one', '/clubs/k1'] }, createdAt: { gt: prevAt, lte: sentAt } },
+      where: {
+        type: 'announcement', title: 'T', body: 'M', link: { in: ['/clubs/k-one', '/clubs/k1'] },
+        OR: [
+          { createdAt: { gte: sentAt, lt: new Date(sentAt.getTime() + 60 * 60_000) } },
+          { createdAt: { gt: prevAt, lte: sentAt } },
+        ],
+      },
       data:  { title: 'T2', body: 'M2' },
     })
   })
 
   it('without an earlier identical send, looks back at most an hour; city/all sends match link null', async () => {
     p.broadcast.findUnique.mockResolvedValueOnce({ id: 'b3', type: 'alert', title: 'T', message: 'M', clubId: null, eventId: null, createdAt: sentAt })
-    p.broadcast.findFirst.mockResolvedValueOnce({ createdAt: new Date('2026-09-01T00:00:00Z') })
+    p.broadcast.findFirst.mockResolvedValueOnce({ createdAt: new Date('2026-09-01T00:00:00Z') }).mockResolvedValueOnce(null)
     await broadcastPATCH(jsonReq({ id: 'b3', title: 'T2', message: 'M2' }))
     expect(p.notification.updateMany.mock.calls[0][0].where).toEqual({
       type: 'system_alert', title: 'T', body: 'M', link: null,
-      createdAt: { gt: new Date(sentAt.getTime() - 60 * 60_000), lte: sentAt },
+      OR: [
+        { createdAt: { gte: sentAt, lt: new Date(sentAt.getTime() + 60 * 60_000) } },
+        { createdAt: { gt: new Date(sentAt.getTime() - 60 * 60_000), lte: sentAt } },
+      ],
     })
   })
 

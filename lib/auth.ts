@@ -15,6 +15,11 @@ export interface AppUser {
   // Co-hosts a recent or upcoming event (/api/auth/me). A plain member can
   // co-host; this is what lets them reach Check-In for it.
   runsEvents?: boolean
+  // Home city (/api/auth/me sends it since 2026-09-22), so client-side staff
+  // affordances — the handbook's inline Edit, the broadcast composer's city
+  // and club lists for a moderator — can follow the same city rule the
+  // routes enforce. Undefined on sessions whose payload predates it.
+  cityId?: string | null
   joinedEvents?: string[]
   joinedAt?: string
   email?: string

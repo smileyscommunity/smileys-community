@@ -17,6 +17,21 @@ export async function rateLimit(key: string, limit: number, windowMs: number): P
 }
 
 /**
+ * How many of `limit` are left on this key, WITHOUT consuming one. rateLimit
+ * increments on every call, so asking it "how many do I have left" spends an
+ * allowance — which is why the composer could not show a moderator their
+ * remaining sends before this existed.
+ */
+export async function rateLimitRemaining(key: string, limit: number): Promise<number> {
+  const rows = await prisma.$queryRaw<{ count: number; expired: boolean }[]>`
+    SELECT count, ("resetAt" < now()) AS expired FROM rate_limits WHERE key = ${key}
+  `
+  const row = rows[0]
+  if (!row || row.expired) return limit
+  return Math.max(0, limit - Number(row.count))
+}
+
+/**
  * A once-per-key claim with a memory: true for the first caller inside the
  * window, false for everyone after. The sweeps used Notification rows as
  * their "already sent" ledger, and a member clearing their bell wiped it —

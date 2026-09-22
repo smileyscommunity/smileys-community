@@ -27,7 +27,8 @@ const PAGES: Record<string, number> = {
   'app/admin/retention/page.tsx':      0,
   'app/admin/campaigns/[id]/page.tsx': 0,
   'app/admin/feedback/page.tsx':       1,
-  'app/admin/notifications/page.tsx':  3,
+  // 3 → 0 on 2026-09-22: every option-list load on the composer now toasts.
+  'app/admin/notifications/page.tsx':  0,
   'app/admin/users/page.tsx':          1,
 }
 

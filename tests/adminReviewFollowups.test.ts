@@ -96,7 +96,10 @@ describe('staff are not locked out', () => {
 
   it('rate limits are spent only on requests that go ahead', () => {
     const b = src('app/api/admin/notifications/broadcast/route.ts')
-    expect(b.indexOf('claimOnce(claimKey')).toBeLessThan(b.indexOf("rateLimit(`broadcast-mod:"))
+    expect(b.indexOf('claimOnce(claimKey')).toBeLessThan(b.indexOf('rateLimit(capKey'))
+    // …and the day's send is spent only once the audience is known, so a
+    // database blip resolving the list can't cost a moderator a send.
+    expect(b.indexOf('users = await prisma.user.findMany')).toBeLessThan(b.indexOf('rateLimit(capKey'))
     const u = src('app/api/admin/users/[id]/route.ts')
     expect(u.indexOf('claimOnce(claimKey, REENGAGE_DEDUPE_MS)')).toBeLessThan(u.indexOf('rateLimit(`reengage-send:'))
   })

@@ -11,9 +11,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/session', () => ({ getSession: vi.fn() }))
 vi.mock('@/lib/audit',   () => ({ writeAudit: vi.fn(async () => {}) }))
-vi.mock('@/lib/notify',  () => ({ createNotification: vi.fn(async () => {}), notifyNewArticle: vi.fn(async () => {}) }))
+vi.mock('@/lib/notify',  () => ({ createNotification: vi.fn(async () => {}), notifyNewArticle: vi.fn(async () => {}), recipientSkipReason: vi.fn(() => null) }))
 vi.mock('@/lib/email',   () => ({ sendBroadcastEmail: vi.fn(), sendLoginNudgeEmail: vi.fn(), recordEmailFailure: vi.fn() }))
-vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn(async () => true), claimOnce: vi.fn(async () => true), releaseClaim: vi.fn(async () => {}), getIp: () => '127.0.0.1' }))
+vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn(async () => true), claimOnce: vi.fn(async () => true), releaseClaim: vi.fn(async () => {}), rateLimitRemaining: vi.fn(async () => 5), getIp: () => '127.0.0.1' }))
 vi.mock('@/lib/survey',  () => ({ computeEventSurveyRollup: vi.fn(async () => new Map()), aggregateRollup: vi.fn(() => null) }))
 vi.mock('fs', async () => ({ ...(await vi.importActual<any>('fs')), writeFileSync: vi.fn(), renameSync: vi.fn() }))
 vi.mock('@/lib/prisma', () => {

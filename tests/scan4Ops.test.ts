@@ -392,7 +392,8 @@ describe('7 sweep-orphan-uploads', () => {
   it('?dryRun=1 lists what it would delete and deletes nothing', async () => {
     seed()
     const { json } = await post('?dryRun=1')
-    expect(json).toMatchObject({ dryRun: true, deleted: 0, eligible: 1, wouldDelete: ['100-orphan.jpg'] })
+    // Folder-qualified since the sweep grew a second folder (2026-09-22).
+    expect(json).toMatchObject({ dryRun: true, deleted: 0, eligible: 1, wouldDelete: ['applications/100-orphan.jpg'] })
     expect(existsSync(join(dir, '100-orphan.jpg'))).toBe(true)
     expect(h.recordCronRun).not.toHaveBeenCalled()
   })
@@ -469,8 +470,13 @@ describe('7 sweep-orphan-uploads', () => {
     for (const [t, c] of pairs) expect(tables.get(t)?.has(c), `${t}.${c}`).toBe(true)
   })
 
-  it('reads and deletes only inside applications/, and says member folders are out of scope', () => {
-    expect(routeSrc).toContain("join(uploadRoot(), 'applications')")
+  it('reads and deletes only inside the folders it names, and says member folders are out of scope', () => {
+    // Two folders since 2026-09-22 (broadcasts/ joined applications/), each
+    // listed with the columns its last look re-checks — never a bare path.
+    expect(routeSrc).toContain("{ folder: 'applications', lastLook: [['member_applications', 'profilePhoto'], ['users', 'profilePhoto']] },")
+    expect(routeSrc).toContain("{ folder: 'broadcasts',   lastLook: [['broadcasts', 'imageUrl'], ['notifications', 'imageUrl']] },")
+    expect(routeSrc).toContain('const dir = join(uploadRoot(), folder)')
+    expect(routeSrc).not.toContain("join(uploadRoot(), 'applications')")
     expect(routeSrc).toMatch(/Out of scope: the member upload folders/)
     expect(read('app/api/admin/cron/reminders/route.ts')).not.toMatch(/unlinkSync|readdirSync|purgedPhotos/)
   })

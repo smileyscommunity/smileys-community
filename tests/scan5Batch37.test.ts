@@ -17,9 +17,9 @@ const h = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/session',   () => ({ getSession: vi.fn(async () => h.session.current) }))
-vi.mock('@/lib/notify',    () => ({ createNotification: vi.fn(async () => true) }))
+vi.mock('@/lib/notify',    () => ({ createNotification: vi.fn(async () => true), recipientSkipReason: vi.fn(() => null) }))
 vi.mock('@/lib/stepUp',    () => ({ requireStepUp: vi.fn(() => null) }))
-vi.mock('@/lib/rateLimit', () => ({ claimOnce: vi.fn(async () => true), releaseClaim: vi.fn(async () => {}), rateLimit: vi.fn(async () => true) }))
+vi.mock('@/lib/rateLimit', () => ({ claimOnce: vi.fn(async () => true), releaseClaim: vi.fn(async () => {}), rateLimitRemaining: vi.fn(async () => 5), rateLimit: vi.fn(async () => true) }))
 vi.mock('@/lib/email',     () => ({
   sendActivationEmail: vi.fn(async () => {}), sendApplicationRejectedEmail: vi.fn(async () => {}),
   sendRequestMoreInfoEmail: vi.fn(async () => {}), sendBroadcastEmail: vi.fn(async () => {}), recordEmailFailure: vi.fn(async () => {}),
@@ -156,20 +156,26 @@ describe('108 — club broadcasts link to /clubs/<slug>', () => {
   const send = (body: any) => broadcastPOST(req({ title: 'T', message: 'M', type: 'announcement', channel: 'in-app', requestId: 'req-0001-abcd', ...body }))
 
   it('a club send links the slug, not the id', async () => {
-    p.clubMembership.findMany.mockResolvedValueOnce([{ user: { id: 'u1', name: 'A', email: 'a@x', emailMarketing: false } }])
+    p.clubMembership.findMany.mockResolvedValueOnce([{ user: { id: 'u1', name: 'A', email: 'a@x', emailMarketing: false, emailVerified: true, status: 'approved', suspendedUntil: null, cityId: 'c-tbs' } }])
     p.club.findUnique.mockResolvedValueOnce({ slug: 'book-club' })
     const res = await send({ audience: 'club', clubId: 'k1' })
-    expect(res.status).toBe(200)
-    // The trailing arguments are the recipient row (unused here), the
-    // member's preferences read once for the whole audience, and the
-    // broadcast's optional image — null on a send that carried none.
-    expect((createNotification as any).mock.calls[0]).toEqual(['u1', 'announcement', 'T', 'M', '/clubs/book-club', undefined, null, { imageUrl: null }])
+    expect(res.status).toBe(202)
+    // The fan-out runs after the 202 is answered.
+    await vi.waitFor(() => expect(createNotification).toHaveBeenCalled())
+    // The trailing arguments are the recipient row — read once for the
+    // audience and handed over so createNotification skips a lookup per
+    // member — the member's preferences, and the broadcast's optional
+    // image, null on a send that carried none.
+    // …including the member's own city, so quiet hours are read in THEIR
+    // timezone — a row without it was Istanbul time for a member in Tbilisi.
+    expect((createNotification as any).mock.calls[0]).toEqual(['u1', 'announcement', 'T', 'M', '/clubs/book-club', { status: 'approved', suspendedUntil: null, cityId: 'c-tbs' }, null, { imageUrl: null }])
   })
 
   it('a club that vanished gets no link rather than a 404; an event send keeps /events/<id>', async () => {
     p.clubMembership.findMany.mockResolvedValueOnce([{ user: { id: 'u1', name: 'A', email: 'a@x', emailMarketing: false } }])
     p.club.findUnique.mockResolvedValueOnce(null)
     await send({ audience: 'club', clubId: 'k1' })
+    await vi.waitFor(() => expect(createNotification).toHaveBeenCalled())
     expect((createNotification as any).mock.calls[0][4]).toBeUndefined()
     p.eventAttendee.findMany.mockResolvedValueOnce([{ user: { id: 'u2', name: 'B', email: 'b@x', emailMarketing: false } }])
     await send({ audience: 'event', eventId: 'e1', requestId: 'req-0002-abcd' })

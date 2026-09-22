@@ -1130,6 +1130,14 @@ export async function sendBroadcastEmail(
     from:    FROM,
     to:      email,
     subject: safeSubject(title),
+    // The one-click headers the newsletter already sets. A bulk send without
+    // them is what Gmail's and Yahoo's bulk-sender rules penalise, and it
+    // leaves "mark as spam" as a member's only visible way out — which is
+    // counted against every transactional mail this domain sends after.
+    headers: {
+      'List-Unsubscribe':      `<${oneClickUnsubscribeUrl(userId)}>`,
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+    },
     html: `
       <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto;background:#fff;border-radius:16px;padding:40px 32px;border:1px solid #e5e7eb">
         <div style="margin-bottom:28px">

@@ -1461,7 +1461,20 @@ model Broadcast {
   clubId    String?
   eventId   String?
   sentBy    String
+  // The sender's id. `sentBy` is a display name the account can change, and
+  // two staff with the same name were indistinguishable in the history.
+  sentById  String?
+  // What actually went out, per channel. `sentCount` meant emails on an
+  // email send and in-app rows on an in-app one, so the history printed one
+  // number that meant two different things and lost the other.
   sentCount Int
+  emailedCount  Int?
+  notifiedCount Int?
+  // Null while the fan-out is still running. A send to the whole membership
+  // is ~16 minutes of paced email, far past nginx's 60s — the row is written
+  // before the fan-out now, so the history can answer "did it go" while it
+  // is still going instead of being empty until the end.
+  finishedAt DateTime?
   createdAt DateTime @default(now())
   channel   String   @default("in-app")
   // Set when audience = 'city'. Plain string, no relation — this is an audit
