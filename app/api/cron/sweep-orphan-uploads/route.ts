@@ -26,6 +26,14 @@ import { recordCronRun } from '@/lib/cronHealth'
 // members under their own rate limits; reaping them needs its own reference
 // map. This sweep only ever reads and deletes inside applications/.
 //
+// BEFORE widening this to another folder, add that folder's reference columns
+// to REFERENCE_COLUMNS in the same change — a folder listed here with its
+// references missing deletes live files. broadcasts/ (added 2026-09-22) is
+// referenced from TWO columns, broadcasts.imageUrl AND notifications.imageUrl:
+// the send record keeps one copy and every fanned-out row keeps another, so
+// scanning only the Broadcast table would reap an image thousands of live
+// notification cards still point at.
+//
 // Dry run: `?dryRun=1` or a JSON body `{ "dryRun": true }` returns the list it
 // would delete and deletes nothing.
 //

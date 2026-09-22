@@ -505,6 +505,24 @@ export default function NotificationsPage() {
                   <div className="relative z-10 pointer-events-none">
                     <h2 className="text-base font-bold text-gray-900 mt-2">{n.title}</h2>
                     <p className="text-sm text-gray-700 mt-2 leading-relaxed whitespace-pre-wrap">{n.body}</p>
+                    {/* A broadcast image, when the send carried one. It sits
+                        inside the same pointer-events-none wrapper as the title
+                        and body, so tapping it still hits the row overlay and
+                        marks the notification read / opens its link. alt="" —
+                        the heading and body above already say what this is. */}
+                    {n.imageUrl && (
+                      <img
+                        // object-contain, not cover: a flyer or a poster is
+                        // the likeliest attachment and it is usually
+                        // portrait — cover cropped it to an unreadable
+                        // centre band while the email showed all of it.
+                        src={`${n.imageUrl}?w=800`}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                        className="w-full rounded-xl mt-3 max-h-96 object-contain bg-gray-50"
+                      />
+                    )}
                     {/* A broadcast that carries a link goes somewhere when you
                         tap it — saying "tap to mark as read" described only
                         the linkless ones. */}

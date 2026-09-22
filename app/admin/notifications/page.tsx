@@ -1,11 +1,13 @@
 'use client'
 
 import { toast } from 'sonner'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import { loadFailure } from '@/lib/admin/useAdminLoad'
 import { clubOptionLabel } from '@/lib/clubLabel'
+import { downscaleImage, ImageUploadError } from '@/lib/image-resize'
+import { avatarUrl } from '@/lib/data'
 
 type Channel  = 'in-app' | 'email'
 type MsgType  = 'announcement' | 'reminder' | 'alert'
@@ -26,6 +28,7 @@ interface BroadcastRecord {
   sentCount: number
   createdAt: string
   cityId?:   string | null
+  imageUrl:  string | null
 }
 
 const audienceButtonLabel: Record<Audience, string> = {
@@ -86,6 +89,11 @@ export default function AdminNotificationsPage() {
   const [type,      setType]      = useState<MsgType>('announcement')
   const [title,     setTitle]     = useState('')
   const [message,   setMessage]   = useState('')
+  // The optional broadcast image, held as the path /api/upload handed back.
+  // null = no image; the send payload never carries anything else.
+  const [imageUrl,  setImageUrl]  = useState<string | null>(null)
+  const [uploadingImage, setUploadingImage] = useState(false)
+  const imageRef = useRef<HTMLInputElement>(null)
   const [sending,        setSending]        = useState(false)
   const [history,        setHistory]        = useState<BroadcastRecord[]>([])
   const [loadingHistory, setLoadingHistory] = useState(true)
@@ -140,6 +148,50 @@ export default function AdminNotificationsPage() {
     loadHistory()
   }, [loadHistory])
 
+  // Bumped by every send and every Remove. An upload that resolves after one
+  // of those belongs to a composer that no longer exists: without this it
+  // would set an image on the NEXT broadcast, which nobody picked for it.
+  const uploadGen = useRef(0)
+
+  // Drop the image AND retire any upload still running for it, so a slow
+  // one can't land on the composer after it was cleared.
+  function clearImage() {
+    uploadGen.current++
+    setUploadingImage(false)
+    setImageUrl(null)
+  }
+
+  // Uploaded on pick (the same path as the post cover in PostForm), so the
+  // send payload only ever carries a URL the server itself wrote — the
+  // broadcast route rejects anything that isn't a 'broadcasts/' upload.
+  async function uploadImage(file: File) {
+    const gen = ++uploadGen.current
+    setUploadingImage(true)
+    try {
+      const upload = await downscaleImage(file)
+      const fd = new FormData()
+      fd.append('file', upload)
+      fd.append('folder', 'broadcasts')
+      const res  = await fetch('/app/api/upload', { method: 'POST', credentials: 'include', body: fd })
+      const data = await readJsonBody(res)
+      if (gen !== uploadGen.current) return   // superseded: sent, removed, or re-picked
+      if (!res.ok || typeof data?.url !== 'string') {
+        toast.error(data?.error ?? 'Upload failed')
+        return
+      }
+      setImageUrl(data.url)
+      toast.success('Image added')
+    } catch (e) {
+      // downscaleImage throws ImageUploadError with a message written to be
+      // read — the iCloud-placeholder one and the too-large-to-shrink one.
+      // Reporting those as a network failure sends the admin round a loop
+      // that retrying can never break.
+      toast.error(e instanceof ImageUploadError ? e.message : 'Network error — please try again')
+    } finally {
+      if (gen === uploadGen.current) setUploadingImage(false)
+    }
+  }
+
   async function saveEdit() {
     if (!editing || !editing.title.trim() || !editing.message.trim()) return
     setSavingEdit(true)
@@ -162,7 +214,11 @@ export default function AdminNotificationsPage() {
     } finally { setSavingEdit(false) }
   }
 
+  // An upload still in flight blocks the send. Without this an admin who
+  // picks a photo and clicks straight through sends the whole audience a
+  // broadcast with no image — and an email cannot be recalled.
   const canSend = !!(
+    !uploadingImage &&
     title.trim() && message.trim() &&
     (audience === 'all'   ? !isModerator :
      audience === 'city'  ? !!cityId      :
@@ -179,7 +235,7 @@ export default function AdminNotificationsPage() {
       const res = await fetch('/app/api/admin/notifications/broadcast', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, message, type, channel, audience, cityId: cityId || null, clubId: clubId || null, eventId: eventId || null, requestId }),
+        body: JSON.stringify({ title, message, type, channel, audience, cityId: cityId || null, clubId: clubId || null, eventId: eventId || null, imageUrl, requestId }),
       })
       // res.ok first, then a defensive parse: a non-JSON answer (gateway
       // timeout, proxy error) means we don't know whether it went out, so
@@ -194,7 +250,7 @@ export default function AdminNotificationsPage() {
         if (res.status === 409) {
           // The earlier attempt did go out — this compose is finished.
           toast.info(data.error ?? 'This broadcast was already sent')
-          setTitle(''); setMessage(''); setRequestId(newRequestId())
+          setTitle(''); setMessage(''); clearImage(); setRequestId(newRequestId())
           await loadHistory()
           return
         }
@@ -228,7 +284,7 @@ export default function AdminNotificationsPage() {
       } else {
         toast.success(`Sent ✓ — ${parts.join(' · ')}`)
       }
-      setTitle(''); setMessage(''); setRequestId(newRequestId())
+      setTitle(''); setMessage(''); clearImage(); setRequestId(newRequestId())
       await loadHistory()
     } catch {
       // A dropped connection can't tell us whether the server finished.
@@ -342,11 +398,41 @@ export default function AdminNotificationsPage() {
             className="w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 text-sm rounded-xl px-3 py-2 focus:ring-2 focus:ring-amber-500 focus:outline-none resize-none" />
         </div>
 
+        {/* Image — one, optional, and allowed on both channels: the email
+            embeds it and the in-app announcement card shows it. Push stays
+            text-only on purpose. */}
+        <div>
+          <label className="text-zinc-400 text-xs font-semibold uppercase tracking-wide block mb-2">Image</label>
+          {imageUrl ? (
+            <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-3 space-y-2">
+              {/* alt="" — this is the admin's own preview of the file they
+                  just picked, not content that needs describing. */}
+              <img src={imageUrl} alt="" className="w-full max-h-40 object-cover rounded-lg" />
+              <button onClick={clearImage}
+                className="w-full py-1.5 text-xs text-red-400 hover:text-red-300 transition-colors">
+                Remove
+              </button>
+            </div>
+          ) : (
+            <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-3">
+              <button onClick={() => imageRef.current?.click()} disabled={uploadingImage}
+                className="w-full py-4 border-2 border-dashed border-zinc-600 hover:border-amber-500 rounded-lg text-xs text-zinc-400 hover:text-amber-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-zinc-600">
+                {uploadingImage ? 'Uploading…' : 'Add an image (optional)'}
+              </button>
+              <p className="text-xs text-zinc-500 mt-2">Shown in the email and on the announcement card. One image, landscape reads best.</p>
+            </div>
+          )}
+          {/* Kept mounted in both states, and the value is cleared on change so
+              re-picking the same file after a Remove still fires onChange. */}
+          <input ref={imageRef} type="file" accept="image/*" className="hidden"
+            onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) uploadImage(f) }} />
+        </div>
+
         {confirmSend ? (
           <div className="flex gap-2">
-            <button onClick={handleSend} disabled={sending}
+            <button onClick={handleSend} disabled={sending || uploadingImage}
               className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-xl disabled:opacity-30 transition-colors">
-              {sending ? 'Sending…' : 'Yes, send now'}
+              {sending ? 'Sending…' : uploadingImage ? 'Waiting for the image…' : 'Yes, send now'}
             </button>
             <button onClick={() => setConfirmSend(false)}
               className="flex-1 py-3 bg-zinc-700 hover:bg-zinc-600 text-white text-sm font-semibold rounded-xl transition-colors">
@@ -403,6 +489,11 @@ export default function AdminNotificationsPage() {
                   </div>
                 ) : (
                   <div className="flex items-start gap-3">
+                    {/* Which sends carried an image, at a glance. alt="" — the
+                        title sits right next to it. */}
+                    {b.imageUrl && (
+                      <img src={avatarUrl(b.imageUrl, 64)} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0 border border-zinc-800" />
+                    )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-semibold text-white">{b.title}</span>

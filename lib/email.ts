@@ -1,6 +1,6 @@
 import { Resend } from 'resend'
 import { unsubscribeUrl, oneClickUnsubscribeUrl } from '@/lib/unsubscribe'
-import { APP_URL as ENV_APP_URL } from '@/lib/env'
+import { APP_URL as ENV_APP_URL, SITE_URL } from '@/lib/env'
 import { prisma } from '@/lib/prisma'
 import type { Prisma } from '@prisma/client'
 import type { CreateEmailOptions, CreateEmailRequestOptions, CreateEmailResponse } from 'resend'
@@ -1093,6 +1093,11 @@ export async function sendBroadcastEmail(
   name: string,
   title: string,
   message: string,
+  // An uploaded /app/api/files/broadcasts/… path, already validated by the
+  // route. Absolute here because a mail client has no origin to resolve a
+  // rooted path against, and ?w=1200 hits the file route's resize so a 4MB
+  // phone photo doesn't become a 4MB email.
+  imageUrl?: string | null,
 ) {
   const unsub     = unsubscribeUrl(userId)
   const firstName = firstNameOf(name)
@@ -1104,6 +1109,23 @@ export async function sendBroadcastEmail(
     .map(p => `<p style="margin:0 0 16px;color:#374151;font-size:14px;line-height:1.6">${esc(p).replace(/\n/g, '<br>')}</p>`)
     .join('')
 
+  // Width is set on the tag as well as the style: Outlook ignores max-width
+  // on an img and would otherwise render it at its natural pixel size.
+  //
+  // No ?w= — the upload route already stored this at 1200×1200 q82, so the
+  // file route's preview branch would decode and re-encode it on every
+  // single open (there is no server-side cache of the resized variant) to
+  // save about a fifth of the bytes. On a fan-out that is the same work
+  // repeated per recipient.
+  //
+  // alt is the title, not "": Outlook and most corporate clients block
+  // remote images by default, and an empty alt leaves them a blank box
+  // where the picture was. The in-app card keeps alt="" — there the title
+  // is visibly next to it.
+  const imageHtml = imageUrl
+    ? `<img src="${esc(`${SITE_URL}${imageUrl}`)}" alt="${esc(title)}" width="496" style="display:block;width:100%;max-width:496px;height:auto;border-radius:12px;margin:0 0 20px">`
+    : ''
+
   await send('sendBroadcastEmail', {
     from:    FROM,
     to:      email,
@@ -1114,6 +1136,7 @@ export async function sendBroadcastEmail(
           <p style="margin:0;font-size:14px;color:#6b7280;white-space:nowrap"><span style="font-size:26px;vertical-align:-5px">😊</span>&nbsp;<strong style="color:#374151">Smileys&nbsp;Community</strong></p>
         </div>
         <h2 style="font-size:20px;font-weight:800;color:#111827;margin:0 0 20px">${esc(title)}</h2>
+        ${imageHtml}
         <p style="margin:0 0 16px;color:#374151;font-size:14px">Hi ${esc(firstName)},</p>
         ${bodyHtml}
         <div style="margin-top:28px;padding-top:20px;border-top:1px solid #f3f4f6">

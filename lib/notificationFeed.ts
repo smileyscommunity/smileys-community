@@ -19,6 +19,8 @@ export interface NotificationRow {
   isRead:    boolean
   link:      string | null
   createdAt: string
+  /** A broadcast's image, on the announcement card only. Null everywhere else. */
+  imageUrl:  string | null
 }
 
 export interface NotificationFeed {

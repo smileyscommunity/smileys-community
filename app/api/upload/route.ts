@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Only JPG, PNG, WebP, GIF allowed' }, { status: 400 })
     }
 
-    const validFolders = ['events', 'clubs', 'users', 'general', 'posts', 'hangouts', 'directory', 'listings', 'guide', 'reports', 'messages']
+    const validFolders = ['events', 'clubs', 'users', 'general', 'posts', 'hangouts', 'directory', 'listings', 'guide', 'reports', 'messages', 'broadcasts']
     const subfolder  = validFolders.includes(folder ?? '') ? folder! : 'general'
     const filename   = `${Date.now()}-${randomBytes(6).toString('hex')}.jpg`
     const uploadDir  = join(uploadRoot(), subfolder)

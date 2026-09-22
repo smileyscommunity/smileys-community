@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { canSendBroadcasts, isAdmin, failClosedCityId } from '@/lib/access'
+import { isUploadedImageUrl } from '@/lib/uploadedImageUrl'
 import { requireStepUp } from '@/lib/stepUp'
 import { createNotification } from '@/lib/notify'
 import { sendBroadcastEmail, recordEmailFailure } from '@/lib/email'
@@ -96,9 +97,20 @@ export async function PATCH(req: NextRequest) {
   const session = await getSession()
   if (!session || !isAdmin(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { id, title, message } = await req.json()
+  const { id, title, message, imageUrl } = await req.json()
   if (!id || !title?.trim() || !message?.trim()) {
     return NextResponse.json({ error: 'id, title and message required' }, { status: 400 })
+  }
+  // The emails are gone the moment they send, so the in-app rows are the only
+  // surface an edit can still reach — which makes a wrong image exactly the
+  // thing this flow exists to fix. Absent = leave it; null = take it off.
+  let imagePatch: { imageUrl: string | null } | Record<string, never> = {}
+  if (imageUrl !== undefined) {
+    const clean = imageUrl ? String(imageUrl).trim() : ''
+    if (clean && !isUploadedImageUrl(clean, ['broadcasts'])) {
+      return NextResponse.json({ error: 'The image has to be uploaded with the broadcast — an external link is not allowed' }, { status: 400 })
+    }
+    imagePatch = { imageUrl: clean || null }
   }
 
   const b = await prisma.broadcast.findUnique({ where: { id } })
@@ -123,11 +135,11 @@ export async function PATCH(req: NextRequest) {
   const from  = previous && previous.createdAt > floor ? previous.createdAt : floor
   const rewritten = await prisma.notification.updateMany({
     where: { type: notifType, title: b.title, body: b.message, link, createdAt: { gt: from, lte: b.createdAt } },
-    data:  { title: title.trim(), body: message.trim() },
+    data:  { title: title.trim(), body: message.trim(), ...imagePatch },
   })
   await prisma.broadcast.update({
     where: { id },
-    data:  { title: title.trim(), message: message.trim() },
+    data:  { title: title.trim(), message: message.trim(), ...imagePatch },
   })
 
   return NextResponse.json({ ok: true, notificationsUpdated: rewritten.count })
@@ -137,8 +149,17 @@ export async function POST(req: NextRequest) {
   const session = await getSession()
   if (!session || !canSendBroadcasts(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { title, message, type, channel, audience, clubId, eventId, cityId, requestId } = await req.json()
+  const { title, message, type, channel, audience, clubId, eventId, cityId, requestId, imageUrl } = await req.json()
   if (!title?.trim() || !message?.trim()) return NextResponse.json({ error: 'Title and message required' }, { status: 400 })
+  // Our own uploads only. This URL is rendered as <img src> in an email to
+  // the whole audience and on a public-facing card; an external one would
+  // hand a third party the IP of every member who opened it — the same rule
+  // post covers and article bodies follow (lib/uploadedImageUrl).
+  const cleanImage = imageUrl ? String(imageUrl).trim() : ''
+  if (cleanImage && !isUploadedImageUrl(cleanImage, ['broadcasts'])) {
+    return NextResponse.json({ error: 'The image has to be uploaded with the broadcast — an external link is not allowed' }, { status: 400 })
+  }
+  const image = cleanImage || null
   // Required, not optional: a send that outlives nginx's timeout shows the
   // admin an error page while it keeps going, and without a key the retry
   // they naturally press sends the whole thing twice.
@@ -261,7 +282,7 @@ export async function POST(req: NextRequest) {
   const eligible = isEmail ? dedup.filter(u => u.emailMarketing) : []
   let emailed = 0
   if (isEmail) {
-    const results = await inChunks(eligible, u => sendBroadcastEmail(u.id, u.email, u.name, title.trim(), message.trim()))
+    const results = await inChunks(eligible, u => sendBroadcastEmail(u.id, u.email, u.name, title.trim(), message.trim(), image))
     // Every rejection lands in EmailFailure — allSettled alone swallowed them,
     // and the toast then reported the whole list as sent.
     const failures: Promise<void>[] = []
@@ -287,11 +308,12 @@ export async function POST(req: NextRequest) {
   const prefRows = await prisma.notificationPreference.findMany({ where: { userId: { in: dedup.map(u => u.id) } } })
   const prefsBy = new Map(prefRows.map(p => [p.userId, p]))
   const notifyResults = await inChunks(dedup, u =>
-    createNotification(u.id, notifType, title.trim(), message.trim(), link, undefined, prefsBy.get(u.id) ?? null))
+    createNotification(u.id, notifType, title.trim(), message.trim(), link, undefined, prefsBy.get(u.id) ?? null, { imageUrl: image }))
   const notified = notifyResults.filter(r => r.status === 'fulfilled' && r.value === true).length
 
   await prisma.broadcast.create({
     data: { title: title.trim(), message: message.trim(), type: type ?? 'announcement',
+            imageUrl: image,
             audience: audience ?? 'all', channel: isEmail ? 'email' : 'in-app',
             clubId: clubId || null, eventId: eventId || null,
             cityId: audience === 'city' ? cityId : null,

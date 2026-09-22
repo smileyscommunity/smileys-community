@@ -1310,6 +1310,10 @@ model Notification {
   body      String
   isRead    Boolean  @default(false)
   link      String?
+  // Set only by a broadcast that carried one; the announcement card renders
+  // it. Nullable and unset for every other type — the compact rows in the
+  // bell stay text, deliberately.
+  imageUrl  String?
   createdAt DateTime @default(now())
   data      Json?
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -1447,6 +1451,11 @@ model Broadcast {
   id        String   @id @default(cuid())
   title     String
   message   String
+  // One optional image, shown in the broadcast email and on the in-app
+  // announcement card. An uploaded /app/api/files/broadcasts/… path only —
+  // an external URL would make every reader's mail client fetch a third
+  // party (see lib/uploadedImageUrl and the same rule on post covers).
+  imageUrl  String?
   type      String
   audience  String
   clubId    String?

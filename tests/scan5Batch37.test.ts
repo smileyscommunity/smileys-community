@@ -160,9 +160,10 @@ describe('108 — club broadcasts link to /clubs/<slug>', () => {
     p.club.findUnique.mockResolvedValueOnce({ slug: 'book-club' })
     const res = await send({ audience: 'club', clubId: 'k1' })
     expect(res.status).toBe(200)
-    // The two trailing arguments are the recipient row (unused here) and the
-    // member's preferences, read once for the whole audience.
-    expect((createNotification as any).mock.calls[0]).toEqual(['u1', 'announcement', 'T', 'M', '/clubs/book-club', undefined, null])
+    // The trailing arguments are the recipient row (unused here), the
+    // member's preferences read once for the whole audience, and the
+    // broadcast's optional image — null on a send that carried none.
+    expect((createNotification as any).mock.calls[0]).toEqual(['u1', 'announcement', 'T', 'M', '/clubs/book-club', undefined, null, { imageUrl: null }])
   })
 
   it('a club that vanished gets no link rather than a 404; an event send keeps /events/<id>', async () => {

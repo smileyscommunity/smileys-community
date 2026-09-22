@@ -31,7 +31,9 @@ const MIME: Record<string, string> = {
 // precisely so Next can't serve them statically around this gate. See
 // lib/uploadRoot.
 const UPLOAD_ROOT = uploadRoot()
-const VALID_FOLDERS = ['events', 'clubs', 'users', 'general', 'applications', 'posts', 'neighborhoods', 'directory', 'listings', 'hangouts', 'guide', 'reports', 'messages']
+const VALID_FOLDERS = ['events', 'clubs', 'users', 'general', 'applications', 'posts', 'neighborhoods', 'directory', 'listings', 'hangouts', 'guide', 'reports', 'messages', 'broadcasts']
+// Kept in step with lib/uploadedImageUrl's filename class on purpose: a
+// path that passes validation on write must be one this route will serve.
 const VALID_FILE = /^[\w\-]+\.(jpg|jpeg|png|webp|gif)$/i
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {

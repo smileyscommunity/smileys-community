@@ -16,7 +16,7 @@
 // (validFolders) and app/api/files/[...path]/route.ts (VALID_FOLDERS); the
 // uploadFoldersServable test pins upload ⊆ servable, and publicFolders here is
 // the member-referenceable subset.
-const PUBLIC_FOLDERS = ['events', 'clubs', 'users', 'general', 'posts', 'neighborhoods', 'directory', 'listings', 'hangouts', 'guide'] as const
+const PUBLIC_FOLDERS = ['events', 'clubs', 'users', 'general', 'posts', 'neighborhoods', 'directory', 'listings', 'hangouts', 'guide', 'broadcasts'] as const
 
 // A photo sent in a direct message. NOT public: the files route serves it only
 // to the two people in that conversation, so it is never in PUBLIC_FOLDERS —
@@ -45,7 +45,12 @@ export function isArticleImageSrc(src: unknown): boolean {
 
 export function isUploadedImageUrl(url: unknown, folders: readonly string[] = PUBLIC_FOLDERS): boolean {
   if (typeof url !== 'string' || !url) return false
-  const m = url.match(new RegExp(`^\\/app\\/api\\/files\\/([a-zA-Z0-9-]+)\\/[a-zA-Z0-9.-]+\\.${EXT}$`))
+  // The filename class matches VALID_FILE in app/api/files/[...path] exactly.
+  // It used to allow a dot in the stem, which the file route does not: a
+  // hand-made "…/a.b.jpg" passed validation on write and then 403'd at serve
+  // time — a broken image in every inbox that received it. No stored path
+  // has ever had one (checked in production), so nothing is invalidated.
+  const m = url.match(new RegExp(`^\\/app\\/api\\/files\\/([a-zA-Z0-9-]+)\\/[\\w-]+\\.${EXT}$`))
   if (!m) return false
   return folders.includes(m[1])
 }

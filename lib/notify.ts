@@ -261,6 +261,10 @@ export async function createNotification(
   // city-wide announcement is thousands of rows against a pool of ten.
   // `null` means "read, and there are none".
   knownPrefs?: NotificationPreference | null,
+  // Anything beyond the message itself. An eighth positional argument here
+  // would be unreadable at the call site, and the only caller that needs one
+  // is the broadcast composer.
+  opts?: { imageUrl?: string | null },
 ): Promise<boolean> {
   try {
     const prefKey = PREF_KEY[type]
@@ -363,10 +367,13 @@ export async function createNotification(
       }
     }
 
-    await prisma.notification.create({ data: { userId, type, title, body, link } })
+    await prisma.notification.create({ data: { userId, type, title, body, link, imageUrl: opts?.imageUrl ?? null } })
 
     // Fire push notification (non-blocking, best-effort). Skipped during the
     // member's quiet hours — the bell entry above was still recorded.
+    // The push stays text: web push's `image` renders on Chrome/Android only
+    // — iOS and Safari ignore it — and a lock-screen billboard is not what a
+    // broadcast image is for. It shows in the email and on the card.
     if (!suppressPush) sendPushToUser(userId, { title, body, link }).catch(() => {})
     return true
   } catch (e) {

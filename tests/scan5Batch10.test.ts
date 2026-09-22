@@ -332,8 +332,13 @@ describe('46 — banners writes are built on the stored list', () => {
 describe('pages — honest broadcast result and moderator-read-only network content', () => {
   it('the notifications page sends a request id, checks res.ok before parsing, and keeps the id on an unclear answer', () => {
     const src = read('app/admin/notifications/page.tsx')
-    const send = src.slice(src.indexOf('async function handleSend'), src.indexOf('async function runCron'))
-    expect(send).toMatch(/eventId: eventId \|\| null, requestId \}/)
+    // Anchored on the end of the file, not on runCron: that function moved to
+    // /admin/jobs with the Scheduled Jobs block (2026-09-22), and indexOf
+    // returning -1 quietly sliced to the second-to-last character instead.
+    expect(src).toContain('async function handleSend')
+    const send = src.slice(src.indexOf('async function handleSend'), src.indexOf('return ('))
+    // …and the payload now carries the optional broadcast image.
+    expect(send).toMatch(/eventId: eventId \|\| null, imageUrl, requestId \}/)
     expect(send).not.toMatch(/await res\.json\(\)/)
     expect(send.indexOf('if (!res.ok)')).toBeLessThan(send.indexOf('readJsonBody(res)'))
     expect(send).toMatch(/toast\.warning\(MAYBE_SENT/)
