@@ -37,6 +37,23 @@ function endpointHost(endpoint: string): string {
   try { return new URL(endpoint).host } catch { return 'unparseable' }
 }
 
+// A push service telling us this subscription will never work again.
+//
+// 404/410 is the standard "gone". The rest is FCM: it answers a broken
+// registration with a 500 whose body reads "permanent internal error
+// encountered, do not retry the request." — which we kept retrying on every
+// broadcast for ever, because a 5xx normally means "try later". Matched on
+// the service's own words rather than on the status, so an ordinary FCM
+// outage (a 500 with no such body) is still treated as temporary and the
+// member keeps their subscription.
+const SAYS_PERMANENT = /do not retry|permanently (?:unregistered|invalid)|unregistered/i
+
+function deadSubscription(err: { statusCode?: number; body?: string }): 'gone' | 'permanent' | null {
+  if (err?.statusCode === 404 || err?.statusCode === 410) return 'gone'
+  if (typeof err?.body === 'string' && SAYS_PERMANENT.test(err.body)) return 'permanent'
+  return null
+}
+
 // Hard caps on payload field lengths. Browsers / push services cap the
 // total encrypted payload at ~4KB; staying well under means we never
 // silently fail on a legit notification because some caller stuffed a
@@ -137,9 +154,19 @@ export async function sendPushToUser(
           data,
         )
         .catch((err: { statusCode?: number; body?: string; message?: string }) => {
-          // 404/410 means the subscription expired — mark for cleanup
-          if (err?.statusCode === 404 || err?.statusCode === 410) {
+          // Expired, or declared permanently broken — either way it is never
+          // going to deliver, so it goes rather than being retried for ever.
+          // The device re-registers itself: a rotation fires
+          // pushsubscriptionchange in the service worker, which subscribes
+          // again and posts the new endpoint.
+          const dead = deadSubscription(err)
+          if (dead) {
             stale.push(sub.id)
+            if (dead === 'permanent') {
+              console.warn('[push] subscription declared permanently broken', {
+                userId, host: endpointHost(sub.endpoint), status: err?.statusCode ?? null,
+              })
+            }
             return
           }
           // Everything else was swallowed whole: a rejected VAPID signature

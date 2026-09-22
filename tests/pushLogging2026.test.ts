@@ -42,10 +42,11 @@ describe('push failures are visible', () => {
     // One line per delivered push would be ~1,700 lines per published
     // article. The only unconditional log statements are the failure ones.
     const logs = src.match(/console\.(log|warn|error)\(/g) ?? []
-    expect(logs).toHaveLength(4)
-    // All four sit on a failure branch: the config check, the empty-payload
-    // drop, the non-expiry send error and the expiry cleanup. None runs for
-    // a push that went out.
+    // Five, all on a failure branch: the config check, the empty-payload
+    // drop, the non-expiry send error, the expiry cleanup, and — since
+    // 2026-09-22 — a subscription the service declared permanently broken.
+    // None runs for a push that went out.
+    expect(logs).toHaveLength(5)
     expect(src).not.toMatch(/\.then\([^)]*console\./)
   })
 })

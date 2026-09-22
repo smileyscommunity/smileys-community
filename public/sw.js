@@ -215,6 +215,43 @@ self.addEventListener('push', e => {
   e.waitUntil(self.registration.showNotification(title, options))
 })
 
+// A push service can retire a subscription on its own — an app update, a
+// long quiet period, or the "permanent internal error" FCM answers a broken
+// registration with. The browser fires this when it does. Without a handler
+// the old endpoint rotted in our database, every later send failed against
+// it, and the member simply stopped receiving anything with nothing to tell
+// them why (lib/push drops it after the fact; this is what puts the device
+// back). The VAPID key comes from the old subscription's own options, so
+// this static file never has to carry one.
+self.addEventListener('pushsubscriptionchange', e => {
+  e.waitUntil((async () => {
+    try {
+      const previous = e.oldSubscription ? e.oldSubscription.endpoint : null
+      let sub = e.newSubscription ?? null
+      if (!sub) {
+        const key = e.oldSubscription && e.oldSubscription.options
+          ? e.oldSubscription.options.applicationServerKey
+          : null
+        // No key to re-subscribe with is the end of it — better than
+        // subscribing to nothing and storing a dud.
+        if (!key) return
+        sub = await self.registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key })
+      }
+      // credentials default to same-origin in a worker, so the session
+      // cookie rides along and the route knows whose device this is.
+      await fetch('/app/api/push/subscribe', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ ...sub.toJSON(), replaces: previous }),
+      })
+    } catch (err) {
+      // A worker has nowhere to report to; swallowing beats an unhandled
+      // rejection that kills the rest of the handler.
+      console.error('[sw] pushsubscriptionchange failed', err)
+    }
+  })())
+})
+
 self.addEventListener('notificationclick', e => {
   e.notification.close()
   const raw = e.notification.data?.link ?? ''

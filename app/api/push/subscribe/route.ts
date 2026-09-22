@@ -36,6 +36,11 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null)
   const endpoint = body?.endpoint
   const keys     = body?.keys
+  // The endpoint this one replaces, when the service worker is re-registering
+  // a device whose subscription the push service rotated. Cleared below once
+  // the new row is in, so the dead one doesn't sit there failing until it
+  // finally answers 410.
+  const replaces = typeof body?.replaces === 'string' ? body.replaces : null
   // lib/push later POSTs an encrypted payload to whatever is stored, so the
   // endpoint has to be a real push service — an https shape check still
   // let through internal hosts, IP literals and user:pass@ credentials.
@@ -62,6 +67,12 @@ export async function POST(req: NextRequest) {
     create: { userId: session.id, endpoint, p256dh: keys.p256dh, auth: keys.auth, sessionId: session.sessionId ?? null },
     update: { userId: session.id, p256dh: keys.p256dh, auth: keys.auth, sessionId: session.sessionId ?? null, createdAt: new Date() },
   })
+
+  // The rotated-away endpoint, if this was a re-registration. Scoped to the
+  // caller so one member can't delete another's row by naming it.
+  if (replaces && replaces !== endpoint) {
+    await prisma.pushSubscription.deleteMany({ where: { endpoint: replaces, userId: session.id } })
+  }
 
   // A member has a handful of devices, not hundreds of rows: keep the newest.
   const surplus = await prisma.pushSubscription.findMany({
