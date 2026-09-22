@@ -90,7 +90,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // city's areas could never appear however many it had.
     prisma.neighborhood.findMany({
       where:   { cityId: { in: cityIds }, active: true },
-      select:  { slug: true, updatedAt: true },
+      select:  { slug: true, cityId: true, updatedAt: true },
       orderBy: { sortOrder: 'asc' },
     }),
     // Guide experiences and routes were in the sitemap not at all: 27 pages,
@@ -228,17 +228,31 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     changeFrequency: 'weekly',
   }))
 
-  // Slugs are unique per city but a URL is a URL — dedupe so two cities sharing
-  // a name (a "Merkez" apiece) can't emit the same <loc> twice.
-  const neighborhoodRoutes: MetadataRoute.Sitemap = [...new Map(hoods.map(n => [n.slug, n])).values()]
-    .map(n => ({
-      url:             `${BASE}/neighborhoods/${n.slug}`,
+  // Slugs are unique per city, and four of them collide across cities today
+  // (Istanbul and Ankara each have a Ulus, a Bahçelievler and a Gaziosmanpaşa;
+  // Istanbul and İzmir share a Göztepe). Deduping by slug was how that was
+  // handled, and it silently dropped one city's page per collision. The page
+  // reads ?city= now and canonicalises to it, so every city but the default
+  // lists its own qualified URL — distinct <loc>, matching canonical. The
+  // final dedupe is a belt-and-braces guard on the assembled URL.
+  const citySlugById = new Map(cities.map(c => [c.id, c.slug]))
+  const neighborhoodRoutes: MetadataRoute.Sitemap = [...new Map(hoods.map(n => {
+    const citySlug = citySlugById.get(n.cityId)
+    const url = citySlug && citySlug !== DEFAULT_CITY_SLUG
+      ? `${BASE}/neighborhoods/${n.slug}?city=${citySlug}`
+      : `${BASE}/neighborhoods/${n.slug}`
+    return [url, {
+      url,
       // The editorial JSON's mtime where one exists (Istanbul's), else the
       // row's own timestamp — an honest date either way.
-      lastModified:    neighborhoodMtimes.get(n.slug) ?? n.updatedAt,
+      // NEIGHBORHOOD_META is Istanbul's editorial set, so its file mtimes
+      // belong to the default city alone — Ankara's Ulus was claiming the
+      // mtime of Istanbul's ulus.json.
+      lastModified:    (citySlug === DEFAULT_CITY_SLUG ? neighborhoodMtimes.get(n.slug) : undefined) ?? n.updatedAt,
       priority:        0.7,
       changeFrequency: 'weekly' as const,
-    }))
+    }] as const
+  })).values()]
 
   // Asked of the LOADERS, not the table: loadExperiences falls back to the
   // shipped JSON for the default city when guide_entries is empty (a fresh

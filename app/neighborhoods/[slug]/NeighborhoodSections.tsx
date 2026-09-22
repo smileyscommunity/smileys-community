@@ -5,7 +5,8 @@ import Image from 'next/image'
 import { prisma } from '@/lib/prisma'
 import { ACTIVATED_MEMBER_WHERE } from '@/lib/memberCount'
 import type { NeighborhoodView } from '@/lib/neighborhoodsDb'
-import type { CityConfig } from '@/lib/city'
+import { DEFAULT_CITY_SLUG, type CityConfig } from '@/lib/city'
+import { canActInCity } from '@/lib/access'
 import type { SessionUser } from '@/lib/session'
 import { restrictedSetFor } from '@/lib/memberPrivacy'
 import { authorProjector } from '@/lib/authorProjection'
@@ -88,6 +89,11 @@ export default async function NeighborhoodSections({
   // The city's day, like HeroStats above this — server UTC split the page's
   // "upcoming" from the hero's "past" differently for three hours a night.
   const today = todayInTz(city.timezone)
+
+  // Every link out of this page that names another neighborhood — or the index
+  // — carries the city, or one click undoes the ?city= that got the viewer
+  // here: Ankara's rails pointed at Istanbul's Bahçelievler.
+  const cityQuery = city.slug === DEFAULT_CITY_SLUG ? '' : `?city=${city.slug}`
 
   const now = new Date()
 
@@ -216,7 +222,10 @@ export default async function NeighborhoodSections({
       take:    3,
       select:  {
         id: true, title: true, location: true, startsAt: true, endsAt: true,
-        user: { select: { id: true, name: true, color: true, profilePhoto: true, goodHangouts: true } },
+        // profileVisibility so the host gets the same projection as every
+        // other named member on this page — the card showed a
+        // connections-only host's full name and photo to any member.
+        user: { select: { id: true, name: true, color: true, profilePhoto: true, profileVisibility: true, goodHangouts: true } },
         _count: { select: { joins: true } },
       },
     }) : Promise.resolve([]),
@@ -236,15 +245,24 @@ export default async function NeighborhoodSections({
     }),
     // Members who've pulsed that they're free to meet up in this neighborhood
     // right now (non-expired). Pulses are member-only content (the /hangouts
-    // feed gates on session), so only fetch when the viewer is logged in.
+    // feed gates on session), so only fetch when the viewer is logged in —
+    // but that session check was the whole gate. The canonical feed
+    // (app/api/availability) also drops admin-hidden accounts and blocked
+    // pairs, and shows a connections-only member as a first name with no
+    // photo. A pulse is a live location plus a free-text note: the same class
+    // of data a block already hides everywhere else.
     myId
       ? prisma.availabilityPulse.findMany({
-          where:   { neighborhood: name, cityId, until: { gte: now }, user: { status: 'approved' } },
+          where:   {
+            neighborhood: name, cityId, until: { gte: now },
+            user: { status: 'approved', hiddenFromMembers: false },
+            ...(blockedIds.length ? { userId: { notIn: blockedIds } } : {}),
+          },
           orderBy: { createdAt: 'desc' },
           take:    6,
           select:  {
             id: true, note: true, until: true, createdAt: true,
-            user: { select: { id: true, name: true, color: true, profilePhoto: true } },
+            user: { select: { id: true, name: true, color: true, profilePhoto: true, profileVisibility: true } },
           },
         })
       : Promise.resolve([]),
@@ -276,7 +294,24 @@ export default async function NeighborhoodSections({
   // first name, no photo, to a stranger — lib/authorProjection).
   const showBoardAuthor = await authorProjector(viewer, boardPosts.map(bp => bp.user))
   const restrictedLocals = viewer ? await restrictedSetFor(viewer, localCandidates) : new Set<string>()
-  const locals = localCandidates.filter(m => !restrictedLocals.has(m.id)).slice(0, 12)
+  // The strip has always labelled everyone by first name — but the avatar was
+  // handed the full one, and AvatarImg renders it as the img `alt`, so it went
+  // out in the HTML and the RSC payload whatever the label said. The photo and
+  // the /members/<id> link went with it, to anyone at all. Guests now get the
+  // public author shape (lib/authorProjection): first name, initials, no id.
+  const showLocal = await authorProjector(viewer, localCandidates)
+  const locals = localCandidates
+    .filter(m => !restrictedLocals.has(m.id))
+    .slice(0, 12)
+    // A guest's projected rows all share the placeholder id, so the React key
+    // comes from the position instead.
+    .map((m, i) => ({ ...showLocal(m), key: `local-${i}` }))
+  // Pulse authors, the way the availability feed shows them: a connections-only
+  // member the viewer isn't connected to is a first name with no photo.
+  const restrictedPulses = viewer ? await restrictedSetFor(viewer, activePulses.map(p => p.user)) : new Set<string>()
+  // Hangout hosts, same rule: the section is member-only, but "member-only"
+  // never meant a connections-only host is fair game.
+  const showHangoutHost = await authorProjector(viewer, activeHangouts.map(h => h.user))
 
   // Clubs active around this neighborhood (Clubs brief §27) — clubs whose
   // events (past 30 days or upcoming) happen here. Interest communities
@@ -303,16 +338,29 @@ export default async function NeighborhoodSections({
   }))) : []
 
 
+  // Hosting an event here is public; being named, photographed and linked for
+  // it is not. This query had nothing but `status: 'approved'` and the cards
+  // had no session gate at all, so a logged-out visitor got every host's full
+  // name, avatar file and member id. Admin-hidden accounts are withheld
+  // outright, a blocked pair never sees each other, and how much of the host
+  // is shown is the one shared rule (lib/authorProjection): full to a member,
+  // first name and initials to a guest. "N events hosted in X" is a fact about
+  // the neighbourhood rather than the person, so it stays on every card.
   const hosts = hostCounts.length > 0
     ? await prisma.user.findMany({
-        where:  { id: { in: hostCounts.map(h => h.hostId) }, status: 'approved' },
-        select: { id: true, name: true, color: true, profilePhoto: true },
+        where:  {
+          id: { in: hostCounts.map(h => h.hostId), ...(blockedIds.length ? { notIn: blockedIds } : {}) },
+          status: 'approved', hiddenFromMembers: false,
+        },
+        select: { id: true, name: true, color: true, profilePhoto: true, profileVisibility: true },
       })
     : []
+  const showHost = await authorProjector(viewer, hosts)
 
   const rankedHosts = hostCounts
-    .map(h => ({ ...hosts.find(u => u.id === h.hostId)!, eventCount: h._count._all }))
-    .filter(h => h.id)
+    .map((h, i) => ({ row: hosts.find(u => u.id === h.hostId), key: `host-${i}`, eventCount: h._count._all }))
+    .filter(h => h.row)
+    .map(h => ({ ...showHost(h.row!), key: h.key, eventCount: h.eventCount }))
 
   // Both rails read the city's own registry. `area` is per-city free text, so
   // "same area" is only meaningful when this city groups its neighborhoods at
@@ -412,10 +460,15 @@ export default async function NeighborhoodSections({
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {activePulses.map(p => {
+              // Projected, not raw: the label and the avatar's alt text have to
+              // be the same name, or the one the card hides ships anyway.
+              const poster   = restrictedPulses.has(p.user.id)
+                ? { ...p.user, name: firstNameOf(p.user.name), profilePhoto: null }
+                : p.user
               const until    = new Date(p.until)
               const minsLeft = Math.max(0, Math.round((until.getTime() - now.getTime()) / 60_000))
               const window   = minsLeft >= 60
-                ? `until ${until.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
+                ? `until ${until.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: city.timezone, hourCycle: 'h23' })}`
                 : `${minsLeft}m left`
               return (
                 <Link key={p.id} href={`/members/${p.user.id}`} className="group block">
@@ -423,8 +476,8 @@ export default async function NeighborhoodSections({
                     <p className="text-xs font-bold text-green-700 uppercase tracking-wide mb-2">Free to meet · {window}</p>
                     {p.note && <p className="text-sm text-gray-800 mb-3 line-clamp-2">{p.note}</p>}
                     <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
-                      <AvatarImg src={avatarUrl(p.user.profilePhoto, 64)} name={p.user.name} color={p.user.color} size="w-6 h-6" textSize="text-[10px]" className="shrink-0" />
-                      <span className="text-xs text-gray-600 truncate">{p.user.name}</span>
+                      <AvatarImg src={avatarUrl(poster.profilePhoto, 64)} name={poster.name} color={poster.color} size="w-6 h-6" textSize="text-[10px]" className="shrink-0" />
+                      <span className="text-xs text-gray-600 truncate">{poster.name}</span>
                     </div>
                   </div>
                 </Link>
@@ -480,9 +533,10 @@ export default async function NeighborhoodSections({
               const window = minsToStart < 0  ? 'Happening now'
                            : minsToStart < 60 ? `Starts in ${minsToStart}m`
                            : minsToStart < 60 * 12
-                             ? `Starts ${s.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
-                             : s.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+                             ? `Starts ${s.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: city.timezone, hourCycle: 'h23' })}`
+                             : s.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: city.timezone, hourCycle: 'h23' })
               const going  = h._count.joins + 1  // +1 = host
+              const host   = showHangoutHost(h.user)
               return (
                 <Link key={h.id} href={`/hangouts/${h.id}`} className="group block">
                   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hover:shadow-md hover:-translate-y-0.5 transition-all h-full">
@@ -490,8 +544,8 @@ export default async function NeighborhoodSections({
                     <p className="text-sm font-bold text-gray-900 mb-1 line-clamp-2">{h.title}</p>
                     <p className="text-xs text-gray-600 mb-3 line-clamp-1"><span aria-hidden="true">📍</span> {h.location}</p>
                     <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
-                      <AvatarImg src={avatarUrl(h.user.profilePhoto, 64)} name={h.user.name} color={h.user.color} size="w-6 h-6" textSize="text-[10px]" className="shrink-0" />
-                      <span className="text-xs text-gray-600 truncate">{h.user.name}</span>
+                      <AvatarImg src={avatarUrl(host.profilePhoto, 64)} name={host.name} color={host.color} size="w-6 h-6" textSize="text-[10px]" className="shrink-0" />
+                      <span className="text-xs text-gray-600 truncate">{host.name}</span>
                       {h.user.goodHangouts > 0 && (
                         <span className="text-[10px] font-semibold text-green-700 shrink-0"><span aria-hidden="true">✓</span> {h.user.goodHangouts}</span>
                       )}
@@ -519,14 +573,25 @@ export default async function NeighborhoodSections({
           </div>
           <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
             <div className="flex flex-wrap gap-4">
-              {locals.map(m => (
-                <Link key={m.id} href={`/members/${m.id}`} className="flex flex-col items-center gap-1.5 group hover:opacity-80 transition-opacity">
-                  <AvatarImg src={avatarUrl(m.profilePhoto, 128)} name={m.name} color={m.color} />
-                  <span className="text-xs text-gray-600 max-w-[56px] text-center truncate group-hover:text-amber-600 transition-colors">
-                    {firstNameOf(m.name)}
-                  </span>
-                </Link>
-              ))}
+              {locals.map(m => {
+                // A guest's row carries no member id, so their tile isn't a
+                // link — there's no profile they could open behind it anyway.
+                const tile = (
+                  <>
+                    <AvatarImg src={avatarUrl(m.profilePhoto, 128)} name={m.name} color={m.color} />
+                    <span className="text-xs text-gray-600 max-w-[56px] text-center truncate group-hover:text-amber-600 transition-colors">
+                      {firstNameOf(m.name)}
+                    </span>
+                  </>
+                )
+                return myId ? (
+                  <Link key={m.key} href={`/members/${m.id}`} className="flex flex-col items-center gap-1.5 group hover:opacity-80 transition-opacity">
+                    {tile}
+                  </Link>
+                ) : (
+                  <div key={m.key} className="flex flex-col items-center gap-1.5 group">{tile}</div>
+                )
+              })}
             </div>
             {totalLocals > 12 && (
               <p className="text-xs text-gray-400 mt-4">+ {totalLocals - 12} more Smileys members in {name}</p>
@@ -557,7 +622,7 @@ export default async function NeighborhoodSections({
           <div aria-hidden="true" className="text-5xl mb-4">🔍</div>
           <h2 className="text-xl font-bold text-gray-900 mb-2">No upcoming events in {name}</h2>
           <p className="text-gray-600 text-sm mb-6">New events are added weekly — check back soon.</p>
-          <Link href="/neighborhoods" className="px-5 py-2.5 rounded-xl bg-amber-500 text-white text-sm font-semibold hover:bg-amber-600 transition-colors">
+          <Link href={`/neighborhoods${cityQuery}`} className="px-5 py-2.5 rounded-xl bg-amber-500 text-white text-sm font-semibold hover:bg-amber-600 transition-colors">
             Explore other neighborhoods
           </Link>
         </div>
@@ -643,22 +708,37 @@ export default async function NeighborhoodSections({
         <div>
           <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-5">Local hosts</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {rankedHosts.map((h, i) => (
-              <Link key={h.id} href={`/members/${h.id}`}
-                className="group flex items-center gap-3 bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-amber-200 transition-all">
-                <div className="relative shrink-0">
-                  <AvatarImg src={avatarUrl(h.profilePhoto, 128)} name={h.name} color={h.color} />
-                  {i === 0 && <span aria-hidden="true" className="absolute -top-1 -right-1 text-sm">🏆</span>}
+            {rankedHosts.map((h, i) => {
+              // Same card either way; only a member's row carries the id that
+              // makes it a link (and the chevron that promises one).
+              const card = (
+                <>
+                  <div className="relative shrink-0">
+                    <AvatarImg src={avatarUrl(h.profilePhoto, 128)} name={h.name} color={h.color} />
+                    {i === 0 && <span aria-hidden="true" className="absolute -top-1 -right-1 text-sm">🏆</span>}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-gray-900 group-hover:text-amber-600 transition-colors truncate">{h.name}</div>
+                    <div className="text-xs text-gray-400">{h.eventCount} event{h.eventCount !== 1 ? 's' : ''} hosted in {name}</div>
+                  </div>
+                  {myId && (
+                    <svg className="w-4 h-4 text-gray-300 group-hover:text-amber-400 transition-colors ml-auto shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  )}
+                </>
+              )
+              return myId ? (
+                <Link key={h.key} href={`/members/${h.id}`}
+                  className="group flex items-center gap-3 bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-amber-200 transition-all">
+                  {card}
+                </Link>
+              ) : (
+                <div key={h.key} className="group flex items-center gap-3 bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+                  {card}
                 </div>
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold text-gray-900 group-hover:text-amber-600 transition-colors truncate">{h.name}</div>
-                  <div className="text-xs text-gray-400">{h.eventCount} event{h.eventCount !== 1 ? 's' : ''} hosted in {name}</div>
-                </div>
-                <svg className="w-4 h-4 text-gray-300 group-hover:text-amber-400 transition-colors ml-auto shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </Link>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}
@@ -680,14 +760,20 @@ export default async function NeighborhoodSections({
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {upcomingVisitors.map(v => {
-              const s = new Date(v.startsOn + 'T00:00:00')
-              const e = new Date(v.endsOn + 'T00:00:00')
-              const sameMonth = s.getMonth() === e.getMonth() && s.getFullYear() === e.getFullYear()
+              // A visit is a pair of calendar DAYS ('YYYY-MM-DD'), not instants.
+              // Parsed as UTC and rendered as UTC they are the days they say;
+              // parsed in the server's zone and rendered in the city's, "23
+              // Sep" becomes "22 Sep" for any city west of it — which is every
+              // city the moment one launches outside Turkey. The hangout and
+              // pulse times below are real instants and do take city.timezone.
+              const s = new Date(v.startsOn + 'T00:00:00Z')
+              const e = new Date(v.endsOn + 'T00:00:00Z')
+              const sameMonth = s.getUTCMonth() === e.getUTCMonth() && s.getUTCFullYear() === e.getUTCFullYear()
               const fmtRange = v.approximate
-                ? (sameMonth ? s.toLocaleDateString('en-GB', { month: 'long' }) : `${s.toLocaleDateString('en-GB', { month: 'long' })} – ${e.toLocaleDateString('en-GB', { month: 'long' })}`)
+                ? (sameMonth ? s.toLocaleDateString('en-GB', { month: 'long', timeZone: 'UTC' }) : `${s.toLocaleDateString('en-GB', { month: 'long', timeZone: 'UTC' })} – ${e.toLocaleDateString('en-GB', { month: 'long', timeZone: 'UTC' })}`)
                 : sameMonth
-                ? `${s.toLocaleDateString('en-GB', { day: 'numeric' })}–${e.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`
-                : `${s.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${e.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`
+                ? `${s.toLocaleDateString('en-GB', { day: 'numeric', timeZone: 'UTC' })}–${e.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })}`
+                : `${s.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })} – ${e.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })}`
               return (
                 <Link key={v.id} href="/visiting" className="group block">
                   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hover:shadow-md hover:-translate-y-0.5 transition-all h-full">
@@ -832,7 +918,12 @@ export default async function NeighborhoodSections({
             <div className="flex-1 h-px bg-gray-100" />
             <span className="text-xs text-gray-400">Open to all members</span>
           </div>
-          <NeighborhoodWall slug={slug} name={name} myId={myId} isStaff={isStaff} />
+          {/* isStaff arrives as a bare role check from the parent page, so a
+              moderator for another city was handed this city's wall controls.
+              Scope it here as well — the wall's own API has to enforce it, but
+              the affordance shouldn't be offered to someone who can't act. */}
+          <NeighborhoodWall slug={slug} name={name} myId={myId} citySlug={city.slug}
+            isStaff={isStaff && !!viewer && canActInCity(viewer, cityId)} />
         </div>
       )}
 
@@ -967,7 +1058,7 @@ export default async function NeighborhoodSections({
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {nearby.map(n => (
-              <Link key={n.slug} href={`/neighborhoods/${n.slug}`}
+              <Link key={n.slug} href={`/neighborhoods/${n.slug}${cityQuery}`}
                 className="group flex items-center gap-3 bg-white border border-gray-100 rounded-xl p-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all">
                 <div aria-hidden="true" className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-xl shrink-0 group-hover:bg-amber-100 transition-colors">
                   {n.emoji}
@@ -989,7 +1080,7 @@ export default async function NeighborhoodSections({
           <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-5">You might also like</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {similar.map(n => (
-              <Link key={n.slug} href={`/neighborhoods/${n.slug}`}
+              <Link key={n.slug} href={`/neighborhoods/${n.slug}${cityQuery}`}
                 className="group flex items-center gap-3 bg-white border border-gray-100 rounded-xl p-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all">
                 <div aria-hidden="true" className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-xl shrink-0 group-hover:bg-amber-50 transition-colors">
                   {n.emoji}

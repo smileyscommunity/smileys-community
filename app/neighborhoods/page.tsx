@@ -15,7 +15,7 @@ import { resolveCityId, getCityConfig, DEFAULT_CITY_SLUG } from '@/lib/city'
 import { resolveCityForPage, type CitySearch } from '@/lib/cityPageParam'
 import { shareCover } from '@/lib/shareCover'
 import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
-import { restrictedSetFor } from '@/lib/memberPrivacy'
+import { restrictedSetFor, blockedIdsFor } from '@/lib/memberPrivacy'
 import SayHiButton from '@/components/SayHiButton'
 import LocalFavorites, { type LocalPick } from '@/components/LocalFavorites'
 import ExploreMore from '@/components/ExploreMore'
@@ -68,7 +68,7 @@ export async function generateMetadata({ searchParams }: { searchParams?: Promis
     },
   }
 }
-import { resolveImageUrl, avatarUrl } from '@/lib/data'
+import { resolveImageUrl, avatarUrl, firstNameOf } from '@/lib/data'
 import AvatarImg from '@/components/AvatarImg'
 import NeighborhoodGrid, { type Group } from '@/components/NeighborhoodGrid'
 import { loadContent } from '@/lib/content'
@@ -88,18 +88,40 @@ const getNeighborhoodStats = unstable_cache(
       where: { cityId, date: { gte: today }, status: 'published' },
       _count: { _all: true },
     }),
-    // "N locals" — activated members only (lib/memberCount).
+    // "N locals" — activated members only (lib/memberCount), minus the two
+    // opt-outs every other count of the same people already applies (see
+    // NeighborhoodSections and HeroStats). A card that said "3 locals" over a
+    // neighborhood page reading "Local members (1)" wasn't just inconsistent:
+    // in a thin neighbourhood the delta is a disclosure that somebody hidden
+    // lives there.
     prisma.user.groupBy({
       by: ['neighborhood'],
-      where: { ...ACTIVATED_MEMBER_WHERE, cityId, neighborhood: { not: null } },
+      where: {
+        ...ACTIVATED_MEMBER_WHERE, cityId, neighborhood: { not: null },
+        neighborhoodVisible: true, hiddenFromMembers: false,
+      },
       _count: { _all: true },
     }),
-    prisma.event.findMany({
-      where: { cityId, date: { gte: today }, status: 'published' },
-      select: { neighborhood: true, title: true, date: true, emoji: true },
-      orderBy: { date: 'asc' },
-      take: 300,
-    }),
+    // The next event per neighborhood — one row each, decided by Postgres.
+    //
+    // This used to read the earliest 300 upcoming events and keep the first
+    // one seen per name, which is the right answer only while the city has
+    // fewer than 300 on the calendar: past that, a quiet neighborhood's event
+    // three weeks out falls off the end and its card silently loses the one
+    // thing that would fill it. Prisma's own `distinct` is no fix — it is
+    // applied in the client, not pushed into SQL, so dropping the cap would
+    // have pulled every upcoming row into Node to throw nearly all of them
+    // away. DISTINCT ON does it in the database and returns one row per
+    // neighborhood, however long the calendar gets.
+    //
+    // Raw SQL: camelCase columns are double-quoted, and `date` is text
+    // ('YYYY-MM-DD'), so `>=` is a string comparison.
+    prisma.$queryRaw<{ neighborhood: string; title: string; date: string; emoji: string }[]>`
+      SELECT DISTINCT ON ("neighborhood") "neighborhood", "title", "date", "emoji"
+      FROM "events"
+      WHERE "cityId" = ${cityId} AND "date" >= ${today} AND "status" = 'published'
+      ORDER BY "neighborhood", "date" ASC
+    `,
     // "Local picks" per neighborhood — approved, active directory listings.
     prisma.business.groupBy({
       by: ['neighborhood'],
@@ -118,12 +140,19 @@ function fmtEventDate(d: string) {
     .toUpperCase()
 }
 
+// "Hot right now" and "Active" are claims about things happening, so they now
+// need something on the calendar to say them. Headcount alone crossed both
+// thresholds: four neighbourhoods with zero upcoming events were advertising
+// themselves as hot off 54 members apiece, which is exactly the vanity-metric
+// promise this community doesn't make. A populated neighbourhood with nothing
+// booked is "Growing". The bottom label used to say "this month" while the
+// count behind it is every future event — it says what it measures now.
 function getActivitySignal(eventCount: number, memberCount: number) {
   const score = eventCount * 3 + Math.round(memberCount / 6)
-  if (score >= 9) return { label: 'Hot right now',  icon: '🔥', cls: 'bg-orange-50 text-orange-500' }
-  if (score >= 5) return { label: 'Active',          icon: '⚡', cls: 'bg-blue-50 text-blue-500'    }
-  if (score >= 2) return { label: 'Growing',         icon: '🌱', cls: 'bg-green-50 text-green-600'  }
-  return               { label: 'Quiet this month', icon: '😴', cls: 'bg-gray-50 text-gray-400'    }
+  if (eventCount > 0 && score >= 9) return { label: 'Hot right now', icon: '🔥', cls: 'bg-orange-50 text-orange-500' }
+  if (eventCount > 0 && score >= 5) return { label: 'Active',        icon: '⚡', cls: 'bg-blue-50 text-blue-500'    }
+  if (score >= 2)                   return { label: 'Growing',       icon: '🌱', cls: 'bg-green-50 text-green-600'  }
+  return                                   { label: 'Nothing on yet', icon: '😴', cls: 'bg-gray-50 text-gray-400'   }
 }
 
 export default async function NeighborhoodsPage({ searchParams }: { searchParams?: Promise<CitySearch> }) {
@@ -151,7 +180,12 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
     }
   }
 
-  const userNeighborhood = session?.neighborhood ?? null
+  // Only "yours" when this is your own city's page. A member whose home city
+  // is Istanbul, browsing Ankara with ?city=ankara, was shown Ankara's Ulus
+  // as "your neighborhood" — with Ankara residents presented as their
+  // neighbours — because the match was on the name alone, and the four shared
+  // names are exactly where it bites.
+  const userNeighborhood = session?.cityId === cityId ? session?.neighborhood ?? null : null
 
   let adBanner: { active: boolean; type: string; headline: string; subtitle: string; emoji: string; link: string; cta: string } | null = null
   try {
@@ -251,10 +285,24 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
       : []),
   ].filter(g => g.items.length > 0)
 
+  // Everyone this viewer has a block with, either direction — read once and
+  // reused by every section below that names a member.
+  const blockedIds = session ? [...await blockedIdsFor(session.id)] : []
+
   let yourNeighborhoodMembers: { id: string; name: string; color: string; profilePhoto: string | null }[] = []
-  if (userNeighborhood) {
+  if (session && userNeighborhood) {
     yourNeighborhoodMembers = await prisma.user.findMany({
-      where:   { neighborhood: userNeighborhood, cityId, status: 'approved' },
+      // Only ever rendered to a signed-in member with a neighborhood set, so
+      // these are full names by design — but the member's own opt-out still
+      // has to hold. This query had none of it: a member who switched
+      // neighborhoodVisible off, an admin-hidden account and a blocked pair
+      // all turned up in the strip (and in the avatar alt text with them).
+      // Same rules as NeighborhoodSections' local strip and HeroStats' count.
+      where:   {
+        neighborhood: userNeighborhood, cityId, status: 'approved',
+        neighborhoodVisible: true, hiddenFromMembers: false,
+        id: { notIn: [session.id, ...blockedIds] },
+      },
       select:  { id: true, name: true, color: true, profilePhoto: true },
       take:    5,
       orderBy: { joinedAt: 'desc' },
@@ -275,9 +323,12 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
     id: string; title: string; emoji: string; date: string; location: string
     _count: { attendees: number }
   }[] = []
+  // Already projected for this viewer — see the query below. `id` is null for
+  // a guest, which is what makes the card unlinkable: a logged-out visitor
+  // never receives a member id at all, so `key` carries the React key instead.
   let peopleNearby: {
-    id: string; name: string; color: string; profilePhoto: string | null
-    nationality: string | null; interests: string[]
+    key: string; id: string | null; name: string; color: string
+    profilePhoto: string | null; nationality: string | null; interests: string[]
   }[] = []
 
   if (focusNeighborhood) {
@@ -302,7 +353,9 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
         status: 'approved',
         neighborhoodVisible: true,
         hiddenFromMembers: false,
-        ...(session ? { id: { not: session.id } } : { profileVisibility: { not: 'connections' } }),
+        ...(session
+          ? { id: { notIn: [session.id, ...blockedIds] } }
+          : { profileVisibility: { not: 'connections' } }),
       },
       select: {
         id: true, name: true, color: true, profilePhoto: true,
@@ -311,17 +364,36 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
       orderBy: { goodHangouts: 'desc' },
       take:    12,
     })
+    // The query decides who is a candidate; this decides how much of them
+    // this viewer is shown. "Visible to members" was being rendered as visible
+    // to the public: a member with default visibility had their full name,
+    // photo, nationality, interests and profile link served to anonymous
+    // visitors. The section stays — it's the proof the community is alive —
+    // but a guest now gets the same shape every other public surface hands
+    // out (lib/authorProjection): a first name, initials, nothing else.
     const restricted = session ? await restrictedSetFor(session, candidates) : new Set<string>()
-    peopleNearby = candidates.filter(m => !restricted.has(m.id)).slice(0, 8)
+    peopleNearby = candidates.slice(0, 8).map((m, i) => {
+      // Locked = a guest (everyone), or a connections-only member this viewer
+      // isn't connected to. Restricted members are shown as a first name
+      // rather than dropped, so the neighbourhood doesn't read as emptier
+      // than it is — the same trade the board and guide authors make.
+      const locked = !session || restricted.has(m.id)
+      return {
+        key:          session ? m.id : `p${i}`,
+        id:           session ? m.id : null,
+        name:         locked ? (firstNameOf(m.name) || 'Smileys member') : m.name,
+        color:        m.color,
+        profilePhoto: locked ? null : m.profilePhoto,
+        // The attributes a locked member card withholds go with the photo.
+        nationality:  locked ? null : m.nationality,
+        interests:    locked ? []   : m.interests,
+      }
+    })
   }
 
   // §13 — visitors heading for the focus neighborhood. Renders only when
   // there are real ones; an empty "coming to your neighborhood" block is
   // worse than no block. Contact details are never selected here.
-  const visitorBlocks = session && focusNeighborhood
-    ? (await prisma.memberBlock.findMany({ where: { OR: [{ blockerId: session.id }, { blockedId: session.id }] }, select: { blockerId: true, blockedId: true } }))
-        .map(b => (b.blockerId === session.id ? b.blockedId : b.blockerId))
-    : []
   const visitorsNearby = focusNeighborhood
     ? await prisma.visitorAnnouncement.findMany({
         where:  {
@@ -332,7 +404,7 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
           ...(session ? {} : { visibility: 'public' }),
           AND: [
             { OR: [{ userId: null }, { user: { status: 'approved', hiddenFromMembers: false } }] },
-            ...(visitorBlocks.length ? [{ OR: [{ userId: null }, { userId: { notIn: visitorBlocks } }] }] : []),
+            ...(blockedIds.length ? [{ OR: [{ userId: null }, { userId: { notIn: blockedIds } }] }] : []),
           ],
         },
         select: {
@@ -384,6 +456,10 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
   // static NEIGHBORHOOD_META set, not the viewer's session), so it's safe to
   // mirror in structured data regardless of who/what is crawling. Mirrors
   // the neighborhood cards actually rendered on the page.
+  // Four slugs are shared with another city, so a bare URL is the default
+  // city's page — qualify every link and every <loc> the way the detail
+  // page's canonical does.
+  const cityQuery = city.slug === DEFAULT_CITY_SLUG ? '' : `?city=${city.slug}`
   const neighborhoodsJsonLd = {
     '@context': 'https://schema.org',
     '@type':    'ItemList',
@@ -393,7 +469,7 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
       item: {
         '@type': 'Place',
         name:    `${n.name}, ${city.name}`,
-        url:     `${APP_URL}/neighborhoods/${n.slug}`,
+        url:     `${APP_URL}/neighborhoods/${n.slug}${cityQuery}`,
         containedInPlace: {
           '@type': 'City',
           name:    city.name,
@@ -488,7 +564,7 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
                 </div>
               )}
             </div>
-            <Link href={`/neighborhoods/${neighborhoodToSlug(userNeighborhood)}`}
+            <Link href={`/neighborhoods/${neighborhoodToSlug(userNeighborhood)}${cityQuery}`}
               className="px-4 py-2 rounded-xl bg-amber-500 text-white text-sm font-semibold hover:bg-amber-600 transition-colors shrink-0">
               See your area →
             </Link>
@@ -623,7 +699,9 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
         {/* ── People around you ──
             Neighborhood only — never a distance, never coordinates. The
             member's own neighborhoodVisible opt-out plus profileVisibility
-            are both applied in the query above. */}
+            are both applied in the query above, and every card below renders
+            the already-projected row: a guest's card carries a first name and
+            initials and nothing that identifies the person behind them. */}
         {peopleNearby.length > 0 && (
           <section className="mb-12">
             <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">
@@ -636,15 +714,28 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
                 gone, and the card widths went with it. */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pb-2">
               {peopleNearby.map(m => (
-                <div key={m.id}
+                <div key={m.key}
                   className="w-full bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
-                  <Link href={`/members/${m.id}`} className="block">
-                    {/* AvatarImg handles the initials fallback itself, including
-                        a photo that 403s behind the applications gate. */}
-                    <AvatarImg src={avatarUrl(m.profilePhoto, 128)} name={m.name} color={m.color}
-                      size="w-16 h-16" textSize="text-xl" className="mb-3" />
-                    <p className="font-bold text-gray-900 leading-snug hover:text-amber-600 transition-colors">{m.name}</p>
-                  </Link>
+                  {/* AvatarImg handles the initials fallback itself, including
+                      a photo that 403s behind the applications gate — and a
+                      guest's null photo, which is why the same component can
+                      render both. The name it's given is the projected one:
+                      AvatarImg puts it in the img alt, so a full name here
+                      would ship in the HTML and the RSC payload however the
+                      label beside it reads. */}
+                  {m.id ? (
+                    <Link href={`/members/${m.id}`} className="block">
+                      <AvatarImg src={avatarUrl(m.profilePhoto, 128)} name={m.name} color={m.color}
+                        size="w-16 h-16" textSize="text-xl" className="mb-3" />
+                      <p className="font-bold text-gray-900 leading-snug hover:text-amber-600 transition-colors">{m.name}</p>
+                    </Link>
+                  ) : (
+                    <div>
+                      <AvatarImg src={avatarUrl(m.profilePhoto, 128)} name={m.name} color={m.color}
+                        size="w-16 h-16" textSize="text-xl" className="mb-3" />
+                      <p className="font-bold text-gray-900 leading-snug">{m.name}</p>
+                    </div>
+                  )}
                   <p className="text-xs text-gray-500 mt-1">
                     <span aria-hidden="true">📍 </span>{focusNeighborhood}
                     {m.nationality && <span> · {m.nationality}</span>}
@@ -658,17 +749,21 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
                       ))}
                     </div>
                   )}
-                  <div className="flex items-center gap-2 mt-4">
-                    {session && <SayHiButton targetId={m.id} targetName={m.name} />}
-                    <Link href={`/members/${m.id}`}
-                      className="text-xs font-semibold text-gray-500 hover:text-amber-600 transition-colors whitespace-nowrap">
-                      View profile →
-                    </Link>
-                  </div>
+                  {/* Both affordances need a member id, which only a member's
+                      projection carries. */}
+                  {m.id && (
+                    <div className="flex items-center gap-2 mt-4">
+                      <SayHiButton targetId={m.id} targetName={m.name} />
+                      <Link href={`/members/${m.id}`}
+                        className="text-xs font-semibold text-gray-500 hover:text-amber-600 transition-colors whitespace-nowrap">
+                        View profile →
+                      </Link>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
-            <Link href={`/neighborhoods/${neighborhoodToSlug(focusNeighborhood!)}`}
+            <Link href={`/neighborhoods/${neighborhoodToSlug(focusNeighborhood!)}${cityQuery}`}
               className="inline-block mt-6 text-sm font-bold text-amber-600 hover:underline">
               See everyone in {focusNeighborhood} →
             </Link>
@@ -679,6 +774,7 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
           <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">Explore {city.name}</h2>
           <p className="text-gray-600 mt-1.5 mb-6">Every neighborhood has its own rhythm. Find yours.</p>
           <NeighborhoodGrid groups={groups} userNeighborhood={userNeighborhood}
+            citySlug={city.slug === DEFAULT_CITY_SLUG ? null : city.slug}
             mapCenter={city.lat != null && city.lng != null ? [city.lat, city.lng] : null} />
         </section>
 
@@ -731,8 +827,10 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
               {sideCards.map(s2 => (
                 // ?side= pre-selects the matching filter in the grid — a bare
                 // #explore scrolled to the directory but left it unfiltered,
-                // which made the card a broken promise.
-                <a key={s2.side} href={`?side=${s2.side}#explore`}
+                // which made the card a broken promise. A relative query
+                // replaces the whole query string, so ?city= has to be carried
+                // across or the click lands the viewer back in Istanbul.
+                <a key={s2.side} href={`?${cityQuery ? `city=${city.slug}&` : ''}side=${encodeURIComponent(s2.side)}#explore`}
                   className={`group relative overflow-hidden rounded-2xl bg-gradient-to-br ${s2.gradient} p-6 min-h-[160px] flex flex-col justify-between shadow-md hover:shadow-xl transition-all`}>
                   {s2.photo && (
                     <>

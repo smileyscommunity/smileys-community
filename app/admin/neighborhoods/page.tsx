@@ -165,11 +165,16 @@ function AdminNeighborhoodsPageInner() {
     } finally { setSavingAttrs(false) }
   }
 
-  // Same soft-hide as the cities panel's semantics: the row leaves pickers
-  // and public pages, content tagged with the name stays readable.
+  // Soft-hide, described honestly: the row leaves the pickers AND its own
+  // /neighborhoods/<slug> page stops resolving — the page 404s and its wall
+  // goes with it, because every lookup is scoped to active rows. What
+  // survives is the name on things already tagged with it (events keep
+  // showing "Moda", members keep the neighbourhood on their profile). The
+  // old copy promised "tagged content stays readable", which read as though
+  // the page stayed up.
   async function deactivate(n: NeighborhoodEntry) {
     if (!currentCity || !n.id || savingAttrs) return
-    if (!(await confirmToast(`Hide ${n.name}? It disappears from pickers and pages; tagged content stays readable. Re-add it by pasting the name on the Cities page.`))) return
+    if (!(await confirmToast(`Hide ${n.name}? It leaves the pickers and its neighborhood page stops loading — wall posts there go with it. Events and members already tagged ${n.name} keep the name. Re-add it by pasting the name on the Cities page.`))) return
     setSavingAttrs(true)
     try {
       const res = await fetch(`/app/api/admin/cities/${currentCity.id}/neighborhoods`, {

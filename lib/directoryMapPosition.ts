@@ -49,7 +49,9 @@ export function resolvePosition(b: PositionedBusiness): [number, number] | null 
   // Only the default city's businesses may use it; unknown city → no pin.
   if (b.neighborhood && b.citySlug === DEFAULT_CITY_SLUG) {
     const meta = NEIGHBORHOOD_META[b.neighborhood]
-    if (meta) {
+    // Coordinates are nullable now — a neighbourhood nobody has placed yet
+    // gives no pin rather than one at 0,0.
+    if (meta && meta.lat != null && meta.lon != null) {
       const [dLat, dLon] = jitterFromId(b.id)
       return [meta.lat + dLat, meta.lon + dLon]
     }

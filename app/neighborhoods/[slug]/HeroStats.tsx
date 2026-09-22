@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { ACTIVATED_MEMBER_WHERE } from '@/lib/memberCount'
+import { getMemberCityIds } from '@/lib/cityMembership'
 import { getCityTz } from '@/lib/city'
 import { todayInTz, monthRangeFor } from '@/lib/cityTime'
 
@@ -29,7 +30,7 @@ export default async function HeroStats({ name, cityId, groupLink, groupLabel, u
   // every later month too.
   const month    = monthRangeFor(today)
 
-  const [monthlyCount, pastCount, totalLocals, approvedHost] = await Promise.all([
+  const [monthlyCount, pastCount, totalLocals, approvedHost, belongsHere, viewerCounted] = await Promise.all([
     prisma.event.count({ where: { neighborhood: name, cityId, status: { in: HELD_EVENT_STATUSES }, date: { gte: month.start, lt: month.nextStart } } }),
     prisma.event.count({ where: { neighborhood: name, cityId, status: { in: HELD_EVENT_STATUSES }, date: { lt: today } } }),
     // "N local members" — activated members only (lib/memberCount), minus the
@@ -42,7 +43,23 @@ export default async function HeroStats({ name, cityId, groupLink, groupLabel, u
           select: { id: true },
         })
       : null,
+    // "Host an event here" only where the viewer could actually file it: a
+    // host of an Istanbul club was offered the button on Ankara's Ulus. The
+    // gate is belonging to this city — home or joined (lib/cityMembership,
+    // the same rule resolvePostingCityId writes by) — not which city their
+    // club is in, because a member who joined Ankara may legitimately host
+    // there with an Istanbul club, and a global club runs everywhere.
+    userId ? getMemberCityIds(userId).then(ids => ids.includes(cityId)) : false,
+    // Is the viewer themselves inside `totalLocals`? They are unless they hid
+    // their neighborhood — and the strip said "You're among 1 local member"
+    // to the only person there, counting them as their own company.
+    userId
+      ? prisma.user.count({
+          where: { ...ACTIVATED_MEMBER_WHERE, id: userId, neighborhood: name, cityId, neighborhoodVisible: true, hiddenFromMembers: false },
+        })
+      : 0,
   ])
+  const otherLocals = Math.max(0, totalLocals - (viewerCounted > 0 ? 1 : 0))
 
   return (
     <>
@@ -69,7 +86,7 @@ export default async function HeroStats({ name, cityId, groupLink, groupLabel, u
             💬 {groupLabel ?? 'Join group'}
           </a>
         )}
-        {approvedHost && (
+        {approvedHost && belongsHere && (
           <Link href={`/host/events/new?neighborhood=${encodeURIComponent(name)}`}
             className="inline-flex items-center gap-2 px-4 py-2 bg-white text-amber-600 text-xs font-bold rounded-xl hover:bg-amber-50 transition-colors shadow-sm">
             + Host an event here
@@ -81,7 +98,9 @@ export default async function HeroStats({ name, cityId, groupLink, groupLabel, u
         <div className="mt-6 inline-flex items-center gap-2.5 bg-white/15 backdrop-blur-sm border border-white/20 rounded-xl px-4 py-3 text-sm">
           <span className="text-base">🏡</span>
           <span className="text-white font-medium">
-            You're among {totalLocals} local Smileys member{totalLocals !== 1 ? 's' : ''} here
+            {otherLocals > 0
+              ? `You're among ${otherLocals} other local Smileys member${otherLocals !== 1 ? 's' : ''} here`
+              : "You're the first local Smileys member here"}
           </span>
         </div>
       )}

@@ -8,6 +8,7 @@ import { join } from 'path'
 import { getNeighborhoodViews, resolveNeighborhoodBySlug, type NeighborhoodView } from '@/lib/neighborhoodsDb'
 import { neighborhoodImage } from '@/lib/neighborhoods'
 import { resolveCityId, getCityConfig, DEFAULT_CITY_SLUG } from '@/lib/city'
+import { resolveCityForPage, type CitySearch } from '@/lib/cityPageParam'
 import { countryName } from '@/lib/countries'
 import { APP_URL } from '@/lib/env'
 import MapSection from '@/components/MapSection'
@@ -17,15 +18,23 @@ import type { Metadata } from 'next'
 import HeroStats from './HeroStats'
 import NeighborhoodSections from './NeighborhoodSections'
 
-export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+export async function generateMetadata(
+  { params, searchParams }: { params: Promise<{ slug: string }>; searchParams?: Promise<CitySearch> },
+): Promise<Metadata> {
   const { slug } = await params
   // A crawler building a link preview has no session and no view-city cookie,
   // so resolving the city from the session alone handed it the default city —
   // and with it a 404 for every other city's neighborhood, plus Istanbul's
   // site-wide title on the share card. The viewer's city stays the hint; the
   // slug decides.
-  const viewerCityId = await resolveCityId(await getSession())
-  const hit  = await resolveNeighborhoodBySlug(slug, viewerCityId)
+  //
+  // ?city= comes first, the way /handbook does it. Four slugs exist in two
+  // cities each — ulus, bahcelievler and gaziosmanpasa (Istanbul/Ankara),
+  // goztepe (Istanbul/İzmir) — and without the param every one of them
+  // resolved to Istanbul for anyone without the other city's cookie: Ankara's
+  // Ulus was unreachable by link, unshareable, and invisible to a crawler.
+  const { cityId: wantedCityId } = await resolveCityForPage(searchParams)
+  const hit  = await resolveNeighborhoodBySlug(slug, wantedCityId)
   if (!hit) return {}
   const city = await getCityConfig(hit.cityId)
   const meta = hit.view
@@ -54,11 +63,17 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   // taglines even after dropping the brand sentence.
   const rawDesc = guide?.tagline
     ? `${guide.tagline}${topPlaces.length ? ` Try ${topPlaces.join(', ')}.` : ''}`
-    : `Discover upcoming social events in ${name}, ${city.name}. ${meta.vibe}. Join Smileys Community — ${city.name}'s expat & digital nomad social platform.`
+    // meta.vibe defaults to '' for a bulk-added neighborhood, which left
+    // "…, Ankara. . Join Smileys…" in the indexed description.
+    : `Discover upcoming social events in ${name}, ${city.name}.${meta.vibe ? ` ${meta.vibe}.` : ''} Join Smileys Community — ${city.name}'s expat & digital nomad social platform.`
   const desc = rawDesc.length > 160
     ? `${rawDesc.slice(0, 157).replace(/\s+\S*$/, '').trimEnd()}…`
     : rawDesc
-  const url = `${APP_URL}/neighborhoods/${slug}`
+  // One URL for this page, city and all. The canonical said ?city=ankara while
+  // og:url and the JSON-LD said the bare path — which is Istanbul's page for
+  // the four shared slugs, so the two halves of the same <head> pointed at
+  // different cities.
+  const url = `${APP_URL}/neighborhoods/${slug}${city.slug === DEFAULT_CITY_SLUG ? '' : `?city=${city.slug}`}`
   // A page-level `openGraph` block loses the root layout's default
   // og:image (Next.js doesn't deep-merge nested metadata) — see
   // app/about/page.tsx. Without this every neighborhood page shared with
@@ -71,6 +86,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   return {
     title,
     description: desc,
+    // A shared slug needs the city on it or it points at the other city's
+    // page. The default city keeps its bare, already-indexed URL.
     alternates: { canonical: url },
     openGraph: {
       title, description: desc, url, siteName: 'Smileys Community', type: 'website',
@@ -142,9 +159,17 @@ function buildAboutCopy(meta: NeighborhoodView, cityName: string, nearbyNames: s
   // the hand-written phrasing; everyone else gets the neutral form.
   const where = (isDefaultCity ? SIDE_PHRASE[area] : undefined) ?? (area ? `in ${area}` : `in ${cityName}`)
   const priced = COST_LABEL[cost] ? `, generally ${COST_LABEL[cost]} by local standards` : ''
-  const opener = vibe
+  // Istanbul's vibes are short adjective phrases ("leafy and calm"), so they
+  // read inside the sentence. Every other city was seeded full descriptive
+  // sentences, which produced "Ulus is one of Ankara's where the republic
+  // started — the first parliament, the roman baths, hacı bayram and the
+  // old-town bazaars neighborhoods" — ungrammatical, and force-lowercased
+  // over proper nouns. Only an adjective-shaped vibe goes inside; anything
+  // longer or punctuated follows as its own sentence, unaltered.
+  const adjectival = !!vibe && vibe.length <= 40 && !/[,.;:—–]/.test(vibe)
+  const opener = adjectival
     ? `${name} is one of ${cityName}'s ${vibe.toLowerCase()} neighborhoods, ${where}${priced}.`
-    : `${name} is a neighborhood ${where}${priced}.`
+    : `${name} is a neighborhood ${where}${priced}.${vibe ? ` ${vibe}${/[.!?]$/.test(vibe) ? '' : '.'}` : ''}`
   const near = nearbyNames.length > 0 ? ` It's close to ${nearbyNames.join(' and ')}.` : ''
   return `${opener}${near} Smileys members based in ${name} connect through neighborhood events, meetups, and each other — this page tracks who's around, what's on, and what's nearby.`
 }
@@ -203,7 +228,9 @@ function ContentSkeleton() {
 
 export const dynamic = 'force-dynamic'
 
-export default async function NeighborhoodPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function NeighborhoodPage(
+  { params, searchParams }: { params: Promise<{ slug: string }>; searchParams?: Promise<CitySearch> },
+) {
   const { slug } = await params
   const session = await getSession() // fast JWT decode, no DB
 
@@ -215,8 +242,10 @@ export default async function NeighborhoodPage({ params }: { params: Promise<{ s
   // cities rather than 404'd. Without that, every Bodrum neighborhood page was
   // unreachable to anyone without a Bodrum cookie — including every crawler,
   // so none of them could be indexed or shared.
-  const viewerCityId = await resolveCityId(session)
-  const hit          = await resolveNeighborhoodBySlug(slug, viewerCityId)
+  // ?city= first (see generateMetadata): it is what makes a colliding slug
+  // resolvable to the city the link meant.
+  const { cityId: wantedCityId } = await resolveCityForPage(searchParams)
+  const hit          = await resolveNeighborhoodBySlug(slug, wantedCityId)
   if (!hit) notFound()
   const cityId   = hit.cityId
   const city     = await getCityConfig(cityId)
@@ -229,7 +258,9 @@ export default async function NeighborhoodPage({ params }: { params: Promise<{ s
   const guide = loadNeighborhoodGuide(city.slug, slug)
   const heroImage = guide?.image ?? neighborhoodImage(name)
 
-  const isYourNeighborhood = session?.neighborhood === name
+  // …and only when this page is in the viewer's own city: the name alone made
+  // an Istanbul member "the first local Smileys member here" on Ankara's Ulus.
+  const isYourNeighborhood = session?.neighborhood === name && session?.cityId === cityId
   const hasNoNeighborhood  = session && !session.neighborhood
   const isStaff = session?.role === 'admin' || session?.role === 'moderator'
 
@@ -255,7 +286,10 @@ export default async function NeighborhoodPage({ params }: { params: Promise<{ s
 
   const nearestForAbout = nearestNeighborhoods(meta, siblings, 2)
   const aboutCopy = buildAboutCopy(meta, city.name, nearestForAbout.map(n => n.name), city.slug === DEFAULT_CITY_SLUG)
-  const pageUrl = `${APP_URL}/neighborhoods/${slug}`
+  // Same rule as the canonical above: the breadcrumb and the Place both have
+  // to name THIS city's page.
+  const cityQuery = city.slug === DEFAULT_CITY_SLUG ? '' : `?city=${city.slug}`
+  const pageUrl = `${APP_URL}/neighborhoods/${slug}${cityQuery}`
 
   const breadcrumbJsonLd = {
     '@context': 'https://schema.org',
@@ -405,10 +439,10 @@ export default async function NeighborhoodPage({ params }: { params: Promise<{ s
             <p className="text-sm text-gray-500 mt-2">
               Nearby: {nearestForAbout.map((n, i) => (
                 <span key={n.slug}>
-                  <Link href={`/neighborhoods/${n.slug}`} className="text-amber-600 font-medium hover:underline">{n.name}</Link>
+                  <Link href={`/neighborhoods/${n.slug}${cityQuery}`} className="text-amber-600 font-medium hover:underline">{n.name}</Link>
                   {i < nearestForAbout.length - 1 ? ', ' : ''}
                 </span>
-              ))} · <Link href="/neighborhoods" className="text-amber-600 font-medium hover:underline">all neighborhoods</Link>
+              ))} · <Link href={`/neighborhoods${cityQuery}`} className="text-amber-600 font-medium hover:underline">all neighborhoods</Link>
             </p>
           )}
         </div>
@@ -429,11 +463,16 @@ export default async function NeighborhoodPage({ params }: { params: Promise<{ s
           </div>
         )}
 
-        {/* Map — immediate, no DB */}
+        {/* Map — immediate, no DB. Hidden outright when the neighbourhood has
+            no coordinates: they used to fall back to 0,0, which put a marker
+            labelled with the district in the Gulf of Guinea. The Google
+            Maps search link below still works from the name. */}
         <div className="rounded-2xl overflow-hidden border border-gray-100 shadow-sm">
+          {meta.lat != null && meta.lon != null && (
           <div className="relative h-36 sm:h-48 w-full bg-gray-100">
             <MapSection lat={meta.lat} lon={meta.lon} name={name} />
           </div>
+          )}
           <div className="bg-white px-4 py-3 flex items-center justify-between">
             <span className="text-xs text-gray-600 font-medium"><span aria-hidden="true">📍</span> {name}, {city.name}</span>
             <a href={`https://www.google.com/maps/search/${encodeURIComponent(`${name} ${city.name} ${countryName(city.country)}`)}`}

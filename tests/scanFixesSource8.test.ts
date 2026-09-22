@@ -54,7 +54,10 @@ describe('37 neighborhood of a connections-only member', () => {
 
 describe('38 wall images', () => {
   it('use the shared validator', () => {
-    expect(read('app/api/neighborhoods/[slug]/posts/route.ts')).toMatch(/if \(imageUrl && !isUploadedImageUrl\(imageUrl\)\)/)
+    // Narrowed to the posts/ folder on 2026-09-23: the default allowlist let
+    // a wall post reference any public upload, including another member's
+    // avatar file and the broadcast images.
+    expect(read('app/api/neighborhoods/[slug]/posts/route.ts')).toMatch(/if \(imageUrl && !isUploadedImageUrl\(imageUrl, \['posts'\]\)\)/)
   })
 })
 

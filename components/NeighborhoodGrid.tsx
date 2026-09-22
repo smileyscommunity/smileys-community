@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import NeighborhoodsMapView, { type MapPoint } from './NeighborhoodsMapView'
 import Link from 'next/link'
-import { neighborhoodImage, type NeighborhoodMeta } from '@/lib/neighborhoods'
+import { neighborhoodImage, foldPlaceName, type NeighborhoodMeta } from '@/lib/neighborhoods'
 
 interface ActivitySignal { label: string; icon: string; cls: string }
 
@@ -51,11 +51,11 @@ function fmt(d: string) {
 }
 
 // ── Featured card (large, gradient) ──────────────────────────────────────────
-function FeaturedCard({ n }: { n: NeighborhoodItem }) {
+function FeaturedCard({ n, cityQuery = '' }: { n: NeighborhoodItem; cityQuery?: string }) {
   const gradient = SIDE_GRADIENT[n.meta.side] ?? 'from-amber-500 to-orange-400'
   const photo = neighborhoodImage(n.name)
   return (
-    <Link href={`/neighborhoods/${n.slug}`}
+    <Link href={`/neighborhoods/${n.slug}${cityQuery}`}
       className="group relative rounded-2xl overflow-hidden shadow-md hover:shadow-xl hover:-translate-y-1 transition-all">
       {/* Photo background when one exists (dark overlay keeps the white
           text at AA); gradient otherwise. */}
@@ -131,14 +131,14 @@ function FeaturedCard({ n }: { n: NeighborhoodItem }) {
 }
 
 // ── Regular card ──────────────────────────────────────────────────────────────
-function NeighborhoodCard({ n, cardBg, cardBorder }: { n: NeighborhoodItem; cardBg?: string; cardBorder?: string }) {
+function NeighborhoodCard({ n, cardBg, cardBorder, cityQuery = '' }: { n: NeighborhoodItem; cardBg?: string; cardBorder?: string; cityQuery?: string }) {
   const border = n.isYours ? 'border-amber-300 ring-1 ring-amber-200' : (cardBorder ?? 'border-gray-100 hover:border-gray-200')
   const bg     = cardBg ?? 'bg-white'
 
   const photo = neighborhoodImage(n.name)
 
   return (
-    <Link href={`/neighborhoods/${n.slug}`}
+    <Link href={`/neighborhoods/${n.slug}${cityQuery}`}
       className={`group flex flex-col gap-3 ${bg} border rounded-2xl p-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all overflow-hidden ${border}`}>
       {/* Photo banner — only for neighborhoods with real photography; the
           rest keep the emoji/gradient treatment rather than an empty slot.
@@ -207,7 +207,12 @@ function NeighborhoodCard({ n, cardBg, cardBorder }: { n: NeighborhoodItem; card
 }
 
 // ── Main grid ─────────────────────────────────────────────────────────────────
-export default function NeighborhoodGrid({ groups, userNeighborhood, mapCenter }: { groups: Group[]; userNeighborhood?: string | null; mapCenter?: [number, number] | null }) {
+// Four neighbourhood slugs are shared between cities (Istanbul and Ankara
+// both have a Ulus), so a bare /neighborhoods/<slug> always resolved to the
+// default city's page: Ankara's grid linked to Istanbul's Ulus. Every card
+// carries the city it came from when that isn't the default one.
+export default function NeighborhoodGrid({ groups, userNeighborhood, mapCenter, citySlug }: { groups: Group[]; userNeighborhood?: string | null; mapCenter?: [number, number] | null; citySlug?: string | null }) {
+  const cityQuery = citySlug ? `?city=${citySlug}` : ''
   const [query,      setQuery]      = useState('')
   const [activeSide, setActiveSide] = useState<string | null>(null)
   const [view,       setView]       = useState<'cards' | 'map'>('cards')
@@ -234,7 +239,16 @@ export default function NeighborhoodGrid({ groups, userNeighborhood, mapCenter }
 
   const visibleGroups = activeSide ? groups.filter(g => g.side === activeSide) : groups
   const allItems      = visibleGroups.flatMap(g => g.items)
-  const filtered      = q ? allItems.filter(n => n.name.toLowerCase().includes(q) || n.meta.vibe.toLowerCase().includes(q)) : null
+  // Folded both sides: "besiktas" has to find Beşiktaş, "kadikoy" Kadıköy.
+  // A raw lowercase compare returned "No neighborhoods match" for every
+  // Turkish name typed on an English keyboard.
+  const qf            = foldPlaceName(q)
+  // qf can fold away to nothing — "?" or "-" alone — and `.includes('')` is
+  // true for every item, so the header claimed all 103 "matched" a search for
+  // a hyphen. No letters, no search.
+  const filtered      = q && qf
+    ? allItems.filter(n => foldPlaceName(n.name).includes(qf) || foldPlaceName(n.meta.vibe).includes(qf))
+    : null
 
   const totalEvents  = groups.flatMap(g => g.items).reduce((s, n) => s + n.eventCount,  0)
   const totalMembers = groups.flatMap(g => g.items).reduce((s, n) => s + n.memberCount, 0)
@@ -252,11 +266,13 @@ export default function NeighborhoodGrid({ groups, userNeighborhood, mapCenter }
     return items
   })()
 
+  // A neighbourhood with no coordinates is left off the map rather than
+  // plotted at 0,0 — one of those dragged fitBounds across the Atlantic.
   const mapPoints: MapPoint[] = allItems
-    .filter(n => n.memberCount > 0 || n.eventCount > 0)
+    .filter(n => (n.memberCount > 0 || n.eventCount > 0) && n.meta.lat != null && n.meta.lon != null)
     .map(n => ({
       name: n.name, slug: n.slug,
-      lat: n.meta.lat, lon: n.meta.lon,
+      lat: n.meta.lat as number, lon: n.meta.lon as number,
       memberCount: n.memberCount, eventCount: n.eventCount,
     }))
 
@@ -291,6 +307,7 @@ export default function NeighborhoodGrid({ groups, userNeighborhood, mapCenter }
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <input type="text" value={query} onChange={e => setQuery(e.target.value)}
+            aria-label="Search neighborhoods"
             placeholder="Search neighborhoods…"
             className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent" />
           {query && (
@@ -354,7 +371,7 @@ export default function NeighborhoodGrid({ groups, userNeighborhood, mapCenter }
           switch, not an extra panel to scroll past. */}
       {view === 'map' ? (
         <div>
-          <NeighborhoodsMapView points={mapPoints} center={mapCenter} />
+          <NeighborhoodsMapView points={mapPoints} center={mapCenter} cityQuery={cityQuery} />
           <p className="text-xs text-gray-400 mt-3">
             Showing {mapPoints.length} neighborhoods with members or upcoming events.
             Markers are neighborhood centres — never a member&apos;s location.
@@ -373,7 +390,7 @@ export default function NeighborhoodGrid({ groups, userNeighborhood, mapCenter }
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {filtered.map(n => (
-                <NeighborhoodCard key={n.slug} n={n}
+                <NeighborhoodCard key={n.slug} n={n} cityQuery={cityQuery}
                   cardBg={SIDE_SECTION[n.meta.side]?.cardBg}
                   cardBorder={SIDE_SECTION[n.meta.side]?.cardBorder} />
               ))}
@@ -393,7 +410,7 @@ export default function NeighborhoodGrid({ groups, userNeighborhood, mapCenter }
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {shortlist.slice(0, 9).map(n => (
-                <NeighborhoodCard key={n.slug} n={n}
+                <NeighborhoodCard key={n.slug} n={n} cityQuery={cityQuery}
                   cardBg={SIDE_SECTION[n.meta.side]?.cardBg}
                   cardBorder={SIDE_SECTION[n.meta.side]?.cardBorder} />
               ))}
@@ -414,7 +431,7 @@ export default function NeighborhoodGrid({ groups, userNeighborhood, mapCenter }
                 <div className="flex-1 h-px bg-gray-100" />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {featured.map(n => <FeaturedCard key={n.slug} n={n} />)}
+                {featured.map(n => <FeaturedCard key={n.slug} n={n} cityQuery={cityQuery} />)}
               </div>
             </div>
           )}
@@ -436,7 +453,7 @@ export default function NeighborhoodGrid({ groups, userNeighborhood, mapCenter }
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {group.items.map(n => (
-                      <NeighborhoodCard key={n.slug} n={n} cardBg={sec.cardBg} cardBorder={sec.cardBorder} />
+                      <NeighborhoodCard key={n.slug} n={n} cardBg={sec.cardBg} cardBorder={sec.cardBorder} cityQuery={cityQuery} />
                     ))}
                   </div>
                 </div>

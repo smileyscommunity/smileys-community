@@ -21,6 +21,29 @@ export function slugToNeighborhood(slug: string): string | undefined {
 
 export type NeighborhoodSide = 'Central' | 'European' | 'Asian' | 'Coastal' | 'Emerging' | 'Islands'
 
+
+// Turkish letters NFD can't decompose — 'ı' has no combining form — so the
+// fold needs them spelled out. This is the exact pairing that produced
+// 'Beyoglu' for 'Beyoğlu' in hand-typed member data.
+//
+// Lives here rather than in lib/neighborhoodsDb because that module reaches
+// the database and cannot be pulled into a client bundle — and the grid's
+// search box, which is a client component, needs exactly this fold: typing
+// "besiktas" or "kadikoy" used to return "No neighborhoods match".
+const TR_FOLD: Record<string, string> = {
+  ı: 'i', İ: 'i', i: 'i', ş: 's', Ş: 's', ğ: 'g', Ğ: 'g',
+  ç: 'c', Ç: 'c', ö: 'o', Ö: 'o', ü: 'u', Ü: 'u',
+}
+
+/** Loose comparison key for a place name: diacritics, case and punctuation removed. */
+export function foldPlaceName(s: string): string {
+  return [...s.trim().toLowerCase()]
+    .map(ch => TR_FOLD[ch] ?? ch)
+    .join('')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '')
+}
+
 export interface NeighborhoodMeta {
   emoji: string
   vibe:  string
@@ -30,8 +53,10 @@ export interface NeighborhoodMeta {
   // read it as `LOOKUP[side] ?? fallback`, never as an exhaustive Record.
   side:  NeighborhoodSide | (string & {})
   cost:  number
-  lat:   number
-  lon:   number
+  // Null when nobody has given this neighbourhood coordinates yet. 0 is a
+  // real place (the Gulf of Guinea) and the map went there.
+  lat:   number | null
+  lon:   number | null
 }
 
 // Photography is added per-neighborhood over time, so this is deliberately a

@@ -142,7 +142,9 @@ describe('91a overlapping list fetches drop stale answers', () => {
   it('the neighborhood wall ignores a previous slug\'s answer', () => {
     const wall = read('components/NeighborhoodWall.tsx')
     expect(wall).toMatch(/\.then\(d => \{ if \(!cancelled && Array\.isArray\(d\)\) setPosts\(d\) \}\)/)
-    expect(wall).toMatch(/return \(\) => \{ cancelled = true \}\n\s*\}, \[slug\]\)/)
+    // Keyed on wallUrl since 2026-09-23 — that string carries the slug AND
+    // the city the page resolved to, which is what the wall must follow.
+    expect(wall).toMatch(/return \(\) => \{ cancelled = true \}\n\s*\}, \[wallUrl\]\)/)
   })
 
   it('BoardFeed / BoardHub listings keep their existing guards', () => {
@@ -182,7 +184,10 @@ describe('91d neighborhoods map keeps its pan/zoom', () => {
     expect(map).not.toMatch(/\}, \[points, center\]\)/)
   })
   it('redraws markers on content change and frames only on first draw or a new city', () => {
-    expect(map).toMatch(/\}, \[mapGen, pointsKey, centerKey\]\)/)
+    // cityQuery joined the deps on 2026-09-23 (the popup link carries ?city=
+    // for a slug two cities share); the point of the assertion is that the raw
+    // points/center arrays never do.
+    expect(map).toMatch(/\}, \[mapGen, pointsKey, centerKey, cityQuery\]\)/)
     expect(map).toMatch(/if \(framedFor\.current !== centerKey\) \{\s*framedFor\.current = centerKey\s*if \(markers\.length > 0\) map\.fitBounds/)
     expect(map.match(/fitBounds\(/g)).toHaveLength(1)
     expect(map).toContain('layer.clearLayers()')

@@ -97,6 +97,15 @@ function PostRow({
     return () => document.removeEventListener('mousedown', close)
   }, [])
 
+  // A click that does nothing is worse than an error. These three swallowed
+  // every non-2xx: a 429 from the like limiter, a 403 on a post that isn't
+  // yours, a moderator acting outside their city — all of them looked like
+  // the button was broken.
+  async function failed(res: Response, fallback: string) {
+    const d = await res.json().catch(() => ({} as { error?: string }))
+    toast.error(d?.error ?? fallback)
+  }
+
   async function react(emoji: string) {
     setReactionMenu(false)
     const res = await fetch(`/app/api/neighborhoods/${slug}/posts/${post.id}/like`, {
@@ -104,7 +113,9 @@ function PostRow({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ emoji }),
     })
-    if (res.ok) { const d = await res.json(); onReact(post.id, emoji, d.likes) }
+    if (!res.ok) return failed(res, 'Could not react — try again')
+    const d = await res.json()
+    onReact(post.id, emoji, d.likes)
   }
 
   async function deletePost() {
@@ -113,7 +124,8 @@ function PostRow({
     const res = await fetch(`/app/api/neighborhoods/${slug}/posts/${post.id}`, {
       method: 'DELETE', credentials: 'include',
     })
-    if (res.ok) onDelete(post.id)
+    if (!res.ok) return failed(res, 'Could not delete that post')
+    onDelete(post.id)
   }
 
   async function pinPost() {
@@ -123,7 +135,8 @@ function PostRow({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ isPinned: !post.isPinned }),
     })
-    if (res.ok) onPin(post.id, !post.isPinned)
+    if (!res.ok) return failed(res, 'Could not pin that post')
+    onPin(post.id, !post.isPinned)
   }
 
   async function submitReport() {
@@ -410,9 +423,17 @@ interface Props {
   myId:    string | null
   isStaff: boolean
   name:    string
+  /** The city the PAGE resolved to. Four slugs belong to two cities each, so
+   *  without this the wall asked the API to resolve the slug all over again
+   *  from the viewer's own city: Ankara's Ulus page showed Istanbul's wall
+   *  underneath it, and a post written there was filed to Istanbul. */
+  citySlug: string
 }
 
 const REACTIONS_KEY = ['❤️', '👍', '🔥', '😂']
+
+// What GET /posts returns in one page (see the route's `take`).
+const WALL_PAGE = 30
 
 function buildReactions(likes: { userId: string; emoji: string }[], myId?: string) {
   const counts: Record<string, number> = {}
@@ -426,7 +447,8 @@ function buildReactions(likes: { userId: string; emoji: string }[], myId?: strin
     .filter(r => r.count > 0)
 }
 
-export default function NeighborhoodWall({ slug, myId, isStaff, name }: Props) {
+export default function NeighborhoodWall({ slug, myId, isStaff, name, citySlug }: Props) {
+  const wallUrl = `/app/api/neighborhoods/${slug}/posts?city=${encodeURIComponent(citySlug)}`
   const [posts,          setPosts]          = useState<Post[]>([])
   const [loading,        setLoading]        = useState(true)
   const [text,           setText]           = useState('')
@@ -439,19 +461,19 @@ export default function NeighborhoodWall({ slug, myId, isStaff, name }: Props) {
     // slower answer for the previous slug landed last and showed its wall.
     let cancelled = false
     setLoading(true)
-    fetch(`/app/api/neighborhoods/${slug}/posts`, { credentials: 'include' })
+    fetch(wallUrl, { credentials: 'include' })
       .then(r => r.json())
       .then(d => { if (!cancelled && Array.isArray(d)) setPosts(d) })
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [slug])
+  }, [wallUrl])
 
   async function submit() {
     if (!text.trim() || posting) return
     setPosting(true); setError('')
     try {
-      const res = await fetch(`/app/api/neighborhoods/${slug}/posts`, {
+      const res = await fetch(wallUrl, {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: text.trim() }),
@@ -580,7 +602,14 @@ export default function NeighborhoodWall({ slug, myId, isStaff, name }: Props) {
 
       {posts.length > 0 && (
         <div className="px-4 py-2 border-t border-gray-50 text-center">
-          <span className="text-[11px] text-gray-400">{posts.length} post{posts.length !== 1 ? 's' : ''}</span>
+          {/* The API returns the newest 30. Claiming "30 posts" under a
+              header that counts the whole wall made the two disagree; at a
+              full page this says what it is instead of what it isn't. */}
+          <span className="text-[11px] text-gray-400">
+            {posts.length >= WALL_PAGE
+              ? `Showing the newest ${posts.length} posts`
+              : `${posts.length} post${posts.length !== 1 ? 's' : ''}`}
+          </span>
         </div>
       )}
     </div>

@@ -24,7 +24,7 @@ const FALLBACK_CENTER: [number, number] = [41.02, 28.98]
 // `center` (the viewed city's centre) decides where a pointless map opens;
 // without it — or for a city missing coordinates — the Istanbul default
 // below stands. Pins always win: fitBounds overrides the initial view.
-export default function NeighborhoodsMapView({ points, center }: { points: MapPoint[]; center?: [number, number] | null }) {
+export default function NeighborhoodsMapView({ points, center, cityQuery = '' }: { points: MapPoint[]; center?: [number, number] | null; cityQuery?: string }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef       = useRef<Map | null>(null)
   const leafletRef   = useRef<typeof import('leaflet') | null>(null)
@@ -52,13 +52,15 @@ export default function NeighborhoodsMapView({ points, center }: { points: MapPo
       if (disposed || !containerRef.current || mapRef.current) return
 
       // Marker icon paths break under webpack asset hashing; point them at
-      // the CDN copies the rest of the app's maps already use.
+      // our own copies in public/leaflet. They used to come from unpkg, which
+      // meant every map on the site told a third party who was looking at it
+      // — and rendered markerless the day that CDN was slow.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       delete (L.Icon.Default.prototype as any)._getIconUrl
       L.Icon.Default.mergeOptions({
-        iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-        iconUrl:       'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-        shadowUrl:     'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+        iconRetinaUrl: '/app/leaflet/marker-icon-2x.png',
+        iconUrl:       '/app/leaflet/marker-icon.png',
+        shadowUrl:     '/app/leaflet/marker-shadow.png',
       })
 
       const map = L.map(containerRef.current).setView(latest.current.center ?? FALLBACK_CENTER, 11)
@@ -102,7 +104,7 @@ export default function NeighborhoodsMapView({ points, center }: { points: MapPo
       stats.className = 'text-xs text-gray-600 mt-0.5'
       stats.textContent = `${p.memberCount} Smileys · ${p.eventCount} upcoming`
       const link = document.createElement('a')
-      link.href = `/app/neighborhoods/${p.slug}`
+      link.href = `/app/neighborhoods/${p.slug}${cityQuery}`
       link.className = 'text-xs font-bold text-amber-600'
       link.textContent = `Explore ${p.name} →`
       el.append(title, stats, link)
@@ -118,7 +120,7 @@ export default function NeighborhoodsMapView({ points, center }: { points: MapPo
       if (markers.length > 0) map.fitBounds(L.featureGroup(markers).getBounds().pad(0.15))
       else map.setView(ctr ?? FALLBACK_CENTER, 11)
     }
-  }, [mapGen, pointsKey, centerKey])
+  }, [mapGen, pointsKey, centerKey, cityQuery])
 
   return <div ref={containerRef} className="w-full h-[420px] sm:h-[520px] rounded-2xl overflow-hidden z-0" />
 }

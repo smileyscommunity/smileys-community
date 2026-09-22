@@ -18,7 +18,7 @@
 // admin-edit cadence, and validation sits on hot write paths.
 
 import { prisma } from './prisma'
-import { NEIGHBORHOOD_META } from './neighborhoods'
+import { NEIGHBORHOOD_META, foldPlaceName } from './neighborhoods'
 import { getCityConfig, DEFAULT_CITY_SLUG } from './city'
 
 export interface CityNeighborhood {
@@ -72,22 +72,10 @@ export async function safeNeighborhoodFor(cityId: string, name: unknown): Promis
   return (await isValidNeighborhoodFor(cityId, name)) ? (name as string) : null
 }
 
-// Turkish letters NFD can't decompose — 'ı' has no combining form — so the
-// fold needs them spelled out. This is the exact pairing that produced
-// 'Beyoglu' for 'Beyoğlu' in hand-typed member data.
-const TR_FOLD: Record<string, string> = {
-  ı: 'i', İ: 'i', i: 'i', ş: 's', Ş: 's', ğ: 'g', Ğ: 'g',
-  ç: 'c', Ç: 'c', ö: 'o', Ö: 'o', ü: 'u', Ü: 'u',
-}
-
-/** Loose comparison key for a place name: diacritics, case and punctuation removed. */
-export function foldPlaceName(s: string): string {
-  return [...s.trim().toLowerCase()]
-    .map(ch => TR_FOLD[ch] ?? ch)
-    .join('')
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]/g, '')
-}
+// The fold lives in lib/neighborhoods (client-safe) so the grid's search box
+// can use it too; re-exported here because most callers reach for it through
+// this module.
+export { foldPlaceName } from './neighborhoods'
 
 /**
  * What a stored neighborhood value IS, relative to its city's registry.
@@ -193,8 +181,13 @@ export interface NeighborhoodView {
   vibe:  string
   area:  string
   cost:  number
-  lat:   number
-  lon:   number
+  // Null when nobody has given this neighbourhood coordinates yet — bulk-add
+  // takes names alone and calls the rest "enrichment that can come later".
+  // These were coerced to 0, which is a real place: 0,0 is in the Gulf of
+  // Guinea, and the map centred a district marker in the ocean (the JSON-LD
+  // already guarded against exactly this; the visible map did not).
+  lat:   number | null
+  lon:   number | null
 }
 
 // NEIGHBORHOOD_META is Istanbul's hand-authored editorial layer (vibes,
@@ -211,8 +204,8 @@ function toView(row: CityNeighborhood, editorial: boolean): NeighborhoodView {
     vibe:  meta?.vibe  ?? row.vibe ?? '',
     area:  meta?.side  ?? row.area ?? '',
     cost:  meta?.cost  ?? row.cost,
-    lat:   meta?.lat   ?? row.lat ?? 0,
-    lon:   meta?.lon   ?? row.lng ?? 0,
+    lat:   meta?.lat   ?? row.lat ?? null,
+    lon:   meta?.lon   ?? row.lng ?? null,
   }
 }
 

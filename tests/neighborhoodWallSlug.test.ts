@@ -3,13 +3,21 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('@/lib/session',  () => ({ getSession: vi.fn() }))
 vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn().mockResolvedValue(true) }))
 vi.mock('@/lib/mentions', () => ({ notifyMentions: vi.fn().mockResolvedValue(0) }))
-vi.mock('@/lib/city',     () => ({ resolveCityId: vi.fn().mockResolvedValue('izmir') }))
+vi.mock('@/lib/city',     () => ({
+  resolveCityId:  vi.fn().mockResolvedValue('izmir'),
+  // The mention link names the post's own city (2026-09-23).
+  getCityConfig:  vi.fn(async (id: string) => ({ id, slug: id, name: id })),
+  DEFAULT_CITY_SLUG: 'istanbul',
+}))
+vi.mock('@/lib/cities', () => ({ getPublicCity: vi.fn().mockResolvedValue(null) }))
 vi.mock('@/lib/neighborhoodsDb', () => ({
   resolveNeighborhoodBySlug: vi.fn(),
   // Registry lookup stand-in: Kadıköy owns 'kadikoy' in Istanbul, nothing else resolves.
   postMatchesSlug: vi.fn(async (post: any, slug: string) => post.cityId === 'istanbul' && post.neighborhood === 'Kadıköy' && slug === 'kadikoy'),
 }))
 vi.mock('@/lib/prisma', () => ({ prisma: {
+  // Blocked pairs are filtered off the wall since 2026-09-23.
+  memberBlock:           { findMany: vi.fn().mockResolvedValue([]) },
   neighborhoodPost:      { findUnique: vi.fn(), findMany: vi.fn().mockResolvedValue([]), create: vi.fn() },
   neighborhoodPostLike:  { findUnique: vi.fn().mockResolvedValue(null), create: vi.fn(), delete: vi.fn(), findMany: vi.fn().mockResolvedValue([]) },
   neighborhoodPostReply: { findMany: vi.fn().mockResolvedValue([]), create: vi.fn() },
@@ -21,6 +29,7 @@ import { GET as listPosts, POST as createPost } from '@/app/api/neighborhoods/[s
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import { resolveNeighborhoodBySlug, postMatchesSlug } from '@/lib/neighborhoodsDb'
+import { getPublicCity } from '@/lib/cities'
 
 // The wall stores a neighborhood by display name ("Kadıköy") and the client
 // addresses it by URL slug ("kadikoy"). The IDOR guard on likes and replies
@@ -69,7 +78,12 @@ describe('listing and posting resolve the slug per city', () => {
     const res = await listPosts(req({}, 'http://x/app/api/neighborhoods/alsancak/posts'), params)
     expect(res.status).toBe(200)
     expect(resolveNeighborhoodBySlug).toHaveBeenCalledWith('alsancak', 'izmir')
-    expect(p.neighborhoodPost.findMany.mock.calls[0][0].where).toEqual({ neighborhood: 'Alsancak', cityId: 'izmir' })
+    // …and only live authors: a ban never deleted wall posts, so a banned or
+    // hidden-from-members author stayed on the wall for ever (2026-09-23).
+    expect(p.neighborhoodPost.findMany.mock.calls[0][0].where).toEqual({
+      neighborhood: 'Alsancak', cityId: 'izmir',
+      user: { status: 'approved', hiddenFromMembers: false },
+    })
   })
 
   it('stores the resolved name and city on a new post', async () => {
@@ -78,6 +92,21 @@ describe('listing and posting resolve the slug per city', () => {
     const res = await createPost(req({ content: 'hi' }), params)
     expect(res.status).toBe(201)
     expect(p.neighborhoodPost.create.mock.calls[0][0].data).toMatchObject({ neighborhood: 'Alsancak', cityId: 'izmir' })
+  })
+
+  it('follows ?city= — the wall belongs to the page above it', async () => {
+    // ulus, bahcelievler and gaziosmanpasa are Istanbul's AND Ankara's;
+    // goztepe is Istanbul's and İzmir's. Resolving from the session alone put
+    // Istanbul's wall under Ankara's page, and filed posts written there to
+    // Istanbul.
+    ;(getPublicCity as any).mockResolvedValue({ id: 'ankara', slug: 'ankara' })
+    ;(resolveNeighborhoodBySlug as any).mockResolvedValue({ cityId: 'ankara', view: { name: 'Ulus', slug: 'ulus' } })
+    const res = await listPosts(
+      req({}, 'http://x/app/api/neighborhoods/ulus/posts?city=ankara'),
+      { params: Promise.resolve({ slug: 'ulus' }) },
+    )
+    expect(res.status).toBe(200)
+    expect(resolveNeighborhoodBySlug).toHaveBeenCalledWith('ulus', 'ankara')
   })
 
   it('404s a slug no public city knows', async () => {
