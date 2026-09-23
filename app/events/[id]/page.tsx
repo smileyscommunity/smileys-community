@@ -33,6 +33,7 @@ import AddToCalendar from '@/components/AddToCalendar'
 import AttendanceClaim from '@/components/AttendanceClaim'
 import EventLocationMap from '@/components/EventLocationMap'
 import EventBadges from '@/components/EventBadges'
+import EventGoodToKnow from '@/components/EventGoodToKnow'
 import { sanitize } from '@/lib/sanitize'
 import { isSoldOut, isManuallySoldOut } from '@/lib/soldOut'
 import { DEFAULT_CURRENCY } from '@/lib/data'
@@ -283,13 +284,20 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                   <span className="text-base">📍</span>
                   <span>{event.neighborhood}</span>
                 </div>
-                {event.price > 0 && (
+                {event.price > 0 ? (
                   <div className="flex items-center gap-2.5">
                     <span className="text-base">💰</span>
                     <span>
                       {formatPrice(event.price, event.currency)}
                       <span className="text-gray-400"> · {event.payTo === 'smileys' ? 'pay in advance' : event.ticketUrl ? 'buy online' : 'pay at the venue'}</span>
                     </span>
+                  </div>
+                ) : (
+                  // A free event said nothing about cost, which reads as
+                  // "price hidden until you join" to someone deciding.
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-base">💰</span>
+                    <span className="font-medium text-green-700">Free</span>
                   </div>
                 )}
                 {goingCount > 0 && (
@@ -300,6 +308,8 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                 )}
               </div>
             </div>
+
+            <EventGoodToKnow event={event} />
 
             {/* Description */}
             {event.description && (
@@ -673,6 +683,12 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                 <span className="text-base">📅</span>
                 <span className="font-medium">{formatDate(event.date)} · {formatTime(event.time)} · {cityName} time</span>
               </div>
+              {event.price === 0 && (
+                <div className="flex items-center gap-2.5 text-sm text-gray-600">
+                  <span className="text-base">💰</span>
+                  <span className="font-medium text-green-700">Free</span>
+                </div>
+              )}
               {event.price > 0 && (
                 <div className="flex items-center gap-2.5 text-sm text-gray-600">
                   <span className="text-base">💰</span>
@@ -805,6 +821,8 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
               )}
             </div>
           </div>
+
+          <EventGoodToKnow event={event} />
 
           {/* Capacity bar — mobile only */}
           <div className="lg:hidden bg-white rounded-2xl shadow-card p-4">

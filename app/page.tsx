@@ -342,6 +342,27 @@ export default async function HomePage() {
                 <p className="text-sm text-gray-600 leading-relaxed">{w.body}</p>
               </div>
             ))}
+            {/* The remote-work hub, as the grid's full-width last row: a
+                seventh card would sit alone on a three-column row. When the label
+                names the flagship the link pins it; otherwise /remote-work
+                resolves to the reader's city. The copy
+                only names what the hub actually links to — there is no
+                laptop-friendly-venue data to promise. */}
+            <Link
+              href={singleCity ? `/remote-work?city=${flagship.slug}` : '/remote-work'}
+              className="group sm:col-span-2 lg:col-span-3 bg-white rounded-2xl border border-amber-200 shadow-sm p-6 sm:p-8 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6"
+            >
+              <div aria-hidden="true" className="text-3xl shrink-0">💻</div>
+              <div className="flex-1">
+                <h3 className="font-bold text-gray-900 mb-2 group-hover:text-amber-700 transition-colors">Work remotely with confidence</h3>
+                <p className="text-sm text-gray-600 leading-relaxed max-w-2xl">
+                  Coworking sessions, SIM and internet, time zones, and the practical things that make a new city work — plus your first 72 hours, step by step.
+                </p>
+              </div>
+              <span className="shrink-0 text-sm font-bold text-amber-700">
+                {singleCity ? `Explore remote work in ${flagship.name}` : 'Explore remote work'} <span aria-hidden="true">→</span>
+              </span>
+            </Link>
           </div>
         </div>
       </section>

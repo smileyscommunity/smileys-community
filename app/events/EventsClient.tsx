@@ -78,6 +78,13 @@ function AppEventsPageInner() {
   })
   const [neighborhoodFilter, setNeighborhoodFilter] = useState<string>(() => searchParams.get('neighborhood') ?? '')
   const [goingOnly,    setGoingOnly]    = useState(() => searchParams.get('going') === '1')
+  // Newcomer quick filters. Both read columns every event already carries
+  // (isFirstTimerFriendly, price), so they filter the loaded calendar like
+  // the rest — no API change. Language is deliberately NOT one of them:
+  // most events leave it blank, so a language filter would hide unlabelled
+  // events that may well be in that language.
+  const [firstTimerOnly, setFirstTimerOnly] = useState(() => searchParams.get('first') === '1')
+  const [freeOnly,       setFreeOnly]       = useState(() => searchParams.get('free') === '1')
   const [loadFailed,   setLoadFailed]   = useState(false)
   // CMS overrides land in this state on mount via /api/content. Defaults
   // are the fallback when the CMS hasn't been configured.
@@ -108,9 +115,11 @@ function AppEventsPageInner() {
     if (selectedTags.length > 0)   params.set('tags',         selectedTags.join(','))
     if (neighborhoodFilter)        params.set('neighborhood', neighborhoodFilter)
     if (goingOnly)                 params.set('going',        '1')
+    if (firstTimerOnly)            params.set('first',        '1')
+    if (freeOnly)                  params.set('free',         '1')
     const qs = params.toString()
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
-  }, [pinnedCity, tab, timeFilter, selectedTags, neighborhoodFilter, goingOnly, router, pathname])
+  }, [pinnedCity, tab, timeFilter, selectedTags, neighborhoodFilter, goingOnly, firstTimerOnly, freeOnly, router, pathname])
 
   const canCreate = user.role === 'admin' || user.isClubHost
   const today = todayInTz(tz)
@@ -255,8 +264,12 @@ function AppEventsPageInner() {
       result = result.filter(e => attendance[e.id] === 'joined')
     }
 
+    if (firstTimerOnly) result = result.filter(e => e.isFirstTimerFriendly)
+    // Free to the viewer: a member price of 0 on a guest-priced event counts.
+    if (freeOnly)       result = result.filter(e => e.price === 0 || e.memberPrice === 0)
+
     return result
-  }, [events, timeFilter, selectedTags, goingOnly, attendance])
+  }, [events, timeFilter, selectedTags, goingOnly, firstTimerOnly, freeOnly, attendance])
 
   const filtered = useMemo(() => {
     return neighborhoodFilter
@@ -278,7 +291,7 @@ function AppEventsPageInner() {
     [filtered, featuredFiltered.length, featuredIds]
   )
 
-  const hasActiveFilters = timeFilter !== 'All' || selectedTags.length > 0 || !!neighborhoodFilter || goingOnly
+  const hasActiveFilters = timeFilter !== 'All' || selectedTags.length > 0 || !!neighborhoodFilter || goingOnly || firstTimerOnly || freeOnly
 
   // A filter over one page of 24 was a filter over a quarter of Istanbul's
   // calendar: "No events match" with matches on page two, and "Load more"
@@ -413,7 +426,7 @@ function AppEventsPageInner() {
             {(['upcoming', 'past'] as Tab[]).map(t => (
               <button
                 key={t}
-                onClick={() => { setTab(t); setTimeFilter('All'); setSelectedTags([]); setNeighborhoodFilter(''); setOffset(0); setGoingOnly(false) }}
+                onClick={() => { setTab(t); setTimeFilter('All'); setSelectedTags([]); setNeighborhoodFilter(''); setOffset(0); setGoingOnly(false); setFirstTimerOnly(false); setFreeOnly(false) }}
                 className={`px-4 py-2 text-sm font-semibold rounded-full transition-colors ${
                   tab === t
                     ? 'bg-amber-500 text-white shadow-sm'
@@ -460,7 +473,7 @@ function AppEventsPageInner() {
             on every viewport. Going stays inline because it's a single-tap
             commit/uncommit, not a filter-pick. */}
         {tab === 'upcoming' && (
-          <div className="flex items-center gap-2 mb-3">
+          <div className="flex flex-wrap items-center gap-2 mb-3">
             <button
               onClick={() => setGoingOnly(v => !v)}
               className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
@@ -468,9 +481,27 @@ function AppEventsPageInner() {
                   ? 'bg-amber-500 text-white border-amber-500'
                   : 'bg-white border-gray-200 text-gray-600 hover:border-amber-300 hover:text-amber-600'
               }`}
+              aria-pressed={goingOnly}
             >
               ✓ Going
             </button>
+            {[
+              { on: firstTimerOnly, set: setFirstTimerOnly, label: '👋 First-timer friendly' },
+              { on: freeOnly,       set: setFreeOnly,       label: 'Free' },
+            ].map(t => (
+              <button
+                key={t.label}
+                onClick={() => t.set(v => !v)}
+                aria-pressed={t.on}
+                className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+                  t.on
+                    ? 'bg-amber-500 text-white border-amber-500'
+                    : 'bg-white border-gray-200 text-gray-600 hover:border-amber-300 hover:text-amber-600'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
             <button
               onClick={() => setShowFilterSheet(true)}
               className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
@@ -578,14 +609,14 @@ function AppEventsPageInner() {
             while a filter or the past tab is active: the member is
             answering a specific question then, not browsing. */}
         {tab === 'upcoming' && timeFilter === 'All' && selectedTags.length === 0
-          && !neighborhoodFilter && !goingOnly && !showMap && (
+          && !neighborhoodFilter && !goingOnly && !firstTimerOnly && !freeOnly && !showMap && (
           <EventDiscovery />
         )}
 
         {/* Everything below is the full feed — the layer beneath
             personalized discovery. */}
         {tab === 'upcoming' && timeFilter === 'All' && selectedTags.length === 0
-          && !neighborhoodFilter && !goingOnly && !showMap && !loading && (
+          && !neighborhoodFilter && !goingOnly && !firstTimerOnly && !freeOnly && !showMap && !loading && (
           <div className="mb-4 pt-2 border-t border-gray-100">
             <h2 className="text-lg sm:text-xl font-extrabold tracking-tight text-gray-900 mt-6">All upcoming events</h2>
             <p className="text-sm text-gray-600 mt-0.5">Everything on the calendar — filter by time, area or vibe above.</p>

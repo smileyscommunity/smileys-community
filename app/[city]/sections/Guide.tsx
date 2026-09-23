@@ -1,4 +1,16 @@
+import Link from 'next/link'
 import type { PublicCity, EnterLink } from '../data'
+
+// The remote-work hub gathers this section's practical links into an arrival
+// path; a text link rather than a fourth button. Only live cities render this
+// section, and every live city has a hub.
+function RemoteWorkLink({ city }: { city: PublicCity }) {
+  return (
+    <Link href={`/${city.slug}/remote-work`} className="inline-block mt-6 text-sm font-bold text-amber-700 hover:text-amber-800">
+      Working remotely? Your first 72 hours in {city.name} <span aria-hidden="true">→</span>
+    </Link>
+  )
+}
 
 // Shown when the city HAS a guide, not when it is the default city. The old
 // gate was written when /guide could only ever serve the default city's
@@ -33,6 +45,7 @@ export default function Guide({ city, hasGuide, enter }: { city: PublicCity; has
               <a href={enter('handbook')} className="btn-secondary">The {city.name} Handbook</a>
               <a href={enter('directory')} className="btn-secondary">Browse places</a>
             </div>
+            <RemoteWorkLink city={city} />
           </div>
         </div>
       </section>
@@ -55,6 +68,7 @@ export default function Guide({ city, hasGuide, enter }: { city: PublicCity; has
             <a href={enter('handbook')} className="btn-primary">The {city.name} Handbook</a>
             <a href={enter('directory')} className="btn-secondary">Browse places</a>
           </div>
+          <RemoteWorkLink city={city} />
         </div>
       </div>
     </section>

@@ -12,7 +12,9 @@ import { redirect } from 'next/navigation'
 import { DEFAULT_CITY_SLUG } from '@/lib/city'
 import { resolveCityForPage, type CitySearch } from '@/lib/cityPageParam'
 import { shareCover } from '@/lib/shareCover'
-import { resolveImageUrl, firstNameOf } from '@/lib/data'
+import { resolveImageUrl, firstNameOf, formatPrice } from '@/lib/data'
+import { getPublicCity } from '@/lib/cities'
+import { CITY_STATUS } from '@/lib/cityStatus'
 import { guestView, visitorName } from '@/lib/visitorPolicy'
 import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
 import { loadExperiences } from '@/lib/guideContent'
@@ -181,6 +183,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
       where:   { status: 'published', date: { gte: today, lte: sixtyDaysOut }, cityId: cityId },
       select:  {
         id: true, title: true, emoji: true, date: true, location: true, neighborhood: true,
+        price: true, currency: true, isFirstTimerFriendly: true, language: true,
         // Attendee count is filtered to approved RSVPs so the "N going"
         // figure matches what the event page itself shows.
         _count: { select: { attendees: { where: { status: 'approved' } } } },
@@ -295,7 +298,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
   const eventsDuringVisit = viewerVisit
     ? await prisma.event.findMany({
         where:   { status: 'published', cityId, date: { gte: viewerVisit.startsOn, lte: viewerVisit.endsOn } },
-        select:  { id: true, title: true, emoji: true, date: true, location: true, neighborhood: true, _count: { select: { attendees: { where: { status: 'approved' } } } } },
+        select:  { id: true, title: true, emoji: true, date: true, location: true, neighborhood: true, price: true, currency: true, isFirstTimerFriendly: true, language: true, _count: { select: { attendees: { where: { status: 'approved' } } } } },
         orderBy: { date: 'asc' },
         take:    6,
       })
@@ -382,6 +385,44 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
     meta:    { emoji: row.emoji, vibe: row.vibe },
     members: memberCountFor(row.name),
   }))
+
+  // The first-72-hours checklist lives on the city's remote-work hub, which
+  // only live cities have — a coming-soon city's panel links nowhere.
+  const cityIsLive = (await getPublicCity(city.slug))?.status === CITY_STATUS.Live
+  // Links into other city-scoped pages carry the city: /neighborhoods and
+  // /handbook otherwise resolve from the session, and four neighborhood
+  // slugs exist in two cities.
+  const cityQs = `?city=${city.slug}`
+
+  // One card for both event lists below. The newcomer facts are the ones a
+  // first-timer decides on — cost, whether it is picked as an easy first one,
+  // the language — and each shows only when the event has it set.
+  const VisitEventCard = ({ e }: { e: typeof upcomingEvents[number] }) => (
+    <Link href={`/events/${e.id}`}
+      className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-amber-200 transition-all group">
+      <p className="text-xs font-bold tracking-wide text-amber-600">{fmtEventDate(e.date)}</p>
+      <h3 className="font-bold text-gray-900 mt-1.5 leading-snug">
+        <span aria-hidden="true">{e.emoji} </span>{e.title}
+      </h3>
+      <p className="text-xs text-gray-500 mt-2">
+        <span aria-hidden="true">📍 </span>{e.neighborhood || e.location}
+      </p>
+      <p className="text-xs text-gray-500 mt-0.5">
+        <span aria-hidden="true">👥 </span>{e._count.attendees} going
+        <span aria-hidden="true"> · </span>
+        {e.price === 0 ? <span className="font-semibold text-green-700">Free</span> : formatPrice(e.price, e.currency)}
+        {e.language?.trim() && <><span aria-hidden="true"> · </span><span className="sr-only">Language: </span>{e.language.trim()}</>}
+      </p>
+      {e.isFirstTimerFriendly && (
+        <p className="inline-block mt-2 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+          <span aria-hidden="true">👋 </span>First-timer friendly
+        </p>
+      )}
+      <span className="block text-xs font-bold text-gray-700 mt-3 group-hover:text-amber-600 transition-colors">
+        View event →
+      </span>
+    </Link>
+  )
 
   const fmtEventDate = (d: string) => {
     const [y, m, day] = d.split('-').map(Number)
@@ -473,12 +514,50 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
         </div>
       </section>
 
+      {/* First time here? — the practical and social side of arriving, before
+          the sights strip below. The event half is policy and page facts that
+          hold in every city (the badge exists, the host and price are shown
+          before an RSVP, the FAQ's cancellation rule), not promises about any
+          one event. */}
+      <section aria-labelledby="first-time-here" className="bg-white border-b border-gray-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-12">
+          <h2 id="first-time-here" className="text-xl sm:text-2xl font-extrabold tracking-tight text-gray-900">First time here?</h2>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-5">
+            <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5 sm:p-6 flex flex-col">
+              <h3 className="font-bold text-gray-900 mb-1.5">Your first 72 hours</h3>
+              <p className="text-sm text-gray-600 leading-relaxed flex-1">
+                Get connected, choose a neighbourhood, find somewhere to work, sort money and transport — then
+                join a first event. One checklist, each step linked to the guide that answers it.
+              </p>
+              {cityIsLive ? (
+                <Link href={`/${city.slug}/remote-work#first-72-hours`} className="mt-4 text-sm font-bold text-amber-700 hover:text-amber-800">
+                  Open the {city.name} checklist <span aria-hidden="true">→</span>
+                </Link>
+              ) : (
+                <Link href={`/handbook${cityQs}`} className="mt-4 text-sm font-bold text-amber-700 hover:text-amber-800">
+                  Read the Handbook <span aria-hidden="true">→</span>
+                </Link>
+              )}
+            </div>
+            <div className="bg-gray-50 border border-gray-100 rounded-2xl p-5 sm:p-6">
+              <h3 className="font-bold text-gray-900 mb-2">What a first Smileys event is like</h3>
+              <ul className="space-y-2 text-sm text-gray-600 leading-relaxed">
+                <li className="flex gap-2"><span aria-hidden="true">👋</span><span>Events marked <span className="font-semibold text-gray-900">First-timer friendly</span> are picked by the team as easy ones to come to on your own.</span></li>
+                <li className="flex gap-2"><span aria-hidden="true">👤</span><span>Every event names its host and shows how many people are going before you RSVP.</span></li>
+                <li className="flex gap-2"><span aria-hidden="true">💰</span><span>Many are free; when there is a price, it is shown up front.</span></li>
+                <li className="flex gap-2"><span aria-hidden="true">📅</span><span>Plans change? Cancel as early as you can, so someone on the waitlist gets your spot.</span></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* First-timer strip — moved from /guide (see the comment above the
           firstTimers query): the curated essentials, not 100 attractions. */}
       {firstTimers.length > 0 && (
         <section className="bg-amber-50 border-b border-amber-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-12">
-            <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-gray-900">First time in {city.name}?</h2>
+            <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-gray-900">Worth seeing first in {city.name}</h2>
             <p className="text-gray-600 mt-1 mb-5">Start with these — everything else can wait.</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               {firstTimers.map(e => (
@@ -507,7 +586,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
             with /handbook (and /guide) which both link back here as
             "Visiting first?". Soft grey card so it doesn't compete
             with the post-CTA. */}
-        <Link href="/handbook"
+        <Link href={`/handbook${cityQs}`}
           className="block mt-8 max-w-3xl bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-2xl px-5 py-4 transition-colors group">
           <div className="flex items-center gap-4">
             <div aria-hidden="true" className="text-2xl shrink-0">📖</div>
@@ -530,7 +609,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
           <p className="text-gray-600 mt-2 mb-8">Discover your neighborhood before you arrive.</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {neighborhoodPicks.map(n => (
-              <Link key={n.name} href={`/neighborhoods/${n.slug}`}
+              <Link key={n.name} href={`/neighborhoods/${n.slug}${cityQs}`}
                 className="bg-white border border-gray-100 rounded-2xl p-5 hover:border-amber-200 hover:shadow-md transition-all group">
                 <div aria-hidden="true" className="text-2xl mb-2">{n.meta?.emoji ?? '📍'}</div>
                 <h3 className="font-bold text-gray-900">{n.name}</h3>
@@ -544,7 +623,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
               </Link>
             ))}
           </div>
-          <Link href="/neighborhoods" className="inline-block mt-8 text-sm font-bold text-amber-600 hover:underline">
+          <Link href={`/neighborhoods${cityQs}`} className="inline-block mt-8 text-sm font-bold text-amber-600 hover:underline">
             Explore all {city.name} neighborhoods →
           </Link>
         </div>
@@ -566,32 +645,15 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
             eventsDuringVisit.length > 0 ? (
               <>
                 <p className="text-gray-600 mt-2 mb-8">
-                  Events between {viewerVisit.startsOn} and {viewerVisit.endsOn}.
+                  Events between {formatDay(viewerVisit.startsOn)} and {formatDay(viewerVisit.endsOn)}.
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {eventsDuringVisit.map(e => (
-                    <Link key={e.id} href={`/events/${e.id}`}
-                      className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-amber-200 transition-all group">
-                      <p className="text-xs font-bold tracking-wide text-amber-600">{fmtEventDate(e.date)}</p>
-                      <h3 className="font-bold text-gray-900 mt-1.5 leading-snug">
-                        <span aria-hidden="true">{e.emoji} </span>{e.title}
-                      </h3>
-                      <p className="text-xs text-gray-500 mt-2">
-                        <span aria-hidden="true">📍 </span>{e.neighborhood || e.location}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        <span aria-hidden="true">👥 </span>{e._count.attendees} going
-                      </p>
-                      <span className="inline-block text-xs font-bold text-gray-700 mt-3 group-hover:text-amber-600 transition-colors">
-                        View event →
-                      </span>
-                    </Link>
-                  ))}
+                  {eventsDuringVisit.map(e => <VisitEventCard key={e.id} e={e} />)}
                 </div>
               </>
             ) : (
               <p className="text-gray-600 mt-2">
-                Nothing scheduled between {viewerVisit.startsOn} and {viewerVisit.endsOn} yet — new events go up every week.
+                Nothing scheduled between {formatDay(viewerVisit.startsOn)} and {formatDay(viewerVisit.endsOn)} yet — new events go up every week.
               </p>
             )
           ) : upcomingEvents.length === 0 ? (
@@ -608,24 +670,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
                 Coming up over the next 60 days — add your dates and we&apos;ll match them to your trip.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {upcomingEvents.slice(0, 6).map(e => (
-                  <Link key={e.id} href={`/events/${e.id}`}
-                    className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-amber-200 transition-all group">
-                    <p className="text-xs font-bold tracking-wide text-amber-600">{fmtEventDate(e.date)}</p>
-                    <h3 className="font-bold text-gray-900 mt-1.5 leading-snug">
-                      <span aria-hidden="true">{e.emoji} </span>{e.title}
-                    </h3>
-                    <p className="text-xs text-gray-500 mt-2">
-                      <span aria-hidden="true">📍 </span>{e.neighborhood || e.location}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      <span aria-hidden="true">👥 </span>{e._count.attendees} going
-                    </p>
-                    <span className="inline-block text-xs font-bold text-gray-700 mt-3 group-hover:text-amber-600 transition-colors">
-                      View event →
-                    </span>
-                  </Link>
-                ))}
+                {upcomingEvents.slice(0, 6).map(e => <VisitEventCard key={e.id} e={e} />)}
               </div>
               <Link href={isMember ? newVisitHref : '/apply'}
                 className="inline-flex items-center justify-center gap-2 mt-8 px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">

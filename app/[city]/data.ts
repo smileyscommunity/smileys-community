@@ -16,6 +16,7 @@ import { isSoldOut } from '@/lib/soldOut'
 import type { Event } from '@/lib/data'
 import { LIVE_BOARD_AUTHOR, SHOWN_REPLY } from '@/lib/boardAccess'
 import { firstNameOf } from '@/lib/data'
+import { isWorkClub } from '@/lib/remoteWork'
 
 // Everything the city shopfront reads, in one place, with the one boundary
 // that matters drawn explicitly:
@@ -336,5 +337,67 @@ export const getCityBoardHub = unstable_cache(
     return { posts, total }
   },
   ['city-board-hub-posts'],
+  { revalidate: 60, tags: ['home'] },
+)
+
+// ── Remote-work hub (/[city]/remote-work) ───────────────────────────────────
+//
+// Everything on the hub is an existing page of this city's — Handbook
+// articles, clubs, events — gathered into one arrival path (lib/remoteWork
+// holds the rules for what may show). Like the other hubs: shared across
+// every visitor, cached per city, projected to the fields the page renders.
+// Events are cached raw and redacted per request by the page, the same split
+// as getCityEventsHub.
+
+/** How many events the hub's "work and meet people" row shows. */
+export const REMOTE_WORK_EVENT_LIMIT = 6
+
+export const getCityRemoteWorkHub = unstable_cache(
+  async (cityId: string, country: string | null) => {
+    const [articles, clubs, { events }, neighborhoodCount] = await Promise.all([
+      prisma.post.findMany({
+        where:   { kind: 'handbook', status: 'published', ...postCityScope(cityId, country) },
+        orderBy: { publishedAt: 'desc' },
+        select:  {
+          slug: true, title: true, excerpt: true, category: true, cityId: true,
+          lastReviewedAt: true, reviewIntervalDays: true, officialSources: true,
+        },
+      }),
+      getClubs(cityId),
+      // The same window the city's events hub reads; the work/newcomer
+      // filter below runs over it rather than adding a second query shape.
+      getEvents({ limit: HUB_LIMIT, upcoming: true, cityId }),
+      prisma.neighborhood.count({ where: { cityId, active: true } }),
+    ])
+
+    const workClubs = clubs
+      .filter(c => !c.isPrivate && isWorkClub(c.name))
+      .sort((a, b) => b.memberCount - a.memberCount)
+      .map(c => ({
+        id: c.id, slug: c.slug, name: c.name, emoji: c.emoji,
+        memberCount: c.memberCount, nextEvent: c.nextEvent ?? null,
+      }))
+    const workClubIds = new Set(workClubs.map(c => c.id))
+
+    // Coworking sessions first — the reason a remote worker is on this page —
+    // then first-timer-friendly events, each group soonest first (getEvents
+    // order). Cancelled ones never make a showcase.
+    const live         = events.filter(e => e.status !== 'cancelled')
+    const workEvents   = live.filter(e => e.clubId && workClubIds.has(e.clubId))
+    const newcomerOnes = live.filter(e => !(e.clubId && workClubIds.has(e.clubId)) && e.isFirstTimerFriendly)
+
+    return {
+      // officialSources reduced to a flag: the hub only says whether an
+      // article cites them, the article page lists them.
+      articles: articles.map(({ officialSources, ...a }) => ({
+        ...a, hasOfficialSources: Array.isArray(officialSources) && officialSources.length > 0,
+      })),
+      workClubs,
+      events:        [...workEvents, ...newcomerOnes].slice(0, REMOTE_WORK_EVENT_LIMIT),
+      hasWorkEvents: workEvents.length > 0,
+      neighborhoodCount,
+    }
+  },
+  ['city-remote-work-hub'],
   { revalidate: 60, tags: ['home'] },
 )

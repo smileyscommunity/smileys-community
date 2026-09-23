@@ -40,7 +40,7 @@
 
 /** Every page under app/, route groups removed. tests/scan5Batch37 fails when this drifts from the filesystem. */
 export const PAGE_ROUTES = [
-  '/', '/[city]', '/[city]/board', '/[city]/clubs', '/[city]/directory', '/[city]/events',
+  '/', '/[city]', '/[city]/board', '/[city]/clubs', '/[city]/directory', '/[city]/events', '/[city]/remote-work',
   '/about', '/activate', '/admin', '/admin/analytics', '/admin/announcements', '/admin/applications',
   '/admin/abuse', '/admin/attendance-review', '/admin/audit',
   '/admin/banners', '/admin/campaigns', '/admin/campaigns/[id]', '/admin/checkin', '/admin/cities', '/admin/club-requests', '/admin/clubs',
@@ -63,7 +63,7 @@ export const PAGE_ROUTES = [
   '/hosts', '/invite', '/login', '/marketplace', '/members', '/members/[id]', '/messages', '/messages/[userId]',
   '/moving-sales/[id]', '/my-events', '/neighborhoods', '/neighborhoods/[slug]', '/no-show', '/notifications',
   '/notifications/settings', '/partner', '/partner/settings', '/pending', '/perks', '/posts', '/posts/[slug]', '/privacy',
-  '/pro', '/profile', '/profile-visitors', '/reset-password', '/reviews', '/settings', '/share-story', '/standing', '/survey/nps',
+  '/pro', '/profile', '/profile-visitors', '/remote-work', '/reset-password', '/reviews', '/settings', '/share-story', '/standing', '/survey/nps',
   '/terms', '/unsubscribe', '/verify-email', '/visiting', '/visiting/new', '/why',
 ] as const
 
@@ -78,6 +78,7 @@ export const ROUTE_TARGETS: Record<string, { param: string; target: TargetKey }>
   '/[city]/clubs':                   { param: 'city',   target: 'city.slug' },
   '/[city]/directory':               { param: 'city',   target: 'city.slug' },
   '/[city]/events':                  { param: 'city',   target: 'city.slug' },
+  '/[city]/remote-work':             { param: 'city',   target: 'city.slug' },
   '/admin/campaigns/[id]':           { param: 'id',     target: 'campaign' },
   '/admin/clubs/[id]':               { param: 'id',     target: 'club.id' },
   '/admin/events/[id]/edit':         { param: 'id',     target: 'event' },

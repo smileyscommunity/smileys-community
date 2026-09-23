@@ -550,6 +550,32 @@ function ApplyForm() {
           {/* Step 1: Basic Info */}
           {step === 0 && <>
             <h2 className="font-bold text-gray-900 text-base mb-1">Basic Information</h2>
+            {/* Why we ask — before the fields, not after a refusal. Every line
+                is something the privacy policy or FAQ already says (review,
+                matching, gender-balanced events, phone never public); nothing
+                here may promise more than /privacy does. A native <details>
+                keeps it one line tall and keyboard-operable. */}
+            <div className="rounded-xl bg-gray-50 border border-gray-100 px-4 py-3 text-xs text-gray-600 leading-relaxed">
+              <p>
+                A person on our team reads every application. It keeps Smileys made of real people who live in or
+                are visiting the city, and keeps events safe to walk into on your own.
+              </p>
+              <details className="mt-2 group">
+                <summary className="cursor-pointer font-semibold text-amber-700 hover:text-amber-800 marker:text-amber-500">
+                  Why we ask for these details
+                </summary>
+                <ul className="mt-2 space-y-1.5">
+                  <li><span className="font-semibold text-gray-800">Neighbourhood</span> — so we can suggest people, clubs and plans near where you live, in the right city.</li>
+                  <li><span className="font-semibold text-gray-800">Date of birth</span> (optional) — Smileys is for adults, and it helps us review your application.</li>
+                  <li><span className="font-semibold text-gray-800">Gender</span> — many events are gender-balanced so the mix feels comfortable. &ldquo;Prefer not to say&rdquo; is always an option.</li>
+                  <li><span className="font-semibold text-gray-800">WhatsApp number</span> — so our team can reach you; event and club chats often run on WhatsApp. It is never shown publicly.</li>
+                </ul>
+                <p className="mt-2">
+                  We don&apos;t sell your data or share it with advertisers.{' '}
+                  <Link href="/privacy" target="_blank" rel="noopener" className="font-semibold text-amber-700 hover:underline">Read the privacy policy</Link>
+                </p>
+              </details>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label htmlFor="ap-firstname" className="block text-xs font-semibold text-gray-600 mb-2">First name *</label>
@@ -893,7 +919,7 @@ function ApplyForm() {
                   <>I&apos;m 18 or older and I agree to the{' '}
                     <Link href="/terms" target="_blank" className="text-amber-600 underline" onClick={e => e.stopPropagation()}>Terms of Service</Link>
                     {' '}and{' '}
-                    <Link href="/privacy" target="_blank" className="text-amber-600 underline" onClick={e => e.stopPropagation()}>Privacy Policy</Link>.
+                    <Link href="/privacy" target="_blank" rel="noopener" className="text-amber-600 underline" onClick={e => e.stopPropagation()}>Privacy Policy</Link>.
                   </>
                 ) },
                 { key: 'conduct' as const, text: <>I&apos;ll treat every member with respect. Smileys is curated, and membership can be revoked.</> },

@@ -236,6 +236,15 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
                 <span className="truncate">{firstNameOf(event.hostName)}</span>
               </span>
             )}
+            {/* Only when the host set one — an unlabelled event is not
+                "English by default", so nothing is shown rather than a guess. */}
+            {event.language?.trim() && (
+              <span className="flex items-center gap-1 shrink-0" title="Event language">
+                <span aria-hidden="true">🗣️</span>
+                <span className="sr-only">Language: </span>
+                {event.language.trim()}
+              </span>
+            )}
           </div>
 
           {event.vibes.length > 0 && (
