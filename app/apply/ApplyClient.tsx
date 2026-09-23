@@ -406,7 +406,7 @@ function ApplyForm() {
             make sure we're bringing together the right people for our community.
           </p>
           <p className="text-gray-600 text-sm mb-3">
-            We'll get back to you at <strong>{form.email}</strong> — usually the same day.
+            We'll get back to you at <strong>{form.email}</strong> within 24–48 hours.
           </p>
           {/* What approval actually leads to. Applicants read "approved" as "I'm in"
               and then ignored the activation email, so the next step is named here. */}
@@ -437,7 +437,7 @@ function ApplyForm() {
               lived only in the FAQ, so applicants assumed a subscription. */}
           <ul className="mt-3 space-y-1 text-xs text-gray-500">
             <li>🆓 Joining is free — no subscription, no membership fee.</li>
-            <li>✍️ Every application is reviewed by hand — usually the same day.</li>
+            <li>✍️ Every application is reviewed by hand, within 24–48 hours.</li>
             <li>🎟️ You only pay for events you choose — prices shown before you RSVP.</li>
           </ul>
         </div>

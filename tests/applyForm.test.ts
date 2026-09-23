@@ -33,9 +33,12 @@ describe('the apply form', () => {
     expect(form).toMatch(/set\('referrerName', e\.target\.value\)/)
   })
 
-  it('no longer promises a 24-hour review it beats by a day', () => {
-    expect(form).not.toMatch(/within 24 hours|24–48 hours/)
-    expect(form).toMatch(/usually the same day/)
+  // 2026-09-23: one review window on every surface. The form said "usually
+  // the same day" while the hero said 24 hours and the FAQ 2–5 business
+  // days; Nate settled it at 24–48 hours everywhere.
+  it('states the same 24–48 hour review window as the rest of the site', () => {
+    expect(form).not.toMatch(/within 24 hours|same day|business days/)
+    expect(form).toMatch(/24–48 hours/)
   })
 })
 

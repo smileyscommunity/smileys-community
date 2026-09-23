@@ -36,7 +36,7 @@ export default function Hero({ city, enter }: { city: PublicCity; enter: EnterLi
               <a href={enter('events')} className="btn-secondary text-base px-8 py-4">See what's on</a>
             </div>
             <p className="text-sm font-medium text-gray-700 mb-12">
-              Free to join · Applications reviewed by hand within 24 hours · Pay only for events you attend
+              Free to join · Applications reviewed by hand within 24–48 hours · Pay only for events you attend
             </p>
 
             {/* Seeding = live but empty; "1 / 11 / 1" in hero type reads as

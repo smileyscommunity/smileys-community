@@ -250,7 +250,7 @@ export default async function HomePage() {
                 </p>
               )}
               <p className="text-sm font-medium text-gray-700">
-                Free to join · Applications reviewed by hand within 24 hours · Pay only for events you attend
+                Free to join · Applications reviewed by hand within 24–48 hours · Pay only for events you attend
               </p>
             </div>
 
