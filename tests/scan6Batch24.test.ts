@@ -220,15 +220,20 @@ describe('bell and notifications page wiring', () => {
     // subscribe inside an effect whose cleanup is the unsubscribe; receive
     // counts as newer before the list is touched
     expect(src).toMatch(new RegExp(`useEffect\\(\\(\\) => \\{\\s*return subscribeNotificationChanges\\(source, change => \\{\\s*sync\\.receive\\(change\\)\\s*${setter}\\(prev => applyNotificationChange\\(prev, change\\)\\)`))
-    // the unread count follows the same change, and the effect's cleanup is
-    // still the unsubscribe
-    expect(src).toMatch(/setUnread\(c => unreadCountAfterChange\(c, change\)\)\s*\}\)\s*\}, \[source, sync\]\)/)
-    // mark-all: rollback (list and count) returns before the emit
-    expect(src).toMatch(new RegExp(`\\.finally\\(settle\\)\\) \\{\\s*${setter}\\(prev => setReadFor\\(prev, ids, false\\)\\)\\s*setUnread\\(before\\)\\s*return\\s*\\}\\s*(?://[^\\n]*\\n\\s*)*emitNotificationChange\\(\\{ kind: 'readAll' \\}, source\\)`))
-    // dismiss: restore returns before the emit
-    expect(src).toMatch(new RegExp(`${setter}\\(prev => restoreAt\\(prev, (?:removed, index|entry\\.row, entry\\.index)\\)\\)[\\s\\S]{0,80}?return\\s*\\}\\s*emitNotificationChange\\(\\{ kind: 'dismiss', ids: \\[id\\] \\}, source\\)`))
+    // the counts follow the same change, and the effect's cleanup is still
+    // the unsubscribe. The bell carries a second one — the badge, which is
+    // what arrived since the member last opened it — and reading a row in
+    // another tab has to settle that too, or the dot keeps counting something
+    // the member has already dealt with.
+    expect(src).toMatch(/setUnread\(c => unreadCountAfterChange\(c, change\)\)\s*(?:\/\/[^\n]*\n\s*)*(?:setBadge\(c => unreadCountAfterChange\(c, change\)\)\s*)?\}\)\s*\}, \[source, sync\]\)/)
+    // mark-all: rollback (list and counts) returns before the emit
+    expect(src).toMatch(new RegExp(`\\.finally\\(settle\\)\\) \\{\\s*${setter}\\(prev => setReadFor\\(prev, ids, false\\)\\)\\s*setUnread\\(before\\)\\s*(?:setBadge\\(beforeBadge\\)\\s*)?return\\s*\\}\\s*(?://[^\\n]*\\n\\s*)*emitNotificationChange\\(\\{ kind: 'readAll' \\}, source\\)`))
+    // dismiss: restore returns before the emit. The window holds both count
+    // rollbacks — the bell puts back `unread` and `badge` on the same line —
+    // and is still far too short for anything else to hide in.
+    expect(src).toMatch(new RegExp(`${setter}\\(prev => restoreAt\\(prev, (?:removed, index|entry\\.row, entry\\.index)\\)\\)[\\s\\S]{0,120}?return\\s*\\}\\s*emitNotificationChange\\(\\{ kind: 'dismiss', ids: \\[id\\] \\}, source\\)`))
     // single read: emit only on the ok branch
-    expect(src).toMatch(new RegExp(`if \\(!ok\\) \\{?\\s*${setter}\\(prev => setReadFor\\(prev, ids, false\\)\\)[\\s\\S]{0,80}?(?://[^\\n]*\\n\\s*)*else emitNotificationChange\\(\\{ kind: 'read', ids: \\[n\\.id\\] \\}, source\\)`))
+    expect(src).toMatch(new RegExp(`if \\(!ok\\) \\{?\\s*${setter}\\(prev => setReadFor\\(prev, ids, false\\)\\)[\\s\\S]{0,120}?(?://[^\\n]*\\n\\s*)*else emitNotificationChange\\(\\{ kind: 'read', ids: \\[n\\.id\\] \\}, source\\)`))
     // no emit anywhere else (e.g. before the request, or on a rollback path)
     const expected = file.includes('page.tsx') ? 4 : 3
     expect(src.match(/emitNotificationChange\(/g)).toHaveLength(expected)

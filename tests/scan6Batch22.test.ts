@@ -137,8 +137,11 @@ describe('a — bell and notifications page wiring', () => {
     expect(src).toMatch(new RegExp(`${setter}\\((?:next|prev => mergeRefresh\\(prev, next\\))\\)`))
     expect(src).not.toMatch(new RegExp(`${setter}\\(Array\\.isArray\\(d\\)`))
     // each action registers before its optimistic change and settles before
-    // rollback (the unread count rides along with the list)
-    expect(src).toMatch(new RegExp(`const settle = sync\\.begin\\(\\{ kind: 'read', ids \\}\\)\\s*${setter}\\(prev => setReadFor\\(prev, ids, true\\)\\)\\s*setUnread\\([^)]*\\)\\s*if \\(!await sendNotificationAction\\('PATCH', \\{ markAll: true \\}[^)]*\\)\\.finally\\(settle\\)\\)`))
+    // rollback (the counts ride along with the list). The bell carries two:
+    // `unread` is the lifetime pile behind the dropdown header, `badge` is
+    // what arrived since the member last looked — mark-all zeroes both, and
+    // the rollback below restores both.
+    expect(src).toMatch(new RegExp(`const settle = sync\\.begin\\(\\{ kind: 'read', ids \\}\\)\\s*${setter}\\(prev => setReadFor\\(prev, ids, true\\)\\)\\s*setUnread\\([^)]*\\)\\s*(?:setBadge\\([^)]*\\)\\s*)?if \\(!await sendNotificationAction\\('PATCH', \\{ markAll: true \\}[^)]*\\)\\.finally\\(settle\\)\\)`))
     expect(src).toMatch(new RegExp(`const settle = sync\\.begin\\(\\{ kind: 'dismiss', id \\}\\)\\s*${setter}\\(prev => prev\\.filter\\(n => n\\.id !== id\\)\\)`))
     expect(src).toMatch(/const settle = sync\.begin\(\{ kind: 'read', ids \}\)[\s\S]{0,400}?sendNotificationAction\('PATCH', \{ id: n\.id \}[^)]*\)\.finally\(settle\)\.then\(ok =>/)
   })
