@@ -27,6 +27,11 @@ export function newSinceWhere(userId: string, seenAt: Date | null) {
   }
 }
 
+/** The `message` rows inside newSinceWhere, so a DM is not counted twice. */
+export function newMessagesWhere(userId: string, seenAt: Date | null) {
+  return { ...newSinceWhere(userId, seenAt), type: 'message' }
+}
+
 /**
  * The number the bell renders, from a feed payload.
  *

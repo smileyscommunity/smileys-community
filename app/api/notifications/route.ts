@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
-import { newSinceWhere } from '@/lib/notificationBadge'
+import { newSinceWhere, newMessagesWhere } from '@/lib/notificationBadge'
 
 const PAGE = 30
 
@@ -23,15 +23,19 @@ export async function GET(req: NextRequest) {
     // twice a minute, per open tab.
     if (req.nextUrl.searchParams.get('count') === '1') {
       const seenAt = await bellSeenAt(session.id)
-      const [unreadCount, newCount, unreadMessages] = await Promise.all([
+      const [unreadCount, newCount, unreadMessages, newMessages] = await Promise.all([
         prisma.notification.count({ where: { userId: session.id, isRead: false } }),
         prisma.notification.count({ where: newSinceWhere(session.id, seenAt) }),
         // Broken out because every direct message also writes one of these:
         // the phone's badge added them to the unread-message count and showed
         // one message as two.
         prisma.notification.count({ where: { userId: session.id, isRead: false, type: 'message' } }),
+        // The same subtraction, against the new-since count the Me badge now
+        // uses — without it the dedup would be taking a lifetime number out
+        // of a since-you-looked one and could go negative.
+        prisma.notification.count({ where: newMessagesWhere(session.id, seenAt) }),
       ])
-      return NextResponse.json({ unreadCount, newCount, unreadMessages })
+      return NextResponse.json({ unreadCount, newCount, unreadMessages, newMessages })
     }
 
     // Older than a cursor, for "load older" — the list used to be the newest

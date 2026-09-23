@@ -45,6 +45,11 @@ function useUnreadNotifications(isLoggedIn: boolean) {
   // The unread `message` rows inside `unread`, when the route breaks them out;
   // null means it doesn't (see meBadgeCount).
   const [messageNotifications, setMessageNotifications] = useState<number | null>(null)
+  // The same two counted since the member last opened the bell — what this
+  // badge prefers, so it agrees with the bell sitting above it on the same
+  // screen instead of reporting the lifetime pile beside the bell's "1".
+  const [newCount,    setNewCount]    = useState<number | null>(null)
+  const [newMessages, setNewMessages] = useState<number | null>(null)
   // Who we are when the bell or /notifications says something changed.
   const [source] = useState(createNotificationSourceId)
 
@@ -56,6 +61,8 @@ function useUnreadNotifications(isLoggedIn: boolean) {
         if (!counts) return
         setUnread(counts.unreadCount)
         setMessageNotifications(counts.messageNotifications)
+        setNewCount(counts.newCount)
+        setNewMessages(counts.newMessages)
       })
       .catch(() => {})
   }, [])
@@ -74,13 +81,17 @@ function useUnreadNotifications(isLoggedIn: boolean) {
     if (!isLoggedIn) return
     return subscribeNotificationChanges(source, change => {
       setUnread(c => unreadCountAfterChange(c, change))
+      // The new-since count moves with the same change — and opening the bell
+      // emits nothing, so without the reload below this badge would keep
+      // counting an arrival the member has now looked at.
+      setNewCount(c => c === null ? c : unreadCountAfterChange(c, change))
       // 'dismiss' can't be resolved from a count, and the others are only an
       // optimistic guess — ask the server for the real number behind it.
       load()
     })
   }, [isLoggedIn, source, load])
 
-  return { unread, messageNotifications }
+  return { unread, messageNotifications, newCount, newMessages }
 }
 
 export default function BottomNav({
@@ -105,6 +116,8 @@ export default function BottomNav({
     unreadMessages,
     unreadNotifications: notifications.unread,
     messageNotifications: notifications.messageNotifications,
+    newNotifications: notifications.newCount,
+    newMessages: notifications.newMessages,
   })
   // Mobile-only account sheet — opens when the avatar tab is tapped, gives
   // mobile users reach to everything in the desktop dropdown (Sign out,

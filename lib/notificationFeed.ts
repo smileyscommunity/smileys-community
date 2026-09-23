@@ -70,19 +70,31 @@ export function parseNotificationFeed(data: unknown): NotificationFeed | null {
 }
 
 /**
- * `?count=1` answers `{ unreadCount, unreadMessages }` — the second being the
- * unread `message` rows inside the first. Null when the body isn't that shape,
- * which means "leave the badge alone", never zero.
+ * `?count=1` answers `{ unreadCount, unreadMessages, newCount, newMessages }`.
+ * The `unread*` pair is the lifetime pile; the `new*` pair is the same two
+ * numbers counted since the member last opened the bell. Null when the body
+ * isn't that shape, which means "leave the badge alone", never zero.
  */
-export function parseUnreadCount(data: unknown): { unreadCount: number; messageNotifications: number | null } | null {
+export interface UnreadCounts {
+  unreadCount:          number
+  messageNotifications: number | null
+  /** Since the last look; null from a response that predates the field. */
+  newCount:             number | null
+  newMessages:          number | null
+}
+
+export function parseUnreadCount(data: unknown): UnreadCounts | null {
   if (!data || typeof data !== 'object' || Array.isArray(data)) return null
-  const { unreadCount, unreadMessages } = data as Record<string, unknown>
+  const { unreadCount, unreadMessages, newCount, newMessages } = data as Record<string, unknown>
   if (typeof unreadCount !== 'number' || !(unreadCount >= 0)) return null
+  const num = (v: unknown) => typeof v === 'number' && v >= 0 ? v : null
   return {
     unreadCount,
     // Older builds don't send it, and the badge is exact only when they do —
     // see meBadgeCount.
-    messageNotifications: typeof unreadMessages === 'number' && unreadMessages >= 0 ? unreadMessages : null,
+    messageNotifications: num(unreadMessages),
+    newCount:             num(newCount),
+    newMessages:          num(newMessages),
   }
 }
 
@@ -97,11 +109,30 @@ export function parseUnreadCount(data: unknown): { unreadCount: number; messageN
  * for the message rows sitting inside `unreadNotifications`, and subtracting
  * them is the same as taking whichever number is larger; never the two added
  * together.
+ *
+ * The notification half is counted SINCE THE LAST LOOK when the route sends
+ * those numbers, because the bell beside it on the same phone screen is. A
+ * member with 2,999 unread would otherwise read "1" on the bell and "9+" on
+ * this badge for the same arrival, which is one signal contradicting itself.
+ *
+ * The DM half stays lifetime on purpose: an unread message is unread until
+ * it is read, and glancing at a bell does not answer anybody. So the badge is
+ * "messages waiting for you, plus what has happened since you last looked" —
+ * and `newMessages` rather than `messageNotifications` is what comes out of
+ * the new-since count, or the subtraction would take a lifetime number out of
+ * a since-you-looked one and clamp to zero on any busy account.
  */
 export function meBadgeCount(
-  { unreadMessages, unreadNotifications, messageNotifications = null }:
-  { unreadMessages: number; unreadNotifications: number; messageNotifications?: number | null },
+  { unreadMessages, unreadNotifications, messageNotifications = null, newNotifications = null, newMessages = null }:
+  {
+    unreadMessages: number; unreadNotifications: number
+    messageNotifications?: number | null
+    newNotifications?: number | null; newMessages?: number | null
+  },
 ): number {
+  if (newNotifications !== null && newMessages !== null) {
+    return unreadMessages + Math.max(0, newNotifications - newMessages)
+  }
   if (messageNotifications !== null) {
     return unreadMessages + Math.max(0, unreadNotifications - messageNotifications)
   }

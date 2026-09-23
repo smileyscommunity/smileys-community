@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { newSinceWhere, badgeCountFrom, badgeCountAfterRead, pollMaySetBadge } from '@/lib/notificationBadge'
-import { parseNotificationFeed } from '@/lib/notificationFeed'
+import { newSinceWhere, newMessagesWhere, badgeCountFrom, badgeCountAfterRead, pollMaySetBadge } from '@/lib/notificationBadge'
+import { parseNotificationFeed, parseUnreadCount, meBadgeCount } from '@/lib/notificationFeed'
 
 // 2026-09-23. An application arrived at 11:12 and the admin never saw it. The
 // write path was fine — five staff rows, push attempted, quiet hours off. The
@@ -95,6 +95,82 @@ describe('the feed carries the count to the bell', () => {
   it('ignores a nonsense count rather than trusting it', () => {
     const feed = parseNotificationFeed({ notifications: [row], unreadCount: 5, newCount: -3, hasMore: false })
     expect(feed?.newCount).toBeNull()
+  })
+})
+
+describe('the phone Me badge agrees with the bell above it', () => {
+  // The bell went new-since and this badge did not, so on one phone screen a
+  // member with 2,999 unread would read "1" on the bell and "9+" here for the
+  // same arrival — one signal contradicting itself.
+
+  it('counts notifications since the last look, and DMs as they are', () => {
+    // 2 unread DMs + 5 new since the look, 1 of which is a DM row = 2 + 4.
+    expect(meBadgeCount({
+      unreadMessages: 2, unreadNotifications: 999, messageNotifications: 3,
+      newNotifications: 5, newMessages: 1,
+    })).toBe(6)
+  })
+
+  it('goes quiet with the bell even on an account that never cleans up', () => {
+    expect(meBadgeCount({
+      unreadMessages: 0, unreadNotifications: 2999, messageNotifications: 0,
+      newNotifications: 0, newMessages: 0,
+    })).toBe(0)
+  })
+
+  it('keeps an unread DM even when nothing is new since the look', () => {
+    // Glancing at a bell does not answer anybody.
+    expect(meBadgeCount({
+      unreadMessages: 4, unreadNotifications: 900, messageNotifications: 4,
+      newNotifications: 0, newMessages: 0,
+    })).toBe(4)
+  })
+
+  it('subtracts the new-since message rows, not the lifetime ones', () => {
+    // The old field here would take 300 out of 5 and clamp to zero, losing
+    // four genuinely new notifications on any busy account.
+    expect(meBadgeCount({
+      unreadMessages: 1, unreadNotifications: 900, messageNotifications: 300,
+      newNotifications: 5, newMessages: 1,
+    })).toBe(5)
+  })
+
+  it('falls back to the old exact sum when the route sends no new-since pair', () => {
+    expect(meBadgeCount({ unreadMessages: 2, unreadNotifications: 7, messageNotifications: 2 })).toBe(7)
+  })
+
+  it('falls back again when only one half of the pair arrives', () => {
+    expect(meBadgeCount({
+      unreadMessages: 2, unreadNotifications: 7, messageNotifications: 2, newNotifications: 3,
+    })).toBe(7)
+  })
+
+  it('still never counts one DM twice', () => {
+    expect(meBadgeCount({
+      unreadMessages: 1, unreadNotifications: 1, messageNotifications: 1,
+      newNotifications: 1, newMessages: 1,
+    })).toBe(1)
+  })
+})
+
+describe('the count endpoint carries both pairs', () => {
+  it('reads the new-since pair beside the lifetime one', () => {
+    const c = parseUnreadCount({ unreadCount: 977, unreadMessages: 3, newCount: 2, newMessages: 1 })
+    expect(c).toEqual({ unreadCount: 977, messageNotifications: 3, newCount: 2, newMessages: 1 })
+  })
+
+  it('reports the new-since pair as null on an older response', () => {
+    const c = parseUnreadCount({ unreadCount: 977, unreadMessages: 3 })
+    expect(c?.newCount).toBeNull()
+    expect(c?.newMessages).toBeNull()
+  })
+
+  it('scopes the message subtraction to the same window as the count', () => {
+    const seen = new Date('2026-09-23T12:00:00.000Z')
+    expect(newMessagesWhere('u1', seen)).toEqual({
+      userId: 'u1', isRead: false, createdAt: { gt: seen }, type: 'message',
+    })
+    expect(newMessagesWhere('u1', null)).toEqual({ userId: 'u1', isRead: false, type: 'message' })
   })
 })
 

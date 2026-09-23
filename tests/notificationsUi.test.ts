@@ -66,8 +66,16 @@ describe('the Me badge counts a message once', () => {
   })
 
   it('reads the count payload, and leaves the badge alone when it cannot', () => {
-    expect(parseUnreadCount({ unreadCount: 12, unreadMessages: 4 })).toEqual({ unreadCount: 12, messageNotifications: 4 })
-    expect(parseUnreadCount({ unreadCount: 12 })).toEqual({ unreadCount: 12, messageNotifications: null })
+    // The payload carries a second pair now — the same two counts taken since
+    // the member last opened the bell, which is what the badge prefers so it
+    // agrees with the bell (tests/notificationBadgeSeen2026). Null here means
+    // the response predates them, not that there is nothing new.
+    expect(parseUnreadCount({ unreadCount: 12, unreadMessages: 4 }))
+      .toEqual({ unreadCount: 12, messageNotifications: 4, newCount: null, newMessages: null })
+    expect(parseUnreadCount({ unreadCount: 12, unreadMessages: 4, newCount: 2, newMessages: 1 }))
+      .toEqual({ unreadCount: 12, messageNotifications: 4, newCount: 2, newMessages: 1 })
+    expect(parseUnreadCount({ unreadCount: 12 }))
+      .toEqual({ unreadCount: 12, messageNotifications: null, newCount: null, newMessages: null })
     for (const junk of [null, [], { error: 'Server error' }, { unreadCount: 'lots' }]) {
       expect(parseUnreadCount(junk)).toBeNull()
     }
