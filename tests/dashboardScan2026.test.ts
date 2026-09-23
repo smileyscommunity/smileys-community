@@ -104,7 +104,7 @@ describe('headings do not promise what the query cannot deliver', () => {
     // Every card, not just the top one: the list is score-sorted, so keying
     // on [0] let one match label four cards, three of which the widened pool
     // now often fills with score-zero events.
-    expect(src).toContain("deduplicatedRecommended.length > 0 && deduplicatedRecommended.every(e => e.score > 0)")
+    expect(src).toContain("pickedRecommended.length > 0 && pickedRecommended.every(e => e.score > 0)")
   })
 
   it('a field of one is not ranked as the most popular', () => {
@@ -114,7 +114,8 @@ describe('headings do not promise what the query cannot deliver', () => {
     // had joined were ranked as a top four of "0 going". The property is that
     // the gate reads the array that renders, and that someone is on it.
     expect(src).toContain('const trendingRanked = trendingEventsRaw')
-    expect(src).toContain('trendingRanked.length >= TRENDING_MIN_FIELD && (trendingRanked[0]?._count.attendees ?? 0) > 0')
+    // Gated after the cross-strip claim, on what is genuinely left to rank.
+    expect(src).toContain('pickedTrendingRanked.length >= TRENDING_MIN_FIELD && (pickedTrendingRanked[0]?._count.attendees ?? 0) > 0')
     expect(src).not.toContain('trendingEventsRaw.length >= TRENDING_MIN_FIELD')
   })
 
@@ -137,6 +138,31 @@ describe('headings do not promise what the query cannot deliver', () => {
 })
 
 describe('the same thing is not rendered twice on one page', () => {
+  it('each discovery strip claims what it shows, and no later strip repeats it', () => {
+    // Antalya has one upcoming event; its members were shown it under five
+    // headings at once. The city calendar is deliberately left out — it is a
+    // browse surface and has to stay complete.
+    expect(src).toContain('const claimedEventIds = new Set<string>()')
+    for (const v of ['pickedFeatured', 'pickedRecommended', 'pickedRunningLow', 'pickedNewThisWeek', 'pickedTrendingRanked'])
+      expect(src).toContain(`const ${v}`.slice(0, 6 + v.length))
+    // and the render sites use the claimed lists, not the raw ones
+    expect(src).not.toContain('{runningLow.map(')
+    expect(src).not.toContain('{newThisWeek.map(')
+    expect(src).not.toContain('const e = featuredEvents[0]')
+  })
+
+  it('the community poll belongs to a city, or to everyone on purpose', () => {
+    expect(src).toContain('where:   { active: true, OR: [{ cityId: null }, { cityId }] },')
+    // Publishing one city's poll must not close another's.
+    expect(read('app/api/admin/community-poll/route.ts'))
+      .toContain("updateMany({ where: { active: true, cityId: pollCityId }")
+  })
+
+  it('the tile counts bookings and says so', () => {
+    expect(src).toContain("{ label: 'Events joined'")
+    expect(src).not.toContain("'Events so far'")
+  })
+
   it('articles are pinned in one place, not in the timeline as well', () => {
     // Every article in "From Smileys" was also a pinned timeline row, a few
     // hundred pixels away in the same column.

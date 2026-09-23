@@ -37,7 +37,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { question, options } = await req.json()
+  const { question, options, cityId: rawCityId } = await req.json()
+  // Which city the question is for. A poll with no city is asked of everyone
+  // — deliberate, and the only way to ask one question community-wide — so an
+  // explicit null is honoured and anything else has to be a real public city.
+  let pollCityId: string | null = null
+  if (rawCityId != null) {
+    if (typeof rawCityId !== 'string') {
+      return NextResponse.json({ error: 'cityId must be a string or null' }, { status: 400 })
+    }
+    const city = await prisma.city.findUnique({ where: { id: rawCityId }, select: { id: true } })
+    if (!city) return NextResponse.json({ error: 'Unknown city' }, { status: 400 })
+    pollCityId = city.id
+  }
   const cleanedQuestion = String(question ?? '').trim()
   const cleanedOptions  = Array.isArray(options)
     ? options.map((o: unknown) => String(o ?? '').trim()).filter(Boolean)
@@ -72,11 +84,15 @@ export async function POST(req: NextRequest) {
   // transaction so a transient throw between the two doesn't leave the
   // community with zero active polls.
   const poll = await prisma.$transaction(async tx => {
-    await tx.communityPoll.updateMany({ where: { active: true }, data: { active: false } })
+    // Retire only the poll this one replaces: the city's own, or — for a
+    // global question — the global one. Unscoped, publishing an Istanbul poll
+    // silently closed Tbilisi's.
+    await tx.communityPoll.updateMany({ where: { active: true, cityId: pollCityId }, data: { active: false } })
     return tx.communityPoll.create({
       data: {
         question: cleanedQuestion,
         active:   true,
+        cityId:   pollCityId,
         options: {
           create: cleanedOptions.map((text, order) => ({ text, order })),
         },

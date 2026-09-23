@@ -548,10 +548,13 @@ export default async function DashboardPage() {
           select: { id: true, name: true, color: true, profilePhoto: true, neighborhood: true, neighborhoodVisible: true, status: true, hiddenFromMembers: true, cityId: true, profileVisibility: true },
         }).then(u => (u && u.status === 'approved' && !u.hiddenFromMembers && u.cityId === cityId && !blockedIds.includes(u.id) ? u : null))
       : Promise.resolve(null),
-    // Active community poll with user's vote
+    // Active community poll with user's vote. City-scoped like every other
+    // piece of content on this page: a poll with no city is a question for
+    // everyone, one with a city belongs to it. Unscoped, Istanbul's question
+    // and Istanbul's 176 votes rendered on Tbilisi's dashboard.
     prisma.communityPoll.findFirst({
-      where:   { active: true },
-      orderBy: { createdAt: 'desc' },
+      where:   { active: true, OR: [{ cityId: null }, { cityId }] },
+      orderBy: [{ cityId: 'desc' }, { createdAt: 'desc' }],
       include: {
         options: { orderBy: { order: 'asc' }, include: { _count: { select: { votes: true } } } },
       },
@@ -1128,8 +1131,34 @@ export default async function DashboardPage() {
   // popular". And a ranking of events nobody has joined is four cards reading
   // "0 going" — 26 of Istanbul's 42 upcoming events have no approved seats —
   // so the top card has to have someone on it before the strip claims a rank.
-  const trendingEvents = trendingRanked.length >= TRENDING_MIN_FIELD && (trendingRanked[0]?._count.attendees ?? 0) > 0
-    ? trendingRanked.slice(0, 4)
+
+  // ── One event, one slot ───────────────────────────────────────────────────
+  //
+  // Five discovery strips drew from the same pool — everything upcoming,
+  // published and not already joined — so in a small city the same card
+  // appeared under five headings at once. Antalya has one upcoming event, and
+  // its twenty-five members were shown it as "Recommended for you", "New this
+  // week", "Most popular upcoming events", "This week in Antalya" and again on
+  // the activity wall. Istanbul filled 33 slots with 21 distinct events.
+  //
+  // Each strip now claims what it shows, in order of how specific its promise
+  // is, and a later strip cannot repeat it. The city calendar below is
+  // deliberately NOT part of this: it is a browse surface and has to stay
+  // complete.
+  const claimedEventIds = new Set<string>()
+  const claimEvents = <T extends { id: string }>(list: T[]): T[] => {
+    const kept = list.filter(e => !claimedEventIds.has(e.id))
+    for (const e of kept) claimedEventIds.add(e.id)
+    return kept
+  }
+  const pickedFeatured    = claimEvents(featuredEvents)
+  const pickedRecommended = claimEvents(deduplicatedRecommended)
+  const pickedRunningLow  = claimEvents(runningLow)
+  const pickedNewThisWeek = claimEvents(newThisWeek)
+  // Trending is gated AFTER the claim, on what is actually left to rank.
+  const pickedTrendingRanked = claimEvents(trendingRanked)
+  const trendingEvents = pickedTrendingRanked.length >= TRENDING_MIN_FIELD && (pickedTrendingRanked[0]?._count.attendees ?? 0) > 0
+    ? pickedTrendingRanked.slice(0, 4)
     : []
 
   // Plain counts of real things. The streak and the profile-view counter
@@ -1145,9 +1174,16 @@ export default async function DashboardPage() {
                                                   && (a.event.status === 'published' || a.event.status === 'archived'))
   const attendedThisMonth = wentTo.filter(a => a.event.date >= monthStartStr).length
   const stats: { label: string; value: number; href?: string }[] = [
+    // "Events so far" implied attendance the platform cannot see: 61% of what
+    // it counts is attendance='unknown' — a seat held at an event with no door
+    // to check in at. Counting only checkedIn would undercount real attendance
+    // just as badly in the other direction (39% are checked in), so the number
+    // stays and the word changes to the one it has always measured. The same
+    // file calls checkedIn "the strict signal" and uses it for the testimonial
+    // gate; this tile was never that.
     { label: 'Upcoming',       value: upcomingCount,          href: '/my-events' },
     { label: 'This month',     value: attendedThisMonth       },
-    { label: 'Events so far',  value: wentTo.length           },
+    { label: 'Events joined',  value: wentTo.length           },
     { label: 'My clubs',       value: clubs.length,           href: '/clubs' },
   ]
 
@@ -1689,7 +1725,7 @@ export default async function DashboardPage() {
             }))} cityName={city.name} />
 
             {/* Spots running low — urgent, time-sensitive */}
-            {runningLow.length > 0 && (
+            {pickedRunningLow.length > 0 && (
               <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
                 <div className="flex items-center gap-2 mb-3">
                   <span className="text-base">🔥</span>
@@ -1697,7 +1733,7 @@ export default async function DashboardPage() {
                   <span className="ml-auto text-[10px] font-bold text-red-500 bg-red-100 px-2 py-0.5 rounded-full uppercase tracking-wide">Limited spots</span>
                 </div>
                 <div className="space-y-2">
-                  {runningLow.map((event) => (
+                  {pickedRunningLow.map((event) => (
                     <Link key={event.id} href={`/events/${event.id}`}
                       className="flex items-center gap-3 bg-white rounded-xl p-3 border border-red-100 hover:border-red-300 hover:-translate-y-0.5 transition-all group">
                       <span className="text-xl shrink-0">{event.emoji}</span>
@@ -2006,7 +2042,7 @@ export default async function DashboardPage() {
             )}
 
             {/* New this week — everything just posted, unranked */}
-            {newThisWeek.length > 0 && (
+            {pickedNewThisWeek.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <div>
@@ -2016,7 +2052,7 @@ export default async function DashboardPage() {
                   <Link href="/events" className="text-sm text-amber-600 font-semibold hover:underline">Browse all →</Link>
                 </div>
                 <div className="space-y-2">
-                  {newThisWeek.map((event) => (
+                  {pickedNewThisWeek.map((event) => (
                     <Link key={event.id} href={`/events/${event.id}`}
                       className="group flex gap-3 bg-white rounded-xl shadow-card p-3 hover:-translate-y-0.5 transition-transform duration-200">
                       <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-100 to-teal-100 flex items-center justify-center text-xl shrink-0">
@@ -2036,7 +2072,7 @@ export default async function DashboardPage() {
             )}
 
             {/* Recommended — personalized picks */}
-            {deduplicatedRecommended.length > 0 && (
+            {pickedRecommended.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <div>
@@ -2048,7 +2084,7 @@ export default async function DashboardPage() {
                           member has signals at all. Someone with a neighbourhood
                           set and no match was told the soonest four events were
                           chosen for them. */}
-                      {deduplicatedRecommended.length > 0 && deduplicatedRecommended.every(e => e.score > 0)
+                      {pickedRecommended.length > 0 && pickedRecommended.every(e => e.score > 0)
                         ? 'From your clubs, interests and neighbourhood'
                         : 'Upcoming events'}
                     </p>
@@ -2056,7 +2092,7 @@ export default async function DashboardPage() {
                   <Link href="/events" className="text-sm text-amber-600 font-semibold hover:underline">Browse all →</Link>
                 </div>
                 <div className="space-y-2">
-                  {deduplicatedRecommended.map((event) => (
+                  {pickedRecommended.map((event) => (
                     <Link key={event.id} href={`/events/${event.id}`}
                       className="group flex gap-3 bg-white rounded-xl shadow-card p-3 hover:-translate-y-0.5 transition-transform duration-200">
                       <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-100 to-orange-100 flex items-center justify-center text-xl shrink-0">
@@ -2167,7 +2203,7 @@ export default async function DashboardPage() {
               </div>
             )}
 
-            {deduplicatedRecommended.length === 0 && upcomingEvents.length > 0 && (
+            {pickedRecommended.length === 0 && upcomingEvents.length > 0 && (
               <div className="bg-white rounded-2xl shadow-card p-6 text-center">
                 <div className="text-3xl mb-2">🔍</div>
                 <p className="text-gray-600 text-sm font-medium">Discover more events</p>
@@ -2364,7 +2400,7 @@ export default async function DashboardPage() {
 
             {/* Featured event widget */}
             {featuredEvents.length > 0 && (() => {
-              const e = featuredEvents[0]
+              const e = pickedFeatured[0]
               return (
                 <Link href={`/events/${e.id}`} className="block bg-white rounded-2xl shadow-card overflow-hidden hover:shadow-md transition-shadow group">
                   {e.coverImage ? (

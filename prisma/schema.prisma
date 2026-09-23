@@ -390,6 +390,8 @@ model City {
   cityRelationships    CityRelationship[]
   testimonials         Testimonial[]
 
+  communityPolls             CommunityPoll[]
+
   @@map("cities")
 }
 
@@ -1651,7 +1653,14 @@ model CommunityPoll {
   createdAt DateTime              @default(now())
   updatedAt DateTime              @updatedAt
   options   CommunityPollOption[]
+  /// Null means the question is for every city. It was the only content on the
+  /// dashboard with no city at all, so Istanbul's question — and Istanbul's
+  /// votes — rendered on Tbilisi's and Ankara's dashboards as if they were
+  /// theirs.
+  cityId    String?
+  city      City?                 @relation(fields: [cityId], references: [id])
 
+  @@index([cityId])
   @@map("community_polls")
 }
 
