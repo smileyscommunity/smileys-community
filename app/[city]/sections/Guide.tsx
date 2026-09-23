@@ -1,14 +1,19 @@
 import Link from 'next/link'
 import type { PublicCity, EnterLink } from '../data'
 
-// The remote-work hub gathers this section's practical links into an arrival
-// path; a text link rather than a fourth button. Only live cities render this
+// The moving and remote-work hubs gather this section's practical links into
+// arrival paths; text links rather than more buttons. Only live cities render this
 // section, and every live city has a hub.
 function RemoteWorkLink({ city }: { city: PublicCity }) {
   return (
-    <Link href={`/${city.slug}/remote-work`} className="inline-block mt-6 text-sm font-bold text-amber-700 hover:text-amber-800">
-      Working remotely? Your first 72 hours in {city.name} <span aria-hidden="true">→</span>
-    </Link>
+    <div className="mt-6 flex flex-col sm:flex-row gap-x-6 gap-y-2 text-sm font-bold">
+      <Link href={`/${city.slug}/moving`} className="text-amber-700 hover:text-amber-800">
+        Moving to {city.name}? Start here <span aria-hidden="true">→</span>
+      </Link>
+      <Link href={`/${city.slug}/remote-work`} className="text-amber-700 hover:text-amber-800">
+        Working remotely? Your first 72 hours <span aria-hidden="true">→</span>
+      </Link>
+    </div>
   )
 }
 

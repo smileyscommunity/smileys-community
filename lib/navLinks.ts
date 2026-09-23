@@ -28,6 +28,11 @@ export const DISCOVER_LINKS: NavLink[] = [
   { label: 'Experiences',     href: '/experiences',   emoji: '✨', public: true  },
   { label: 'Directory',       href: '/directory',     emoji: '📍', public: true  },
   { label: 'Neighborhoods',   href: '/neighborhoods', emoji: '🏘️', public: true  },
+  // The two arrival hubs (Visiting is the third, below / in the guest bar).
+  // Both redirect to the reader's own city (app/moving, app/remote-work), so
+  // one link serves every city.
+  { label: 'Moving Here',     href: '/moving',        emoji: '🏡', public: true  },
+  { label: 'Remote Work',     href: '/remote-work',   emoji: '💻', public: true  },
   // The two members-only entries, placed together and ABOVE the reference
   // block. They are the most time-sensitive things in this menu — a coffee
   // happening this week, someone landing in your city on Thursday — and they

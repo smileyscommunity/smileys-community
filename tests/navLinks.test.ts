@@ -73,6 +73,8 @@ describe('Discover ordering', () => {
       'Experiences',
       'Directory',
       'Neighborhoods',
+      'Moving Here',
+      'Remote Work',
       'City Guide',
       'Handbook',
       'Hosts',

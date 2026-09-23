@@ -9,7 +9,7 @@ import { getSession } from '@/lib/session'
 import EventTabs from '@/components/EventTabs'
 import CityCard from '@/components/CityCard'
 import { resolveImageUrl, istanbulEventWindow } from '@/lib/data'
-import { getPublicCities, CITY_STATUS } from '@/lib/cities'
+import { getPublicCities, CITY_STATUS, DEFAULT_CITY_SLUG } from '@/lib/cities'
 import { CITY_MATURITY } from '@/lib/cityMaturity'
 import { APP_URL } from '@/lib/env'
 import { loadContent } from '@/lib/content'
@@ -288,6 +288,55 @@ export default async function HomePage() {
         </section>
       )}
 
+      {/* ── How are you coming? ─────────────────────────────────────────── */}
+      {/* The three arrival hubs side by side, so a visitor picks the page
+          written for them in one glance: the traveller's (/visiting), the
+          remote worker's and the relocating expat's (per-city hubs). With one
+          live city the links pin it and the heading names it; otherwise each
+          resolves to the reader's city. Only paths — no counts — so nothing
+          here can drift from what the hubs themselves show. */}
+      <section aria-labelledby="arrival-title" className="py-14 sm:py-20 bg-white border-t border-gray-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mb-8">
+            <h2 id="arrival-title" className="section-title">
+              {singleCity ? `How are you coming to ${flagship.name}?` : 'How are you coming?'}
+            </h2>
+            <p className="section-subtitle max-w-2xl">A page for each way of arriving, with the practical side and the people.</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {[
+              {
+                // The default city's Visiting page is the bare URL (its canonical).
+                href:  singleCity && flagship.slug !== DEFAULT_CITY_SLUG ? `/visiting?city=${flagship.slug}` : '/visiting',
+                emoji: '🧳', title: 'Visiting',
+                body:  'In town for a few days or weeks. See who else is visiting, what is on during your stay, and locals happy to meet.',
+                cta:   'Plan your visit',
+              },
+              {
+                href:  singleCity ? `/remote-work?city=${flagship.slug}` : '/remote-work',
+                emoji: '💻', title: 'Working remotely',
+                body:  'Here for a while with a laptop. Your first 72 hours: SIM and internet, a neighbourhood, coworking sessions, and people.',
+                cta:   'Your first 72 hours',
+              },
+              {
+                href:  singleCity ? `/moving?city=${flagship.slug}` : '/moving',
+                emoji: '🏡', title: 'Moving here',
+                body:  'Building a life here. Residence permits, housing, banking, healthcare, neighbourhoods — and people who have already figured it out.',
+                cta:   'Start your move',
+              },
+            ].map(t => (
+              <Link key={t.title} href={t.href}
+                className="group flex flex-col bg-gray-50 rounded-2xl border border-gray-100 p-6 hover:border-amber-200 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500">
+                <div aria-hidden="true" className="text-3xl mb-4">{t.emoji}</div>
+                <h3 className="font-bold text-gray-900 mb-2 group-hover:text-amber-700 transition-colors">{t.title}</h3>
+                <p className="text-sm text-gray-600 leading-relaxed flex-1">{t.body}</p>
+                <span className="mt-4 text-sm font-bold text-amber-700">{t.cta} <span aria-hidden="true">→</span></span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ── Choose your city ───────────────────────────────────────────── */}
       <section id="cities" className="py-14 sm:py-20 bg-white scroll-mt-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -342,27 +391,6 @@ export default async function HomePage() {
                 <p className="text-sm text-gray-600 leading-relaxed">{w.body}</p>
               </div>
             ))}
-            {/* The remote-work hub, as the grid's full-width last row: a
-                seventh card would sit alone on a three-column row. When the label
-                names the flagship the link pins it; otherwise /remote-work
-                resolves to the reader's city. The copy
-                only names what the hub actually links to — there is no
-                laptop-friendly-venue data to promise. */}
-            <Link
-              href={singleCity ? `/remote-work?city=${flagship.slug}` : '/remote-work'}
-              className="group sm:col-span-2 lg:col-span-3 bg-white rounded-2xl border border-amber-200 shadow-sm p-6 sm:p-8 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6"
-            >
-              <div aria-hidden="true" className="text-3xl shrink-0">💻</div>
-              <div className="flex-1">
-                <h3 className="font-bold text-gray-900 mb-2 group-hover:text-amber-700 transition-colors">Work remotely with confidence</h3>
-                <p className="text-sm text-gray-600 leading-relaxed max-w-2xl">
-                  Coworking sessions, SIM and internet, time zones, and the practical things that make a new city work — plus your first 72 hours, step by step.
-                </p>
-              </div>
-              <span className="shrink-0 text-sm font-bold text-amber-700">
-                {singleCity ? `Explore remote work in ${flagship.name}` : 'Explore remote work'} <span aria-hidden="true">→</span>
-              </span>
-            </Link>
           </div>
         </div>
       </section>

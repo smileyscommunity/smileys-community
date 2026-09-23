@@ -20,6 +20,7 @@ import { canonicalCategory, categoryMeta, CATEGORY_KEYS, HANDBOOK_CATEGORIES } f
 import { reviewLabel, readingTime } from '@/lib/handbook-review'
 import type { HandbookSearchItem } from '@/lib/handbook-search'
 import { APP_URL } from '@/lib/env'
+import { populatedStages } from '@/lib/relocation'
 
 // Card covers come from lib/articleCover: explicit cover, else the first
 // inline body image — OWN UPLOADS ONLY — else the category banner. A private
@@ -36,7 +37,7 @@ const getHandbookArticles = unstable_cache(
     where:   { kind: 'handbook', status: 'published', ...postCityScope(cityId, country) },
     orderBy: { publishedAt: 'desc' },
     select:  {
-      id: true, slug: true, title: true, excerpt: true, body: true, coverImage: true, category: true,
+      id: true, slug: true, title: true, excerpt: true, body: true, coverImage: true, category: true, cityId: true,
       publishedAt: true, lastReviewedAt: true, reviewIntervalDays: true, tags: true,
       // The privacy columns ride along so the byline can be projected for
       // this viewer AFTER the cache (lib/storyByline) — a card must not say
@@ -235,6 +236,12 @@ export default async function HandbookPage({ searchParams }: { searchParams?: Pr
     .filter(c => bySlug.has(c.slug))
     .map(c => ({ ...c, article: enrichedBySlug.get(c.slug)! }))
 
+  // Life-stage entry points (lib/relocation): the same articles, read by
+  // where the reader is in a move. Only stages this city can fill are
+  // offered, so no card opens onto an empty list.
+  const stages   = populatedStages(articles, cityId)
+  const stageQs  = city.isDefault ? '' : `?city=${cfg.slug}`
+
   // Latest — newest 5, rendered as flanked image cards. Each card carries a
   // review chip when (and only when) the article has a real lastReviewedAt
   // (brief §38's maintenance signal, folded into the list rather than a
@@ -279,6 +286,28 @@ export default async function HandbookPage({ searchParams }: { searchParams?: Pr
                     {c.label}
                   </p>
                   <p className="text-[11px] text-gray-500 mt-1">{c.article.minutes} min read</p>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Where are you in your move? — life-stage entry points. */}
+      {stages.length > 0 && (
+        <section aria-labelledby="stages-title" className="bg-white border-b border-gray-100">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            <h2 id="stages-title" className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-6">Where are you in your move?</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {stages.map(({ stage, articles: list }) => (
+                <Link key={stage.key} href={`/handbook/stage/${stage.key}${stageQs}`}
+                  className={`rounded-2xl border p-5 hover:shadow-md hover:-translate-y-0.5 transition-all group ${
+                    stage.key === 'urgent' ? 'bg-red-50/60 border-red-100 hover:border-red-200' : 'bg-gray-50 border-gray-200 hover:border-amber-300'
+                  }`}>
+                  <div aria-hidden="true" className="text-2xl mb-2">{stage.emoji}</div>
+                  <p className="text-sm font-extrabold text-gray-900 group-hover:text-amber-700 transition-colors leading-tight">{stage.label}</p>
+                  <p className="text-xs text-gray-600 mt-1 leading-relaxed">{stage.blurb}</p>
+                  <p className="text-[11px] font-semibold text-gray-500 mt-2">{list.length} {list.length === 1 ? 'guide' : 'guides'}</p>
                 </Link>
               ))}
             </div>

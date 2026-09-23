@@ -4,10 +4,11 @@ import { postCityScope } from '@/lib/postScope'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { resolveCityId, getCityConfig } from '@/lib/city'
+import { resolveCityForPage, type CitySearch } from '@/lib/cityPageParam'
 import { canonicalCategory, categoryMeta, storedKeysFor } from '@/lib/handbook-categories'
 import { articleCover } from '@/lib/articleCover'
 import { storyBylines } from '@/lib/storyByline'
+import { reviewLabel } from '@/lib/handbook-review'
 
 // Queried by every stored key that maps to this canonical category, so legacy
 // rows still filed under the old vocabulary appear here rather than vanishing
@@ -20,6 +21,7 @@ const getHandbookCategory = unstable_cache(
     orderBy: { publishedAt: 'desc' },
     select:  {
       id: true, slug: true, title: true, excerpt: true, coverImage: true, body: true, category: true, publishedAt: true,
+      lastReviewedAt: true, reviewIntervalDays: true, officialSources: true,
       // Projected per viewer after the cache — see the index.
       author: { select: {
         id: true, name: true, color: true, profilePhoto: true,
@@ -46,22 +48,24 @@ function categoryKeyFrom(param: string): string {
   try { return decodeURIComponent(param) } catch { return param }
 }
 
-type Params = { params: Promise<{ key: string }> }
+type Params = { params: Promise<{ key: string }>; searchParams?: Promise<CitySearch> }
 
-export async function generateMetadata({ params }: Params) {
+export async function generateMetadata({ params, searchParams }: Params) {
   const { key } = await params
   const cat = categoryMeta(categoryKeyFrom(key))
   if (!cat) return { title: 'Handbook — Smileys Community' }
-  // Names the viewer's city. A crawler carries no cookie, so it resolves to the
-  // default city and keeps the indexed "… — Istanbul Handbook" titles intact.
-  const city = await getCityConfig(await resolveCityId(await getSession()))
+  // Names the viewer's city — ?city= when the link carries one (the hubs and
+  // stage pages link that way), else the session. A crawler carries neither,
+  // so it resolves to the default city and keeps the indexed "… — Istanbul
+  // Handbook" titles intact.
+  const { city } = await resolveCityForPage(searchParams)
   return {
     title:       `${cat.label} — ${city.name} Handbook | Smileys Community`,
     description: cat.tagline,
   }
 }
 
-export default async function HandbookCategoryPage({ params }: Params) {
+export default async function HandbookCategoryPage({ params, searchParams }: Params) {
   const { key } = await params
   const decoded = categoryKeyFrom(key)
   // Legacy /handbook/category/Bureaucracy URLs are indexed, so they resolve to
@@ -71,8 +75,7 @@ export default async function HandbookCategoryPage({ params }: Params) {
   if (!canonical || !cat) notFound()
 
   const session  = await getSession()
-  const cityId   = await resolveCityId(session)
-  const cfg      = await getCityConfig(cityId)
+  const { city: cfg, cityId } = await resolveCityForPage(searchParams)
   const articles = await getHandbookCategory(storedKeysFor(canonical), cityId, cfg.country ?? null)
   const byline   = await storyBylines(session, articles.map(a => a.author))
 
@@ -86,6 +89,20 @@ export default async function HandbookCategoryPage({ params }: Params) {
             <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 leading-tight">{cat.label}</h1>
           </div>
           <p className="text-sm text-gray-600 max-w-xl leading-relaxed">{cat.tagline}</p>
+          {/* One note for the category, not one per paragraph: residence,
+              money, healthcare and safety are where acting on a stale step
+              costs something. Each article repeats the check at its top. */}
+          {cat.highStakes && (
+            <p className="flex gap-2 mt-5 rounded-xl border border-gray-200 bg-gray-50 p-4 text-xs text-gray-700 leading-relaxed max-w-xl">
+              <span aria-hidden="true">⚠️</span>
+              <span>
+                <span className="font-bold text-gray-900">Member-written, not professional advice.</span>{' '}
+                These guides explain how things work in practice; they are not legal, immigration, tax or
+                medical advice, and rules and fees change. Where a guide links official sources, those set
+                the current requirements.
+              </span>
+            </p>
+          )}
         </div></div>
       </section>
 
@@ -121,6 +138,20 @@ export default async function HandbookCategoryPage({ params }: Params) {
                     {a.excerpt && (
                       <p className="text-sm text-gray-600 mt-2 leading-relaxed line-clamp-2">{a.excerpt}</p>
                     )}
+                    {/* Lived experience vs official requirement, at a glance:
+                        which guides cite sources, and which a human has
+                        re-checked (a real review date only — never updatedAt). */}
+                    {(() => {
+                      const reviewed = reviewLabel({ category: canonical, lastReviewedAt: a.lastReviewedAt, reviewIntervalDays: a.reviewIntervalDays })
+                      const cites = Array.isArray(a.officialSources) && a.officialSources.length > 0
+                      if (!reviewed && !cites) return null
+                      return (
+                        <p className="flex flex-wrap gap-x-3 gap-y-1 text-xs mt-3">
+                          {cites && <span className="font-semibold text-gray-700">Links official sources</span>}
+                          {reviewed && <span className={reviewed.stale ? 'text-gray-500' : 'font-semibold text-emerald-700'}>{reviewed.stale ? 'Review overdue' : reviewed.text}</span>}
+                        </p>
+                      )
+                    })()}
                   </div>
                 </div>
               </Link>

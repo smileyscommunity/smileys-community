@@ -17,6 +17,7 @@ import type { Event } from '@/lib/data'
 import { LIVE_BOARD_AUTHOR, SHOWN_REPLY } from '@/lib/boardAccess'
 import { firstNameOf } from '@/lib/data'
 import { isWorkClub } from '@/lib/remoteWork'
+import { getCityHandbookIndex } from '@/lib/handbookIndex'
 
 // Everything the city shopfront reads, in one place, with the one boundary
 // that matters drawn explicitly:
@@ -355,14 +356,7 @@ export const REMOTE_WORK_EVENT_LIMIT = 6
 export const getCityRemoteWorkHub = unstable_cache(
   async (cityId: string, country: string | null) => {
     const [articles, clubs, { events }, neighborhoodCount] = await Promise.all([
-      prisma.post.findMany({
-        where:   { kind: 'handbook', status: 'published', ...postCityScope(cityId, country) },
-        orderBy: { publishedAt: 'desc' },
-        select:  {
-          slug: true, title: true, excerpt: true, category: true, cityId: true,
-          lastReviewedAt: true, reviewIntervalDays: true, officialSources: true,
-        },
-      }),
+      getCityHandbookIndex(cityId, country),
       getClubs(cityId),
       // The same window the city's events hub reads; the work/newcomer
       // filter below runs over it rather than adding a second query shape.
@@ -387,11 +381,7 @@ export const getCityRemoteWorkHub = unstable_cache(
     const newcomerOnes = live.filter(e => !(e.clubId && workClubIds.has(e.clubId)) && e.isFirstTimerFriendly)
 
     return {
-      // officialSources reduced to a flag: the hub only says whether an
-      // article cites them, the article page lists them.
-      articles: articles.map(({ officialSources, ...a }) => ({
-        ...a, hasOfficialSources: Array.isArray(officialSources) && officialSources.length > 0,
-      })),
+      articles,
       workClubs,
       events:        [...workEvents, ...newcomerOnes].slice(0, REMOTE_WORK_EVENT_LIMIT),
       hasWorkEvents: workEvents.length > 0,
@@ -399,5 +389,57 @@ export const getCityRemoteWorkHub = unstable_cache(
     }
   },
   ['city-remote-work-hub'],
+  { revalidate: 60, tags: ['home'] },
+)
+
+// ── Moving hub (/[city]/moving) ─────────────────────────────────────────────
+//
+// The relocation path (lib/relocation arranges it). Handbook articles, where
+// members live, where events are, the city's first-timer-friendly events and
+// its club count — all existing data, all public-safe: the neighbourhood
+// figures are counts, never names, and events are redacted per request by
+// the page like every other hub.
+
+/** How many first-timer-friendly events the hub's "Build your life" row shows. */
+export const MOVING_EVENT_LIMIT = 3
+
+export const getCityMovingHub = unstable_cache(
+  // `tz` is part of the cache key (see getCityPageData): "upcoming" is this
+  // city's calendar day.
+  async (cityId: string, country: string | null, tz: string) => {
+    const today = todayInTz(tz)
+    const [articles, memberRows, eventRows, { events }, clubs] = await Promise.all([
+      getCityHandbookIndex(cityId, country),
+      // Activated members only (lib/memberCount) — the same figure the
+      // Visiting page's "N Smileys nearby" uses.
+      prisma.user.groupBy({
+        by:     ['neighborhood'],
+        where:  { ...ACTIVATED_MEMBER_WHERE, cityId, neighborhood: { not: null } },
+        _count: { _all: true },
+      }),
+      prisma.event.groupBy({
+        by:     ['neighborhood'],
+        where:  { cityId, status: 'published', date: { gte: today } },
+        _count: { _all: true },
+      }),
+      getEvents({ limit: HUB_LIMIT, upcoming: true, cityId }),
+      getClubs(cityId),
+    ])
+    return {
+      articles,
+      memberCounts: memberRows.flatMap(r => r.neighborhood ? [{ neighborhood: r.neighborhood, count: r._count._all }] : []),
+      eventCounts:  eventRows.map(r => ({ neighborhood: r.neighborhood, count: r._count._all })),
+      events: events
+        .filter(e => e.status !== 'cancelled' && e.isFirstTimerFriendly)
+        .slice(0, MOVING_EVENT_LIMIT),
+      // From the published-only count above: getEvents' total also counts
+      // cancelled events, which it keeps for the cancelled banner.
+      upcomingEventCount: eventRows.reduce((n, r) => n + r._count._all, 0),
+      // A count is all the hub shows; the global clubs this city opts into
+      // are listed here too, so they count here too (getClubs).
+      clubCount: clubs.length,
+    }
+  },
+  ['city-moving-hub'],
   { revalidate: 60, tags: ['home'] },
 )
