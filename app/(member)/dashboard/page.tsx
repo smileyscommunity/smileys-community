@@ -150,7 +150,7 @@ export default async function DashboardPage() {
       where: { userId: session.id, status: 'approved' },
       // stealth too: an event the member attended invisibly can't make them
       // a familiar face to anyone, because nobody there saw their name.
-      select: { eventId: true, attendance: true, stealth: true, event: { select: { date: true } } },
+      select: { eventId: true, attendance: true, stealth: true, event: { select: { date: true, status: true } } },
       orderBy: { joinedAt: 'desc' },
     }),
     prisma.clubMembership.findMany({
@@ -327,15 +327,21 @@ export default async function DashboardPage() {
   //   · no_show — they booked and never came, so they met nobody (the wentTo
   //     counter further down already drew this line; this didn't)
   //   · stealth — they were there invisibly, so nobody can find them familiar
-  //   · a one-year floor and a 50-event cap — with neither, "familiar" grew
-  //     into "most of the city" (an Istanbul member averaged 73 familiar
-  //     members, one reached 434) and the IN list grew with tenure for ever.
-  // myAttendances is newest-first, so the cap keeps the most recent.
+  //   · a postponed or draft event — it never happened, so no room was shared
+  // The one-year floor and 50-event cap below bind on nobody today (the oldest
+  // event in the table is 2026-05-06 and the deepest history is 38 events);
+  // they are there so "familiar" cannot quietly widen into "most of the city"
+  // as the platform ages. Sorted by event date before slicing, because
+  // myAttendances is ordered by when the seat was BOOKED — otherwise an event
+  // booked months ahead would push out one attended last week.
   const FAMILIAR_DAYS = 365
   const FAMILIAR_CAP  = 50
   const familiarFloor = shiftDay(today, -FAMILIAR_DAYS)
   const pastEventIds    = myAttendances
-    .filter((a) => a.event.date < today && a.event.date >= familiarFloor && a.attendance !== 'no_show' && !a.stealth)
+    .filter((a) => a.event.date < today && a.event.date >= familiarFloor
+                && a.attendance !== 'no_show' && !a.stealth
+                && (a.event.status === 'published' || a.event.status === 'archived'))
+    .sort((x, y) => (x.event.date < y.event.date ? 1 : -1))
     .slice(0, FAMILIAR_CAP)
     .map((a) => a.eventId)
   // The events the widget is ABOUT: the member's own next five, already
@@ -493,7 +499,12 @@ export default async function DashboardPage() {
             // not the match, so an invisible attendance still made someone a
             // familiar face — and for the 320 members whose history is a
             // single event, that resolves to exactly which one.
-            user: { ...LIVE, joinedEvents: { some: { eventId: { in: pastEventIds }, status: 'approved', stealth: false } } },
+            // no_show on BOTH sides. The viewer's own no-shows are already out
+            // of pastEventIds for the reason given there — they met nobody —
+            // and the same is true in reverse: someone who booked your March
+            // coffee and never came is not a familiar face. 40 rows across 25
+            // viewers qualified on a no-show alone.
+            user: { ...LIVE, joinedEvents: { some: { eventId: { in: pastEventIds }, status: 'approved', stealth: false, attendance: { not: 'no_show' } } } },
           },
           include: {
             // profileVisibility so restrictedSetFor can be applied at all —
@@ -1027,7 +1038,19 @@ export default async function DashboardPage() {
       user: restricted.has(a.user.id)
         ? { ...a.user, name: firstNameOf(a.user.name), profilePhoto: null }
         : a.user,
+      // Initials are computed here, from the full name, so the disc keeps its
+      // two letters without the surname travelling to the browser to make
+      // them. A redacted face gets one letter, because its surname is not
+      // this viewer's to have in any form.
+      initials: restricted.has(a.user.id)
+        ? getInitials(firstNameOf(a.user.name))
+        : getInitials(a.user.name),
     }))
+  // 89 of the 112 members with an upcoming RSVP hold exactly one, so the
+  // per-face event label was the same string under all eight avatars — and
+  // widening it only made the repetition louder. When there is one event,
+  // name it once above the faces.
+  const goingEvent = new Set(whosGoing.map((a) => a.event.id)).size === 1 ? whosGoing[0].event : null
 
   // Deduplicate nearbyMembers: exclude anyone already in suggestedMembers
   const suggestedMemberIds = new Set(suggestedMembers.map((m) => m.id))
@@ -1239,7 +1262,11 @@ export default async function DashboardPage() {
             {whosGoing.length > 0 && (
               <div className="bg-white rounded-2xl shadow-card p-5">
                 <h2 className="text-sm font-bold text-gray-900 mb-1">Who's going 👀</h2>
-                <p className="text-xs text-gray-400 mb-3">Familiar faces at the events you're going to</p>
+                <p className="text-xs text-gray-400 mb-3">
+                  {goingEvent
+                    ? `Familiar faces at ${goingEvent.emoji} ${goingEvent.title}`
+                    : "Familiar faces at the events you're going to"}
+                </p>
                 <div className="flex flex-wrap gap-3 pb-1">
                   {whosGoing.map((a) => {
                     // One name for the screen and the same one on the wire:
@@ -1260,18 +1287,21 @@ export default async function DashboardPage() {
                               split an emoji's surrogate pair into a lone half
                               (four members have one in their name) and never
                               upper-cased. */}
-                          {getInitials(shownName)}
+                          {a.initials}
                         </div>
                       )}
                       <span className="text-xs text-gray-600 text-center leading-tight max-w-[72px] truncate">
                         {shownName}
                       </span>
-                      {/* 52px at 12px was about six characters a line, two of
-                          them the emoji — the one detail that makes the face
-                          worth clicking was always truncated away. */}
-                      <span className="text-xs text-amber-600 font-medium text-center leading-tight max-w-[92px] line-clamp-2">
-                        {a.event.emoji} {a.event.title}
-                      </span>
+                      {/* Only when the faces span more than one event — see
+                          goingEvent. 52px at 12px was about six characters a
+                          line, two of them the emoji, so the one detail that
+                          makes a face worth clicking was truncated away. */}
+                      {!goingEvent && (
+                        <span className="text-xs text-amber-600 font-medium text-center leading-tight max-w-[92px] line-clamp-2">
+                          {a.event.emoji} {a.event.title}
+                        </span>
+                      )}
                     </Link>
                     )
                   })}

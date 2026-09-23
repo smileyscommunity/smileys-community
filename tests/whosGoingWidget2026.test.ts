@@ -57,7 +57,10 @@ describe('the people on it are shown the way every other strip shows them', () =
   })
 
   it('uses the shared initials helper, not a hand-rolled split', () => {
-    expect(src).toContain('{getInitials(shownName)}')
+    // The hand-rolled version split an emoji's surrogate pair in half and
+    // never upper-cased; the initials are now computed with getInitials in
+    // the projection (see the disc test below).
+    expect(src).toContain('getInitials(a.user.name),')
     expect(src).not.toContain("a.user.name.split(' ').map((w: string) => w[0])")
   })
 })
@@ -70,10 +73,29 @@ describe('"familiar" means someone you were actually in a room with', () => {
     expect(src).toContain('.slice(0, FAMILIAR_CAP)')
   })
 
+  it('applies the no-show rule to the other person too, not just the viewer', () => {
+    // The viewer's own no-shows were excluded with the reasoning "they met
+    // nobody" — which is just as true of someone who no-showed at the
+    // viewer's event. 40 rows across 25 viewers qualified on that alone.
+    expect(src).toContain("stealth: false, attendance: { not: 'no_show' } } }")
+  })
+
+  it('ignores past events that never happened', () => {
+    // A postponed or draft event shared no room with anyone. 24 qualifying
+    // rows sat behind postponed/draft events.
+    expect(src).toContain("(a.event.status === 'published' || a.event.status === 'archived')")
+  })
+
+  it('caps by when the event was, not when the seat was booked', () => {
+    // myAttendances is ordered joinedAt desc, so an unsorted slice would drop
+    // an event attended last week in favour of one booked yesterday.
+    expect(src).toContain('.sort((x, y) => (x.event.date < y.event.date ? 1 : -1))')
+  })
+
   it('and a stealth attendance cannot make someone a familiar face either', () => {
     // The guard was on the upcoming row only; the match ignored it, and for a
     // member whose history is one event that resolves the event uniquely.
-    expect(src).toContain("joinedEvents: { some: { eventId: { in: pastEventIds }, status: 'approved', stealth: false } }")
+    expect(src).toContain("joinedEvents: { some: { eventId: { in: pastEventIds }, status: 'approved', stealth: false,")
   })
 
   it('still keeps the viewer, blocks and non-live accounts out', () => {
@@ -89,14 +111,34 @@ describe('what it renders is stable and readable', () => {
   })
 
   it('takes enough rows that one event cannot eat all eight slots', () => {
-    // Rows are (person, event) pairs; dedupe is by person. take: 20 left 19%
-    // of members looking at the same event eight times.
+    // Rows are (person, event) pairs; dedupe is by person, so a tight window
+    // let one roster fill every slot. The cap doesn't bind on today's data
+    // (38 rows is the deepest); it is there so it can't start to.
     expect(src).toContain('take: 60,')
   })
 
-  it('gives the event name room to be read', () => {
+  it('names the event once when every face is at the same one', () => {
+    // 89 of the 112 members holding an upcoming RSVP hold exactly one, so the
+    // per-face label was one string repeated under eight avatars — and
+    // widening it to 92px made that worse, not better.
+    expect(src).toContain('const goingEvent = new Set(whosGoing.map((a) => a.event.id)).size === 1 ? whosGoing[0].event : null')
+    expect(src).toContain('? `Familiar faces at ${goingEvent.emoji} ${goingEvent.title}`')
+    expect(src).toContain('{!goingEvent && (')
+  })
+
+  it('gives the event name room to be read when it does show one', () => {
     expect(src).not.toContain('max-w-[52px] line-clamp-2')
     expect(src).toContain('max-w-[92px] line-clamp-2')
+  })
+
+  it('keeps two initials on the disc without shipping the surname', () => {
+    // getInitials(firstName) would have made every disc a single letter —
+    // the only one-letter discs on the page. Computed server-side from the
+    // full name instead, so only the two letters travel.
+    expect(src).toContain('initials: restricted.has(a.user.id)')
+    expect(src).toContain('? getInitials(firstNameOf(a.user.name))')
+    expect(src).toContain(': getInitials(a.user.name),')
+    expect(src).toContain('{a.initials}')
   })
 
   it('says what it now means', () => {
