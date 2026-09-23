@@ -1043,6 +1043,12 @@ export default async function DashboardPage() {
   // A connections-only member, to a stranger: the visitors strip shows the
   // card without who posted it (the /visiting rule), and the spotlight
   // shows a first name with no photo or neighbourhood (the club spotlight's).
+  // connectedIds is passed, not re-fetched: this page already ran the exact
+  // query restrictedSetFor would run (same where, same select, line ~103, for
+  // the LISTABLE filter), so without it the same read happened twice per
+  // request — and since the widget rework this call fires on most non-empty
+  // dashboards rather than rarely. connectedIds is derived from those rows the
+  // same way, which is the contract the third argument requires.
   const restricted = await restrictedSetFor(session, [
     ...upcomingVisitors.flatMap(v => v.user ? [v.user] : []),
     ...(spotlightUser ? [spotlightUser] : []),
@@ -1050,7 +1056,7 @@ export default async function DashboardPage() {
     ...whosGoingRaw.map(a => a.user),
     // …and whoever is free right now, same reason.
     ...recentPulses.map(p => p.user),
-  ])
+  ], connectedIds)
   // A restricted spotlight loses name, photo and neighbourhood; an unrestricted
   // one still loses the neighbourhood if they opted out of showing it, which
   // the projection used to decide only for the restricted case.
