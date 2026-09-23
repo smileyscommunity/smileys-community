@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
-import { guestView } from '@/lib/visitorPolicy'
+import { guestView, visitorName } from '@/lib/visitorPolicy'
 import { ACTIVATED_MEMBER_WHERE } from '@/lib/memberCount'
 import { postCityScope } from '@/lib/postScope'
 import { todayInTz } from '@/lib/cityTime'
@@ -149,7 +149,7 @@ export async function getVisitors(city: PublicCity, signedIn: boolean) {
     prisma.visitorAnnouncement.count({ where: visitorWhere }),
   ])
   // A guest gets a first name and the month, not the days (lib/visitorPolicy).
-  return { visitors: signedIn ? visitors.map(v => ({ ...v, approximate: false })) : visitors.map(v => ({ ...v, ...guestView(v) })), visitorTotal }
+  return { visitors: signedIn ? visitors.map(v => ({ ...v, name: visitorName(v.name), approximate: false })) : visitors.map(v => ({ ...v, ...guestView(v) })), visitorTotal }
 }
 
 export type Visitors = Awaited<ReturnType<typeof getVisitors>>

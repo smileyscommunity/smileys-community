@@ -3,9 +3,11 @@
 import Link from 'next/link'
 import { avatarUrl, getInitials } from '@/lib/data'
 
+// No `name`: the card's own (already first-name-only) name is what renders,
+// and this is a client component — a field it never displays would still
+// travel in the flight payload.
 interface VisitorUser {
   id:           string
-  name:         string
   color:        string
   profilePhoto: string | null
 }

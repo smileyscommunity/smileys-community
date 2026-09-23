@@ -63,6 +63,20 @@ export function guestView(a: { name: string; startsOn: string; endsOn: string })
   return { name: firstNameOf(a.name), startsOn: monthBounds(a.startsOn).start, endsOn: monthBounds(a.endsOn).end, approximate: true }
 }
 
+/**
+ * The name a visitor's card carries, to anyone.
+ *
+ * The field is free text, but the form prefilled it with the poster's full
+ * account name for months, so redacting the AUTHOR never removed the surname —
+ * it arrived by the other field. Guests were always cut (guestView); members
+ * were not, and the same card read "Maria" on /visiting and "Maria Gonzalez"
+ * on the city hub. Every surface goes through this now, and old rows are cut
+ * on read rather than needing a migration.
+ */
+export function visitorName(name: string): string {
+  return firstNameOf(name) || name
+}
+
 /** Free text bound for a push body: one line, no links, short. */
 export function notifyText(v: unknown, max = 40): string {
   if (typeof v !== 'string') return ''

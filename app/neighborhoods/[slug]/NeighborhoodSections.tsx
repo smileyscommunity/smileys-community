@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { guestView } from '@/lib/visitorPolicy'
+import { guestView, visitorName } from '@/lib/visitorPolicy'
 import { jsonLdHtml } from '@/lib/jsonLd'
 import Image from 'next/image'
 import { prisma } from '@/lib/prisma'
@@ -203,7 +203,7 @@ export default async function NeighborhoodSections({
         },
       })
       // A guest gets a first name and the month, not the days (lib/visitorPolicy).
-      return myId ? rows.map(r => ({ ...r, approximate: false })) : rows.map(r => ({ ...r, ...guestView(r) }))
+      return myId ? rows.map(r => ({ ...r, name: visitorName(r.name), approximate: false })) : rows.map(r => ({ ...r, ...guestView(r) }))
     })(),
     // Active hangouts in this neighborhood — sweeper flips them to 'expired'
     // when endsAt passes, but we also filter by endsAt >= now so a missed

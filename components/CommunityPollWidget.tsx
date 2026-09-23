@@ -50,7 +50,11 @@ export default function CommunityPollWidget({ initial }: { initial: Poll | null 
     <div className="bg-white rounded-2xl shadow-card p-5">
       <div className="flex items-center gap-1.5 mb-3">
         <span className="text-sm">📊</span>
-        <h2 className="text-sm font-bold text-gray-900">Poll of the week</h2>
+        {/* Not "of the week": the query takes the newest ACTIVE poll with no
+            closing date and no rotation, and the live one has been up since
+            May — nineteen weeks of calling it weekly. The heading now says
+            what it is rather than promising a cadence nothing enforces. */}
+        <h2 className="text-sm font-bold text-gray-900">Community poll</h2>
       </div>
 
       <p className="text-sm font-semibold text-gray-800 leading-snug mb-3">{poll.question}</p>

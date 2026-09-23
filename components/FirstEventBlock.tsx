@@ -66,8 +66,11 @@ export default function FirstEventBlock() {
         <div className="rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-orange-50 p-5 text-center">
           <p className="text-2xl mb-1">🌱</p>
           <p className="font-semibold text-gray-900">Nothing open near you just yet</p>
+          {/* This is shown in cities that have never held an event — Ankara
+              has one member and no events at all — so it cannot promise a
+              weekly cadence. It points at what exists instead. */}
           <p className="text-sm text-gray-600 mt-1">
-            New events pop up across the city every week — the next one is often worth the trip.
+            Have a look at what's on across the city, or be the one who starts something.
           </p>
           <Link href="/events" className="inline-block mt-3 bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold px-4 py-2 rounded-xl">
             Explore all events

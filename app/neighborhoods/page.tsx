@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { guestView } from '@/lib/visitorPolicy'
+import { guestView, visitorName } from '@/lib/visitorPolicy'
 import { jsonLdHtml } from '@/lib/jsonLd'
 import Image from 'next/image'
 import { readFileSync } from 'fs'
@@ -414,7 +414,7 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
         orderBy: { startsOn: 'asc' },
         take: 4,
       // A guest gets a first name and the month, no author (lib/visitorPolicy).
-      }).then(rows => session ? rows.map(r => ({ ...r, approximate: false })) : rows.map(r => ({ ...r, ...guestView(r), user: null })))
+      }).then(rows => session ? rows.map(r => ({ ...r, name: visitorName(r.name), approximate: false })) : rows.map(r => ({ ...r, ...guestView(r), user: null })))
     : []
 
   // §8 — local picks. Every approved+active listing has a cover image, but

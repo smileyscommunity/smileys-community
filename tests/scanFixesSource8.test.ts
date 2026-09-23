@@ -140,6 +140,11 @@ describe('42 client hygiene', () => {
     expect(read('components/ImageUpload.tsx')).toMatch(/\}, \[folder, handleFile\]\)/)
     expect(read('app/(member)/invite/page.tsx')).toMatch(/\.finally\(\(\) => setLoading\(false\)\)/)
     expect(read('app/(member)/members/page.tsx')).toMatch(/disabled=\{pendingBusyIds\.has\(req\.id\)\}/)
-    expect(read('app/(member)/dashboard/page.tsx')).toMatch(/const weekEndStr\s*= shiftDay\(today, 7\)/)
+    // What this pinned was the city calendar — shiftDay off `today` rather
+    // than UTC arithmetic, which spanned a different number of days by time
+    // of evening. The 7 was carried over from the old setDate(+7) code and
+    // made every "this week" count eight days; it is 6 (plus today) since
+    // 2026-09-23. The calendar is the property under test.
+    expect(read('app/(member)/dashboard/page.tsx')).toMatch(/const weekEndStr\s*= shiftDay\(today, 6\)/)
   })
 })

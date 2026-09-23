@@ -7,7 +7,7 @@ import { resolveCityId, todayInCity } from '@/lib/city'
 import { rateLimit, getIp } from '@/lib/rateLimit'
 import { VISITOR_TRAVELER_TYPES, VISITOR_LOOKING_FOR } from '@/lib/data'
 import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
-import { visitDatesError, cleanEmail, guestView } from '@/lib/visitorPolicy'
+import { visitDatesError, cleanEmail, guestView, visitorName } from '@/lib/visitorPolicy'
 import { notifyLocalsOfVisit } from '@/lib/visitorNotify'
 
 // "I'm visiting Istanbul" announcements. Members only: anonymous posting was
@@ -76,7 +76,7 @@ export async function GET(req: NextRequest) {
   const cleaned = announcements.map(a => ({
     id: a.id,
     ...(isMember
-      ? { name: a.name, startsOn: a.startsOn, endsOn: a.endsOn, neighborhood: a.neighborhood, contact: a.contact, email: a.email, user: a.user }
+      ? { name: visitorName(a.name), startsOn: a.startsOn, endsOn: a.endsOn, neighborhood: a.neighborhood, contact: a.contact, email: a.email, user: a.user }
       : { ...guestView(a), neighborhood: null, contact: null, email: null, user: null }),
     fromCity: a.fromCity, intro: a.intro, travelerType: a.travelerType, languages: a.languages, lookingFor: a.lookingFor,
   }))

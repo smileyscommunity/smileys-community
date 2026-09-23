@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from 'sonner'
-import { VISITOR_TRAVELER_TYPES, VISITOR_LOOKING_FOR, VISITOR_VISIBILITY } from '@/lib/data'
+import { VISITOR_TRAVELER_TYPES, VISITOR_LOOKING_FOR, VISITOR_VISIBILITY, firstNameOf } from '@/lib/data'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { phonePlaceholder, dialCode } from '@/lib/country'
 
@@ -68,7 +68,11 @@ function NewVisitingPageInner() {
   }
 
   useEffect(() => {
-    if (user.name && !name) setName(user.name)
+    // First name, as the field's own placeholder says. Prefilling the full
+    // account name meant the card carried a surname that every surface
+    // downstream then tried to redact — the author can be hidden, but the
+    // name field is free text and went out as typed.
+    if (user.name && !name) setName(firstNameOf(user.name))
   }, [user.name, name])
 
   useEffect(() => {

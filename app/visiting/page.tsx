@@ -13,7 +13,7 @@ import { DEFAULT_CITY_SLUG } from '@/lib/city'
 import { resolveCityForPage, type CitySearch } from '@/lib/cityPageParam'
 import { shareCover } from '@/lib/shareCover'
 import { resolveImageUrl, firstNameOf } from '@/lib/data'
-import { guestView } from '@/lib/visitorPolicy'
+import { guestView, visitorName } from '@/lib/visitorPolicy'
 import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
 import { loadExperiences } from '@/lib/guideContent'
 import VisitingClient from './VisitingClient'
@@ -244,7 +244,11 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
       const author = a.user && !restrictedAuthors.has(a.user.id) ? a.user : null
       return {
         id:           a.id,
-        name:         a.name,
+        // The stored name is free text and was prefilled with the poster's
+        // full account name, so hiding the author left the surname on the
+        // card anyway. Cards written before that prefill was fixed still
+        // carry it, hence cutting it here rather than only at the form.
+        name:         visitorName(a.name),
         startsOn:     a.startsOn,
         endsOn:       a.endsOn,
         approximate:  a.approximate,

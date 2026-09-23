@@ -234,11 +234,18 @@ function formatAgo(ts: number): string {
   return `${wks}w`
 }
 
+// Every line on this wall labels its person with firstNameOf(...), but the
+// disc beside it was built from the full name — so a connections-only member
+// the viewer has never connected to appeared as "Ayşe" with an AY disc, and
+// the surname initial is exactly what /members refuses that viewer. Fifteen
+// feeds reach this component and none of them select profileVisibility, so
+// this cannot be decided per-person here; one initial, from the first name,
+// is the answer that is right for all of them and matches the label.
 function Avatar({ name, color }: { name: string; color: string }) {
   return (
     <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
          style={{ backgroundColor: color }}>
-      {getInitials(name)}
+      {getInitials(firstNameOf(name))}
     </div>
   )
 }

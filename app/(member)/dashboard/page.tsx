@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { visitorName } from '@/lib/visitorPolicy'
 import { formatDate, formatTime, formatPrice, resolveImageUrl, avatarUrl, BLUR_PLACEHOLDER, getInitials, firstNameOf} from '@/lib/data'
 import { articleCover } from '@/lib/articleCover'
 import { isPremium } from '@/lib/membership'
@@ -40,8 +41,7 @@ import FirstEventBlock from '@/components/FirstEventBlock'
 import RecommendedClubs from '@/components/RecommendedClubs'
 import { recommendedClubsFor } from '@/lib/clubRecommendations'
 import Image from 'next/image'
-import { categoryMeta } from '@/lib/handbook-categories'
-import { todayInTz, shiftDay } from '@/lib/cityTime'
+import { todayInTz, shiftDay, dayInTz } from '@/lib/cityTime'
 import { DEFAULT_TZ } from '@/lib/cityTime'
 import { eventEndsAt } from '@/lib/eventTime'
 import { DEFAULT_CITY_SLUG } from '@/lib/cities'
@@ -124,11 +124,14 @@ export default async function DashboardPage() {
   const monthStartStr = `${today.slice(0, 7)}-01`
   const weekAgo    = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
   const twoWeeksAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000)
-  const monthAgo    = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
   // Same calendar as `today`: the UTC versions spanned one day fewer late
   // in the evening (one more, west of UTC).
-  const weekEndStr  = shiftDay(today, 7)
-  const monthEndStr = shiftDay(today, 30)
+  // Six days ahead plus today = seven. It was +7, so everything labelled
+  // "this week" counted an eighth day.
+  const weekEndStr  = shiftDay(today, 6)
+  const PULSE_TAKE  = 5
+  // 29 ahead plus today = 30, for the same reason weekEndStr is 6.
+  const monthEndStr = shiftDay(today, 29)
 
   const blockedIds     = blockRows.map(b => b.blockerId === session.id ? b.blockedId : b.blockerId)
   const notMeOrBlocked = [session.id, ...blockedIds]
@@ -240,17 +243,24 @@ export default async function DashboardPage() {
   // Only published, not cancelled: an event still awaiting review 404s for
   // the people holding a seat on it (12 members had one as "Next").
   const upcomingWhere = { userId: session.id, status: 'approved', event: { date: { gte: today }, status: 'published', cancelledAt: null } } as const
-  const [upcomingRaw, upcomingCount] = await Promise.all([
-    prisma.eventAttendee.findMany({
-      where: upcomingWhere,
-      include: { event: { select: { id: true, title: true, date: true, time: true, endTime: true, neighborhood: true, emoji: true, price: true, currency: true, coverImage: true, limitedSpots: true, spotsLeft: true, lat: true, lng: true } } },
-      orderBy: [{ event: { date: 'asc' } }, { event: { time: 'asc' } }],
-      take: 6,
-    }),
-    prisma.eventAttendee.count({ where: upcomingWhere }),
-  ])
+  const upcomingRaw = await prisma.eventAttendee.findMany({
+    where: upcomingWhere,
+    include: { event: { select: { id: true, title: true, date: true, time: true, endTime: true, neighborhood: true, emoji: true, price: true, currency: true, coverImage: true, limitedSpots: true, spotsLeft: true, lat: true, lng: true } } },
+    orderBy: [{ event: { date: 'asc' } }, { event: { time: 'asc' } }],
+    // Was 6. The end-of-day filter below runs AFTER this cut, so a member
+    // holding six seats at events that all finished earlier today was shown
+    // an empty list with a seventh still ahead of them — and the tile above
+    // is now counted off this same list, so the cut also bounds the count.
+    // The deepest anyone holds today is 4.
+    take: 60,
+  })
   // An event that has already ended today isn't "Next" any more.
   const upcomingAttendances = upcomingRaw.filter(a => eventEndsAt(a.event, tz).getTime() > Date.now()).slice(0, 5)
+  // …and the tile above the list has to count the same thing the list shows.
+  // It was a separate count() over the unfiltered where, so at 17:01 the
+  // sixteen people holding a seat at a 12:00–17:00 event read "Upcoming 1"
+  // directly above "No upcoming events".
+  const upcomingCount = upcomingRaw.filter(a => eventEndsAt(a.event, tz).getTime() > Date.now()).length
 
   const unreviewed = unreviewedRaw
     .filter((a) => a.event.reviews.length === 0)
@@ -411,7 +421,7 @@ export default async function DashboardPage() {
     suggestedMembers, thisWeekEvents, totalMembers, eventsThisWeek, neighborhoodEventCount, newMembers, recentPhotos, trendingEventsRaw, nearbyMembers, newClubs, latestPosts, activeHangouts, recentHangouts, recentPulses, recentConnections, recentReferences, recentRsvps, recentlyCreatedClubs, recentBusinesses,
     // activity-wall extras
     recentEventReviews, recentPlaceReviews, recentHangoutJoins, recentHoodPosts, recentResources, recentTestimonials,
-    recentArticles, communityEventsThisMonth,
+    communityEventsThisMonth,
   ] = await Promise.all([
     // Wide candidate pool for "recommended" — scored AFTER the batch by
     // club membership, interest-tag overlap, and neighborhood (see
@@ -423,7 +433,11 @@ export default async function DashboardPage() {
       // can sit in another city, and a global club runs events in several,
       // so recommendations otherwise followed you across the switch.
       where: { cityId, date: { gte: today }, status: 'published', id: { notIn: joinedEventIds } },
-      orderBy: { date: 'asc' }, take: 24,
+      // Scored AFTER this cut, so a 24-event window by date meant 17 of
+      // Istanbul's 41 upcoming events could never be recommended however
+      // well they matched: a perfect-scoring event four weeks out lost its
+      // place to a score-of-nothing event next Tuesday.
+      orderBy: { date: 'asc' }, take: 80,
       select: { id: true, title: true, date: true, time: true, emoji: true, neighborhood: true, price: true, currency: true, totalSpots: true, limitedSpots: true, coverImage: true, clubId: true, tags: { select: { tagId: true } }, _count: { select: { attendees: { where: { status: 'approved' } } } } },
     }),
     // Club joins for the activity wall. Members of clubs see their own
@@ -531,7 +545,7 @@ export default async function DashboardPage() {
       // someone in a block with them.
       ? prisma.user.findUnique({
           where:  { id: spotlightData.userId },
-          select: { id: true, name: true, color: true, profilePhoto: true, neighborhood: true, status: true, hiddenFromMembers: true, cityId: true, profileVisibility: true },
+          select: { id: true, name: true, color: true, profilePhoto: true, neighborhood: true, neighborhoodVisible: true, status: true, hiddenFromMembers: true, cityId: true, profileVisibility: true },
         }).then(u => (u && u.status === 'approved' && !u.hiddenFromMembers && u.cityId === cityId && !blockedIds.includes(u.id) ? u : null))
       : Promise.resolve(null),
     // Active community poll with user's vote
@@ -627,10 +641,16 @@ export default async function DashboardPage() {
       where: {
         cityId,
         status:   'active',
-        userId:   { notIn: notMeOrBlocked },
-        OR:       [{ userId: null }, { user: { status: 'approved', hiddenFromMembers: false } }],
         endsOn:   { gte: today },
         startsOn: { lte: fourteenDaysOut },
+        // `userId NOT IN (…)` is NULL — and therefore false — for a card with
+        // no author, so the block filter silently dropped every anonymous one
+        // however harmless it was. The same NOT-with-NULL shape emptied member
+        // discovery once already; /api/visitors guards it exactly this way.
+        AND: [
+          { OR: [{ userId: null }, { userId: { notIn: notMeOrBlocked } }] },
+          { OR: [{ userId: null }, { user: { status: 'approved', hiddenFromMembers: false } }] },
+        ],
       },
       orderBy: { startsOn: 'asc' },
       take: 4,
@@ -647,12 +667,17 @@ export default async function DashboardPage() {
       take: 2,
       select: { id: true, title: true, slug: true, excerpt: true, coverImage: true, body: true, category: true, publishedAt: true },
     }),
+    // neighborhoodVisible, because the card prints the neighbourhood. The
+    // match has two branches and only the neighbourhood one required the
+    // opt-in — so a member found through a shared club had their district
+    // shown however they had set the switch. Every other surface that names
+    // a neighbourhood (search, /api/members, the member page) gates on it.
     prisma.user.findMany({
       where: suggestedMembersWhere,
-      select: { id: true, name: true, color: true, profilePhoto: true, neighborhood: true, bio: true },
+      select: { id: true, name: true, color: true, profilePhoto: true, neighborhood: true, neighborhoodVisible: true, bio: true },
       take: 6,
       orderBy: { joinedAt: 'desc' },
-    }),
+    }).then(rows => rows.map(m => ({ ...m, neighborhood: m.neighborhoodVisible ? m.neighborhood : null }))),
     prisma.event.findMany({
       where: { cityId, date: { gte: today, lte: weekEndStr }, status: 'published' },
       orderBy: { date: 'asc' },
@@ -762,10 +787,16 @@ export default async function DashboardPage() {
     prisma.availabilityPulse.findMany({
       where: { until: { gte: new Date() }, cityId, createdAt: { gte: weekAgo }, userId: { notIn: notMeOrBlocked }, user: LIVE },
       orderBy: { createdAt: 'desc' },
-      take: 5,
+      // Capped, and the copy says so rather than reporting the cap as the
+      // number: with nine live pulses the strip read "5 members are free".
+      take: PULSE_TAKE,
       select: {
         id: true, neighborhood: true, note: true, until: true, createdAt: true,
-        user: { select: { id: true, name: true, color: true, profilePhoto: true } },
+        // profileVisibility so restrictedSetFor can reach these rows. Without
+        // it the strip showed a connections-only member's photo and, via the
+        // alt attribute, their full name — while /api/availability, serving
+        // the very same pulses, redacts both. This was the copy that got missed.
+        user: { select: { id: true, name: true, color: true, profilePhoto: true, profileVisibility: true } },
       },
     }),
     // Recent accepted connections — social proof that the network is active.
@@ -912,17 +943,6 @@ export default async function DashboardPage() {
       take: 2,
       select: { id: true, memberName: true, quote: true, createdAt: true },
     }),
-    // Recently published articles (handbook + community) for the activity wall.
-    // Windowed to the last 30 days and ranked by recency like every other wall
-    // source (NOT pinned): a fresh article surfaces when posted, then naturally
-    // rolls off as newer activity — and newer articles — take its place. The
-    // dedicated "From Smileys" / "From the Handbook" strips carry the full list.
-    prisma.post.findMany({
-      where:   { status: 'published', kind: { in: ['handbook', 'community'] }, publishedAt: { gte: monthAgo }, ...postCityScope(cityId, cityCountry) },
-      orderBy: { publishedAt: 'desc' },
-      take: 5,
-      select: { id: true, title: true, slug: true, kind: true, publishedAt: true },
-    }),
     // Community-wide events in the next 30 days — the "Events this month" stat.
     // (eventsThisMonth above is the viewer's OWN attendances; this is the whole
     // community, parallel to eventsThisWeek's next-7-days count so month ≥ week.)
@@ -973,7 +993,10 @@ export default async function DashboardPage() {
     }))
     .sort((a, b) => b.score - a.score || (a.e.date < b.e.date ? -1 : a.e.date > b.e.date ? 1 : 0))
     .slice(0, 4)
-    .map(({ e }) => e)
+    // Keep the score: the heading below claims these were picked from the
+    // member's clubs, interests and neighbourhood, and it should only say so
+    // when something actually matched.
+    .map(({ e, score }) => ({ ...e, score }))
 
   // Activity wall reuses the batch-1 recentListings (already active-only,
   // own excluded) — just narrowed to the wall's 7-day freshness window so
@@ -985,7 +1008,9 @@ export default async function DashboardPage() {
   // wants the freshly *posted* ones.
   const wallVisitors = upcomingVisitors
     .filter(v => new Date(v.createdAt) >= weekAgo)
-    .map(v => ({ id: v.id, name: v.name, fromCity: v.fromCity, createdAt: v.createdAt }))
+    // Same cut as /visiting: the card's name field was prefilled with the
+    // full account name, so redacting the author never removed the surname.
+    .map(v => ({ id: v.id, name: visitorName(v.name), fromCity: v.fromCity, createdAt: v.createdAt }))
 
   // Neighborhood pages route by slug, but posts store the display name.
   const wallHoodPosts = recentHoodPosts.map(p => ({ ...p, slug: neighborhoodToSlug(p.neighborhood) }))
@@ -1020,10 +1045,15 @@ export default async function DashboardPage() {
     ...(spotlightUser ? [spotlightUser] : []),
     // …and the faces on "Who's going", which this call had never covered.
     ...whosGoingRaw.map(a => a.user),
+    // …and whoever is free right now, same reason.
+    ...recentPulses.map(p => p.user),
   ])
+  // A restricted spotlight loses name, photo and neighbourhood; an unrestricted
+  // one still loses the neighbourhood if they opted out of showing it, which
+  // the projection used to decide only for the restricted case.
   const shownSpotlight = spotlightUser && restricted.has(spotlightUser.id)
     ? { ...spotlightUser, name: firstNameOf(spotlightUser.name), profilePhoto: null, neighborhood: null }
-    : spotlightUser
+    : spotlightUser && { ...spotlightUser, neighborhood: spotlightUser.neighborhoodVisible ? spotlightUser.neighborhood : null }
 
   // Deduplicate who's going by userId, then show each person the way every
   // other strip on this page shows one: a connections-only member the viewer
@@ -1046,6 +1076,19 @@ export default async function DashboardPage() {
         ? getInitials(firstNameOf(a.user.name))
         : getInitials(a.user.name),
     }))
+  // The pulses, shown the way /api/availability shows the same rows. One
+  // projection feeds both the "free right now" strip and the activity
+  // timeline, so neither can drift from the other again.
+  const shownPulses = recentPulses.map((p) => ({
+    ...p,
+    user: restricted.has(p.user.id)
+      ? { ...p.user, name: firstNameOf(p.user.name), profilePhoto: null }
+      : p.user,
+    initials: restricted.has(p.user.id)
+      ? getInitials(firstNameOf(p.user.name))
+      : getInitials(p.user.name),
+  }))
+
   // 89 of the 112 members with an upcoming RSVP hold exactly one, so the
   // per-face event label was the same string under all eight avatars — and
   // widening it only made the repetition louder. When there is one event,
@@ -1059,8 +1102,10 @@ export default async function DashboardPage() {
   const upcomingDates  = upcomingEvents.map((a) => a.event.date)
   const nextEvent      = upcomingEvents[0]
   const daysToNext     = nextEvent ? daysUntil(nextEvent.event.date, tz) : null
+  // The city's calendar, not the server's: joining at 01:00 Istanbul on the
+  // 1st was being stamped with the previous month.
   const memberSince    = userProfile?.joinedAt
-    ? new Date(userProfile.joinedAt).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
+    ? new Date(userProfile.joinedAt).toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: tz })
     : null
 
   // Deduplicate: recommended must not repeat featured events
@@ -1069,10 +1114,23 @@ export default async function DashboardPage() {
   // Post-fetch dedupe of trending against featured (used to live in the
   // SQL WHERE clause; moved here so the query no longer waited on
   // featuredEvents). Slice to 4 to match the original UI cap.
-  const trendingEvents = trendingEventsRaw
+  // "Trending now — most popular upcoming events" is a ranking, and a ranking
+  // needs something to rank. Antalya has one upcoming event with one attendee,
+  // and it was being crowned the most popular of a field of one, in a column
+  // where the same card already appeared three times over. Below four
+  // candidates there is no order worth reporting and the strip stays away.
+  const TRENDING_MIN_FIELD = 4
+  const trendingRanked = trendingEventsRaw
     .filter((e) => !featuredIds.has(e.id))
     .sort((a, b) => b._count.attendees - a._count.attendees || (a.date < b.date ? -1 : 1))
-    .slice(0, 4)
+  // Gate on what will actually RENDER, not on the raw pool: counting before
+  // the featured dedupe let four candidates become one card under "most
+  // popular". And a ranking of events nobody has joined is four cards reading
+  // "0 going" — 26 of Istanbul's 42 upcoming events have no approved seats —
+  // so the top card has to have someone on it before the strip claims a rank.
+  const trendingEvents = trendingRanked.length >= TRENDING_MIN_FIELD && (trendingRanked[0]?._count.attendees ?? 0) > 0
+    ? trendingRanked.slice(0, 4)
+    : []
 
   // Plain counts of real things. The streak and the profile-view counter
   // went: a streak reset every 1st (and counted no-shows), and a view
@@ -1080,7 +1138,11 @@ export default async function DashboardPage() {
   // was RSVPs *made* this month; it's now events the member went to this
   // month, on their city's calendar.
   // A recorded no-show isn't an event gone to.
-  const wentTo            = myAttendances.filter(a => a.event.date < today && a.attendance !== 'no_show')
+  // Published or archived only: 21 members hold a seat on a past POSTPONED
+  // event and 3 on a draft, and neither took place, so neither is an event
+  // they went to. pastEventIds already drew this line; this counter didn't.
+  const wentTo            = myAttendances.filter(a => a.event.date < today && a.attendance !== 'no_show'
+                                                  && (a.event.status === 'published' || a.event.status === 'archived'))
   const attendedThisMonth = wentTo.filter(a => a.event.date >= monthStartStr).length
   const stats: { label: string; value: number; href?: string }[] = [
     { label: 'Upcoming',       value: upcomingCount,          href: '/my-events' },
@@ -1323,7 +1385,7 @@ export default async function DashboardPage() {
                   ) : (
                     <div className="w-14 h-14 rounded-full shrink-0 flex items-center justify-center text-white font-bold text-lg"
                       style={{ backgroundColor: shownSpotlight.color }}>
-                      {shownSpotlight.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2)}
+                      {getInitials(shownSpotlight.name)}
                     </div>
                   )}
                   <div className="min-w-0">
@@ -1364,8 +1426,12 @@ export default async function DashboardPage() {
                 <div className="space-y-2.5">
                   {newMembers.map((m) => {
                     const photo = m.profilePhoto ? avatarUrl(m.profilePhoto, 64) : null
-                    const initials = m.name.trim().split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
-                    const daysAgo = Math.max(0, Math.floor((Date.now() - new Date(m.joinedAt).getTime()) / 86400000))
+                    const initials = getInitials(m.name)
+                    // Calendar days in the city, not elapsed hours — someone
+                    // who joined at 23:00 yesterday was "Joined today" at 01:00.
+                    const joinedDay = dayInTz(new Date(m.joinedAt), tz)
+                    const daysAgo   = Math.max(0, Math.round(
+                      (Date.parse(`${today}T00:00:00Z`) - Date.parse(`${joinedDay}T00:00:00Z`)) / 86400000))
                     return (
                       <Link key={m.id} href={`/members/${m.id}`}
                         className="flex items-center gap-2.5 hover:bg-gray-50 rounded-xl px-1.5 py-1 -mx-1.5 transition-colors group">
@@ -1412,8 +1478,11 @@ export default async function DashboardPage() {
               </div>
             )}
 
-            {/* New on Smileys — Handbook highlight */}
-            {latestHandbook.length > 0 && (
+            {/* New on Smileys — Handbook highlight. No longer gated on
+                latestHandbook: the list moved to the centre strip, so what is
+                left is a pitch and a way in, and a city with no articles of
+                its own (Tbilisi) was losing the link for no reason. */}
+            {true && (
               <div className="bg-white rounded-2xl shadow-card p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">New on Smileys</h2>
@@ -1423,21 +1492,11 @@ export default async function DashboardPage() {
                   <p className="text-xs font-semibold text-amber-600 mb-1">The Handbook</p>
                   <p className="text-xs text-gray-600 leading-relaxed">Permits, banking, transport — written by members who lived it.</p>
                 </Link>
-                <div className="space-y-2 border-t border-gray-100 pt-3">
-                  {latestHandbook.map((post) => (
-                    <Link key={post.id} href={`/handbook/${post.slug}`}
-                      className="flex items-start gap-2 group">
-                      {/* Emoji comes from the shared category table (which
-                          resolves legacy keys) rather than a local copy — the
-                          inline map here silently fell back to 📖 for every
-                          category added after it was written. */}
-                      <span className="text-sm shrink-0 mt-0.5">
-                        {categoryMeta(post.category)?.emoji ?? '📖'}
-                      </span>
-                      <p className="text-xs text-gray-700 group-hover:text-amber-600 transition-colors leading-snug line-clamp-2">{post.title}</p>
-                    </Link>
-                  ))}
-                </div>
+                {/* The same two articles render in full in "From The
+                    Handbook" in the centre column, at every breakpoint —
+                    five articles were producing ten renders on one page.
+                    This card keeps the pitch and the way in; the list
+                    belongs to the strip that has room for it. */}
                 <Link href="/handbook"
                   className="mt-3 flex items-center justify-center gap-1 w-full py-2 text-xs font-semibold text-amber-600 border border-amber-200 rounded-xl hover:bg-amber-50 transition-colors">
                   Read the Handbook →
@@ -1579,7 +1638,7 @@ export default async function DashboardPage() {
                 they reach members who'd never think to open /hangouts.
                 Time-sensitive (pulses die within 4h), hence high placement;
                 self-hides when nobody's around. */}
-            {recentPulses.length > 0 && (
+            {shownPulses.length > 0 && (
               <Link href="/hangouts"
                 className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-2xl px-4 py-3 hover:border-green-400 transition-colors">
                 <span className="relative flex h-2.5 w-2.5 shrink-0" aria-hidden="true">
@@ -1587,19 +1646,19 @@ export default async function DashboardPage() {
                   <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
                 </span>
                 <div className="flex -space-x-1.5 shrink-0">
-                  {recentPulses.slice(0, 4).map(p => (
+                  {shownPulses.slice(0, 4).map(p => (
                     p.user.profilePhoto
-                      ? <Image key={p.id} src={avatarUrl(p.user.profilePhoto, 64)} alt={p.user.name} width={28} height={28}
+                      ? <Image key={p.id} src={avatarUrl(p.user.profilePhoto, 64)} alt={firstNameOf(p.user.name)} width={28} height={28}
                           className="w-7 h-7 rounded-full border-2 border-white object-cover" />
                       : <div key={p.id} className="w-7 h-7 rounded-full border-2 border-white flex items-center justify-center text-white text-[10px] font-bold"
-                          style={{ backgroundColor: p.user.color }}>{getInitials(p.user.name)}</div>
+                          style={{ backgroundColor: p.user.color }}>{p.initials}</div>
                   ))}
                 </div>
                 <p className="text-sm text-green-900 min-w-0 flex-1 truncate">
                   <span className="font-bold">
-                    {recentPulses.length === 1
-                      ? `${firstNameOf(recentPulses[0].user.name)} is free to meet right now`
-                      : `${recentPulses.length} members are free to meet right now`}
+                    {shownPulses.length === 1
+                      ? `${firstNameOf(shownPulses[0].user.name)} is free to meet right now`
+                      : `${shownPulses.length}${shownPulses.length === PULSE_TAKE ? '+' : ''} members are free to meet right now`}
                   </span>
                 </p>
                 <span className="text-xs font-bold text-green-700 shrink-0">Say hi →</span>
@@ -1611,18 +1670,21 @@ export default async function DashboardPage() {
                 mobile and desktop. Center column renders on every
                 viewport, so a single placement replaces the previous
                 two (mobile-only + right-rail) renders. */}
-            <ClubActivityTimeline members={recentActivity} posts={wallActivity} events={recentClubEvents} photos={recentPhotos} rsvps={recentRsvps} newMembers={newMembers} hangouts={recentHangouts} pulses={recentPulses} connections={recentConnections} references={recentReferences} newClubs={recentlyCreatedClubs} listings={wallListings} businesses={recentBusinesses} eventReviews={recentEventReviews} placeReviews={recentPlaceReviews} visitors={wallVisitors} hangoutJoins={recentHangoutJoins} hoodPosts={wallHoodPosts} resources={recentResources} testimonials={recentTestimonials} articles={recentArticles} cityName={city.name} cap={12} />
+            <ClubActivityTimeline members={recentActivity} posts={wallActivity} events={recentClubEvents} photos={recentPhotos} rsvps={recentRsvps} newMembers={newMembers} hangouts={recentHangouts} pulses={shownPulses} connections={recentConnections} references={recentReferences} newClubs={recentlyCreatedClubs} listings={wallListings} businesses={recentBusinesses} eventReviews={recentEventReviews} placeReviews={recentPlaceReviews} visitors={wallVisitors} hangoutJoins={recentHangoutJoins} hoodPosts={wallHoodPosts} resources={recentResources} testimonials={recentTestimonials} cityName={city.name} cap={12} />
 
             {/* Upcoming visitors — surfaces /visiting + the new wave
                 action on the dashboard. Component renders nothing when
                 empty, so it self-hides on quiet weeks. */}
             <DashboardVisitorsStrip visitors={upcomingVisitors.map(v => ({
               id:       v.id,
-              name:     v.name,
+              name:     visitorName(v.name),
               startsOn: typeof v.startsOn === 'string' ? v.startsOn : new Date(v.startsOn).toISOString().split('T')[0],
               endsOn:   typeof v.endsOn   === 'string' ? v.endsOn   : new Date(v.endsOn).toISOString().split('T')[0],
+              // No name: the strip renders the card's own (already cut) name,
+              // and this is a client component — a field it never displays
+              // still travels in the payload.
               user:     v.user && !restricted.has(v.user.id)
-                ? { id: v.user.id, name: v.user.name, color: v.user.color, profilePhoto: v.user.profilePhoto }
+                ? { id: v.user.id, color: v.user.color, profilePhoto: v.user.profilePhoto }
                 : null,
             }))} cityName={city.name} />
 
@@ -1982,7 +2044,13 @@ export default async function DashboardPage() {
                     <p className="text-xs text-gray-400 mt-0.5">
                       {/* Scored by clubs, interests and neighbourhood together — the
                           old "Based on your clubs" was shown whatever did the picking. */}
-                      {clubIds.length > 0 || wantedTagIds.size > 0 || userProfile?.neighborhood ? 'From your clubs, interests and neighbourhood' : 'Upcoming events'}
+                      {/* Keyed on whether a pick actually MATCHED, not on whether the
+                          member has signals at all. Someone with a neighbourhood
+                          set and no match was told the soonest four events were
+                          chosen for them. */}
+                      {deduplicatedRecommended.length > 0 && deduplicatedRecommended.every(e => e.score > 0)
+                        ? 'From your clubs, interests and neighbourhood'
+                        : 'Upcoming events'}
                     </p>
                   </div>
                   <Link href="/events" className="text-sm text-amber-600 font-semibold hover:underline">Browse all →</Link>
@@ -2030,7 +2098,11 @@ export default async function DashboardPage() {
                       </div>
                       <div className="text-right shrink-0 self-center">
                         <span className="text-xs font-bold text-violet-600 bg-violet-50 px-2 py-1 rounded-lg block">
-                          {event.totalSpots - event.spotsLeft} going
+                          {/* The approved count is already selected and is what
+                              the sort uses; spot arithmetic is a different
+                              number for any event without limited spots —
+                              it read "21 going" for an event with one. */}
+                          {event._count.attendees} going
                         </span>
                       </div>
                     </Link>
@@ -2117,7 +2189,12 @@ export default async function DashboardPage() {
                   <div>
                     <h2 className="text-lg font-bold text-gray-900">People you might know</h2>
                     <p className="text-xs text-gray-400 mt-0.5">
-                      {clubIds.length > 0 ? 'Members in your clubs' : userProfile?.neighborhood ? `People in ${userProfile.neighborhood}` : 'Recent members'}
+                      {/* The subtitle used to name the member's own clubs or
+                          neighbourhood, but the suggestion match ORs the two
+                          and the cards now hide the neighbourhood of anyone
+                          who opted out — so both claims could be wrong about
+                          the six people underneath them. */}
+                      {clubIds.length > 0 || userProfile?.neighborhood ? 'People you might know' : 'Recent members'}
                     </p>
                   </div>
                   <Link href="/members" className="text-sm text-amber-600 font-semibold hover:underline">All →</Link>
@@ -2127,12 +2204,12 @@ export default async function DashboardPage() {
                     <Link key={m.id} href={`/members/${m.id}`}
                       className="bg-white rounded-2xl shadow-card p-4 text-center hover:-translate-y-0.5 transition-all group">
                       {m.profilePhoto ? (
-                        <img src={avatarUrl(m.profilePhoto, 128)} alt={m.name} loading="lazy" decoding="async"
+                        <img src={avatarUrl(m.profilePhoto, 128)} alt={firstNameOf(m.name)} loading="lazy" decoding="async"
                           className="w-14 h-14 rounded-full object-cover mx-auto mb-2 ring-2 ring-gray-100 group-hover:ring-amber-200 transition-all" />
                       ) : (
                         <div className="w-14 h-14 rounded-full mx-auto mb-2 flex items-center justify-center text-white text-lg font-bold ring-2 ring-gray-100 group-hover:ring-amber-200 transition-all"
                           style={{ backgroundColor: m.color }}>
-                          {m.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()}
+                          {getInitials(m.name)}
                         </div>
                       )}
                       <p className="text-sm font-semibold text-gray-900 group-hover:text-amber-600 transition-colors truncate">{firstNameOf(m.name)}</p>
@@ -2322,7 +2399,10 @@ export default async function DashboardPage() {
               return (
                 <Link href={`/marketplace?l=${l.id}`} className="block bg-white rounded-2xl shadow-card p-4 hover:shadow-md transition-shadow group">
                   <div className="flex items-center justify-between mb-3">
-                    <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">New on Board</h2>
+                    {/* A random one of the four freshest, by design (below) —
+                        so not "new", and it links to the marketplace, which the
+                        board/marketplace split renamed everywhere but here. */}
+                    <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">From the Marketplace</h2>
                     <span className="text-lg">{EMOJI[l.category] ?? '📋'}</span>
                   </div>
                   {l.photo && (
@@ -2369,7 +2449,7 @@ export default async function DashboardPage() {
                 <div className="space-y-2.5">
                   {deduplicatedNearby.slice(0, 5).map((m) => {
                     const photo = m.profilePhoto ? avatarUrl(m.profilePhoto, 64) : null
-                    const initials = m.name.trim().split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
+                    const initials = getInitials(m.name)
                     return (
                       <Link key={m.id} href={`/members/${m.id}`}
                         className="flex items-center gap-2.5 hover:bg-gray-50 rounded-xl px-1.5 py-1 -mx-1.5 transition-colors group">
@@ -2422,7 +2502,11 @@ export default async function DashboardPage() {
                   <span className="text-sm font-extrabold text-amber-600">{eventsThisWeek}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-600">Events this month</span>
+                  {/* Forward-looking (today … +30d), unlike the member's own
+                      "This month" tile, which counts the calendar month behind
+                      them. Same two words, opposite directions — so this one
+                      says which it means. */}
+                  <span className="text-xs text-gray-600">Events next 30 days</span>
                   <span className="text-sm font-extrabold text-gray-900">{communityEventsThisMonth}</span>
                 </div>
                 {userProfile?.neighborhood && neighborhoodEventCount > 0 && (
