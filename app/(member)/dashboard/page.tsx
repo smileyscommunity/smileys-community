@@ -148,7 +148,9 @@ export default async function DashboardPage() {
     // attendance's full event payload.
     prisma.eventAttendee.findMany({
       where: { userId: session.id, status: 'approved' },
-      select: { eventId: true, attendance: true, event: { select: { date: true } } },
+      // stealth too: an event the member attended invisibly can't make them
+      // a familiar face to anyone, because nobody there saw their name.
+      select: { eventId: true, attendance: true, stealth: true, event: { select: { date: true } } },
       orderBy: { joinedAt: 'desc' },
     }),
     prisma.clubMembership.findMany({
@@ -320,7 +322,25 @@ export default async function DashboardPage() {
   const joinedEventIds = myAttendances.map((a) => a.eventId)
   const upcomingEvents = upcomingAttendances
   const clubs          = myMemberships.map((m) => m.club)
-  const pastEventIds   = myAttendances.filter((a) => a.event.date < today).map((a) => a.eventId)
+  // Events the member actually shared a room with other people at — the basis
+  // for "familiar faces". Every clause here is one the old list was missing:
+  //   · no_show — they booked and never came, so they met nobody (the wentTo
+  //     counter further down already drew this line; this didn't)
+  //   · stealth — they were there invisibly, so nobody can find them familiar
+  //   · a one-year floor and a 50-event cap — with neither, "familiar" grew
+  //     into "most of the city" (an Istanbul member averaged 73 familiar
+  //     members, one reached 434) and the IN list grew with tenure for ever.
+  // myAttendances is newest-first, so the cap keeps the most recent.
+  const FAMILIAR_DAYS = 365
+  const FAMILIAR_CAP  = 50
+  const familiarFloor = shiftDay(today, -FAMILIAR_DAYS)
+  const pastEventIds    = myAttendances
+    .filter((a) => a.event.date < today && a.event.date >= familiarFloor && a.attendance !== 'no_show' && !a.stealth)
+    .slice(0, FAMILIAR_CAP)
+    .map((a) => a.eventId)
+  // The events the widget is ABOUT: the member's own next five, already
+  // filtered to ones that haven't ended (upcomingAttendances, above).
+  const myUpcomingEventIds = upcomingAttendances.map((a) => a.eventId)
 
   // Read member spotlight from file
   let spotlightData: { userId: string; funFact: string; topSpots: string[] } | null = null
@@ -447,22 +467,49 @@ export default async function DashboardPage() {
         poll: { select: { question: true } },
       },
     }),
-    // Who's going: familiar faces (past co-attendees) going to upcoming events
-    pastEventIds.length > 0
+    // Who's going: familiar faces at the events the member is ALREADY going to.
+    //
+    // It used to be the other way round — faces at events the member had NOT
+    // joined (`id: { notIn: joinedEventIds }`), which made every row a roster
+    // the event page deliberately refuses that same viewer: /events/<id>
+    // answers a non-attendee with blurred colour discs and "RSVP to see who",
+    // and takes care not to emit the photo URL. The dashboard was handing over
+    // name, photo and event title for exactly those events — including ones a
+    // host had removed the viewer from. Two surfaces, opposite answers, same
+    // question.
+    //
+    // Inverted, it also stops being a "they're going, you're not" nudge and
+    // starts being the thing worth knowing: who you already know will be in
+    // the room on Thursday. The viewer is an approved attendee of every event
+    // here, so nothing is disclosed that the event page wouldn't.
+    myUpcomingEventIds.length > 0 && pastEventIds.length > 0
       ? prisma.eventAttendee.findMany({
           where: {
             status: 'approved',
             userId: { notIn: notMeOrBlocked },
             stealth: false,
-            event: { cityId, date: { gte: today }, status: 'published', id: { notIn: joinedEventIds } },
-            user: { ...LIVE, joinedEvents: { some: { eventId: { in: pastEventIds }, status: 'approved' } } },
+            eventId: { in: myUpcomingEventIds },
+            // stealth on the PAST side too: it guarded the upcoming row but
+            // not the match, so an invisible attendance still made someone a
+            // familiar face — and for the 320 members whose history is a
+            // single event, that resolves to exactly which one.
+            user: { ...LIVE, joinedEvents: { some: { eventId: { in: pastEventIds }, status: 'approved', stealth: false } } },
           },
           include: {
-            user:  { select: { id: true, name: true, color: true, profilePhoto: true } },
+            // profileVisibility so restrictedSetFor can be applied at all —
+            // it wasn't selected, so the widget could not have honoured a
+            // connections-only member even if it had tried.
+            user:  { select: { id: true, name: true, color: true, profilePhoto: true, profileVisibility: true } },
             event: { select: { id: true, title: true, date: true, emoji: true } },
           },
-          orderBy: { event: { date: 'asc' } },
-          take: 20,
+          // Same-date events had no tiebreak, so which rows survived the
+          // dedupe shuffled between refreshes with nothing having changed.
+          orderBy: [{ event: { date: 'asc' } }, { event: { time: 'asc' } }, { userId: 'asc' }],
+          // Rows are (person, event) pairs and the dedupe is by person, so a
+          // tight window let one popular event's roster eat every slot: 19% of
+          // members saw all eight faces pointing at a single event. Five
+          // events' rosters is a bounded set — take enough to cover them.
+          take: 60,
         })
       : Promise.resolve([]),
     // Member spotlight user profile
@@ -960,14 +1007,27 @@ export default async function DashboardPage() {
   const restricted = await restrictedSetFor(session, [
     ...upcomingVisitors.flatMap(v => v.user ? [v.user] : []),
     ...(spotlightUser ? [spotlightUser] : []),
+    // …and the faces on "Who's going", which this call had never covered.
+    ...whosGoingRaw.map(a => a.user),
   ])
   const shownSpotlight = spotlightUser && restricted.has(spotlightUser.id)
     ? { ...spotlightUser, name: firstNameOf(spotlightUser.name), profilePhoto: null, neighborhood: null }
     : spotlightUser
 
-  // Deduplicate who's going by userId
+  // Deduplicate who's going by userId, then show each person the way every
+  // other strip on this page shows one: a connections-only member the viewer
+  // isn't connected to is a first name and no photo. The widget had no
+  // projection at all — full name, photo and member id for anyone.
   const seenUsers = new Set<string>()
-  const whosGoing = whosGoingRaw.filter((a) => seenUsers.has(a.userId) ? false : (seenUsers.add(a.userId), true)).slice(0, 8)
+  const whosGoing = whosGoingRaw
+    .filter((a) => seenUsers.has(a.userId) ? false : (seenUsers.add(a.userId), true))
+    .slice(0, 8)
+    .map((a) => ({
+      ...a,
+      user: restricted.has(a.user.id)
+        ? { ...a.user, name: firstNameOf(a.user.name), profilePhoto: null }
+        : a.user,
+    }))
 
   // Deduplicate nearbyMembers: exclude anyone already in suggestedMembers
   const suggestedMemberIds = new Set(suggestedMembers.map((m) => m.id))
@@ -1179,28 +1239,42 @@ export default async function DashboardPage() {
             {whosGoing.length > 0 && (
               <div className="bg-white rounded-2xl shadow-card p-5">
                 <h2 className="text-sm font-bold text-gray-900 mb-1">Who's going 👀</h2>
-                <p className="text-xs text-gray-400 mb-3">Familiar faces at upcoming events</p>
+                <p className="text-xs text-gray-400 mb-3">Familiar faces at the events you're going to</p>
                 <div className="flex flex-wrap gap-3 pb-1">
-                  {whosGoing.map((a) => (
+                  {whosGoing.map((a) => {
+                    // One name for the screen and the same one on the wire:
+                    // alt used to carry the full name beside a first-name
+                    // label, which put the surname in the HTML and the RSC
+                    // payload for every viewer.
+                    const shownName = firstNameOf(a.user.name)
+                    return (
                     <Link key={a.user.id} href={`/events/${a.event.id}`}
                       className="flex flex-col items-center gap-1.5 shrink-0 group">
                       {a.user.profilePhoto ? (
-                        <img src={avatarUrl(a.user.profilePhoto, 96)} alt={a.user.name} loading="lazy" decoding="async"
+                        <img src={avatarUrl(a.user.profilePhoto, 96)} alt={shownName} loading="lazy" decoding="async"
                           className="w-11 h-11 rounded-full object-cover border-2 border-white shadow-sm group-hover:ring-2 group-hover:ring-amber-400 transition-all" />
                       ) : (
                         <div className="w-11 h-11 rounded-full border-2 border-white shadow-sm flex items-center justify-center text-white text-xs font-bold group-hover:ring-2 group-hover:ring-amber-400 transition-all"
                           style={{ backgroundColor: a.user.color }}>
-                          {a.user.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2)}
+                          {/* getInitials, not w[0]: the hand-rolled version
+                              split an emoji's surrogate pair into a lone half
+                              (four members have one in their name) and never
+                              upper-cased. */}
+                          {getInitials(shownName)}
                         </div>
                       )}
-                      <span className="text-xs text-gray-600 text-center leading-tight max-w-[48px] truncate">
-                        {firstNameOf(a.user.name)}
+                      <span className="text-xs text-gray-600 text-center leading-tight max-w-[72px] truncate">
+                        {shownName}
                       </span>
-                      <span className="text-xs text-amber-600 font-medium text-center leading-tight max-w-[52px] line-clamp-2">
+                      {/* 52px at 12px was about six characters a line, two of
+                          them the emoji — the one detail that makes the face
+                          worth clicking was always truncated away. */}
+                      <span className="text-xs text-amber-600 font-medium text-center leading-tight max-w-[92px] line-clamp-2">
                         {a.event.emoji} {a.event.title}
                       </span>
                     </Link>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             )}
