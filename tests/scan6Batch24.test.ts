@@ -216,6 +216,14 @@ describe('bell and notifications page wiring', () => {
     ['app/(member)/notifications/page.tsx', 'setNotifications'],
   ])('%s subscribes with cleanup and emits only after success', (file, setter) => {
     const src = read(file)
+    // The bell keeps a second count beside `unread`: `badge`, what arrived
+    // since the member last opened it. Required on the bell and absent on the
+    // page, the same way the emit tally below varies per file — an optional
+    // group would let the badge handling be deleted without a single guard
+    // noticing, which is the rule these are here to hold rather than describe.
+    const isBell      = !file.includes('page.tsx')
+    const badgeChange = isBell ? 'setBadge\\(c => unreadCountAfterChange\\(c, change\\)\\)\\s*' : ''
+    const badgeBefore = isBell ? 'setBadge\\(beforeBadge\\)\\s*' : ''
     expect(src).toMatch(/const \[source\] = useState\(createNotificationSourceId\)/)
     // subscribe inside an effect whose cleanup is the unsubscribe; receive
     // counts as newer before the list is touched
@@ -225,9 +233,9 @@ describe('bell and notifications page wiring', () => {
     // what arrived since the member last opened it — and reading a row in
     // another tab has to settle that too, or the dot keeps counting something
     // the member has already dealt with.
-    expect(src).toMatch(/setUnread\(c => unreadCountAfterChange\(c, change\)\)\s*(?:\/\/[^\n]*\n\s*)*(?:setBadge\(c => unreadCountAfterChange\(c, change\)\)\s*)?\}\)\s*\}, \[source, sync\]\)/)
+    expect(src).toMatch(new RegExp(`setUnread\\(c => unreadCountAfterChange\\(c, change\\)\\)\\s*(?://[^\\n]*\\n\\s*)*${badgeChange}\\}\\)\\s*\\}, \\[source, sync\\]\\)`))
     // mark-all: rollback (list and counts) returns before the emit
-    expect(src).toMatch(new RegExp(`\\.finally\\(settle\\)\\) \\{\\s*${setter}\\(prev => setReadFor\\(prev, ids, false\\)\\)\\s*setUnread\\(before\\)\\s*(?:setBadge\\(beforeBadge\\)\\s*)?return\\s*\\}\\s*(?://[^\\n]*\\n\\s*)*emitNotificationChange\\(\\{ kind: 'readAll' \\}, source\\)`))
+    expect(src).toMatch(new RegExp(`\\.finally\\(settle\\)\\) \\{\\s*${setter}\\(prev => setReadFor\\(prev, ids, false\\)\\)\\s*setUnread\\(before\\)\\s*${badgeBefore}return\\s*\\}\\s*(?://[^\\n]*\\n\\s*)*emitNotificationChange\\(\\{ kind: 'readAll' \\}, source\\)`))
     // dismiss: restore returns before the emit. The window holds both count
     // rollbacks — the bell puts back `unread` and `badge` on the same line —
     // and is still far too short for anything else to hide in.

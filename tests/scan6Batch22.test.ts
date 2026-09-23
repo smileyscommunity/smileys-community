@@ -121,6 +121,13 @@ describe('a — bell and notifications page wiring', () => {
     ['app/(member)/notifications/page.tsx', 'setNotifications'],
   ])('%s routes polls and actions through the sync', (file, setter) => {
     const src = read(file)
+    // The bell carries a second count — `badge`, what arrived since the member
+    // last opened it — and mark-all has to zero that as well as `unread`. The
+    // page has no badge, so the fragment is required on one file and absent on
+    // the other rather than optional on both: an optional group here would
+    // pass just as happily with the badge handling deleted, which is the rule
+    // this guard is supposed to be holding.
+    const zeroBadge = file.includes('page.tsx') ? '' : 'setBadge\\(0\\)\\s*'
     expect(src).toMatch(/const \[sync\] = useState\(createNotificationSync\)/)
     // the poll snapshots before fetching and only renders what resolvePoll allows
     const start = src.indexOf('const poll = sync.startPoll()')
@@ -141,7 +148,7 @@ describe('a — bell and notifications page wiring', () => {
     // `unread` is the lifetime pile behind the dropdown header, `badge` is
     // what arrived since the member last looked — mark-all zeroes both, and
     // the rollback below restores both.
-    expect(src).toMatch(new RegExp(`const settle = sync\\.begin\\(\\{ kind: 'read', ids \\}\\)\\s*${setter}\\(prev => setReadFor\\(prev, ids, true\\)\\)\\s*setUnread\\([^)]*\\)\\s*(?:setBadge\\([^)]*\\)\\s*)?if \\(!await sendNotificationAction\\('PATCH', \\{ markAll: true \\}[^)]*\\)\\.finally\\(settle\\)\\)`))
+    expect(src).toMatch(new RegExp(`const settle = sync\\.begin\\(\\{ kind: 'read', ids \\}\\)\\s*${setter}\\(prev => setReadFor\\(prev, ids, true\\)\\)\\s*setUnread\\([^)]*\\)\\s*${zeroBadge}if \\(!await sendNotificationAction\\('PATCH', \\{ markAll: true \\}[^)]*\\)\\.finally\\(settle\\)\\)`))
     expect(src).toMatch(new RegExp(`const settle = sync\\.begin\\(\\{ kind: 'dismiss', id \\}\\)\\s*${setter}\\(prev => prev\\.filter\\(n => n\\.id !== id\\)\\)`))
     expect(src).toMatch(/const settle = sync\.begin\(\{ kind: 'read', ids \}\)[\s\S]{0,400}?sendNotificationAction\('PATCH', \{ id: n\.id \}[^)]*\)\.finally\(settle\)\.then\(ok =>/)
   })
