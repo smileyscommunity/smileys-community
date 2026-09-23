@@ -2,19 +2,7 @@
 
 import { useEffect } from 'react'
 import posthog from 'posthog-js'
-
-// A stale-chunk error after a deploy is fixed by one reload. When the
-// mismatch is server-side (old process serving a replaced .next) the reload
-// errors again, and an unconditional reload was a tight loop hammering the
-// server exactly while it was fragile. One reload per minute per tab.
-function reloadOnceForStaleChunk(): void {
-  const KEY = 'smileys_stale_reload_at'
-  let last = 0
-  try { last = Number(sessionStorage.getItem(KEY) ?? 0) || 0 } catch {}
-  if (Date.now() - last < 60_000) return
-  try { sessionStorage.setItem(KEY, String(Date.now())) } catch {}
-  window.location.reload()
-}
+import { recoverFromStaleChunk } from '@/lib/staleChunk'
 
 export default function Error({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
@@ -23,24 +11,12 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
     // catches the error first, so without this explicit capture these render
     // crashes would go untracked.
     posthog.captureException(error)
-    // Stale chunk after a deploy — the cached client bundle references a
-    // module ID that the new server build doesn't ship, so webpack-runtime
-    // throws on the missing factory. Auto-reload pulls fresh bundles
-    // instead of leaving the user on "Something went wrong" until they
-    // manually hard-refresh. Patterns observed in prod:
-    //   - "Cannot find module" / "ChunkLoadError" / "Loading chunk"
-    //   - "Cannot read properties of undefined (reading 'call')" from
-    //     webpack-runtime.js — same root cause surfaced differently when
-    //     a server component references a chunk that vanished from the
-    //     new build (the digest in pm2 logs is the giveaway).
-    const msg = error?.message ?? ''
-    const stack = error?.stack ?? ''
-    const isStaleChunk =
-      msg.includes('Cannot find module') ||
-      msg.includes('ChunkLoadError') ||
-      msg.includes('Loading chunk') ||
-      (msg.includes("Cannot read properties of undefined (reading 'call')") && stack.includes('webpack-runtime'))
-    if (isStaleChunk) reloadOnceForStaleChunk()
+    // Stale chunk after a deploy — reload once and pull fresh bundles rather
+    // than leaving someone on "Something went wrong". The rule and the
+    // one-per-minute guard live in lib/staleChunk so this boundary and the
+    // global one cannot recognise different sets of patterns, which is
+    // exactly what had happened.
+    recoverFromStaleChunk(error)
   }, [error])
 
   return (

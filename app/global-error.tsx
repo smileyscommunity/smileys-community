@@ -3,19 +3,18 @@
 import posthog from 'posthog-js'
 import { useEffect } from 'react'
 import { BRAND_AMBER } from '@/lib/constants'
+import { recoverFromStaleChunk } from '@/lib/staleChunk'
 
 export default function GlobalError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
     posthog.captureException(error)
-    if (error?.message?.includes('Cannot find module') || error?.message?.includes('ChunkLoadError') || error?.message?.includes('Loading chunk')) {
-      // Same one-per-minute guard as app/error.tsx.
-      let last = 0
-      try { last = Number(sessionStorage.getItem('smileys_stale_reload_at') ?? 0) || 0 } catch {}
-      if (Date.now() - last >= 60_000) {
-        try { sessionStorage.setItem('smileys_stale_reload_at', String(Date.now())) } catch {}
-        window.location.reload()
-      }
-    }
+    // Was three patterns inline here while app/error.tsx matched four, and the
+    // missing one — "reading 'call'" out of webpack-runtime — is the pattern a
+    // SERVER component referencing a vanished chunk raises. That crash lands on
+    // THIS boundary, not the route one, so the boundary best placed to recover
+    // was the only one that could not, and a device sat on "Something went
+    // wrong" through reloads. Both now read the rule from lib/staleChunk.
+    recoverFromStaleChunk(error)
   }, [error])
 
   return (

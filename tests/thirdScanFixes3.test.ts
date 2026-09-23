@@ -28,10 +28,22 @@ describe('17 partner login', () => {
 })
 
 describe('18 stale-chunk reload', () => {
-  it('is guarded to once per minute in both error boundaries', () => {
-    expect(read('app/error.tsx')).toMatch(/if \(isStaleChunk\) reloadOnceForStaleChunk\(\)/)
-    expect(read('app/error.tsx')).toMatch(/if \(Date\.now\(\) - last < 60_000\) return/)
-    expect(read('app/global-error.tsx')).toMatch(/if \(Date\.now\(\) - last >= 60_000\)/)
+  // The guard used to be written out in each boundary and was asserted here as
+  // two different shapes — which is how they drifted: error.tsx matched four
+  // patterns and global-error.tsx three. It now lives once in lib/staleChunk,
+  // so this pins that both boundaries defer to it and the cooldown is still
+  // there. The patterns and the cooldown behaviour are covered directly in
+  // tests/staleChunkBoundaries2026.test.ts.
+  it('is guarded to once per minute, from one shared rule', () => {
+    expect(read('lib/staleChunk.ts')).toMatch(/RELOAD_COOLDOWN_MS = 60_000/)
+    expect(read('lib/staleChunk.ts')).toMatch(/if \(Date\.now\(\) - last < RELOAD_COOLDOWN_MS\) return/)
+  })
+
+  it('and both error boundaries use it rather than their own copy', () => {
+    for (const f of ['app/error.tsx', 'app/global-error.tsx']) {
+      expect(read(f), f).toMatch(/recoverFromStaleChunk\(error\)/)
+      expect(read(f), f).not.toMatch(/60_000/)
+    }
   })
 })
 
