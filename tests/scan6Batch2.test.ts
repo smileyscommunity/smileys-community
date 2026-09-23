@@ -37,6 +37,10 @@ const h = vi.hoisted(() => {
     user:                   table('users', 'user'),
     emailVerificationToken: { findMany: vi.fn(async () => []), deleteMany: vi.fn(async () => ({ count: 0 })) },
     memberConnection:       { findMany: vi.fn(async () => []), deleteMany: vi.fn(async () => ({ count: 0 })) },
+    // The sweep also reports approved applicants whose account never became
+    // approved (2026-09-23). No fixture here — this file is about the token
+    // sweep; tests/strandedApprovals2026.test.ts owns that check.
+    memberApplication:      { findMany: vi.fn(async () => []) },
   }
   return { prisma, calls, db, sent: [] as any[] }
 })

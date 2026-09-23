@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { fixNameCasing } from '@/lib/data'
 import { recordCronRun } from '@/lib/cronHealth'
-import { deleteExpiredAuthTokens, deleteStaleConnectionRequests } from '@/lib/hygieneSweeps'
+import { deleteExpiredAuthTokens, deleteStaleConnectionRequests, findStrandedApprovals } from '@/lib/hygieneSweeps'
 
 // Nightly name-hygiene sweeper. The write path (register + profile PATCH)
 // runs formatName, which fixes lowercase-first-letter words but deliberately
@@ -53,7 +53,27 @@ async function runSweep() {
     console.log('[cron sweep-name-hygiene] deleted', { expiredTokens, staleConnectionRequests })
   }
 
-  return { expiredTokens, staleConnectionRequests, scanned: users.length, fixed: fixes.length, fixes }
+  // Reported, never repaired — see findStrandedApprovals for why a sweeper
+  // must not hand out access. An error line rather than a log one: this means
+  // somebody was admitted and cannot get in, which is worth waking up to.
+  //
+  // And isolated: this is a diagnostic riding on a sweep that does real work
+  // (name casing, expired tokens, stale connection requests). If the check
+  // throws, that work is already done and must still be reported as done —
+  // a monitor must not be able to fail the thing it monitors. Its own failure
+  // surfaces as a null count rather than a silent zero, so "we didn't look"
+  // never reads as "nothing to find".
+  let stranded: { count: number; userIds: string[] } | null = null
+  try {
+    stranded = await findStrandedApprovals()
+    if (stranded.count) {
+      console.error('[cron sweep-name-hygiene] approved applicants whose account is still pending', stranded)
+    }
+  } catch (e) {
+    console.error('[cron sweep-name-hygiene] stranded-approval check failed (sweep itself is fine)', e)
+  }
+
+  return { expiredTokens, staleConnectionRequests, strandedApprovals: stranded ? stranded.count : null, scanned: users.length, fixed: fixes.length, fixes }
 }
 
 export async function POST(req: NextRequest) {

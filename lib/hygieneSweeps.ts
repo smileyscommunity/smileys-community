@@ -95,3 +95,41 @@ export async function deleteStaleConnectionRequests(now: Date = new Date()) {
     ids  => prisma.memberConnection.deleteMany({ where: { id: { in: ids }, ...where } }),
   )
 }
+
+/**
+ * Applicants who were told yes and cannot get in.
+ *
+ * An approval does two writes: the application row, then the user row. If the
+ * second fails the applicant sees nothing, the admin sees "approved", and
+ * nothing anywhere disagrees out loud. The route rolls back when the account
+ * step throws (app/api/admin/applications/route.ts), but that rollback is
+ * itself best-effort — and it postdates the case that found this: a member
+ * approved on 2026-06-02 whose account sat at `pending` for three and a half
+ * months until a query went looking for something else entirely.
+ *
+ * DETECTION ONLY, deliberately. Auto-approving from a sweeper would be a
+ * background job handing out access, and the same shape would un-ban people:
+ * a banned member's application usually still reads 'approved', so "make the
+ * user match the application" is exactly wrong for them. Banned accounts are
+ * excluded here for that reason, and the rest is a report for a human.
+ *
+ * Rejection is not this: rejecting sets the user to 'pending' by design (it is
+ * only enforced at login), so a rejected applicant sitting at 'pending' is the
+ * system working, not a stranding.
+ */
+export async function findStrandedApprovals(): Promise<{ count: number; userIds: string[] }> {
+  const approved = await prisma.memberApplication.findMany({
+    where:  { status: 'approved' },
+    select: { email: true },
+  })
+  if (approved.length === 0) return { count: 0, userIds: [] }
+
+  const stranded = await prisma.user.findMany({
+    where: {
+      status: 'pending',
+      email:  { in: approved.map(a => a.email) },
+    },
+    select: { id: true },
+  })
+  return { count: stranded.length, userIds: stranded.map(u => u.id) }
+}
