@@ -190,13 +190,18 @@ export default function AdminClubDetailPage() {
   const approved = memberships.filter(m => m.status === 'approved')
   const memberIds = new Set(memberships.map(m => m.user.id))
 
+  // Already-members stay in the list, flagged, rather than being filtered out.
+  // Filtered out, every hit could vanish and the dropdown is gated on
+  // `searchResults.length > 0` — so searching for someone already in the club
+  // rendered NOTHING, which reads as a broken search box rather than an answer.
+  // The slice runs after the flag so the person searched for can take a slot;
+  // filtering first is exactly what hid them.
   const searchResults = search.trim()
     ? memberHits
-        .filter(u => !memberIds.has(u.id))
         .slice(0, 6)
         // Endpoint doesn't return profilePhoto — Avatar falls back to
         // color initials, same as before.
-        .map(u => ({ ...u, profilePhoto: u.profilePhoto ?? null }))
+        .map(u => ({ ...u, profilePhoto: u.profilePhoto ?? null, alreadyIn: memberIds.has(u.id) }))
     : []
 
   return (
@@ -420,7 +425,15 @@ export default function AdminClubDetailPage() {
           />
           {searchResults.length > 0 && (
             <div className="absolute top-full left-0 right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded-xl overflow-hidden z-10 shadow-xl">
-              {searchResults.map(user => (
+              {searchResults.map(user => user.alreadyIn ? (
+                // A div, not a disabled <button>: a disabled control still sits
+                // in the a11y tree as something that does nothing.
+                <div key={user.id} className="w-full flex items-center gap-3 px-4 py-3 text-left opacity-60">
+                  <Avatar user={user} />
+                  <span className="text-sm font-medium text-white">{user.name}</span>
+                  <span className="ml-auto text-xs text-zinc-400 font-semibold">Already in this club</span>
+                </div>
+              ) : (
                 <button
                   key={user.id}
                   onClick={() => addMember(user.id)}

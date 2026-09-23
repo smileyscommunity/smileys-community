@@ -604,8 +604,19 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
               className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500"
             />
             {addSearch.trim().length > 1 && (() => {
+              // Already-attending members stay in the list, flagged, instead of
+              // being filtered out. Removing them meant a search that FOUND
+              // somebody reported "No members found" — which is not an empty
+              // result, it is a false statement about the roster. Someone hunting
+              // a member who is already on the event was told she did not exist.
+              //
+              // The slice runs AFTER the flag and before any partition, so the
+              // person searched for can occupy one of the six slots. Filtering
+              // first is exactly what hid them.
               const alreadyIn = new Set(attendees.map(a => a.userId))
-              const results = memberHits.filter(u => !alreadyIn.has(u.id)).slice(0, 6)
+              const results = memberHits.slice(0, 6).map(u => ({ ...u, alreadyIn: alreadyIn.has(u.id) }))
+              // Reachable only when the SEARCH found nobody, which is the one
+              // case where the words are true.
               if (!results.length) return (
                 <div className="absolute top-full left-0 right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded-xl p-3 text-xs text-zinc-500 z-10">
                   {searching ? 'Searching…' : 'No members found'}
@@ -613,7 +624,17 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
               )
               return (
                 <div className="absolute top-full left-0 right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded-xl overflow-hidden z-10 shadow-xl">
-                  {results.map(u => (
+                  {results.map(u => u.alreadyIn ? (
+                    // A div, not a disabled <button>: a disabled control still
+                    // sits in the a11y tree as something that does nothing.
+                    <div key={u.id} className="w-full flex items-center gap-3 px-4 py-3 text-left opacity-60">
+                      <UserAvatar user={u} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-white truncate">{u.name}</p>
+                      </div>
+                      <span className="text-xs text-zinc-400 font-semibold shrink-0">Already going</span>
+                    </div>
+                  ) : (
                     <button key={u.id} onClick={() => addParticipant(u)} disabled={busy === u.id}
                       className="w-full flex items-center gap-3 px-4 py-3 hover:bg-zinc-700 transition-colors text-left disabled:opacity-40">
                       <UserAvatar user={u} />
