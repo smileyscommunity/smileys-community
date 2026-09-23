@@ -32,6 +32,19 @@ describe('content security policy', () => {
     expect(scriptSrc).not.toContain('unsafe-eval')
   })
 
+  // `next dev` needs eval (React Refresh, dev source maps) or nothing
+  // hydrates, so the token may exist ONLY behind an exact NODE_ENV ===
+  // 'development' check. Anything looser — `!== 'production'`, an env flag,
+  // a default — could put it on the shipped policy.
+  it('permits eval only in next dev, never in production', () => {
+    const code = mw.split('\n').filter(l => !/^\s*\/\//.test(l))
+    const evalLines = code.filter(l => l.includes('unsafe-eval'))
+    expect(evalLines).toEqual([
+      `const DEV_EVAL = process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''`,
+    ])
+    expect(scriptSrc).toContain("'unsafe-inline'${DEV_EVAL} ")
+  })
+
   it('still nonces every script and keeps strict-dynamic', () => {
     // Removing unsafe-eval is only safe because these two still carry the
     // policy. A change that dropped either would make the line above pass

@@ -62,6 +62,9 @@ function checkOrigin(req: NextRequest): NextResponse | null {
   return null
 }
 
+// Dev-only: see the script-src comment in buildCsp.
+const DEV_EVAL = process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''
+
 function buildCsp(nonce: string): string {
   return [
     "default-src 'self'",
@@ -86,7 +89,12 @@ function buildCsp(nonce: string): string {
     // app/api/csp-report logs it: grep the PM2 log for `[csp-report]` and
     // look for "script-src-elem"/"eval". Rollback is putting the one token
     // back on the line below.
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-inline' https://challenges.cloudflare.com`,
+    //
+    // The one exception is `next dev`: React Refresh and dev source maps run
+    // module code through eval, so without it main-app.js throws EvalError and
+    // nothing hydrates. `next build` inlines NODE_ENV as 'production', so the
+    // shipped middleware never carries the token.
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-inline'${DEV_EVAL} https://challenges.cloudflare.com`,
     // Inline styles are pervasive in this app (Tailwind utilities + styled-jsx
     // + emotion). Nonce-based style enforcement is impractical without a
     // larger refactor. Keep `'unsafe-inline'` — XSS impact via inline CSS is
