@@ -199,6 +199,11 @@ function NewVisitingPageInner() {
           </p>
           <p className="text-sm text-gray-600 mt-2 leading-relaxed">
             Members can welcome you, share recommendations and invite you to join them while you&apos;re here.
+            Not every visitor hears from someone — events are the surest way to meet people.
+          </p>
+          <p className="text-xs text-gray-500 mt-2 leading-relaxed">
+            Members reach you with a connection request first, and can only message you once you accept (Smileys staff and club hosts can message members directly). If someone makes you
+            uncomfortable, block or report them from their profile or your message thread.
           </p>
           {visibility === 'members' && (
             <p className="text-xs text-gray-500 mt-4 bg-white border border-gray-200 rounded-xl px-4 py-3 inline-block">
@@ -332,7 +337,12 @@ function NewVisitingPageInner() {
             <textarea value={intro} onChange={e => setIntro(e.target.value)} maxLength={1000} rows={4}
               placeholder="Why you're visiting, what you're hoping to do, what kind of company you'd enjoy…"
               className="input resize-none" />
-            <p className="text-right text-xs text-gray-400 mt-1">{intro.length}/1000</p>
+            <div className="flex justify-between gap-3 mt-1">
+              {/* Said at the field, not in a footer: this is where someone
+                  types "staying at the X hotel in room 4". */}
+              <p className="text-xs text-gray-500">Don&apos;t include where you&apos;re staying — a neighbourhood is plenty.</p>
+              <p className="text-xs text-gray-400 shrink-0">{intro.length}/1000</p>
+            </div>
           </div>
 
           <div>
@@ -341,6 +351,7 @@ function NewVisitingPageInner() {
             </label>
             <input type="text" value={contact} onChange={e => setContact(e.target.value)} maxLength={200}
               placeholder={`${dialCode(country)} … or @handle`} className="input" />
+            <p className="text-xs text-gray-500 mt-1">Shown to signed-in members only — never to people browsing without an account. Leave it blank and members can still send you a connection request.</p>
           </div>
 
           {/* Defaults to members-only. Radios rather than a toggle so both

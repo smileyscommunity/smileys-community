@@ -13,8 +13,16 @@ import { DEFAULT_CITY_SLUG } from '@/lib/city'
 import { resolveCityForPage, type CitySearch } from '@/lib/cityPageParam'
 import { shareCover } from '@/lib/shareCover'
 import { resolveImageUrl, firstNameOf, formatPrice } from '@/lib/data'
-import { getPublicCity } from '@/lib/cities'
-import { CITY_STATUS } from '@/lib/cityStatus'
+import { getPublicCities } from '@/lib/cities'
+import { getCityHandbookIndex } from '@/lib/handbookIndex'
+import { canonicalCategory } from '@/lib/handbook-categories'
+import { audiencesFor, matchesAudience } from '@/lib/guide'
+import { loadRoutes } from '@/lib/guideContent'
+import { formatTime } from '@/lib/data'
+import {
+  parseTripRange, parseTripFilters, applyTripFilters, tripFilterOptions, tripEventWhen,
+  cityAvailability, isFreeEvent, type TripWhen,
+} from '@/lib/tripPlan'
 import { guestView, visitorName } from '@/lib/visitorPolicy'
 import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
 import { loadExperiences } from '@/lib/guideContent'
@@ -182,8 +190,8 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
     prisma.event.findMany({
       where:   { status: 'published', date: { gte: today, lte: sixtyDaysOut }, cityId: cityId },
       select:  {
-        id: true, title: true, emoji: true, date: true, location: true, neighborhood: true,
-        price: true, currency: true, isFirstTimerFriendly: true, language: true,
+        id: true, title: true, emoji: true, date: true, time: true, endTime: true, location: true, neighborhood: true,
+        price: true, memberPrice: true, currency: true, isFirstTimerFriendly: true, language: true,
         // Attendee count is filtered to approved RSVPs so the "N going"
         // figure matches what the event page itself shows.
         _count: { select: { attendees: { where: { status: 'approved' } } } },
@@ -290,19 +298,43 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
 
   const cityCount = new Set(serialised.map(a => a.fromCity?.trim().toLowerCase()).filter(Boolean)).size
 
-  // viewerVisit (fetched above) drives the date-matched events and
-  // neighborhood picks below. Without it those sections fall back to a
-  // general upcoming list rather than guessing. Queried on the visit's own
-  // dates: the 60-day list above told a December visitor "nothing scheduled
-  // yet" while December's events existed.
-  const eventsDuringVisit = viewerVisit
+  // ── The trip planner ────────────────────────────────────────────────
+  // The dates come from the URL (?from=&to= — anyone can plan, no account
+  // needed), else from the member's own posted visit, else there are none
+  // and the section shows what's coming up. Queried on the range itself: a
+  // fixed 60-day window told a December visitor "nothing scheduled" while
+  // December's events existed. lib/tripPlan owns the rules — past ranges are
+  // refused, a range starting in the past is clamped to today, and events
+  // that have already finished are dropped rather than shown as upcoming.
+  const sp        = (await searchParams) ?? {}
+  const one       = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? null
+  const trip      = parseTripRange({ from: one(sp.from), to: one(sp.to) }, today)
+  const filters   = parseTripFilters({ hood: one(sp.hood), free: one(sp.free), first: one(sp.first), lang: one(sp.lang) })
+  const planRange = trip.range
+    ?? (!trip.error && viewerVisit ? { from: viewerVisit.startsOn < today ? today : viewerVisit.startsOn, to: viewerVisit.endsOn } : null)
+  const planFromVisit = !trip.range && !!planRange
+  const rangeRows = planRange
     ? await prisma.event.findMany({
-        where:   { status: 'published', cityId, date: { gte: viewerVisit.startsOn, lte: viewerVisit.endsOn } },
-        select:  { id: true, title: true, emoji: true, date: true, location: true, neighborhood: true, price: true, currency: true, isFirstTimerFriendly: true, language: true, _count: { select: { attendees: { where: { status: 'approved' } } } } },
-        orderBy: { date: 'asc' },
-        take:    6,
+        where:   { status: 'published', cityId, date: { gte: planRange.from, lte: planRange.to } },
+        select:  {
+          id: true, title: true, emoji: true, date: true, time: true, endTime: true, location: true, neighborhood: true,
+          price: true, memberPrice: true, currency: true, isFirstTimerFriendly: true, language: true,
+          _count: { select: { attendees: { where: { status: 'approved' } } } },
+        },
+        orderBy: [{ date: 'asc' }, { time: 'asc' }],
+        take:    200,
       })
-    : []
+    : upcomingEvents
+  const nowInstant = new Date()
+  const timedEvents = rangeRows.flatMap(e => {
+    const when = tripEventWhen(e, city.timezone, today, nowInstant)
+    return when ? [{ ...e, when }] : []
+  })
+  const filterOptions  = planRange ? tripFilterOptions(timedEvents) : null
+  const filteredEvents = planRange ? applyTripFilters(timedEvents, filters) : timedEvents
+  const filtersActive  = !!(filters.hood || filters.free || filters.first || filters.lang)
+  const PLAN_SHOWN     = 12
+
   // The cards' "N events while you're here" chip counts against every
   // listed visit's window, not the next 60 days.
   const lastEndsOn     = serialised.reduce((m, a) => (a.endsOn > m ? a.endsOn : m), sixtyDaysOut)
@@ -386,9 +418,6 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
     members: memberCountFor(row.name),
   }))
 
-  // The first-72-hours checklist lives on the city's remote-work hub, which
-  // only live cities have — a coming-soon city's panel links nowhere.
-  const cityIsLive = (await getPublicCity(city.slug))?.status === CITY_STATUS.Live
   // Links into other city-scoped pages carry the city: /neighborhoods and
   // /handbook otherwise resolve from the session, and four neighborhood
   // slugs exist in two cities.
@@ -397,10 +426,16 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
   // One card for both event lists below. The newcomer facts are the ones a
   // first-timer decides on — cost, whether it is picked as an easy first one,
   // the language — and each shows only when the event has it set.
-  const VisitEventCard = ({ e }: { e: typeof upcomingEvents[number] }) => (
+  const VisitEventCard = ({ e }: { e: (typeof timedEvents)[number] }) => (
     <Link href={`/events/${e.id}`}
-      className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-amber-200 transition-all group">
-      <p className="text-xs font-bold tracking-wide text-amber-600">{fmtEventDate(e.date)}</p>
+      className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-amber-200 transition-all group focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500">
+      {/* When, relative to now in the city's own time — "Happening now",
+          "Today", "Tomorrow" or the date — plus the start time. Finished
+          events never reach this card (lib/tripPlan). */}
+      <p className="text-xs font-bold tracking-wide">
+        <span className={whenTone(e.when)}>{e.when.label.toUpperCase()}</span>
+        {e.time && <span className="text-gray-500"> · {formatTime(e.time)}</span>}
+      </p>
       <h3 className="font-bold text-gray-900 mt-1.5 leading-snug">
         <span aria-hidden="true">{e.emoji} </span>{e.title}
       </h3>
@@ -410,7 +445,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
       <p className="text-xs text-gray-500 mt-0.5">
         <span aria-hidden="true">👥 </span>{e._count.attendees} going
         <span aria-hidden="true"> · </span>
-        {e.price === 0 ? <span className="font-semibold text-green-700">Free</span> : formatPrice(e.price, e.currency)}
+        {isFreeEvent(e) ? <span className="font-semibold text-green-700">Free</span> : formatPrice(e.price, e.currency)}
         {e.language?.trim() && <><span aria-hidden="true"> · </span><span className="sr-only">Language: </span>{e.language.trim()}</>}
       </p>
       {e.isFirstTimerFriendly && (
@@ -423,13 +458,43 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
       </span>
     </Link>
   )
+  const whenTone = (w: TripWhen) =>
+    w.kind === 'now' ? 'text-emerald-700' : w.kind === 'later' ? 'text-amber-700' : 'text-amber-800'
 
-  const fmtEventDate = (d: string) => {
-    const [y, m, day] = d.split('-').map(Number)
-    return new Date(Date.UTC(y, m - 1, day))
-      .toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
-      .toUpperCase()
+  // ── Arrival essentials, interests, availability ─────────────────────
+  // All existing content: the city's Handbook (lib/handbookIndex), its Guide
+  // audiences and day routes (lib/guide, lib/guideContent), and the city list
+  // with the same maturity signal the city cards use (lib/tripPlan).
+  const [handbook, routes, publicCities] = await Promise.all([
+    getCityHandbookIndex(cityId, city.country ?? null),
+    loadRoutes(cityId),
+    getPublicCities(),
+  ])
+  // The city's own article first (its transport card beats a national note).
+  const essential = (category: string) => handbook
+    .filter(a => canonicalCategory(a.category) === category)
+    .sort((a, b) => Number(b.cityId === cityId) - Number(a.cityId === cityId))[0] ?? null
+  const essentials = [
+    { key: 'connect',   label: 'SIM and internet',       article: essential('Mobile & Digital') },
+    { key: 'transport', label: 'Getting around',         article: essential('Getting Around') },
+    { key: 'money',     label: 'Money',                  article: essential('Money & Banking') },
+    { key: 'safety',    label: 'Safety and emergencies', article: essential('Safety & Emergencies') },
+  ].filter(x => x.article)
+  const firstTimerSoon = timedEvents.filter(e => e.isFirstTimerFriendly)
+  // Guide intents this city's vocabulary can answer, with how many
+  // experiences each one opens — an intent with none is not offered.
+  const guideQs = pinned ? `&city=${city.slug}` : ''
+  const intents = audiencesFor(city.slug)
+    .map(a => ({ ...a, count: allExperiences.filter(e => matchesAudience(e, a)).length }))
+    .filter(a => a.count > 0)
+  const availability = {
+    active:      publicCities.filter(c => cityAvailability(c) === 'active'),
+    founding:    publicCities.filter(c => cityAvailability(c) === 'founding'),
+    coming_soon: publicCities.filter(c => cityAvailability(c) === 'coming_soon'),
   }
+  const thisCityAvailability = publicCities.find(c => c.slug === city.slug)
+  const hereAvailability = thisCityAvailability ? cityAvailability(thisCityAvailability) : 'coming_soon'
+
 
   return (
     <div className={`min-h-screen bg-white ${viewerVisit ? '' : 'pb-24 md:pb-0'}`}>
@@ -438,7 +503,9 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
           photo: without it the headline sits on the blown-out sky at the
           horizon and drops well below AA. Kept opaque enough at the
           bottom that the CTAs never land on the busy boat/crowd detail. */}
-      <section className="relative h-[500px] sm:h-[560px] lg:h-[620px] w-full overflow-hidden">
+      {/* min-height, not a fixed height: the headline wraps to four lines on
+          a phone, and a fixed box clipped the eyebrow off the top. */}
+      <section className="relative min-h-[500px] sm:min-h-[560px] lg:min-h-[620px] w-full overflow-hidden flex items-center">
         {/* The city's own photo where it has one — this shot is Istanbul, down
             to the signpost in it, and its alt text said so to screen readers on
             every city's page. */}
@@ -454,34 +521,35 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
           className="object-cover object-center"
         />
         <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/55 to-black/30" />
-        <div className="absolute inset-0 flex items-center">
+        <div className="relative w-full py-16 sm:py-20">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
             <div className="max-w-2xl">
               <p className="text-xs font-bold tracking-[0.2em] uppercase text-amber-300 mb-4">
                 Visiting {city.name}
               </p>
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-[1.1]">
-                Your {city.name} starts before you arrive.
+                Don&apos;t just visit {city.name}. Know someone here.
               </h1>
               <p className="text-base sm:text-lg text-white/90 mt-5 leading-relaxed max-w-xl">
-                Tell us when you&apos;re coming. Smileys members in {city.name} can reach out with
-                local tips, coffee invitations, introductions and plans before you arrive.
+                Smileys brings together local recommendations, real events and a community of people
+                who live here — so you can find the parts of {city.name} you&apos;ll love, see what&apos;s
+                on during your stay, and meet a few people before you land.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-3">
                 {/* Posting is member-only (anonymous posting was tried and
                     reverted — see app/(member)/visiting/new/page.tsx), so a
                     logged-out visitor is sent to /apply rather than into a
                     form that would just bounce them to login. */}
-                <Link href={isMember ? newVisitHref : '/apply'}
+                <a href="#plan"
                   className="inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-amber-500 hover:bg-amber-600 text-white text-base font-bold rounded-xl transition-colors shadow-lg">
-                  {ctaLabel}
+                  Plan my visit
                   <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                   </svg>
-                </Link>
-                <a href="#visitors"
+                </a>
+                <a href="#tell"
                   className="inline-flex items-center justify-center gap-2 px-7 py-3.5 border border-white/50 hover:bg-white/10 text-white text-base font-semibold rounded-xl transition-colors backdrop-blur-sm">
-                  See Who&apos;s Visiting
+                  {viewerVisit ? 'Your visit card' : 'Tell us you’re coming'}
                 </a>
               </div>
               <p className="text-xs sm:text-sm text-white/70 mt-5">
@@ -514,32 +582,207 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
         </div>
       </section>
 
-      {/* First time here? — the practical and social side of arriving, before
-          the sights strip below. The event half is policy and page facts that
-          hold in every city (the badge exists, the host and price are shown
-          before an RSVP, the FAQ's cancellation rule), not promises about any
-          one event. */}
-      <section aria-labelledby="first-time-here" className="bg-white border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-12">
-          <h2 id="first-time-here" className="text-xl sm:text-2xl font-extrabold tracking-tight text-gray-900">First time here?</h2>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-5">
-            <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5 sm:p-6 flex flex-col">
-              <h3 className="font-bold text-gray-900 mb-1.5">Your first 72 hours</h3>
-              <p className="text-sm text-gray-600 leading-relaxed flex-1">
-                Get connected, choose a neighbourhood, find somewhere to work, sort money and transport — then
-                join a first event. One checklist, each step linked to the guide that answers it.
-              </p>
-              {cityIsLive ? (
-                <Link href={`/${city.slug}/remote-work#first-72-hours`} className="mt-4 text-sm font-bold text-amber-700 hover:text-amber-800">
-                  Open the {city.name} checklist <span aria-hidden="true">→</span>
-                </Link>
-              ) : (
-                <Link href={`/handbook${cityQs}`} className="mt-4 text-sm font-bold text-amber-700 hover:text-amber-800">
-                  Read the Handbook <span aria-hidden="true">→</span>
-                </Link>
-              )}
+      {/* ── Plan your visit ── the page's primary interaction. A plain GET
+          form: works without JavaScript, every control is a native labelled
+          input, and the result is a shareable URL. Filters appear only when
+          they would narrow the list (lib/tripPlan tripFilterOptions). */}
+      <section id="plan" aria-labelledby="plan-title" className="bg-white border-b border-gray-100 scroll-mt-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-14">
+          <h2 id="plan-title" className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">Plan your visit</h2>
+          <ol className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm text-gray-600">
+            {[
+              { n: 1, label: 'Your dates',           href: '#plan' },
+              { n: 2, label: 'Events during your stay', href: '#plan-events' },
+              { n: 3, label: 'Experiences you’ll like', href: '#interests' },
+              { n: 4, label: 'Where you’re staying', href: '#stay' },
+              { n: 5, label: 'Tell the community',   href: '#tell' },
+            ].map(st => (
+              <li key={st.n}>
+                <a href={st.href} className="inline-flex items-center gap-2 hover:text-amber-700">
+                  <span aria-hidden="true" className="w-6 h-6 rounded-full bg-amber-100 text-amber-800 text-xs font-extrabold flex items-center justify-center">{st.n}</span>
+                  {st.label}
+                </a>
+              </li>
+            ))}
+          </ol>
+
+          <form method="get" action="/app/visiting#plan-events" className="mt-8 rounded-2xl border border-gray-200 bg-gray-50 p-4 sm:p-6">
+            {pinned && <input type="hidden" name="city" value={city.slug} />}
+            <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-4 items-end">
+              <div>
+                <label htmlFor="trip-from" className="block text-sm font-semibold text-gray-800 mb-1.5">Arriving</label>
+                <input id="trip-from" name="from" type="date" min={today} required
+                  defaultValue={trip.range?.from ?? (planFromVisit ? planRange?.from : '') ?? ''} className="input bg-white" />
+              </div>
+              <div>
+                <label htmlFor="trip-to" className="block text-sm font-semibold text-gray-800 mb-1.5">Leaving</label>
+                <input id="trip-to" name="to" type="date" min={today} required
+                  defaultValue={trip.range?.to ?? (planFromVisit ? planRange?.to : '') ?? ''} className="input bg-white" />
+              </div>
+              <button type="submit" className="btn-primary px-6 py-3">Show my events</button>
             </div>
-            <div className="bg-gray-50 border border-gray-100 rounded-2xl p-5 sm:p-6">
+
+            {filterOptions && (filterOptions.hoods.length > 0 || filterOptions.free || filterOptions.first || filterOptions.langs.length > 0) && (
+              <fieldset className="mt-5 pt-5 border-t border-gray-200">
+                <legend className="text-sm font-semibold text-gray-800 mb-3">Narrow it down</legend>
+                <div className="flex flex-wrap items-end gap-4">
+                  {filterOptions.hoods.length > 0 && (
+                    <div>
+                      <label htmlFor="trip-hood" className="block text-xs font-semibold text-gray-600 mb-1">Neighbourhood</label>
+                      <select id="trip-hood" name="hood" defaultValue={filters.hood ?? ''} className="input bg-white py-2">
+                        <option value="">Anywhere</option>
+                        {filterOptions.hoods.map(h => <option key={h} value={h}>{h}</option>)}
+                      </select>
+                    </div>
+                  )}
+                  {filterOptions.langs.length > 0 && (
+                    <div>
+                      <label htmlFor="trip-lang" className="block text-xs font-semibold text-gray-600 mb-1">Language</label>
+                      <select id="trip-lang" name="lang" defaultValue={filters.lang ?? ''} className="input bg-white py-2">
+                        <option value="">Any</option>
+                        {filterOptions.langs.map(l => <option key={l} value={l}>{l}</option>)}
+                      </select>
+                    </div>
+                  )}
+                  {filterOptions.free && (
+                    <label className="inline-flex items-center gap-2 text-sm text-gray-700 py-2">
+                      <input type="checkbox" name="free" value="1" defaultChecked={filters.free} className="accent-amber-500 w-4 h-4" />
+                      Free only
+                    </label>
+                  )}
+                  {filterOptions.first && (
+                    <label className="inline-flex items-center gap-2 text-sm text-gray-700 py-2">
+                      <input type="checkbox" name="first" value="1" defaultChecked={filters.first} className="accent-amber-500 w-4 h-4" />
+                      First-timer friendly
+                    </label>
+                  )}
+                </div>
+                {filterOptions.langs.length > 0 && (
+                  <p className="text-xs text-gray-500 mt-2">Language only matches events whose host listed one.</p>
+                )}
+              </fieldset>
+            )}
+          </form>
+
+          <div id="plan-events" className="scroll-mt-24 mt-8" aria-live="polite">
+            {trip.error ? (
+              <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{trip.error}</p>
+            ) : planRange ? (
+              <>
+                <h3 className="text-xl font-extrabold text-gray-900">
+                  {filteredEvents.length === 0
+                    ? `Nothing ${filtersActive ? 'matching' : 'scheduled'} between ${formatDay(planRange.from)} and ${formatDay(planRange.to)} yet`
+                    : `${filteredEvents.length} event${filteredEvents.length === 1 ? '' : 's'} between ${formatDay(planRange.from)} and ${formatDay(planRange.to)}`}
+                </h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  {planFromVisit ? 'Matched to the dates on your visit card. ' : ''}
+                  {trip.clamped ? 'Your stay has already started, so this shows today onwards. ' : ''}
+                  {filteredEvents.length === 0
+                    ? (filtersActive
+                        ? <>Try fewer filters — <Link href={`/visiting?${new URLSearchParams({ ...(pinned ? { city: city.slug } : {}), from: planRange.from, to: planRange.to })}#plan-events`} className="font-semibold text-amber-700 hover:underline">clear them</Link>.</>
+                        : 'New events are added every week, so check back closer to your trip.')
+                    : 'Events that have already finished are not shown.'}
+                </p>
+                {filteredEvents.length > 0 && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
+                    {filteredEvents.slice(0, PLAN_SHOWN).map(e => <VisitEventCard key={e.id} e={e} />)}
+                  </div>
+                )}
+                {filteredEvents.length > PLAN_SHOWN && (
+                  <Link href={pinned ? `/${city.slug}/events` : '/events'} className="inline-block mt-6 text-sm font-bold text-amber-700 hover:underline">
+                    {filteredEvents.length - PLAN_SHOWN} more — open the full calendar →
+                  </Link>
+                )}
+              </>
+            ) : timedEvents.length > 0 ? (
+              <>
+                <h3 className="text-xl font-extrabold text-gray-900">Coming up in {city.name}</h3>
+                <p className="text-sm text-gray-600 mt-1">Add your dates above to see only what falls during your stay.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
+                  {timedEvents.slice(0, 6).map(e => <VisitEventCard key={e.id} e={e} />)}
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-gray-600">Nothing on the {city.name} calendar in the next two months yet — add your dates and check back closer to your trip.</p>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Your first 48 hours ── built only from what the city has: its
+          Handbook articles for connectivity and transport, its Guide's
+          first-timer experiences, and first-timer-friendly events actually
+          on the calendar. A step with nothing behind it says so rather than
+          linking somewhere empty. The event notes are policy that holds in
+          every city (the badge, host and price shown before RSVP, the FAQ's
+          cancellation rule), not promises about any one event. */}
+      <section id="first-48" aria-labelledby="first-48-title" className="bg-white border-b border-gray-100 scroll-mt-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <h2 id="first-48-title" className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">Your first 48 hours</h2>
+          <p className="text-gray-600 mt-1">Four things to do once you land — each linked to the page that covers it.</p>
+          <ol className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+            {[
+              {
+                title: 'Arrive and get connected',
+                body:  'A local SIM or eSIM, so maps, messages and ride apps work from the start.',
+                href:  essentials.find(x => x.key === 'connect')?.article ? `/handbook/${essentials.find(x => x.key === 'connect')!.article!.slug}` : null,
+                cta:   'SIM and internet guide',
+              },
+              {
+                title: 'Learn the transport basics',
+                body:  'How to pay for buses, metro and ferries, and what to buy on day one.',
+                href:  essentials.find(x => x.key === 'transport')?.article ? `/handbook/${essentials.find(x => x.key === 'transport')!.article!.slug}` : null,
+                cta:   'Transport guide',
+              },
+              {
+                title: 'Pick a first local experience',
+                body:  firstTimers.length > 0
+                  ? `Start with one of the ${city.name} Guide’s first-timer picks: ${firstTimers.slice(0, 2).map(e => e.title).join(' or ')}.`
+                  : `Browse the ${city.name} Guide for somewhere to start.`,
+                href:  firstTimers.length > 0 ? `/guide?for=first-time${guideQs}` : `/guide${cityQs}`,
+                cta:   'First-time picks',
+              },
+              {
+                title: 'Join a friendly event or coffee',
+                body:  firstTimerSoon.length > 0
+                  ? `${firstTimerSoon.length} first-timer-friendly event${firstTimerSoon.length === 1 ? '' : 's'} ${planRange ? 'during your stay' : 'coming up'} — easy ones to come to on your own.`
+                  : 'Pick any event that suits you, or say hello to a local who is open to meeting visitors.',
+                href:  firstTimerSoon.length > 0 && planRange
+                  ? `/visiting?${new URLSearchParams({ ...(pinned ? { city: city.slug } : {}), from: planRange.from, to: planRange.to, first: '1' })}#plan-events`
+                  : '#plan-events',
+                cta:   'See events',
+              },
+            ].map((st, i) => (
+              <li key={st.title} className="bg-gray-50 border border-gray-100 rounded-2xl p-5 flex flex-col">
+                <span aria-hidden="true" className="w-8 h-8 rounded-full bg-amber-500 text-white text-sm font-extrabold flex items-center justify-center mb-3">{i + 1}</span>
+                <h3 className="font-bold text-gray-900 mb-1.5">{st.title}</h3>
+                <p className="text-sm text-gray-600 leading-relaxed flex-1">{st.body}</p>
+                {st.href
+                  ? <Link href={st.href} className="mt-4 text-sm font-bold text-amber-700 hover:text-amber-800">{st.cta} <span aria-hidden="true">→</span></Link>
+                  : <p className="mt-4 text-xs text-gray-500">No {city.name} guide for this yet.</p>}
+              </li>
+            ))}
+          </ol>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
+            {essentials.length > 0 && (
+              <div className="rounded-2xl border border-gray-200 p-5">
+                <h3 className="font-bold text-gray-900 mb-2">Handbook essentials</h3>
+                <ul className="space-y-1.5 text-sm">
+                  {essentials.map(x => (
+                    <li key={x.key}>
+                      <span className="text-gray-500">{x.label}: </span>
+                      <Link href={`/handbook/${x.article!.slug}`} className="font-semibold text-gray-900 hover:text-amber-700">{x.article!.title}</Link>
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-xs text-gray-500 mt-3 leading-relaxed">
+                  Written by members from experience, not legal, visa, medical or transport-operator advice. Fares,
+                  rules and requirements change — where a guide links official sources, check them before you rely on it.
+                </p>
+              </div>
+            )}
+            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-5">
               <h3 className="font-bold text-gray-900 mb-2">What a first Smileys event is like</h3>
               <ul className="space-y-2 text-sm text-gray-600 leading-relaxed">
                 <li className="flex gap-2"><span aria-hidden="true">👋</span><span>Events marked <span className="font-semibold text-gray-900">First-timer friendly</span> are picked by the team as easy ones to come to on your own.</span></li>
@@ -573,6 +816,49 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
         </section>
       )}
 
+      {/* ── Find experiences by interest ── the Guide's own audience paths
+          (lib/guide audiencesFor — only those this city's vocabulary can
+          answer, and only with at least one experience) plus its day routes,
+          which string existing experiences into a day. No new content. */}
+      {(intents.length > 0 || routes.length > 0) && (
+        <section id="interests" aria-labelledby="interests-title" className="bg-white border-b border-gray-100 scroll-mt-20">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            <h2 id="interests-title" className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">What kind of trip is it?</h2>
+            <p className="text-gray-600 mt-1">Experiences from the {city.name} Guide, by what you&apos;re in the mood for.</p>
+            {intents.length > 0 && (
+              <ul className="flex flex-wrap gap-2 mt-5">
+                {intents.map(a => (
+                  <li key={a.value}>
+                    <Link href={`/guide?for=${a.value}${guideQs}`}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-gray-200 bg-white text-sm font-semibold text-gray-700 hover:border-amber-300 hover:text-amber-700 transition-colors">
+                      <span aria-hidden="true">{a.emoji}</span>{a.label}
+                      <span className="text-xs font-normal text-gray-500">{a.count}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {routes.length > 0 && (
+              <div className="mt-8">
+                <h3 className="text-sm font-extrabold text-gray-600 uppercase tracking-widest mb-3">
+                  {routes.length > 1 ? 'A day at a time — or two for a weekend' : 'A day plan'}
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {routes.map(r => (
+                    <Link key={r.slug} href={`/guide/routes/${r.slug}`}
+                      className="bg-gray-50 border border-gray-100 rounded-2xl p-4 hover:border-amber-200 hover:shadow-md transition-all group">
+                      <span aria-hidden="true" className="block text-2xl mb-1">{r.emoji}</span>
+                      <p className="text-sm font-bold text-gray-900 group-hover:text-amber-700 transition-colors leading-snug">{r.title}</p>
+                      {r.time && <p className="text-xs text-gray-500 mt-1">{r.time}</p>}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
         {/* Full container width (not max-w-3xl) so the visitor cards can
             lay out 3-up on desktop; the handbook cross-link below keeps
@@ -601,7 +887,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
       </div>
 
       {/* ── Know where you're staying? ── */}
-      <section className="bg-gray-50 border-t border-gray-100">
+      <section id="stay" className="bg-gray-50 border-t border-gray-100 scroll-mt-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
           <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">
             Know where you&apos;re staying?
@@ -629,55 +915,40 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
         </div>
       </section>
 
-      {/* ── Events during your visit ──
-          Date-matched when the viewer has posted their own dates;
-          otherwise a general upcoming list, honestly labelled as such —
-          the visitor cards above already advertise "N events while
-          you're here", so an empty prompt here read as a contradiction
-          (especially for logged-out visitors, this page's whole
-          audience). */}
-      <section className="bg-white border-t border-gray-100">
+      {/* ── Tell the community you're coming ── how it actually works, said
+          before anyone posts. Every line is a rule the product enforces:
+          posting needs an approved account (visiting/new is members-only),
+          visits default to members-only and a public card shows guests a
+          first name and the month (lib/visitorPolicy), contact happens by a
+          connection request the visitor accepts or declines (VisitingClient),
+          and Report/Block sit on every profile and message thread. It
+          promises no introductions — some visitors hear from nobody. */}
+      <section id="tell" aria-labelledby="tell-title" className="bg-white border-t border-gray-100 scroll-mt-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
-          <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">
-            What&apos;s happening while you&apos;re here
-          </h2>
-          {viewerVisit ? (
-            eventsDuringVisit.length > 0 ? (
-              <>
-                <p className="text-gray-600 mt-2 mb-8">
-                  Events between {formatDay(viewerVisit.startsOn)} and {formatDay(viewerVisit.endsOn)}.
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {eventsDuringVisit.map(e => <VisitEventCard key={e.id} e={e} />)}
-                </div>
-              </>
-            ) : (
-              <p className="text-gray-600 mt-2">
-                Nothing scheduled between {formatDay(viewerVisit.startsOn)} and {formatDay(viewerVisit.endsOn)} yet — new events go up every week.
-              </p>
-            )
-          ) : upcomingEvents.length === 0 ? (
-            <div className="mt-4">
-              <p className="text-gray-600 mb-5">Add your travel dates to see what&apos;s happening during your stay.</p>
-              <Link href={isMember ? newVisitHref : '/apply'}
-                className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
-                Add my dates
-              </Link>
-            </div>
-          ) : (
-            <>
-              <p className="text-gray-600 mt-2 mb-8">
-                Coming up over the next 60 days — add your dates and we&apos;ll match them to your trip.
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {upcomingEvents.slice(0, 6).map(e => <VisitEventCard key={e.id} e={e} />)}
+          <h2 id="tell-title" className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">Tell the community you&apos;re coming</h2>
+          <p className="text-gray-600 mt-2 max-w-2xl">Post your dates and a short intro, and members in {city.name} can see you&apos;re on your way. Here&apos;s exactly how it works.</p>
+          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-8">
+            {[
+              { icon: '🪪', term: 'You need a Smileys account', desc: 'Posting your dates, messaging members and joining events are for approved members. Applying is free and every application is reviewed by a person.' },
+              { icon: '👀', term: 'Who sees your visit', desc: 'Only signed-in members, unless you choose to list it publicly. Even then, people who aren’t signed in see only your first name and the month — never your exact dates, neighbourhood or contact details.' },
+              { icon: '🤝', term: 'What to expect', desc: 'A member who’d like to meet sends you a connection request with a note — a coffee, a tip, an event they’re going to — and can only message you once you accept. (Smileys staff and club hosts can message members directly.) Some visitors hear from several people and some from nobody; it depends on your dates and who’s around, so events are the surest way to meet people.' },
+              { icon: '🛡️', term: 'Staying safe', desc: 'Never post where you’re staying or anything you wouldn’t tell a stranger — a neighbourhood is plenty. Meet in public places. If anyone makes you uncomfortable, block or report them from their profile or your message thread, and our team will review it.' },
+            ].map(x => (
+              <div key={x.term} className="bg-gray-50 border border-gray-100 rounded-2xl p-5">
+                <dt className="font-bold text-gray-900"><span aria-hidden="true">{x.icon} </span>{x.term}</dt>
+                <dd className="text-sm text-gray-600 mt-1.5 leading-relaxed">{x.desc}</dd>
               </div>
-              <Link href={isMember ? newVisitHref : '/apply'}
-                className="inline-flex items-center justify-center gap-2 mt-8 px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
-                Add my dates
-              </Link>
-            </>
-          )}
+            ))}
+          </dl>
+          <div className="mt-8 flex flex-col sm:flex-row gap-3">
+            <Link href={isMember ? newVisitHref : '/apply'}
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
+              {isMember ? ctaLabel : 'Apply to join — it’s free'}
+            </Link>
+            <Link href="/guidelines" className="inline-flex items-center justify-center px-6 py-3 border border-gray-200 hover:bg-gray-50 text-gray-700 text-sm font-semibold rounded-xl transition-colors">
+              Community guidelines
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -809,6 +1080,43 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
         </div>
       </section>
 
+      {/* ── Where you can use Smileys today ── the network as it is. Active
+          means members and events now; Founding means the city is open but
+          just starting (few or no events yet); Coming soon means no community
+          there yet. Same maturity signal as the city cards (lib/tripPlan). */}
+      <section aria-labelledby="where-title" className="bg-white border-t border-gray-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
+          <h2 id="where-title" className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">Where you can use Smileys today</h2>
+          {hereAvailability !== 'active' && (
+            <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 max-w-2xl">
+              {hereAvailability === 'founding'
+                ? `Smileys ${city.name} is just getting started — there may be few or no events during your stay yet, and fewer members around to meet.`
+                : `Smileys isn’t active in ${city.name} yet — there are no events or members to meet there for now.`}
+            </p>
+          )}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+            {([
+              { key: 'active',      title: 'Active',      note: 'Members, clubs and events you can join now.',        cities: availability.active },
+              { key: 'founding',    title: 'Founding',    note: 'Open, but just starting — few or no events yet.',   cities: availability.founding },
+              { key: 'coming_soon', title: 'Coming soon', note: 'No community there yet. Get notified when it opens.', cities: availability.coming_soon },
+            ] as const).filter(g => g.cities.length > 0).map(g => (
+              <div key={g.key} className="rounded-2xl border border-gray-100 bg-gray-50 p-5">
+                <h3 className="font-bold text-gray-900">{g.title}</h3>
+                <p className="text-xs text-gray-500 mt-0.5 mb-3">{g.note}</p>
+                <ul className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm">
+                  {g.cities.map(c => (
+                    <li key={c.id}>
+                      <Link href={g.key === 'coming_soon' ? `/${c.slug}` : (c.slug === DEFAULT_CITY_SLUG ? '/visiting' : `/visiting?city=${c.slug}`)}
+                        className="font-semibold text-gray-800 hover:text-amber-700">{c.name}</Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Social proof (§10 of the brief) is deliberately absent: the only
           testimonials on record are general Smileys ones, not from visitors
           who used this feature. Dressing those up as visit stories would be
@@ -818,7 +1126,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
       <section className="bg-gray-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center">
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-white leading-tight">
-            Don&apos;t just visit {city.name}.<br />Know someone here.
+            Arrive knowing someone.
           </h2>
           <p className="text-gray-300 mt-5 max-w-xl mx-auto leading-relaxed">
             Tell the community you&apos;re coming and start making connections before you arrive.

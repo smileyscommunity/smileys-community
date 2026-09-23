@@ -174,6 +174,9 @@ const ISTANBUL_AUDIENCES: GuideAudience[] = [
   { value: 'nightlife',  label: 'Nightlife',   emoji: '🍸', moods: ['night-out'], collections: ['night'] },
   { value: 'solo',       label: 'Solo',        emoji: '🙋', moods: ['people'],    collections: [] },
   { value: 'budget',     label: 'On a budget', emoji: '💸', moods: ['free'],      collections: ['free'] },
+  // Backed by Istanbul's own "It's Raining" mood (hammam, the historic
+  // peninsula, Turkish coffee) — the one rainy-day vocabulary a city has.
+  { value: 'rainy',      label: 'Rainy day',   emoji: '☔', moods: ['rainy'],     collections: [] },
   { value: 'slow',       label: 'Slow days',   emoji: '🌿', moods: ['escape'],    collections: ['escape'] },
   { value: 'curious',    label: 'Something different', emoji: '🎨', moods: ['different'], collections: ['different'] },
 ]
