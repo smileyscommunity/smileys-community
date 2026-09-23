@@ -28,6 +28,13 @@ model User {
   interests                  String[]
   languages                  String[]
   lastActive                 DateTime?
+  // When this member last OPENED the notification bell. The badge counts what
+  // arrived after it, not everything unread: the admin account sat on 977
+  // unread (619 of them application pings nobody ever clears) so the badge
+  // read "9+" for months and a new application could not move it. Null means
+  // "never opened it", which counts all unread — exactly the old behaviour,
+  // so nobody's badge changes until the first time they look.
+  notificationsSeenAt        DateTime?
   nudgesSent                 Int                     @default(0)
   lastNudgedAt               DateTime?
   // Weekly first-RSVP nudge (separate from the login nudge above): when this

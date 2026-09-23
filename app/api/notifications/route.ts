@@ -2,8 +2,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
+import { newSinceWhere } from '@/lib/notificationBadge'
 
 const PAGE = 30
+
+// One indexed read by primary key, next to counts that already cost more than
+// it does. Kept as its own function so both the `count=1` badge path and the
+// full feed read the mark the same way.
+async function bellSeenAt(userId: string): Promise<Date | null> {
+  const u = await prisma.user.findUnique({ where: { id: userId }, select: { notificationsSeenAt: true } })
+  return u?.notificationsSeenAt ?? null
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -13,14 +22,16 @@ export async function GET(req: NextRequest) {
     // The badges want a number, not thirty rows carrying message previews,
     // twice a minute, per open tab.
     if (req.nextUrl.searchParams.get('count') === '1') {
-      const [unreadCount, unreadMessages] = await Promise.all([
+      const seenAt = await bellSeenAt(session.id)
+      const [unreadCount, newCount, unreadMessages] = await Promise.all([
         prisma.notification.count({ where: { userId: session.id, isRead: false } }),
+        prisma.notification.count({ where: newSinceWhere(session.id, seenAt) }),
         // Broken out because every direct message also writes one of these:
         // the phone's badge added them to the unread-message count and showed
         // one message as two.
         prisma.notification.count({ where: { userId: session.id, isRead: false, type: 'message' } }),
       ])
-      return NextResponse.json({ unreadCount, unreadMessages })
+      return NextResponse.json({ unreadCount, newCount, unreadMessages })
     }
 
     // Older than a cursor, for "load older" — the list used to be the newest
@@ -38,19 +49,22 @@ export async function GET(req: NextRequest) {
         : { createdAt: { lt: before } }
       : {}
 
-    const [notifications, unreadCount, unreadMessages] = await Promise.all([
+    const seenAt = await bellSeenAt(session.id)
+    const [notifications, unreadCount, newCount, unreadMessages] = await Promise.all([
       prisma.notification.findMany({
         where: { userId: session.id, ...olderThanCursor },
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         take: PAGE + 1,
       }),
       prisma.notification.count({ where: { userId: session.id, isRead: false } }),
+      prisma.notification.count({ where: newSinceWhere(session.id, seenAt) }),
       prisma.notification.count({ where: { userId: session.id, isRead: false, type: 'message' } }),
     ])
     const hasMore = notifications.length > PAGE
     return NextResponse.json({
       notifications: hasMore ? notifications.slice(0, PAGE) : notifications,
       unreadCount,
+      newCount,
       unreadMessages,
       hasMore,
     })
@@ -75,12 +89,22 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
     }
 
-    const { id, markAll } = await req.json().catch(() => ({}))
+    const { id, markAll, seen } = await req.json().catch(() => ({}))
     // `id` went into a Prisma where unchecked, so a filter object in its
     // place ({"not":"x"}) marked every row the caller owns. Same scope as
     // markAll, so no breach — but the route should say what it takes.
     if (id !== undefined && typeof id !== 'string') {
       return NextResponse.json({ error: 'id must be a string' }, { status: 400 })
+    }
+
+    // "I opened the bell." Moves the badge's baseline and nothing else — the
+    // rows stay unread, because looking at a dropdown is not reading forty
+    // notifications. Its own flag rather than a side effect of the GET: a
+    // poll every 60s in a background tab would otherwise keep marking the
+    // member as having looked at things they never saw.
+    if (seen) {
+      await prisma.user.update({ where: { id: session.id }, data: { notificationsSeenAt: new Date() } })
+      return NextResponse.json({ ok: true })
     }
 
     if (markAll) {

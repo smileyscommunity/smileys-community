@@ -14,6 +14,7 @@ import {
   parseNotificationFeed, previewUnreadFirst, reconcileUnreadCount, unreadCountAfterChange,
   type NotificationRow as Notification,
 } from '@/lib/notificationFeed'
+import { badgeCountFrom, pollMaySetBadge } from '@/lib/notificationBadge'
 
 const PREVIEW = 6
 
@@ -24,6 +25,15 @@ export default function NotificationBell() {
   // the newest 30, so counting the loaded ones told a member with 212 unread
   // notifications they had 30.
   const [unread, setUnread] = useState(0)
+  // What the red dot counts: arrivals since this member last opened the bell,
+  // not the lifetime unread pile. The two are the same number for most
+  // members and wildly different for the accounts that need the bell most —
+  // the admin sat on 977 unread, so the badge rendered its "9+" cap every day
+  // and a new application could not change it. See lib/notificationBadge.
+  const [badge, setBadge] = useState(0)
+  // When this bell was last opened, for the in-flight poll that computed its
+  // count against the previous mark (pollMaySetBadge).
+  const openedAt = useRef(0)
   const ref    = useRef<HTMLDivElement>(null)
   // Timestamps past the "6d ago" cutover render a calendar day, which belongs
   // to the city's clock rather than the phone's.
@@ -35,6 +45,7 @@ export default function NotificationBell() {
 
   const load = useCallback(() => {
     const poll = sync.startPoll()
+    const startedAt = Date.now()
     fetch('/app/api/notifications', { credentials: 'include' })
       // A refused or broken request is not an empty inbox. This used to take
       // whatever `r.json()` produced and treat any non-array as zero rows, so
@@ -47,6 +58,7 @@ export default function NotificationBell() {
         if (!next) return
         setNotifs(next)
         setUnread(reconcileUnreadCount(feed.unreadCount, feed.notifications, next))
+        if (pollMaySetBadge(startedAt, openedAt.current)) setBadge(badgeCountFrom(feed))
       })
       .catch(() => {})
   }, [sync])
@@ -65,6 +77,10 @@ export default function NotificationBell() {
       sync.receive(change)
       setNotifs(prev => applyNotificationChange(prev, change))
       setUnread(c => unreadCountAfterChange(c, change))
+      // Reading something on /notifications or in another tab settles the
+      // badge too — the member dealt with it, which is the same answer as
+      // having looked at the dropdown.
+      setBadge(c => unreadCountAfterChange(c, change))
     })
   }, [source, sync])
 
@@ -88,12 +104,15 @@ export default function NotificationBell() {
   async function markAllRead() {
     const ids = new Set(notifs.filter(n => !n.isRead).map(n => n.id))
     const before = unread
+    const beforeBadge = badge
     const settle = sync.begin({ kind: 'read', ids })
     setNotifs(prev => setReadFor(prev, ids, true))
     setUnread(0)
+    setBadge(0)
     if (!await sendNotificationAction('PATCH', { markAll: true }, 'Could not mark all as read').finally(settle)) {
       setNotifs(prev => setReadFor(prev, ids, false))
       setUnread(before)
+      setBadge(beforeBadge)
       return
     }
     // The server marked everything, not just the rows loaded here.
@@ -108,10 +127,10 @@ export default function NotificationBell() {
     if (!removed) return
     const settle = sync.begin({ kind: 'dismiss', id })
     setNotifs(prev => prev.filter(n => n.id !== id))
-    if (!removed.isRead) setUnread(c => Math.max(0, c - 1))
+    if (!removed.isRead) { setUnread(c => Math.max(0, c - 1)); setBadge(c => Math.max(0, c - 1)) }
     if (!await sendNotificationAction('DELETE', { id }, 'Could not dismiss notification').finally(settle)) {
       setNotifs(prev => restoreAt(prev, removed, index))
-      if (!removed.isRead) setUnread(c => c + 1)
+      if (!removed.isRead) { setUnread(c => c + 1); setBadge(c => c + 1) }
       return
     }
     emitNotificationChange({ kind: 'dismiss', ids: [id] }, source)
@@ -125,6 +144,7 @@ export default function NotificationBell() {
       const settle = sync.begin({ kind: 'read', ids })
       setNotifs(prev => setReadFor(prev, ids, true))
       setUnread(c => Math.max(0, c - 1))
+      setBadge(c => Math.max(0, c - 1))
       // Not awaited — opening the notification shouldn't wait on a read
       // receipt. The bell stays mounted across the route change, so the
       // rollback and toast still land.
@@ -132,16 +152,37 @@ export default function NotificationBell() {
         if (!ok) {
           setNotifs(prev => setReadFor(prev, ids, false))
           setUnread(c => c + 1)
+          setBadge(c => c + 1)
         } else emitNotificationChange({ kind: 'read', ids: [n.id] }, source)
       })
     }
     setOpen(false)
   }
 
+  // Opening the bell is the member looking, so the badge settles now and the
+  // mark goes to the server — a phone and a laptop disagreeing about how many
+  // things are "new" on the same bell is worse than either being stale.
+  //
+  // Silent and unawaited, not sendNotificationAction: a failed stamp costs a
+  // badge that returns at the next poll, and a red toast about a request the
+  // member never asked for would be a worse bug than the one it reports.
+  function toggleOpen() {
+    const opening = !open
+    setOpen(opening)
+    if (!opening) return
+    openedAt.current = Date.now()
+    setBadge(0)
+    fetch('/app/api/notifications', {
+      method: 'PATCH', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ seen: true }),
+    }).catch(() => {})
+  }
+
   return (
     <div ref={ref} className="relative">
       <button
-        onClick={() => setOpen(o => !o)}
+        onClick={toggleOpen}
         className="relative p-2 rounded-xl hover:bg-gray-100 transition-colors"
         aria-label="Notifications"
       >
@@ -149,10 +190,10 @@ export default function NotificationBell() {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
             d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
         </svg>
-        {unread > 0 && (
+        {badge > 0 && (
           <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
-            {unread > 9 ? '9+' : unread}
-            <span className="sr-only">unread notifications</span>
+            {badge > 9 ? '9+' : badge}
+            <span className="sr-only">new notifications since you last looked</span>
           </span>
         )}
       </button>

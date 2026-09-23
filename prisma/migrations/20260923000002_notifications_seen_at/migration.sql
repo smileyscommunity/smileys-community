@@ -1,0 +1,15 @@
+-- When a member last opened the notification bell.
+--
+-- The badge counted every unread row a member had ever accumulated, capped in
+-- the UI at "9+". That works while the number is small and stops meaning
+-- anything once it is not: the admin account holds 977 unread, 619 of them
+-- application pings that are never cleared, so the badge has read "9+" for
+-- months. A new application arrived today and the bell looked exactly as it
+-- had the day before — which is the bug, not the count.
+--
+-- The badge now counts what arrived since this mark. NULL is "never opened
+-- it" and still counts all unread, so no member's badge changes until the
+-- first time they look. No backfill for that reason: stamping everyone now
+-- would blank 1,442 badges, including unread things people genuinely have
+-- not seen.
+ALTER TABLE "users" ADD COLUMN "notificationsSeenAt" TIMESTAMP(3);

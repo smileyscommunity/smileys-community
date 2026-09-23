@@ -27,6 +27,13 @@ export interface NotificationFeed {
   notifications: NotificationRow[]
   /** Unread across all of the member's rows, not just the loaded slice. */
   unreadCount: number
+  /**
+   * Unread AND newer than the last time the member opened the bell — what the
+   * badge shows (lib/notificationBadge). Null from a response that predates
+   * the field, which the badge reads as "fall back to unreadCount" rather
+   * than as zero.
+   */
+  newCount: number | null
   /** There are rows older than the last one in `notifications`. */
   hasMore: boolean
 }
@@ -46,10 +53,10 @@ export function parseNotificationFeed(data: unknown): NotificationFeed | null {
   // ones the slice itself carries.
   if (Array.isArray(data)) {
     const rows = data.filter(isRow)
-    return { notifications: rows, unreadCount: rows.filter(n => !n.isRead).length, hasMore: rows.length >= 30 }
+    return { notifications: rows, unreadCount: rows.filter(n => !n.isRead).length, newCount: null, hasMore: rows.length >= 30 }
   }
   if (!data || typeof data !== 'object') return null
-  const { notifications, unreadCount, hasMore } = data as Record<string, unknown>
+  const { notifications, unreadCount, newCount, hasMore } = data as Record<string, unknown>
   if (!Array.isArray(notifications)) return null
   const rows = notifications.filter(isRow)
   return {
@@ -57,6 +64,7 @@ export function parseNotificationFeed(data: unknown): NotificationFeed | null {
     unreadCount: typeof unreadCount === 'number' && unreadCount >= 0
       ? unreadCount
       : rows.filter(n => !n.isRead).length,
+    newCount: typeof newCount === 'number' && newCount >= 0 ? newCount : null,
     hasMore: !!hasMore,
   }
 }
