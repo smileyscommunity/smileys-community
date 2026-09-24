@@ -447,7 +447,10 @@ export async function POST(req: NextRequest) {
         whatsappUrl:          whatsappUrl ?? null,
         minAge:               parsedMinAge as number | null,
         maxAge:               parsedMaxAge as number | null,
-        language:             language ?? null,
+        // English unless the form says otherwise: most Smileys events run in
+        // English, and the host form has no language field at all, so 259
+        // events had none. A blank or whitespace value counts as unset.
+        language:             typeof language === 'string' && language.trim() ? language.trim() : 'English',
         difficulty:           difficulty ?? null,
         refundPolicy:         refundPolicy ?? null,
         registrationDeadline: registrationDeadline ?? null,

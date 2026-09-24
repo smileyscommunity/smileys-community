@@ -46,7 +46,7 @@ export default function NewEventPage() {
     turkishMaleQuota: '',
     coverImage: '', coverImagePosition: 50, meetingUrl: '', whatsappUrl: '',
     minAge: '', maxAge: '',
-    language: '', refundPolicy: '', registrationDeadline: '',
+    language: 'English', refundPolicy: '', registrationDeadline: '',
     endTime: '', lat: '', lng: '',
   })
   // The directory listing picked for the venue (components/VenuePicker).
