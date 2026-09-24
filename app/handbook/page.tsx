@@ -78,12 +78,12 @@ export async function generateMetadata({ searchParams }: { searchParams?: Promis
   const canonicalUrl = isDefault ? `${APP_URL}/handbook` : `${APP_URL}/handbook?city=${city.slug}`
   const title = `The ${name} Handbook — Understand ${name}`
   // The default city's description names its topics — it has them. Another
-  // city's promises only what every city's handbook has: answers written by
-  // members who lived there. Tbilisi's was promising residence permits and
-  // banking above an empty index.
+  // city's promises only what every city's handbook has. Tbilisi's was
+  // promising residence permits and banking above an empty index. "Written by
+  // members who lived it" is gone too: every article is by the Smileys team.
   const desc  = isDefault
-    ? 'Understand Istanbul. Practical answers for living, moving and navigating life in Istanbul — residence permits, banking, healthcare, transport — written by Smileys members who actually lived it.'
-    : `Understand ${name}. Practical answers for living, moving and navigating life in ${name} — written by Smileys members who actually lived it.`
+    ? 'Understand Istanbul. Practical answers for living, moving and navigating life in Istanbul — residence permits, banking, healthcare, transport — written by the Smileys team, with official sources linked where the details matter.'
+    : `Understand ${name}. Practical answers for living, moving and navigating life in ${name} — written by the Smileys team, with official sources linked where the details matter.`
   const alt = `The ${name} Handbook — Smileys Community`
 
   const image = shareCover('handbook', city, alt)
@@ -214,9 +214,22 @@ export default async function HandbookPage({ searchParams }: { searchParams?: Pr
   ]))
   const enrichedBySlug = new Map(enriched.map(e => [e.slug, e]))
 
+  // An article's own photo (cover or first inline upload), WITHOUT
+  // articleCover's category-banner fallback: the banners are text graphics
+  // with a category name on them, not photos.
+  const ownPhoto = (a: { coverImage: string | null; body: string }) =>
+    articleCover({ coverImage: a.coverImage, body: a.body })
+
   const startHere = (city.isDefault ? START_HERE : [])
     .filter(c => bySlug.has(c.slug))
-    .map(c => ({ ...c, article: enrichedBySlug.get(c.slug)!, cover: articleCover(bySlug.get(c.slug)!) }))
+    .map(c => ({ ...c, article: enrichedBySlug.get(c.slug)!, cover: ownPhoto(bySlug.get(c.slug)!) }))
+
+  // Each category card's photo: the first of its articles with a photo of its
+  // own (card order = the "→" article first). None → no photo band.
+  const categoryPhoto = new Map(visibleCategories.flatMap(cat => {
+    const photo = (byCategory[cat.key] ?? []).map(ownPhoto).find(Boolean)
+    return photo ? [[cat.key, photo] as const] : []
+  }))
 
   // Life-stage entry points (lib/relocation): the same articles, read by
   // where the reader is in a move. Only stages this city can fill are
@@ -229,7 +242,7 @@ export default async function HandbookPage({ searchParams }: { searchParams?: Pr
   // photo, else none. Never another city's picture.
   const ownCover  = `handbook-cover-${cfg.slug}.jpg`
   const heroImage = existsSync(join(process.cwd(), 'public', 'images', ownCover))
-    ? { src: `/app/images/${ownCover}`, alt: `A "${city.name} Handbook" on a café table, with the city behind it` }
+    ? { src: `/app/images/${ownCover}`, alt: `An "${city.name} Handbook" on a café table, with the city behind it` }
     : cfg.heroImage ? { src: resolveImageUrl(cfg.heroImage), alt: `${city.name}` } : null
   const showQuickRef = city.isDefault && hasQuickReference()
 
@@ -237,7 +250,11 @@ export default async function HandbookPage({ searchParams }: { searchParams?: Pr
   // review chip when (and only when) the article has a real lastReviewedAt
   // (brief §38's maintenance signal, folded into the list rather than a
   // separate text strip repeating the same articles; §14: never a fake date).
-  const latest = articles.slice(0, 5)
+  // Articles already on the Start-here shelf are left out: with a small
+  // Handbook the newest five were four of those same cards again (~2,400px
+  // of repeats on a phone). When nothing else is left the section hides.
+  const onShelf = new Set(startHere.map(c => c.slug))
+  const latest  = articles.filter(a => !onShelf.has(a.slug)).slice(0, 5)
 
   return (
     <main>
@@ -263,7 +280,7 @@ export default async function HandbookPage({ searchParams }: { searchParams?: Pr
               </h1>
               <p className="text-base text-gray-600 mt-1 max-w-xl">
                 Practical answers for living, moving and navigating life in {city.name} —
-                written by Smileys members who actually lived it.
+                written by the Smileys team, with official sources linked where the details matter.
               </p>
               <div className="max-w-2xl mt-6">
                 <HandbookSearch items={enriched} />
@@ -336,14 +353,17 @@ export default async function HandbookPage({ searchParams }: { searchParams?: Pr
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {visibleCategories.map(cat => {
                 const items = byCategory[cat.key] ?? []
+                const photo = categoryPhoto.get(cat.key)
                 return (
                   <Link key={cat.key} href={`/handbook/category/${encodeURIComponent(cat.key)}`}
                     className="block bg-gradient-to-br from-gray-50 to-white border-gray-200 text-gray-900 border rounded-2xl overflow-hidden hover:-translate-y-0.5 hover:shadow-md transition-all group">
-                    {/* The category's banner photo where one exists
-                        (lib/handbook-categories), the same one its own page uses. */}
-                    {cat.image && (
+                    {/* A photo from the category's own articles — never the
+                        category banner (cat.image), which is a text graphic
+                        carrying an older category name ("Daily Life" on Home &
+                        Housing) and repeated the title printed under it. */}
+                    {photo && (
                       <div className="aspect-[5/2] bg-gray-100 overflow-hidden">
-                        <img src={cat.image.src} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                        <img src={photo} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                       </div>
                     )}
                     <div className="p-6">
@@ -376,11 +396,11 @@ export default async function HandbookPage({ searchParams }: { searchParams?: Pr
         <section className="bg-gray-50 border-b border-gray-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
             <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-6">
-              {latest.length > 1 ? 'Latest articles' : 'Latest article'}
+              {onShelf.size > 0 ? 'More from the Handbook' : latest.length > 1 ? 'Latest articles' : 'Latest article'}
             </h2>
             <div className="space-y-4">
               {latest.map(a => {
-                const cover = articleCover(a)
+                const cover = ownPhoto(a)
                 const e     = enrichedBySlug.get(a.slug)
                 return (
                   <Link key={a.id} href={`/handbook/${a.slug}`}

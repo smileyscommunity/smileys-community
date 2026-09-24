@@ -143,7 +143,9 @@ describe('the article page', () => {
     expect(index).not.toContain('first 20 essential articles')
     expect(index).toContain('The {city.name} Handbook starts with its first article')
     // …and the other cities' description names no topics they may not have.
-    expect(index).toContain('`Understand ${name}. Practical answers for living, moving and navigating life in ${name} — written by Smileys members who actually lived it.`')
+    expect(index).toContain('`Understand ${name}. Practical answers for living, moving and navigating life in ${name} — written by the Smileys team, with official sources linked where the details matter.`')
+    // Every article is by the Smileys team — the page must not credit members.
+    expect(index).not.toContain('members who actually lived it')
   })
 })
 
