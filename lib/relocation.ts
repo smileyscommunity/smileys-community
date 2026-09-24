@@ -19,28 +19,34 @@ export const LIFE_STAGES = [
     // so it lives under arriving; listing it here too put the same guide in
     // two columns of the moving hub's timeline.
     categories: ['Residence & Legal', 'Home & Housing'],
-    keywords: /residence|permit|visa|ikamet|apartment|rent|hous/i,
+    priority: [/residence|permit|visa|ikamet/i, /apartment|rent|hous/i],
   },
   {
     key: 'arriving', emoji: '🛬', label: 'I just arrived', timeline: 'Your first week',
     blurb: 'Get a working phone, a transport card and a way to pay — the first-week essentials.',
     categories: ['Getting Started', 'Mobile & Digital', 'Getting Around', 'Money & Banking'],
-    keywords: /sim|internet|kart|card|metro|bus|ferr|bank/i,
+    // In the order a first week needs them: getting in from the airport,
+    // a working phone, the transport card, then a bank. The airport guide
+    // matched nothing in the old single keyword list and sat behind "All 5
+    // guides" in a column literally called "I just arrived".
+    priority: [/airport|arriv|havaliman/i, /\bsim\b|internet|esim/i, /kart|metro|bus|ferr|transport/i, /bank|money/i],
   },
   {
     key: 'settling', emoji: '🏡', label: "I'm settling in", timeline: 'Your first month',
     blurb: 'Healthcare, a longer-term home, family life and the everyday systems that make a city work.',
     categories: ['Home & Housing', 'Healthcare', 'Everyday Life', 'Language & Culture'],
     // Housing stays in the category list (a longer-term home is a settling
-    // job too) but not in the keywords, so the apartment guide the planning
+    // job too) but not in the priorities, so the apartment guide the planning
     // column already leads with ranks below healthcare and daily life here.
-    keywords: /health|doctor|hospital|daily|family|child|utilit/i,
+    priority: [/health|doctor|hospital/i, /daily|utilit/i, /family|child/i],
   },
   {
     key: 'urgent', emoji: '🆘', label: 'I need urgent help', timeline: null,
     blurb: 'Staying safe, avoiding scams, and how to get medical help.',
     categories: ['Safety & Emergencies', 'Healthcare'],
-    keywords: /scam|safe|emergenc|hospital|health/i,
+    // Someone in trouble needs the numbers first, then how to stay safe,
+    // then how the health system works — not the other way round.
+    priority: [/emergenc|\b112\b/i, /scam|safe/i, /health|hospital/i],
   },
 ] as const
 
@@ -60,13 +66,20 @@ export interface StageArticle {
 
 /**
  * The city's articles for one stage: every article in the stage's categories,
- * on-topic ones first (keyword match), then this city's own ahead of national
+ * by the stage's priorities (earlier topics first), then this city's own ahead of national
  * ones, input order otherwise. Uncapped — a stage page lists everything; the
  * hub slices.
  */
 export function articlesForStage<A extends StageArticle>(stage: LifeStage, articles: A[], cityId: string): A[] {
   const cats = new Set<string>(stage.categories)
-  const score = (a: A) => (stage.keywords.test(`${a.title} ${a.slug}`) ? 2 : 0) + (a.cityId === cityId ? 1 : 0)
+  // Earlier priorities outrank later ones; within a tier, the city's own
+  // article beats a national one (the tier gap of 2 keeps city-ness a
+  // tie-break, never a promotion past a more urgent topic).
+  const tiers = stage.priority as readonly RegExp[]
+  const score = (a: A) => {
+    const i = tiers.findIndex(re => re.test(`${a.title} ${a.slug}`))
+    return (i === -1 ? 0 : (tiers.length - i) * 2) + (a.cityId === cityId ? 1 : 0)
+  }
   return articles
     .map((a, i) => ({ a, i, key: canonicalCategory(a.category) }))
     .filter(x => x.key !== null && cats.has(x.key))

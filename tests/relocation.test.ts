@@ -43,9 +43,9 @@ describe('life stages', () => {
     expect(planning[0]).toBe('istanbul-residence-permit-guide')
     // An off-keyword article sinks below on-keyword ones, city or not.
     const arriving = articlesForStage(lifeStage('arriving')!, [
-      a('some-money-note', 'Money & Banking', { cityId: 'ist' }), a('opening-bank-account', 'Money & Banking'),
+      a('tipping-etiquette', 'Money & Banking', { cityId: 'ist' }), a('opening-bank-account', 'Money & Banking'),
     ], 'ist').map(x => x.slug)
-    expect(arriving).toEqual(['opening-bank-account', 'some-money-note'])
+    expect(arriving).toEqual(['opening-bank-account', 'tipping-etiquette'])
   })
 
   it('never files one guide under two timeline stages', () => {
@@ -55,6 +55,28 @@ describe('life stages', () => {
     // settle into it after. Everything else sits in exactly one column.
     const dupes = seen.filter((slug, i) => seen.indexOf(slug) !== i && !/apartment|daily-life/.test(slug))
     expect(dupes).toEqual([])
+  })
+
+  it('puts arrival first in the first week: airport, phone, transport card, bank', () => {
+    const live = [
+      a('istanbul-bank-account-guide', 'Money & Banking', { cityId: 'ist', title: 'Opening a Bank Account in Istanbul' }),
+      a('istanbulkart-mastery', 'Getting Around', { cityId: 'ist', title: 'Istanbulkart Mastery' }),
+      a('sim-card-and-home-internet-in-turkiye', 'Mobile & Digital', { title: 'Getting a SIM Card and Home Internet in Türkiye' }),
+      a('opening-turkish-bank-account', 'Money & Banking', { title: 'Opening a Turkish bank account' }),
+      a('arriving-in-istanbul', 'Getting Around', { cityId: 'ist', title: 'Arriving in Istanbul: Getting from IST and Sabiha Gökçen into the City' }),
+    ]
+    expect(articlesForStage(lifeStage('arriving')!, live, 'ist').map(x => x.slug).slice(0, 3))
+      .toEqual(['arriving-in-istanbul', 'sim-card-and-home-internet-in-turkiye', 'istanbulkart-mastery'])
+  })
+
+  it('leads urgent help with the emergency numbers, not how healthcare works', () => {
+    const live = [
+      a('healthcare-in-istanbul', 'Healthcare', { cityId: 'ist', title: 'How Healthcare Actually Works in Istanbul' }),
+      a('scams-tourist-traps', 'Safety & Emergencies', { title: 'Scams & Tourist Traps in Türkiye: How to stay safe' }),
+      a('emergency-numbers-in-turkiye', 'Safety & Emergencies', { title: 'Emergency Numbers in Türkiye: Call 112' }),
+    ]
+    expect(articlesForStage(lifeStage('urgent')!, live, 'ist').map(x => x.slug))
+      .toEqual(['emergency-numbers-in-turkiye', 'scams-tourist-traps', 'healthcare-in-istanbul'])
   })
 
   it('urgent help is safety and healthcare only', () => {
