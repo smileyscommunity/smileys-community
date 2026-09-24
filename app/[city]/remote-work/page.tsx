@@ -82,7 +82,7 @@ export default async function CityRemoteWorkPage({ params }: Params) {
   return (
     <>
       {/* ── Hero ─────────────────────────────────────────────────────── */}
-      <PhotoHero kind="remote-work" city={city} alt={`Working remotely in ${city.name}`}>
+      <PhotoHero kind="remote-work" city={city} alt={`Someone working on a laptop at a terrace café in ${city.name}, the water and the city behind`}>
         <Link href={`/${city.slug}`} className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-white/80 hover:text-white mb-6">
           <span aria-hidden="true">←</span> Smileys {city.name}
         </Link>
