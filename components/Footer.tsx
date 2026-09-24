@@ -223,6 +223,11 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
               {[
                 { href: '/cities',   label: 'All cities 🌍'   },
                 { href: '/visiting', label: 'Visiting? 👋'    },
+                // Like /visiting, both land on the viewer's own city's hub
+                // (app/moving, app/remote-work resolve it), so they belong
+                // here rather than in the city column.
+                { href: '/moving',      label: 'Moving here? 📦' },
+                { href: '/remote-work', label: 'Remote work 💻'  },
                 { href: '/members',  label: 'Members 👥'      },
                 // The Cup is seasonal and currently dormant — /cup is
                 // member-gated, so this used to dead-end visitors at the
