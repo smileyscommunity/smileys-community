@@ -23,7 +23,7 @@ export const LIFE_STAGES = [
   },
   {
     key: 'arriving', emoji: '🛬', label: 'I just arrived', timeline: 'Your first week',
-    blurb: 'Get a working phone, a transport card and a way to pay — the first-week essentials.',
+    blurb: 'Get in from the airport, then a working phone, a transport card and a way to pay — the first-week essentials.',
     categories: ['Getting Started', 'Mobile & Digital', 'Getting Around', 'Money & Banking'],
     // In the order a first week needs them: getting in from the airport,
     // a working phone, the transport card, then a bank. The airport guide
