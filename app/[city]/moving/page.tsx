@@ -12,6 +12,7 @@ import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
 import { LIFE_STAGES, articlesForStage, movingTopics, pickNeighborhoods, includesHighStakes } from '@/lib/relocation'
 import EventCard from '@/components/EventCard'
 import JoinCityButton from '@/components/JoinCityButton'
+import PhotoHero, { HERO_SECONDARY } from '@/components/PhotoHero'
 import { getCityMovingHub, isDefaultCitySlug } from '../data'
 
 // /[city]/moving — "Moving to <city>": the relocation path for someone
@@ -81,26 +82,24 @@ export default async function CityMovingPage({ params }: Params) {
   return (
     <>
       {/* ── Hero ─────────────────────────────────────────────────────── */}
-      <section className="bg-gradient-to-b from-amber-50 via-white to-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-10">
-          <Link href={`/${city.slug}`} className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-amber-700 hover:text-amber-800 mb-6">
-            <span aria-hidden="true">←</span> Smileys {city.name}
-          </Link>
-          <p className="text-xs font-bold tracking-widest uppercase text-gray-500 mb-3">Moving to {city.name}</p>
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight text-gray-900 leading-[1.08] mb-5">
-            Make {city.name} <span className="text-amber-600">feel like home.</span>
-          </h1>
-          <p className="text-lg md:text-xl text-gray-600 max-w-2xl leading-relaxed mb-8">
-            Smileys pairs practical local knowledge — the Handbook, written by members who went through
-            it — with an in-person community, so you can sort out the paperwork, choose where to live,
-            and build a real social life once you arrive.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4">
-            <JoinCityButton slug={city.slug} name={city.name} />
-            <Link href={`/handbook${cityQs}`} className="btn-secondary text-base px-8 py-4">Read the Handbook</Link>
-          </div>
+      <PhotoHero kind="moving" city={city} alt={`Moving to ${city.name}`}>
+        <Link href={`/${city.slug}`} className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-white/80 hover:text-white mb-6">
+          <span aria-hidden="true">←</span> Smileys {city.name}
+        </Link>
+        <p className="text-xs font-bold tracking-[0.2em] uppercase text-amber-300 mb-4">Moving to {city.name}</p>
+        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-[1.1] mb-5">
+          Make {city.name} <span className="text-amber-300">feel like home.</span>
+        </h1>
+        <p className="text-base sm:text-lg text-white/90 max-w-xl leading-relaxed mb-8">
+          Smileys pairs practical local knowledge — the Handbook, written by members who went through
+          it — with an in-person community, so you can sort out the paperwork, choose where to live,
+          and build a real social life once you arrive.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <JoinCityButton slug={city.slug} name={city.name} />
+          <Link href={`/handbook${cityQs}`} className={HERO_SECONDARY}>Read the Handbook</Link>
         </div>
-      </section>
+      </PhotoHero>
 
       {/* ── Relocation timeline ──────────────────────────────────────── */}
       <section id="timeline" aria-labelledby="timeline-title" className="py-12 sm:py-16 bg-white border-t border-gray-100 scroll-mt-20">

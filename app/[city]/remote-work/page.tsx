@@ -11,6 +11,7 @@ import { reviewLabel } from '@/lib/handbook-review'
 import { groupHubArticles, buildChecklist, utcOffsetLabel } from '@/lib/remoteWork'
 import EventCard from '@/components/EventCard'
 import JoinCityButton from '@/components/JoinCityButton'
+import PhotoHero, { HERO_SECONDARY } from '@/components/PhotoHero'
 import { getCityRemoteWorkHub } from '../data'
 
 // /[city]/remote-work — the arrival path for someone who works remotely:
@@ -74,33 +75,31 @@ export default async function CityRemoteWorkPage({ params }: Params) {
   return (
     <>
       {/* ── Hero ─────────────────────────────────────────────────────── */}
-      <section className="bg-gradient-to-b from-amber-50 via-white to-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-10">
-          <Link href={`/${city.slug}`} className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-amber-700 hover:text-amber-800 mb-6">
-            <span aria-hidden="true">←</span> Smileys {city.name}
+      <PhotoHero kind="remote-work" city={city} alt={`Working remotely in ${city.name}`}>
+        <Link href={`/${city.slug}`} className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-white/80 hover:text-white mb-6">
+          <span aria-hidden="true">←</span> Smileys {city.name}
+        </Link>
+        <p className="text-xs font-bold tracking-[0.2em] uppercase text-amber-300 mb-4">Remote work in {city.name}</p>
+        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-[1.1] mb-5">
+          Work remotely. <span className="text-amber-300">Belong locally.</span>
+        </h1>
+        <p className="text-base sm:text-lg text-white/90 max-w-xl leading-relaxed mb-6">
+          Smileys brings practical arrival help, remote-work know-how and an offline community together —
+          so within a few days you know where to work, where to live, what to set up, and who to spend
+          time with.
+        </p>
+        <p className="text-sm text-white/80 mb-8">
+          <span aria-hidden="true">🕒 </span>
+          Local time in {city.name} is <span className="font-semibold text-white">{offset}</span>
+          <span className="text-white/70"> ({city.timezone})</span>
+        </p>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <JoinCityButton slug={city.slug} name={city.name} />
+          <Link href={events.length > 0 ? '#work-and-meet' : `/${city.slug}/events`} className={HERO_SECONDARY}>
+            See upcoming events
           </Link>
-          <p className="text-xs font-bold tracking-widest uppercase text-gray-500 mb-3">Remote work in {city.name}</p>
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight text-gray-900 leading-[1.08] mb-5">
-            Work remotely. <span className="text-amber-600">Belong locally.</span>
-          </h1>
-          <p className="text-lg md:text-xl text-gray-600 max-w-2xl leading-relaxed mb-6">
-            Smileys brings practical arrival help, remote-work know-how and an offline community together —
-            so within a few days you know where to work, where to live, what to set up, and who to spend
-            time with.
-          </p>
-          <p className="text-sm text-gray-600 mb-8">
-            <span aria-hidden="true">🕒 </span>
-            Local time in {city.name} is <span className="font-semibold text-gray-900">{offset}</span>
-            <span className="text-gray-500"> ({city.timezone})</span>
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4">
-            <JoinCityButton slug={city.slug} name={city.name} />
-            <Link href={events.length > 0 ? '#work-and-meet' : `/${city.slug}/events`} className="btn-secondary text-base px-8 py-4">
-              See upcoming events
-            </Link>
-          </div>
         </div>
-      </section>
+      </PhotoHero>
 
       {/* ── Your first 72 hours ──────────────────────────────────────── */}
       <section id="first-72-hours" className="py-12 sm:py-16 bg-white border-t border-gray-100 scroll-mt-20">
