@@ -95,7 +95,7 @@ const BASELINE: Record<string, number> = {
   'app/guide/page.tsx': 8,
   'app/guide/routes/[slug]/page.tsx': 4,
   'app/guidelines/page.tsx': 1,
-  'app/handbook/page.tsx': 3,
+  'app/handbook/page.tsx': 4,  // +1 (2026-09-24): the airport article's slug in START_HERE, a list that renders for the default city only
   'app/host/events/[id]/edit/page.tsx': 2,
   'app/host/events/new/page.tsx': 1,
   'app/layout.tsx': 3,

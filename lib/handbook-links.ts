@@ -5,8 +5,9 @@
 
 // Handbook category (Post.category for kind='handbook') →
 // quick-reference anchor, plus a short callout label. The quick-links
-// block moved from /guide to /handbook in the IA cleanup, so these
-// anchors now resolve on /handbook itself. The anchor matches the
+// block moved from /guide to /handbook in the IA cleanup, and on
+// 2026-09-24 off the index onto its own page, so these anchors resolve on
+// /handbook/quick-reference. The anchor matches the
 // slugified label TransitLinks generates (see
 // components/TransitLinks.tsx#categoryId).
 // Keys are CANONICAL handbook categories (see lib/handbook-categories) — call

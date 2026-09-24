@@ -1,7 +1,7 @@
 import Link from 'next/link'
-import { readFileSync } from 'fs'
+import { existsSync } from 'fs'
 import { join } from 'path'
-import TransitLinks, { type Category } from '@/components/TransitLinks'
+import Image from 'next/image'
 import HandbookSearch from '@/components/HandbookSearch'
 import ExploreMore from '@/components/ExploreMore'
 import { unstable_cache } from 'next/cache'
@@ -21,6 +21,8 @@ import { reviewLabel, readingTime } from '@/lib/handbook-review'
 import type { HandbookSearchItem } from '@/lib/handbook-search'
 import { APP_URL } from '@/lib/env'
 import { populatedStages } from '@/lib/relocation'
+import { hasQuickReference } from '@/lib/quickReference'
+import { resolveImageUrl } from '@/lib/data'
 
 // Card covers come from lib/articleCover: explicit cover, else the first
 // inline body image — OWN UPLOADS ONLY — else the category banner. A private
@@ -123,13 +125,22 @@ export async function generateMetadata({ searchParams }: { searchParams?: Promis
 // won't hold them back. Per-city "start here" curation is the follow-up; until
 // then a second city gets the categories and Latest instead of a wrong shelf.
 const START_HERE: { slug: string; emoji: string; label: string }[] = [
+  // In the order a newcomer meets them: can I come, how do I get in, the
+  // first-week setup, then the longer admin — with the two "something went
+  // wrong" guides last. Slugs that don't resolve for the viewer's city drop
+  // out (see startHere below), so a renamed article can't leave a dead card.
+  { slug: 'entering-turkiye-visa-free-stays-e-visas-and-the-90-180-rule', emoji: '🛂', label: 'Check your visa and stay limit' },
+  { slug: 'arriving-in-istanbul-getting-from-ist-and-sabiha-gokcen-into-the-city', emoji: '✈️', label: 'Get in from the airport' },
+  { slug: 'sim-card-and-home-internet-in-turkiye',          emoji: '📱', label: 'Get a SIM and home internet' },
   { slug: 'istanbulkart-mastery',                          emoji: '🚇', label: 'Get around with Istanbulkart' },
   { slug: 'opening-turkish-bank-account',                  emoji: '💳', label: 'Open a bank account' },
-  { slug: 'residence-permit-first-application',            emoji: '🛂', label: 'Get your residence permit' },
+  { slug: 'residence-permit-first-application',            emoji: '🏠', label: 'Get your residence permit' },
+  { slug: 'working-remotely-from-turkiye-digital-nomad-visa-work-permissions-tax-social', emoji: '💻', label: 'Work remotely, legally' },
   { slug: 'healthcare-in-istanbul-how-the-system-works',   emoji: '🏥', label: 'Use the healthcare system' },
-  { slug: 'scams-tourist-traps-in-t-rkiye-how-to-stay-safe-without-becoming-paranoid', emoji: '🛡️', label: 'Avoid scams & stay safe' },
-  { slug: 'daily-life-in-istanbul-the-little-things-that-make-a-big-difference',       emoji: '🏠', label: 'Set up daily life' },
+  { slug: 'daily-life-in-istanbul-the-little-things-that-make-a-big-difference',       emoji: '🧺', label: 'Set up daily life' },
   { slug: 'family-life-in-istanbul-raising-children-with-confidence',                  emoji: '👨‍👩‍👧', label: 'Move with children' },
+  { slug: 'emergency-numbers-in-turkiye-call-112-and-other-numbers-worth-saving',     emoji: '🆘', label: 'Know the emergency numbers' },
+  { slug: 'scams-tourist-traps-in-t-rkiye-how-to-stay-safe-without-becoming-paranoid', emoji: '🛡️', label: 'Avoid scams and stay safe' },
 ]
 
 // A review is a staff act, so it reads in the default city's day — the same
@@ -141,35 +152,6 @@ function formatReviewedShort(d: Date | string) {
   return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: DEFAULT_TZ })
 }
 
-// Quick-reference links (apps, official sites, practical how-tos) —
-// moved here from /guide in the information-architecture cleanup: the
-// Handbook owns "how the city works", the Guide owns experiences. The
-// content still lives in data/city-guide.json (server-authoritative,
-// edited via /admin's guide editor). Food & Drink is skipped: its
-// cultural content was rebuilt as Guide experiences.
-function loadQuickReference(): Category[] {
-  try {
-    const raw = JSON.parse(readFileSync(join(process.cwd(), 'data', 'city-guide.json'), 'utf8'))
-    return (raw.categories ?? [])
-      .filter((cat: { label?: string }) => cat.label !== 'Food & Drink')
-      .map((cat: { icon: string; label: string; updatedAt?: string; resources?: unknown[] }) => ({
-        icon:      cat.icon,
-        label:     cat.label,
-        color:     'bg-amber-100 text-amber-700',
-        updatedAt: cat.updatedAt,
-        resources: ((cat.resources ?? []) as { title: string; description: string; href?: string; badge?: string; tip?: string }[]).map(r => ({
-          title:       r.title,
-          description: r.description,
-          href:        r.href || undefined,
-          badge:       r.badge || undefined,
-          badgeColor:  r.badge ? 'bg-amber-100 text-amber-700' : undefined,
-          tip:         r.tip  || undefined,
-        })),
-      }))
-  } catch {
-    return []
-  }
-}
 
 export default async function HandbookPage({ searchParams }: { searchParams?: Promise<CitySearch> }) {
   const { city: cfg, cityId, pinned } = await resolveCityForPage(searchParams)
@@ -234,13 +216,22 @@ export default async function HandbookPage({ searchParams }: { searchParams?: Pr
 
   const startHere = (city.isDefault ? START_HERE : [])
     .filter(c => bySlug.has(c.slug))
-    .map(c => ({ ...c, article: enrichedBySlug.get(c.slug)! }))
+    .map(c => ({ ...c, article: enrichedBySlug.get(c.slug)!, cover: articleCover(bySlug.get(c.slug)!) }))
 
   // Life-stage entry points (lib/relocation): the same articles, read by
   // where the reader is in a move. Only stages this city can fill are
   // offered, so no card opens onto an empty list.
   const stages   = populatedStages(articles, cityId)
   const stageQs  = city.isDefault ? '' : `?city=${cfg.slug}`
+
+  // The header photo: this city's own Handbook cover when it has one (the
+  // same file its share image uses — lib/shareCover), else the city's hero
+  // photo, else none. Never another city's picture.
+  const ownCover  = `handbook-cover-${cfg.slug}.jpg`
+  const heroImage = existsSync(join(process.cwd(), 'public', 'images', ownCover))
+    ? { src: `/app/images/${ownCover}`, alt: `A "${city.name} Handbook" on a café table, with the city behind it` }
+    : cfg.heroImage ? { src: resolveImageUrl(cfg.heroImage), alt: `${city.name}` } : null
+  const showQuickRef = city.isDefault && hasQuickReference()
 
   // Latest — newest 5, rendered as flanked image cards. Each card carries a
   // review chip when (and only when) the article has a real lastReviewedAt
@@ -250,23 +241,34 @@ export default async function HandbookPage({ searchParams }: { searchParams?: Pr
 
   return (
     <main>
-      {/* Hero + search share one band: the hero is deliberately compact
-          (two lines, no photo — brief §7/§41) so search reads as the page's
-          primary action, not a widget below the fold. */}
+      {/* Hero + search share one band. Search stays the page's primary
+          action (brief §7/§41): on desktop the photo sits beside the title
+          and search rather than above them, and on phones it's a short strip
+          that leaves the search box inside the first screen. */}
       <section className="bg-white border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-10">
-          <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">
-            📖 The {city.name} Handbook
-          </span>
-          <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">
-            Understand <span className="text-amber-600">{city.name}.</span>
-          </h1>
-          <p className="text-base text-gray-600 mt-1 max-w-xl">
-            Practical answers for living, moving and navigating life in {city.name} —
-            written by Smileys members who actually lived it.
-          </p>
-          <div className="max-w-2xl mt-6">
-            <HandbookSearch items={enriched} />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 lg:pt-10 pb-10">
+          <div className={heroImage ? 'grid lg:grid-cols-[1fr_minmax(0,460px)] gap-8 lg:gap-12 items-center' : ''}>
+            {heroImage && (
+              <div className="relative aspect-[3/1] lg:aspect-[3/2] rounded-2xl overflow-hidden shadow-sm lg:order-2">
+                <Image src={heroImage.src} alt={heroImage.alt} fill priority
+                  sizes="(max-width: 1023px) calc(100vw - 32px), 460px" className="object-cover" />
+              </div>
+            )}
+            <div className="lg:order-1">
+              <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">
+                📖 The {city.name} Handbook
+              </span>
+              <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">
+                Understand <span className="text-amber-600">{city.name}.</span>
+              </h1>
+              <p className="text-base text-gray-600 mt-1 max-w-xl">
+                Practical answers for living, moving and navigating life in {city.name} —
+                written by Smileys members who actually lived it.
+              </p>
+              <div className="max-w-2xl mt-6">
+                <HandbookSearch items={enriched} />
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -280,12 +282,23 @@ export default async function HandbookPage({ searchParams }: { searchParams?: Pr
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
               {startHere.map(c => (
                 <Link key={c.slug} href={`/handbook/${c.slug}`}
-                  className="bg-white border border-gray-200 rounded-2xl p-4 hover:border-amber-300 hover:shadow-md hover:-translate-y-0.5 transition-all group">
-                  <div aria-hidden="true" className="text-2xl mb-2">{c.emoji}</div>
-                  <p className="text-sm font-extrabold text-gray-900 group-hover:text-amber-600 transition-colors leading-tight">
-                    {c.label}
-                  </p>
-                  <p className="text-[11px] text-gray-500 mt-1">{c.article.minutes} min read</p>
+                  className="bg-white border border-gray-200 rounded-2xl overflow-hidden hover:border-amber-300 hover:shadow-md hover:-translate-y-0.5 transition-all group flex flex-col">
+                  {/* The article's own cover (lib/articleCover — own uploads
+                      only, else its category banner); the emoji stays as the
+                      fallback for an article with neither. */}
+                  {c.cover ? (
+                    <div className="aspect-[16/9] bg-gray-100 overflow-hidden">
+                      <img src={c.cover} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                    </div>
+                  ) : (
+                    <div aria-hidden="true" className="aspect-[16/9] bg-amber-50 flex items-center justify-center text-3xl">{c.emoji}</div>
+                  )}
+                  <div className="p-3.5">
+                    <p className="text-sm font-extrabold text-gray-900 group-hover:text-amber-600 transition-colors leading-tight">
+                      {c.label}
+                    </p>
+                    <p className="text-[11px] text-gray-500 mt-1">{c.article.minutes} min read</p>
+                  </div>
                 </Link>
               ))}
             </div>
@@ -325,7 +338,15 @@ export default async function HandbookPage({ searchParams }: { searchParams?: Pr
                 const items = byCategory[cat.key] ?? []
                 return (
                   <Link key={cat.key} href={`/handbook/category/${encodeURIComponent(cat.key)}`}
-                    className="block bg-gradient-to-br from-gray-50 to-white border-gray-200 text-gray-900 border rounded-2xl p-6 hover:-translate-y-0.5 hover:shadow-md transition-all group">
+                    className="block bg-gradient-to-br from-gray-50 to-white border-gray-200 text-gray-900 border rounded-2xl overflow-hidden hover:-translate-y-0.5 hover:shadow-md transition-all group">
+                    {/* The category's banner photo where one exists
+                        (lib/handbook-categories), the same one its own page uses. */}
+                    {cat.image && (
+                      <div className="aspect-[5/2] bg-gray-100 overflow-hidden">
+                        <img src={cat.image.src} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                      </div>
+                    )}
+                    <div className="p-6">
                     <div className="flex items-start justify-between mb-3">
                       <div aria-hidden="true" className="text-3xl">{cat.emoji}</div>
                       <span className="text-xs font-bold opacity-70 tabular-nums">
@@ -339,6 +360,7 @@ export default async function HandbookPage({ searchParams }: { searchParams?: Pr
                         <span aria-hidden="true" className="inline-block group-hover:translate-x-0.5 transition-transform">→</span> {items[0].title}
                       </p>
                     )}
+                    </div>
                   </Link>
                 )
               })}
@@ -399,6 +421,26 @@ export default async function HandbookPage({ searchParams }: { searchParams?: Pr
         </section>
       )}
 
+      {/* Quick reference — a link, not the section itself. The link pack
+          (apps, official sites, practical tips) filled 64% of this page after
+          its own closing CTA; it lives at /handbook/quick-reference now.
+          Default city only: data/city-guide.json is Istanbul's pack. */}
+      {showQuickRef && (
+        <section className="bg-white border-b border-gray-100">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <Link href="/handbook/quick-reference"
+              className="flex items-center gap-4 max-w-3xl rounded-2xl border border-gray-200 bg-gray-50 px-5 py-4 hover:border-amber-300 hover:bg-amber-50/40 transition-colors group">
+              <span aria-hidden="true" className="text-2xl shrink-0">🧭</span>
+              <span className="flex-1 min-w-0">
+                <span className="block text-sm font-extrabold text-gray-900 group-hover:text-amber-700">Quick reference</span>
+                <span className="block text-xs text-gray-600 mt-0.5">Apps, official sites and practical links for day-to-day life in {city.name}.</span>
+              </span>
+              <span aria-hidden="true" className="text-sm font-bold text-gray-700 group-hover:translate-x-0.5 transition-transform">→</span>
+            </Link>
+          </div>
+        </section>
+      )}
+
       {/* Need something else? — the shared cross-link grid this page's
           bespoke section grew into (components/ExploreMore); each surface has
           one job, and naming the jobs is what keeps them from duplicating
@@ -446,31 +488,6 @@ export default async function HandbookPage({ searchParams }: { searchParams?: Pr
           </div>
         </section>
       )}
-      {(() => {
-        // DEFAULT-CITY ONLY, same rule as startHere above: city-guide.json
-        // is Istanbul's link pack, so rendering it under "functioning in
-        // İzmir" would be a lie. Per-city quick reference is the follow-up.
-        if (!city.isDefault) return null
-        const quickRef = loadQuickReference()
-        if (quickRef.length === 0) return null
-        return (
-          <section className="bg-white border-t border-gray-100">
-            {/* max-w-7xl matches every other handbook section so the
-                heading shares the page's left edge; the link list itself
-                stays reading-width (TransitLinks was designed for a
-                3xl column) but left-aligned, not floating centered. */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-              <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">Quick reference</h2>
-              <p className="text-gray-600 mt-1 mb-8">
-                Apps, official sites and practical links for functioning in {city.name} — vetted by the Smileys team, updated regularly.
-              </p>
-              <div className="max-w-3xl">
-                <TransitLinks categories={quickRef} />
-              </div>
-            </div>
-          </section>
-        )
-      })()}
     </main>
   )
 }

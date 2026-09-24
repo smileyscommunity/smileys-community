@@ -57,7 +57,7 @@ export const PAGE_ROUTES = [
   '/cup', '/dashboard', '/directory', '/directory/[id]', '/directory/saved', '/directory/submit', '/events',
   '/events/[id]', '/events/[id]/feedback', '/events/[id]/recap', '/experiences', '/faq', '/forgot-password',
   '/get-involved', '/guide', '/guide/[slug]', '/guide/routes/[slug]', '/guidelines', '/handbook', '/handbook/[slug]',
-  '/handbook/category/[key]', '/handbook/stage/[key]', '/hangouts', '/hangouts/[id]', '/hangouts/recap', '/host', '/host/checkin', '/host/clubs',
+  '/handbook/category/[key]', '/handbook/quick-reference', '/handbook/stage/[key]', '/hangouts', '/hangouts/[id]', '/hangouts/recap', '/host', '/host/checkin', '/host/clubs',
   '/host/clubs/[slug]', '/host/events', '/host/events/[id]/edit', '/host/events/[id]/participants', '/host/events/new',
   '/host/review',
   '/hosts', '/invite', '/login', '/marketplace', '/members', '/members/[id]', '/messages', '/messages/[userId]', '/moving',

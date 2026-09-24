@@ -181,6 +181,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE}/contact`,       priority: 0.5, changeFrequency: 'monthly' },
     { url: `${BASE}/neighborhoods`, priority: 0.6, changeFrequency: 'monthly', lastModified: newest([...neighborhoodMtimes.values()]) },
     { url: `${BASE}/directory`,     priority: 0.8, changeFrequency: 'weekly',  lastModified: newestBusiness },
+    { url: `${BASE}/handbook/quick-reference`, priority: 0.5, changeFrequency: 'monthly' },
     { url: `${BASE}/posts`,         priority: 0.6, changeFrequency: 'weekly',  lastModified: newestStory },
     // Cup 2026 wrapped Jul 19 — the page stays up as an archive of the
     // final standings, so keep it crawlable but stop advertising it.
