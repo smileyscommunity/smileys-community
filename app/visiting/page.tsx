@@ -1,6 +1,8 @@
 import Link from 'next/link'
 import { formatDay, fromWallClockInTz, todayInTz, shiftDay } from '@/lib/cityTime'
 import Image from 'next/image'
+import { existsSync } from 'fs'
+import { join } from 'path'
 import { APP_URL } from '@/lib/env'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
@@ -501,6 +503,9 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
   const hereAvailability = thisCityAvailability ? cityAvailability(thisCityAvailability) : 'coming_soon'
 
 
+  const ownHero = existsSync(join(process.cwd(), 'public', 'images', `visiting-hero-${city.slug}.jpg`))
+    ? `visiting-hero-${city.slug}.jpg` : null
+
   return (
     <div className={`min-h-screen bg-white ${viewerVisit ? '' : 'pb-24 md:pb-0'}`}>
       {/* Hero — full-bleed cinematic photo with the copy overlaid. The
@@ -514,9 +519,15 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
         {/* The city's own photo where it has one — this shot is Istanbul, down
             to the signpost in it, and its alt text said so to screen readers on
             every city's page. */}
+        {/* In order: a photo made for this page and city
+            (public/images/visiting-hero-<city>.jpg — the PhotoHero rule the
+            other arrival hubs follow), the city's hero photo, the Istanbul
+            fallback. */}
         <Image
-          src={city.heroImage ? resolveImageUrl(city.heroImage) : '/app/images/visiting-hero.jpg'}
-          alt={city.heroImage
+          src={ownHero ? `/app/images/${ownHero}` : city.heroImage ? resolveImageUrl(city.heroImage) : '/app/images/visiting-hero.jpg'}
+          alt={ownHero
+            ? `A traveller on a ferry in ${city.name} at sunset, looking out across the water at the city`
+            : city.heroImage
             ? `Smileys members in ${city.name}`
             : 'Four Smileys members at an Istanbul viewpoint at sunset, one pointing across the Bosphorus toward a domed mosque, beside a signpost pointing to Galata Tower, Sultanahmet, and Hagia Sophia'}
           fill
