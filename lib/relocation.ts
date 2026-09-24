@@ -145,3 +145,24 @@ export function pickNeighborhoods(
     .slice(0, limit)
     .map(({ i: _i, ...n }) => n)
 }
+
+/**
+ * The one article of a category that answers a specific question — the
+ * remote-work legality guide, the entry-rules guide — found by what it is
+ * about rather than by slug, so a renamed slug or another city's version
+ * still resolves. The city's own article wins over a national one; the
+ * newest wins after that (input order). Null when the city has none, and
+ * the caller leaves its link out.
+ */
+export function pickArticle<A extends StageArticle>(articles: A[], category: string, about: RegExp, cityId: string): A | null {
+  return articles
+    .filter(a => canonicalCategory(a.category) === category && about.test(`${a.title} ${a.slug}`))
+    .sort((a, b) => Number(b.cityId === cityId) - Number(a.cityId === cityId))[0] ?? null
+}
+
+/** What the remote-work legality guide is about. */
+export const REMOTE_WORK_LEGAL = /digital nomad|remote|dijital/i
+/** What the entry-rules guide is about (visa-free stays, e-Visa, 90/180). */
+// "e-visa"/"evisa" spelled out: a bare "visa" would also match the remote-work
+// guide's "Digital Nomad Visa".
+export const ENTRY_RULES = /\bentering\b|\bentry\b|\be-visa|\bevisa|visa-free|90.?180/i

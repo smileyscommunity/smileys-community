@@ -16,6 +16,7 @@ import { resolveImageUrl, firstNameOf, formatPrice } from '@/lib/data'
 import { getPublicCities } from '@/lib/cities'
 import { getCityHandbookIndex } from '@/lib/handbookIndex'
 import { canonicalCategory } from '@/lib/handbook-categories'
+import { pickArticle, ENTRY_RULES } from '@/lib/relocation'
 import { audiencesFor, matchesAudience } from '@/lib/guide'
 import { loadRoutes } from '@/lib/guideContent'
 import { formatTime } from '@/lib/data'
@@ -475,6 +476,10 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
     .filter(a => canonicalCategory(a.category) === category)
     .sort((a, b) => Number(b.cityId === cityId) - Number(a.cityId === cityId))[0] ?? null
   const essentials = [
+    // Before anything else a traveller needs to know whether they can come
+    // and for how long — the entry-rules guide, found by topic (it shares
+    // Residence & Legal with the residence-permit guides a visitor doesn't need).
+    { key: 'entry',     label: 'Entry rules and visas',  article: pickArticle(handbook, 'Residence & Legal', ENTRY_RULES, cityId) },
     { key: 'connect',   label: 'SIM and internet',       article: essential('Mobile & Digital') },
     { key: 'transport', label: 'Getting around',         article: essential('Getting Around') },
     { key: 'money',     label: 'Money',                  article: essential('Money & Banking') },

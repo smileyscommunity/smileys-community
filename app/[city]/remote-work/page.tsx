@@ -12,6 +12,7 @@ import { groupHubArticles, buildChecklist, utcOffsetLabel } from '@/lib/remoteWo
 import EventCard from '@/components/EventCard'
 import JoinCityButton from '@/components/JoinCityButton'
 import { clubHref } from '@/lib/clubLink'
+import { pickArticle, REMOTE_WORK_LEGAL, ENTRY_RULES } from '@/lib/relocation'
 import PhotoHero, { HERO_SECONDARY } from '@/components/PhotoHero'
 import { getCityRemoteWorkHub } from '../data'
 
@@ -73,6 +74,10 @@ export default async function CityRemoteWorkPage({ params }: Params) {
     .filter(t => t.key === 'legal' || t.key === 'money')
     .some(t => t.articles.some(a => a.hasOfficialSources))
   const hasWorkAndMeet = hub.workClubs.length > 0 || events.length > 0
+  // The guides that answer the legal question this page raises — linked
+  // from its legal note, found by topic rather than slug (lib/relocation).
+  const workLegalGuide = pickArticle(hub.articles, 'Residence & Legal', REMOTE_WORK_LEGAL, city.id)
+  const entryGuide     = pickArticle(hub.articles, 'Residence & Legal', ENTRY_RULES, city.id)
 
   return (
     <>
@@ -255,6 +260,24 @@ export default async function CityRemoteWorkPage({ params }: Params) {
                 ? 'Check the official sources each guide links to, and a qualified adviser for your own situation, before you rely on them.'
                 : 'Check with the relevant authority, and a qualified adviser for your own situation, before you rely on them.'}
             </p>
+            {(workLegalGuide || entryGuide) && (
+              <ul className="mt-3 space-y-1 text-sm">
+                {workLegalGuide && (
+                  <li>
+                    <Link href={`/handbook/${workLegalGuide.slug}`} className="font-semibold text-amber-700 hover:text-amber-800">
+                      Can I work remotely here? {workLegalGuide.title} <span aria-hidden="true">→</span>
+                    </Link>
+                  </li>
+                )}
+                {entryGuide && (
+                  <li>
+                    <Link href={`/handbook/${entryGuide.slug}`} className="font-semibold text-amber-700 hover:text-amber-800">
+                      How long can I stay? {entryGuide.title} <span aria-hidden="true">→</span>
+                    </Link>
+                  </li>
+                )}
+              </ul>
+            )}
           </aside>
         </div>
       </section>

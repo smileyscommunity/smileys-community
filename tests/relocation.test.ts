@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   LIFE_STAGES, lifeStage, articlesForStage, populatedStages, includesHighStakes,
-  movingTopics, pickNeighborhoods, type StageArticle,
+  movingTopics, pickNeighborhoods, pickArticle, REMOTE_WORK_LEGAL, ENTRY_RULES, type StageArticle,
 } from '@/lib/relocation'
 
 // The moving hub and the Handbook's life-stage pages only arrange articles a
@@ -121,5 +121,27 @@ describe('pickNeighborhoods', () => {
   it('still offers a young city its registry, with zero counts rather than invented ones', () => {
     const picks = pickNeighborhoods(reg, new Map(), new Map(), 2)
     expect(picks.map(p => [p.name, p.members, p.events])).toEqual([['Kadıköy', 0, 0], ['Moda', 0, 0]])
+  })
+})
+
+describe('pickArticle — finding a guide by topic, not slug', () => {
+  // The live Residence & Legal shelf on 2026-09-24.
+  const legal = [
+    a('working-remotely-from-turkiye-digital-nomad-visa-work-permissions-tax-social', 'Residence & Legal', { title: 'Working Remotely from Türkiye: Digital Nomad Visa, Work Permissions, Tax & Social Security' }),
+    a('entering-turkiye-visa-free-stays-e-visas-and-the-90-180-rule', 'Residence & Legal', { title: 'Entering Türkiye: Visa-Free Stays, e-Visas and the 90/180 Rule' }),
+    a('istanbul-residence-permit-guide', 'Residence & Legal', { cityId: 'ist', title: 'Getting Your Residence Permit (İkamet) in Istanbul' }),
+    a('residence-permit-first-application', 'Bureaucracy', { title: 'Residence Permit (Ikamet): Your first application, without the panic' }),
+  ]
+
+  it('finds the remote-work and entry-rules guides, and never confuses them', () => {
+    expect(pickArticle(legal, 'Residence & Legal', REMOTE_WORK_LEGAL, 'ist')?.slug).toMatch(/^working-remotely/)
+    // "Digital Nomad Visa" must not read as an entry-rules guide.
+    expect(pickArticle(legal, 'Residence & Legal', ENTRY_RULES, 'ist')?.slug).toMatch(/^entering-turkiye/)
+    const onlyRemote = legal.filter(x => !x.slug.startsWith('entering'))
+    expect(pickArticle(onlyRemote, 'Residence & Legal', ENTRY_RULES, 'ist')).toBeNull()
+  })
+
+  it('returns null when the city has no such guide, so the link is left out', () => {
+    expect(pickArticle([a('kart', 'Getting Around')], 'Residence & Legal', ENTRY_RULES, 'x')).toBeNull()
   })
 })
