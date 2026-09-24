@@ -178,7 +178,7 @@ const SECTIONS: Section[] = [
     id: 'safety', icon: '🛡️', title: 'Community & Safety',
     faqs: [
       {
-        q: 'What are the community guidelines?',
+        q: 'What are the community rules?',
         a: 'Smileys is built on respect, inclusivity, and genuine connection. We do not tolerate harassment, discrimination, spamming, or any behaviour that makes others feel unsafe or unwelcome. Violation of these principles can result in removal from the community.',
       },
       {

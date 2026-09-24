@@ -735,7 +735,7 @@ function ModerationPageInner() {
 
       ) : tab === 'messages' ? (
         <div className="space-y-3">
-          <p className="text-xs text-zinc-500">200 most recent event messages. Delete any that violate community guidelines.</p>
+          <p className="text-xs text-zinc-500">200 most recent event messages. Delete any that violate the community rules.</p>
 
           {/* Bulk-action bar — only shows once anything is selected.
               Mirrors the toolkit on /admin/users; lets a moderator clear

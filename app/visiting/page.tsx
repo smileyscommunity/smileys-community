@@ -946,7 +946,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
               {isMember ? ctaLabel : 'Apply to join — it’s free'}
             </Link>
             <Link href="/guidelines" className="inline-flex items-center justify-center px-6 py-3 border border-gray-200 hover:bg-gray-50 text-gray-700 text-sm font-semibold rounded-xl transition-colors">
-              Community guidelines
+              Community rules
             </Link>
           </div>
         </div>

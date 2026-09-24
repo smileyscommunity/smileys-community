@@ -3,7 +3,7 @@ import { readFileSync } from 'fs'
 import { join } from 'path'
 
 export const metadata = {
-  title: 'Community Guidelines — Smileys Community',
+  title: 'Community Rules — Smileys Community',
   description: 'The behavioral rules that keep Smileys safe, kind, and worth showing up for. Read these before joining a club or RSVP\'ing to an event.',
 }
 
@@ -53,7 +53,7 @@ export default function GuidelinesPage() {
             </svg>
             Smileys Community
           </Link>
-          <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight mb-3">Community Guidelines</h1>
+          <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight mb-3">Community Rules</h1>
           <p className="text-gray-600 text-sm">Last updated: {LAST_UPDATED}</p>
         </div>
       </div>
@@ -66,7 +66,7 @@ export default function GuidelinesPage() {
             Smileys is a curated community for people building real friendships in our cities.
             Be kind, be honest, show up when you say you will, and treat every member like
             someone you might meet for coffee tomorrow — because you probably will. These
-            guidelines exist so the rare bad actor doesn't ruin it for everyone else.
+            rules exist so the rare bad actor doesn't ruin it for everyone else.
           </p>
         </div>
 
@@ -213,7 +213,7 @@ export default function GuidelinesPage() {
           </p>
         </Section>
 
-        <Section title="Things that aren't community guidelines but related">
+        <Section title="Things that aren't community rules but related">
           <p>
             Some questions are governed by other documents:
           </p>
@@ -233,9 +233,9 @@ export default function GuidelinesPage() {
           </ul>
         </Section>
 
-        <Section title="Changes to these guidelines">
+        <Section title="Changes to these rules">
           <p>
-            The community grows, the rules evolve. When we update these guidelines we'll bump
+            The community grows, the rules evolve. When we update these rules we'll bump
             the "Last updated" date at the top. Material changes (new categories of violation,
             new enforcement steps) will also be announced on the main Smileys dashboard feed so you're not
             surprised.
@@ -243,7 +243,7 @@ export default function GuidelinesPage() {
         </Section>
 
         <div className="bg-gray-50 border border-gray-100 rounded-2xl p-5 mt-12 text-sm text-gray-600 leading-relaxed text-center">
-          Got a question about these guidelines? Reach out at{' '}
+          Got a question about these rules? Reach out at{' '}
           <a href="mailto:info@smileyscommunity.com" className="text-amber-700 hover:underline font-medium">
             info@smileyscommunity.com
           </a>

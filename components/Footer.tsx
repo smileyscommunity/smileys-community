@@ -305,7 +305,7 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
                 { href: '/terms',       label: 'Terms of use 📜'         },
                 { href: '/privacy',     label: 'Privacy policy 🔒'       },
                 { href: '/cookies',     label: 'Cookie policy 🍪'        },
-                { href: '/guidelines',  label: 'Community guidelines 🤝' },
+                { href: '/guidelines',  label: 'Community rules 🤝'      },
               ].map(l => (
                 <li key={l.href}>
                   <Link href={l.href} className="text-sm leading-snug text-gray-600 hover:text-amber-600 transition-colors">

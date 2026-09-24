@@ -304,7 +304,7 @@ export default async function CityMovingPage({ params }: Params) {
             ) : (
               <Link href="/guidelines" className="group bg-white border border-gray-100 rounded-2xl p-5 hover:border-amber-200 hover:shadow-md transition-all">
                 <div aria-hidden="true" className="text-2xl mb-2">🤝</div>
-                <h3 className="font-bold text-gray-900 group-hover:text-amber-700">Community guidelines</h3>
+                <h3 className="font-bold text-gray-900 group-hover:text-amber-700">Community rules</h3>
                 <p className="text-sm text-gray-600 mt-1">How members look after each other — worth reading before your first event.</p>
               </Link>
             )}

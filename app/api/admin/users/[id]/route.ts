@@ -578,7 +578,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     if (allowed.suspendedUntil && allowed.suspendedUntil !== before?.suspendedUntil) {
       const until = new Date(allowed.suspendedUntil as string)
-      const reason = (allowed.suspensionNote as string) || 'violation of community guidelines'
+      const reason = (allowed.suspensionNote as string) || 'violation of the community rules'
       createNotification(id, 'rsvp', 'Account temporarily suspended', `Your account is suspended until ${until.toLocaleDateString()} for: ${reason}`).catch(() => {})
       writeAudit(session.id, session.name, 'user.suspend', id, 'user',
         { until, reason, name: before?.name },
@@ -603,7 +603,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         }
       }
       if (allowed.status === 'banned') {
-        const reason = typeof allowed.banReason === 'string' && allowed.banReason ? allowed.banReason : 'violation of community guidelines'
+        const reason = typeof allowed.banReason === 'string' && allowed.banReason ? allowed.banReason : 'violation of the community rules'
         createNotification(id, 'rsvp', 'Your account has been suspended', `Your account was suspended: ${reason}. Contact us if you believe this is a mistake.`).catch(() => {})
         writeAudit(session.id, session.name, 'user.ban', id, 'user',
           { reason, name: before?.name },

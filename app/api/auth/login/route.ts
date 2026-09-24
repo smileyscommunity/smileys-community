@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
     if (user.suspendedUntil && user.suspendedUntil > new Date()) {
       const until = new Date(user.suspendedUntil).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
       return NextResponse.json({
-        error: `Your account is temporarily suspended until ${until}. Reason: ${user.suspensionNote || 'Violation of guidelines'}`
+        error: `Your account is temporarily suspended until ${until}. Reason: ${user.suspensionNote || 'Violation of the community rules'}`
       }, { status: 403 })
     }
 
