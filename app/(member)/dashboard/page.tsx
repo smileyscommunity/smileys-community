@@ -1193,6 +1193,91 @@ export default async function DashboardPage() {
     { label: 'My clubs',       value: clubs.length,           href: '/clubs' },
   ]
 
+  // From Smileys — latest published articles
+  const postsShelf = latestPosts.length > 0 && (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <h2 className="text-xl font-bold text-gray-900">From Smileys</h2>
+          <p className="text-xs text-gray-400 mt-0.5">News, guides &amp; community updates</p>
+        </div>
+        <Link href="/posts" className="text-sm text-amber-600 font-semibold hover:underline">All →</Link>
+      </div>
+      <div className="space-y-3">
+        {latestPosts.map((post) => {
+          const cover = articleCover({ coverImage: post.coverImage, body: post.body })
+          return (
+          <Link key={post.id} href={`/posts/${post.slug}`}
+            className="group flex gap-3 bg-white rounded-2xl shadow-card p-4 hover:-translate-y-0.5 transition-transform duration-200">
+            {cover ? (
+              <img src={cover} alt={post.title} loading="lazy"
+                className="w-16 h-16 rounded-xl object-cover shrink-0" />
+            ) : (
+              <div className="w-16 h-16 rounded-xl bg-amber-50 flex items-center justify-center text-2xl shrink-0">📰</div>
+            )}
+            <div className="min-w-0 flex-1">
+              <span className="text-[10px] font-bold text-amber-600 uppercase tracking-widest">{post.category}</span>
+              <p className="text-sm font-semibold text-gray-900 group-hover:text-amber-700 transition-colors leading-snug mt-0.5">{post.title}</p>
+              {post.excerpt && (
+                <p className="text-xs text-gray-400 mt-1 line-clamp-2 leading-relaxed">{post.excerpt}</p>
+              )}
+            </div>
+          </Link>
+          )
+        })}
+      </div>
+    </div>
+  )
+
+  // From The Handbook — surfaces the freshest expat-survival articles
+  // beside the community-articles strip (before or after it, by recency —
+  // see handbookFirst). Same card layout as "From Smileys", differentiated
+  // by a 📖 fallback icon, grey category chip, and an "All" link that lands
+  // on /handbook rather than /posts.
+  const handbookShelf = latestHandbook.length > 0 && (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <h2 className="text-xl font-bold text-gray-900">From The Handbook</h2>
+          <p className="text-xs text-gray-400 mt-0.5">Living in {city.name}, decoded by members</p>
+        </div>
+        <Link href="/handbook" className="text-sm text-amber-600 font-semibold hover:underline">All →</Link>
+      </div>
+      <div className="space-y-3">
+        {latestHandbook.map(post => {
+          const cover = articleCover({ coverImage: post.coverImage, body: post.body })
+          return (
+          <Link key={post.id} href={`/handbook/${post.slug}`}
+            className="group flex gap-3 bg-white rounded-2xl shadow-card p-4 hover:-translate-y-0.5 transition-transform duration-200">
+            {cover ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img src={cover} alt={post.title} loading="lazy"
+                className="w-16 h-16 rounded-xl object-cover shrink-0" />
+            ) : (
+              <div className="w-16 h-16 rounded-xl bg-gray-50 flex items-center justify-center text-2xl shrink-0">📖</div>
+            )}
+            <div className="min-w-0 flex-1">
+              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{post.category}</span>
+              <p className="text-sm font-semibold text-gray-900 group-hover:text-amber-700 transition-colors leading-snug mt-0.5">{post.title}</p>
+              {post.excerpt && (
+                <p className="text-xs text-gray-400 mt-1 line-clamp-2 leading-relaxed">{post.excerpt}</p>
+              )}
+            </div>
+          </Link>
+          )
+        })}
+      </div>
+    </div>
+  )
+
+  // Whichever shelf has the newer article goes first. They are kept apart
+  // on purpose (two editorial voices), but a fixed order buried a new
+  // Handbook guide under three older community posts: the airport and 112
+  // guides were the newest things on Smileys and read as missing.
+  const newestPost     = latestPosts[0]?.publishedAt?.getTime() ?? 0
+  const newestHandbook = latestHandbook[0]?.publishedAt?.getTime() ?? 0
+  const handbookFirst  = newestHandbook > newestPost
+
   return (
     <div className="min-h-screen bg-warm pb-20 md:pb-10">
       <PullToRefreshTrigger />
@@ -1782,83 +1867,10 @@ export default async function DashboardPage() {
               <div className="flex-1 h-px bg-gray-200" />
             </div>
 
-            {/* From Smileys — latest published articles */}
-            {latestPosts.length > 0 && (
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900">From Smileys</h2>
-                    <p className="text-xs text-gray-400 mt-0.5">News, guides &amp; community updates</p>
-                  </div>
-                  <Link href="/posts" className="text-sm text-amber-600 font-semibold hover:underline">All →</Link>
-                </div>
-                <div className="space-y-3">
-                  {latestPosts.map((post) => {
-                    const cover = articleCover({ coverImage: post.coverImage, body: post.body })
-                    return (
-                    <Link key={post.id} href={`/posts/${post.slug}`}
-                      className="group flex gap-3 bg-white rounded-2xl shadow-card p-4 hover:-translate-y-0.5 transition-transform duration-200">
-                      {cover ? (
-                        <img src={cover} alt={post.title} loading="lazy"
-                          className="w-16 h-16 rounded-xl object-cover shrink-0" />
-                      ) : (
-                        <div className="w-16 h-16 rounded-xl bg-amber-50 flex items-center justify-center text-2xl shrink-0">📰</div>
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <span className="text-[10px] font-bold text-amber-600 uppercase tracking-widest">{post.category}</span>
-                        <p className="text-sm font-semibold text-gray-900 group-hover:text-amber-700 transition-colors leading-snug mt-0.5">{post.title}</p>
-                        {post.excerpt && (
-                          <p className="text-xs text-gray-400 mt-1 line-clamp-2 leading-relaxed">{post.excerpt}</p>
-                        )}
-                      </div>
-                    </Link>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* From The Handbook — surfaces the freshest expat-survival
-                articles right after the community-articles strip. Same
-                card layout as "From Smileys", differentiated by a 📖
-                fallback icon, blue category chip (matches the Handbook
-                category color palette), and a deeper "View handbook"
-                CTA that lands on /handbook rather than /posts. */}
-            {latestHandbook.length > 0 && (
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900">From The Handbook</h2>
-                    <p className="text-xs text-gray-400 mt-0.5">Living in {city.name}, decoded by members</p>
-                  </div>
-                  <Link href="/handbook" className="text-sm text-amber-600 font-semibold hover:underline">All →</Link>
-                </div>
-                <div className="space-y-3">
-                  {latestHandbook.map(post => {
-                    const cover = articleCover({ coverImage: post.coverImage, body: post.body })
-                    return (
-                    <Link key={post.id} href={`/handbook/${post.slug}`}
-                      className="group flex gap-3 bg-white rounded-2xl shadow-card p-4 hover:-translate-y-0.5 transition-transform duration-200">
-                      {cover ? (
-                        /* eslint-disable-next-line @next/next/no-img-element */
-                        <img src={cover} alt={post.title} loading="lazy"
-                          className="w-16 h-16 rounded-xl object-cover shrink-0" />
-                      ) : (
-                        <div className="w-16 h-16 rounded-xl bg-gray-50 flex items-center justify-center text-2xl shrink-0">📖</div>
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{post.category}</span>
-                        <p className="text-sm font-semibold text-gray-900 group-hover:text-amber-700 transition-colors leading-snug mt-0.5">{post.title}</p>
-                        {post.excerpt && (
-                          <p className="text-xs text-gray-400 mt-1 line-clamp-2 leading-relaxed">{post.excerpt}</p>
-                        )}
-                      </div>
-                    </Link>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
+            {/* From Smileys / From The Handbook — newer shelf first */}
+            {handbookFirst
+              ? <>{handbookShelf}{postsShelf}</>
+              : <>{postsShelf}{handbookShelf}</>}
 
             {/* My upcoming events */}
             {nextEvent ? (
