@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import ClubLink from '@/components/ClubLink'
 import { resolveStats } from '@/lib/communityStats'
 import { APP_URL } from '@/lib/env'
 import { unstable_cache } from 'next/cache'
@@ -269,13 +270,13 @@ export default async function WhyPage() {
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {clubs.map(c => (
-                <Link key={c.id} href={`/clubs/${c.slug}`}
+                <ClubLink key={c.id} slug={c.slug}
                   className="rounded-2xl p-4 text-center hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 border border-white/60"
                   style={{ backgroundColor: c.bgColor || '#fef3c7' }}>
                   <div aria-hidden="true" className="text-3xl mb-2">{c.emoji}</div>
                   <p className="text-sm font-bold text-gray-900 leading-snug">{c.name}</p>
                   <p className="text-xs mt-1" style={{ color: c.color || '#92400e' }}>{c.memberCount} members</p>
-                </Link>
+                </ClubLink>
               ))}
             </div>
             <div className="text-center mt-8">

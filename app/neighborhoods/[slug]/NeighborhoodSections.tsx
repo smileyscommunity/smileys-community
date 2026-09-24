@@ -8,6 +8,7 @@ import type { NeighborhoodView } from '@/lib/neighborhoodsDb'
 import { DEFAULT_CITY_SLUG, type CityConfig } from '@/lib/city'
 import { canActInCity } from '@/lib/access'
 import type { SessionUser } from '@/lib/session'
+import { clubHref } from '@/lib/clubLink'
 import { restrictedSetFor } from '@/lib/memberPrivacy'
 import { authorProjector } from '@/lib/authorProjection'
 import { LIVE_BOARD_AUTHOR, SHOWN_REPLY, redactBoardTextForGuest } from '@/lib/boardAccess'
@@ -499,7 +500,7 @@ export default async function NeighborhoodSections({
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {clubsActiveHere.map(c => (
-              <Link key={c.id} href={`/clubs/${c.slug}`}
+              <Link key={c.id} href={clubHref(c.slug, viewer ? 'member' : 'guest', city.slug)}
                 className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hover:shadow-md hover:-translate-y-0.5 transition-all group">
                 <div className="flex items-center gap-2.5">
                   <span aria-hidden="true" className="text-2xl shrink-0">{c.emoji}</span>

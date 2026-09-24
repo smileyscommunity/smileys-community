@@ -7,9 +7,12 @@ interface ClubCardProps {
   // a scheduled event just omits the line instead of advertising a
   // "No upcoming events" dead-end to prospects.
   hideEmptyNextEvent?: boolean
+  // Where the card links. Public pages pass clubHref(…) so a guest goes to
+  // the application rather than the members-only club page (lib/clubLink).
+  href?: string
 }
 
-export default function ClubCard({ club, hideEmptyNextEvent = false }: ClubCardProps) {
+export default function ClubCard({ club, hideEmptyNextEvent = false, href }: ClubCardProps) {
   const peopleIcon = (
     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -17,7 +20,7 @@ export default function ClubCard({ club, hideEmptyNextEvent = false }: ClubCardP
   )
 
   return (
-    <Link href={`/clubs/${club.slug}`} className="group block">
+    <Link href={href ?? `/clubs/${club.slug}`} className="group block">
       <div className="card group-hover:-translate-y-1 transition-transform duration-300 h-full">
         {/* Header */}
         <div aria-hidden="true" className={`${club.bgColor} h-28 flex items-center justify-center`}>

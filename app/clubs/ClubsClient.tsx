@@ -9,6 +9,7 @@ import { resolveImageUrl, avatarUrl } from '@/lib/data'
 import { CLUB_FILTER_GROUPS, HEALTH_RANK, type ClubHealthLabel } from '@/lib/clubDiscovery'
 import AvatarImg from '@/components/AvatarImg'
 import { useAuth } from '@/contexts/AuthContext'
+import { clubHref } from '@/lib/clubLink'
 import ClubCardSkeleton from '@/components/ClubCardSkeleton'
 import AdBannerStrip from '@/components/AdBannerStrip'
 
@@ -81,8 +82,11 @@ function memberLine(club: Club): string | null {
   return all && here < all * ELSEWHERE_SHARE ? `${here} here · ${all} across Smileys` : plain
 }
 
-function ClubCard({ club, membership, toggling, onToggle }: {
+function ClubCard({ club, membership, toggling, onToggle, href }: {
   club: Club
+  // Where the card links — clubHref(…), so a guest goes to the application
+  // instead of the members-only club page (lib/clubLink).
+  href: string
   membership?: Membership
   toggling: string | null
   onToggle: (club: Club) => void
@@ -100,7 +104,7 @@ function ClubCard({ club, membership, toggling, onToggle }: {
           over either the photo or the emoji fallback. The two used to be
           near-identical branches with ~50 lines of duplicated JSX; now
           only the background layer switches. */}
-      <Link href={`/clubs/${club.slug}`} className="block">
+      <Link href={href} className="block">
         <div className="relative h-36 overflow-hidden">
           {photo ? (
             <>
@@ -166,7 +170,7 @@ function ClubCard({ club, membership, toggling, onToggle }: {
       {/* Info */}
       <div className="p-4 flex-1 flex flex-col gap-2">
         <div>
-          <Link href={`/clubs/${club.slug}`}>
+          <Link href={href}>
             <h3 className="font-bold text-gray-900 text-sm leading-snug hover:text-amber-600 transition-colors">{club.name}</h3>
           </Link>
           <p className="text-xs text-gray-600 line-clamp-2 mt-1 leading-relaxed">{club.description}</p>
@@ -231,7 +235,7 @@ function ClubCard({ club, membership, toggling, onToggle }: {
                 {toggling === club.id ? '…' : club.isPrivate ? 'Request' : 'Join'}
               </button>
             )}
-            <Link href={`/clubs/${club.slug}`}
+            <Link href={href}
               className="text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:border-amber-300 hover:text-amber-600 transition-colors font-medium">
               View →
             </Link>
@@ -243,7 +247,7 @@ function ClubCard({ club, membership, toggling, onToggle }: {
 }
 
 function AppClubsPageInner() {
-  const { user, isLoggedIn } = useAuth()
+  const { user, isLoggedIn, isLoading: authLoading } = useAuth()
   const router       = useRouter()
   const searchParams = useSearchParams()
   // ?city=<slug>: the /clubs server page pins the city in the URL so the
@@ -281,6 +285,10 @@ function AppClubsPageInner() {
   // overrides the subtitle.
   const [viewCity, setViewCity] = useState<{ name: string; slug: string; isDefault: boolean; viewing?: boolean; homeName?: string | null } | null>(null)
   const cityHero = viewCity && !viewCity.isDefault ? viewCity : null
+  // Guests go to the application for the city on screen (lib/clubLink);
+  // while sign-in is still resolving, links stay on the club page.
+  const viewer = authLoading ? 'unknown' as const : isLoggedIn ? 'member' as const : 'guest' as const
+  const clubLinkFor = (slug: string) => clubHref(slug, viewer, viewCity?.slug ?? (pinnedCity || null))
 
   // Mirror filter state to the URL. Defaults omitted from the
   // querystring so a "clean" URL means "all defaults".
@@ -615,7 +623,7 @@ function AppClubsPageInner() {
             <h2 className="text-sm font-extrabold text-gray-600 uppercase tracking-widest mb-3"><span aria-hidden="true">🔥</span> Active this week</h2>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               {activeThisWeek.map(c => (
-                <Link key={c.id} href={`/clubs/${c.slug}`}
+                <Link key={c.id} href={clubLinkFor(c.slug)}
                   className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:border-amber-200 hover:shadow-md transition-all group">
                   <div className="flex items-center gap-2">
                     <span aria-hidden="true" className="text-xl shrink-0">{c.emoji}</span>
@@ -680,6 +688,7 @@ function AppClubsPageInner() {
               {displayClubs.map(club => (
                 <ClubCard
                   key={club.id}
+                  href={clubLinkFor(club.slug)}
                   club={club}
                   membership={membershipByClubId.get(club.id)}
                   toggling={toggling}

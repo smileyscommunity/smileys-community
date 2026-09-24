@@ -19,6 +19,7 @@ import ExperienceActions from './ExperienceActions'
 import LiveHangouts from './LiveHangouts'
 import EventMatches from './EventMatches'
 import TrackedLink from '@/components/TrackedLink'
+import ClubLink from '@/components/ClubLink'
 import TipsBlock from './TipsBlock'
 
 export async function generateStaticParams() {
@@ -228,13 +229,13 @@ export default async function ExperiencePage({ params }: { params: Promise<{ slu
               <p className="text-xs font-bold text-amber-400 uppercase tracking-widest">Find your people</p>
               <div className="flex flex-wrap gap-2">
                 {matchedClubs.map(c => (
-                  <TrackedLink key={c.slug} href={`/clubs/${c.slug}`} event="guide_to_club"
+                  <ClubLink key={c.slug} slug={c.slug} citySlug={citySlug} event="guide_to_club"
                     eventProps={{ experience: exp.slug, club: c.slug }}
                     className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 rounded-xl px-4 py-2 transition-colors">
                     <span aria-hidden="true">{c.emoji}</span>
                     <span className="text-sm font-bold text-white">{c.name}</span>
                     {c.memberCount > 0 && <span className="text-xs text-gray-300">{c.memberCount} members</span>}
-                  </TrackedLink>
+                  </ClubLink>
                 ))}
               </div>
             </div>

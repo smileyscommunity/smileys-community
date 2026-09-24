@@ -1,9 +1,10 @@
 import Link from 'next/link'
 import ClubCard from '@/components/ClubCard'
+import { clubHref } from '@/lib/clubLink'
 import type { PublicCity, CityPageData, EnterLink } from '../data'
 
 // Same rule as events: an empty grid becomes a host invitation.
-export default function Clubs({ city, featuredClubs, enter }: { city: PublicCity; featuredClubs: CityPageData['clubs']; enter: EnterLink }) {
+export default function Clubs({ city, featuredClubs, enter, signedIn }: { city: PublicCity; featuredClubs: CityPageData['clubs']; enter: EnterLink; signedIn: boolean }) {
   if (featuredClubs.length === 0) {
     return (
       <section className="py-12 sm:py-16 bg-white">
@@ -30,7 +31,9 @@ export default function Clubs({ city, featuredClubs, enter }: { city: PublicCity
           <a href={enter('clubs')} className="hidden md:flex btn-ghost text-sm items-center gap-1">All clubs →</a>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {featuredClubs.map(club => <ClubCard key={club.id} club={club} hideEmptyNextEvent />)}
+          {/* A guest can't open a club page (members-only) — they go to
+              this city's application instead (lib/clubLink). */}
+          {featuredClubs.map(club => <ClubCard key={club.id} club={club} hideEmptyNextEvent href={clubHref(club.slug, signedIn ? 'member' : 'guest', city.slug)} />)}
         </div>
         <div className="text-center mt-10 md:hidden">
           <a href={enter('clubs')} className="btn-secondary">All clubs</a>

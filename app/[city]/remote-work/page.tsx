@@ -11,6 +11,7 @@ import { reviewLabel } from '@/lib/handbook-review'
 import { groupHubArticles, buildChecklist, utcOffsetLabel } from '@/lib/remoteWork'
 import EventCard from '@/components/EventCard'
 import JoinCityButton from '@/components/JoinCityButton'
+import { clubHref } from '@/lib/clubLink'
 import PhotoHero, { HERO_SECONDARY } from '@/components/PhotoHero'
 import { getCityRemoteWorkHub } from '../data'
 
@@ -201,10 +202,9 @@ export default async function CityRemoteWorkPage({ params }: Params) {
           {hub.workClubs.length > 0 && (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-10">
               {hub.workClubs.map(c => (
-                // A club page is members-only: a guest following the card
-                // landed on an empty page and then a login screen. Guests go
-                // to the application for this city instead.
-                <Link key={c.id} href={session ? `/clubs/${c.slug}` : `/apply?city=${city.slug}`}
+                // Club pages are members-only; guests go to this city's
+                // application instead (lib/clubLink).
+                <Link key={c.id} href={clubHref(c.slug, session ? 'member' : 'guest', city.slug)}
                   className="group bg-gray-50 border border-gray-100 rounded-2xl p-5 hover:border-amber-200 hover:shadow-md transition-all">
                   <div aria-hidden="true" className="text-2xl mb-2">{c.emoji}</div>
                   <h3 className="font-bold text-gray-900 group-hover:text-amber-700 transition-colors">{c.name}</h3>

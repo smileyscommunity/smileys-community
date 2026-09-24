@@ -8,6 +8,8 @@ import { APP_URL, SITE_URL } from '@/lib/env'
 import { jsonLdHtml } from '@/lib/jsonLd'
 import { resolveImageUrl } from '@/lib/data'
 import ClubCard from '@/components/ClubCard'
+import { clubHref } from '@/lib/clubLink'
+import { getSession } from '@/lib/session'
 import { getCityClubsHub, enterLinkFor, hubCanonical, isDefaultCitySlug } from '../data'
 
 // /[city]/clubs — the crawlable grid of a city's clubs. The global /clubs is
@@ -52,6 +54,8 @@ export default async function CityClubsPage({ params }: Params) {
   if (city.status !== CITY_STATUS.Live) redirect(`/${city.slug}`)
 
   const { clubs, total } = await getCityClubsHub(city.id)
+  // Per request, outside the cached hub: decides where a club card links.
+  const signedIn = !!(await getSession())
   const enter = enterLinkFor(city.slug)
   const isDefault = isDefaultCitySlug(city.slug)
 
@@ -104,7 +108,7 @@ export default async function CityClubsPage({ params }: Params) {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {clubs.map(club => <ClubCard key={club.id} club={club} hideEmptyNextEvent />)}
+              {clubs.map(club => <ClubCard key={club.id} club={club} hideEmptyNextEvent href={clubHref(club.slug, signedIn ? 'member' : 'guest', city.slug)} />)}
             </div>
           )}
           <div className="mt-10 text-center">

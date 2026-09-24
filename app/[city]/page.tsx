@@ -78,7 +78,7 @@ export default async function CityPage({ params }: Params) {
       <CityPageTracker slug={city.slug} status={city.status} />
       <Hero city={city} enter={enter} />
       <Events city={city} tabEvents={tabEvents} eventWindow={eventWindow} enter={enter} />
-      <Clubs city={city} featuredClubs={featuredClubs} enter={enter} />
+      <Clubs city={city} featuredClubs={featuredClubs} enter={enter} signedIn={!!session} />
       <Neighborhoods city={city} topNeighborhoods={topNeighborhoods} neighborhoodsHaveEvents={neighborhoodsHaveEvents} enter={enter} />
       <Visitors city={city} visitors={visitors} visitorTotal={visitorTotal} isDefaultCity={isDefaultCity} />
       <Guide city={city} hasGuide={guideEntries > 0} enter={enter} />
