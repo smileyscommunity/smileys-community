@@ -51,6 +51,12 @@ interface ClubOption {
   slug?: string; cityId?: string | null; isActive?: boolean
 }
 
+// Case- and accent-blind, Turkish dotless ı included, so "kosu" finds
+// "Koşu Kulübü" and "ISTANBUL" finds "İstanbul".
+function normalizeClubQuery(s: string): string {
+  return s.trim().toLocaleLowerCase('tr').replace(/ı/g, 'i').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+}
+
 const STATUS: Record<string, string> = {
   pending:  'bg-amber-500/10 text-amber-400 border-amber-500/20',
   approved: 'bg-green-500/10 text-green-400 border-green-500/20',
@@ -188,6 +194,7 @@ function AdminApplicationsPageInner() {
   const [reviewNote,    setReviewNote]    = useState('')
   const [rejectMsg,     setRejectMsg]     = useState('')
   const [assignedClubs, setAssignedClubs] = useState<string[]>([])
+  const [clubQuery,     setClubQuery]     = useState('')
   const [defaultClubId, setDefaultClubId] = useState('')
   const [saving,        setSaving]        = useState(false)
   const [selected2,     setSelected2]     = useState<Set<string>>(new Set())
@@ -379,6 +386,7 @@ function AdminApplicationsPageInner() {
     const covered = !app.targetCityId || clubs.some(c => c.cityId === app.targetCityId)
     setModalClubs(covered ? null : [])  // [] = hide chips while the target city's list loads
     setAssignedClubs([])
+    setClubQuery('')
     ;(async () => {
       const [prefill, list] = await Promise.all([
         defaultClubsFor(app),
@@ -1291,29 +1299,63 @@ function AdminApplicationsPageInner() {
 
                   {/* Assign clubs (pending only) — the target city's clubs
                       when the applicant applied to another city (modalClubs,
-                      loaded in open()), the viewer-city list otherwise. */}
-                  {selected.status === 'pending' && (modalClubs ?? clubs).length > 0 && (
-                    <div className="border-t border-zinc-800 pt-4">
-                      <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">
-                        Assign to clubs on approval{modalClubs && selected.targetCity ? ` · ${selected.targetCity.name}` : ''}
-                      </p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {(modalClubs ?? clubs).map(c => {
-                          const active = assignedClubs.includes(c.id)
-                          return (
-                            <button key={c.id} type="button"
-                              onClick={() => setAssignedClubs(prev => prev.includes(c.id) ? prev.filter(id => id !== c.id) : [...prev, c.id])}
-                              className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
-                                active ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' : 'border-zinc-700 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300'
-                              }`}
-                            >
-                              {c.emoji} {c.name}
-                            </button>
-                          )
-                        })}
+                      loaded in open()), the viewer-city list otherwise.
+                      The chosen clubs as removable chips, plus a search to
+                      add more: listing every club as a chip filled the
+                      modal once a city had dozens of them. */}
+                  {selected.status === 'pending' && (modalClubs ?? clubs).length > 0 && (() => {
+                    const all = modalClubs ?? clubs
+                    const chosen = assignedClubs.map(id => all.find(c => c.id === id)).filter((c): c is ClubOption => !!c)
+                    const q = normalizeClubQuery(clubQuery)
+                    const matches = q
+                      ? all.filter(c => !assignedClubs.includes(c.id) && normalizeClubQuery(c.name).includes(q)).slice(0, 8)
+                      : []
+                    const add = (id: string) => { setAssignedClubs(prev => prev.includes(id) ? prev : [...prev, id]); setClubQuery('') }
+                    return (
+                      <div className="border-t border-zinc-800 pt-4">
+                        <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">
+                          Assign to clubs on approval{modalClubs && selected.targetCity ? ` · ${selected.targetCity.name}` : ''}
+                        </p>
+                        {chosen.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mb-2">
+                            {chosen.map(c => (
+                              <span key={c.id} className="flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-full text-xs font-medium border bg-amber-500/10 border-amber-500/30 text-amber-400">
+                                {c.emoji} {c.name}
+                                <button type="button" aria-label={`Remove ${c.name}`}
+                                  onClick={() => setAssignedClubs(prev => prev.filter(id => id !== c.id))}
+                                  className="w-4 h-4 rounded-full flex items-center justify-center hover:bg-amber-500/20">×</button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <div className="relative">
+                          <input value={clubQuery} onChange={e => setClubQuery(e.target.value)}
+                            onKeyDown={e => {
+                              // Enter adds the top match — and must not submit
+                              // anything else in the modal.
+                              if (e.key === 'Enter') { e.preventDefault(); if (matches[0]) add(matches[0].id) }
+                              if (e.key === 'Escape' && clubQuery) { e.stopPropagation(); setClubQuery('') }
+                            }}
+                            placeholder={`Search ${all.length} clubs to add…`}
+                            className="w-full px-3 py-2 text-sm bg-zinc-800 border border-zinc-700 rounded-xl focus:outline-none focus:ring-1 focus:ring-amber-500 text-white placeholder-zinc-600"
+                          />
+                          {q && (
+                            <div className="mt-1 rounded-xl border border-zinc-700 bg-zinc-900 overflow-hidden">
+                              {matches.length > 0 ? matches.map(c => (
+                                <button key={c.id} type="button" onClick={() => add(c.id)}
+                                  className="w-full text-left px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800 flex items-center gap-2">
+                                  <span aria-hidden="true">{c.emoji}</span>{c.name}
+                                  <span className="ml-auto text-xs text-zinc-500">Add</span>
+                                </button>
+                              )) : (
+                                <p className="px-3 py-2 text-sm text-zinc-500">No club matches “{clubQuery.trim()}”</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )
+                  })()}
 
                   {/* Review tools — kept in the scrolling body (not the
                       sticky decision bar) so they don't eat the phone
