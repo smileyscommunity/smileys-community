@@ -87,7 +87,7 @@ export default async function CityStudentsPage({ params }: Params) {
   return (
     <>
       {/* ── Hero ─────────────────────────────────────────────────────── */}
-      <PhotoHero kind="students" city={city} alt={`International students in ${city.name}`}>
+      <PhotoHero kind="students" city={city} alt={`International students walking and talking together in ${city.name}`}>
         <Link href={`/${city.slug}`} className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-white/80 hover:text-white mb-6">
           <span aria-hidden="true">←</span> Smileys {city.name}
         </Link>
