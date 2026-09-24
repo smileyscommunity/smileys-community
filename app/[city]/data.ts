@@ -16,7 +16,7 @@ import { isSoldOut } from '@/lib/soldOut'
 import type { Event } from '@/lib/data'
 import { LIVE_BOARD_AUTHOR, SHOWN_REPLY } from '@/lib/boardAccess'
 import { firstNameOf } from '@/lib/data'
-import { isWorkClub } from '@/lib/remoteWork'
+import { isWorkClub, pickHubEvents } from '@/lib/remoteWork'
 import { getCityHandbookIndex } from '@/lib/handbookIndex'
 
 // Everything the city shopfront reads, in one place, with the one boundary
@@ -373,18 +373,17 @@ export const getCityRemoteWorkHub = unstable_cache(
       }))
     const workClubIds = new Set(workClubs.map(c => c.id))
 
-    // Coworking sessions first — the reason a remote worker is on this page —
-    // then first-timer-friendly events, each group soonest first (getEvents
-    // order). Cancelled ones never make a showcase.
-    const live         = events.filter(e => e.status !== 'cancelled')
-    const workEvents   = live.filter(e => e.clubId && workClubIds.has(e.clubId))
-    const newcomerOnes = live.filter(e => !(e.clubId && workClubIds.has(e.clubId)) && e.isFirstTimerFriendly)
+    // Coworking sessions and first-timer-friendly events, each weekly session
+    // once, neither kind crowding out the other (lib/remoteWork pickHubEvents).
+    const workEvents = events.filter(e => e.status !== 'cancelled' && e.clubId && workClubIds.has(e.clubId))
 
     return {
       articles,
       workClubs,
-      events:        [...workEvents, ...newcomerOnes].slice(0, REMOTE_WORK_EVENT_LIMIT),
+      events:        pickHubEvents(events, workClubIds, REMOTE_WORK_EVENT_LIMIT),
       hasWorkEvents: workEvents.length > 0,
+      // Every upcoming session members-only → the page says so up front.
+      workMembersOnly: workEvents.length > 0 && workEvents.every(e => e.membersOnly),
       neighborhoodCount,
     }
   },

@@ -82,6 +82,50 @@ export function isWorkClub(name: string): boolean {
   return WORK_CLUB_PATTERN.test(name)
 }
 
+/** An event as the hub's picker needs it: enough to tell a weekly session
+ *  from a one-off and a coworking session from a newcomer event. */
+export interface HubEventLike {
+  id:                   string
+  date:                 string
+  title:                string
+  clubId?:              string | null
+  seriesId?:            string | null
+  isFirstTimerFriendly?: boolean
+  status?:              string
+}
+
+/** Most coworking sessions the "work and meet people" row shows, so that
+ *  first-timer-friendly events always get the rest of it. */
+export const HUB_WORK_EVENT_CAP = 3
+
+/**
+ * The hub's events row, from the city's upcoming events (soonest first).
+ *
+ * A weekly session appears once, as its next date — six cards that were
+ * three sessions repeated said less than three. Coworking sessions (events
+ * of a work club) take at most HUB_WORK_EVENT_CAP places and first-timer-
+ * friendly events the rest, each backfilling the other when it runs short,
+ * so neither kind can crowd the other out. Cancelled events never appear.
+ * The result is back in date order.
+ */
+export function pickHubEvents<E extends HubEventLike>(events: E[], workClubIds: Set<string>, limit: number): E[] {
+  const seen = new Set<string>()
+  const once = events.filter(e => {
+    if (e.status === 'cancelled') return false
+    // A series is one session; an event with no series is its own.
+    const key = e.seriesId ? `s:${e.seriesId}` : `e:${e.id}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+  const isWork  = (e: E) => !!e.clubId && workClubIds.has(e.clubId)
+  const work    = once.filter(isWork)
+  const newbies = once.filter(e => !isWork(e) && e.isFirstTimerFriendly)
+  const workTake = Math.min(work.length, Math.max(HUB_WORK_EVENT_CAP, limit - newbies.length))
+  const picked = [...work.slice(0, workTake), ...newbies.slice(0, limit - workTake)]
+  return picked.sort((a, b) => a.date.localeCompare(b.date))
+}
+
 /** The city's UTC offset right now, e.g. 'UTC+3' or 'UTC−4:30' — what a remote
  *  worker needs to line up calls with home. Computed from the zone, so DST
  *  cities read correctly in both halves of the year. */
@@ -103,6 +147,8 @@ export interface ChecklistStep {
   body:   string
   href:   string | null
   cta:    string
+  /** Further pages for the same step, e.g. transport beside money. */
+  more?:  { href: string; cta: string }[]
 }
 
 export interface ChecklistInput {
@@ -113,6 +159,9 @@ export interface ChecklistInput {
   // Upcoming events from those clubs — the only evidence that "members run
   // coworking sessions" is true this month rather than once upon a time.
   hasWorkEvents:    boolean
+  // Whether those sessions are members-only — then the step says so, rather
+  // than promise a desk to someone who can't book it yet.
+  workMembersOnly?: boolean
   hasEvents:        boolean
 }
 
@@ -125,9 +174,16 @@ const topicHref = (topics: HubTopic[], key: RemoteWorkTopicKey) => {
  * The first-72-hours path, each step pointing at the one page that answers
  * it in this city. Paths are basePath-relative (for next/link).
  */
-export function buildChecklist({ citySlug, topics, hasNeighborhoods, hasWorkClubs, hasWorkEvents, hasEvents }: ChecklistInput): ChecklistStep[] {
+export function buildChecklist({ citySlug, topics, hasNeighborhoods, hasWorkClubs, hasWorkEvents, workMembersOnly, hasEvents }: ChecklistInput): ChecklistStep[] {
   const moneyHref     = topicHref(topics, 'money')
   const transportHref = topicHref(topics, 'transport')
+  // The city's airport-arrival guide, when its Handbook has one: getting in
+  // from the airport is the first transport problem of the 72 hours.
+  const airport = topics.find(t => t.key === 'transport')?.articles.find(a => /airport|arriv|havaliman/i.test(`${a.title} ${a.slug}`))
+  const airportHref = airport ? `/handbook/${airport.slug}` : null
+  // The transport card guide — the transport topic's lead that isn't the airport one.
+  const cardArticle = topics.find(t => t.key === 'transport')?.articles.find(a => a !== airport)
+  const cardHref = cardArticle ? `/handbook/${cardArticle.slug}` : null
   return [
     {
       key: 'connect',
@@ -147,7 +203,9 @@ export function buildChecklist({ citySlug, topics, hasNeighborhoods, hasWorkClub
       key: 'workspace',
       title: 'Find somewhere to work',
       body: hasWorkEvents
-        ? 'Members run regular coworking sessions — a desk, some company, and people to have lunch with.'
+        ? (workMembersOnly
+            ? 'Members run regular coworking sessions — a desk, some company, and people to have lunch with. They’re for members: joining is free, and applications are reviewed within 24–48 hours.'
+            : 'Members run regular coworking sessions — a desk, some company, and people to have lunch with.')
         : hasWorkClubs
           ? 'Join a coworking or remote-work club to hear where members actually work from.'
           : 'Once you are in, ask members where they work from — there is no workspace list here yet.',
@@ -157,9 +215,13 @@ export function buildChecklist({ citySlug, topics, hasNeighborhoods, hasWorkClub
     {
       key: 'money',
       title: 'Sort money and transport',
-      body: 'How to pay, how to get a local account if you need one, and the card that gets you on transit.',
-      href: moneyHref ?? transportHref,
-      cta:  moneyHref ? 'Read the money guide' : 'Read the transport guide',
+      body: 'Getting in from the airport, how to pay, how to get a local account if you need one, and the card that gets you on transit.',
+      href: moneyHref ?? cardHref ?? airportHref,
+      cta:  moneyHref ? 'Read the money guide' : cardHref ? 'Read the transport guide' : 'From the airport',
+      more: [
+        ...(moneyHref && cardHref ? [{ href: cardHref, cta: 'Read the transport guide' }] : []),
+        ...(airportHref && (moneyHref || cardHref) ? [{ href: airportHref, cta: 'From the airport into the city' }] : []),
+      ],
     },
     {
       key: 'first-event',

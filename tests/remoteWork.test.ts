@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
-  groupHubArticles, buildChecklist, isWorkClub, utcOffsetLabel,
-  ARTICLES_PER_TOPIC, type HubArticle,
+  groupHubArticles, buildChecklist, isWorkClub, utcOffsetLabel, pickHubEvents,
+  ARTICLES_PER_TOPIC, HUB_WORK_EVENT_CAP, type HubArticle,
 } from '@/lib/remoteWork'
 import { goodToKnowRows } from '@/lib/eventGoodToKnow'
 
@@ -125,5 +125,67 @@ describe('goodToKnowRows', () => {
   it('states a group size only for capped events', () => {
     expect(goodToKnowRows({ ...bare, totalSpots: 12 }).some(r => r.key === 'size')).toBe(false)
     expect(goodToKnowRows({ ...bare, limitedSpots: true, totalSpots: 12 }).find(r => r.key === 'size')?.text).toBe('Up to 12 people')
+  })
+})
+
+describe('pickHubEvents', () => {
+  const WORK = new Set(['cowork'])
+  // Istanbul's calendar on 2026-09-24, in date order: three weekly coworking
+  // series that filled all six places, and the first-timer events they hid.
+  const cal = [
+    { id: 'b1', date: '2026-09-25', title: 'Coworking in Beyoglu', clubId: 'cowork', seriesId: null },
+    { id: 'p1', date: '2026-09-26', title: 'Picnic in Moda', clubId: 'picnic', seriesId: 'picnic', isFirstTimerFriendly: true },
+    { id: 'h1', date: '2026-09-27', title: 'Hiking in Büyükada', clubId: 'hiking', seriesId: null, isFirstTimerFriendly: true },
+    { id: 'm1', date: '2026-09-29', title: 'Coworking in Bomonti', clubId: 'cowork', seriesId: 'bomonti' },
+    { id: 'k1', date: '2026-09-30', title: 'Coworking Kadıköy', clubId: 'cowork', seriesId: 'kadikoy' },
+    { id: 's1', date: '2026-09-30', title: "Let's Get Social", clubId: 'speak', seriesId: 'social', isFirstTimerFriendly: true },
+    { id: 'p2', date: '2026-10-03', title: 'Picnic in Moda', clubId: 'picnic', seriesId: 'picnic', isFirstTimerFriendly: true },
+    { id: 'm2', date: '2026-10-06', title: 'Coworking in Bomonti', clubId: 'cowork', seriesId: 'bomonti' },
+    { id: 'k2', date: '2026-10-07', title: 'Coworking Kadıköy', clubId: 'cowork', seriesId: 'kadikoy' },
+    { id: 'm3', date: '2026-10-13', title: 'Coworking in Bomonti', clubId: 'cowork', seriesId: 'bomonti' },
+    { id: 'x1', date: '2026-10-01', title: 'Theatre', clubId: 'theatre', seriesId: null },
+  ]
+
+  it('shows each weekly session once, and never crowds out first-timer events', () => {
+    const ids = pickHubEvents(cal, WORK, 6).map(e => e.id)
+    expect(ids).toEqual(['b1', 'p1', 'h1', 'm1', 'k1', 's1'])
+  })
+
+  it('caps coworking when there are enough first-timer events, and backfills when there are not', () => {
+    const onlyWork = cal.filter(e => e.clubId === 'cowork')
+    expect(pickHubEvents(onlyWork, WORK, 6).map(e => e.id)).toEqual(['b1', 'm1', 'k1'])   // 3 distinct sessions
+    const manyNewbies = [...cal, ...['a', 'b', 'c', 'd'].map((x, i) => ({ id: x, date: `2026-10-2${i}`, title: x, clubId: x, seriesId: null, isFirstTimerFriendly: true }))]
+    expect(pickHubEvents(manyNewbies, WORK, 6).filter(e => e.clubId === 'cowork')).toHaveLength(HUB_WORK_EVENT_CAP)
+  })
+
+  it('leaves out ordinary events, cancelled ones, and keeps date order', () => {
+    const picked = pickHubEvents([...cal, { id: 'c', date: '2026-09-24', title: 'x', clubId: 'cowork', seriesId: 'z', status: 'cancelled' }], WORK, 6)
+    expect(picked.some(e => e.id === 'x1' || e.id === 'c')).toBe(false)
+    expect(picked.map(e => e.date)).toEqual([...picked.map(e => e.date)].sort())
+  })
+})
+
+describe('buildChecklist — arrival and membership', () => {
+  const topics = groupHubArticles([
+    article({ slug: 'bank', title: 'Bank account', category: 'Money & Banking' }),
+    article({ slug: 'istanbulkart-mastery', title: 'Istanbulkart Mastery', category: 'Getting Around', cityId: 'c1' }),
+    article({ slug: 'arriving-in-istanbul', title: 'Arriving in Istanbul: from the airport', category: 'Getting Around', cityId: 'c1' }),
+  ], 'c1')
+  const base = { citySlug: 'istanbul', topics, hasNeighborhoods: true, hasWorkClubs: true, hasWorkEvents: true, hasEvents: true }
+
+  it('links transport and the airport guide beside money', () => {
+    const step = buildChecklist(base).find(s => s.key === 'money')!
+    expect(step.href).toBe('/handbook/bank')
+    expect(step.more).toEqual([
+      { href: '/handbook/istanbulkart-mastery', cta: 'Read the transport guide' },
+      { href: '/handbook/arriving-in-istanbul', cta: 'From the airport into the city' },
+    ])
+  })
+
+  it('says coworking is for members when every session is members-only', () => {
+    const open = buildChecklist(base).find(s => s.key === 'workspace')!
+    const closed = buildChecklist({ ...base, workMembersOnly: true }).find(s => s.key === 'workspace')!
+    expect(open.body).not.toMatch(/members:/)
+    expect(closed.body).toMatch(/for members: joining is free/)
   })
 })

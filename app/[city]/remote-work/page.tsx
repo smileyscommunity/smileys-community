@@ -62,6 +62,7 @@ export default async function CityRemoteWorkPage({ params }: Params) {
     hasNeighborhoods: hub.neighborhoodCount > 0,
     hasWorkClubs:     hub.workClubs.length > 0,
     hasWorkEvents:    hub.hasWorkEvents,
+    workMembersOnly:  hub.workMembersOnly,
     hasEvents:        events.length > 0,
   })
   const offset = utcOffsetLabel(city.timezone)
@@ -84,9 +85,11 @@ export default async function CityRemoteWorkPage({ params }: Params) {
           Work remotely. <span className="text-amber-300">Belong locally.</span>
         </h1>
         <p className="text-base sm:text-lg text-white/90 max-w-xl leading-relaxed mb-6">
-          Smileys brings practical arrival help, remote-work know-how and an offline community together —
-          so within a few days you know where to work, where to live, what to set up, and who to spend
-          time with.
+          {/* Names only what the city has: "coworking sessions" only while
+              members are actually running them. */}
+          Smileys brings practical arrival help{hub.hasWorkEvents ? ', member-run coworking sessions' : ''} and
+          an offline community together — so within a few days you know where to work, where to live, what
+          to set up, and who to spend time with.
         </p>
         <p className="text-sm text-white/80 mb-8">
           <span aria-hidden="true">🕒 </span>
@@ -119,6 +122,11 @@ export default async function CityRemoteWorkPage({ params }: Params) {
                     {step.cta} <span aria-hidden="true">→</span>
                   </Link>
                 )}
+                {step.more?.map(m => (
+                  <Link key={m.href} href={m.href} className="mt-1.5 text-sm font-semibold text-amber-700 hover:text-amber-800">
+                    {m.cta} <span aria-hidden="true">→</span>
+                  </Link>
+                ))}
               </li>
             ))}
           </ol>
@@ -179,10 +187,24 @@ export default async function CityRemoteWorkPage({ params }: Params) {
             </p>
           </div>
 
+          {/* Said once, before the cards: every coworking session on the
+              calendar is members-only, and a week-long visitor needs to know
+              that before the 24–48h review, not at the RSVP button. */}
+          {hub.workMembersOnly && (
+            <p className="mb-6 max-w-2xl rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              <span aria-hidden="true">🔒 </span>
+              Coworking sessions are for Smileys members. Joining is free, and applications are reviewed
+              within 24–48 hours — so if you&apos;re only here for a week, apply before you arrive.
+            </p>
+          )}
+
           {hub.workClubs.length > 0 && (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-10">
               {hub.workClubs.map(c => (
-                <Link key={c.id} href={`/clubs/${c.slug}`}
+                // A club page is members-only: a guest following the card
+                // landed on an empty page and then a login screen. Guests go
+                // to the application for this city instead.
+                <Link key={c.id} href={session ? `/clubs/${c.slug}` : `/apply?city=${city.slug}`}
                   className="group bg-gray-50 border border-gray-100 rounded-2xl p-5 hover:border-amber-200 hover:shadow-md transition-all">
                   <div aria-hidden="true" className="text-2xl mb-2">{c.emoji}</div>
                   <h3 className="font-bold text-gray-900 group-hover:text-amber-700 transition-colors">{c.name}</h3>
@@ -191,16 +213,17 @@ export default async function CityRemoteWorkPage({ params }: Params) {
                   {c.memberCount > 0 && (
                     <p className="text-xs font-semibold text-amber-700 mt-0.5">{c.memberCount} club member{c.memberCount === 1 ? '' : 's'}</p>
                   )}
-                  {c.nextEvent && (
-                    <p className="text-xs text-gray-500 mt-2">Next: {c.nextEvent.title}</p>
-                  )}
+                  <p className="text-xs text-gray-500 mt-2">
+                    {c.nextEvent ? `Next: ${c.nextEvent.title}` : 'No sessions scheduled yet'}
+                  </p>
+                  {!session && <p className="text-xs font-semibold text-amber-700 mt-2">Join Smileys to join this club →</p>}
                 </Link>
               ))}
             </div>
           )}
 
           {events.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" aria-describedby="recurring-note">
               {events.map(e => <EventCard key={e.id} event={e} timeZone={city.timezone} />)}
             </div>
           ) : (
@@ -210,7 +233,10 @@ export default async function CityRemoteWorkPage({ params }: Params) {
             </p>
           )}
           {events.length > 0 && (
-            <Link href={`/${city.slug}/events`} className="inline-block mt-8 text-sm font-bold text-amber-700 hover:text-amber-800">
+            <p id="recurring-note" className="mt-4 text-xs text-gray-500">Weekly sessions show their next date.</p>
+          )}
+          {events.length > 0 && (
+            <Link href={`/${city.slug}/events`} className="inline-block mt-6 text-sm font-bold text-amber-700 hover:text-amber-800">
               See every upcoming event in {city.name} <span aria-hidden="true">→</span>
             </Link>
           )}
