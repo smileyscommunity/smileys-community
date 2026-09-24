@@ -139,50 +139,12 @@ export default async function CityRemoteWorkPage({ params }: Params) {
         </div>
       </section>
 
-      {/* ── Practical guides ─────────────────────────────────────────── */}
-      {topics.length > 0 && (
-        <section className="py-12 sm:py-16 bg-gray-50 border-t border-gray-100">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="mb-8">
-              <h2 className="section-title">The practical side</h2>
-              <p className="section-subtitle max-w-2xl">From the Smileys Handbook.</p>
-            </div>
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {topics.map(topic => (
-                <div key={topic.key} className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
-                  <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-3">{topic.title}</h3>
-                  <ul className="space-y-3">
-                    {topic.articles.map(a => {
-                      // Only a review somebody actually did earns a date
-                      // (lib/handbook-review) — unreviewed shows none.
-                      const reviewed = reviewLabel(a)
-                      return (
-                        <li key={a.slug}>
-                          <Link href={`/handbook/${a.slug}`} className="font-semibold text-gray-900 hover:text-amber-700 leading-snug">
-                            {a.title}
-                          </Link>
-                          {(reviewed || a.hasOfficialSources) && (
-                            <p className="text-xs text-gray-500 mt-0.5">
-                              {[reviewed && !reviewed.stale ? reviewed.text : null, a.hasOfficialSources ? 'Links official sources' : null]
-                                .filter(Boolean).join(' · ')}
-                            </p>
-                          )}
-                        </li>
-                      )
-                    })}
-                  </ul>
-                </div>
-              ))}
-            </div>
-            <Link href={`/handbook?city=${city.slug}`} className="inline-block mt-8 text-sm font-bold text-amber-700 hover:text-amber-800">
-              Browse the whole {city.name} handbook <span aria-hidden="true">→</span>
-            </Link>
-          </div>
-        </section>
-      )}
-
+      {/* Order (reader-based, 2026-09-25): a remote worker's first question
+          after the 72-hour steps is where to work and who with, so the
+          coworking sessions and events come before the Handbook guides —
+          the steps above already link the guides they need first. */}
       {/* ── Work and meet people ─────────────────────────────────────── */}
-      <section id="work-and-meet" className="py-12 sm:py-16 bg-white border-t border-gray-100 scroll-mt-20">
+      <section id="work-and-meet" className="py-12 sm:py-16 bg-gray-50 border-t border-gray-100 scroll-mt-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="mb-8">
             <h2 className="section-title">Work and meet people</h2>
@@ -210,7 +172,7 @@ export default async function CityRemoteWorkPage({ params }: Params) {
                 // Club pages are members-only; guests go to this city's
                 // application instead (lib/clubLink).
                 <Link key={c.id} href={clubHref(c.slug, session ? 'member' : 'guest', city.slug)}
-                  className="group bg-gray-50 border border-gray-100 rounded-2xl p-5 hover:border-amber-200 hover:shadow-md transition-all">
+                  className="group bg-white border border-gray-100 rounded-2xl shadow-sm p-5 hover:border-amber-200 hover:shadow-md transition-all">
                   <div aria-hidden="true" className="text-2xl mb-2">{c.emoji}</div>
                   <h3 className="font-bold text-gray-900 group-hover:text-amber-700 transition-colors">{c.name}</h3>
                   {/* Members OF THIS CLUB in this city — never the Smileys
@@ -247,6 +209,48 @@ export default async function CityRemoteWorkPage({ params }: Params) {
           )}
         </div>
       </section>
+
+      {/* ── Practical guides ─────────────────────────────────────────── */}
+      {topics.length > 0 && (
+        <section className="py-12 sm:py-16 bg-white border-t border-gray-100">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="mb-8">
+              <h2 className="section-title">The practical side</h2>
+              <p className="section-subtitle max-w-2xl">From the Smileys Handbook.</p>
+            </div>
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {topics.map(topic => (
+                <div key={topic.key} className="bg-gray-50 border border-gray-100 rounded-2xl p-5">
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-3">{topic.title}</h3>
+                  <ul className="space-y-3">
+                    {topic.articles.map(a => {
+                      // Only a review somebody actually did earns a date
+                      // (lib/handbook-review) — unreviewed shows none.
+                      const reviewed = reviewLabel(a)
+                      return (
+                        <li key={a.slug}>
+                          <Link href={`/handbook/${a.slug}`} className="font-semibold text-gray-900 hover:text-amber-700 leading-snug">
+                            {a.title}
+                          </Link>
+                          {(reviewed || a.hasOfficialSources) && (
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              {[reviewed && !reviewed.stale ? reviewed.text : null, a.hasOfficialSources ? 'Links official sources' : null]
+                                .filter(Boolean).join(' · ')}
+                            </p>
+                          )}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </div>
+              ))}
+            </div>
+            <Link href={`/handbook?city=${city.slug}`} className="inline-block mt-8 text-sm font-bold text-amber-700 hover:text-amber-800">
+              Browse the whole {city.name} handbook <span aria-hidden="true">→</span>
+            </Link>
+          </div>
+        </section>
+      )}
 
       {/* ── Not legal or tax advice ──────────────────────────────────── */}
       <section className="bg-white">
