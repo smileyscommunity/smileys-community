@@ -165,6 +165,8 @@ export async function POST(req: NextRequest) {
     'onboarding', 'partner', 'posts', 'privacy', 'pro', 'reset-password',
     'terms', 'unsubscribe', 'verify-email', 'visiting', 'why',
     'dashboard', 'members', 'messages', 'account', 'search', 'hangouts',
+    // The city-agnostic hub entries (app/moving, app/remote-work, app/students).
+    'moving', 'remote-work', 'students', 'cities',
   ])
   if (RESERVED_SLUGS.has(slug)) {
     return NextResponse.json({ error: `"${slug}" collides with an existing page — pick a different city name or add a qualifier` }, { status: 400 })

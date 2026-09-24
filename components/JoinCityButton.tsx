@@ -18,6 +18,7 @@ export default function JoinCityButton({
   slug,
   name,
   live = true,
+  from,
 }: {
   slug: string
   name: string
@@ -25,6 +26,10 @@ export default function JoinCityButton({
   // instead. Sending them to /apply would ask an existing member to apply to
   // Smileys a second time.
   live?: boolean
+  // The hub a guest came from ('students'), passed through to /apply so the
+  // form can say the one line that page's reader needs. Unknown values are
+  // ignored there.
+  from?: 'students'
 }) {
   const { isLoggedIn, isLoading } = useAuth()
   const [state, setState] = useState<'unknown' | 'member' | 'joinable' | 'interested' | 'notify'>('unknown')
@@ -58,7 +63,7 @@ export default function JoinCityButton({
   // the form carries the city through so a pre-launch signup is captured.
   if (!isLoggedIn) {
     return (
-      <Link href={`/apply?city=${slug}`} className="btn-primary text-base px-8 py-4">
+      <Link href={`/apply?city=${slug}${from ? `&from=${from}` : ''}`} className="btn-primary text-base px-8 py-4">
         {live ? `Join Smileys ${name}` : `Get notified about ${name}`}
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />

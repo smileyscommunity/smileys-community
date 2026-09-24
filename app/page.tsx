@@ -289,9 +289,9 @@ export default async function HomePage() {
       )}
 
       {/* ── How are you coming? ─────────────────────────────────────────── */}
-      {/* The three arrival hubs side by side, so a visitor picks the page
-          written for them in one glance: the traveller's (/visiting), the
-          remote worker's and the relocating expat's (per-city hubs). With one
+      {/* The arrival hubs side by side, so a visitor picks the page written
+          for them in one glance: the traveller's (/visiting), the remote
+          worker's, the relocating expat's and the student's (per-city hubs). With one
           live city the links pin it and the heading names it; otherwise each
           resolves to the reader's city. Only paths — no counts — so nothing
           here can drift from what the hubs themselves show. */}
@@ -303,7 +303,7 @@ export default async function HomePage() {
             </h2>
             <p className="section-subtitle max-w-2xl">A page for each way of arriving, with the practical side and the people.</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
             {[
               {
                 // The default city's Visiting page is the bare URL (its canonical).
@@ -323,6 +323,12 @@ export default async function HomePage() {
                 emoji: '🏡', title: 'Moving here',
                 body:  'Building a life here. Residence permits, housing, banking, healthcare, neighbourhoods — and people who have already figured it out.',
                 cta:   'Start your move',
+              },
+              {
+                href:  singleCity ? `/students?city=${flagship.slug}` : '/students',
+                emoji: '🎓', title: singleCity ? `Studying in ${flagship.name}?` : 'International students',
+                body:  'Meet people beyond your campus, discover the city, and make your semester more than lectures.',
+                cta:   'Your first week',
               },
             ].map(t => (
               <Link key={t.title} href={t.href}

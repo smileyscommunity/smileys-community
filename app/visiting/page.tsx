@@ -883,7 +883,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
             <div aria-hidden="true" className="text-2xl shrink-0">📖</div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold text-gray-900">Arriving soon? Read the Handbook.</p>
-              <p className="text-xs text-gray-600 mt-0.5">Residence permits, banking, transport — written by members who lived it.</p>
+              <p className="text-xs text-gray-600 mt-0.5">Residence permits, banking, transport — practical guides from the Smileys team.</p>
             </div>
             <span className="text-sm font-bold text-gray-700 shrink-0 group-hover:translate-x-0.5 transition-transform">→</span>
           </div>

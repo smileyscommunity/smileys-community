@@ -17,6 +17,7 @@ import type { Event } from '@/lib/data'
 import { LIVE_BOARD_AUTHOR, SHOWN_REPLY } from '@/lib/boardAccess'
 import { firstNameOf } from '@/lib/data'
 import { isWorkClub, pickHubEvents } from '@/lib/remoteWork'
+import { pickFirstEvents, pickRegularEvents, eventFilterLinks } from '@/lib/students'
 import { getCityHandbookIndex } from '@/lib/handbookIndex'
 
 // Everything the city shopfront reads, in one place, with the one boundary
@@ -440,5 +441,44 @@ export const getCityMovingHub = unstable_cache(
     }
   },
   ['city-moving-hub'],
+  { revalidate: 60, tags: ['home'] },
+)
+
+// ── Student hub (/[city]/students) ──────────────────────────────────────────
+//
+// Erasmus, exchange and international students (lib/students holds the rules).
+// Existing data only: the Handbook index, the city's upcoming events, its
+// clubs and neighbourhoods, and the city's own Erasmus story when it has one.
+// Events are cached raw and redacted per request by the page, like every
+// other hub; the filter links carry counts and paths, never event fields.
+
+export const getCityStudentHub = unstable_cache(
+  async (cityId: string, citySlug: string, country: string | null) => {
+    const [articles, { events }, clubs, neighborhoodCount, story] = await Promise.all([
+      getCityHandbookIndex(cityId, country),
+      getEvents({ limit: HUB_LIMIT, upcoming: true, cityId }),
+      getClubs(cityId),
+      prisma.neighborhood.count({ where: { cityId, active: true } }),
+      // The city's own student story — a community post pinned to this city,
+      // found by what it is about. None → the page leaves the link out.
+      prisma.post.findFirst({
+        where:   { kind: 'community', status: 'published', cityId, OR: [{ title: { contains: 'Erasmus', mode: 'insensitive' } }, { title: { contains: 'exchange student', mode: 'insensitive' } }] },
+        orderBy: { publishedAt: 'desc' },
+        select:  { slug: true, title: true, excerpt: true },
+      }),
+    ])
+    const firstEvents   = pickFirstEvents(events)
+    const regularEvents = pickRegularEvents(events, new Set(firstEvents.map(e => e.id)))
+    return {
+      articles,
+      firstEvents,
+      regularEvents,
+      filterLinks: eventFilterLinks(events, citySlug),
+      clubCount:   clubs.length,
+      neighborhoodCount,
+      story,
+    }
+  },
+  ['city-student-hub'],
   { revalidate: 60, tags: ['home'] },
 )

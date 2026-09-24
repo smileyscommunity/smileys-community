@@ -50,6 +50,9 @@ export const DISCOVER_LINKS: NavLink[] = [
   // app/remote-work), so one link serves every city.
   { label: 'Moving Here',     href: '/moving',        emoji: '🏡', public: true  },
   { label: 'Remote Work',     href: '/remote-work',   emoji: '💻', public: true  },
+  // The student hub, with the other arrival hubs; /students resolves the
+  // reader's city like /moving and /remote-work.
+  { label: 'International Students', href: '/students', emoji: '🎓', public: true },
   { label: 'City Guide',      href: '/guide',         emoji: '🗺️', public: true  },
   { label: 'Handbook',        href: '/handbook',      emoji: '📖', public: true  },
   { label: 'Hosts',           href: '/hosts',         emoji: '🎤', public: true  },

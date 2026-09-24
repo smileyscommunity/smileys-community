@@ -81,6 +81,9 @@ function ApplyForm() {
   // Homepage city cards link here as /apply?city=<slug> — both the "Explore"
   // path and the "Get notified" path for a city that hasn't launched.
   const cityParam = searchParams.get('city') ?? ''
+  // Arrived from the student hub (/[city]/students): one reassurance line in
+  // the header. Nothing else changes — students apply like anyone else.
+  const fromStudents = searchParams.get('from') === 'students'
 
   const [honeypot,       setHoneypot]       = useState('')
   const [turnstileToken, setTurnstileToken] = useState('')
@@ -439,6 +442,9 @@ function ApplyForm() {
             <li>🆓 Joining is free — no subscription, no membership fee.</li>
             <li>✍️ Every application is reviewed by hand, within 24–48 hours.</li>
             <li>🎟️ You only pay for events you choose — prices shown before you RSVP.</li>
+            {fromStudents && (
+              <li>🎓 International students — Erasmus, exchange or a full degree — are welcome, with no university details needed. Events marked first-timer friendly are a good place to start.</li>
+            )}
           </ul>
         </div>
 

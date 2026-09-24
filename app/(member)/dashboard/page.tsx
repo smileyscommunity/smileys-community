@@ -1651,7 +1651,7 @@ export default async function DashboardPage() {
                 </div>
                 <Link href="/handbook" className="block mb-3 group">
                   <p className="text-xs font-semibold text-amber-600 mb-1">The Handbook</p>
-                  <p className="text-xs text-gray-600 leading-relaxed">Permits, banking, transport — written by members who lived it.</p>
+                  <p className="text-xs text-gray-600 leading-relaxed">Permits, banking, transport — practical guides from the Smileys team.</p>
                 </Link>
                 {/* The same two articles render in full in "From The
                     Handbook" in the centre column, at every breakpoint —

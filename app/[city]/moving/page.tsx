@@ -91,8 +91,7 @@ export default async function CityMovingPage({ params }: Params) {
           Make {city.name} <span className="text-amber-300">feel like home.</span>
         </h1>
         <p className="text-base sm:text-lg text-white/90 max-w-xl leading-relaxed mb-8">
-          Smileys pairs practical local knowledge — the Handbook, written by members who went through
-          it — with an in-person community, so you can sort out the paperwork, choose where to live,
+          Smileys pairs practical local knowledge — the Handbook&apos;s guides — with an in-person community, so you can sort out the paperwork, choose where to live,
           and build a real social life once you arrive.
         </p>
         <div className="flex flex-col sm:flex-row gap-3">
@@ -340,7 +339,7 @@ export default async function CityMovingPage({ params }: Params) {
             <aside aria-labelledby="moving-disclaimer" className="max-w-3xl rounded-2xl border border-gray-200 bg-gray-50 px-5 py-4">
               <h2 id="moving-disclaimer" className="text-sm font-bold text-gray-900 mb-1">Practical guidance, not professional advice</h2>
               <p className="text-sm text-gray-600 leading-relaxed">
-                The Handbook shares members&apos; practical experience. It is not legal, immigration, tax or
+                The Handbook shares practical guidance. It is not legal, immigration, tax or
                 medical advice, and rules, fees and requirements change. Where a guide links official
                 sources, confirm the current requirements there — or with a qualified adviser — before you act.
               </p>

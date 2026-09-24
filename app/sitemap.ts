@@ -146,7 +146,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       { url: `${BASE}/${c.slug}/directory`, priority: 0.75, changeFrequency: 'weekly' as const, lastModified: newestBusiness },
       { url: `${BASE}/${c.slug}/board`,     priority: 0.75, changeFrequency: 'daily'  as const, lastModified: newestListing },
     ])
-  // The remote-work and moving hubs have no global twin, so — unlike the listing hubs
+  // The remote-work, moving and student hubs have no global twin, so — unlike the listing hubs
   // above — every live city's is canonical to itself, the default included.
   // lastModified is its newest input: the events and Handbook it gathers.
   const remoteWorkRoutes: MetadataRoute.Sitemap = cities
@@ -154,6 +154,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     .flatMap(c => [
       { url: `${BASE}/${c.slug}/remote-work`, priority: 0.8, changeFrequency: 'weekly' as const, lastModified: newest([newestEvent, newestPost]) },
       { url: `${BASE}/${c.slug}/moving`,      priority: 0.8, changeFrequency: 'weekly' as const, lastModified: newest([newestEvent, newestPost]) },
+      { url: `${BASE}/${c.slug}/students`,    priority: 0.8, changeFrequency: 'weekly' as const, lastModified: newest([newestEvent, newestPost]) },
     ])
   // The pages with no hub of their own: for every city but the default they
   // are canonical at their ?city= URL (lib/cityPageParam), which nothing linked

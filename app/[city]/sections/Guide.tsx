@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import type { PublicCity, EnterLink } from '../data'
 
-// The moving and remote-work hubs gather this section's practical links into
+// The moving, remote-work and student hubs gather this section's practical links into
 // arrival paths; text links rather than more buttons. Only live cities render this
 // section, and every live city has a hub.
 function RemoteWorkLink({ city }: { city: PublicCity }) {
@@ -12,6 +12,9 @@ function RemoteWorkLink({ city }: { city: PublicCity }) {
       </Link>
       <Link href={`/${city.slug}/remote-work`} className="text-amber-700 hover:text-amber-800">
         Working remotely? Your first 72 hours <span aria-hidden="true">→</span>
+      </Link>
+      <Link href={`/${city.slug}/students`} className="text-amber-700 hover:text-amber-800">
+        International student? Your first week <span aria-hidden="true">→</span>
       </Link>
     </div>
   )

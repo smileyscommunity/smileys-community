@@ -145,7 +145,7 @@ export default async function CityRemoteWorkPage({ params }: Params) {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="mb-8">
               <h2 className="section-title">The practical side</h2>
-              <p className="section-subtitle max-w-2xl">From the Smileys Handbook — written by members who lived it.</p>
+              <p className="section-subtitle max-w-2xl">From the Smileys Handbook.</p>
             </div>
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {topics.map(topic => (
@@ -254,7 +254,7 @@ export default async function CityRemoteWorkPage({ params }: Params) {
           <aside aria-labelledby="legal-note" className="max-w-3xl rounded-2xl border border-gray-200 bg-gray-50 px-5 py-4">
             <h2 id="legal-note" className="text-sm font-bold text-gray-900 mb-1">Practical guidance, not legal or tax advice</h2>
             <p className="text-sm text-gray-600 leading-relaxed">
-              The guides here are members&apos; practical experience. Visa, residence and tax rules depend on your
+              The guides here are practical guidance. Visa, residence and tax rules depend on your
               nationality and circumstances, and they change.{' '}
               {legalCitesSources
                 ? 'Check the official sources each guide links to, and a qualified adviser for your own situation, before you rely on them.'
