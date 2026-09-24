@@ -1,8 +1,6 @@
 import Link from 'next/link'
 import { formatDay, fromWallClockInTz, todayInTz, shiftDay } from '@/lib/cityTime'
-import Image from 'next/image'
-import { existsSync } from 'fs'
-import { join } from 'path'
+import PhotoHero, { HERO_SECONDARY } from '@/components/PhotoHero'
 import { APP_URL } from '@/lib/env'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
@@ -14,7 +12,7 @@ import { redirect } from 'next/navigation'
 import { DEFAULT_CITY_SLUG } from '@/lib/city'
 import { resolveCityForPage, type CitySearch } from '@/lib/cityPageParam'
 import { shareCover } from '@/lib/shareCover'
-import { resolveImageUrl, firstNameOf, formatPrice } from '@/lib/data'
+import { firstNameOf, formatPrice } from '@/lib/data'
 import { getPublicCities } from '@/lib/cities'
 import { getCityHandbookIndex } from '@/lib/handbookIndex'
 import { canonicalCategory } from '@/lib/handbook-categories'
@@ -503,83 +501,47 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
   const hereAvailability = thisCityAvailability ? cityAvailability(thisCityAvailability) : 'coming_soon'
 
 
-  const ownHero = existsSync(join(process.cwd(), 'public', 'images', `visiting-hero-${city.slug}.jpg`))
-    ? `visiting-hero-${city.slug}.jpg` : null
-
   return (
     <div className={`min-h-screen bg-white ${viewerVisit ? '' : 'pb-24 md:pb-0'}`}>
-      {/* Hero — full-bleed cinematic photo with the copy overlaid. The
-          gradient is what makes white text legible over a bright sunset
-          photo: without it the headline sits on the blown-out sky at the
-          horizon and drops well below AA. Kept opaque enough at the
-          bottom that the CTAs never land on the busy boat/crowd detail. */}
-      {/* min-height, not a fixed height: the headline wraps to four lines on
-          a phone, and a fixed box clipped the eyebrow off the top. */}
-      <section className="relative min-h-[500px] sm:min-h-[560px] lg:min-h-[620px] w-full overflow-hidden flex items-center">
-        {/* The city's own photo where it has one — this shot is Istanbul, down
-            to the signpost in it, and its alt text said so to screen readers on
-            every city's page. */}
-        {/* In order: a photo made for this page and city
-            (public/images/visiting-hero-<city>.jpg — the PhotoHero rule the
-            other arrival hubs follow), the city's hero photo, the Istanbul
-            fallback. */}
-        <Image
-          src={ownHero ? `/app/images/${ownHero}` : city.heroImage ? resolveImageUrl(city.heroImage) : '/app/images/visiting-hero.jpg'}
-          alt={ownHero
-            ? `A traveller on a ferry in ${city.name} at sunset, looking out across the water at the city`
-            : city.heroImage
-            ? `Smileys members in ${city.name}`
-            : 'Four Smileys members at an Istanbul viewpoint at sunset, one pointing across the Bosphorus toward a domed mosque, beside a signpost pointing to Galata Tower, Sultanahmet, and Hagia Sophia'}
-          fill
-          priority
-          fetchPriority="high"
-          sizes="100vw"
-          className="object-cover object-center"
-        />
-        <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/55 to-black/30" />
-        <div className="relative w-full py-16 sm:py-20">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
-            <div className="max-w-2xl">
-              <p className="text-xs font-bold tracking-[0.2em] uppercase text-amber-300 mb-4">
-                Visiting {city.name}
-              </p>
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-[1.1]">
-                Don&apos;t just visit {city.name}. Know someone here.
-              </h1>
-              <p className="text-base sm:text-lg text-white/90 mt-5 leading-relaxed max-w-xl">
-                Smileys brings together local recommendations, real events and a community of people
-                who live here — so you can find the parts of {city.name} you&apos;ll love, see what&apos;s
-                on during your stay, and meet a few people before you land.
-              </p>
-              <div className="mt-8 flex flex-col sm:flex-row gap-3">
-                {/* Posting is member-only (anonymous posting was tried and
-                    reverted — see app/(member)/visiting/new/page.tsx), so a
-                    logged-out visitor is sent to /apply rather than into a
-                    form that would just bounce them to login. */}
-                <a href="#plan"
-                  className="inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-amber-500 hover:bg-amber-600 text-white text-base font-bold rounded-xl transition-colors shadow-lg">
-                  Plan my visit
-                  <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                  </svg>
-                </a>
-                <a href="#tell"
-                  className="inline-flex items-center justify-center gap-2 px-7 py-3.5 border border-white/50 hover:bg-white/10 text-white text-base font-semibold rounded-xl transition-colors backdrop-blur-sm">
-                  {viewerVisit ? 'Your visit card' : 'Tell us you’re coming'}
-                </a>
-              </div>
-              <p className="text-xs sm:text-sm text-white/70 mt-5">
-                Real people <span aria-hidden="true">•</span> Local connections <span aria-hidden="true">•</span> No awkward cold introductions
-              </p>
-            </div>
-          </div>
+      {/* Hero — the shared PhotoHero the other arrival hubs use (Moving,
+          Remote work, Students): this city's own visiting-hero-<city>.jpg,
+          else its hero photo, under the same legibility gradient. */}
+      <PhotoHero kind="visiting" city={city} alt={`A traveller on a ferry in ${city.name} at sunset, looking out across the water at the city`}>
+        <Link href={`/${city.slug}`} className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-white/80 hover:text-white mb-6">
+          <span aria-hidden="true">←</span> Smileys {city.name}
+        </Link>
+        <p className="text-xs font-bold tracking-[0.2em] uppercase text-amber-300 mb-4">Visiting {city.name}</p>
+        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-[1.1] mb-5">
+          Don&apos;t just visit {city.name}. <span className="text-amber-300">Know someone here.</span>
+        </h1>
+        <p className="text-base sm:text-lg text-white/90 max-w-xl leading-relaxed mb-8">
+          Smileys brings together local recommendations, real events and a community of people
+          who live here — so you can find the parts of {city.name} you&apos;ll love, see what&apos;s
+          on during your stay, and meet a few people before you land.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-3">
+          {/* Posting is member-only (anonymous posting was tried and
+              reverted — see app/(member)/visiting/new/page.tsx), so the
+              second button leads to the explainer, not into a form. */}
+          <a href="#plan" className="btn-primary text-base px-8 py-4">
+            Plan my visit
+            <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+            </svg>
+          </a>
+          <a href="#tell" className={HERO_SECONDARY}>
+            {viewerVisit ? 'Your visit card' : 'Tell us you’re coming'}
+          </a>
         </div>
-      </section>
+        <p className="mt-6 text-sm text-white/75">
+          Real people <span aria-hidden="true">•</span> Local connections <span aria-hidden="true">•</span> No awkward cold introductions
+        </p>
+      </PhotoHero>
 
       {/* Value strip — four short promises. Deliberately terse: this sits
           between the hero and the visitor list, so anything longer pushes
           the actual people (the point of the page) further down. */}
-      <section className="border-b border-gray-100 bg-white">
+      <section className="bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-12">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {[
@@ -590,7 +552,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
             ].map(v => (
               <div key={v.title} className="bg-gray-50 border border-gray-100 rounded-2xl p-5">
                 <div aria-hidden="true" className="text-2xl mb-3">{v.icon}</div>
-                <h2 className="text-sm font-bold text-gray-900 mb-1.5">{v.title}</h2>
+                <h3 className="text-sm font-bold text-gray-900 mb-1.5">{v.title}</h3>
                 <p className="text-xs text-gray-600 leading-relaxed">{v.body}</p>
               </div>
             ))}
@@ -602,9 +564,9 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
           form: works without JavaScript, every control is a native labelled
           input, and the result is a shareable URL. Filters appear only when
           they would narrow the list (lib/tripPlan tripFilterOptions). */}
-      <section id="plan" aria-labelledby="plan-title" className="bg-white border-b border-gray-100 scroll-mt-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-14">
-          <h2 id="plan-title" className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">Plan your visit</h2>
+      <section id="plan" aria-labelledby="plan-title" className="bg-white border-t border-gray-100 scroll-mt-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+          <h2 id="plan-title" className="section-title">Plan your visit</h2>
           <ol className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm text-gray-600">
             {[
               { n: 1, label: 'Your dates',           href: '#plan' },
@@ -732,11 +694,13 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
           linking somewhere empty. The event notes are policy that holds in
           every city (the badge, host and price shown before RSVP, the FAQ's
           cancellation rule), not promises about any one event. */}
-      <section id="first-48" aria-labelledby="first-48-title" className="bg-white border-b border-gray-100 scroll-mt-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <h2 id="first-48-title" className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">Your first 48 hours</h2>
-          <p className="text-gray-600 mt-1">Four things to do once you land — each linked to the page that covers it.</p>
-          <ol className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+      <section id="first-48" aria-labelledby="first-48-title" className="bg-gray-50 border-t border-gray-100 scroll-mt-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+          <div className="mb-8">
+            <h2 id="first-48-title" className="section-title">Your first 48 hours</h2>
+            <p className="section-subtitle max-w-2xl">Four things to do once you land, in roughly this order.</p>
+          </div>
+          <ol className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {[
               {
                 title: 'Arrive and get connected',
@@ -769,7 +733,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
                 cta:   'See events',
               },
             ].map((st, i) => (
-              <li key={st.title} className="bg-gray-50 border border-gray-100 rounded-2xl p-5 flex flex-col">
+              <li key={st.title} className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 flex flex-col">
                 <span aria-hidden="true" className="w-8 h-8 rounded-full bg-amber-500 text-white text-sm font-extrabold flex items-center justify-center mb-3">{i + 1}</span>
                 <h3 className="font-bold text-gray-900 mb-1.5">{st.title}</h3>
                 <p className="text-sm text-gray-600 leading-relaxed flex-1">{st.body}</p>
@@ -782,7 +746,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
             {essentials.length > 0 && (
-              <div className="rounded-2xl border border-gray-200 p-5">
+              <div className="rounded-2xl border border-gray-100 bg-white shadow-sm p-5">
                 <h3 className="font-bold text-gray-900 mb-2">Handbook essentials</h3>
                 <ul className="space-y-1.5 text-sm">
                   {essentials.map(x => (
@@ -793,12 +757,12 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
                   ))}
                 </ul>
                 <p className="text-xs text-gray-500 mt-3 leading-relaxed">
-                  Written by members from experience, not legal, visa, medical or transport-operator advice. Fares,
+                  Practical guidance, not legal, visa, medical or transport-operator advice. Fares,
                   rules and requirements change — where a guide links official sources, check them before you rely on it.
                 </p>
               </div>
             )}
-            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-5">
+            <div className="rounded-2xl border border-gray-100 bg-white shadow-sm p-5">
               <h3 className="font-bold text-gray-900 mb-2">What a first Smileys event is like</h3>
               <ul className="space-y-2 text-sm text-gray-600 leading-relaxed">
                 <li className="flex gap-2"><span aria-hidden="true">👋</span><span>Events marked <span className="font-semibold text-gray-900">First-timer friendly</span> are picked by the team as easy ones to come to on your own.</span></li>
@@ -814,14 +778,16 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
       {/* First-timer strip — moved from /guide (see the comment above the
           firstTimers query): the curated essentials, not 100 attractions. */}
       {firstTimers.length > 0 && (
-        <section className="bg-amber-50 border-b border-amber-100">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-12">
-            <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-gray-900">Worth seeing first in {city.name}</h2>
-            <p className="text-gray-600 mt-1 mb-5">Start with these — everything else can wait.</p>
+        <section className="bg-white border-t border-gray-100">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+            <div className="mb-8">
+              <h2 className="section-title">Worth seeing first in {city.name}</h2>
+              <p className="section-subtitle max-w-2xl">Start with these — everything else can wait.</p>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               {firstTimers.map(e => (
                 <Link key={e.slug} href={`/guide/${e.slug}`}
-                  className="bg-white border border-amber-100 rounded-2xl p-4 hover:border-amber-300 hover:shadow-md transition-all group">
+                  className="bg-gray-50 border border-gray-100 rounded-2xl p-4 hover:border-amber-200 hover:shadow-md transition-all group">
                   <span aria-hidden="true" className="block text-3xl mb-2">{e.emoji}</span>
                   <p className="text-sm font-bold text-gray-900 leading-snug group-hover:text-amber-700 transition-colors">{e.title}</p>
                   <span className="inline-block text-xs font-bold text-amber-600 mt-2">Read guide →</span>
@@ -837,12 +803,14 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
           answer, and only with at least one experience) plus its day routes,
           which string existing experiences into a day. No new content. */}
       {(intents.length > 0 || routes.length > 0) && (
-        <section id="interests" aria-labelledby="interests-title" className="bg-white border-b border-gray-100 scroll-mt-20">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-            <h2 id="interests-title" className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">What kind of trip is it?</h2>
-            <p className="text-gray-600 mt-1">Experiences from the {city.name} Guide, by what you&apos;re in the mood for.</p>
+        <section id="interests" aria-labelledby="interests-title" className="bg-gray-50 border-t border-gray-100 scroll-mt-20">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+            <div className="mb-6">
+              <h2 id="interests-title" className="section-title">What kind of trip is it?</h2>
+              <p className="section-subtitle max-w-2xl">Experiences from the {city.name} Guide, by what you&apos;re in the mood for.</p>
+            </div>
             {intents.length > 0 && (
-              <ul className="flex flex-wrap gap-2 mt-5">
+              <ul className="flex flex-wrap gap-2">
                 {intents.map(a => (
                   <li key={a.value}>
                     <Link href={`/guide?for=${a.value}${guideQs}`}
@@ -862,7 +830,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   {routes.map(r => (
                     <Link key={r.slug} href={`/guide/routes/${r.slug}`}
-                      className="bg-gray-50 border border-gray-100 rounded-2xl p-4 hover:border-amber-200 hover:shadow-md transition-all group">
+                      className="bg-white border border-gray-100 rounded-2xl shadow-sm p-4 hover:border-amber-200 hover:shadow-md transition-all group">
                       <span aria-hidden="true" className="block text-2xl mb-1">{r.emoji}</span>
                       <p className="text-sm font-bold text-gray-900 group-hover:text-amber-700 transition-colors leading-snug">{r.title}</p>
                       {r.time && <p className="text-xs text-gray-500 mt-1">{r.time}</p>}
@@ -875,7 +843,8 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
         </section>
       )}
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      <section className="bg-white border-t border-gray-100">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
         {/* Full container width (not max-w-3xl) so the visitor cards can
             lay out 3-up on desktop; the handbook cross-link below keeps
             its own reading width so it doesn't stretch into a banner. */}
@@ -901,14 +870,15 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
         </Link>
         </div>
       </div>
+      </section>
 
       {/* ── Know where you're staying? ── */}
       <section id="stay" className="bg-gray-50 border-t border-gray-100 scroll-mt-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
-          <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">
-            Know where you&apos;re staying?
-          </h2>
-          <p className="text-gray-600 mt-2 mb-8">Discover your neighborhood before you arrive.</p>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+          <div className="mb-8">
+            <h2 className="section-title">Know where you&apos;re staying?</h2>
+            <p className="section-subtitle max-w-2xl">Discover your neighbourhood before you arrive.</p>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {neighborhoodPicks.map(n => (
               <Link key={n.name} href={`/neighborhoods/${n.slug}${cityQs}`}
@@ -925,8 +895,8 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
               </Link>
             ))}
           </div>
-          <Link href={`/neighborhoods${cityQs}`} className="inline-block mt-8 text-sm font-bold text-amber-600 hover:underline">
-            Explore all {city.name} neighborhoods →
+          <Link href={`/neighborhoods${cityQs}`} className="inline-block mt-8 text-sm font-bold text-amber-700 hover:text-amber-800">
+            Explore all {city.name} neighbourhoods <span aria-hidden="true">→</span>
           </Link>
         </div>
       </section>
@@ -940,10 +910,12 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
           and Report/Block sit on every profile and message thread. It
           promises no introductions — some visitors hear from nobody. */}
       <section id="tell" aria-labelledby="tell-title" className="bg-white border-t border-gray-100 scroll-mt-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
-          <h2 id="tell-title" className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">Tell the community you&apos;re coming</h2>
-          <p className="text-gray-600 mt-2 max-w-2xl">Post your dates and a short intro, and members in {city.name} can see you&apos;re on your way. Here&apos;s exactly how it works.</p>
-          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+          <div className="mb-8">
+            <h2 id="tell-title" className="section-title">Tell the community you&apos;re coming</h2>
+            <p className="section-subtitle max-w-2xl">Post your dates and a short intro, and members in {city.name} can see you&apos;re on your way. Here&apos;s exactly how it works.</p>
+          </div>
+          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {[
               { icon: '🪪', term: 'You need a Smileys account', desc: 'Posting your dates, messaging members and joining events are for approved members. Applying is free and every application is reviewed by a person.' },
               { icon: '👀', term: 'Who sees your visit', desc: 'Only signed-in members, unless you choose to list it publicly. Even then, people who aren’t signed in see only your first name and the month — never your exact dates, neighbourhood or contact details.' },
@@ -957,11 +929,10 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
             ))}
           </dl>
           <div className="mt-8 flex flex-col sm:flex-row gap-3">
-            <Link href={isMember ? newVisitHref : '/apply'}
-              className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
+            <Link href={isMember ? newVisitHref : '/apply'} className="btn-primary">
               {isMember ? ctaLabel : 'Apply to join — it’s free'}
             </Link>
-            <Link href="/guidelines" className="inline-flex items-center justify-center px-6 py-3 border border-gray-200 hover:bg-gray-50 text-gray-700 text-sm font-semibold rounded-xl transition-colors">
+            <Link href="/guidelines" className="btn-secondary">
               Community rules
             </Link>
           </div>
@@ -979,13 +950,11 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
         // still carries the viewer's club events, which it used to take down with it.
         if (picks.length === 0 && clubEventsDuringVisit.length === 0) return null
         return (
-          <section className="bg-white border-t border-gray-100">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
-              <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">
-                Perfect for your stay
-              </h2>
+          <section className="bg-gray-50 border-t border-gray-100">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+              <h2 className="section-title">Perfect for your stay</h2>
               {picks.length > 0 && (<>
-              <p className="text-gray-600 mt-2 mb-8">
+              <p className="section-subtitle max-w-2xl mb-8">
                 Experiences that suit the season you&apos;ll be here — from the {city.name} Guide.
               </p>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1030,18 +999,16 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
           there are none. Spontaneous plans are the fastest way a visitor
           actually meets people, which is this page's whole promise. */}
       {hangoutsDuringVisit.length > 0 && (
-        <section className="bg-amber-50/60 border-t border-amber-100">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
-            <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">
-              Hangouts while you&apos;re here
-            </h2>
-            <p className="text-gray-600 mt-2 mb-8">
-              Spontaneous plans from members — no RSVP ceremony, just show up.
-            </p>
+        <section className="bg-white border-t border-gray-100">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+            <div className="mb-8">
+              <h2 className="section-title">Hangouts while you&apos;re here</h2>
+              <p className="section-subtitle max-w-2xl">Spontaneous plans from members — no RSVP ceremony, just show up.</p>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {hangoutsDuringVisit.map(hg => (
                 <Link key={hg.id} href={`/hangouts/${hg.id}`}
-                  className="bg-white border border-amber-100 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-amber-300 transition-all group">
+                  className="bg-gray-50 border border-gray-100 rounded-2xl p-5 hover:shadow-md hover:border-amber-200 transition-all group">
                   <p className="font-bold text-gray-900 leading-snug group-hover:text-amber-700 transition-colors">
                     {hg.title}
                   </p>
@@ -1057,19 +1024,19 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
                 </Link>
               ))}
             </div>
-            <Link href="/hangouts" className="inline-block mt-6 text-sm font-bold text-amber-600 hover:underline">
-              All hangouts →
+            <Link href="/hangouts" className="inline-block mt-6 text-sm font-bold text-amber-700 hover:text-amber-800">
+              All hangouts <span aria-hidden="true">→</span>
             </Link>
           </div>
         </section>
       )}
 
       {/* ── Already in <city>? ── */}
-      <section className="bg-amber-50 border-t border-amber-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
+      <section className="bg-gray-50 border-t border-gray-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
           <div className="max-w-3xl">
-            <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">Already in {city.name}?</h2>
-            <p className="text-gray-700 mt-3 leading-relaxed">
+            <h2 className="section-title">Already in {city.name}?</h2>
+            <p className="section-subtitle">
               Someone is about to experience your city for the first time.
               Help make their arrival a little easier.
             </p>
@@ -1080,14 +1047,13 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
               { icon: '💡', label: 'Share a local tip'         },
               { icon: '🤝', label: 'Make an introduction'      },
             ].map(a => (
-              <div key={a.label} className="bg-white border border-amber-100 rounded-2xl p-5">
+              <div key={a.label} className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
                 <div aria-hidden="true" className="text-2xl mb-2">{a.icon}</div>
                 <p className="text-sm font-bold text-gray-900">{a.label}</p>
               </div>
             ))}
           </div>
-          <a href="#visitors"
-            className="inline-flex items-center justify-center gap-2 px-6 py-3 mt-8 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
+          <a href="#visitors" className="btn-primary mt-8">
             Welcome someone
             <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
@@ -1101,8 +1067,8 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
           just starting (few or no events yet); Coming soon means no community
           there yet. Same maturity signal as the city cards (lib/tripPlan). */}
       <section aria-labelledby="where-title" className="bg-white border-t border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
-          <h2 id="where-title" className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">Where you can use Smileys today</h2>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+          <h2 id="where-title" className="section-title">Where you can use Smileys today</h2>
           {hereAvailability !== 'active' && (
             <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 max-w-2xl">
               {hereAvailability === 'founding'
@@ -1138,29 +1104,24 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
           who used this feature. Dressing those up as visit stories would be
           fabrication, so the section stays out until real ones exist. */}
 
-      {/* ── Final CTA ── */}
-      <section className="bg-gray-900">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center">
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-white leading-tight">
+      {/* ── Final CTA ── the arrival hubs' closing block (Moving, Remote
+          work, Students): light, centred, one primary and one secondary. */}
+      <section className="py-14 sm:py-20 bg-gradient-to-b from-white to-amber-50 border-t border-gray-100">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
+          <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight text-gray-900 mb-4">
             Arrive knowing someone.
           </h2>
-          <p className="text-gray-300 mt-5 max-w-xl mx-auto leading-relaxed">
+          <p className="text-lg text-gray-600 mb-8">
             Tell the community you&apos;re coming and start making connections before you arrive.
           </p>
-          <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
-            <Link href={isMember ? newVisitHref : '/apply'}
-              className="inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-amber-500 hover:bg-amber-600 text-white text-base font-bold rounded-xl transition-colors">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link href={isMember ? newVisitHref : '/apply'} className="btn-primary text-base px-8 py-4">
               {ctaLabel}
               <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
               </svg>
             </Link>
-            {!isMember && (
-              <Link href="/apply"
-                className="inline-flex items-center justify-center gap-2 px-7 py-3.5 border border-white/40 hover:bg-white/10 text-white text-base font-semibold rounded-xl transition-colors">
-                Join Smileys
-              </Link>
-            )}
+            <a href="#plan" className="btn-secondary text-base px-8 py-4">Plan my visit</a>
           </div>
         </div>
       </section>

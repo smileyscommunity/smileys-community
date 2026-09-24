@@ -621,11 +621,9 @@ export default function VisitingClient({ announcements: all, events, cityCount, 
 
   return (
     <>
-      <div className="mb-6">
-        <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">
-          Who&apos;s Coming to {cityName}?
-        </h2>
-        <p className="text-gray-600 mt-2">
+      <div className="mb-8">
+        <h2 className="section-title">Who&apos;s coming to {cityName}?</h2>
+        <p className="section-subtitle max-w-2xl">
           Meet people arriving soon and help them feel at home.
         </p>
         {/* Stats banner */}

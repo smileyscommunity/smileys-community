@@ -4,7 +4,7 @@ import { join } from 'path'
 import { resolveImageUrl } from '@/lib/data'
 
 // The full-bleed photo hero the Visiting page uses, for the city hubs beside
-// it (Moving, Remote work, Students). The photo is, in order:
+// it (Moving, Remote work, Students, and Visiting itself). The photo is, in order:
 //
 //   public/images/<kind>-hero-<city slug>.jpg   a photo made for this page
 //   the city's hero photo from /admin/cities     every city has one
@@ -14,7 +14,7 @@ import { resolveImageUrl } from '@/lib/data'
 // section falls back to a plain dark background rather than a broken image —
 // the copy is white and needs something dark behind it either way.
 
-export type PhotoHeroKind = 'moving' | 'remote-work' | 'students'
+export type PhotoHeroKind = 'moving' | 'remote-work' | 'students' | 'visiting'
 
 // The outlined second button over the photo — btn-secondary is a white card
 // meant for a light page.
