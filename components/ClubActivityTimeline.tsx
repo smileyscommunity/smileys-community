@@ -42,7 +42,9 @@ type PhotoItem = {
   createdAt: Date | string
   href: string
   title: string
-  user: { name: string; color: string }
+  // null when the viewer wasn't at the event or in the club: the credit goes
+  // to the event, not the uploader (see the dashboard's recentPhotos).
+  user: { name: string; color: string } | null
 }
 
 type EventRsvp = {
@@ -360,10 +362,13 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
             return (
               <Link key={`ph-${i}`} href={href}
                     className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
-                <Avatar name={user.name} color={user.color} />
+                {user
+                  ? <Avatar name={user.name} color={user.color} />
+                  : <span aria-hidden="true" className="w-7 h-7 rounded-full bg-amber-50 flex items-center justify-center text-sm shrink-0">📸</span>}
                 <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
-                  <span className="font-semibold">{firstNameOf(user.name)}</span>
-                  {' posted photos · '}
+                  {user
+                    ? <><span className="font-semibold">{firstNameOf(user.name)}</span>{' posted photos · '}</>
+                    : 'New photos · '}
                   <span className="font-semibold text-amber-600">{title}</span>
                 </p>
                 <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>

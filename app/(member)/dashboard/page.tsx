@@ -705,28 +705,62 @@ export default async function DashboardPage() {
     // Merge event-attached photos with standalone club photos so a
     // photo uploaded directly to a club (no event) still surfaces here.
     // Over-fetch from each pool, then trim to 9 after a unified sort.
+    //
+    // Three sources, two ways of crediting them:
+    //   · events the viewer was at or ran, and their own uploads — credited
+    //     to the uploader, as before;
+    //   · everything else from a public, active club in the city — the
+    //     window onto clubs they haven't joined yet, and the reason this
+    //     strip widened (2026-09-24). Credited to the event or club, never
+    //     the person, and linked to the club's Photos tab.
+    // What was wrong before widening was never the photos: it was that the
+    // credit named the uploader — only attendees can upload, so a city-wide
+    // strip was an attendance roster, stealth guests included — and that
+    // private clubs' galleries went to everyone. Crediting the event (as the
+    // club gallery already does) and skipping private clubs keeps both shut;
+    // any member in the city can already open these public clubs' Photos tab.
     Promise.all([
-      // Only galleries the viewer can open: events they were at or ran, clubs
-      // they're in. The city's every photo named stealth guests and showed
-      // private clubs' galleries to everyone.
       prisma.eventPhoto.findMany({
         where: {
-          event: { cityId, OR: [{ id: { in: joinedEventIds } }, { hostId: session.id }, { cohosts: { some: { userId: session.id } } }] },
+          event: { cityId },
+          OR: [
+            { event: { OR: [{ id: { in: joinedEventIds } }, { hostId: session.id }, { cohosts: { some: { userId: session.id } } }] } },
+            { userId: session.id },
+            { event: { club: { isActive: true, isPrivate: false } } },
+          ],
           userId: { notIn: blockedIds }, user: LIVE,
         },
         orderBy: { createdAt: 'desc' },
         take: 9,
-        select: { id: true, url: true, caption: true, createdAt: true, eventId: true, event: { select: { title: true } }, user: { select: { name: true, color: true } } },
+        select: {
+          id: true, url: true, caption: true, createdAt: true, eventId: true, userId: true,
+          event: { select: { title: true, hostId: true, club: { select: { slug: true } }, cohosts: { where: { userId: session.id }, select: { id: true } } } },
+          user: { select: { name: true, color: true } },
+        },
       }),
       prisma.clubPhoto.findMany({
-        where: { clubId: { in: clubIds }, club: { isActive: true, OR: [{ cityId }, { cityId: null }] }, userId: { notIn: blockedIds }, user: LIVE },
+        where: {
+          OR: [{ clubId: { in: clubIds } }, { userId: session.id }, { club: { isPrivate: false } }],
+          club: { isActive: true, OR: [{ cityId }, { cityId: null }] },
+          userId: { notIn: blockedIds }, user: LIVE,
+        },
         orderBy: { createdAt: 'desc' },
         take: 9,
-        select: { id: true, url: true, caption: true, createdAt: true, club: { select: { slug: true, name: true } }, user: { select: { name: true, color: true } } },
+        select: { id: true, url: true, caption: true, createdAt: true, clubId: true, userId: true, club: { select: { slug: true, name: true } }, user: { select: { name: true, color: true } } },
       }),
     ]).then(([eventPhotos, clubPhotos]) => [
-      ...eventPhotos.map(p => ({ id: p.id, url: p.url, caption: p.caption, createdAt: p.createdAt, href: `/events/${p.eventId}`, title: p.event.title, user: p.user })),
-      ...clubPhotos.map(p => ({ id: p.id, url: p.url, caption: p.caption, createdAt: p.createdAt, href: `/clubs/${p.club.slug}?tab=photos`, title: p.club.name, user: p.user })),
+      ...eventPhotos.map(p => {
+        const inside = p.userId === session.id || joinedEventIds.includes(p.eventId) || p.event.hostId === session.id || p.event.cohosts.length > 0
+        return inside
+          ? { id: p.id, url: p.url, caption: p.caption, createdAt: p.createdAt, href: `/events/${p.eventId}`, title: p.event.title, user: p.user }
+          // The event page shows photos to attendees only, so an outsider is
+          // sent to the club's gallery, where these same photos are open.
+          : { id: p.id, url: p.url, caption: p.caption, createdAt: p.createdAt, href: p.event.club ? `/clubs/${p.event.club.slug}?tab=photos` : `/events/${p.eventId}`, title: p.event.title, user: null }
+      }),
+      ...clubPhotos.map(p => ({
+        id: p.id, url: p.url, caption: p.caption, createdAt: p.createdAt, href: `/clubs/${p.club.slug}?tab=photos`, title: p.club.name,
+        user: p.userId === session.id || clubIds.includes(p.clubId) ? p.user : null,
+      })),
     ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, 9)),
     // Trending: upcoming events with the most attendees. The featured-
     // event exclusion that used to live in the WHERE clause is now a
