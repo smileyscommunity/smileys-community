@@ -589,6 +589,12 @@ echo '  ✓ payment-reminders'
 chmod +x $REMOTE/scripts/db-backup.sh
 (crontab -l 2>/dev/null | grep -v 'db-backup' ; echo '0 2 * * * $REMOTE/scripts/db-backup.sh >> /var/log/db-backup.log 2>&1') | crontab -
 echo '  ✓ db-backup'
+# The admin-edited JSON in data/ (city guide, FAQ content, settings…) —
+# server-only, excluded from the rsync above, so otherwise never backed up.
+# To /root/data-backups, keeps 30. Ten minutes after db-backup.
+chmod +x $REMOTE/scripts/data-backup.sh
+(crontab -l 2>/dev/null | grep -v 'data-backup' ; echo '10 2 * * * $REMOTE/scripts/data-backup.sh >> /var/log/data-backup.log 2>&1') | crontab -
+echo '  ✓ data-backup'
 chmod +x $REMOTE/scripts/sweep-recommendation-dupes.sh; (crontab -l 2>/dev/null | grep -v 'sweep-recommendation-dupes' ; echo '47 3 * * * $REMOTE/scripts/sweep-recommendation-dupes.sh >> /var/log/sweep-recommendation-dupes.log 2>&1') | crontab -; echo '  ✓ recommendation-dupes'
 
 # Hourly reminders dispatch — replaces the hand-added crontab line that
