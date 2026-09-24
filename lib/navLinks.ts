@@ -28,11 +28,6 @@ export const DISCOVER_LINKS: NavLink[] = [
   { label: 'Experiences',     href: '/experiences',   emoji: '✨', public: true  },
   { label: 'Directory',       href: '/directory',     emoji: '📍', public: true  },
   { label: 'Neighborhoods',   href: '/neighborhoods', emoji: '🏘️', public: true  },
-  // The two arrival hubs (Visiting is the third, below / in the guest bar).
-  // Both redirect to the reader's own city (app/moving, app/remote-work), so
-  // one link serves every city.
-  { label: 'Moving Here',     href: '/moving',        emoji: '🏡', public: true  },
-  { label: 'Remote Work',     href: '/remote-work',   emoji: '💻', public: true  },
   // The two members-only entries, placed together and ABOVE the reference
   // block. They are the most time-sensitive things in this menu — a coffee
   // happening this week, someone landing in your city on Thursday — and they
@@ -46,6 +41,15 @@ export const DISCOVER_LINKS: NavLink[] = [
   // from their primary bar instead, so nobody sees either link twice.
   { label: 'Hangouts',        href: '/hangouts',      emoji: '☕', public: false },
   { label: 'Visiting',        href: '/visiting',      emoji: '👋', public: false },
+  // The other two arrival hubs, straight after Visiting so a member sees the
+  // three together — and after Hangouts/Visiting rather than above them: a
+  // relocation guide is the least urgent thing here for someone who already
+  // lives in the city. A guest's order is unchanged by this (Hangouts and
+  // Visiting aren't in their menu), so for them these still follow
+  // Neighborhoods. Both redirect to the reader's own city (app/moving,
+  // app/remote-work), so one link serves every city.
+  { label: 'Moving Here',     href: '/moving',        emoji: '🏡', public: true  },
+  { label: 'Remote Work',     href: '/remote-work',   emoji: '💻', public: true  },
   { label: 'City Guide',      href: '/guide',         emoji: '🗺️', public: true  },
   { label: 'Handbook',        href: '/handbook',      emoji: '📖', public: true  },
   { label: 'Hosts',           href: '/hosts',         emoji: '🎤', public: true  },
