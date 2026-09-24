@@ -8,8 +8,8 @@
 // block moved from /guide to /handbook in the IA cleanup, and on
 // 2026-09-24 off the index onto its own page, so these anchors resolve on
 // /handbook/quick-reference. The anchor matches the
-// slugified label TransitLinks generates (see
-// components/TransitLinks.tsx#categoryId).
+// slugified label QuickReference generates (see
+// components/QuickReference.tsx#categoryId).
 // Keys are CANONICAL handbook categories (see lib/handbook-categories) — call
 // canonicalCategory() on a stored value before looking up here. Categories
 // with no matching quick-reference section are deliberately absent rather than

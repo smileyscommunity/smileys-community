@@ -13,8 +13,14 @@
     scroll-behavior: smooth;
   }
 
+  /* clip, not hidden: `hidden` on both html and body turns body into its own
+     scroll container, which silently disabled every position: sticky on the
+     site — the navbar (sticky top-0) scrolled away with the page. `clip`
+     stops horizontal overflow without creating a scroll container. `hidden`
+     stays first as the fallback for browsers without clip (Safari < 16). */
   html, body {
     overflow-x: hidden;
+    overflow-x: clip;
   }
 
   body {

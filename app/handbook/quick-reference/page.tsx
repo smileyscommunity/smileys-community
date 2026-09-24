@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import TransitLinks from '@/components/TransitLinks'
+import QuickReference from '@/components/QuickReference'
 import { resolveCityForPage, type CitySearch } from '@/lib/cityPageParam'
 import { DEFAULT_CITY_SLUG } from '@/lib/city'
 import { APP_URL } from '@/lib/env'
@@ -36,8 +36,8 @@ export default async function QuickReferencePage({ searchParams }: Props) {
 
   return (
     <main className="bg-white">
-      <section className="border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12"><div className="max-w-3xl">
+      <section>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-6"><div className="max-w-3xl">
           <Link href="/handbook" className="text-xs text-amber-600 font-semibold hover:underline">← The {city.name} Handbook</Link>
           <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900 mt-4">Quick reference</h1>
           <p className="text-gray-600 mt-2 leading-relaxed">
@@ -53,10 +53,8 @@ export default async function QuickReferencePage({ searchParams }: Props) {
         </div></div>
       </section>
       <section>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="max-w-3xl">
-            <TransitLinks categories={categories} />
-          </div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
+          <QuickReference categories={categories} />
         </div>
       </section>
     </main>

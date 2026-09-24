@@ -1,6 +1,6 @@
 import { readFileSync } from 'fs'
 import { join } from 'path'
-import type { Category } from '@/components/TransitLinks'
+import type { Category } from '@/components/QuickReference'
 
 // Quick-reference links (apps, official sites, practical how-tos) —
 // moved here from /guide in the information-architecture cleanup: the
@@ -16,14 +16,12 @@ export function loadQuickReference(): Category[] {
       .map((cat: { icon: string; label: string; updatedAt?: string; resources?: unknown[] }) => ({
         icon:      cat.icon,
         label:     cat.label,
-        color:     'bg-amber-100 text-amber-700',
         updatedAt: cat.updatedAt,
         resources: ((cat.resources ?? []) as { title: string; description: string; href?: string; badge?: string; tip?: string }[]).map(r => ({
           title:       r.title,
           description: r.description,
           href:        r.href || undefined,
           badge:       r.badge || undefined,
-          badgeColor:  r.badge ? 'bg-amber-100 text-amber-700' : undefined,
           tip:         r.tip  || undefined,
         })),
       }))
