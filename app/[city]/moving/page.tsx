@@ -254,6 +254,21 @@ export default async function CityMovingPage({ params }: Params) {
             </p>
           </div>
 
+          {/* For guests only, and only as true as the cards below: members-only
+              is a per-event flag, so the note says "these" when every card
+              carries it and points at the badge when only some do. Said up
+              front because a newcomer planning a move needs the 24–48h review
+              in the plan, not at the RSVP button. */}
+          {!session && events.some(e => e.membersOnly) && (
+            <p className="mb-6 max-w-2xl rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              <span aria-hidden="true">🔒 </span>
+              {events.every(e => e.membersOnly)
+                ? 'These events are for Smileys members.'
+                : 'Events marked “Members only” are for Smileys members.'}{' '}
+              Joining is free, and applications are reviewed within 24–48 hours.
+            </p>
+          )}
+
           {events.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
               {events.map(e => <EventCard key={e.id} event={e} timeZone={city.timezone} />)}
@@ -306,6 +321,11 @@ export default async function CityMovingPage({ params }: Params) {
               handyman — members ask each other on the {city.name} community board.
             </p>
             <p className="text-xs text-gray-500 mt-2">Answers are members&apos; own experiences, not recommendations or endorsements by Smileys.</p>
+            {/* Reading is public (the board hub); posting is members-only
+                (app/(member)/board/new, and the API refuses a guest). */}
+            {!session && (
+              <p className="text-xs text-gray-500 mt-1">Anyone can read the board; posting a question needs a Smileys account.</p>
+            )}
             <Link href={boardHref} className="inline-block mt-4 text-sm font-bold text-amber-700 hover:text-amber-800">
               Open the community board <span aria-hidden="true">→</span>
             </Link>
