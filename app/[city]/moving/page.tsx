@@ -82,7 +82,7 @@ export default async function CityMovingPage({ params }: Params) {
   return (
     <>
       {/* ── Hero ─────────────────────────────────────────────────────── */}
-      <PhotoHero kind="moving" city={city} alt={`Moving to ${city.name}`}>
+      <PhotoHero kind="moving" city={city} alt={`Two people at a café table on a cobbled street in ${city.name}, one holding a set of keys, the water in the distance`}>
         <Link href={`/${city.slug}`} className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-white/80 hover:text-white mb-6">
           <span aria-hidden="true">←</span> Smileys {city.name}
         </Link>
