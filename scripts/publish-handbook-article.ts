@@ -17,9 +17,15 @@
 // through lib/handbook-categories' canonicalCategory (aliases accepted, but
 // the canonical key is what gets stored — no new legacy rows).
 //
-// Idempotent: skips if the slug already exists. notifiedAt is set at insert so
-// the "new article" broadcast never claims it — a city-local article shouldn't
-// ping every other city's members, and a backfilled one shouldn't ping anyone.
+// Idempotent: skips if the slug already exists.
+//
+// Members are told, like a publish from the admin panel: after the insert it
+// runs the same notifyNewArticle (bell + push, scoped to the article's city or
+// country, muted members and quiet hours respected, author excluded). The dry
+// run prints how many members that is. NOTIFY=0 publishes silently — for a
+// backfill or a republished old article, where a "new article" bell is noise;
+// the row then gets notifiedAt so nothing announces it later by accident.
+// (Nate, 2026-09-26: script-published articles notify from now on.)
 // lastReviewedAt stays null on purpose: it renders "not yet reviewed", which
 // is honest until someone in that city checks the facts.
 import { readFileSync } from 'fs'
@@ -27,8 +33,10 @@ import { prisma } from '@/lib/prisma'
 import { canonicalCategory } from '@/lib/handbook-categories'
 import { toCountryCode, countryName } from '@/lib/country'
 import { writeAudit } from '@/lib/audit'
+import { notifyNewArticle } from '@/lib/notify'
 
 const DRY_RUN = process.env.DRY_RUN === '1'
+const NOTIFY  = process.env.NOTIFY !== '0'
 
 interface ArticleInput {
   title:           string
@@ -145,7 +153,14 @@ async function main() {
     scope  = `${city.name} only`
   }
 
+  // Who the "new article" bell reaches — the same where notifyNewArticle uses.
+  const audience = await prisma.user.count({ where: {
+    status: 'approved',
+    ...(cityId ? { cityId } : article.country ? { city: { country: article.country } } : {}),
+    id: { not: author.id },
+  } })
   console.log(`→ publish "${article.title}" [${article.category}] as ${author.name}, scope: ${scope}`)
+  console.log(NOTIFY ? `  notify: ${audience} approved members (bell + push; muted members and quiet hours respected)` : '  notify: none (NOTIFY=0)')
   if (DRY_RUN) { console.log('  DRY RUN — nothing written'); return }
 
   const now = new Date()
@@ -162,7 +177,8 @@ async function main() {
       cityId,
       country: cityId ? null : article.country,
       publishedAt: now,
-      notifiedAt:  now,
+      // null → notifyNewArticle below claims it; NOTIFY=0 marks it done now.
+      notifiedAt:  NOTIFY ? null : now,
       tags:        article.tags,
       officialSources: article.officialSources,
       // lastReviewedAt / reviewIntervalDays deliberately unset — see header.
@@ -175,6 +191,11 @@ async function main() {
     `Published article "${post.title}" (${post.category})`,
   )
   console.log(`✓ published ${post.slug} (${post.id})`)
+  if (NOTIFY) {
+    await notifyNewArticle(post)
+    const sent = await prisma.notification.count({ where: { type: 'new_article', link: `/handbook/${post.slug}` } })
+    console.log(`✓ notified ${sent} members`)
+  }
 }
 
 main().then(() => process.exit(0)).catch(e => { console.error('✗', e instanceof Error ? e.message : e); process.exit(1) })
