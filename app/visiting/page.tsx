@@ -469,7 +469,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
         {e.language?.trim() && <><span aria-hidden="true"> · </span><span className="sr-only">Language: </span>{e.language.trim()}</>}
       </p>
       {e.isFirstTimerFriendly && (
-        <p className="inline-block mt-2 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+        <p className="self-start inline-block mt-2 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
           <span aria-hidden="true">👋 </span>First-timer friendly
         </p>
       )}
