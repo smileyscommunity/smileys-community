@@ -1437,19 +1437,24 @@ export async function sendEventReminderEmail(
   // Set for a limited event: its cancellation cutoff, named in the footer.
   // time: the start, shown beside the date — the hourly sweep's day-before
   // reminder passes it; the admin "remind attendees" button doesn't.
-  opts: { cancelCutoffHours?: number | null; time?: string | null } = {},
+  // startsInHours: the same-day "starting soon" email (hourly sweep, ~6h
+  // ahead) — its own subject and line, so it doesn't read as a repeat of
+  // the day-before one.
+  opts: { cancelCutoffHours?: number | null; time?: string | null; startsInHours?: number | null } = {},
 ) {
+  const soonHours = opts.startsInHours != null ? Math.max(1, Math.round(opts.startsInHours)) : null
+  const soonLead  = soonHours != null ? `in ~${soonHours} hour${soonHours === 1 ? '' : 's'}` : null
   const firstName = firstNameOf(name)
   const url       = `${APP_URL}/events/${eventId}`
   await send('sendEventReminderEmail', {
     from: FROM, to: email,
-    subject: safeSubject(`Reminder: ${eventTitle} ${eventEmoji} is coming up!`),
+    subject: safeSubject(soonLead ? `Starting soon: ${eventTitle} ${eventEmoji}, ${soonLead}` : `Reminder: ${eventTitle} ${eventEmoji} is coming up!`),
     html: `
       <div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
         <div style="text-align:center;margin-bottom:28px">
           <span style="font-size:40px">${esc(eventEmoji)}</span>
           <h1 style="font-size:22px;font-weight:800;color:#111;margin:8px 0 4px">Don't forget, ${esc(firstName)}!</h1>
-          <p style="color:#6b7280;font-size:14px;margin:0"><strong>${esc(eventTitle)}</strong> is coming up soon.</p>
+          <p style="color:#6b7280;font-size:14px;margin:0"><strong>${esc(eventTitle)}</strong> ${soonLead ? `starts ${esc(soonLead)}` : 'is coming up soon'}.</p>
         </div>
         <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:16px 20px;margin-bottom:24px">
           <p style="color:#92400e;font-size:14px;margin:0"><strong>📅</strong> ${esc(prettyEventDate(eventDate))}${opts.time ? ` · ${esc(opts.time)}` : ''}</p>

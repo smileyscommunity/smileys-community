@@ -59,7 +59,7 @@ describe('the sweep uses it', () => {
   })
 })
 
-// The day-before reminder is emailed too (2026-09-26); "starting soon" is not.
+// Both reminders are emailed too (2026-09-26).
 describe('reminder email', () => {
   const route = readFileSync(join(__dirname, '..', 'app/api/admin/cron/reminders/route.ts'), 'utf8')
   const oneDay = route.slice(route.indexOf("'reminder_24h', 'Event tomorrow"), route.indexOf('if (is2h) {'))
@@ -75,7 +75,8 @@ describe('reminder email', () => {
     expect(oneDay.indexOf('sendEventReminderEmail')).toBeLessThan(oneDay.indexOf('else await releaseClaim(claim24)'))
   })
 
-  it('is not sent with "starting soon"', () => {
-    expect(soon).not.toContain('sendEventReminderEmail')
+  it('goes with "starting soon" too (2026-09-26), same mute rule, its own lead', () => {
+    expect(soon).toContain('if (user?.email && !remindersMuted.has(userId)) {')
+    expect(soon).toContain('startsInHours: diffHours')
   })
 })

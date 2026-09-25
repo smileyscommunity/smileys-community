@@ -374,7 +374,19 @@ async function runSweep() {
         const claim2 = `reminder-2h:${userId}:${event.id}`
         if (!sent2Set.has(`${userId}:/events/${event.id}`) && await claimOnce(claim2, 3 * 24 * 60 * 60 * 1000)) {
           // Same release-on-failure as the 24h reminder above.
-          if (await createNotification(userId, 'reminder_2h', 'Starting soon ⚡', startingSoonBody(event.title, event.time, diffHours), `/events/${event.id}`)) sent2h++
+          if (await createNotification(userId, 'reminder_2h', 'Starting soon ⚡', startingSoonBody(event.title, event.time, diffHours), `/events/${event.id}`)) {
+            sent2h++
+            // Emailed too, on the day-before email's rules: not to a member
+            // who muted "reminders", once per member per event (claim2).
+            if (user?.email && !remindersMuted.has(userId)) {
+              const cutoff = eventTier(event) === 'scarce' ? cancelCutoffHours(event) : null
+              Promise.resolve(sendEventReminderEmail(user.email, user.name, event.title, event.emoji, event.date, event.location, event.id, { cancelCutoffHours: cutoff, time: event.time, startsInHours: diffHours }))
+                .catch(async e => {
+                  console.error('Starting-soon email error:', e)
+                  await recordEmailFailure({ helper: 'sendEventReminderEmail', recipient: user.email, error: e, context: { eventId: event.id, kind: 'starting-soon' } })
+                })
+            }
+          }
           else await releaseClaim(claim2)
         }
       }
