@@ -163,16 +163,26 @@ describe('the same thing is not rendered twice on one page', () => {
     expect(src).not.toContain("'Events so far'")
   })
 
-  it('articles are pinned in one place, not in the timeline as well', () => {
-    // Every article in "From Smileys" was also a pinned timeline row, a few
-    // hundred pixels away in the same column.
+  it('articles are never pinned rows in the timeline', () => {
+    // Every article in "From Smileys" was once also a PINNED timeline row, a
+    // few hundred pixels away in the same column.
     expect(src).not.toContain('articles={recentArticles}')
   })
 
-  it('and the handbook list belongs to the strip with room for it', () => {
-    // Two articles were rendering in both the left rail and the centre column
-    // at every breakpoint.
-    expect(src.match(/latestHandbook\.map/g) ?? []).toHaveLength(1)
+  it('new articles and stories sit in Recent activity by date, for 14 days only', () => {
+    // Nate reversed the removal on 2026-09-26: a new Handbook article or
+    // Story is activity too. The difference from the pinned rows: it is
+    // time-ordered among member activity, and it drops out after 14 days, so
+    // a quiet week can't resurface an old article as new.
+    expect(src).toContain('articles={timelineArticles}')
+    expect(src).toMatch(/const ARTICLE_WINDOW_MS = 14 \* 24 \* 60 \* 60_000/)
+  })
+
+  it('and the handbook card list belongs to the strip with room for it', () => {
+    // Two articles were rendering as cards in both the left rail and the
+    // centre column at every breakpoint. One card list; the timeline's
+    // one-line mention maps the same rows but is not a second list.
+    expect(src.match(/latestHandbook\.map\(post =>/g) ?? []).toHaveLength(1)
   })
 })
 

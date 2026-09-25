@@ -631,7 +631,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                   {isHandbook ? '📖' : '📰'}
                 </div>
                 <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
-                  {isHandbook ? 'New handbook article — ' : 'New from Smileys — '}
+                  {isHandbook ? 'New in the Handbook — ' : 'New story — '}
                   <span className="font-semibold text-amber-600">{title}</span>
                 </p>
                 <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>

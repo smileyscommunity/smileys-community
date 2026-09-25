@@ -1273,7 +1273,7 @@ export default async function DashboardPage() {
       <div className="flex items-center justify-between mb-3">
         <div>
           <h2 className="text-xl font-bold text-gray-900">From The Handbook</h2>
-          <p className="text-xs text-gray-400 mt-0.5">Living in {city.name}, decoded by members</p>
+          <p className="text-xs text-gray-400 mt-0.5">Living in {city.name} — practical guides from the Smileys team</p>
         </div>
         <Link href="/handbook" className="text-sm text-amber-600 font-semibold hover:underline">All →</Link>
       </div>
@@ -1303,6 +1303,16 @@ export default async function DashboardPage() {
       </div>
     </div>
   )
+
+  // New Handbook articles and Stories in the Recent activity timeline, from
+  // the shelves' own rows (no extra query): the last 14 days only, so a quiet
+  // week doesn't surface a months-old article as "new". Title, slug and date
+  // are all the timeline reads — public content, nothing member-specific.
+  const ARTICLE_WINDOW_MS = 14 * 24 * 60 * 60_000
+  const timelineArticles = [
+    ...latestHandbook.map(p => ({ id: p.id, title: p.title, slug: p.slug, kind: 'handbook' as const,  publishedAt: p.publishedAt })),
+    ...latestPosts.map(p    => ({ id: p.id, title: p.title, slug: p.slug, kind: 'community' as const, publishedAt: p.publishedAt })),
+  ].filter(a => a.publishedAt && Date.now() - a.publishedAt.getTime() < ARTICLE_WINDOW_MS)
 
   // Whichever shelf has the newer article goes first. They are kept apart
   // on purpose (two editorial voices), but a fixed order buried a new
@@ -1831,7 +1841,7 @@ export default async function DashboardPage() {
                 mobile and desktop. Center column renders on every
                 viewport, so a single placement replaces the previous
                 two (mobile-only + right-rail) renders. */}
-            <ClubActivityTimeline members={recentActivity} posts={wallActivity} events={recentClubEvents} photos={recentPhotos} rsvps={recentRsvps} newMembers={newMembers} hangouts={recentHangouts} pulses={shownPulses} connections={recentConnections} references={recentReferences} newClubs={recentlyCreatedClubs} listings={wallListings} businesses={recentBusinesses} eventReviews={recentEventReviews} placeReviews={recentPlaceReviews} visitors={wallVisitors} hangoutJoins={recentHangoutJoins} hoodPosts={wallHoodPosts} resources={recentResources} testimonials={recentTestimonials} cityName={city.name} cap={12} />
+            <ClubActivityTimeline members={recentActivity} posts={wallActivity} events={recentClubEvents} photos={recentPhotos} rsvps={recentRsvps} newMembers={newMembers} hangouts={recentHangouts} pulses={shownPulses} connections={recentConnections} references={recentReferences} newClubs={recentlyCreatedClubs} listings={wallListings} businesses={recentBusinesses} eventReviews={recentEventReviews} placeReviews={recentPlaceReviews} visitors={wallVisitors} hangoutJoins={recentHangoutJoins} hoodPosts={wallHoodPosts} resources={recentResources} testimonials={recentTestimonials} articles={timelineArticles} cityName={city.name} cap={12} />
 
             {/* Upcoming visitors — surfaces /visiting + the new wave
                 action on the dashboard. Component renders nothing when
