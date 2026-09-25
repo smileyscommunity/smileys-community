@@ -5,7 +5,7 @@ import { timingSafeEqual } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notify'
 import { startingSoonDue, startingSoonBody, localHour } from '@/lib/startingSoonReminder'
-import { sendReviewRequestEmail, sendListingExpiryEmail, recordEmailFailure } from '@/lib/email'
+import { sendReviewRequestEmail, sendListingExpiryEmail, sendEventReminderEmail, recordEmailFailure } from '@/lib/email'
 import { checkInIsCredible, isNoShow, eventRunners, noShowExemptionReason } from '@/lib/noShowPolicy'
 import { eventTier, cancelCutoffHours } from '@/lib/standingPolicy'
 import { getSession } from '@/lib/session'
@@ -283,7 +283,8 @@ async function runSweep() {
     prisma.event.findMany({
       where: { OR: onDay(todayOrTomorrow), status: 'published' },
       include: {
-        attendees: { where: { status: 'approved' }, select: { userId: true, checkedIn: true } },
+        // user: the day-before reminder is emailed too.
+        attendees: { where: { status: 'approved' }, select: { userId: true, checkedIn: true, user: { select: { email: true, name: true } } } },
         cohosts:   { select: { userId: true } },
       },
     }),
@@ -308,9 +309,16 @@ async function runSweep() {
 
   const upcomingAttendeeIds = upcomingEvents.flatMap(e => e.attendees.map(a => a.userId))
   const upcomingLinks = upcomingEvents.map(e => `/events/${e.id}`)
-  const [sent24Set, sent2Set] = await Promise.all([
+  const [sent24Set, sent2Set, remindersMuted] = await Promise.all([
     sentKeys('reminder_24h', upcomingAttendeeIds, upcomingLinks),
     sentKeys('reminder_2h',  upcomingAttendeeIds, upcomingLinks),
+    // Who switched "reminders" off — the day-before email honours it. It
+    // can't lean on createNotification for that: a muted type returns true
+    // there ("handled"), the same as a written row.
+    prisma.notificationPreference.findMany({
+      where:  { userId: { in: [...new Set(upcomingAttendeeIds)] }, reminders: false },
+      select: { userId: true },
+    }).then(rows => new Set(rows.map(r => r.userId))),
   ])
   for (const event of upcomingEvents) {
     const eventTime = startsAtOf(event)
@@ -323,7 +331,7 @@ async function runSweep() {
 
     if (!is24h && !is2h) continue
 
-    for (const { userId } of event.attendees) {
+    for (const { userId, user } of event.attendees) {
       if (is24h) {
         const claim24 = `reminder-24h:${userId}:${event.id}`
         if (!sent24Set.has(`${userId}:/events/${event.id}`) && await claimOnce(claim24, 3 * 24 * 60 * 60 * 1000)) {
@@ -343,7 +351,22 @@ async function runSweep() {
           // would otherwise keep the claim and lose this reminder for the
           // whole window (the event is over before it expires). Hand it
           // back and let the next hourly tick, still inside 23–25h, retry.
-          if (await createNotification(userId, 'reminder_24h', 'Event tomorrow ⏰', body, `/events/${event.id}`)) sent24h++
+          if (await createNotification(userId, 'reminder_24h', 'Event tomorrow ⏰', body, `/events/${event.id}`)) {
+            sent24h++
+            // And by email, unless the member muted "reminders". Once per
+            // member per event: claim24 above is taken before either send.
+            // Same template as the admin "remind attendees" button; banned
+            // addresses are dropped inside lib/email. Fire-and-forget like
+            // the review email: lib/email paces sends, and a slow provider
+            // must not hold up the rest of the sweep.
+            if (user?.email && !remindersMuted.has(userId)) {
+              Promise.resolve(sendEventReminderEmail(user.email, user.name, event.title, event.emoji, event.date, event.location, event.id, { cancelCutoffHours: cutoff, time: event.time }))
+                .catch(async e => {
+                  console.error('Reminder email error:', e)
+                  await recordEmailFailure({ helper: 'sendEventReminderEmail', recipient: user.email, error: e, context: { eventId: event.id } })
+                })
+            }
+          }
           else await releaseClaim(claim24)
         }
       }

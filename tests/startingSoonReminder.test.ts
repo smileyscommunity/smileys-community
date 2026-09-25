@@ -58,3 +58,24 @@ describe('the sweep uses it', () => {
     expect(route).not.toContain('diffHours >= 1  && diffHours <= 3')
   })
 })
+
+// The day-before reminder is emailed too (2026-09-26); "starting soon" is not.
+describe('reminder email', () => {
+  const route = readFileSync(join(__dirname, '..', 'app/api/admin/cron/reminders/route.ts'), 'utf8')
+  const oneDay = route.slice(route.indexOf("'reminder_24h', 'Event tomorrow"), route.indexOf('if (is2h) {'))
+  const soon   = route.slice(route.indexOf('if (is2h) {'), route.indexOf('checkInNudges(upcomingEvents'))
+
+  it('goes out with the day-before notification, and not to a member who muted reminders', () => {
+    // createNotification returns true for a muted type, so the route must check the preference itself.
+    expect(oneDay).toContain('if (user?.email && !remindersMuted.has(userId)) {')
+    expect(route).toContain("where:  { userId: { in: [...new Set(upcomingAttendeeIds)] }, reminders: false },")
+    expect(oneDay).toContain('sendEventReminderEmail(user.email, user.name, event.title, event.emoji, event.date, event.location, event.id, { cancelCutoffHours: cutoff, time: event.time })')
+    // Inside the success branch: a failed write hands the claim back and retries next tick.
+    expect(oneDay.indexOf('sendEventReminderEmail')).toBeGreaterThan(oneDay.indexOf('sent24h++'))
+    expect(oneDay.indexOf('sendEventReminderEmail')).toBeLessThan(oneDay.indexOf('else await releaseClaim(claim24)'))
+  })
+
+  it('is not sent with "starting soon"', () => {
+    expect(soon).not.toContain('sendEventReminderEmail')
+  })
+})
