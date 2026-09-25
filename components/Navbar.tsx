@@ -237,7 +237,7 @@ export default function Navbar({
                       </svg>
                     </button>
                     {discoverOpen && (
-                      <div className="absolute top-full left-0 mt-1 w-56 bg-white rounded-xl border border-gray-100 shadow-lg overflow-hidden py-1 z-50">
+                      <div className="absolute top-full left-0 mt-1 w-56 max-h-[calc(100dvh-5rem)] overflow-y-auto overscroll-contain bg-white rounded-xl border border-gray-100 shadow-lg py-1 z-50">
                         {visible.map(link => (
                           <Link
                             key={link.href}
@@ -340,7 +340,7 @@ export default function Navbar({
                     </svg>
                   </button>
                   <div
-                    className={`absolute right-0 top-full mt-2 w-56 max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden z-50 transition-all duration-150 origin-top-right ${
+                    className={`absolute right-0 top-full mt-2 w-56 max-w-[calc(100vw-2rem)] max-h-[calc(100dvh-5rem)] overflow-y-auto overscroll-contain bg-white rounded-2xl shadow-lg border border-gray-100 z-50 transition-all duration-150 origin-top-right ${
                       dropdownOpen ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none'
                     }`}
                   >

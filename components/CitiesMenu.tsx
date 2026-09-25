@@ -277,7 +277,7 @@ export default function CitiesMenu({
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-lg border border-gray-100 py-2 z-50">
+        <div className="absolute right-0 mt-2 w-64 max-h-[calc(100dvh-5rem)] overflow-y-auto overscroll-contain bg-white rounded-2xl shadow-lg border border-gray-100 py-2 z-50">
           {signedIn && (
             <p className="px-4 pb-1 text-[11px] font-bold uppercase tracking-wider text-gray-400">Viewing</p>
           )}

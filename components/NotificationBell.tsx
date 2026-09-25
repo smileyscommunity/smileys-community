@@ -199,9 +199,13 @@ export default function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-1rem)] bg-white rounded-2xl shadow-xl border border-gray-100 z-50 overflow-hidden">
+        // Capped to the screen, with the list scrolling inside it. The navbar
+        // is sticky, so the page scrolling under it no longer brings a long
+        // dropdown's bottom into view — without the cap, the lower rows and
+        // "View all" sat off-screen with no way to reach them.
+        <div className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-1rem)] max-h-[calc(100dvh-5.5rem)] flex flex-col bg-white rounded-2xl shadow-xl border border-gray-100 z-50 overflow-hidden">
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+          <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-gray-100">
             <span className="font-semibold text-sm text-gray-900">
               Notifications {unread > 0 && <span className="ml-1 text-xs text-amber-600">({unread} new)</span>}
             </span>
@@ -221,7 +225,7 @@ export default function NotificationBell() {
           </div>
 
           {/* List */}
-          <div className="divide-y divide-gray-50">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain divide-y divide-gray-50">
             {notifs.length === 0 ? (
               <p className="px-4 py-8 text-sm text-gray-400 text-center">All caught up 🎉</p>
             ) : (
@@ -278,7 +282,7 @@ export default function NotificationBell() {
           </div>
 
           {/* Footer */}
-          <div className="border-t border-gray-100 flex">
+          <div className="shrink-0 border-t border-gray-100 flex">
             <Link href="/notifications" onClick={() => setOpen(false)}
               className="flex-1 text-center text-xs font-medium text-amber-600 hover:text-amber-700 py-3">
               {/* The server's count, not the loaded rows': "View all 30" was
