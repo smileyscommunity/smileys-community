@@ -913,10 +913,10 @@ export default async function DashboardPage() {
       take: 3,
       select: { id: true, name: true, category: true, createdAt: true },
     }),
-    // Event reviews — 4★+ only, mirroring the 'good'-vibes filter on
-    // hangout references so the wall stays celebratory, not gripey.
+    // Event reviews — 3★ and up (Nate, 2026-09-26: a middling review is
+    // still activity; 1–2★ stay off the wall, which stays friendly, not gripey).
     prisma.review.findMany({
-      where:   { rating: { gte: 4 }, createdAt: { gte: weekAgo }, userId: { notIn: notMeOrBlocked }, user: LIVE, event: { cityId } },
+      where:   { rating: { gte: 3 }, createdAt: { gte: weekAgo }, userId: { notIn: notMeOrBlocked }, user: LIVE, event: { cityId } },
       orderBy: { createdAt: 'desc' },
       take: 4,
       select: {
@@ -925,10 +925,11 @@ export default async function DashboardPage() {
         event: { select: { id: true, title: true, emoji: true } },
       },
     }),
-    // Directory reviews — 4★+, not moderated away, on live places only.
+    // Directory reviews — 3★ and up (same rule as event reviews), not
+    // moderated away, on live places only.
     prisma.businessReview.findMany({
       where: {
-        rating:    { gte: 4 },
+        rating:    { gte: 3 },
         isHidden:  false,
         createdAt: { gte: weekAgo },
         authorId:  { notIn: notMeOrBlocked },
