@@ -473,9 +473,6 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
           <span aria-hidden="true">👋 </span>First-timer friendly
         </p>
       )}
-      <span className="block text-xs font-bold text-gray-700 mt-auto pt-3 group-hover:text-amber-600 transition-colors">
-        View event →
-      </span>
       </div>
     </Link>
   )
