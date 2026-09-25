@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import Link from 'next/link'
 import { formatDay, fromWallClockInTz, todayInTz, shiftDay } from '@/lib/cityTime'
 import PhotoHero, { HERO_SECONDARY } from '@/components/PhotoHero'
@@ -12,7 +13,7 @@ import { redirect } from 'next/navigation'
 import { DEFAULT_CITY_SLUG } from '@/lib/city'
 import { resolveCityForPage, type CitySearch } from '@/lib/cityPageParam'
 import { shareCover } from '@/lib/shareCover'
-import { firstNameOf, formatPrice } from '@/lib/data'
+import { firstNameOf, formatPrice, resolveImageUrl } from '@/lib/data'
 import { getPublicCities } from '@/lib/cities'
 import { getCityHandbookIndex } from '@/lib/handbookIndex'
 import { canonicalCategory } from '@/lib/handbook-categories'
@@ -193,6 +194,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
       select:  {
         id: true, title: true, emoji: true, date: true, time: true, endTime: true, location: true, neighborhood: true,
         price: true, memberPrice: true, currency: true, isFirstTimerFriendly: true, language: true,
+          coverImage: true, coverImagePosition: true,
         // Attendee count is filtered to approved RSVPs so the "N going"
         // figure matches what the event page itself shows.
         _count: { select: { attendees: { where: { status: 'approved' } } } },
@@ -320,6 +322,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
         select:  {
           id: true, title: true, emoji: true, date: true, time: true, endTime: true, location: true, neighborhood: true,
           price: true, memberPrice: true, currency: true, isFirstTimerFriendly: true, language: true,
+          coverImage: true, coverImagePosition: true,
           _count: { select: { attendees: { where: { status: 'approved' } } } },
         },
         orderBy: [{ date: 'asc' }, { time: 'asc' }],
@@ -429,7 +432,23 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
   // the language — and each shows only when the event has it set.
   const VisitEventCard = ({ e }: { e: (typeof timedEvents)[number] }) => (
     <Link href={`/events/${e.id}`}
-      className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-amber-200 transition-all group focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500">
+      className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:border-amber-200 transition-all group flex flex-col focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500">
+      {/* The cover, as on the events page — these cards were text only, so
+          the one thing that sells an event at a glance was missing. The
+          emoji tile stands in when an event has none. */}
+      <div className="relative h-40 overflow-hidden shrink-0">
+        {e.coverImage ? (
+          <Image src={resolveImageUrl(e.coverImage)} alt="" fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            className="object-cover group-hover:scale-[1.03] transition-transform duration-500"
+            style={{ objectPosition: `center ${e.coverImagePosition ?? 50}%` }} />
+        ) : (
+          <div aria-hidden="true" className="w-full h-full flex items-center justify-center bg-gradient-to-br from-amber-100 to-orange-100">
+            <span className="text-5xl select-none">{e.emoji}</span>
+          </div>
+        )}
+      </div>
+      <div className="p-5 flex-1 flex flex-col">
       {/* When, relative to now in the city's own time — "Happening now",
           "Today", "Tomorrow" or the date — plus the start time. Finished
           events never reach this card (lib/tripPlan). */}
@@ -454,9 +473,10 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
           <span aria-hidden="true">👋 </span>First-timer friendly
         </p>
       )}
-      <span className="block text-xs font-bold text-gray-700 mt-3 group-hover:text-amber-600 transition-colors">
+      <span className="block text-xs font-bold text-gray-700 mt-auto pt-3 group-hover:text-amber-600 transition-colors">
         View event →
       </span>
+      </div>
     </Link>
   )
   const whenTone = (w: TripWhen) =>
