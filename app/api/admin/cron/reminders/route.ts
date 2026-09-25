@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { timingSafeEqual } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notify'
+import { startingSoonDue, startingSoonBody, localHour } from '@/lib/startingSoonReminder'
 import { sendReviewRequestEmail, sendListingExpiryEmail, recordEmailFailure } from '@/lib/email'
 import { checkInIsCredible, isNoShow, eventRunners, noShowExemptionReason } from '@/lib/noShowPolicy'
 import { eventTier, cancelCutoffHours } from '@/lib/standingPolicy'
@@ -316,7 +317,9 @@ async function runSweep() {
     const diffHours = (eventTime.getTime() - now.getTime()) / (60 * 60 * 1000)
 
     const is24h = diffHours >= 23 && diffHours <= 25
-    const is2h  = diffHours >= 1  && diffHours <= 3
+    // "Starting soon": ~6h ahead, never at night in the event's city
+    // (lib/startingSoonReminder). Still typed reminder_2h — see there.
+    const is2h  = startingSoonDue(diffHours, localHour(now, tzByCity.get(event.cityId) ?? DEFAULT_TZ))
 
     if (!is24h && !is2h) continue
 
@@ -348,7 +351,7 @@ async function runSweep() {
         const claim2 = `reminder-2h:${userId}:${event.id}`
         if (!sent2Set.has(`${userId}:/events/${event.id}`) && await claimOnce(claim2, 3 * 24 * 60 * 60 * 1000)) {
           // Same release-on-failure as the 24h reminder above.
-          if (await createNotification(userId, 'reminder_2h', 'Starting soon ⚡', `"${event.title}" starts in ~2 hours at ${event.time}`, `/events/${event.id}`)) sent2h++
+          if (await createNotification(userId, 'reminder_2h', 'Starting soon ⚡', startingSoonBody(event.title, event.time, diffHours), `/events/${event.id}`)) sent2h++
           else await releaseClaim(claim2)
         }
       }
