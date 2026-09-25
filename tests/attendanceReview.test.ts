@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // The review queue is the screen that exists to show what the sweep hides, so
 // the tests are about exactly that: the ratio against the bar, who was really
@@ -93,6 +93,13 @@ describe('attendanceReviewRows', () => {
 })
 
 describe('GET /api/attendance-review', () => {
+  // The route reads the real clock (new Date()), and EVENT is a fixed date:
+  // once it fell outside the review window the admin test went empty and
+  // failed, eight days after it was written. Freeze Date at the same NOW the
+  // unit tests pass explicitly — only Date, so promises and mocks still run.
+  beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(NOW) })
+  afterEach(() => { vi.useRealTimers() })
+
   it('refuses a signed-out reader', async () => {
     ;(getSession as any).mockResolvedValue(null)
     expect((await GET(req() as any)).status).toBe(401)
