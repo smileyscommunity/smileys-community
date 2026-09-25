@@ -10,7 +10,7 @@
 //   the kind's brand card                        only when a city has neither
 //
 // Istanbul's purpose-made covers ("Istanbul Handbook", "Istanbul Directory",
-// "Istanbul Board", "Istanbul Neighbourhoods") are its per-city files; where it has none it shares its
+// "Istanbul Board", "Istanbul Neighbourhoods", and Visiting's ferry photo) are its per-city files; where it has none it shares its
 // hero photo like everyone else. Covers must stay under the ~300KB at which
 // WhatsApp silently drops an og:image (tests/shareCover.test.ts checks every
 // one); a hero photo goes through absoluteOgImage, which caps it at 1200px
