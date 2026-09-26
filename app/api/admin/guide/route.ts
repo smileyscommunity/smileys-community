@@ -162,6 +162,14 @@ export async function PUT(req: NextRequest) {
   // new). Keeps the "Updated Mon YYYY" trust signal on /guide accurate
   // without needing admins to remember to bump dates by hand.
   const stored = read()
+  // Server-side backstop for the editor bug above it (a failed load, then
+  // Save): an empty guide never replaces one with content. Clearing the
+  // guide on purpose is a file-level job, not an editor click.
+  const hadContent = (stored.categories ?? []).some((c: { resources?: unknown[] }) => (c.resources?.length ?? 0) > 0)
+  const hasContent = result.value.categories.some(c => c.resources.length > 0)
+  if (hadContent && !hasContent) {
+    return NextResponse.json({ error: 'Refusing to replace the guide with an empty one — reload the page and try again.' }, { status: 409 })
+  }
   const today  = new Date().toISOString().slice(0, 10)
   const prevByLabel = new Map<string, unknown>(
     (stored.categories ?? []).map((c: { label: string }) => [c.label, c]),

@@ -290,6 +290,12 @@ function ModerationPageInner() {
   async function handleAction(action: 'dismiss' | 'warn' | 'ban' | 'remove') {
     if (!selected) return
     if (action === 'ban' && !banReason.trim()) return
+    // A ban signs the member out, blacklists their email and can't be undone
+    // from here in one click — ask first, like Unban already does.
+    if (action === 'ban') {
+      const who = selected?.reported?.name ?? 'this member'
+      if (!(await confirmToast(`Ban ${who}? They're signed out, their email is blacklisted, and they're told why.`))) return
+    }
     setSaving(true)
     try {
       const note = action === 'ban' ? banReason.trim() : reviewNote

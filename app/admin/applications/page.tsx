@@ -541,7 +541,10 @@ function AdminApplicationsPageInner() {
         // Breadcrumb note so a rejected row is never wholly unexplained —
         // "quick reject" tells future reviewers it was a deliberate one-tap
         // decision from the queue, not a batch sweep or a detailed review.
-        body: JSON.stringify({ id, status, reviewNote: status === 'rejected' ? 'Quick-rejected from queue (no note left)' : '', assignedClubs: clubsForApp }),
+        // Only when the row has no note of its own — the breadcrumb used to
+        // overwrite a reviewer's reasoning. Approve sends none (the server
+        // writes a note only when one is given).
+        body: JSON.stringify({ id, status, reviewNote: status === 'rejected' && !apps.find(a => a.id === id)?.reviewNote ? 'Quick-rejected from queue (no note left)' : undefined, assignedClubs: clubsForApp }),
       })
       if (res.ok) {
         setApps(prev => prev.map(a => a.id === id ? { ...a, status } : a))
@@ -578,7 +581,7 @@ function AdminApplicationsPageInner() {
         .then(clubsForApp => fetch('/app/api/admin/applications', {
           method: 'PATCH', credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id, status, reviewNote: status === 'rejected' ? 'Bulk-rejected from queue' : '', assignedClubs: clubsForApp }),
+          body: JSON.stringify({ id, status, reviewNote: status === 'rejected' && !apps.find(a => a.id === id)?.reviewNote ? 'Bulk-rejected from queue' : undefined, assignedClubs: clubsForApp }),
         }))
         .then(r => r.ok).catch(() => false),
     })))

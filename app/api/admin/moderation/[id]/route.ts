@@ -4,6 +4,7 @@ import { getSession } from '@/lib/session'
 import { isAdmin, isAdminOrModerator, canActInCity } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
 import { writeAudit } from '@/lib/audit'
+import { requireStepUp } from '@/lib/stepUp'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -24,6 +25,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     if (action === 'ban' && !isAdmin(session)) {
       return NextResponse.json({ error: 'Only admins can ban users' }, { status: 403 })
+    }
+    // The same step-up the users route asks for before a ban: this path bans,
+    // blacklists and revokes sessions too, and without it was the way round
+    // the check once ADMIN_2FA_REQUIRED is on.
+    if (action === 'ban') {
+      const stepUp = requireStepUp(session)
+      if (stepUp) return stepUp
     }
 
     const report = await prisma.report.findUnique({ where: { id } })
@@ -198,6 +206,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       }
       await prisma.passwordResetToken.deleteMany({ where: { userId: report.reportedId } })
         .catch(err => console.error('[moderation ban] token cleanup failed', { id: report.reportedId, err: String(err) }))
+      // And the member is told, as a ban from the users page tells them.
+      createNotification(report.reportedId, 'rsvp', 'Your account has been suspended', `Your account was suspended: ${banReason}. Contact us if you believe this is a mistake.`).catch(() => {})
       writeAudit(session.id, session.name, 'user.ban', report.reportedId, 'user',
         { reportId: id, note: reviewNote },
         `${reported?.name ?? report.reportedId} banned — ${reviewNote || 'community report'}`,

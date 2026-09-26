@@ -70,6 +70,9 @@ function EditNeighborhoodPageInner({ params }: { params: Promise<{ slug: string 
   // flag — without this Save was always enabled and admin could spam-
   // write the same JSON to disk repeatedly.
   const [baseline, setBaseline] = useState<string>('')
+  // Set only by a successful load — see app/admin/guide: a failed load left
+  // an empty guide one Save away from replacing the real one.
+  const [loaded, setLoaded] = useState(false)
   const dirty = JSON.stringify(guide) !== baseline
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -122,13 +125,14 @@ function EditNeighborhoodPageInner({ params }: { params: Promise<{ slug: string 
         setGuide(next)
         // Seed the dirty-state baseline with what the server returned.
         setBaseline(JSON.stringify(next))
+        setLoaded(true)
       })
       .catch(() => toast.error('Network error — could not load guide'))
       .finally(() => setLoading(false))
   }, [slug, cityQs])
 
   async function save() {
-    if (!dirty) return
+    if (!loaded || !dirty) return
     setSaving(true)
     try {
       const res = await fetch(`/app/api/admin/neighborhoods/${slug}${cityQs}`, {
@@ -282,7 +286,7 @@ function EditNeighborhoodPageInner({ params }: { params: Promise<{ slug: string 
           </Link>
           <button
             onClick={save}
-            disabled={saving || !dirty}
+            disabled={saving || !loaded || !dirty}
             className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
           >
             {saving ? 'Saving…' : dirty ? 'Save' : 'Saved'}
@@ -773,7 +777,7 @@ function EditNeighborhoodPageInner({ params }: { params: Promise<{ slug: string 
         <span className="text-xs text-zinc-500">Remember to save your changes</span>
         <button
           onClick={save}
-          disabled={saving}
+          disabled={saving || !loaded || !dirty}
           className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50"
         >
           {saving ? 'Saving…' : 'Save'}

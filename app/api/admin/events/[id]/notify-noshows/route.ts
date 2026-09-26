@@ -3,7 +3,7 @@ import { todayInCity } from '@/lib/city'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin, canModerateReports } from '@/lib/access'
-import { rateLimit } from '@/lib/rateLimit'
+import { rateLimit, claimOnce } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
 import { sendNoShowEmail } from '@/lib/email'
 import { writeAudit } from '@/lib/audit'
@@ -48,10 +48,20 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       where:  { type: 'attendance_check', link: { contains: id } },
       select: { userId: true },
     })).map(n => n.userId))
-    const noShows = (await prisma.eventAttendee.findMany({
-      where: { eventId: id, status: 'approved', checkedIn: false },
+    // The settled outcome, not the door: checkedIn:false took in seats the
+    // standing sweep resolved as attended when the host never checked the
+    // door ("a penalty is never made out of host inaction"). Approved
+    // accounts only — the broadcast route's rule; a ban keeps its seats.
+    const settledNoShows = (await prisma.eventAttendee.findMany({
+      where: { eventId: id, status: 'approved', attendance: 'no_show', user: { status: 'approved' } },
       include: { user: { select: { id: true, name: true, email: true } } },
     })).filter(a => !carded.has(a.userId))
+    // Once per member per event, whoever presses the button and however often:
+    // these sends were never recorded, so each press re-mailed everyone.
+    const noShows: typeof settledNoShows = []
+    for (const a of settledNoShows) {
+      if (await claimOnce(`noshow-notice:${a.userId}:${id}`, 365 * 24 * 60 * 60 * 1000)) noShows.push(a)
+    }
 
     if (noShows.length === 0) {
       return NextResponse.json({ emailed: 0, notified: 0, alreadyWarned: carded.size })

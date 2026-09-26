@@ -52,7 +52,9 @@ vi.mock('@/lib/prisma', () => ({ prisma: {
   waitlistEntry:      { findMany: vi.fn() },
   user:               { findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn() },
   club:               { findMany: vi.fn(), findUnique: vi.fn(), findFirst: vi.fn(), update: vi.fn().mockResolvedValue({}), updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
-  clubMembership:     { groupBy: vi.fn(), count: vi.fn(), upsert: vi.fn().mockResolvedValue({}) },
+  // Enrolment checks for an existing row, then creates (2026-09-26: a retried
+  // approval must not count a member into a club twice).
+  clubMembership:     { groupBy: vi.fn(), count: vi.fn(), upsert: vi.fn().mockResolvedValue({}), findUnique: vi.fn().mockResolvedValue(null), create: vi.fn().mockResolvedValue({}) },
   memberApplication:  { findUnique: vi.fn(), update: vi.fn() },
   passwordResetToken: { create: vi.fn().mockResolvedValue({}) },
   city:               { findUnique: vi.fn().mockResolvedValue({ name: 'Izmir' }) },
@@ -190,7 +192,7 @@ describe('100. approval only enrols in the approved city (or global) clubs', () 
     p.user.create.mockResolvedValue({ id: 'u1', joinedAt: new Date() })
   })
   const APP_STORED = { assignedClubs: [] as string[] }
-  const enrolled = () => p.clubMembership.upsert.mock.calls.map((c: any[]) => c[0].create.clubId)
+  const enrolled = () => p.clubMembership.create.mock.calls.map((c: any[]) => c[0].data.clubId)
 
   it('partitions by city: keeps the city and global clubs, skips another city with a reason', () => {
     expect(partitionClubsForCity(['club-default-city', 'club-izmir', 'club-global', 'club-izmir', 'nope'], CLUBS, 'c-izm')).toEqual({

@@ -49,7 +49,11 @@ export default function AdminGuidePage() {
   const [loading, setLoading] = useState(true)
   const [saving,  setSaving]  = useState(false)
   // False for a moderator outside the default city: the PUT refuses them.
-  const [canEdit, setCanEdit] = useState(true)
+  // Nothing is editable until the guide has actually loaded: with an empty
+  // baseline the page counted as dirty from the start, so a failed load left
+  // Save enabled over an empty guide, and saving replaced the live file.
+  const [canEdit, setCanEdit] = useState(false)
+  const [loaded,  setLoaded]  = useState(false)
   const [openCat, setOpenCat] = useState<number | null>(0)
   const [openRes, setOpenRes] = useState<string | null>(null)
   // Inline-confirm for category removal — was an instant single-click
@@ -79,13 +83,14 @@ export default function AdminGuidePage() {
         const next: Guide = { categories: Array.isArray(d.categories) ? d.categories : [] }
         setGuide(next)
         setBaseline(JSON.stringify(next))
+        setLoaded(true)
       })
       .catch(() => toast.error('Network error — could not load city guide'))
       .finally(() => setLoading(false))
   }, [])
 
   async function save() {
-    if (!dirty || !canEdit) return
+    if (!loaded || !dirty || !canEdit) return
     setSaving(true)
     try {
       const res = await fetch('/app/api/admin/guide', {
@@ -221,7 +226,7 @@ export default function AdminGuidePage() {
           <h1 className="text-xl font-bold text-white">Istanbul City Guide</h1>
           <p className="text-xs text-zinc-500 mt-0.5">Edit categories and resources shown on the member guide page</p>
         </div>
-        <button onClick={save} disabled={saving || !dirty || !canEdit}
+        <button onClick={save} disabled={saving || !loaded || !dirty || !canEdit}
           className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-white text-sm font-bold rounded-xl disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
           {saving ? 'Saving…' : dirty ? 'Save' : 'Saved'}
         </button>

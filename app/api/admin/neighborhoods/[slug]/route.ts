@@ -206,6 +206,16 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ slug
   const result = normalize(body)
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 })
 
+  // An empty guide never replaces one with content (the editor's failed-load
+  // bug; see app/admin/guide). No file, or a corrupt one, has nothing to lose.
+  const substance = (g: { places?: { items?: unknown[] }[]; tips?: unknown[]; transport?: unknown[] } | null) =>
+    !!g && ((g.places ?? []).some(c => (c.items?.length ?? 0) > 0) || (g.tips?.length ?? 0) > 0 || (g.transport?.length ?? 0) > 0)
+  let current: Parameters<typeof substance>[0] = null
+  try { current = JSON.parse(readFileSync(guideFileFor(city.slug, city.isDefault, slug), 'utf8')) } catch { current = null }
+  if (substance(current) && !substance(result.value as Parameters<typeof substance>[0])) {
+    return NextResponse.json({ error: 'Refusing to replace the guide with an empty one — reload the page and try again.' }, { status: 409 })
+  }
+
   // Stamp the server-set audit fields. The page surfaces updatedBy so
   // moderators can tell whose edits are live.
   const stamped = {

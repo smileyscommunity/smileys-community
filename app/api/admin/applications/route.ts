@@ -8,7 +8,8 @@ import { loadCommunitySettings } from '@/lib/communitySettings'
 import { sendActivationEmail, sendApplicationRejectedEmail, sendRequestMoreInfoEmail, recordEmailFailure } from '@/lib/email'
 import { createNotification } from '@/lib/notify'
 import { writeAudit } from '@/lib/audit'
-import { randomBytes } from 'crypto'
+import { randomBytes, createHash } from 'crypto'
+import { maskEmail, maskPhone } from '@/lib/admin/maskContact'
 import { hashToken } from '@/lib/tokenHash'
 import { promoteApplicationPhoto } from '@/lib/promotePhoto'
 import { getStatsFor } from '@/lib/cities'
@@ -25,6 +26,29 @@ function normalizeName(name: string): string {
     .split(' ')
     .map(w => w.length > 0 ? w[0].toUpperCase() + w.slice(1).toLowerCase() : w)
     .join(' ')
+}
+
+// What a moderator's browser receives. The list went out as whole rows —
+// email, phone, birthdate, IP, device string and fingerprint for every
+// applicant in the city, approved members included — while every other
+// moderator-reachable list masks contact details (lib/admin/maskContact).
+// IP and fingerprint become a salted hash: equal inputs give equal codes, so
+// the queue's "same device / same IP as N others" flags still work, but the
+// address itself never leaves the server (and IPv4 is too small a space to
+// hash unsalted). Birthdate stays only where a decision is still to be made.
+const DECIDING = new Set(['pending', 'hold'])
+const opaque = (v: string | null) =>
+  v ? 'id-' + createHash('sha256').update(`${process.env.JWT_SECRET ?? ''}:${v}`).digest('hex').slice(0, 16) : null
+function forModerator<A extends { status: string; email: string; phone: string | null; birthdate: string | null; ipAddress: string | null; userAgent: string | null; fingerprint: string | null }>(a: A): A {
+  return {
+    ...a,
+    email:       maskEmail(a.email) ?? '',
+    phone:       maskPhone(a.phone),
+    birthdate:   DECIDING.has(a.status) ? a.birthdate : null,
+    ipAddress:   opaque(a.ipAddress),
+    fingerprint: opaque(a.fingerprint),
+    userAgent:   null,
+  }
 }
 
 export async function GET(req: NextRequest) {
@@ -49,12 +73,16 @@ export async function GET(req: NextRequest) {
         targetCity: { select: { name: true, slug: true } },
       },
     })
-    return NextResponse.json(applications)
+    return NextResponse.json(isAdmin(session) ? applications : applications.map(forModerator))
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }
+
+/** `{ reviewNote }` when a note was actually written, else nothing — never a wipe. */
+const noteUpdate = (note: unknown) =>
+  typeof note === 'string' && note.trim() ? { reviewNote: note.slice(0, 2000) } : {}
 
 export async function PATCH(req: NextRequest) {
   try {
@@ -86,7 +114,9 @@ export async function PATCH(req: NextRequest) {
     if (!isAdmin(session) && suggestion !== undefined) {
       const application = await prisma.memberApplication.update({
         where: { id },
-        data: { suggestion: suggestion || null, suggestedBy: session.id, reviewNote: reviewNote || null },
+        // A suggestion without a note keeps whatever note is there (it used
+        // to overwrite an admin's reasoning with null).
+        data: { suggestion: suggestion || null, suggestedBy: session.id, ...noteUpdate(reviewNote) },
       })
       return NextResponse.json(application)
     }
@@ -157,10 +187,13 @@ export async function PATCH(req: NextRequest) {
       where: { id },
       data: {
         status,
-        reviewNote:    reviewNote    || null,
+        // Quick and bulk approve sent '' here, erasing the reviewer's note;
+        // a note is now written only when one is given. And a note-only save
+        // no longer re-stamps reviewedAt, which reset a held application's
+        // "info requested N days ago".
+        ...noteUpdate(reviewNote),
         assignedClubs: clubsToAssign,
-        reviewedBy:    session.id,
-        reviewedAt:    new Date(),
+        ...(status !== undefined && status !== null ? { reviewedBy: session.id, reviewedAt: new Date() } : {}),
       },
     })
 
@@ -186,6 +219,48 @@ export async function PATCH(req: NextRequest) {
             isFoundingCity = cityStats?.maturity === CITY_MATURITY.Seeding
           } catch (e) {
             console.error('Founding-stage check failed (approving anyway):', e)
+          }
+          // Clubs, then an activation link — for a fresh account, and for a
+          // retry on one that never got its link. Enrolment is checked per
+          // club so a retry can't count a member into a club twice.
+          const enrolAndActivate = async (user: { id: string; joinedAt: Date }) => {
+            // Re-filtered by city: an approval that sends no assignedClubs
+            // enrols from the list stored earlier, which may predate the city
+            // filter above.
+            const enrolClubs = application.assignedClubs?.length
+              ? (await clubsForApprovedCity(application.assignedClubs, application.targetCityId)).keep
+              : []
+            await Promise.all(enrolClubs.map(async (clubId: string) => {
+              try {
+                const had = await prisma.clubMembership.findUnique({ where: { userId_clubId: { userId: user.id, clubId } }, select: { userId: true } })
+                if (had) return
+                await prisma.$transaction([
+                  prisma.clubMembership.create({ data: { userId: user.id, clubId, role: 'member', status: 'approved' } }),
+                  prisma.club.update({ where: { id: clubId }, data: { memberCount: { increment: 1 } } }),
+                ])
+              } catch (e) { console.error(`Admin club enrollment failed for ${clubId}:`, e) }
+            }))
+            // Generate activation token (7 days)
+            const token     = randomBytes(32).toString('hex')
+            const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+            // Email plaintext, store hash — see lib/tokenHash.ts.
+            await prisma.passwordResetToken.create({ data: { userId: user.id, token: hashToken(token), expiresAt } })
+            const targetCity = await prisma.city.findUnique({ where: { id: application.targetCityId }, select: { name: true } })
+            // Founding members get their rank and the first names of the
+            // people already in — joining a five-person city should feel like
+            // being let into something, not like arriving at an empty room.
+            // Rank and names come from lib/foundingRank, the dashboard panel's
+            // own definition: activated members only. The account has no
+            // password yet, so it ranks after everyone counted.
+            let founding: { rank: number; others: string[] } | undefined
+            if (isFoundingCity) {
+              const [rank, others] = await Promise.all([
+                foundingRankFor(application.targetCityId, { joinedAt: user.joinedAt, activated: false }),
+                foundingFellowNames(application.targetCityId, user.id),
+              ])
+              founding = { rank, others }
+            }
+            await sendActivationEmail(application.email, application.fullName, token, welcomeMessage || undefined, targetCity?.name, founding)
           }
           if (!existing) {
             const COLORS = ['#f472b6','#60a5fa','#fbbf24','#f87171','#fb923c','#e879f9','#34d399','#a78bfa']
@@ -234,45 +309,7 @@ export async function PATCH(req: NextRequest) {
               if (e instanceof Prisma.PrismaClientKnownRequestError && (e as Prisma.PrismaClientKnownRequestError).code === 'P2002') return
               throw e
             }
-            // Auto-enroll in assigned clubs. Re-filtered by city: an approval
-            // that sends no assignedClubs enrols from the list stored earlier,
-            // which may predate the city filter above.
-            const enrolClubs = application.assignedClubs?.length
-              ? (await clubsForApprovedCity(application.assignedClubs, application.targetCityId)).keep
-              : []
-            if (enrolClubs.length) {
-              await Promise.all(enrolClubs.map((clubId: string) =>
-                prisma.$transaction([
-                  prisma.clubMembership.upsert({
-                    where:  { userId_clubId: { userId: user.id, clubId } },
-                    create: { userId: user.id, clubId, role: 'member', status: 'approved' },
-                    update: {},
-                  }),
-                  prisma.club.update({ where: { id: clubId }, data: { memberCount: { increment: 1 } } }),
-                ]).catch((e: unknown) => console.error(`Admin club enrollment failed for ${clubId}:`, e))
-              ))
-            }
-            // Generate activation token (7 days)
-            const token     = randomBytes(32).toString('hex')
-            const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-            // Email plaintext, store hash — see lib/tokenHash.ts.
-            await prisma.passwordResetToken.create({ data: { userId: user.id, token: hashToken(token), expiresAt } })
-            const targetCity = await prisma.city.findUnique({ where: { id: application.targetCityId }, select: { name: true } })
-            // Founding members get their rank and the first names of the
-            // people already in — joining a five-person city should feel like
-            // being let into something, not like arriving at an empty room.
-            // Rank and names come from lib/foundingRank, the dashboard panel's
-            // own definition: activated members only. The account was just
-            // created without a password, so it ranks after everyone counted.
-            let founding: { rank: number; others: string[] } | undefined
-            if (isFoundingCity) {
-              const [rank, others] = await Promise.all([
-                foundingRankFor(application.targetCityId, { joinedAt: user.joinedAt, activated: false }),
-                foundingFellowNames(application.targetCityId, user.id),
-              ])
-              founding = { rank, others }
-            }
-            await sendActivationEmail(application.email, application.fullName, token, welcomeMessage || undefined, targetCity?.name, founding)
+            await enrolAndActivate(user)
           } else {
             // User already exists — fill in any missing profile fields from the application
             const updates: Record<string, unknown> = {}
@@ -296,6 +333,11 @@ export async function PATCH(req: NextRequest) {
                 data: { status: 'approved', ...(isFoundingCity ? { foundingMember: true } : {}) },
               })
             }
+            // Never activated: most often the account a first approval created
+            // before its activation email failed. "Approve again to retry"
+            // landed here and sent nothing — approved, with no way in. Finish
+            // the job: clubs (skipping ones already joined) and a fresh link.
+            if (existing.password === null) await enrolAndActivate(existing)
           }
         } catch (e) {
           console.error('Auto-create account error:', e)

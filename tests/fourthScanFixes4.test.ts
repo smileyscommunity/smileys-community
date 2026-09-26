@@ -31,8 +31,9 @@ describe('admin controls are only offered to roles the API accepts (item 15)', (
     expect(api).toContain('canEdit: canActInCity(session, await getDefaultCityId())')
     const page = read('app/admin/guide/page.tsx')
     expect(page).toContain('setCanEdit(d.canEdit !== false)')
-    expect(page).toContain('disabled={saving || !dirty || !canEdit}')
-    expect(page).toContain("if (!dirty || !canEdit) return")
+    // …and on a completed load (2026-09-26: a failed load left an empty guide one Save from the live file).
+    expect(page).toContain('disabled={saving || !loaded || !dirty || !canEdit}')
+    expect(page).toContain("if (!loaded || !dirty || !canEdit) return")
   })
   it('user page: partner is a link to the partners page, not a refused role change', () => {
     const src = read('app/admin/users/[id]/page.tsx')
