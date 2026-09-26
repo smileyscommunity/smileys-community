@@ -138,6 +138,8 @@ model User {
   eventMessages              EventMessage[]
   eventPhotos                EventPhoto[]
   eventSurveys               EventSurvey[]
+  meetAgainPicks             EventMeetAgain[]        @relation("MeetAgainPicker")
+  meetAgainPickedBy          EventMeetAgain[]        @relation("MeetAgainPicked")
   hangoutJoins               HangoutJoin[]
   hangoutMessages            HangoutMessage[]
   hangoutReferencesGiven     HangoutReference[]      @relation("HangoutReferencesGiven")
@@ -705,7 +707,8 @@ model Event {
   messages             EventMessage[]
   photos               EventPhoto[]
   surveys              EventSurvey[]
-  tags                 EventTag[]
+  meetAgain            EventMeetAgain[]
+  tags                EventTag[]
   recommendations      EventRecommendation[]
   city                 City            @relation(fields: [cityId], references: [id])
   club                 Club?           @relation(fields: [clubId], references: [id])
@@ -775,6 +778,27 @@ model EventSurvey {
   @@index([eventId])
   @@index([anomaly])
   @@map("event_surveys")
+}
+
+// "Would you meet them again?" — one row per private pick after an event.
+// A pick is never shown to anyone: not the picked member, not the host, not
+// staff screens. Only a MUTUAL pair becomes visible, and then only as the
+// accepted connection it creates (lib/meetAgain). Rows are the picker's own
+// answer and can be replaced inside the 7-day window.
+model EventMeetAgain {
+  id        String   @id @default(cuid())
+  eventId   String
+  pickerId  String
+  pickedId  String
+  createdAt DateTime @default(now())
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  picker    User     @relation("MeetAgainPicker", fields: [pickerId], references: [id], onDelete: Cascade)
+  picked    User     @relation("MeetAgainPicked", fields: [pickedId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, pickerId, pickedId])
+  @@index([eventId, pickedId])
+  @@index([pickedId])
+  @@map("event_meet_again")
 }
 
 model CupFixture {

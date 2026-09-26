@@ -17,6 +17,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { loadViewerFacts, sharedContextFor } from '@/lib/sharedContext'
 import EventConnections from './EventConnections'
+import MeetAgainPicker from '@/components/MeetAgainPicker'
 import { restrictedSetFor } from '@/lib/memberPrivacy'
 import { SITE_URL, APP_URL } from '@/lib/env'
 import RSVPButton from '@/components/RSVPButton'
@@ -1168,6 +1169,11 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
               </svg>
             </Link>
           )}
+
+          {/* Meet again — private picks for the 7 days after (lib/meetAgain).
+              The component asks the server who may pick and renders
+              nothing for anyone else. */}
+          {isPast && canSeeInside && <MeetAgainPicker eventId={event.id} />}
 
           {/* Reviews (past events) */}
           <EventReviews eventId={event.id} isPast={isPast} />
