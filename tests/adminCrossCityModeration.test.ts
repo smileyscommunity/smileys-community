@@ -24,6 +24,10 @@ vi.mock('@/lib/prisma', () => ({
   prisma: {
     memberApplication: { findUnique: vi.fn() },
     report:            { findUnique: vi.fn() },
+    // reportCityOf falls back to the reported member's city (2026-09-27).
+    user:              { findUnique: vi.fn(async () => ({ cityId: 'c-ist' })) },
+    boardPost:         { findUnique: vi.fn() },
+    neighborhoodPost:  { findUnique: vi.fn() },
     event:             { findUnique: vi.fn(), create: vi.fn() },
     listing:           { findUnique: vi.fn(), update: vi.fn() },
     businessClaim:     { findUnique: vi.fn() },
@@ -62,7 +66,7 @@ describe('moderator cannot act on another city through [id] routes', () => {
 
   it('moderation/triage refuses a report about another city’s member', async () => {
     ;(prisma.report.findUnique as any).mockResolvedValue({
-      id: 'row1', reporter: { name: 'A' },
+      id: 'row1', reportedId: 'u-ist', boardPostId: null, listingId: null, neighborhoodPostId: null, reporter: { name: 'A' },
       reported: { name: 'B', status: 'approved', warningCount: 0, joinedAt: new Date(), cityId: IST, _count: { reportsReceived: 1 } },
     })
     const { POST } = await import('@/app/api/admin/moderation/triage/route')

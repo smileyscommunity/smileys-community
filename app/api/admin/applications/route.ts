@@ -118,6 +118,11 @@ export async function PATCH(req: NextRequest) {
         // to overwrite an admin's reasoning with null).
         data: { suggestion: suggestion || null, suggestedBy: session.id, ...noteUpdate(reviewNote) },
       })
+      // A moderator's recommendation is part of the decision trail — the
+      // admin who acts on it, and anyone reviewing later, should see it.
+      writeAudit(session.id, session.name, 'application.suggest', id, 'memberApplication',
+        { suggestion: suggestion || null, name: application.fullName, cityId: target.targetCityId },
+        `Suggested ${suggestion || 'no decision'} for ${application.fullName}`)
       return NextResponse.json(application)
     }
     // Anything else a moderator sends is the admin update below — a body with

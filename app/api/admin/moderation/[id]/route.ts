@@ -5,6 +5,7 @@ import { isAdmin, isAdminOrModerator, canActInCity } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
 import { writeAudit } from '@/lib/audit'
 import { requireStepUp } from '@/lib/stepUp'
+import { reportCityOf } from '@/lib/admin/reportScope'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -59,9 +60,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const boardPost = report.boardPostId
       ? await prisma.boardPost.findUnique({ where: { id: report.boardPostId }, select: { id: true, cityId: true, status: true } })
       : null
-    const cityOk = boardPost
-      ? canActInCity(session, boardPost.cityId)
-      : !!reported && session.cityId === reported.cityId
+    // The report's city by the queue's own rule (lib/admin/reportScope):
+    // content's city for a listing / wall / board report, else the member's.
+    // Checking only the member's city 403'd listing and wall reports the
+    // queue had put in this moderator's list — Dismiss included.
+    // Admins act everywhere, so only a moderator's report needs the lookup.
+    const reportCity = isAdmin(session) ? null : await reportCityOf(report)
+    const cityOk = isAdmin(session) || (!!reportCity && canActInCity(session, reportCity))
     if (!isAdmin(session) && !cityOk) {
       return NextResponse.json({ error: 'Cross-city moderation is admin-only' }, { status: 403 })
     }

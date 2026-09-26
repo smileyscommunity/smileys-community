@@ -118,12 +118,13 @@ export async function GET(req: Request) {
     // Upcoming means on the calendar: published, from today on. Drafts,
     // pending, postponed and cancelled events used to count too.
     prisma.event.count({ where: { status: 'published', date: { gte: todayStr }, ...inCity } }),
-    // Members growth
-    prisma.user.count({ where: { status: 'approved', role: { not: 'admin' }, joinedAt: { gte: monthAgo }, ...inCity } }),
-    prisma.user.count({ where: { status: 'approved', role: { not: 'admin' }, joinedAt: { gte: prevMonth, lt: monthAgo }, ...inCity } }),
-    // RSVPs growth
-    prisma.eventAttendee.count({ where: { status: 'approved', joinedAt: { gte: monthAgo }, ...viaEvent } }),
-    prisma.eventAttendee.count({ where: { status: 'approved', joinedAt: { gte: prevMonth, lt: monthAgo }, ...viaEvent } }),
+    // Members growth — the headline's population (activated community
+    // members), so "+N this month" is N of the same people it counts.
+    prisma.user.count({ where: { ...COMMUNITY_MEMBER_WHERE, joinedAt: { gte: monthAgo }, ...inCity } }),
+    prisma.user.count({ where: { ...COMMUNITY_MEMBER_WHERE, joinedAt: { gte: prevMonth, lt: monthAgo }, ...inCity } }),
+    // RSVPs growth — without admins, like the headline RSVP count.
+    prisma.eventAttendee.count({ where: { status: 'approved', user: { role: { not: 'admin' } }, joinedAt: { gte: monthAgo }, ...viaEvent } }),
+    prisma.eventAttendee.count({ where: { status: 'approved', user: { role: { not: 'admin' } }, joinedAt: { gte: prevMonth, lt: monthAgo }, ...viaEvent } }),
     // Revenue, per currency — lira and euro don't add up to anything. Paid
     // is compared like for like: the last 30 days against the 30 before. The
     // trend used to set all-time revenue against one previous month, so it

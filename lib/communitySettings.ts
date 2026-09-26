@@ -6,6 +6,7 @@
 // no caching layer needed).
 
 import { readFileSync } from 'fs'
+import type { ListingSettings } from './listingCategories'
 import { join } from 'path'
 
 export interface CommunityRule {
@@ -38,6 +39,8 @@ export interface CommunitySettings {
   // Membership intake switch. false = applications paused (apply page shows a
   // closed notice, the submit API rejects). Undefined/true = open (default).
   applicationsOpen?: boolean
+  // Marketplace rules, enforced by the member listing-create route.
+  listingSettings?: ListingSettings
   // Admin email on each new (non-suspicious) application. false = muted.
   // Undefined/true = on (default). Suspicious applications always email.
   newApplicationEmails?: boolean

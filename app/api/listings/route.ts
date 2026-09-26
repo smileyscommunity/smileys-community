@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { MEMBER_LISTING_CATEGORY_IDS, LISTING_SETTING_DEFAULTS } from '@/lib/listingCategories'
+import { loadCommunitySettings } from '@/lib/communitySettings'
 import { isUploadedImageUrl } from '@/lib/uploadedImageUrl'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
@@ -175,9 +177,14 @@ export async function POST(req: NextRequest) {
 
   // RECO / LOST_FOUND / EXPERIENCES retired from posting (legacy rows
   // still render) — their jobs moved to Board posts.
-  const VALID_CATEGORIES = ['ROOMS', 'JOBS', 'BUY_SELL', 'SERVICES', 'FREE', 'WANTED', 'PETS']
-  if (!category || !VALID_CATEGORIES.includes(category)) {
+  if (!category || !MEMBER_LISTING_CATEGORY_IDS.includes(category)) {
     return NextResponse.json({ error: 'Invalid category' }, { status: 400 })
+  }
+  // The admin's Marketplace Settings (/admin/listings). They were saved and
+  // read by nothing: a closed category still took posts.
+  const listingSettings = loadCommunitySettings().listingSettings ?? {}
+  if (Array.isArray(listingSettings.enabledCategories) && !listingSettings.enabledCategories.includes(category)) {
+    return NextResponse.json({ error: 'That category isn’t open for new listings right now.' }, { status: 400 })
   }
   if (!title?.trim() || !description?.trim()) {
     return NextResponse.json({ error: 'Title and description are required' }, { status: 400 })
@@ -236,7 +243,14 @@ export async function POST(req: NextRequest) {
   const safeNeighborhood = await safeNeighborhoodFor(postingCityId, neighborhood)
 
   const expiresAt = new Date()
-  expiresAt.setDate(expiresAt.getDate() + 30)
+  expiresAt.setDate(expiresAt.getDate() + (listingSettings.defaultExpiryDays ?? LISTING_SETTING_DEFAULTS.defaultExpiryDays))
+
+  // …and the per-member cap on live listings.
+  const maxActive = listingSettings.maxActivePerMember ?? LISTING_SETTING_DEFAULTS.maxActivePerMember
+  const activeNow = await prisma.listing.count({ where: { userId: session.id, status: 'active', expiresAt: { gte: new Date() } } })
+  if (activeNow >= maxActive) {
+    return NextResponse.json({ error: `You have ${activeNow} active listings — the limit is ${maxActive}. Mark one as filled or remove it first.` }, { status: 400 })
+  }
 
   // A daily cap too (5/min alone allowed 300 listings an hour) — charged only
   // once the listing is valid and about to be written. Charged at the top,

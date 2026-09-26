@@ -617,6 +617,33 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       }
     }
 
+    // The rest of a staff edit, audited too. Only role, a new suspension and
+    // status changes wrote a row; lifting a suspension, a Premium/VIP grant
+    // (which emails the member), an appeal decision and profile edits left
+    // no trace. Field names only for profile edits — the log is read by
+    // moderators, and phone numbers don't belong in it.
+    const who = before?.name ?? id
+    if ('suspendedUntil' in allowed && !allowed.suspendedUntil && before?.suspendedUntil) {
+      writeAudit(session.id, session.name, 'user.unsuspend', id, 'user', { name: before?.name }, `Suspension lifted for ${who}`)
+    }
+    if (allowed.membershipType !== undefined && allowed.membershipType !== before?.membershipType) {
+      writeAudit(session.id, session.name, 'user.membership_change', id, 'user',
+        { from: before?.membershipType ?? null, to: allowed.membershipType, name: before?.name },
+        `Membership ${before?.membershipType ?? 'standard'} → ${allowed.membershipType} for ${who}`)
+    }
+    if ('appealStatus' in allowed) {
+      writeAudit(session.id, session.name, 'user.appeal_decision', id, 'user',
+        { decision: allowed.appealStatus, name: before?.name }, `Appeal ${String(allowed.appealStatus)} for ${who}`)
+    }
+    const auditedAbove = new Set(['role', 'status', 'suspendedUntil', 'membershipType', 'appealStatus',
+      // stamps the handler sets itself, not fields the editor changed
+      'bannedAt', 'suspendedAt', 'suspendedBy', ...(allowed.status === 'banned' ? ['banReason'] : [])])
+    const edited = Object.keys(allowed).filter(k => !auditedAbove.has(k))
+    if (edited.length) {
+      writeAudit(session.id, session.name, 'user.update', id, 'user', { fields: edited, name: before?.name },
+        `Edited ${edited.join(', ')} for ${who}`)
+    }
+
     return NextResponse.json(user)
   } catch (e) {
     console.error(e)

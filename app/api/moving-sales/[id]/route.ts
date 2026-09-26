@@ -3,6 +3,7 @@ import { isUploadedImageUrl } from '@/lib/uploadedImageUrl'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { canActInCity } from '@/lib/access'
+import { writeAudit } from '@/lib/audit'
 import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
 import { getCityTz } from '@/lib/city'
 import { todayInTz } from '@/lib/cityTime'
@@ -35,6 +36,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
   if (status === 'done' || status === 'removed') {
     await prisma.movingSale.update({ where: { id }, data: { status } })
+    // Staff closing or removing someone else's sale is audited; the owner's
+    // own close isn't a staff action.
+    if (sale.userId !== session.id) {
+      writeAudit(session.id, session.name, status === 'removed' ? 'moving_sale.staff_remove' : 'moving_sale.staff_edit', id, 'moving_sale',
+        { status, cityId: sale.cityId }, `Set a member's moving sale to ${status}`)
+    }
     return NextResponse.json({ ok: true })
   }
 
@@ -92,6 +99,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     if (Object.keys(data).length > 0) {
       await prisma.movingSale.update({ where: { id }, data })
+    }
+    if (sale.userId !== session.id) {
+      writeAudit(session.id, session.name, 'moving_sale.staff_edit', id, 'moving_sale',
+        { fields: [...Object.keys(data), ...(items !== undefined ? ['items'] : [])], cityId: sale.cityId }, `Edited a member's moving sale`)
     }
     return NextResponse.json({ ok: true })
   }

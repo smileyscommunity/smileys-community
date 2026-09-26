@@ -3,6 +3,7 @@ import { getSession } from '@/lib/session'
 import { getCommunityStats } from '@/lib/communityStats'
 import { isAdmin, isAdminOrModerator } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
+import { revalidatePath } from 'next/cache'
 import fs from 'fs'
 import path from 'path'
 
@@ -237,6 +238,13 @@ export async function POST(req: NextRequest) {
     { sections: touched },
     `Updated content section${touched.length === 1 ? '' : 's'}: ${touched.join(', ')}`,
   )
+
+  // The pages that read content.json (FAQ, About, Advertise, Get involved,
+  // Why, Neighborhoods, the home page, and the layout) are cached for up to
+  // an hour, so a save showed "Saved ✓" while the site kept the old text.
+  // Content edits are rare; refreshing the whole tree is the simple rule
+  // that can't miss a reader.
+  revalidatePath('/', 'layout')
 
   return NextResponse.json({ ok: true, updatedSections: touched })
 }

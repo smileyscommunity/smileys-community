@@ -81,3 +81,29 @@ export async function reportQueueWhere(
   const scope  = cityId ? await reportCityWhere(cityId) : {}
   return { ...scope, reportedId: { not: session.id } }
 }
+
+/**
+ * The one city a single report belongs to — the same rule as reportCityWhere,
+ * for the routes that act on one report. The queue filed listing and wall
+ * reports under the content's city, but the action and triage routes checked
+ * the reported member's city, so a moderator saw reports they couldn't even
+ * dismiss. Content first (if it still exists), else the member's city.
+ */
+export async function reportCityOf(r: {
+  reportedId: string; boardPostId: string | null; listingId: string | null; neighborhoodPostId: string | null
+}): Promise<string | null> {
+  if (r.boardPostId) {
+    const p = await prisma.boardPost.findUnique({ where: { id: r.boardPostId }, select: { cityId: true } })
+    if (p) return p.cityId
+  }
+  if (r.listingId) {
+    const l = await prisma.listing.findUnique({ where: { id: r.listingId }, select: { cityId: true } })
+    if (l) return l.cityId
+  }
+  if (r.neighborhoodPostId) {
+    const w = await prisma.neighborhoodPost.findUnique({ where: { id: r.neighborhoodPostId }, select: { cityId: true } })
+    if (w) return w.cityId
+  }
+  const u = await prisma.user.findUnique({ where: { id: r.reportedId }, select: { cityId: true } })
+  return u?.cityId ?? null
+}

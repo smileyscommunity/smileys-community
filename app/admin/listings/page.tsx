@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { MEMBER_LISTING_CATEGORIES, MEMBER_LISTING_CATEGORY_IDS } from '@/lib/listingCategories'
 import { confirmToast } from '@/lib/confirmToast'
 import { isValidContactEmail } from '@/lib/contactEmail'
 import Link from 'next/link'
@@ -23,22 +24,12 @@ const CATEGORIES = [
   { id: 'PETS',        label: 'Adopt a Pet'          },
 ]
 
-const CATEGORY_OPTIONS = [
-  { id: 'ROOMS',    label: 'Rooms & Housing' },
-  { id: 'JOBS',     label: 'Jobs & Gigs' },
-  { id: 'SERVICES', label: 'Services' },
-  { id: 'BUY_SELL', label: 'Buy & Sell' },
-  { id: 'FREE',       label: 'Free Stuff'          },
-  { id: 'LOST_FOUND', label: 'Lost & Found'        },
-  { id: 'RECO',       label: 'Recommendations'     },
-  { id: 'EXPERIENCES', label: 'Events & Experiences' },
-  { id: 'PETS',        label: 'Adopt a Pet'          },
-]
+// What members can post in — the same list the create route enforces.
+const CATEGORY_OPTIONS = MEMBER_LISTING_CATEGORIES
 
 interface ListingSettings {
   enabledCategories: string[]
   defaultExpiryDays: number
-  requireApproval: boolean
   maxActivePerMember: number
 }
 
@@ -95,9 +86,8 @@ function Avatar({ name, color }: { name: string; color: string }) {
 }
 
 const DEFAULT_LISTING_SETTINGS: ListingSettings = {
-  enabledCategories: ['ROOMS', 'JOBS', 'SERVICES', 'BUY_SELL', 'FREE', 'LOST_FOUND', 'RECO', 'EXPERIENCES', 'PETS'],
+  enabledCategories: [...MEMBER_LISTING_CATEGORY_IDS],
   defaultExpiryDays: 30,
-  requireApproval:   false,
   maxActivePerMember: 5,
 }
 
@@ -409,24 +399,6 @@ export default function AdminListingsPage() {
                 className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
               />
             </div>
-          </div>
-
-          {/* Require approval toggle */}
-          <div className="flex items-center justify-between py-2 border-t border-zinc-800">
-            <div>
-              <p className="text-sm font-semibold text-zinc-200">Require approval before publishing</p>
-              <p className="text-xs text-zinc-500 mt-0.5">New listings stay hidden until an admin approves them</p>
-            </div>
-            <button
-              onClick={() => setSettings(s => ({ ...s, requireApproval: !s.requireApproval }))}
-              className={`relative w-11 h-6 rounded-full transition-colors duration-200 shrink-0 ml-4 ${
-                settings.requireApproval ? 'bg-amber-500' : 'bg-zinc-700'
-              }`}
-            >
-              <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${
-                settings.requireApproval ? 'translate-x-6' : 'translate-x-1'
-              }`} />
-            </button>
           </div>
 
           <button

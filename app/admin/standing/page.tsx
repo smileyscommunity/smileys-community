@@ -7,6 +7,8 @@ import { confirmToast } from '@/lib/confirmToast'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import { loadFailure } from '@/lib/admin/useAdminLoad'
 import { useAuth } from '@/contexts/AuthContext'
+// Member links: /admin/users/:id is admin-only, a dead end for moderators.
+import { memberHref } from '@/lib/adminNav'
 import { REVIEW_CONFLICT_MESSAGE, type ReviewConflict } from '@/lib/noShowPolicy'
 import { YELLOW_AFTER_OFFENCES as YELLOW_AT, STANDING_WINDOW_DAYS as STANDING_WINDOW } from '@/lib/standingPolicy'
 
@@ -214,7 +216,7 @@ export default function AdminStandingPage() {
                 <span className="text-xl" aria-hidden="true">{o.event.emoji}</span>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <Link href={`/admin/users/${o.user.id}`} className="font-semibold text-white hover:underline">{o.user.name}</Link>
+                    <Link href={memberHref(o.user.id, user?.role)} className="font-semibold text-white hover:underline">{o.user.name}</Link>
                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase bg-zinc-700 text-zinc-200">{KIND[o.kind] ?? o.kind}</span>
                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase bg-zinc-800 text-zinc-400">
                       {o.counts ? o.tier : `logged · ${o.loggedReason === 'new_city' ? 'new city' : 'open'}`}
@@ -270,7 +272,7 @@ export default function AdminStandingPage() {
                 <span className="text-xl" aria-hidden="true">{c.level === 'red' ? '🟥' : '🟨'}</span>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <Link href={`/admin/users/${c.user.id}`} className="font-semibold text-white hover:underline">{c.user.name}</Link>
+                    <Link href={memberHref(c.user.id, user?.role)} className="font-semibold text-white hover:underline">{c.user.name}</Link>
                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase bg-zinc-700 text-zinc-200">{c.status}</span>
                     {c.shadow && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase bg-zinc-800 text-zinc-500">shadow</span>}
                   </div>
