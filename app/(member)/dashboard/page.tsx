@@ -697,7 +697,8 @@ export default async function DashboardPage() {
     }),
     // "Total members" — activated community members (lib/memberCount); it
     // counted admins and partners, so it disagreed with the panel above.
-    prisma.user.count({ where: { ...COMMUNITY_MEMBER_WHERE, cityId } }),
+    // Same count as cityMemberCount above (the founding gate's), already read.
+    Promise.resolve(cityMemberCount),
     prisma.event.count({ where: { cityId, date: { gte: today, lte: weekEndStr }, status: 'published' } }),
     userProfile?.neighborhood
       ? prisma.event.count({ where: { cityId, neighborhood: userProfile.neighborhood, date: { gte: today }, status: 'published' } })
@@ -1323,6 +1324,14 @@ export default async function DashboardPage() {
   // are all the timeline reads — public content, nothing member-specific.
   // Kept when the timeline's other duplicates went (2026-09-26): Nate wants
   // a new article to read as activity, alongside its shelf.
+  // Clubs: a newcomer's "picked for you" lineup, "Clubs to explore" and the
+  // timeline's "new club started" rows each drew their own list, so one club
+  // could be offered three times. Each now skips what an earlier one shows.
+  const lineupIds       = new Set(lineupClubs.map(c => c.id))
+  const exploreClubs    = newClubs.filter(c => !lineupIds.has(c.id))
+  const offeredClubIds  = new Set([...lineupIds, ...exploreClubs.map(c => c.id)])
+  const timelineNewClubs = recentlyCreatedClubs.filter(c => !offeredClubIds.has(c.id))
+
   const ARTICLE_WINDOW_MS = 14 * 24 * 60 * 60_000
   const timelineArticles = [
     ...latestHandbook.map(p => ({ id: p.id, title: p.title, slug: p.slug, kind: 'handbook' as const,  publishedAt: p.publishedAt })),
@@ -1833,7 +1842,7 @@ export default async function DashboardPage() {
             {/* Only what has no section of its own (2026-09-26): free-now
                 pulses, photos, visitors, new members and listings each have
                 a strip on this page, and fed here too they showed twice. */}
-            <ClubActivityTimeline members={recentActivity} posts={wallActivity} events={clubEventsShown} rsvps={recentRsvps} hangouts={recentHangouts} connections={recentConnections} references={recentReferences} newClubs={recentlyCreatedClubs} businesses={recentBusinesses} eventReviews={recentEventReviews} placeReviews={recentPlaceReviews} hangoutJoins={recentHangoutJoins} hoodPosts={wallHoodPosts} resources={recentResources} testimonials={recentTestimonials} articles={timelineArticles} cityName={city.name} cap={12} />
+            <ClubActivityTimeline members={recentActivity} posts={wallActivity} events={clubEventsShown} rsvps={recentRsvps} hangouts={recentHangouts} connections={recentConnections} references={recentReferences} newClubs={timelineNewClubs} businesses={recentBusinesses} eventReviews={recentEventReviews} placeReviews={recentPlaceReviews} hangoutJoins={recentHangoutJoins} hoodPosts={wallHoodPosts} resources={recentResources} testimonials={recentTestimonials} articles={timelineArticles} cityName={city.name} cap={12} />
 
             {/* Upcoming visitors — surfaces /visiting + the new wave
                 action on the dashboard. Component renders nothing when
@@ -2238,9 +2247,16 @@ export default async function DashboardPage() {
                                   <p className="text-sm font-semibold text-gray-900 group-hover:text-amber-600 transition-colors truncate">{e.title}</p>
                                   <p className="text-xs text-gray-400 truncate">📍 {e.neighborhood}</p>
                                 </div>
-                                <span className="text-xs font-bold text-gray-600 shrink-0">
-                                  {e.price === 0 ? 'Free' : formatPrice(e.price, e.currency)}
-                                </span>
+                                {/* This week is the full calendar, so it keeps
+                                    the member's own events — marked, rather
+                                    than looking like one more suggestion. */}
+                                {joinedEventIds.includes(e.id) ? (
+                                  <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full shrink-0">Going ✓</span>
+                                ) : (
+                                  <span className="text-xs font-bold text-gray-600 shrink-0">
+                                    {e.price === 0 ? 'Free' : formatPrice(e.price, e.currency)}
+                                  </span>
+                                )}
                               </Link>
                             ))}
                             {evts.length > 3 && (
@@ -2257,7 +2273,11 @@ export default async function DashboardPage() {
               </div>
             )}
 
-            {pickedRecommended.length === 0 && upcomingEvents.length > 0 && (
+            {/* Only when nothing above offered an event: gated on Recommended
+                alone, it sat under Featured, New this week and Trending
+                whenever the claims had emptied Recommended. */}
+            {pickedFeatured.length === 0 && pickedRecommended.length === 0 && pickedRunningLow.length === 0
+              && pickedNewThisWeek.length === 0 && trendingEvents.length === 0 && upcomingEvents.length > 0 && (
               <div className="bg-white rounded-2xl shadow-card p-6 text-center">
                 <div className="text-3xl mb-2">🔍</div>
                 <p className="text-gray-600 text-sm font-medium">Discover more events</p>
@@ -2344,7 +2364,7 @@ export default async function DashboardPage() {
               )}
             </div>
 
-            {newClubs.length > 0 && (
+            {exploreClubs.length > 0 && (
               <div className="bg-white rounded-2xl shadow-card p-5">
                 <div className="flex items-center justify-between mb-4">
                   <div>
@@ -2354,7 +2374,7 @@ export default async function DashboardPage() {
                   <Link href="/clubs" className="text-xs text-amber-600 font-semibold hover:underline">All →</Link>
                 </div>
                 <div className="space-y-3">
-                  {newClubs.map((club) => (
+                  {exploreClubs.map((club) => (
                     <Link key={club.id} href={`/clubs/${club.slug}`}
                       className="flex items-center gap-3 hover:opacity-80 transition-opacity group">
                       <div className={`w-11 h-11 rounded-xl ${club.bgColor} flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition-transform`}>

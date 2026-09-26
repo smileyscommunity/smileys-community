@@ -247,7 +247,9 @@ describe('b. one "members" rule: activated, every role except admin and partner'
 
   it('the dashboard founding gate and "Total members" count with it', () => {
     const src = read('app/(member)/dashboard/page.tsx')
-    expect(src.match(/prisma\.user\.count\(\{\s*where: \{ \.\.\.COMMUNITY_MEMBER_WHERE, cityId \}/g)).toHaveLength(2)
+    // One query; "Total members" reuses it (2026-09-26).
+    expect(src.match(/prisma\.user\.count\(\{\s*where: \{ \.\.\.COMMUNITY_MEMBER_WHERE, cityId \}/g)).toHaveLength(1)
+    expect(src).toContain('Promise.resolve(cityMemberCount),')
     expect(src).not.toMatch(/ACTIVATED_MEMBER_WHERE/)
   })
 })

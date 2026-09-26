@@ -117,3 +117,26 @@ describe('discovery shelves offer only what a member can still join', () => {
     expect(page).toContain("where: { status: 'active', cityId, expiresAt: { gte: new Date() },")
   })
 })
+
+// Dashboard clean-up, round 2 (2026-09-26).
+describe('the rest of the review', () => {
+  it('This week marks the member\'s own events "Going ✓"', () => {
+    expect(page).toContain('{joinedEventIds.includes(e.id) ? (')
+    expect(page).toContain('>Going ✓</span>')
+  })
+
+  it('a club is offered once: lineup, then explore, then the timeline', () => {
+    expect(page).toContain('const exploreClubs    = newClubs.filter(c => !lineupIds.has(c.id))')
+    expect(page).toContain('newClubs={timelineNewClubs}')
+    expect(page).toContain('{exploreClubs.map((club) => (')
+  })
+
+  it('"Discover more events" only when no discovery shelf rendered', () => {
+    expect(page).toContain('{pickedFeatured.length === 0 && pickedRecommended.length === 0 && pickedRunningLow.length === 0')
+  })
+
+  it('the city member count is read once', () => {
+    expect(page).toContain('Promise.resolve(cityMemberCount),')
+    expect(page.match(/prisma\.user\.count\(\{\s*where: \{ \.\.\.COMMUNITY_MEMBER_WHERE, cityId \}/g)?.length).toBe(1)
+  })
+})
