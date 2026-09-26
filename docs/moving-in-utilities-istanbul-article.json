@@ -20,48 +20,44 @@
   ],
   "officialSources": [
     {
-      "label": "İSKİ — subscriptions for foreign nationals (branch only, registered address, documents)",
-      "url": "https://iski.istanbul/abone-hizmetleri/abone-rehberi/yabanci-uyruklu-kisilerin-abonelik-islemleri/"
+      "url": "https://iski.istanbul/abone-hizmetleri/abone-rehberi/yabanci-uyruklu-kisilerin-abonelik-islemleri/",
+      "label": "İSKİ — subscriptions for foreign nationals"
     },
     {
-      "label": "CK Boğaziçi Elektrik — subscription documents and security deposit",
-      "url": "https://www.ckbogazici.com.tr/tr/iletisim/sikca-sorulan-sorular"
+      "url": "https://www.ckbogazici.com.tr/tr/iletisim/sikca-sorulan-sorular",
+      "label": "CK Boğaziçi Elektrik — subscription documents and security deposit"
     },
     {
-      "label": "CK Boğaziçi Elektrik — subscription",
-      "url": "https://www.ckbogazici.com.tr/tr/iste-enerji-abonelik"
+      "url": "https://www.ckbogazici.com.tr/tr/iste-enerji-abonelik",
+      "label": "CK Boğaziçi Elektrik — subscription"
     },
     {
-      "label": "Enerjisa — electricity subscription",
-      "url": "https://www.enerjisa.com.tr/en/customer-services/subscription"
+      "url": "https://www.enerjisa.com.tr/en/customer-services/subscription",
+      "label": "Enerjisa — electricity subscription"
     },
     {
-      "label": "İGDAŞ — connection and subscription contract general terms (gas opening after installation check, clause A.9; deposit, clause 10)",
-      "url": "https://static.turkiye.gov.tr/downloads/kurumlar/belediye/IGDAS_ABONELIKSOZLESMESI_GENELSARTLARI.pdf"
+      "url": "https://static.turkiye.gov.tr/downloads/kurumlar/belediye/IGDAS_ABONELIKSOZLESMESI_GENELSARTLARI.pdf",
+      "label": "İGDAŞ — connection and subscription contract general terms"
     },
     {
-      "label": "DASK — earthquake insurance and electricity subscriptions",
-      "url": "https://dask.gov.tr/tr/elektrik-aboneligi"
+      "url": "https://dask.gov.tr/tr/elektrik-aboneligi",
+      "label": "DASK — earthquake insurance and electricity subscriptions"
     },
     {
-      "label": "DASK — earthquake insurance and water subscriptions",
-      "url": "https://dask.gov.tr/tr/su-aboneligi"
+      "url": "https://dask.gov.tr/tr/su-aboneligi",
+      "label": "DASK — earthquake insurance and water subscriptions"
     },
     {
-      "label": "Condominium Law No. 634 (Kat Mülkiyeti Kanunu) — article 22, common expenses",
-      "url": "https://www.mevzuat.gov.tr/mevzuat?MevzuatNo=634&MevzuatTur=1&MevzuatTertip=5"
+      "url": "https://www.ckbogazici.com.tr/tr/45-soruda-elektrik-tuketicisi-olmak",
+      "label": "CK Boğaziçi Elektrik — becoming an electricity consumer in 45 questions"
     },
     {
-      "label": "CK Boğaziçi Elektrik — becoming an electricity consumer in 45 questions (passport number for non-citizens; deposit and stamp duty)",
-      "url": "https://www.ckbogazici.com.tr/tr/45-soruda-elektrik-tuketicisi-olmak"
+      "url": "https://www.enerjisa.com.tr/tr/musteri-islemleri/sorgulama/guvence-bedeli-sorgulama",
+      "label": "Enerjisa — security deposit (güvence bedeli)"
     },
     {
-      "label": "Enerjisa — security deposit (güvence bedeli)",
-      "url": "https://www.enerjisa.com.tr/tr/musteri-islemleri/sorgulama/guvence-bedeli-sorgulama"
-    },
-    {
-      "label": "Presidency of Migration Management (e-İkamet) — required documents and address-change notification",
-      "url": "https://e-ikamet.goc.gov.tr/Ikamet/IstenenBelgeler/BasvuruFormuBelgelerIliskinAciklamalar"
+      "url": "https://e-ikamet.goc.gov.tr/Ikamet/IstenenBelgeler/BasvuruFormuBelgelerIliskinAciklamalar",
+      "label": "Presidency of Migration Management (e-İkamet)"
     }
   ]
 }
