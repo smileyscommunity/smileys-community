@@ -37,6 +37,17 @@ City Lead  — runs a city                  (CityLead row, was CityHost)
 
 Plus `moderator` / `admin`, which are platform roles and not community-facing.
 
+## Public vocabulary shipped first (2026-09-27)
+
+The two nouns are live in `lib/hostTitles.ts` ahead of the rename: `HOST_TITLE`
+(`lead` → "City Lead", `host` → "Host"), the stated path `HOST_PATH`, and the
+one guest rule for every roster surface. They drive the profile chips, `/hosts`,
+`/[city]/hosts`, the city page's "Meet your hosts" section and the get-involved
+path block. When the model is renamed, `lib/hostRoster.ts` (`prisma.cityHost`)
+and `leadCityNamesFor` are the reads to follow; nothing user-facing changes.
+`consulUserId` is ignored by the titles — it is NULL everywhere and has no
+admin path, so a title that read it could never be earned.
+
 ## The table is NOT renamed in the database
 
 `CityHost` already carries `@@map("city_hosts")`, so renaming the **Prisma

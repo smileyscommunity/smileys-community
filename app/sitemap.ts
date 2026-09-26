@@ -145,6 +145,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       { url: `${BASE}/${c.slug}/clubs`,     priority: 0.75, changeFrequency: 'weekly' as const, lastModified: newestClub },
       { url: `${BASE}/${c.slug}/directory`, priority: 0.75, changeFrequency: 'weekly' as const, lastModified: newestBusiness },
       { url: `${BASE}/${c.slug}/board`,     priority: 0.75, changeFrequency: 'daily'  as const, lastModified: newestListing },
+      { url: `${BASE}/${c.slug}/hosts`,     priority: 0.6,  changeFrequency: 'weekly' as const, lastModified: newestEvent },
     ])
   // The remote-work, moving and student hubs have no global twin, so — unlike the listing hubs
   // above — every live city's is canonical to itself, the default included.

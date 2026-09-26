@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import HostPath from '@/components/HostPath'
 import { resolveStats } from '@/lib/communityStats'
 
 export const metadata = {
@@ -16,7 +17,7 @@ const WAYS = [
       'Full event management tools — RSVPs, guest lists, check-in',
       'Access to our network of vetted venues and suppliers',
       'A dedicated community of people who actually show up',
-      'Host badge on your profile',
+      'The Host title on your profile and your city\'s Meet the Hosts page',
     ],
     cta: 'Apply to become a host',
     href: '/contact',
@@ -162,6 +163,17 @@ export default async function GetInvolvedPage() {
               </div>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* The path: Host, then City Lead (lib/hostTitles) */}
+      <section className="bg-white border-t border-gray-100">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+          <HostPath />
+          <p className="text-sm text-gray-500 mt-4">
+            Every host and lead is a member volunteering their time. See who holds the titles today on the{' '}
+            <Link href="/hosts" className="font-semibold text-amber-600 hover:underline">Meet the Hosts</Link> page.
+          </p>
         </div>
       </section>
 

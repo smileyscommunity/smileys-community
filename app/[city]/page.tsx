@@ -6,11 +6,12 @@ import CityPageTracker from '@/components/CityPageTracker'
 import { eventWindowFor } from '@/lib/data'
 import { getPublicCity, DEFAULT_CITY_SLUG } from '@/lib/cities'
 import { CITY_STATUS } from '@/lib/cityStatus'
-import { cityMetadata, getCityPageData, getVisitors, getTopNeighborhoods, arrangeEvents, featureClubs, enterLinkFor, publicLinkFor } from './data'
+import { cityMetadata, getCityPageData, getVisitors, getCityHosts, getTopNeighborhoods, arrangeEvents, featureClubs, enterLinkFor, publicLinkFor } from './data'
 import PreLaunch from './sections/PreLaunch'
 import Hero from './sections/Hero'
 import Events from './sections/Events'
 import Clubs from './sections/Clubs'
+import Hosts from './sections/Hosts'
 import Neighborhoods from './sections/Neighborhoods'
 import Visitors from './sections/Visitors'
 import Guide from './sections/Guide'
@@ -58,8 +59,9 @@ export default async function CityPage({ params }: Params) {
   const session = await getSession()
   const events  = session ? await projectEventsForMember(cachedEvents, session) : cachedEvents.map(redactEventForGuest)
 
-  const [{ visitors, visitorTotal }, { topNeighborhoods, neighborhoodsHaveEvents }] = await Promise.all([
+  const [{ visitors, visitorTotal }, { hosts, hostTotal }, { topNeighborhoods, neighborhoodsHaveEvents }] = await Promise.all([
     getVisitors(city, !!session),
+    getCityHosts(city, !!session),
     getTopNeighborhoods(city.id, neighborhoodCounts),
   ])
 
@@ -79,6 +81,7 @@ export default async function CityPage({ params }: Params) {
       <Hero city={city} enter={enter} />
       <Events city={city} tabEvents={tabEvents} eventWindow={eventWindow} enter={enter} />
       <Clubs city={city} featuredClubs={featuredClubs} enter={enter} signedIn={!!session} />
+      <Hosts city={city} hosts={hosts} hostTotal={hostTotal} signedIn={!!session} />
       <Neighborhoods city={city} topNeighborhoods={topNeighborhoods} neighborhoodsHaveEvents={neighborhoodsHaveEvents} enter={enter} />
       <Visitors city={city} visitors={visitors} visitorTotal={visitorTotal} isDefaultCity={isDefaultCity} />
       <Guide city={city} hasGuide={guideEntries > 0} enter={enter} />

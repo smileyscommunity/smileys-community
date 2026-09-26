@@ -23,7 +23,7 @@ import { join } from 'path'
 import { APP_URL } from './env'
 import { absoluteOgImage } from './og'
 
-export type ShareCoverKind = 'handbook' | 'directory' | 'marketplace' | 'board' | 'events' | 'clubs' | 'neighborhoods' | 'guide' | 'visiting'
+export type ShareCoverKind = 'handbook' | 'directory' | 'marketplace' | 'board' | 'events' | 'clubs' | 'hosts' | 'neighborhoods' | 'guide' | 'visiting'
 
 // The brand card per kind, with its dimensions. The events and clubs cards
 // are square by design (they double as the Instagram assets); the rest use
@@ -35,6 +35,7 @@ const BRAND_CARD: Record<ShareCoverKind, { url: string; width: number; height: n
   marketplace: { url: `${APP_URL}/api/og`,              width: 1200, height: 630 },
   board:       { url: `${APP_URL}/api/og`,              width: 1200, height: 630 },
   neighborhoods: { url: `${APP_URL}/api/og`,            width: 1200, height: 630 },
+  hosts:       { url: `${APP_URL}/api/og`,              width: 1200, height: 630 },
   events:      { url: `${APP_URL}/images/events-og.jpg`, width: 1200, height: 1200 },
   clubs:       { url: `${APP_URL}/images/clubs-og.jpg`,  width: 1200, height: 1200 },
   // The guide's branded card, and the visiting page's share copy of the hero

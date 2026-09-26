@@ -8,6 +8,7 @@ import { isBlockedEitherWay } from '@/lib/memberPrivacy'
 import { todayInCity, resolveCityId } from '@/lib/city'
 import { firstNameOf } from '@/lib/data'
 import { countedReferralsWhere } from '@/lib/referrals'
+import { leadCityNamesFor } from '@/lib/hostRoster'
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
@@ -22,7 +23,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id } = await params
   const today = await todayInCity(await resolveCityId(session))
 
-  const [user, upcomingEvents, connection, hangoutsHosted, hangoutsJoined, savedRow, activePulse, activeHangout] = await Promise.all([
+  const [user, upcomingEvents, connection, hangoutsHosted, hangoutsJoined, savedRow, activePulse, activeHangout, leadCities] = await Promise.all([
     prisma.user.findFirst({
       where: { id, status: 'approved', role: { in: ['member', 'moderator', 'admin'] } },
       select: {
@@ -89,6 +90,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       orderBy: { startsAt: 'asc' },
       select:  { id: true, title: true, neighborhood: true, startsAt: true },
     }),
+    // The cities they lead, for the City Lead chip (lib/hostTitles).
+    leadCityNamesFor(id),
   ])
 
   if (!user) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -160,7 +163,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       viewLevel,
       viewerHasFullProfile: false,
       bio: null, neighborhood: null, nationality: null, interests: [], languages: [], socialStyles: [],
-      joinedAt: null, role: null, membershipType: null, foundingMember: false,
+      joinedAt: null, role: null, membershipType: null, foundingMember: false, leadCities: [],
       instagram: null, linkedin: null, industry: null, professionalRole: null, professionalStatus: null,
       clubs: [], upcomingEvents: [], sharedContext: null,
       isConnected: false,
@@ -227,6 +230,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     role:         user.role,
     membershipType: user.membershipType,
     foundingMember: user.foundingMember,
+    // A title, not personal data: shown at every level that shows the name.
+    leadCities,
     instagram:    fullAccess ? user.instagram : null,
     linkedin:     fullAccess ? user.linkedin : null,
     // Professional fields surfaced only when the member opted in to a
