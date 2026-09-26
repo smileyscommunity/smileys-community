@@ -1446,7 +1446,9 @@ export async function sendEventReminderEmail(
   const soonLead  = soonHours != null ? `in ~${soonHours} hour${soonHours === 1 ? '' : 's'}` : null
   const firstName = firstNameOf(name)
   const url       = `${APP_URL}/events/${eventId}`
-  await send('sendEventReminderEmail', {
+  // Returned, not dropped: the reminders sweep counts sent vs refused for
+  // its report to admins. A refusal is already recorded inside send().
+  return send('sendEventReminderEmail', {
     from: FROM, to: email,
     subject: safeSubject(soonLead ? `Starting soon: ${eventTitle} ${eventEmoji}, ${soonLead}` : `Reminder: ${eventTitle} ${eventEmoji} is coming up!`),
     html: `

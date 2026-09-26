@@ -118,6 +118,34 @@ async function run() {
   }
 }
 
+type ReminderEmailResult = { eventId: string; title: string; kind: 'tomorrow' | 'soon'; ok: boolean }
+
+// One bell entry per admin per run that emailed anyone: "Reminder emails
+// sent: 21 · Picnic in Moda: 21 starting soon". Failures are named, since
+// they are what an admin would act on; the detail is in email_failures.
+async function reportReminderEmails(results: ReminderEmailResult[]) {
+  const byEvent = new Map<string, { title: string; tomorrow: number; soon: number; failed: number }>()
+  for (const r of results) {
+    const row = byEvent.get(r.eventId) ?? { title: r.title, tomorrow: 0, soon: 0, failed: 0 }
+    if (!r.ok) row.failed++
+    else if (r.kind === 'tomorrow') row.tomorrow++
+    else row.soon++
+    byEvent.set(r.eventId, row)
+  }
+  const sent   = results.filter(r => r.ok).length
+  const failed = results.length - sent
+  const lines  = [...byEvent.values()].map(e => {
+    const parts = [e.tomorrow && `${e.tomorrow} for tomorrow`, e.soon && `${e.soon} starting soon`, e.failed && `${e.failed} failed`].filter(Boolean)
+    return `${e.title}: ${parts.join(', ')}`
+  })
+  const shown = lines.slice(0, 3).join(' · ') + (lines.length > 3 ? ` · and ${lines.length - 3} more event${lines.length - 3 === 1 ? '' : 's'}` : '')
+  const title = failed > 0 ? `📧 Reminder emails: ${sent} sent, ${failed} failed` : `📧 Reminder emails sent: ${sent}`
+  const admins = await prisma.user.findMany({ where: { role: 'admin', status: 'approved' }, select: { id: true } })
+  for (const a of admins) {
+    await createNotification(a.id, 'reminder_email_report', title, shown, '/admin/events')
+  }
+}
+
 async function runSweep() {
   const now          = new Date()
   // Yesterday / today / tomorrow, per city. This sweep ARCHIVES events whose
@@ -304,6 +332,8 @@ async function runSweep() {
 
   let sent24h = 0
   let sent2h  = 0
+  // Each reminder email's outcome, awaited after the loop for the admin report.
+  const emailJobs: Promise<ReminderEmailResult>[] = []
   let sentReviews = 0
   let sentCheckInNudges = 0
 
@@ -360,11 +390,13 @@ async function runSweep() {
             // the review email: lib/email paces sends, and a slow provider
             // must not hold up the rest of the sweep.
             if (user?.email && !remindersMuted.has(userId)) {
-              Promise.resolve(sendEventReminderEmail(user.email, user.name, event.title, event.emoji, event.date, event.location, event.id, { cancelCutoffHours: cutoff, time: event.time }))
+              emailJobs.push(sendEventReminderEmail(user.email, user.name, event.title, event.emoji, event.date, event.location, event.id, { cancelCutoffHours: cutoff, time: event.time })
+                .then(r => ({ eventId: event.id, title: event.title, kind: 'tomorrow' as const, ok: r.ok }))
                 .catch(async e => {
                   console.error('Reminder email error:', e)
                   await recordEmailFailure({ helper: 'sendEventReminderEmail', recipient: user.email, error: e, context: { eventId: event.id } })
-                })
+                  return { eventId: event.id, title: event.title, kind: 'tomorrow' as const, ok: false }
+                }))
             }
           }
           else await releaseClaim(claim24)
@@ -380,11 +412,13 @@ async function runSweep() {
             // who muted "reminders", once per member per event (claim2).
             if (user?.email && !remindersMuted.has(userId)) {
               const cutoff = eventTier(event) === 'scarce' ? cancelCutoffHours(event) : null
-              Promise.resolve(sendEventReminderEmail(user.email, user.name, event.title, event.emoji, event.date, event.location, event.id, { cancelCutoffHours: cutoff, time: event.time, startsInHours: diffHours }))
+              emailJobs.push(sendEventReminderEmail(user.email, user.name, event.title, event.emoji, event.date, event.location, event.id, { cancelCutoffHours: cutoff, time: event.time, startsInHours: diffHours })
+                .then(r => ({ eventId: event.id, title: event.title, kind: 'soon' as const, ok: r.ok }))
                 .catch(async e => {
                   console.error('Starting-soon email error:', e)
                   await recordEmailFailure({ helper: 'sendEventReminderEmail', recipient: user.email, error: e, context: { eventId: event.id, kind: 'starting-soon' } })
-                })
+                  return { eventId: event.id, title: event.title, kind: 'soon' as const, ok: false }
+                }))
             }
           }
           else await releaseClaim(claim2)
@@ -392,6 +426,16 @@ async function runSweep() {
       }
     }
   }
+
+  // Report the run's reminder emails to the admins — how many went out per
+  // event and how many the provider refused (after lib/email's retries).
+  // Awaited here, not fire-and-forget as before: the counts have to be real,
+  // and the sweep is a background cron request, so ~2 sends a second costs
+  // nothing anyone waits on.
+  const emailResults = await Promise.all(emailJobs)
+  const emailsSent   = emailResults.filter(r => r.ok).length
+  const emailsFailed = emailResults.length - emailsSent
+  if (emailResults.length > 0) await reportReminderEmails(emailResults)
 
   // "Check-in is open" — to the host and co-hosts, at the run nearest the
   // start, linked to the roster (lib/checkInNudge). Claimed per person per
@@ -457,5 +501,5 @@ async function runSweep() {
   // member_applications.profilePhoto, so a file still referenced from any
   // other column (a legacy member avatar) was deleted after 30 days.
 
-  return { sent24h, sent2h, sentReviews, sentCheckInNudges, archivedCount, sentConnections, checkedEvents: upcomingEvents.length + pastEvents.length, expiringListings: expiringListings.length }
+  return { sent24h, sent2h, emailsSent, emailsFailed, sentReviews, sentCheckInNudges, archivedCount, sentConnections, checkedEvents: upcomingEvents.length + pastEvents.length, expiringListings: expiringListings.length }
 }

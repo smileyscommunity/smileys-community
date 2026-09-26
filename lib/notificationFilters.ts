@@ -60,6 +60,7 @@ export const FILTER_TYPES: Record<Filter, string[]> = {
     // broadcasts, and a city going live all read as notices, like 'announcement'.
     'new_article', 'broadcast', 'city_launch',
     'directory_submission', 'directory_review_nudge', 'directory_review',
+    'reminder_email_report',
     // Things a member submits for review — they land in a moderator queue.
     'story_submission', 'testimonial_submission',
     // …and the answer the writer gets back.
@@ -156,6 +157,7 @@ export const TYPE_ICON: Record<string, string> = {
   // Admin/moderator-only — distinct icon so directory submissions
   // stand out from generic 'system' bell entries.
   directory_submission: '📋',
+  reminder_email_report: '📧',
   directory_review_nudge: '📝',
   listing_new:         '🏷️',
   board_interest:      '🙋',

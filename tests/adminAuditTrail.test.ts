@@ -16,7 +16,7 @@ vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn(async () => true), claimOnc
 // Both routes now judge "has it happened" on the event city's calendar.
 vi.mock('@/lib/city',      () => ({ todayInCity: vi.fn(async () => '2026-09-12') }))
 vi.mock('@/lib/email',     () => ({
-  sendEventReminderEmail: vi.fn(async () => {}),
+  sendEventReminderEmail: vi.fn(async () => ({ ok: true, id: 'm1' })),
   sendNoShowEmail:        vi.fn(async () => {}),
   sendLoginNudgeEmail:    vi.fn(async () => {}),
   sendActivationEmail:    vi.fn(async () => {}),

@@ -57,7 +57,8 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       const { user } = a
       await Promise.allSettled([
         sendEventReminderEmail(user.email, user.name, event.title, emoji, eventDate, eventLocation, event.id, { cancelCutoffHours: eventTier(event) === 'scarce' ? cancelCutoffHours(event) : null })
-          .then(() => { emailed++ }),
+          // A refusal resolves too (send() records it); count real sends only.
+          .then(r => { if (r.ok) emailed++ }),
         createNotification(
           user.id,
           'reminder_24h',

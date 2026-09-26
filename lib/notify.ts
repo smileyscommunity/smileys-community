@@ -98,6 +98,9 @@ const PREF_KEY: Record<string, 'newEvents' | 'reminders' | 'eventUpdates' | 'joi
   // moderator team gets a distinct bell entry (with its own icon) and
   // an email. Transactional — never gated by prefs.
   directory_submission: null,
+  // Admin-only: after an hourly reminders run that emailed anyone — how many
+  // went out per event and how many the provider refused. Transactional.
+  reminder_email_report: null,
   // Fired when an admin grants premium/VIP. Transactional — a status
   // change the member should always hear about.
   membership_upgraded: null,
@@ -179,7 +182,7 @@ export const SUSPENDED_SKIPPED_TYPES: ReadonlySet<string> = new Set([
   // a freed seat to claim needs a sign-in they don't have
   'spot_opened',
   // staff queues: another moderator picks them up
-  'application', 'report', 'directory_submission', 'no_show_appeal',
+  'application', 'report', 'directory_submission', 'no_show_appeal', 'reminder_email_report',
 ])
 
 // Quiet hours hold a push until morning, which is right for everything except

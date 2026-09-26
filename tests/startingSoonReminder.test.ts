@@ -80,3 +80,19 @@ describe('reminder email', () => {
     expect(soon).toContain('startsInHours: diffHours')
   })
 })
+
+// Admins hear what each run emailed (2026-09-26).
+describe('reminder email report to admins', () => {
+  const route = readFileSync(join(__dirname, '..', 'app/api/admin/cron/reminders/route.ts'), 'utf8')
+  it('waits for the emails and reports real counts', () => {
+    expect(route).toContain('const emailResults = await Promise.all(emailJobs)')
+    expect(route).toContain('if (emailResults.length > 0) await reportReminderEmails(emailResults)')
+    expect(route).toContain(".then(r => ({ eventId: event.id, title: event.title, kind: 'tomorrow' as const, ok: r.ok }))")
+    expect(route).toContain(".then(r => ({ eventId: event.id, title: event.title, kind: 'soon' as const, ok: r.ok }))")
+  })
+  it('goes to admins only, as its own transactional type', () => {
+    expect(route).toContain("where: { role: 'admin', status: 'approved' }")
+    expect(route).toContain("createNotification(a.id, 'reminder_email_report', title, shown, '/admin/events')")
+    expect(readFileSync(join(__dirname, '..', 'lib/notify.ts'), 'utf8')).toContain('reminder_email_report: null,')
+  })
+})
