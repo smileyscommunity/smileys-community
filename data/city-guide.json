@@ -6,40 +6,40 @@
       "color": "blue",
       "resources": [
         {
+          "title": "Metro & Tram",
+          "description": "M2 runs Yenikapı–Taksim–Hacıosman; change at Gayrettepe for the M11 metro to Istanbul Airport. T1 tram runs Kabataş–Eminönü–Bağcılar. M4 links Kadıköy to Sabiha Gökçen airport.",
+          "href": "https://www.metro.istanbul/en",
+          "badge": "Admin Pick",
+          "badgeColor": "violet",
+          "tip": "During rush hour (08–10, 17–19) expect full carriages on M2."
+        },
+        {
           "title": "Istanbulkart",
           "description": "The must-have reloadable transit card. Works on metro, tram, bus, ferry and funicular. Tap-to-pay everywhere.",
           "href": "",
           "badge": "Essential",
           "badgeColor": "",
-          "tip": "Buy at any metro station kiosk for ₺70 (card deposit). Reload at machines or the app. Saves ~35% vs cash fares."
-        },
-        {
-          "title": "Metro & Tram",
-          "description": "M2 connects Taksim to the airport (Gayrettepe). T1 tram runs Kabataş–Eminönü–Bağcılar. M4 links Kadıköy to Sabiha Gökçen airport.",
-          "href": "https://www.metro.istanbul/en",
-          "badge": "Admin Pick",
-          "badgeColor": "violet",
-          "tip": "Service runs 06:00–midnight. During rush hour (08–10, 17–19) expect full carriages on M2."
+          "tip": "Buy one from the machines at metro stations, and top it up at the machines or in the app."
         },
         {
           "title": "Ferry (Şehir Hatları)",
-          "description": "Scenic and cheap Bosphorus crossings. Key routes: Eminönü ↔ Kadıköy, Beşiktaş ↔ Kadıköy, Kabataş ↔ Üsküdar.",
+          "description": "Scenic and cheap Bosphorus crossings. Key routes: Eminönü ↔ Kadıköy, Beşiktaş ↔ Kadıköy, Üsküdar ↔ Eminönü.",
           "href": "https://sehirhatlari.istanbul/en",
           "badge": "Admin Pick",
           "badgeColor": "violet",
-          "tip": "Ferries run every 15–30 min during daytime. The upper deck is worth it for the views. Istanbulkart accepted."
+          "tip": "Main routes run frequently through the day; check the timetable in the evening. The upper deck is worth it for the views. Istanbulkart accepted."
         },
         {
           "title": "Taxi & Rideshare",
-          "description": "Yellow taxis (taksi) are abundant. Apps: BiTaksi (official taxi app) and Uber both work in Istanbul.",
+          "description": "Yellow taxis (taksi) are everywhere. BiTaksi and Uber both book licensed Istanbul taxis — Uber here is the same taxis at the meter price plus a booking fee, not a separate cheaper service.",
           "href": "https://www.bitaksi.com",
           "badge": "",
           "badgeColor": "",
-          "tip": "Always confirm the meter is running. Uber is often slightly cheaper and avoids negotiation. Typical city ride: ₺150–400."
+          "tip": "Make sure the meter is running. Under the tariff in force since 20 July 2026, a yellow taxi's minimum fare is ₺230 (₺265 for turquoise, ₺400 for black taxis)."
         },
         {
           "title": "Dolmuş",
-          "description": "Shared minibuses running fixed routes. Cash only, extremely cheap. Tell the driver your stop and pay when you get off.",
+          "description": "Shared minibuses running fixed routes. Mostly cash, extremely cheap. Pay after you get on — pass the fare forward to the driver if you are sitting in the back — and tell the driver where you want to get off.",
           "href": "",
           "badge": "",
           "badgeColor": "",
@@ -47,13 +47,14 @@
         },
         {
           "title": "Funicular & Cable Car",
-          "description": "F1 funicular (Kabataş ↔ Taksim), F2 (Taksim ↔ İstiklal). Teleferik cable cars in Eyüp and Maçka park.",
+          "description": "F1 funicular (Kabataş ↔ Taksim), F2 Tünel (Karaköy ↔ Beyoğlu) — 90 seconds up the Galata hill. The T2 nostalgic tram runs along İstiklal (Taksim ↔ Tünel). Teleferik cable cars in Eyüp and Maçka park.",
           "href": "",
           "badge": "",
           "badgeColor": "",
-          "tip": "Istanbulkart works. F2 is the famous nostalgic tram on İstiklal Caddesi — lovely but slow."
+          "tip": "Istanbulkart works on all of them. The slow, red nostalgic tram along İstiklal Caddesi is the T2, not the F2."
         }
-      ]
+      ],
+      "updatedAt": "2026-09-24"
     },
     {
       "icon": "📱",
@@ -62,7 +63,7 @@
       "resources": [
         {
           "title": "Google Maps",
-          "description": "Best overall navigation. Accurately routes metro, tram, ferry, and bus with real-time departures.",
+          "description": "Reliable navigation that routes metro, tram, ferry and bus.",
           "href": "https://maps.google.com",
           "badge": "Essential",
           "badgeColor": "",
@@ -78,7 +79,7 @@
         },
         {
           "title": "BiTaksi",
-          "description": "Official Istanbul taxi app. Connects you to licensed yellow taxis with upfront pricing and driver tracking.",
+          "description": "Taxi-hailing app for licensed Istanbul taxis, with a fare estimate and driver tracking.",
           "href": "https://www.bitaksi.com",
           "badge": "Admin Pick",
           "badgeColor": "violet",
@@ -86,11 +87,11 @@
         },
         {
           "title": "Getir & Yemeksepeti",
-          "description": "Getir for ultra-fast grocery/convenience delivery (10–30 min). Yemeksepeti for restaurant food delivery.",
+          "description": "Getir (now owned by Uber) for fast grocery and convenience delivery, Yemeksepeti for restaurant food.",
           "href": "https://getir.com",
           "badge": "",
           "badgeColor": "",
-          "tip": "Getir is genuinely 10 minutes. Both apps have English interfaces and work with foreign cards."
+          "tip": ""
         },
         {
           "title": "Istanbul Kart App",
@@ -102,13 +103,14 @@
         },
         {
           "title": "Trendyol",
-          "description": "Turkey's largest e-commerce app. Same-day delivery for most items in Istanbul. Also has Trendyol Go for food.",
+          "description": "Türkiye's largest online marketplace, with fast delivery for many items in Istanbul.",
           "href": "https://www.trendyol.com",
           "badge": "",
           "badgeColor": "",
-          "tip": "Significantly cheaper than Amazon equivalent for electronics, home goods, and clothing."
+          "tip": ""
         }
-      ]
+      ],
+      "updatedAt": "2026-09-24"
     },
     {
       "icon": "🏠",
@@ -121,27 +123,19 @@
           "href": "https://www.sahibinden.com/en",
           "badge": "Essential",
           "badgeColor": "",
-          "tip": "Filter by 'Kiralık' (for rent) and your target neighbourhood. Many listings are agent-only — expect a 1-month commission fee."
+          "tip": "Filter by 'Kiralık' (for rent) and your neighbourhood. If an agent (emlakçı) is involved, their fee for a rental is capped at one month's rent plus VAT, and is split between landlord and tenant unless you agree otherwise in writing."
         },
         {
-          "title": "Typical Rental Costs",
-          "description": "1-bed in Cihangir/Beyoğlu: ₺25,000–55,000/mo. Kadıköy/Moda: ₺20,000–45,000/mo. Beşiktaş/Nişantaşı: ₺40,000–80,000/mo. Emerging areas (Eyüp, Bağcılar): ₺12,000–22,000/mo.",
+          "title": "Rental Costs",
+          "description": "Rents vary enormously between neighbourhoods, buildings and even streets, and they change fast — any city-wide figure is out of date within months. Compare several current listings for the kind of flat you want in the area you want, and ask people who live there what they pay.",
           "href": "",
-          "badge": "2025 Est.",
-          "badgeColor": "blue",
-          "tip": "Prices rise fast. Fully-furnished flats list at a premium (20–40% above bare). Negotiate hard — most landlords expect it."
-        },
-        {
-          "title": "Facebook Groups",
-          "description": "Best source for direct-from-landlord listings and expat sublets: search 'Istanbul Expats Housing', 'Istanbul Apartments for Rent', 'Expats in Istanbul'.",
-          "href": "https://www.facebook.com/groups/istanbulexpatshousing",
-          "badge": "Admin Pick",
-          "badgeColor": "violet",
-          "tip": "Post your requirements in the group — many members rent rooms or sublet short-term. Faster than agent listings."
+          "badge": "",
+          "badgeColor": "",
+          "tip": "Ask for the monthly aidat (building fee) before you sign — a cheap flat with a high aidat can cost more than a pricier one."
         },
         {
           "title": "What to Expect",
-          "description": "Standard lease is 12 months. Deposit is typically 1–2 months rent. Utilities (elektrik, su, doğalgaz) are billed separately. Many buildings have an aidat (building maintenance fee).",
+          "description": "Leases are commonly 12 months. A deposit of one or two months' rent is common; the legal maximum is three. Utilities (elektrik, su, doğalgaz) are billed separately, and many buildings charge a monthly aidat (maintenance fee).",
           "href": "",
           "badge": "",
           "badgeColor": "",
@@ -157,13 +151,14 @@
         },
         {
           "title": "Short-Term on Arrival",
-          "description": "For your first weeks: Airbnb and Booking.com have strong Istanbul supply. Monthly Airbnb is often 30–40% cheaper than the nightly rate — always ask the host.",
+          "description": "For your first weeks, Airbnb and Booking.com have plenty of Istanbul supply. Many hosts discount stays of a month or more — check the monthly price, and ask.",
           "href": "https://www.airbnb.com",
           "badge": "",
           "badgeColor": "",
           "tip": "Neighbourhoods with high Airbnb supply: Taksim, Sultanahmet, Karaköy, Kadıköy. Avoid tourist-trap rates in Sultanahmet for long stays."
         }
-      ]
+      ],
+      "updatedAt": "2026-09-24"
     },
     {
       "icon": "🍽️",
@@ -176,15 +171,15 @@
           "href": "",
           "badge": "Must Try",
           "badgeColor": "green",
-          "tip": "Best areas: Kadıköy, Cihangir, Van (the city known for its kahvaltı culture). Budget ₺200–400pp at a sit-down place."
+          "tip": "Kadıköy and Cihangir have plenty of breakfast places, including 'Van kahvaltı' houses — named after the eastern city famous for its breakfast spreads. Weekends get busy; go early or book."
         },
         {
           "title": "Street Food Essentials",
-          "description": "Simit (sesame bread ring, ₺10–15), balık ekmek (fish sandwich on Eminönü waterfront, ₺100), kestane (roasted chestnuts in winter), midye (stuffed mussels).",
+          "description": "Simit (sesame bread ring), balık ekmek (fish sandwich, famous on the Eminönü waterfront), kestane (roasted chestnuts in winter), midye dolma (stuffed mussels).",
           "href": "",
           "badge": "Must Try",
           "badgeColor": "green",
-          "tip": "Midye — squeeze lemon on each mussel and pay per piece at the end. A great street snack at ₺10–15 each."
+          "tip": "Midye are eaten standing at the cart: squeeze lemon on each one and pay per piece at the end. Street-food prices change often — ask before you order."
         },
         {
           "title": "Markets",
@@ -200,7 +195,7 @@
           "href": "",
           "badge": "",
           "badgeColor": "",
-          "tip": "Alcohol is only sold in licensed shops and restaurants. Supermarkets cannot sell alcohol between midnight and 06:00. Prices are high due to taxes — budget ₺200–400 for a beer in a bar."
+          "tip": "Shops can't sell alcohol between 22:00 and 06:00 — buy before ten if you're bringing a bottle. Drinks in bars and restaurants are expensive because of high alcohol taxes."
         },
         {
           "title": "Coffee Culture",
@@ -212,11 +207,11 @@
         },
         {
           "title": "Delivery Apps",
-          "description": "Yemeksepeti (restaurant delivery), Getir Yemek (fast food + grocery), Trendyol Yemek (restaurant + market). All work with foreign cards and have English interfaces.",
+          "description": "Yemeksepeti, Getir and Trendyol Go are the main apps for restaurant and grocery delivery.",
           "href": "https://www.yemeksepeti.com",
           "badge": "",
           "badgeColor": "",
-          "tip": "Delivery is fast (20–40 min average) and relatively cheap. Tipping delivery drivers is not culturally expected but appreciated."
+          "tip": "Tipping delivery riders isn't expected, but it's appreciated."
         }
       ]
     },
@@ -225,22 +220,6 @@
       "label": "Co-working & Remote Work",
       "color": "teal",
       "resources": [
-        {
-          "title": "Kolektif House",
-          "description": "Istanbul's premium co-working network. Multiple locations: Maslak, Ataşehir, Bağcılar, Beşiktaş. High-speed fibre, meeting rooms, good community events.",
-          "href": "https://kolektifhouse.co",
-          "badge": "Admin Pick",
-          "badgeColor": "violet",
-          "tip": "Day passes available from ~₺600. Monthly memberships from ~₺4,000. Book meeting rooms via the app."
-        },
-        {
-          "title": "Workinton",
-          "description": "Good value co-working with many Istanbul locations. More casual atmosphere than Kolektif. Strong on amenities (printing, lockers, phone booths).",
-          "href": "https://workinton.com",
-          "badge": "",
-          "badgeColor": "",
-          "tip": "Monthly plans from ~₺3,000. Offer short-term packages ideal for visitors staying a few weeks."
-        },
         {
           "title": "Café Working Culture",
           "description": "Istanbul cafés are generally very laptop-friendly. No pressure to leave, outlets at most tables, decent Wi-Fi. Kadıköy, Cihangir, Karaköy, and Nişantaşı have the densest options.",
@@ -251,29 +230,30 @@
         },
         {
           "title": "Internet & Connectivity",
-          "description": "Istanbul has excellent fibre internet infrastructure. Most apartments and cafés offer 100–500 Mbps. Get a local SIM for 4G/5G backup (Turkcell is most reliable).",
+          "description": "Fixed-line and fibre coverage is good in central Istanbul, but speed depends on the exact building. Get a local SIM for mobile-data backup.",
           "href": "",
           "badge": "",
           "badgeColor": "",
-          "tip": "Some services are throttled or blocked (Discord, certain VoIP). Set up a VPN before arriving — downloading from Turkey can be slow."
+          "tip": "Discord has been blocked in Türkiye since October 2024 and other services are restricted from time to time. Set up a VPN before you arrive."
         },
         {
           "title": "Work & Visa Considerations",
-          "description": "Most expats work remotely on tourist visas. Turkish residence permits (ikamet) are required after 90 days. Freelancers can explore the 'digital nomad' visa option introduced in 2023.",
-          "href": "https://www.goc.gov.tr/ikamet-izinleri",
+          "description": "Visa-free entry or an e-Visa is not permission to work. Türkiye's Digital Nomad route (launched April 2024) is for people working for employers or clients outside Türkiye; work for Turkish employers or clients needs a work permit or exemption. Stays beyond your 90 days need a residence permit.",
+          "href": "https://digitalnomads.goturkiye.com/",
           "badge": "Legal Info",
           "badgeColor": "blue",
-          "tip": "Stay on top of your 90/180-day Schengen-style limit. Many expats do 'visa runs' to a nearby country. Always consult a local immigration lawyer for complex situations."
+          "tip": "Leaving and coming back does not reset the 90/180-day count — 'visa runs' don't work. Our Handbook guide on working remotely from Türkiye covers the details."
         },
         {
           "title": "Time Zone & Working with Europe",
-          "description": "Istanbul is UTC+3. 1 hour ahead of most of Europe, 8 hours ahead of US East Coast. Works well for European clients with morning Istanbul time = late night Europe.",
+          "description": "Istanbul is UTC+3 all year, with no daylight saving: 1 hour ahead of Central Europe in summer and 2 in winter; 7 hours ahead of US Eastern time in summer and 8 in winter.",
           "href": "",
           "badge": "",
           "badgeColor": "",
-          "tip": "Turkish public holidays differ from European ones. Check the calendar at the start of each month to avoid surprises."
+          "tip": "Turkish public holidays differ from European ones, and the religious holidays move each year. Check the calendar at the start of each month."
         }
-      ]
+      ],
+      "updatedAt": "2026-09-24"
     },
     {
       "icon": "🛠️",
@@ -282,11 +262,11 @@
       "resources": [
         {
           "title": "SIM Card",
-          "description": "Buy a Turkcell tourist SIM at the airport or any Turkcell store. 30-day unlimited data plans from ~₺500.",
+          "description": "Buy a SIM from an official Turkcell, Vodafone or Türk Telekom shop with your passport. Prices and packages change often — compare in store.",
           "href": "",
           "badge": "Do First",
           "badgeColor": "rose",
-          "tip": "Foreign phones must be registered within 120 days or they'll be blocked on Turkish networks. Ask the store about IMEI registration."
+          "tip": "A phone brought from abroad works on Turkish networks for up to 120 days, then can be blocked unless its IMEI is registered through e-Devlet or at an operator’s store, within 365 days of entry — the fee for 2026 is ₺54,258, and tourists without a residence permit generally can't register. See our SIM and internet guide."
         },
         {
           "title": "Currency & ATMs",
@@ -302,11 +282,11 @@
           "href": "https://www.acibadem.com.tr/en",
           "badge": "",
           "badgeColor": "",
-          "tip": "Emergency: 112. Visits without insurance typically ₺800–2,000 for consultations. Keep your receipts for insurance reimbursement."
+          "tip": "Emergency: 112. Private consultation prices vary by hospital and specialty — ask when you book. Keep your receipts for insurance reimbursement."
         },
         {
           "title": "Emergency Numbers",
-          "description": "112 — Ambulance & Fire\n155 — Police\n156 — Gendarmerie\n158 — Coast Guard",
+          "description": "112 — the single emergency number across Türkiye for ambulance, fire and police. Legacy numbers (155 police, 156 gendarmerie, 158 coast guard) still connect, but 112 covers everything.",
           "href": "",
           "badge": "Save These",
           "badgeColor": "rose",
@@ -314,11 +294,11 @@
         },
         {
           "title": "VPN",
-          "description": "Some platforms are throttled or intermittently blocked in Turkey (Discord, some social media). A reliable VPN is recommended.",
+          "description": "Some platforms are blocked or restricted in Türkiye — Discord since October 2024 — and others are throttled from time to time. A reliable paid VPN is recommended.",
           "href": "",
           "badge": "",
           "badgeColor": "",
-          "tip": "Mullvad and ProtonVPN work well. Set up before you arrive — download speeds from Turkey can make VPN setup slow."
+          "tip": "Set it up before you arrive. VPN services themselves are sometimes blocked, so have a second option."
         },
         {
           "title": "Language Tips",
@@ -328,7 +308,8 @@
           "badgeColor": "",
           "tip": "'Teşekkürler' (teh-shek-kür-ler) = Thank you. 'Merhaba' = Hello. Learning a few words goes a long way with locals."
         }
-      ]
+      ],
+      "updatedAt": "2026-09-24"
     },
     {
       "icon": "🛂",
@@ -337,7 +318,7 @@
       "resources": [
         {
           "title": "Tourist Visa (e-Visa)",
-          "description": "Most nationalities can enter Turkey visa-free for up to 90 days within 180. Some (US, UK, India) need an e-visa — apply online before arrival, takes minutes.",
+          "description": "Ordinary passport holders from the US, UK, Canada, Australia, most EU countries and many others enter visa-free for up to 90 days in any 180 (US and Canadian citizens since December 2023, Australians since April 2026). Cypriot passport holders need a visa, some nationalities need an e-Visa, applied for online before arrival, and others a consular visa. Check your own passport on the Ministry of Foreign Affairs list.",
           "href": "https://www.evisa.gov.tr/en/",
           "badge": "Start here",
           "badgeColor": "green",
@@ -345,46 +326,46 @@
         },
         {
           "title": "Residence Permit (İkamet)",
-          "description": "Required if you stay longer than 90 days. Short-term (1–2 years) is the common track. Apply via e-ikamet within your visa-free window — appointments fill up fast.",
+          "description": "Needed if you stay beyond your visa or visa-free period. The short-term permit is the common track. Apply through e-İkamet before your permitted stay runs out.",
           "href": "https://e-ikamet.goc.gov.tr/",
           "badge": "Essential",
           "badgeColor": "",
-          "tip": "Book the appointment the day you decide to stay. Wait times in Istanbul can be 8+ weeks. Bring originals of everything."
+          "tip": "Start early — appointment availability varies by season, and the process can take weeks. Bring originals and photocopies of everything. Appointments are free — ignore anyone selling them."
         },
         {
           "title": "Required Documents",
-          "description": "Passport (6+ months validity), biometric photo, address registration (yerleşim belgesi), private health insurance (one year), proof of accommodation, financial means proof.",
+          "description": "Typically: a passport valid at least 60 days beyond the permit you ask for, two recent biometric photos, proof of address (a notarised lease, a title deed or a notarised taahhütname from your host), health insurance valid in Türkiye covering the permit period, and proof of means. e-İkamet generates your personal checklist.",
           "href": "",
           "badge": "",
           "badgeColor": "",
-          "tip": "Bank statements showing ~USD 6,000/year are typical. Notarised rental contract or a hotel reservation both work for address proof."
+          "tip": "For the tourism-purpose permit most expats use, a signed declaration is no longer enough: expect to show regular income of at least 1.5× the net minimum wage (plus one minimum wage per family member), backed by the last three months of statements. A tax number is not on the official list, but you will need one for insurance and most contracts."
         },
         {
           "title": "Private Health Insurance",
-          "description": "A 1-year policy from a Turkish insurer (around ₺3,000–8,000/year) is mandatory for the permit. Foreign policies usually rejected. Major providers: AXA, Anadolu Sigorta, Allianz.",
+          "description": "Most first-time applicants need a policy from a licensed Turkish insurer covering the whole permit period. Travel insurance from home is generally not accepted.",
           "href": "",
           "badge": "",
           "badgeColor": "",
-          "tip": "Buy through a broker (acente) — same policy, often cheaper than going direct, and they help with the paperwork in English."
+          "tip": "Buying through a broker (acente) is common — they sell policies written for residence-permit applications."
         },
         {
           "title": "Renewal & Conversion",
-          "description": "Apply for renewal 60 days before expiry. After 8 years of continuous residence you can apply for long-term residence or citizenship through investment / marriage / time-based tracks.",
+          "description": "Apply to renew within the 60 days before your permit expires, and always before it expires. After 8 years of uninterrupted residence you can apply for a long-term residence permit.",
           "href": "",
           "badge": "",
           "badgeColor": "",
-          "tip": "Don’t leave Turkey for more than 120 days/year on a short-term permit — breaks continuity for long-term eligibility."
+          "tip": "Time outside Türkiye counts: on a short-term permit, more than 120 days abroad in total over the last year can cost you the permit."
         },
         {
           "title": "Work Permit",
-          "description": "Employer-sponsored only — you cannot apply solo. The employer files through the Ministry of Labour. Independent earners (freelance, remote for foreign companies) operate in a grey area.",
+          "description": "Usually applied for by the employer through the Ministry of Labour. Independent work permits exist for qualified professionals and company partners, assessed on education, experience and income. Remote work for a foreign employer is covered in our Handbook guide on working remotely from Türkiye.",
           "href": "https://www.csgb.gov.tr/en/",
           "badge": "",
           "badgeColor": "",
-          "tip": "If you’re remote-working for a foreign employer on a residence permit, get tax advice early — the rules are tightening."
+          "tip": "If you work remotely for a foreign employer while living here, get tax advice early."
         }
       ],
-      "updatedAt": "2026-05-26"
+      "updatedAt": "2026-09-24"
     },
     {
       "icon": "🩺",
@@ -397,19 +378,19 @@
           "href": "",
           "badge": "Admin Pick",
           "badgeColor": "violet",
-          "tip": "Acıbadem and American Hospital have the deepest expat experience. Cash prices for a GP visit run ₺2,000–4,000 without insurance."
+          "tip": "Acıbadem and American Hospital have long experience with expat patients. Ask for the price when you book — consultation fees vary by hospital and specialty."
         },
         {
           "title": "Public Healthcare (SGK)",
-          "description": "Universal coverage tied to residency and contributions. As a foreign resident you can voluntarily enrol after 1 year of continuous residence permit — about ₺2,500/month.",
+          "description": "A foreign resident can generally join SGK's general health insurance after one continuous year of residence, with further conditions — such as not already being covered by another country's social security. Check your own case with SGK.",
           "href": "https://www.sgk.gov.tr/",
           "badge": "",
           "badgeColor": "",
-          "tip": "Public hospitals are heavily subsidised but Turkish-only and crowded. Most expats keep private insurance instead."
+          "tip": "Public hospitals are heavily subsidised but busy, and staff may not speak English. Many expats keep private insurance too."
         },
         {
           "title": "Pharmacies (Eczane)",
-          "description": "On every corner, marked with a red E. Pharmacists are highly trained and can dispense many things over-the-counter that need a prescription elsewhere (antibiotics, etc.).",
+          "description": "Marked with a red E and on nearly every street. Pharmacists can advise on minor problems and sell many medicines over the counter — but antibiotics need a doctor's prescription.",
           "href": "",
           "badge": "",
           "badgeColor": "",
@@ -417,27 +398,27 @@
         },
         {
           "title": "Dental Care",
-          "description": "Excellent and significantly cheaper than Western Europe or the US. Cleanings ₺1,000–2,000; implants and cosmetic work also widely available. Many clinics cater to medical tourists.",
+          "description": "Widely available and usually much cheaper than in Western Europe or the US. Many clinics cater to international patients.",
           "href": "",
           "badge": "",
           "badgeColor": "",
-          "tip": "Ask members for clinic recommendations — quality varies widely. Avoid the Sultanahmet “dental tourism” strip unless you know the dentist personally."
+          "tip": "Quality varies — ask members for clinics they have used, and get a written treatment plan and price before you start."
         },
         {
           "title": "Mental Health & Therapy",
-          "description": "English-speaking therapists are available, mostly in Beşiktaş, Şişli, and Kadıköy. Sessions ₺1,500–3,000. Online platforms (Tovuti, Hiwell) connect you to Turkish-licensed therapists.",
+          "description": "English-speaking therapists practise mostly in Beşiktaş, Şişli and Kadıköy. Online platforms such as Hiwell connect you to Turkish-licensed therapists.",
           "href": "",
           "badge": "",
           "badgeColor": "",
-          "tip": "BetterHelp and other foreign platforms work too if you prefer a non-Turkish therapist — same cost as anywhere."
+          "tip": "Foreign online platforms work too if you prefer a therapist from home."
         },
         {
           "title": "Emergency: 112",
-          "description": "Single number for ambulance, fire, police, all emergencies. Operators usually speak some English. Private hospitals will dispatch their own ambulance if you call them directly.",
+          "description": "Single number for ambulance, fire and police. Operators may not speak English. The big private hospitals run their own ambulance lines — save one in your phone now.",
           "href": "",
           "badge": "Essential",
           "badgeColor": "",
-          "tip": "For non-emergencies, Uber to the private hospital is faster and cheaper than waiting for a public ambulance."
+          "tip": "In a real emergency, call 112 — public ambulances are free. For something urgent but not life-threatening, a taxi to the nearest emergency department (acil) is often quicker."
         }
       ],
       "updatedAt": "2026-05-26"
@@ -449,19 +430,19 @@
       "resources": [
         {
           "title": "Opening a Turkish Bank Account",
-          "description": "Requires your residence permit + tax number (vergi numarası). Major banks for expats: Garanti BBVA, İş Bankası, Yapı Kredi, DenizBank. Account usually opens same-day.",
+          "description": "You'll need your passport, a tax number (vergi numarası), a Turkish mobile number and proof of address. Many private banks now ask foreigners for a residence permit, though no law requires one. Policies differ between banks — and between branches.",
           "href": "",
           "badge": "Essential",
           "badgeColor": "",
-          "tip": "Garanti has the best English app and is the most foreigner-friendly. Bring originals: passport, permit, tax number, proof of address."
+          "tip": "If one branch says no, try another. Get your Turkish SIM first: banking runs on SMS confirmation."
         },
         {
           "title": "Tax Number (Vergi Numarası)",
-          "description": "Free, 10 minutes at any tax office (vergi dairesi). Required for almost everything: bank account, phone contract, utilities, property purchase.",
+          "description": "Free. Get it at any tax office (vergi dairesi) with your passport, usually in about 15 minutes, or online through the tax administration’s digital tax office (a Turkish phone number helps). You need it for a bank account, health insurance and most contracts, and it smooths the residence-permit process.",
           "href": "",
           "badge": "Do this first",
           "badgeColor": "green",
-          "tip": "Get this BEFORE your bank/residence permit appointment. The Beyoğlu tax office is the most foreigner-friendly in central Istanbul."
+          "tip": "Get this before your bank or residence-permit appointment."
         },
         {
           "title": "Using Foreign Cards",
@@ -473,30 +454,30 @@
         },
         {
           "title": "Currency & Exchange",
-          "description": "Lira (TRY) is volatile — check the rate the day you exchange. Döviz büfeleri (exchange booths) in Sirkeci, Kapalıçarşı, and Aksaray have the best rates. Avoid airport and hotel desks.",
+          "description": "Lira (TRY) is volatile — check the rate the day you exchange. Exchange booths (döviz büfeleri) in Sirkeci, Kapalıçarşı and Aksaray are known for competitive rates. Avoid airport and hotel desks.",
           "href": "",
           "badge": "",
           "badgeColor": "",
-          "tip": "Big amounts? Negotiate — anything over ~USD 5,000 usually gets you a slightly better rate at the booth."
+          "tip": "Compare a few booths before exchanging a large amount — the posted rates differ."
         },
         {
-          "title": "Papara & Digital Wallets",
-          "description": "Papara is the local digital wallet — useful for splitting bills and small online payments where international cards bounce. Free to open with a Turkish ID/permit.",
-          "href": "https://www.papara.com/",
+          "title": "Turkish Cards & Digital Wallets",
+          "description": "Some small Turkish sites only accept Turkish-issued cards. Wallets such as Papara fill the gap, though Papara itself had its licence cancelled in October 2025 and restored in January 2026 — a debit card from a Turkish bank is the most reliable option.",
+          "href": "",
           "badge": "",
           "badgeColor": "",
-          "tip": "Many small local sites only accept Papara or Turkish bank cards. Worth having even if you have a regular account."
+          "tip": ""
         },
         {
           "title": "Taxes for Foreign Income",
-          "description": "After 6 months of residence in Turkey you’re considered a tax resident. Worldwide income theoretically taxable. Most expats with remote foreign jobs use a tax accountant (mali müşavir).",
+          "description": "You may become a Turkish tax resident if you live here or stay more than six months continuously in a calendar year, with exceptions. Tax residents are generally taxed on worldwide income, but since June 2026 (Law 7582) people who become tax resident from 2026 on — after three years with no Turkish residence or tax liability — can apply for a 20-year exemption on all their foreign-source income.",
           "href": "",
           "badge": "",
           "badgeColor": "",
-          "tip": "Ask members for a recommended mali müşavir who handles expats — fees ₺2,000–5,000/year, well worth avoiding mistakes."
+          "tip": "Get advice from a tax accountant (mali müşavir) who works with expats — ask members for recommendations."
         }
       ],
-      "updatedAt": "2026-05-26"
+      "updatedAt": "2026-09-24"
     },
     {
       "icon": "📶",
@@ -505,27 +486,27 @@
       "resources": [
         {
           "title": "SIM Cards (Tourist vs Resident)",
-          "description": "Tourist SIM at the airport: ₺1,800–2,500 for 20 GB, valid 30 days. Resident plan (after permit + tax number): ₺200–500/month for unlimited. Turkcell, Vodafone, Türk Telekom are the big three.",
+          "description": "Foreigners can get a prepaid line at an official shop with a passport. Turkcell, Vodafone and Türk Telekom are the big three. Packages and prices change often — compare in store.",
           "href": "",
           "badge": "Essential",
           "badgeColor": "",
-          "tip": "Phones brought from abroad get IMEI-blocked after 120 days unless registered with customs (₺20,000+ fee). Plan for a local handset or eSIM if staying long."
+          "tip": "A phone from abroad can be blocked after 120 days unless its IMEI is registered through e-Devlet or at an operator’s store, within 365 days of entry — ₺54,258 for 2026, and generally not open to tourists without a residence permit. Compare that with buying a phone here."
         },
         {
           "title": "Best Carrier for Expats",
-          "description": "Turkcell has the widest coverage and best English app. Vodafone is often cheapest for data-heavy plans. Türk Telekom for fibre + mobile bundles if you have a fixed address.",
+          "description": "All three big operators cover Istanbul. What matters most is coverage in your building and on your commute — ask neighbours which one works for them.",
           "href": "",
           "badge": "Admin Pick",
           "badgeColor": "violet",
-          "tip": "Switch carriers any time — number portability works the same day. Use it to negotiate when your contract renews."
+          "tip": "Number portability lets you switch operators and keep your number."
         },
         {
           "title": "Home Internet (Fibre)",
-          "description": "Türk Telekom, TurkNet, Superonline, and Vodafone Net all offer fibre. 100 Mbps starts around ₺400/month; 1 Gbps in covered areas around ₺900. Installation 3–10 days.",
+          "description": "Türk Telekom, TurkNet, Superonline and Vodafone Net sell fibre, but available speed depends on the exact building. Many deals come with a 12- or 18-month commitment.",
           "href": "",
           "badge": "",
           "badgeColor": "",
-          "tip": "Check Türk Telekom’s coverage map before signing — fibre is everywhere central but spotty in newer outskirts."
+          "tip": "Ask the provider to check your exact address, and ask what the price becomes after the promotion and what early cancellation costs."
         },
         {
           "title": "eSIM Options",
@@ -533,26 +514,28 @@
           "href": "https://www.airalo.com/turkey-esim",
           "badge": "",
           "badgeColor": "",
-          "tip": "Airalo is cheapest for short stays (~USD 9 for 5 GB). Skip if you’re staying 30+ days — local SIM wins on price."
+          "tip": "Travel eSIMs suit short stays. If you're staying a month or more, compare with a local prepaid line."
         },
         {
           "title": "VPN Notice",
-          "description": "Some sites and apps are intermittently throttled (Discord voice, certain Telegram channels, the .com Wikipedia at times). Most expats run a paid VPN as default.",
+          "description": "Some sites and apps are blocked or throttled — Discord has been blocked since October 2024. Most expats run a paid VPN.",
           "href": "",
           "badge": "",
           "badgeColor": "",
-          "tip": "NordVPN, Mullvad, ProtonVPN all work reliably. Free VPNs are unreliable here — pick a paid one."
+          "tip": "Pick a paid VPN — free ones are unreliable here — and have a backup, since VPN services themselves are sometimes blocked."
         },
         {
           "title": "Wi-Fi Etiquette",
-          "description": "Cafes, malls, and metro stations have free public Wi-Fi — usually requires SMS verification to a Turkish number. Many cafes share the password verbally if you ask.",
+          "description": "Squares, parks, buses and Metrobüs have free İBB Wi-Fi — connect in one tap through İBB’s “İstanbul Senin” app. Many cafes share their password if you ask.",
           "href": "",
           "badge": "",
           "badgeColor": "",
-          "tip": "Avoid banking on public Wi-Fi without a VPN. Mobile data is so cheap in Turkey it’s often easier to just tether."
+          "tip": "Avoid banking on public Wi-Fi without a VPN. Tethering from your phone's data is often simpler."
         }
       ],
-      "updatedAt": "2026-05-26"
+      "updatedAt": "2026-09-24"
     }
-  ]
+  ],
+  "updatedAt": "2026-09-25T21:09:15.000Z",
+  "updatedBy": "Smileys Admin"
 }
