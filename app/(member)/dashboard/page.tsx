@@ -142,7 +142,13 @@ export default async function DashboardPage() {
   // Someone listed as a person (near you, suggestions): also either public
   // or already connected to the viewer — profileVisibility 'connections'
   // means strangers don't get their photo, bio and neighbourhood.
-  const LISTABLE = { ...LIVE, OR: [{ profileVisibility: { not: 'connections' } }, { id: { in: connectedIds } }] }
+  // Also an activated community member: an approved account that never set a
+  // password (a fifth of each week's approvals) or an admin/partner login is
+  // not a person to suggest or list — the same rule the member count uses.
+  const LISTABLE = { ...LIVE, ...COMMUNITY_MEMBER_WHERE, OR: [{ profileVisibility: { not: 'connections' } }, { id: { in: connectedIds } }] }
+  // The clock and seat fields every discovery shelf needs to leave out an
+  // event that has already ended today or has no seat left (see joinable).
+  const SHELF = { time: true, endTime: true, spotsLeft: true, limitedSpots: true, soldOut: true } as const
 
   const [myAttendances, myMemberships, userProfile, unreviewedRaw, recentListings, recentMovingSales] = await Promise.all([
     // Lightweight: only ids + dates are needed for the id lists, counts,
@@ -181,7 +187,7 @@ export default async function DashboardPage() {
       take: 10,
     }),
     prisma.listing.findMany({
-      where: { status: 'active', cityId, userId: { notIn: notMeOrBlocked }, user: LIVE },
+      where: { status: 'active', cityId, expiresAt: { gte: new Date() }, userId: { notIn: notMeOrBlocked }, user: LIVE },
       orderBy: { createdAt: 'desc' },
       take: 4,
       select: { id: true, title: true, category: true, photo: true, photoPosition: true, price: true, createdAt: true, user: { select: { name: true, color: true, profilePhoto: true } } },
@@ -438,7 +444,7 @@ export default async function DashboardPage() {
       // well they matched: a perfect-scoring event four weeks out lost its
       // place to a score-of-nothing event next Tuesday.
       orderBy: { date: 'asc' }, take: 80,
-      select: { id: true, title: true, date: true, time: true, emoji: true, neighborhood: true, price: true, currency: true, totalSpots: true, limitedSpots: true, coverImage: true, clubId: true, tags: { select: { tagId: true } }, _count: { select: { attendees: { where: { status: 'approved' } } } } },
+      select: { ...SHELF, id: true, title: true, date: true, emoji: true, neighborhood: true, price: true, currency: true, totalSpots: true, coverImage: true, clubId: true, tags: { select: { tagId: true } }, _count: { select: { attendees: { where: { status: 'approved' } } } } },
     }),
     // Club joins for the activity wall. Members of clubs see their own
     // clubs' joins; members of none fall back to community-wide joins
@@ -465,7 +471,9 @@ export default async function DashboardPage() {
     prisma.eventAttendee.findMany({
       where: { userId: session.id, status: 'pending', event: { date: { gte: today }, status: 'published', cancelledAt: null } },
       include: { event: { select: { id: true, title: true, date: true, emoji: true } } },
-      orderBy: { joinedAt: 'desc' }, take: 10,
+      // Not capped at 10: the heading counts these, and the discovery
+      // shelves leave every one of them out (see joinable).
+      orderBy: { joinedAt: 'desc' }, take: 100,
     }),
     // Club wall posts — same no-clubs fallback as joins above. The
     // isPrivate filter matters here: private-club posts must not
@@ -568,7 +576,7 @@ export default async function DashboardPage() {
     prisma.event.findMany({
       where: { cityId, featured: true, date: { gte: today }, status: 'published', id: { notIn: joinedEventIds } },
       orderBy: { date: 'asc' }, take: 3,
-      select: { id: true, title: true, date: true, time: true, emoji: true, neighborhood: true, price: true, currency: true, spotsLeft: true, limitedSpots: true, soldOut: true, coverImage: true },
+      select: { ...SHELF, id: true, title: true, date: true, emoji: true, neighborhood: true, price: true, currency: true, coverImage: true },
     }),
     // New this week: events added in the last seven days, newest first,
     // whatever the recommendation scoring makes of them. "Recommended" shows
@@ -579,7 +587,7 @@ export default async function DashboardPage() {
     prisma.event.findMany({
       where: { cityId, date: { gte: today }, status: 'published', id: { notIn: joinedEventIds }, createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60_000) } },
       orderBy: { createdAt: 'desc' }, take: 4,
-      select: { id: true, title: true, date: true, emoji: true, neighborhood: true, price: true, currency: true },
+      select: { ...SHELF, id: true, title: true, date: true, emoji: true, neighborhood: true, price: true, currency: true },
     }),
     // Spots running low: upcoming events with ≤5 spots left that user hasn't
     // joined. Ordered soonest-first (date is text 'YYYY-MM-DD', so asc = chrono)
@@ -588,7 +596,7 @@ export default async function DashboardPage() {
       where: { cityId, date: { gte: today }, status: 'published', limitedSpots: true, soldOut: false, spotsLeft: { gt: 0, lte: 5 }, id: { notIn: joinedEventIds } },
       orderBy: [{ date: 'asc' }, { time: 'asc' }],
       take: 4,
-      select: { id: true, title: true, date: true, emoji: true, spotsLeft: true, neighborhood: true, price: true },
+      select: { ...SHELF, id: true, title: true, date: true, emoji: true, neighborhood: true, price: true },
     }),
     // Events created in user's clubs within the last 14 days — feeds the
     // unified ClubActivityTimeline alongside new members + new posts.
@@ -617,7 +625,7 @@ export default async function DashboardPage() {
       take: 5,
       // Only what the timeline shows: a full Event row carries the address,
       // meeting and chat links and payment contact.
-      select: { id: true, title: true, emoji: true, date: true, createdAt: true, club: { select: { name: true, emoji: true, slug: true } } },
+      select: { id: true, title: true, emoji: true, date: true, time: true, endTime: true, createdAt: true, club: { select: { name: true, emoji: true, slug: true } } },
     }),
     // Referral stats — reuses userProfile.referralCode (already loaded in
     // batch 1) instead of a redundant prisma.user.findUnique. Self-hides
@@ -685,7 +693,7 @@ export default async function DashboardPage() {
       where: { cityId, date: { gte: today, lte: weekEndStr }, status: 'published' },
       orderBy: { date: 'asc' },
       take: 20,
-      select: { id: true, title: true, date: true, emoji: true, neighborhood: true, price: true, currency: true },
+      select: { ...SHELF, id: true, title: true, date: true, emoji: true, neighborhood: true, price: true, currency: true },
     }),
     // "Total members" — activated community members (lib/memberCount); it
     // counted admins and partners, so it disagreed with the panel above.
@@ -697,7 +705,7 @@ export default async function DashboardPage() {
     prisma.user.findMany({
       // "Joined Smileys · <neighborhood>" is only said of members who show
       // their profile to everyone.
-      where: { cityId, status: 'approved', hiddenFromMembers: false, profileVisibility: { not: 'connections' }, joinedAt: { gte: weekAgo }, id: { notIn: notMeOrBlocked } },
+      where: { ...COMMUNITY_MEMBER_WHERE, cityId, hiddenFromMembers: false, profileVisibility: { not: 'connections' }, joinedAt: { gte: weekAgo }, id: { notIn: notMeOrBlocked } },
       select: { id: true, name: true, color: true, profilePhoto: true, neighborhood: true, neighborhoodVisible: true, joinedAt: true },
       orderBy: { joinedAt: 'desc' },
       take: 8,
@@ -772,7 +780,7 @@ export default async function DashboardPage() {
       where: { cityId, date: { gte: today }, status: 'published', id: { notIn: joinedEventIds } },
       orderBy: { attendees: { _count: 'desc' } },
       take: 20,
-      select: { id: true, title: true, date: true, emoji: true, neighborhood: true, price: true, currency: true, totalSpots: true, spotsLeft: true, limitedSpots: true, _count: { select: { attendees: { where: { status: 'approved' } } } } },
+      select: { ...SHELF, id: true, title: true, date: true, emoji: true, neighborhood: true, price: true, currency: true, totalSpots: true, _count: { select: { attendees: { where: { status: 'approved' } } } } },
     }),
     // Members near you: same neighborhood, excluding self
     userProfile?.neighborhood
@@ -884,7 +892,9 @@ export default async function DashboardPage() {
       where: {
         status:    'approved',
         stealth:   false,
-        user:      LIVE,
+        // LISTABLE, not LIVE: a member who shows their profile to
+        // connections only was named "going to <event>" to the whole city.
+        user:      LISTABLE,
         userId:    { notIn: notMeOrBlocked },
         joinedAt:  { gte: weekAgo },
         event:     { cityId, status: 'published', date: { gte: today } },
@@ -1186,18 +1196,34 @@ export default async function DashboardPage() {
   // is, and a later strip cannot repeat it. The city calendar below is
   // deliberately NOT part of this: it is a browse surface and has to stay
   // complete.
+  // What a discovery shelf may offer: an event that hasn't ended (the
+  // queries cut on date only, so a 10:00 brunch was still "filling up fast"
+  // at 21:00), still has a seat, and isn't one the member already asked to
+  // join (joinedEventIds holds approved seats only).
+  const nowMs      = Date.now()
+  const notEnded   = (e: { date: string; time?: string | null; endTime?: string | null }) => eventEndsAt(e, tz).getTime() > nowMs
+  const pendingIds = new Set(waitlisted.map(w => w.event.id))
+  const joinable   = <E extends { id: string; date: string; time?: string | null; endTime?: string | null; soldOut: boolean; limitedSpots: boolean; spotsLeft: number }>(e: E) =>
+    notEnded(e) && !e.soldOut && !(e.limitedSpots && e.spotsLeft <= 0) && !pendingIds.has(e.id)
+
   const claimedEventIds = new Set<string>()
   const claimEvents = <T extends { id: string }>(list: T[]): T[] => {
     const kept = list.filter(e => !claimedEventIds.has(e.id))
     for (const e of kept) claimedEventIds.add(e.id)
     return kept
   }
-  const pickedFeatured    = claimEvents(featuredEvents)
-  const pickedRecommended = claimEvents(deduplicatedRecommended)
-  const pickedRunningLow  = claimEvents(runningLow)
-  const pickedNewThisWeek = claimEvents(newThisWeek)
+  const pickedFeatured    = claimEvents(featuredEvents.filter(joinable))
+  const pickedRecommended = claimEvents(deduplicatedRecommended.filter(joinable))
+  const pickedRunningLow  = claimEvents(runningLow.filter(joinable))
+  const pickedNewThisWeek = claimEvents(newThisWeek.filter(joinable))
   // Trending is gated AFTER the claim, on what is actually left to rank.
-  const pickedTrendingRanked = claimEvents(trendingRanked)
+  const pickedTrendingRanked = claimEvents(trendingRanked.filter(joinable))
+  // The browse surfaces stay complete — full events included — but never
+  // show one that has already finished. The heading counts the whole week:
+  // the list is capped at 20, the count isn't.
+  const thisWeekShown = thisWeekEvents.filter(notEnded)
+  const thisWeekTotal = thisWeekEvents.length < 20 ? thisWeekShown.length : Math.max(eventsThisWeek, thisWeekShown.length)
+  const clubEventsShown = recentClubEvents.filter(notEnded)
   const trendingEvents = pickedTrendingRanked.length >= TRENDING_MIN_FIELD && (pickedTrendingRanked[0]?._count.attendees ?? 0) > 0
     ? pickedTrendingRanked.slice(0, 4)
     : []
@@ -1842,7 +1868,7 @@ export default async function DashboardPage() {
                 mobile and desktop. Center column renders on every
                 viewport, so a single placement replaces the previous
                 two (mobile-only + right-rail) renders. */}
-            <ClubActivityTimeline members={recentActivity} posts={wallActivity} events={recentClubEvents} photos={recentPhotos} rsvps={recentRsvps} newMembers={newMembers} hangouts={recentHangouts} pulses={shownPulses} connections={recentConnections} references={recentReferences} newClubs={recentlyCreatedClubs} listings={wallListings} businesses={recentBusinesses} eventReviews={recentEventReviews} placeReviews={recentPlaceReviews} visitors={wallVisitors} hangoutJoins={recentHangoutJoins} hoodPosts={wallHoodPosts} resources={recentResources} testimonials={recentTestimonials} articles={timelineArticles} cityName={city.name} cap={12} />
+            <ClubActivityTimeline members={recentActivity} posts={wallActivity} events={clubEventsShown} photos={recentPhotos} rsvps={recentRsvps} newMembers={newMembers} hangouts={recentHangouts} pulses={shownPulses} connections={recentConnections} references={recentReferences} newClubs={recentlyCreatedClubs} listings={wallListings} businesses={recentBusinesses} eventReviews={recentEventReviews} placeReviews={recentPlaceReviews} visitors={wallVisitors} hangoutJoins={recentHangoutJoins} hoodPosts={wallHoodPosts} resources={recentResources} testimonials={recentTestimonials} articles={timelineArticles} cityName={city.name} cap={12} />
 
             {/* Upcoming visitors — surfaces /visiting + the new wave
                 action on the dashboard. Component renders nothing when
@@ -2211,19 +2237,19 @@ export default async function DashboardPage() {
             )}
 
             {/* This week in the city — full calendar browse */}
-            {thisWeekEvents.length > 0 && (
+            {thisWeekShown.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <div>
                     <h2 className="text-lg font-bold text-gray-900">This week in {city.name}</h2>
-                    <p className="text-xs text-gray-400 mt-0.5">{thisWeekEvents.length} event{thisWeekEvents.length !== 1 ? 's' : ''} coming up</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{thisWeekTotal} event{thisWeekTotal !== 1 ? 's' : ''} coming up</p>
                   </div>
                   <Link href="/events" className="text-sm text-amber-600 font-semibold hover:underline">All →</Link>
                 </div>
                 <div className="space-y-3">
                   {(() => {
-                    const byDay: Record<string, typeof thisWeekEvents> = {}
-                    thisWeekEvents.forEach((e) => {
+                    const byDay: Record<string, typeof thisWeekShown> = {}
+                    thisWeekShown.forEach((e) => {
                       if (!byDay[e.date]) byDay[e.date] = []
                       byDay[e.date].push(e)
                     })
@@ -2468,7 +2494,7 @@ export default async function DashboardPage() {
                 <Link href={`/events/${e.id}`} className="block bg-white rounded-2xl shadow-card overflow-hidden hover:shadow-md transition-shadow group">
                   {e.coverImage ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={e.coverImage} alt={e.title} className="w-full h-32 object-cover" />
+                    <img src={resolveImageUrl(e.coverImage)} alt={e.title} className="w-full h-32 object-cover" />
                   ) : (
                     <div className="w-full h-20 bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-4xl">
                       {e.emoji}
@@ -2506,7 +2532,7 @@ export default async function DashboardPage() {
                   </div>
                   {l.photo && (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={l.photo} alt={l.title} className="w-full h-28 object-cover rounded-xl mb-3" style={{ objectPosition: `center ${l.photoPosition ?? 50}%` }} />
+                    <img src={resolveImageUrl(l.photo)} alt={l.title} className="w-full h-28 object-cover rounded-xl mb-3" style={{ objectPosition: `center ${l.photoPosition ?? 50}%` }} />
                   )}
                   <p className="text-sm font-bold text-gray-900 group-hover:text-amber-600 transition-colors leading-snug line-clamp-2">{l.title}</p>
                   <div className="flex items-center justify-between mt-2">

@@ -30,7 +30,8 @@ describe('privacy', () => {
   })
 
   it('people listed are live, public or connected, and chose to be listed by neighbourhood', () => {
-    expect(page).toContain("const LISTABLE = { ...LIVE, OR: [{ profileVisibility: { not: 'connections' } }, { id: { in: connectedIds } }] }")
+    // Activated community members only (2026-09-26): never-activated accounts and admin/partner logins were listed.
+    expect(page).toContain("const LISTABLE = { ...LIVE, ...COMMUNITY_MEMBER_WHERE, OR: [{ profileVisibility: { not: 'connections' } }, { id: { in: connectedIds } }] }")
     expect(page).toContain("conditions.push({ neighborhood: userProfile.neighborhood, neighborhoodVisible: true })")
     expect(page).toContain("where: { neighborhood: userProfile.neighborhood, neighborhoodVisible: true, cityId, id: { notIn: notMeOrBlocked }, AND: [LISTABLE] }")
     // Suggestions skip people already connected.
@@ -75,5 +76,32 @@ describe('what the page says', () => {
   it('listings link to the marketplace, not the conversation board', () => {
     expect(page).not.toContain('/board?id=')
     expect(page).not.toContain('/board?tab=MOVING')
+  })
+})
+
+// Dashboard bug batch (2026-09-26).
+describe('discovery shelves offer only what a member can still join', () => {
+  it('drops ended, full and already-requested events before the claims', () => {
+    expect(page).toContain("notEnded(e) && !e.soldOut && !(e.limitedSpots && e.spotsLeft <= 0) && !pendingIds.has(e.id)")
+    for (const shelf of ['featuredEvents', 'deduplicatedRecommended', 'runningLow', 'newThisWeek', 'trendingRanked']) {
+      expect(page).toContain(`claimEvents(${shelf}.filter(joinable))`)
+    }
+  })
+
+  it('browse surfaces keep full events but not finished ones', () => {
+    expect(page).toContain('const thisWeekShown = thisWeekEvents.filter(notEnded)')
+    expect(page).toContain('events={clubEventsShown} photos=')
+  })
+
+  it('pending requests are not capped at 10', () => {
+    expect(page).not.toContain("orderBy: { joinedAt: 'desc' }, take: 10,")
+  })
+
+  it('new members are activated community members', () => {
+    expect(page).toContain("where: { ...COMMUNITY_MEMBER_WHERE, cityId, hiddenFromMembers: false, profileVisibility: { not: 'connections' }, joinedAt: { gte: weekAgo }")
+  })
+
+  it('listings past their expiry are not shown', () => {
+    expect(page).toContain("where: { status: 'active', cityId, expiresAt: { gte: new Date() },")
   })
 })

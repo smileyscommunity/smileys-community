@@ -31,8 +31,9 @@ describe('12. the dashboard never announces a stealth or hidden RSVP', () => {
     const src = read('app/(member)/dashboard/page.tsx')
     const feed = src.slice(src.indexOf('// Recent RSVPs to events'), src.indexOf('// Clubs created in the last 14 days'))
     expect(feed).toContain("stealth:   false,")
-    // LIVE = { status: 'approved', hiddenFromMembers: false } — every feed's rule now.
-    expect(feed).toContain("user:      LIVE,")
+    // LISTABLE = LIVE + activated member + public-or-connected (2026-09-26): a
+    // connections-only member's RSVP was announced to the whole city.
+    expect(feed).toContain("user:      LISTABLE,")
   })
 })
 
