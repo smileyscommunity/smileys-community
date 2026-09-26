@@ -5,8 +5,9 @@ import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { resolveCityId, getCityConfig } from '@/lib/city'
-import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
-import { groupBySeries, seriesCadenceLabel } from '@/lib/eventSeries'
+import { nowInTz } from '@/lib/cityTime'
+import { getCityTz } from '@/lib/city'
+import { buildShelves, experienceWindow } from '@/lib/experiences'
 import { formatPrice, formatShortDate, resolveImageUrl, BLUR_PLACEHOLDER } from '@/lib/data'
 import { APP_URL } from '@/lib/env'
 
@@ -22,6 +23,9 @@ import { APP_URL } from '@/lib/env'
 // Public: every field selected is within the guest tier the events feed
 // already serves (venue NAME is public; exact address/GPS/links are not
 // selected at all — nothing to redact).
+//
+// Upcoming / cancelled / sold-out rules mirror the events feed — see
+// lib/experiences for why each one is there.
 
 export const metadata: Metadata = {
   title: 'Experiences — Smileys Community',
@@ -33,7 +37,7 @@ const CARD_SELECT = {
   id: true, title: true, emoji: true, date: true, time: true,
   location: true, neighborhood: true, coverImage: true, coverImagePosition: true,
   price: true, memberPrice: true, currency: true,
-  spotsLeft: true, totalSpots: true, limitedSpots: true,
+  spotsLeft: true, totalSpots: true, limitedSpots: true, soldOut: true, status: true,
   seriesId: true, isRecurring: true,
   club: { select: { name: true, emoji: true, slug: true } },
   tags: { select: { tag: { select: { name: true, emoji: true, group: { select: { name: true } } } } } },
@@ -41,42 +45,26 @@ const CARD_SELECT = {
 
 const getExperiencesData = unstable_cache(
   async (cityId: string) => {
-    const today = todayInTz(DEFAULT_TZ)
+    // "Today" and the started-cutoff in the CITY's clock, not the founding
+    // city's — Tbilisi's evening is an hour off Istanbul's.
+    const { today, cutoffTime } = experienceWindow(nowInTz(await getCityTz(cityId)))
     const events = await prisma.event.findMany({
       where: {
-        cityId, status: 'published', date: { gte: today },
+        cityId,
+        // Cancelled rides along so the card can say so (the feed does the
+        // same); drafts and the rest stay out.
+        status: { in: ['published', 'cancelled'] },
+        OR: [
+          { date: { gt: today } },
+          { AND: [{ date: today }, { time: { gte: cutoffTime } }] },
+        ],
         tags: { some: { tag: { group: { name: 'Experience' } } } },
       },
       select: CARD_SELECT,
       orderBy: [{ date: 'asc' }, { time: 'asc' }],
       take: 80,
     })
-
-    // Shelf per Experience tag, in a stable curated order; an event with two
-    // experience tags appears on both shelves (that's what shelves are for).
-    const SHELF_ORDER = ['Outdoor', 'Adventure', 'Cultural', 'Food', 'Wellness']
-    const shelves = new Map<string, { emoji: string; events: typeof events }>()
-    for (const e of events) {
-      for (const t of e.tags) {
-        if (t.tag.group.name !== 'Experience') continue
-        const shelf = shelves.get(t.tag.name) ?? { emoji: t.tag.emoji, events: [] }
-        shelf.events.push(e)
-        shelves.set(t.tag.name, shelf)
-      }
-    }
-    return [...shelves.entries()]
-      .sort((a, b) => {
-        const ia = SHELF_ORDER.indexOf(a[0]); const ib = SHELF_ORDER.indexOf(b[0])
-        return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib)
-      })
-      .map(([name, s]) => ({
-        name, emoji: s.emoji,
-        groups: groupBySeries(s.events).map(g => ({
-          event: g.next,
-          cadence: seriesCadenceLabel(g),
-          moreDates: g.isSeries ? g.upcoming.slice(0, 2).map(e => e.date) : [],
-        })),
-      }))
+    return buildShelves(events)
   },
   ['experiences-page-data'],
   { revalidate: 120, tags: ['experiences'] },
@@ -115,9 +103,9 @@ export default async function ExperiencesPage() {
               <span aria-hidden="true">{shelf.emoji}</span> {shelf.name}
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {shelf.groups.map(({ event: e, cadence }) => (
+              {shelf.cards.map(({ event: e, cadence, moreDates, moreCount, cancelledDates, cancelled, soldOut }) => (
                 <Link key={e.id} href={`/events/${e.id}`}
-                  className="card overflow-hidden group hover:-translate-y-0.5 transition-transform">
+                  className={`card overflow-hidden group hover:-translate-y-0.5 transition-transform${cancelled ? ' opacity-80' : ''}`}>
                   <div className="relative aspect-[16/9] bg-gradient-to-br from-amber-100 to-amber-200">
                     {e.coverImage ? (
                       <Image
@@ -136,6 +124,29 @@ export default async function ExperiencesPage() {
                         🔁 {cadence}
                       </span>
                     )}
+                    {/* Same stamps as EventCard: cancelled greys the cover out,
+                        sold out only dims it — the detail page still offers
+                        the waitlist. */}
+                    {cancelled && (
+                      <>
+                        <div className="absolute inset-0 bg-red-950/45 backdrop-grayscale pointer-events-none" />
+                        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center pointer-events-none">
+                          <span className="bg-red-600 text-white text-xs font-extrabold tracking-widest uppercase px-3 py-1 rounded-md shadow-lg -rotate-6">
+                            Cancelled
+                          </span>
+                        </div>
+                      </>
+                    )}
+                    {soldOut && !cancelled && (
+                      <>
+                        <div className="absolute inset-0 bg-gray-950/35 pointer-events-none" />
+                        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center pointer-events-none">
+                          <span className="bg-violet-600 text-white text-xs font-extrabold tracking-widest uppercase px-3 py-1 rounded-md shadow-lg -rotate-6">
+                            Sold out
+                          </span>
+                        </div>
+                      </>
+                    )}
                   </div>
                   <div className="p-4">
                     {/* No emoji prefix: legacy titles often carry their own
@@ -147,9 +158,19 @@ export default async function ExperiencesPage() {
                     <p className="text-xs text-gray-500 mt-1.5">
                       {cadence ? `Next: ${formatShortDate(e.date)}` : formatShortDate(e.date)} · {e.time} · {e.neighborhood}
                     </p>
+                    {moreDates.length > 0 && (
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Also {moreDates.map(formatShortDate).join(' · ')}{moreCount > moreDates.length ? ` · +${moreCount - moreDates.length} more` : ''}
+                      </p>
+                    )}
+                    {cancelledDates.length > 0 && (
+                      <p className="text-xs text-red-600 mt-0.5">
+                        {cancelledDates.map(formatShortDate).join(' · ')} cancelled
+                      </p>
+                    )}
                     <div className="flex items-center justify-between mt-3">
-                      <span className="text-sm font-bold text-gray-900">
-                        {e.price === 0 ? 'Free' : formatPrice(e.price, e.currency)}
+                      <span className={`text-sm font-bold ${cancelled ? 'text-red-600' : soldOut ? 'text-violet-700' : 'text-gray-900'}`}>
+                        {cancelled ? 'Cancelled' : soldOut ? 'Sold out · waitlist' : e.price === 0 ? 'Free' : formatPrice(e.price, e.currency)}
                       </span>
                       {e.club && (
                         <span className="text-xs text-gray-500">
