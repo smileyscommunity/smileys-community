@@ -1,0 +1,39 @@
+{
+  "slug": "lost-or-stolen-passport-residence-permit-or-phone-in-turkiye-what-to-do",
+  "title": "Lost or Stolen Passport, Residence Permit or Phone in Türkiye: What to Do",
+  "excerpt": "Step by step: the police report, your embassy, replacing a lost residence permit card, telling the migration office about a new passport, and blocking a lost phone and bank cards.",
+  "category": "Safety & Emergencies",
+  "citySlug": null,
+  "country": "TR",
+  "bodyHtml": "<p>Losing your passport or residence permit abroad is stressful, but it's a well-worn process. The key is doing things in the right order — and starting with a police report.</p><p>This guide is practical information, not legal advice. If you are in danger or a crime is in progress, call <strong>112</strong>.</p><h2>Before anything goes missing</h2><ul><li><p>Keep photos or scans of your passport's photo page, your residence permit card (both sides) and any visa, stored somewhere you can reach from any device.</p></li><li><p>Save your embassy's or consulate's emergency number in your phone.</p></li><li><p>Keep a note of your foreign ID number (YKN) and your e-Devlet access — see our e-Devlet guide.</p></li></ul><h2>1. Get a police report first</h2><p>Report the loss or theft at the nearest police station (karakol) — or to the gendarmerie (jandarma) outside city areas — and ask for the written loss report (<strong>kayıp tutanağı</strong>). Keep it safe: you'll need it to replace your documents, and your bank or insurer may ask for it too.</p><h2>2. Lost passport: contact your embassy or consulate</h2><p>Only your own country can replace your passport. Contact your embassy or consulate with the police report: depending on your country and plans, they can issue a full replacement passport or an emergency travel document to get you home.</p><p>Ask them what you'll need to leave Türkiye on the new document — consulates deal with this regularly and know the current requirements.</p><p><strong>If you have a residence permit</strong>, you must notify the Provincial Directorate of Migration Management of your new passport <strong>within 20 working days</strong>.</p><h2>3. Lost residence permit card: apply for a reissue</h2><p>A lost, stolen, damaged or incorrect residence permit card is reissued. According to the Presidency of Migration Management:</p><ul><li><p>Get a loss report from the police (see step 1).</p></li><li><p>Take it to the Provincial Directorate of Migration Management in the province where you live, with a biometric photo and a document showing you're registered in the address system.</p></li><li><p>You pay the card fee in full and half of the permit fee (a quarter for under-18s).</p></li></ul><p>Check the current document list and fees with your provincial directorate or the Foreigners Communication Centre, <strong>YİMER 157</strong>, before you go.</p><h2>4. Lost or stolen phone</h2><ul><li><p>Call your mobile operator to suspend your line, so no one can use your number.</p></li><li><p>A registered phone that's been lost or stolen can be reported through e-Devlet or by phone so it can no longer be used on Turkish mobile networks.</p></li><li><p>Change the passwords for your email, banking and messaging apps from another device.</p></li></ul><h2>5. Bank cards and money</h2><p>Call your bank immediately to block lost or stolen cards — the sooner, the better the chance of stopping unauthorised payments. Keep your bank's card-loss number somewhere other than your wallet.</p><h2>Other things to check</h2><ul><li><p><strong>Travel insurance:</strong> tell your insurer promptly if you plan to claim, and keep the police report and receipts.</p></li><li><p><strong>Lost property:</strong> if you left something in a taxi or on public transport, contact the operator or the app you booked through as soon as possible.</p></li></ul>",
+  "tags": [
+    "lost passport",
+    "stolen passport",
+    "kayıp",
+    "kayıp tutanağı",
+    "residence permit card",
+    "ikamet kartı",
+    "embassy",
+    "consulate",
+    "lost phone",
+    "police report"
+  ],
+  "officialSources": [
+    {
+      "label": "Presidency of Migration Management — residence permit FAQ (lost/stolen cards; new passport within 20 working days)",
+      "url": "https://www.goc.gov.tr/ikamet-sss"
+    },
+    {
+      "label": "Istanbul Migration Directorate — residence permit: 34 questions and answers",
+      "url": "https://istanbul.goc.gov.tr/ikamet-izni-hakkinda-sikca-sorulan-34-soru-34-cevap"
+    },
+    {
+      "label": "MCKS (BTK) — frequently asked questions (lost or stolen devices)",
+      "url": "https://www.mcks.gov.tr/sss"
+    },
+    {
+      "label": "112 Emergency Call Centre",
+      "url": "https://www.112.gov.tr"
+    }
+  ]
+}
