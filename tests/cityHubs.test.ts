@@ -19,6 +19,9 @@ describe('hubCanonical', () => {
     // The hosts hub follows the same rule: /hosts for the default city, its own page elsewhere.
     expect(hubCanonical(DEFAULT_CITY_SLUG, 'hosts')).toMatch(/\/app\/hosts$/)
     expect(hubCanonical('tbilisi', 'hosts')).toMatch(/\/app\/tbilisi\/hosts$/)
+    // Experiences too: one canonical per city, the default's on the global page.
+    expect(hubCanonical(DEFAULT_CITY_SLUG, 'experiences')).toMatch(/\/app\/experiences$/)
+    expect(hubCanonical('izmir', 'experiences')).toMatch(/\/app\/izmir\/experiences$/)
     expect(isDefaultCitySlug(DEFAULT_CITY_SLUG)).toBe(true)
     expect(isDefaultCitySlug('izmir')).toBe(false)
   })

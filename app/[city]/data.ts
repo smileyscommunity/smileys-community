@@ -240,7 +240,7 @@ export function enterLinkFor(slug: string): EnterLink {
 // canonical URLs (rewording a URL Google ranks costs something for nothing),
 // so its hubs point back there; every other city's hub is canonical to itself.
 
-export type HubKind = 'events' | 'clubs' | 'directory' | 'board' | 'hosts'
+export type HubKind = 'events' | 'clubs' | 'directory' | 'board' | 'hosts' | 'experiences'
 
 export function isDefaultCitySlug(slug: string): boolean {
   return slug === DEFAULT_CITY_SLUG

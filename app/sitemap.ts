@@ -146,6 +146,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       { url: `${BASE}/${c.slug}/directory`, priority: 0.75, changeFrequency: 'weekly' as const, lastModified: newestBusiness },
       { url: `${BASE}/${c.slug}/board`,     priority: 0.75, changeFrequency: 'daily'  as const, lastModified: newestListing },
       { url: `${BASE}/${c.slug}/hosts`,     priority: 0.6,  changeFrequency: 'weekly' as const, lastModified: newestEvent },
+      { url: `${BASE}/${c.slug}/experiences`, priority: 0.7, changeFrequency: 'daily'  as const, lastModified: newestEvent },
     ])
   // The remote-work, moving and student hubs have no global twin, so — unlike the listing hubs
   // above — every live city's is canonical to itself, the default included.
@@ -172,6 +173,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: BASE,                    priority: 1.0, changeFrequency: 'daily',   lastModified: newest([newestEvent, newestPost, newestClub]) },
     { url: `${BASE}/events`,        priority: 0.9, changeFrequency: 'daily',   lastModified: newestEvent },
+    { url: `${BASE}/experiences`,   priority: 0.8, changeFrequency: 'daily',   lastModified: newestEvent },
     { url: `${BASE}/board`,         priority: 0.8, changeFrequency: 'daily',   lastModified: newest([newestListing, newestMovingSale]) },
     { url: `${BASE}/visiting`,      priority: 0.8, changeFrequency: 'daily'   },
     { url: `${BASE}/guide`,         priority: 0.8, changeFrequency: 'weekly',  lastModified: fileMtime('guide-experiences.json') },

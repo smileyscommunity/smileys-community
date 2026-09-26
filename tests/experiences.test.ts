@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 import { buildCards, buildShelves, experienceWindow, type ExperienceEventLike } from '@/lib/experiences'
 
 // The experiences page mirrors the events feed on three rules it used to get
@@ -96,5 +98,32 @@ describe('buildShelves', () => {
     ])
     expect(shelves.map(s => s.name)).toEqual(['Outdoor', 'Cultural', 'Food', 'Games'])
     expect(shelves.find(s => s.name === 'Food')!.cards.map(c => c.event.id)).toEqual(['y'])
+  })
+})
+
+// Source-level promises of the two pages: the global page resolves its city
+// the way /events does (so a crawler with no cookie gets the city in the
+// URL), both emit the list as structured data, and the sitemap advertises
+// both the global page and every other city's hub.
+describe('experiences pages (source)', () => {
+  const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8')
+  it('the global page follows the ?city= + canonical rule of /events', () => {
+    const src = read('app/experiences/page.tsx')
+    expect(src).toContain("resolveCityForPage(searchParams)")
+    expect(src).toContain("redirect(`/experiences?city=${city.slug}`)")
+    expect(src).toContain("`${APP_URL}/${city.slug}/experiences`")
+    expect(src).toContain("shareCover('experiences'")
+    expect(src).toContain("eventListJsonLd(events.filter(e => e.status !== 'cancelled')")
+  })
+  it('the city hub is canonical by the shared rule and carries the same data', () => {
+    const src = read('app/[city]/experiences/page.tsx')
+    expect(src).toContain("hubCanonical(city.slug, 'experiences')")
+    expect(src).toContain("eventListJsonLd(")
+    expect(src).toContain("getExperiencesData(city.id)")
+  })
+  it('the sitemap lists /experiences and the per-city hubs', () => {
+    const src = read('app/sitemap.ts')
+    expect(src).toContain('`${BASE}/experiences`')
+    expect(src).toContain('`${BASE}/${c.slug}/experiences`')
   })
 })
