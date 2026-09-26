@@ -406,12 +406,11 @@ export async function notifyNewArticle(post: {
   // null proceeds. Closes the double-submit race (two concurrent publishes),
   // the unpublish→republish re-notify, and a backfill re-run — all become
   // no-ops once an article has been announced. To deliberately re-announce,
-  // clear notifiedAt first.
-  const claim = await prisma.post.updateMany({
-    where: { id: post.id, notifiedAt: null },
-    data:  { notifiedAt: new Date() },
-  })
-  if (claim.count === 0) return
+  // clear notifiedAt first. Raw SQL so the claim doesn't move updatedAt: it
+  // runs just after the publish save returned, and the editor's version check
+  // would otherwise 409 the next save of an article nobody else touched.
+  const claimed = await prisma.$executeRaw`UPDATE "posts" SET "notifiedAt" = ${new Date()} WHERE "id" = ${post.id} AND "notifiedAt" IS NULL`
+  if (claimed === 0) return
 
   const isHandbook = post.kind === 'handbook'
   const link  = isHandbook ? `/handbook/${post.slug}` : `/posts/${post.slug}`

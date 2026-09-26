@@ -14,6 +14,8 @@ import { isKind, normalizeCommunityCategory, normalizeHandbookCategory, TITLE_MA
 // Match POST. External cover URLs would leak visitor IPs on render.
 const COVER_PATH_RE = /^\/app\/api\/files\/[a-zA-Z0-9\-_/]+\.(jpg|jpeg|png|webp|gif)$/i
 
+const STALE_EDIT = 'This article was changed since you opened it — reload to see the latest version before saving'
+
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
   if (!session || !canManagePosts(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -35,6 +37,21 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const existing = await prisma.post.findUnique({ where: { id } })
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (!canActOnCityContent(session, existing.cityId)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  // Optimistic concurrency. Both editors send every field they loaded, so a
+  // form opened before someone else's save wrote its stale copy straight over
+  // it: on 2026-09-26 a cover-photo save silently reverted a correction made
+  // 58s earlier. The editor echoes back the updatedAt it loaded and the write
+  // below only lands if the row still has it. Required, not optional: an
+  // editor that doesn't send it is exactly the stale tab this exists to stop.
+  // Views, the new-article claim and "Reviewed today" write through raw SQL
+  // so they don't move updatedAt — only content saves do.
+  const expectedUpdatedAt = typeof payload.expectedUpdatedAt === 'string' ? new Date(payload.expectedUpdatedAt) : null
+  if (!expectedUpdatedAt || Number.isNaN(expectedUpdatedAt.getTime())) {
+    return NextResponse.json({ error: 'This editor is out of date — reload the page before saving' }, { status: 400 })
+  }
+  if (expectedUpdatedAt.getTime() !== existing.updatedAt.getTime()) {
+    return NextResponse.json({ error: STALE_EDIT }, { status: 409 })
+  }
   // Kind can be edited (blog↔handbook). Fall back to existing when the body
   // omits it or sends a value outside the whitelist. Category is validated
   // against the *new* kind so a simultaneous kind+category change is coherent.
@@ -119,9 +136,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   // Guarded on the status we read: a decline landing between the read and
   // this write would otherwise be overwritten, and the writer told "not this
-  // time" and "it's live" a second apart.
+  // time" and "it's live" a second apart. And on the version the editor
+  // loaded, in the same statement, so a save landing between the check above
+  // and this write is still caught.
   const post = await prisma.post.update({
-    where: { id, status: existing.status },
+    where: { id, status: existing.status, updatedAt: expectedUpdatedAt },
     data: {
       ...cityPatch,
       ...writerPatch,
@@ -139,7 +158,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     },
   }).catch((e: { code?: string }) => { if (e?.code === 'P2025') return null; throw e })
   if (!post) {
-    return NextResponse.json({ error: 'This article changed while you were editing — reload and try again' }, { status: 409 })
+    return NextResponse.json({ error: STALE_EDIT }, { status: 409 })
   }
 
   // Audit — previously only DELETE was audited, so going draft →

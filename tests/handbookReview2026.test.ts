@@ -46,7 +46,7 @@ describe('dates', () => {
 describe('the review lifecycle', () => {
   it('has a staff path: "Reviewed today" on the article, nothing else moves lastReviewedAt', () => {
     const route = src('app/api/admin/posts/[id]/reviewed/route.ts')
-    expect(route).toContain("data: { lastReviewedAt: now }")
+    expect(route).toContain('SET "lastReviewedAt" = ${now}')
     expect(route).toContain("'post.reviewed'")
     expect(route).toContain("revalidateTag('handbook')")
     // The form never carries it.

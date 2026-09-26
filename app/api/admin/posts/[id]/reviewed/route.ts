@@ -25,7 +25,9 @@ export async function POST(_: NextRequest, { params }: { params: Promise<{ id: s
   }
 
   const now = new Date()
-  await prisma.post.update({ where: { id }, data: { lastReviewedAt: now } })
+  // Raw SQL so a review doesn't move updatedAt — the version an open editor
+  // checks before saving. A review is not a content change.
+  await prisma.$executeRaw`UPDATE "posts" SET "lastReviewedAt" = ${now} WHERE "id" = ${id}`
   writeAudit(session.id, session.name, 'post.reviewed', id, 'post',
     { title: post.title, previous: post.lastReviewedAt?.toISOString() ?? null },
     `Marked "${post.title}" as reviewed`,

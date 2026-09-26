@@ -148,9 +148,10 @@ describe('row routes refuse a cross-city target', () => {
     expect((await postPUT(req('http://x', { title: 'T2' }), params('x'))).status).toBe(403)
     expect((await postDELETE(req(), params('x'))).status).toBe(403)
     expect(calls['post.delete']).toBeUndefined()
-    results['post.findUnique'] = { id: 'x', cityId: BODRUM, kind: 'community', category: 'stories', status: 'draft', title: 'T', excerpt: '', body: '', coverImage: null, slug: 's', authorId: 'a', publishedAt: null }
+    const v = new Date('2026-09-26T20:15:00Z')
+    results['post.findUnique'] = { id: 'x', cityId: BODRUM, kind: 'community', category: 'stories', status: 'draft', title: 'T', excerpt: '', body: '', coverImage: null, slug: 's', authorId: 'a', publishedAt: null, updatedAt: v }
     results['city.findUnique'] = { id: ISTANBUL }
-    expect((await postPUT(req('http://x', { title: 'T', body: 'b', cityId: ISTANBUL }), params('x'))).status).toBe(403)
+    expect((await postPUT(req('http://x', { title: 'T', body: 'b', cityId: ISTANBUL, expectedUpdatedAt: v.toISOString() }), params('x'))).status).toBe(403)
   })
   it('club GET — and audit meta stays admin-only', async () => {
     asModerator(); results['club.findUnique'] = { id: 'k', cityId: ISTANBUL }

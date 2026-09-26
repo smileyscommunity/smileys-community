@@ -317,12 +317,9 @@ export default async function HandbookArticlePage({ params }: Params) {
           title={post.title}
           excerpt={post.excerpt}
           sanitizedBody={sanitizeArticle(post.body)}
-          category={post.category}
           categoryLabel={catLabel}
           catCls={catCls}
           coverImage={post.coverImage ? resolveImageUrl(post.coverImage) : null}
-          coverImageRaw={post.coverImage}
-          status={post.status}
           preview={preview}
           byline={{ name: byline.name, color: byline.color }}
           publishedText={publishedText}

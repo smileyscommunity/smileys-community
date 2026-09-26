@@ -47,7 +47,7 @@ describe('whose story it is', () => {
   })
 
   it('a publish and a decline cannot both land', () => {
-    expect(put).toContain('where: { id, status: existing.status },')
+    expect(put).toContain('where: { id, status: existing.status, updatedAt: expectedUpdatedAt },')
     expect(put).toContain("e?.code === 'P2025'")
   })
 

@@ -32,19 +32,14 @@ interface Props {
   sanitizedBody: string   // server-sanitized HTML for the read view
   // The article's city; null = national/global. Drives the moderator gate.
   cityId:        string | null
-  // The raw stored value, round-tripped verbatim through the save PUT so an
-  // inline edit never silently rewrites a legacy category key.
-  category:      string
   // The canonical display label for that category (may differ from `category`
   // while legacy rows are still stored under their old keys).
   categoryLabel: string
   catCls:        string
-  // Resolved to a servable URL for rendering only. The PUT must round-trip
-  // the RAW stored value (coverImageRaw) — the resolved URL would fail the
-  // server's cover-path check and the save with it.
+  // Resolved to a servable URL for rendering only. The save PUT round-trips
+  // the RAW stored value from the admin row (`loaded`) — the resolved URL
+  // would fail the server's cover-path check and the save with it.
   coverImage:    string | null
-  coverImageRaw: string | null
-  status:        string
   // Already projected for the viewer on the server — render as-is.
   byline:        { name: string; color: string }
   // Already formatted server-side in the city's timezone ("Published 30
@@ -86,6 +81,14 @@ export default function EditableArticle(props: Props) {
   const [title, setTitle]     = useState(props.title)
   const [excerpt, setExcerpt] = useState(props.excerpt ?? '')
   const [body, setBody]       = useState('')
+  // The rest of the row as loaded — the fields this editor doesn't show
+  // (cover, status, and the category key verbatim, so an inline edit never
+  // silently rewrites a legacy key) are round-tripped from HERE, not from the
+  // page props: the page render can be minutes behind (article cache), so
+  // props would put back a cover or status someone changed since. updatedAt
+  // is the version the PUT checks (409 if the article was saved elsewhere
+  // after edit mode opened).
+  const [loaded, setLoaded]   = useState<{ coverImage: string | null; status: string; category: string; updatedAt: string } | null>(null)
 
   useEffect(() => {
     fetch('/app/api/auth/me')
@@ -116,6 +119,7 @@ export default function EditableArticle(props: Props) {
       setTitle(typeof d.title === 'string' ? d.title : props.title)
       setExcerpt(typeof d.excerpt === 'string' ? d.excerpt : (props.excerpt ?? ''))
       setBody(typeof d.body === 'string' ? d.body : '')
+      setLoaded({ coverImage: d.coverImage ?? null, status: d.status, category: d.category, updatedAt: d.updatedAt })
       setEditing(true)
     } catch {
       toast.error('Network error — could not load the article for editing')
@@ -126,6 +130,7 @@ export default function EditableArticle(props: Props) {
 
   async function save() {
     if (!title.trim() || !body.trim()) { toast.error('Title and body are required'); return }
+    if (!loaded) return
     setSaving(true)
     try {
       const res = await fetch(`/app/api/admin/posts/${props.id}`, {
@@ -138,14 +143,17 @@ export default function EditableArticle(props: Props) {
           title:      title.trim(),
           excerpt:    excerpt.trim(),
           body,
-          coverImage: props.coverImageRaw,
-          status:     props.status,
-          category:   props.category,
+          coverImage: loaded.coverImage,
+          status:     loaded.status,
+          category:   loaded.category,
+          expectedUpdatedAt: loaded.updatedAt,
         }),
       })
       if (!res.ok) {
         const d = await res.json().catch(() => ({}))
-        toast.error(d.error ?? 'Save failed')
+        // 409: saved elsewhere since edit mode opened. The toast stays until
+        // dismissed and the edit stays open, so the text can be copied out.
+        toast.error(d.error ?? 'Save failed', res.status === 409 ? { duration: Infinity } : undefined)
         return
       }
       toast.success('Article saved')
