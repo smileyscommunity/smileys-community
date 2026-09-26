@@ -26,8 +26,9 @@ describe('nobody is shown who did not agree to be shown', () => {
     expect(src).not.toMatch(/alt=\{p\.user\.name\}/)
   })
 
-  it('and the timeline feeds it, so both surfaces cannot drift apart', () => {
-    expect(src).toContain('pulses={shownPulses}')
+  it('and only the strip shows it — the timeline no longer repeats it (2026-09-26)', () => {
+    expect(src).not.toContain('pulses={shownPulses}')
+    expect(src).toContain('{shownPulses.length > 0 && (')
   })
 
   it('the activity wall builds its discs from a first name', () => {
@@ -50,7 +51,8 @@ describe('nobody is shown who did not agree to be shown', () => {
     // name, so hiding the author left the surname on the card.
     // Now routed through lib/visitorPolicy's visitorName — see the shared-
     // helper block below for the surfaces it covers.
-    expect(src).toContain('name: visitorName(v.name)')
+    // The dashboard's one visitor surface is the strip (the timeline's copy went 2026-09-26).
+    expect(src).toContain('name:     visitorName(v.name),')
     expect(read('app/visiting/page.tsx')).toContain('name:         visitorName(a.name),')
     expect(read('app/(member)/visiting/new/page.tsx')).toContain('setName(firstNameOf(user.name))')
   })

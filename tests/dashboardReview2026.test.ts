@@ -90,7 +90,19 @@ describe('discovery shelves offer only what a member can still join', () => {
 
   it('browse surfaces keep full events but not finished ones', () => {
     expect(page).toContain('const thisWeekShown = thisWeekEvents.filter(notEnded)')
-    expect(page).toContain('events={clubEventsShown} photos=')
+    expect(page).toContain('events={clubEventsShown} rsvps=')
+  })
+
+  it('the timeline carries nothing that has its own section (2026-09-26)', () => {
+    const tl = page.slice(page.indexOf('<ClubActivityTimeline'), page.indexOf('/>', page.indexOf('<ClubActivityTimeline')))
+    for (const prop of ['photos=', 'pulses=', 'visitors=', 'newMembers=', 'listings=']) expect(tl).not.toContain(prop)
+    expect(tl).toContain('articles={timelineArticles}')
+  })
+
+  it('the rail no longer repeats the Featured shelf or the Marketplace block', () => {
+    expect(page).not.toContain('const e = pickedFeatured[0]')
+    expect(page).not.toContain('>From the Marketplace<')
+    expect(page).toContain('{pickedFeatured.map((event) => (')
   })
 
   it('pending requests are not capped at 10', () => {

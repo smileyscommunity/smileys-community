@@ -1046,20 +1046,6 @@ export default async function DashboardPage() {
     // when something actually matched.
     .map(({ e, score }) => ({ ...e, score }))
 
-  // Activity wall reuses the batch-1 recentListings (already active-only,
-  // own excluded) — just narrowed to the wall's 7-day freshness window so
-  // a stale board doesn't surface month-old listings as "activity".
-  const wallListings = recentListings.filter(l => new Date(l.createdAt) >= weekAgo)
-
-  // Same reuse for visitor announcements: upcomingVisitors already holds
-  // active, member-posted, soon-starting announcements — the wall only
-  // wants the freshly *posted* ones.
-  const wallVisitors = upcomingVisitors
-    .filter(v => new Date(v.createdAt) >= weekAgo)
-    // Same cut as /visiting: the card's name field was prefilled with the
-    // full account name, so redacting the author never removed the surname.
-    .map(v => ({ id: v.id, name: visitorName(v.name), fromCity: v.fromCity, createdAt: v.createdAt }))
-
   // Neighborhood pages route by slug, but posts store the display name.
   const wallHoodPosts = recentHoodPosts.map(p => ({ ...p, slug: neighborhoodToSlug(p.neighborhood) }))
 
@@ -1335,6 +1321,8 @@ export default async function DashboardPage() {
   // the shelves' own rows (no extra query): the last 14 days only, so a quiet
   // week doesn't surface a months-old article as "new". Title, slug and date
   // are all the timeline reads — public content, nothing member-specific.
+  // Kept when the timeline's other duplicates went (2026-09-26): Nate wants
+  // a new article to read as activity, alongside its shelf.
   const ARTICLE_WINDOW_MS = 14 * 24 * 60 * 60_000
   const timelineArticles = [
     ...latestHandbook.map(p => ({ id: p.id, title: p.title, slug: p.slug, kind: 'handbook' as const,  publishedAt: p.publishedAt })),
@@ -1676,32 +1664,6 @@ export default async function DashboardPage() {
               </div>
             )}
 
-            {/* New on Smileys — Handbook highlight. No longer gated on
-                latestHandbook: the list moved to the centre strip, so what is
-                left is a pitch and a way in, and a city with no articles of
-                its own (Tbilisi) was losing the link for no reason. */}
-            {true && (
-              <div className="bg-white rounded-2xl shadow-card p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">New on Smileys</h2>
-                  <span className="text-base">📖</span>
-                </div>
-                <Link href="/handbook" className="block mb-3 group">
-                  <p className="text-xs font-semibold text-amber-600 mb-1">The Handbook</p>
-                  <p className="text-xs text-gray-600 leading-relaxed">Permits, banking, transport — practical guides from the Smileys team.</p>
-                </Link>
-                {/* The same two articles render in full in "From The
-                    Handbook" in the centre column, at every breakpoint —
-                    five articles were producing ten renders on one page.
-                    This card keeps the pitch and the way in; the list
-                    belongs to the strip that has room for it. */}
-                <Link href="/handbook"
-                  className="mt-3 flex items-center justify-center gap-1 w-full py-2 text-xs font-semibold text-amber-600 border border-amber-200 rounded-xl hover:bg-amber-50 transition-colors">
-                  Read the Handbook →
-                </Link>
-              </div>
-            )}
-
             {/* Onboarding card — dismissible, least priority for established members */}
             <OnboardingCard />
 
@@ -1868,7 +1830,10 @@ export default async function DashboardPage() {
                 mobile and desktop. Center column renders on every
                 viewport, so a single placement replaces the previous
                 two (mobile-only + right-rail) renders. */}
-            <ClubActivityTimeline members={recentActivity} posts={wallActivity} events={clubEventsShown} photos={recentPhotos} rsvps={recentRsvps} newMembers={newMembers} hangouts={recentHangouts} pulses={shownPulses} connections={recentConnections} references={recentReferences} newClubs={recentlyCreatedClubs} listings={wallListings} businesses={recentBusinesses} eventReviews={recentEventReviews} placeReviews={recentPlaceReviews} visitors={wallVisitors} hangoutJoins={recentHangoutJoins} hoodPosts={wallHoodPosts} resources={recentResources} testimonials={recentTestimonials} articles={timelineArticles} cityName={city.name} cap={12} />
+            {/* Only what has no section of its own (2026-09-26): free-now
+                pulses, photos, visitors, new members and listings each have
+                a strip on this page, and fed here too they showed twice. */}
+            <ClubActivityTimeline members={recentActivity} posts={wallActivity} events={clubEventsShown} rsvps={recentRsvps} hangouts={recentHangouts} connections={recentConnections} references={recentReferences} newClubs={recentlyCreatedClubs} businesses={recentBusinesses} eventReviews={recentEventReviews} placeReviews={recentPlaceReviews} hangoutJoins={recentHangoutJoins} hoodPosts={wallHoodPosts} resources={recentResources} testimonials={recentTestimonials} articles={timelineArticles} cityName={city.name} cap={12} />
 
             {/* Upcoming visitors — surfaces /visiting + the new wave
                 action on the dashboard. Component renders nothing when
@@ -2033,7 +1998,7 @@ export default async function DashboardPage() {
             {/* ── EVENT DISCOVERY ── curated → personalized → popular → full calendar */}
 
             {/* Featured events — team curated, highest trust */}
-            {featuredEvents.length > 0 && (
+            {pickedFeatured.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <div>
@@ -2043,7 +2008,7 @@ export default async function DashboardPage() {
                   <Link href="/events" className="text-sm text-amber-600 font-semibold hover:underline">Browse all →</Link>
                 </div>
                 <div className="space-y-2">
-                  {featuredEvents.map((event) => (
+                  {pickedFeatured.map((event) => (
                     <Link key={event.id} href={`/events/${event.id}`}
                       className="group flex gap-3 bg-amber-50 border border-amber-200 rounded-xl shadow-card p-3 hover:-translate-y-0.5 transition-transform duration-200">
                       <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-200 to-orange-200 flex items-center justify-center text-xl shrink-0">
@@ -2487,61 +2452,10 @@ export default async function DashboardPage() {
               <MiniCalendar eventDates={upcomingDates} tz={tz} />
             </div>
 
-            {/* Featured event widget */}
-            {featuredEvents.length > 0 && (() => {
-              const e = pickedFeatured[0]
-              return (
-                <Link href={`/events/${e.id}`} className="block bg-white rounded-2xl shadow-card overflow-hidden hover:shadow-md transition-shadow group">
-                  {e.coverImage ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={resolveImageUrl(e.coverImage)} alt={e.title} className="w-full h-32 object-cover" />
-                  ) : (
-                    <div className="w-full h-20 bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-4xl">
-                      {e.emoji}
-                    </div>
-                  )}
-                  <div className="p-4">
-                    <div className="flex items-center gap-1.5 mb-2">
-                      <span className="text-[10px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full uppercase tracking-wide">★ Featured</span>
-                      {e.limitedSpots && !e.soldOut && e.spotsLeft > 0 && e.spotsLeft <= 5 && (
-                        <span className="text-[10px] font-bold text-red-600 bg-red-100 px-1.5 py-0.5 rounded-full">{e.spotsLeft} spots left</span>
-                      )}
-                    </div>
-                    <h3 className="text-sm font-bold text-gray-900 group-hover:text-amber-600 transition-colors leading-snug line-clamp-2">{e.title}</h3>
-                    <p className="text-xs text-gray-600 mt-1.5">{formatDate(e.date)} · 📍 {e.neighborhood}</p>
-                    <p className="text-xs font-semibold text-amber-600 mt-1">{e.price === 0 ? 'Free' : formatPrice(e.price, e.currency)}</p>
-                  </div>
-                </Link>
-              )
-            })()}
-
-            {/* Board listing widget — pick one of the 4 freshest listings at
-                random per page load instead of pinning the newest one, so
-                each gets sidebar airtime. */}
-            {recentListings.length > 0 && (() => {
-              const l = recentListings[Math.floor(Math.random() * recentListings.length)]
-              const EMOJI: Record<string, string> = { ROOMS: '🏠', JOBS: '💼', SERVICES: '🛠️', BUY_SELL: '🛍️', FREE: '🎁', LOST_FOUND: '🔍', RECO: '⭐', EXPERIENCES: '🎟️', PETS: '🐾' }
-              return (
-                <Link href={`/marketplace?l=${l.id}`} className="block bg-white rounded-2xl shadow-card p-4 hover:shadow-md transition-shadow group">
-                  <div className="flex items-center justify-between mb-3">
-                    {/* A random one of the four freshest, by design (below) —
-                        so not "new", and it links to the marketplace, which the
-                        board/marketplace split renamed everywhere but here. */}
-                    <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">From the Marketplace</h2>
-                    <span className="text-lg">{EMOJI[l.category] ?? '📋'}</span>
-                  </div>
-                  {l.photo && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={resolveImageUrl(l.photo)} alt={l.title} className="w-full h-28 object-cover rounded-xl mb-3" style={{ objectPosition: `center ${l.photoPosition ?? 50}%` }} />
-                  )}
-                  <p className="text-sm font-bold text-gray-900 group-hover:text-amber-600 transition-colors leading-snug line-clamp-2">{l.title}</p>
-                  <div className="flex items-center justify-between mt-2">
-                    <p className="text-xs text-gray-400">{firstNameOf(l.user.name)}</p>
-                    {l.price && <p className="text-xs font-semibold text-amber-600">{l.price}</p>}
-                  </div>
-                </Link>
-              )
-            })()}
+            {/* The rail's Featured card and "From the Marketplace" card went
+                (2026-09-26): the first was always the centre shelf's first
+                event, the second a random pick from the same four listings
+                the centre Marketplace block shows. */}
 
             {/* My neighborhood */}
             {userProfile?.neighborhood && (
