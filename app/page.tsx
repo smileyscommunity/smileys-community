@@ -17,6 +17,7 @@ import { approx } from '@/lib/communityStats'
 import { ACTIVATED_MEMBER_WHERE } from '@/lib/memberCount'
 import { absoluteOgImage } from '@/lib/og'
 import { isSoldOut } from '@/lib/soldOut'
+import { arrivalAccent } from '@/lib/arrival-accents'
 
 // ── The global landing page ─────────────────────────────────────────────────
 // Smileys is not a website about Istanbul; Istanbul is the first Smileys city.
@@ -294,7 +295,9 @@ export default async function HomePage() {
           worker's, the relocating expat's and the student's (per-city hubs). With one
           live city the links pin it and the heading names it; otherwise each
           resolves to the reader's city. Only paths — no counts — so nothing
-          here can drift from what the hubs themselves show. */}
+          here can drift from what the hubs themselves show. Each card carries
+          its hub's tint (lib/arrival-accents) so the four read as four
+          different doors, not one grey row. */}
       <section aria-labelledby="arrival-title" className="py-14 sm:py-20 bg-white border-t border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="mb-8">
@@ -307,38 +310,45 @@ export default async function HomePage() {
             {[
               {
                 // The default city's Visiting page is the bare URL (its canonical).
+                hub:   'visiting' as const,
                 href:  singleCity && flagship.slug !== DEFAULT_CITY_SLUG ? `/visiting?city=${flagship.slug}` : '/visiting',
                 emoji: '🧳', title: 'Visiting',
                 body:  'In town for a few days or weeks. See who else is visiting, what is on during your stay, and locals happy to meet.',
                 cta:   'Plan your visit',
               },
               {
+                hub:   'remote-work' as const,
                 href:  singleCity ? `/remote-work?city=${flagship.slug}` : '/remote-work',
                 emoji: '💻', title: 'Working remotely',
                 body:  'Here for a while with a laptop. Your first 72 hours: SIM and internet, a neighbourhood, coworking sessions, and people.',
                 cta:   'Your first 72 hours',
               },
               {
+                hub:   'moving' as const,
                 href:  singleCity ? `/moving?city=${flagship.slug}` : '/moving',
                 emoji: '🏡', title: 'Moving here',
                 body:  'Building a life here. Residence permits, housing, banking, healthcare, neighbourhoods — and people who have already figured it out.',
                 cta:   'Start your move',
               },
               {
+                hub:   'students' as const,
                 href:  singleCity ? `/students?city=${flagship.slug}` : '/students',
                 emoji: '🎓', title: singleCity ? `Studying in ${flagship.name}?` : 'International students',
                 body:  'Meet people beyond your campus, discover the city, and make your semester more than lectures.',
                 cta:   'Your first week',
               },
-            ].map(t => (
-              <Link key={t.title} href={t.href}
-                className="group flex flex-col bg-gray-50 rounded-2xl border border-gray-100 p-6 hover:border-amber-200 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500">
-                <div aria-hidden="true" className="text-3xl mb-4">{t.emoji}</div>
-                <h3 className="font-bold text-gray-900 mb-2 group-hover:text-amber-700 transition-colors">{t.title}</h3>
-                <p className="text-sm text-gray-600 leading-relaxed flex-1">{t.body}</p>
-                <span className="mt-4 text-sm font-bold text-amber-700">{t.cta} <span aria-hidden="true">→</span></span>
-              </Link>
-            ))}
+            ].map(t => {
+              const accent = arrivalAccent(t.hub)
+              return (
+                <Link key={t.hub} href={t.href}
+                  className={`group flex flex-col rounded-2xl border p-6 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 ${accent.card}`}>
+                  <div aria-hidden="true" className={`w-14 h-14 rounded-2xl flex items-center justify-center text-3xl mb-4 ${accent.iconWrap}`}>{t.emoji}</div>
+                  <h3 className={`font-bold mb-2 ${accent.title}`}>{t.title}</h3>
+                  <p className="text-sm text-gray-600 leading-relaxed flex-1">{t.body}</p>
+                  <span className={`mt-4 text-sm font-bold ${accent.link}`}>{t.cta} <span aria-hidden="true">→</span></span>
+                </Link>
+              )
+            })}
           </div>
         </div>
       </section>
