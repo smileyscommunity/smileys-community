@@ -8,7 +8,10 @@ import { CITY_STATUS } from '@/lib/cityStatus'
 import { APP_URL } from '@/lib/env'
 import { shareCover } from '@/lib/shareCover'
 import { reviewLabel } from '@/lib/handbook-review'
-import { groupHubArticles, buildChecklist, utcOffsetLabel } from '@/lib/remoteWork'
+import { groupHubArticles, buildChecklist, utcOffsetLabel, nominateHref } from '@/lib/remoteWork'
+import { storyBylines } from '@/lib/storyByline'
+import { prisma } from '@/lib/prisma'
+import { avatarUrl } from '@/lib/data'
 import EventCard from '@/components/EventCard'
 import JoinCityButton from '@/components/JoinCityButton'
 import { clubHref } from '@/lib/clubLink'
@@ -44,6 +47,22 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   }
 }
 
+async function interviewByline(interview: NonNullable<Awaited<ReturnType<typeof getCityRemoteWorkHub>>['interview']>, session: Awaited<ReturnType<typeof getSession>>) {
+  const author = await prisma.user.findUnique({
+    where:  { id: interview.authorId },
+    select: { id: true, name: true, color: true, profilePhoto: true, profileVisibility: true, status: true, hiddenFromMembers: true },
+  })
+  // An author row can go missing (account deleted) — the story stays up.
+  const byline = author ? (await storyBylines(session, [author]))(author) : { name: 'Smileys member', color: '#f59e0b', profilePhoto: null }
+  return { ...interview, byline }
+}
+
+// In the city's own day: the server is UTC (see app/posts).
+function formatDate(d: Date | string | null, timeZone: string) {
+  if (!d) return ''
+  return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone })
+}
+
 export default async function CityRemoteWorkPage({ params }: Params) {
   const { city: slug } = await params
   const city = await getPublicCity(slug)
@@ -56,6 +75,10 @@ export default async function CityRemoteWorkPage({ params }: Params) {
   // city hub follows (see ../events/page.tsx).
   const session = await getSession()
   const events  = session ? await projectEventsForMember(hub.events, session) : hub.events.map(redactEventForGuest)
+  // The interview's byline, per request and outside the cache (lib/remoteWork):
+  // the same projection every story surface uses. A guest gets the first
+  // name and no photo; a connections-only author is shown as a member.
+  const interview = hub.interview ? await interviewByline(hub.interview, session) : null
 
   const topics    = groupHubArticles(hub.articles, city.id)
   const checklist = buildChecklist({
@@ -209,6 +232,73 @@ export default async function CityRemoteWorkPage({ params }: Params) {
           )}
         </div>
       </section>
+
+      {/* ── Working from {city}: the interview ───────────────────────── */}
+      {/* One member a month, the same questions, ending with the session
+          they'll be at. Hidden until the city has one — no "coming soon". */}
+      {interview && (
+        <section id="working-from" className="py-12 sm:py-16 bg-white border-t border-gray-100 scroll-mt-20">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="mb-8">
+              <p className="text-xs font-bold tracking-widest uppercase text-amber-600 mb-2">Meet a remote worker</p>
+              <h2 className="section-title">Working from {city.name}</h2>
+              <p className="section-subtitle max-w-2xl">
+                Every month one member answers the same questions about working from {city.name} — where they
+                actually work, what nobody told them, and where to find them next.
+              </p>
+            </div>
+
+            <Link href={`/posts/${interview.slug}`}
+              className="group grid gap-0 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm hover:border-amber-200 hover:shadow-md transition-all md:grid-cols-5">
+              {interview.cover && (
+                <div className="md:col-span-2 aspect-[16/10] md:aspect-auto md:min-h-[260px] bg-gray-100">
+                  {/* Their desk, café or view — the interview's own picture. */}
+                  <img src={interview.cover} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
+                </div>
+              )}
+              <div className={`p-6 sm:p-8 flex flex-col justify-center ${interview.cover ? 'md:col-span-3' : 'md:col-span-5'}`}>
+                <h3 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900 group-hover:text-amber-700 transition-colors leading-tight">
+                  {interview.title}
+                </h3>
+                {interview.excerpt && (
+                  <p className="mt-3 text-gray-600 leading-relaxed line-clamp-3">{interview.excerpt}</p>
+                )}
+                <div className="mt-5 flex items-center gap-3 text-sm text-gray-500">
+                  <span aria-hidden="true"
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 overflow-hidden"
+                    style={{ backgroundColor: interview.byline.color }}>
+                    {interview.byline.profilePhoto
+                      ? <img src={avatarUrl(interview.byline.profilePhoto, 64)} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                      : interview.byline.name[0]?.toUpperCase()}
+                  </span>
+                  <span className="font-semibold text-gray-800">{interview.byline.name}</span>
+                  {interview.publishedAt && (
+                    <>
+                      <span aria-hidden="true">·</span>
+                      <span>{formatDate(interview.publishedAt, city.timezone)}</span>
+                    </>
+                  )}
+                </div>
+                <span className="mt-5 inline-block text-sm font-bold text-amber-700 group-hover:text-amber-800">
+                  Read the interview <span aria-hidden="true">→</span>
+                </span>
+              </div>
+            </Link>
+
+            {/* A nomination is a member vouching for another member, so the
+                link is for members; a guest already has the join button. */}
+            {session && (
+              <p className="mt-6 text-sm text-gray-600">
+                Know someone whose answers would be worth reading?{' '}
+                <Link href={nominateHref(city.name)} className="font-semibold text-amber-700 hover:underline">
+                  Nominate them for next month
+                </Link>
+                .
+              </p>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* ── Practical guides ─────────────────────────────────────────── */}
       {topics.length > 0 && (

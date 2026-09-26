@@ -15,6 +15,10 @@ const TOPICS = [
   { value: 'partnership', label: 'Partnership & Collaboration', icon: '🤝' },
   { value: 'press',       label: 'Media & Press',               icon: '📰' },
   { value: 'other',       label: 'Something else',              icon: '✦'  },
+  // Reached only from the remote-work hub's "Nominate them" link: it is a
+  // member's errand, so it isn't offered as a chip to everyone who opens
+  // the form, but stays selected (and visible) once the link set it.
+  { value: 'nominate',    label: 'Nominate a remote worker',    icon: '💻', hidden: true },
 ]
 
 const inputCls = 'input'
@@ -43,11 +47,19 @@ function ContactForm() {
   useEffect(() => {
     const topic   = params.get('topic')
     const article = params.get('article')
+    const city    = params.get('city')
     if (!topic && !article) return
+    // The nomination arrives as the three things the hosts need to follow
+    // it up; the slug names the city because the form itself has none.
+    const nomination = topic === 'nominate'
+      ? `Nominating someone for "Working from${city ? ` ${city}` : ''}":\n\nWho they are (first name, and how I know them):\n\nWhat they do and roughly how long they've been here:\n\nWhy their answers would be worth reading:\n\n`
+      : null
     setForm(prev => ({
       ...prev,
       topic:   TOPICS.some(t => t.value === topic) ? topic! : prev.topic,
-      message: article && !prev.message ? `About the Handbook article "${article}":\n\n` : prev.message,
+      message: prev.message ? prev.message
+        : article    ? `About the Handbook article "${article}":\n\n`
+        : nomination ?? prev.message,
     }))
     // Once, on arrival: after that the form is the member's.
   }, [params])
@@ -145,7 +157,7 @@ function ContactForm() {
                         What&apos;s this about?
                       </p>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                        {TOPICS.map(t => (
+                        {TOPICS.filter(t => !t.hidden || t.value === form.topic).map(t => (
                           <button key={t.value} type="button"
                             onClick={() => set('topic', t.value)}
                             className={`flex flex-col items-center gap-1 py-3 px-2 rounded-xl border text-xs font-semibold transition-colors ${

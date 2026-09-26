@@ -26,6 +26,9 @@ const TOPIC_LABELS: Record<string, string> = {
   // A correction or an addition to a Handbook article — the article page's
   // "Send a tip" lands here, with the slug in the message.
   handbook:    'Handbook article',
+  // A member nominating the next "Working from" interviewee — the remote-work
+  // hub's link lands here with the city in the message (lib/remoteWork).
+  nominate:    'Working from — nomination',
   other:       'Other',
 }
 

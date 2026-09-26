@@ -18,9 +18,10 @@ import { isSoldOut } from '@/lib/soldOut'
 import type { Event } from '@/lib/data'
 import { LIVE_BOARD_AUTHOR, SHOWN_REPLY } from '@/lib/boardAccess'
 import { firstNameOf } from '@/lib/data'
-import { isWorkClub, pickHubEvents } from '@/lib/remoteWork'
+import { isWorkClub, pickHubEvents, INTERVIEW_CATEGORY } from '@/lib/remoteWork'
 import { pickFirstEvents, pickRegularEvents, eventFilterLinks } from '@/lib/students'
 import { getCityHandbookIndex } from '@/lib/handbookIndex'
+import { articleCover } from '@/lib/articleCover'
 
 // Everything the city shopfront reads, in one place, with the one boundary
 // that matters drawn explicitly:
@@ -371,13 +372,23 @@ export const REMOTE_WORK_EVENT_LIMIT = 6
 
 export const getCityRemoteWorkHub = unstable_cache(
   async (cityId: string, country: string | null) => {
-    const [articles, clubs, { events }, neighborhoodCount] = await Promise.all([
+    const [articles, clubs, { events }, neighborhoodCount, interview] = await Promise.all([
       getCityHandbookIndex(cityId, country),
       getClubs(cityId),
       // The same window the city's events hub reads; the work/newcomer
       // filter below runs over it rather than adding a second query shape.
       getEvents({ limit: HUB_LIMIT, upcoming: true, cityId }),
       prisma.neighborhood.count({ where: { cityId, active: true } }),
+      // The newest "Working from" interview pinned to this city — cityId,
+      // not the listing scope: a global or another city's interview is not
+      // this city's (lib/remoteWork). Author by id only; the byline is a
+      // per-request projection on the page, so nothing private sits in the
+      // cache (see the note above getCityPageData).
+      prisma.post.findFirst({
+        where:   { kind: 'community', status: 'published', category: INTERVIEW_CATEGORY, cityId },
+        orderBy: { publishedAt: 'desc' },
+        select:  { slug: true, title: true, excerpt: true, coverImage: true, body: true, publishedAt: true, authorId: true },
+      }),
     ])
 
     const workClubs = clubs
@@ -401,6 +412,12 @@ export const getCityRemoteWorkHub = unstable_cache(
       // Every upcoming session members-only → the page says so up front.
       workMembersOnly: workEvents.length > 0 && workEvents.every(e => e.membersOnly),
       neighborhoodCount,
+      // Cover resolved here so the body (up to 50k) never leaves the loader.
+      interview: interview && {
+        slug: interview.slug, title: interview.title, excerpt: interview.excerpt,
+        cover: articleCover({ coverImage: interview.coverImage, body: interview.body }),
+        publishedAt: interview.publishedAt, authorId: interview.authorId,
+      },
     }
   },
   ['city-remote-work-hub'],

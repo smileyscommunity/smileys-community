@@ -51,6 +51,7 @@ const categoryColors: Record<string, string> = {
   'Events':       'bg-blue-100 text-blue-700',
   'City Guide':   'bg-green-100 text-green-700',
   'Tips':         'bg-pink-100 text-pink-700',
+  'Working from': 'bg-sky-100 text-sky-700',
 }
 
 // In the city's own day: the server is UTC, so a story published at 01:00 in
@@ -238,7 +239,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
   // hit — unstable_cache serialises its value to JSON, and Prisma's types
   // still claim Date, so typecheck cannot see it. new Date() accepts both.
   const nextUp = preview ? null : await getNextInSeries(post.kind, post.category,
-    post.publishedAt ? new Date(post.publishedAt).toISOString() : null)
+    post.publishedAt ? new Date(post.publishedAt).toISOString() : null, post.cityId ?? null)
 
   const byline   = (await storyBylines(session, [post.author]))(post.author)
   // Read OUTSIDE getPost's unstable_cache, the same way the handbook reads
@@ -353,7 +354,8 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
           >
             <span className="min-w-0">
               <span className="block text-xs font-bold uppercase tracking-widest text-amber-600 mb-1">
-                Next in {category}
+                {/* "Next in Working from" reads wrong; the series is the interviews. */}
+                {category === 'Working from' ? 'Next interview' : `Next in ${category}`}
               </span>
               <span className="block font-bold text-gray-900 group-hover:text-amber-700 transition-colors leading-snug">
                 {nextUp.title}

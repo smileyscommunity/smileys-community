@@ -82,6 +82,37 @@ export function isWorkClub(name: string): boolean {
   return WORK_CLUB_PATTERN.test(name)
 }
 
+// ── "Working from …" interviews ─────────────────────────────────────────────
+//
+// One member a month answers the same seven questions about working from
+// this city, and the piece ends with the coworking session they will be at —
+// the read is meant to turn into a meeting. It is an ordinary community post
+// (app/admin/posts/constants) so it needs no model of its own, and the hub
+// shows the newest one. Two rules, both tested:
+//
+//   · the interview must be pinned to THIS city. An interview with no
+//     cityId, or another city's, is not "a remote worker in İzmir", so the
+//     loader filters on cityId rather than the listing scope every other
+//     story read uses (lib/postScope) — no global fallback fills the card
+//   · who it is "by" is decided per request, never inside the cached loader:
+//     the loader returns the author's id only, the page projects the byline
+//     through lib/storyByline like every other story surface (a guest gets a
+//     first name and no photo; a connections-only member is hidden)
+
+/** The community-post category the series is published under. */
+export const INTERVIEW_CATEGORY = 'Working from'
+
+/** The contact-form topic a nomination arrives as (app/api/contact). */
+export const NOMINATE_TOPIC = 'nominate'
+
+/** Where a member goes to nominate the next interviewee: the contact form,
+ *  pre-set to the nomination topic and naming the city (its display name —
+ *  the form quotes it in the seeded message). Members only on the page: a
+ *  nomination is a member vouching for another member. */
+export function nominateHref(cityName: string): string {
+  return `/contact?topic=${NOMINATE_TOPIC}&city=${encodeURIComponent(cityName)}`
+}
+
 /** An event as the hub's picker needs it: enough to tell a weekly session
  *  from a one-off and a coworking session from a newcomer event. */
 export interface HubEventLike {

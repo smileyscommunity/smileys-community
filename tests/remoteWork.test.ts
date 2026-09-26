@@ -1,9 +1,15 @@
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
 import {
   groupHubArticles, buildChecklist, isWorkClub, utcOffsetLabel, pickHubEvents,
-  ARTICLES_PER_TOPIC, HUB_WORK_EVENT_CAP, type HubArticle,
+  ARTICLES_PER_TOPIC, HUB_WORK_EVENT_CAP, INTERVIEW_CATEGORY, NOMINATE_TOPIC, nominateHref,
+  type HubArticle,
 } from '@/lib/remoteWork'
 import { goodToKnowRows } from '@/lib/eventGoodToKnow'
+import { CATEGORIES, isCategory } from '@/app/admin/posts/constants'
+import { isSeriesCategory } from '@/lib/postSeries'
+
+const src = (p: string) => readFileSync(p, 'utf8')
 
 // The remote-work hub may only point at content the city actually has. These
 // pin the rules in lib/remoteWork (and the event "Good to know" rows) that
@@ -187,5 +193,48 @@ describe('buildChecklist — arrival and membership', () => {
     const closed = buildChecklist({ ...base, workMembersOnly: true }).find(s => s.key === 'workspace')!
     expect(open.body).not.toMatch(/members:/)
     expect(closed.body).toMatch(/for members: joining is free/)
+  })
+})
+
+// ── "Working from …" interviews ─────────────────────────────────────────────
+//
+// The hub's interview card is an ordinary community post in one category.
+// These pin the seams: the category the loader queries must be one the admin
+// form can save, the series Next link must stay inside the city, the loader
+// must filter on the city (not the listing scope) and cache no byline, and
+// the nomination must arrive at the contact form as a topic it knows.
+describe('Working from interviews', () => {
+  it('is a category the admin form and API accept', () => {
+    expect(CATEGORIES).toContain(INTERVIEW_CATEGORY)
+    expect(isCategory(INTERVIEW_CATEGORY)).toBe(true)
+  })
+
+  it('runs as a series, and the Next link stays inside the city', () => {
+    expect(isSeriesCategory(INTERVIEW_CATEGORY)).toBe(true)
+    // getNextInSeries filters on cityId: Istanbul's interview must not hand
+    // the reader İzmir's as "next".
+    const series = src('lib/postSeries.ts')
+    expect(series).toMatch(/where:\s*\{[^}]*\bcityId\b[^}]*publishedAt: \{ gt:/)
+    expect(src('app/posts/[slug]/page.tsx')).toMatch(/getNextInSeries\([\s\S]{0,200}post\.cityId/)
+  })
+
+  it('the loader takes only this city\'s interview and caches no author fields', () => {
+    const loader = src('app/[city]/data.ts')
+    const query  = loader.slice(loader.indexOf('category: INTERVIEW_CATEGORY'))
+    // The city itself, not postCityScope: a global interview belongs to no hub.
+    expect(query).toMatch(/^[^\n]*\bcityId \}/m)
+    expect(loader.slice(loader.indexOf('getCityRemoteWorkHub'), loader.indexOf("['city-remote-work-hub']"))).not.toMatch(/author: \{ select/)
+    // The page projects the byline per request through the shared rule.
+    const page = src('app/[city]/remote-work/page.tsx')
+    expect(page).toContain("from '@/lib/storyByline'")
+    expect(page).toMatch(/storyBylines\(session/)
+  })
+
+  it('nominating goes to the contact form as a topic it labels', () => {
+    expect(nominateHref('İzmir')).toBe('/contact?topic=nominate&city=%C4%B0zmir')
+    expect(src('app/api/contact/route.ts')).toMatch(new RegExp(`^\\s*${NOMINATE_TOPIC}:\\s+'`, 'm'))
+    expect(src('app/contact/page.tsx')).toContain(`value: '${NOMINATE_TOPIC}'`)
+    // Members only on the page — a guest gets the join button, not a nomination link.
+    expect(src('app/[city]/remote-work/page.tsx')).toMatch(/\{session && \([\s\S]{0,400}nominateHref\(/)
   })
 })

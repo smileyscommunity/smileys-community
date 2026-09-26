@@ -11,12 +11,19 @@ import { prisma } from './prisma'
 // grid ("More from X") is the honest offer — a Next label promises a sequence
 // that does not exist. Add a category here only when reading it in order is
 // actually the point.
-export const SERIES_CATEGORIES: string[] = ['Tips']
+export const SERIES_CATEGORIES: string[] = ['Tips', 'Working from']
 
 export const isSeriesCategory = (category: string) => SERIES_CATEGORIES.includes(category)
 
 /**
- * The article published after this one, within the same kind and category.
+ * The article published after this one, within the same kind, category and
+ * city scope.
+ *
+ * City scope matters for a series that runs per city: 'Working from' is one
+ * interview a month in each city, and the Next link under Istanbul's must
+ * not hand the reader İzmir's (the transit-card objection above, in series
+ * form). A global series (Tips: cityId null) is unaffected — null matches
+ * only the other global pieces.
  *
  * Order is publish-date order, not editorial order. That is the right trade
  * while a series is short: no migration, nothing to maintain. It is also the
@@ -28,11 +35,11 @@ export const isSeriesCategory = (category: string) => SERIES_CATEGORIES.includes
  * `publishedAt` is passed as an ISO string so it keys the cache cleanly.
  */
 export const getNextInSeries = unstable_cache(
-  async (kind: string, category: string, publishedAtIso: string | null) => {
+  async (kind: string, category: string, publishedAtIso: string | null, cityId: string | null = null) => {
     // Guard before the query: a non-series category costs no database round-trip.
     if (!publishedAtIso || !isSeriesCategory(category)) return null
     return prisma.post.findFirst({
-      where:   { status: 'published', kind, category, publishedAt: { gt: new Date(publishedAtIso) } },
+      where:   { status: 'published', kind, category, cityId, publishedAt: { gt: new Date(publishedAtIso) } },
       orderBy: { publishedAt: 'asc' },
       select:  { title: true, slug: true },
     })
