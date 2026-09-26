@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { createNotification } from '@/lib/notify'
 import { writeAudit } from '@/lib/audit'
+import { revalidateTag } from 'next/cache'
+import { HOST_ROSTER_TAG } from '@/lib/hostRoster'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -54,6 +56,9 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (prior?.status !== 'approved') await tx.club.update({ where: { id: clubId }, data: { memberCount: { increment: 1 } } })
     return row
   })
+  // Host is a public title (lib/hostTitles): the cached rosters should
+  // show a new host — or drop a demoted one — without the 5-minute wait.
+  revalidateTag(HOST_ROSTER_TAG)
 
   if (role === 'host' && club) {
     createNotification(

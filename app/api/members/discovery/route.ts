@@ -24,6 +24,10 @@ import { rotationSeed, seededShuffle } from '@/lib/rotation'
 const CARD_SELECT = {
   id: true, name: true, color: true, profilePhoto: true,
   neighborhood: true, neighborhoodVisible: true, interests: true, joinedAt: true, role: true,
+  // Hosting is a club membership, not a User.role (`role === 'host'` is dead
+  // — nobody holds it — so the HOST chip never rendered). One approved host
+  // row of an active club is enough; take: 1 keeps the payload flat.
+  clubMemberships: { where: { role: 'host', status: 'approved', club: { isActive: true } }, select: { clubId: true }, take: 1 },
 } as const
 
 // How many candidates each section pulls (ids only) before rotation, and
@@ -221,7 +225,7 @@ export async function GET() {
       id: m.id, name: m.name, color: m.color, profilePhoto: m.profilePhoto,
       neighborhood: m.neighborhoodVisible ? m.neighborhood : null,
       interests: m.interests.slice(0, 3),
-      isHost: m.role === 'host',
+      isHost: m.clubMemberships.length > 0,
       context: c ? { label: contextLabel(c), clubs: c.clubs.slice(0, 2) } : null,
     }
   }

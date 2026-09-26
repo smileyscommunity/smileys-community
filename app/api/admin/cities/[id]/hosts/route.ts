@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin, isAdminOrModerator } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
+import { revalidateTag } from 'next/cache'
+import { HOST_ROSTER_TAG } from '@/lib/hostRoster'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -62,6 +64,10 @@ export async function POST(req: NextRequest, { params }: Params) {
     `Granted ${user.name} city-host of ${cityId}`,
   )
 
+  // The public rosters (lib/hostRoster) are cached; a new City Lead should
+  // be visible the moment they're granted, not five minutes later.
+  revalidateTag(HOST_ROSTER_TAG)
+
   return NextResponse.json({ cityHostId: host.id, id: user.id, name: user.name, email: user.email }, { status: 201 })
 }
 
@@ -93,6 +99,8 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     { cityId: target.cityId, email: target.user?.email, name: target.user?.name },
     `Revoked ${target.user?.name ?? 'a member'}'s city-host of ${target.cityId}`,
   )
+
+  revalidateTag(HOST_ROSTER_TAG)
 
   return NextResponse.json({ ok: true })
 }

@@ -17,6 +17,7 @@ import { SkeletonCard, SkeletonCircle, SkeletonLine } from '@/components/Skeleto
 import MembershipBadge from '@/components/MembershipBadge'
 import ReportButton from '@/components/ReportButton'
 import SharedContextBlock, { suggestedOpeners, type ProfileSharedContext } from './SharedContextBlock'
+import { HOST_TITLE } from '@/lib/hostTitles'
 
 interface ReceivedReference {
   id:        string
@@ -66,6 +67,8 @@ interface MemberProfile {
   role: string | null
   membershipType?: string | null
   foundingMember?: boolean
+  // Cities this member leads (lib/hostTitles City Lead); [] when none.
+  leadCities?: string[]
   instagram: string | null
   linkedin: string | null
   industry: string | null
@@ -114,6 +117,7 @@ function normaliseProfile(d: Record<string, unknown>): MemberProfile {
     languages:      arr<string>(d.languages),
     socialStyles:   arr<string>(d.socialStyles),
     clubs:          arr<HostClub>(d.clubs),
+    leadCities:     arr<string>(d.leadCities),
     upcomingEvents: arr<UpcomingEvent>(d.upcomingEvents),
   }
 }
@@ -534,8 +538,16 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
               {member.foundingMember && (
                 <span className="text-xs font-semibold bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">⭐ Founding</span>
               )}
+              {/* The two host titles (lib/hostTitles): City Lead names the
+                  city, so a lead of one city reads right on every profile;
+                  Host is the club tier. A lead who also hosts shows both. */}
+              {(member.leadCities?.length ?? 0) > 0 && (
+                <span className="text-xs font-semibold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
+                  ★ {HOST_TITLE.lead} · {member.leadCities!.join(' · ')}
+                </span>
+              )}
               {member.clubs.length > 0 && (
-                <span className="text-xs font-semibold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Host</span>
+                <span className="text-xs font-semibold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{HOST_TITLE.host}</span>
               )}
               {!isOwnProfile && isAccepted && (
                 <span className="text-xs font-semibold bg-green-100 text-green-700 px-2 py-0.5 rounded-full flex items-center gap-1">

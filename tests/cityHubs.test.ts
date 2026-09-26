@@ -16,6 +16,9 @@ describe('hubCanonical', () => {
     expect(hubCanonical('izmir', 'clubs')).toMatch(/\/app\/izmir\/clubs$/)
     expect(hubCanonical('izmir', 'directory')).toMatch(/\/app\/izmir\/directory$/)
     expect(hubCanonical(DEFAULT_CITY_SLUG, 'board')).toMatch(/\/app\/board$/)
+    // The hosts hub follows the same rule: /hosts for the default city, its own page elsewhere.
+    expect(hubCanonical(DEFAULT_CITY_SLUG, 'hosts')).toMatch(/\/app\/hosts$/)
+    expect(hubCanonical('tbilisi', 'hosts')).toMatch(/\/app\/tbilisi\/hosts$/)
     expect(isDefaultCitySlug(DEFAULT_CITY_SLUG)).toBe(true)
     expect(isDefaultCitySlug('izmir')).toBe(false)
   })
@@ -29,6 +32,7 @@ describe('publicLinkFor', () => {
     expect(guest('clubs')).toBe('/app/izmir/clubs')
     expect(guest('directory')).toBe('/app/izmir/directory')
     expect(guest('board')).toBe('/app/izmir/board')
+    expect(guest('hosts')).toBe('/app/izmir/hosts')
   })
   it('leaves every other destination on the cookie-setting entry link', () => {
     expect(guest('guide')).toBe(enter('guide'))

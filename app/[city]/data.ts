@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
 import { unstable_cache } from 'next/cache'
+import { getCityHostRoster } from '@/lib/hostRoster'
+import { projectRosterForViewer } from '@/lib/hostTitles'
 import { prisma } from '@/lib/prisma'
 import { guestView, visitorName } from '@/lib/visitorPolicy'
 import { ACTIVATED_MEMBER_WHERE } from '@/lib/memberCount'
@@ -157,6 +159,19 @@ export async function getVisitors(city: PublicCity, signedIn: boolean) {
 
 export type Visitors = Awaited<ReturnType<typeof getVisitors>>
 
+// Meet your hosts: the city's roster (lib/hostRoster, cached by city) cut to
+// the few the page shows, projected per request for the viewer — a guest
+// gets first names and no profile links (lib/hostTitles), so, like the
+// events above, the redaction never enters the shared cache entry.
+export const CITY_PAGE_HOST_LIMIT = 6
+
+export async function getCityHosts(city: PublicCity, signedIn: boolean) {
+  const roster = await getCityHostRoster(city.id, city.timezone)
+  return { hosts: projectRosterForViewer(roster.slice(0, CITY_PAGE_HOST_LIMIT), signedIn), hostTotal: roster.length }
+}
+
+export type CityHosts = Awaited<ReturnType<typeof getCityHosts>>
+
 export interface NeighborhoodTile { name: string; slug: string; emoji: string; eventCount: number; vibe: string | null }
 
 // Emoji and slug come from THIS city's registry, not Istanbul's constant —
@@ -201,7 +216,7 @@ export function featureClubs(clubs: CityPageData['clubs']) {
   ].slice(0, 4)
 }
 
-export type EnterTarget = 'events' | 'clubs' | 'directory' | 'board' | 'neighborhoods' | 'guide' | 'handbook' | 'visiting'
+export type EnterTarget = 'events' | 'clubs' | 'directory' | 'board' | 'hosts' | 'neighborhoods' | 'guide' | 'handbook' | 'visiting'
 export type EnterLink   = (to: EnterTarget, n?: string) => string
 
 // Feed links route through /api/city/enter, which sets the view-city cookie
@@ -224,7 +239,7 @@ export function enterLinkFor(slug: string): EnterLink {
 // canonical URLs (rewording a URL Google ranks costs something for nothing),
 // so its hubs point back there; every other city's hub is canonical to itself.
 
-export type HubKind = 'events' | 'clubs' | 'directory' | 'board'
+export type HubKind = 'events' | 'clubs' | 'directory' | 'board' | 'hosts'
 
 export function isDefaultCitySlug(slug: string): boolean {
   return slug === DEFAULT_CITY_SLUG
@@ -244,7 +259,7 @@ export function hubCanonical(slug: string, kind: HubKind): string {
  */
 export function publicLinkFor(slug: string, enter: EnterLink): EnterLink {
   return (to, n) => {
-    if (to === 'events' || to === 'clubs' || to === 'directory' || to === 'board') {
+    if (to === 'events' || to === 'clubs' || to === 'directory' || to === 'board' || to === 'hosts') {
       return isDefaultCitySlug(slug) ? `/app/${to}` : `/app/${slug}/${to}`
     }
     return enter(to, n)
