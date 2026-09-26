@@ -52,7 +52,7 @@ export const DISCOVER_LINKS: NavLink[] = [
   { label: 'Remote Work',     href: '/remote-work',   emoji: '💻', public: true  },
   // The student hub, with the other arrival hubs; /students resolves the
   // reader's city like /moving and /remote-work.
-  { label: 'International Students', href: '/students', emoji: '🎓', public: true },
+  { label: 'Studying Here',          href: '/students', emoji: '🎓', public: true },
   { label: 'City Guide',      href: '/guide',         emoji: '🗺️', public: true  },
   { label: 'Handbook',        href: '/handbook',      emoji: '📖', public: true  },
   { label: 'Hosts',           href: '/hosts',         emoji: '🎤', public: true  },
