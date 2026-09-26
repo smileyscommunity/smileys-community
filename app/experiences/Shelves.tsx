@@ -1,26 +1,15 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { formatPrice, formatShortDate, resolveImageUrl, BLUR_PLACEHOLDER } from '@/lib/data'
-import type { ExperiencesData } from './data'
+import type { ExperiencesData, ShelfViewer } from './data'
 
 // The shelves themselves — one grid per Experience tag — shared by the
 // viewer's-city /experiences and the fixed-city /[city]/experiences hub.
 // Markup only: what is on the shelves is decided in ./data and
-// lib/experiences.
+// lib/experiences. `viewer` is the per-request layer: a member sees which of
+// these they already hold a seat at.
 
-export default function Shelves({ shelves, eventsHref }: { shelves: ExperiencesData['shelves']; eventsHref: string }) {
-  if (shelves.length === 0) {
-    return (
-      <div className="text-center py-16">
-        <span aria-hidden="true" className="text-4xl block mb-3">✨</span>
-        <p className="font-semibold text-gray-900 mb-1">Nothing scheduled right now</p>
-        <p className="text-sm text-gray-600">
-          New experiences are added every week — <Link href={eventsHref} className="text-amber-600 font-semibold hover:underline">browse all events</Link> in the meantime.
-        </p>
-      </div>
-    )
-  }
-
+export default function Shelves({ shelves, viewer }: { shelves: ExperiencesData['shelves']; viewer: ShelfViewer }) {
   return (
     <>
       {shelves.map(shelf => (
@@ -29,7 +18,9 @@ export default function Shelves({ shelves, eventsHref }: { shelves: ExperiencesD
             <span aria-hidden="true">{shelf.emoji}</span> {shelf.name}
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {shelf.cards.map(({ event: e, cadence, moreDates, moreCount, cancelledDates, cancelled, soldOut }) => (
+            {shelf.cards.map(({ event: e, cadence, moreDates, moreCount, cancelledDates, cancelled, soldOut }) => {
+              const going = viewer.going.has(e.id)
+              return (
               <Link key={e.id} href={`/events/${e.id}`}
                 className={`card overflow-hidden group hover:-translate-y-0.5 transition-transform${cancelled ? ' opacity-80' : ''}`}>
                 <div className="relative aspect-[16/9] bg-gradient-to-br from-amber-100 to-amber-200">
@@ -50,6 +41,11 @@ export default function Shelves({ shelves, eventsHref }: { shelves: ExperiencesD
                       🔁 {cadence}
                     </span>
                   )}
+                  {going && !cancelled && (
+                    <span className="absolute top-3 right-3 bg-green-600 text-white text-[11px] font-bold px-2.5 py-1 rounded-full shadow-sm">
+                      ✓ You&apos;re going
+                    </span>
+                  )}
                   {/* Same stamps as EventCard: cancelled greys the cover out,
                       sold out only dims it — the detail page still offers
                       the waitlist. */}
@@ -63,7 +59,7 @@ export default function Shelves({ shelves, eventsHref }: { shelves: ExperiencesD
                       </div>
                     </>
                   )}
-                  {soldOut && !cancelled && (
+                  {soldOut && !cancelled && !going && (
                     <>
                       <div className="absolute inset-0 bg-gray-950/35 pointer-events-none" />
                       <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center pointer-events-none">
@@ -95,9 +91,29 @@ export default function Shelves({ shelves, eventsHref }: { shelves: ExperiencesD
                     </p>
                   )}
                   <div className="flex items-center justify-between mt-3">
-                    <span className={`text-sm font-bold ${cancelled ? 'text-red-600' : soldOut ? 'text-violet-700' : 'text-gray-900'}`}>
-                      {cancelled ? 'Cancelled' : soldOut ? 'Sold out · waitlist' : e.price === 0 ? 'Free' : formatPrice(e.price, e.currency)}
-                    </span>
+                    {cancelled ? (
+                      <span className="text-sm font-bold text-red-600">Cancelled</span>
+                    ) : going ? (
+                      <span className="text-sm font-bold text-green-700">You&apos;re going</span>
+                    ) : soldOut ? (
+                      <span className="text-sm font-bold text-violet-700">Sold out · waitlist</span>
+                    ) : e.price === 0 ? (
+                      <span className="text-sm font-bold text-gray-900">Free</span>
+                    ) : e.memberPrice ? (
+                      /* Same two-line price as EventCard: the member rate is
+                         the one that matters to who this page is for; the
+                         guest rate stays visible unless the door is
+                         members-only. */
+                      <span className="leading-tight">
+                        <span className="text-xs text-violet-600 font-semibold">Members</span>{' '}
+                        <span className="text-sm font-bold text-violet-700">{formatPrice(e.memberPrice, e.currency)}</span>
+                        {!e.membersOnly && (
+                          <span className="block text-[11px] text-gray-400">Guests {formatPrice(e.price, e.currency)}</span>
+                        )}
+                      </span>
+                    ) : (
+                      <span className="text-sm font-bold text-gray-900">{formatPrice(e.price, e.currency)}</span>
+                    )}
                     {e.club && (
                       <span className="text-xs text-gray-500">
                         <span aria-hidden="true">{e.club.emoji}</span> {e.club.name}
@@ -106,7 +122,8 @@ export default function Shelves({ shelves, eventsHref }: { shelves: ExperiencesD
                   </div>
                 </div>
               </Link>
-            ))}
+              )
+            })}
           </div>
         </section>
       ))}

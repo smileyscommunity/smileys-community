@@ -50,9 +50,64 @@ export interface ExperienceShelf<T extends ExperienceEventLike> {
   cards: ExperienceCard<T>[]
 }
 
-// Shelf per Experience tag, in a stable curated order; an event with two
-// experience tags appears on both shelves (that's what shelves are for).
-export const SHELF_ORDER = ['Outdoor', 'Adventure', 'Cultural', 'Food', 'Wellness']
+// One shelf per event. Each Experience tag is a shelf, in a curated order
+// that covers every tag in the group (an unknown one sorts last, never
+// disappears). An event carrying several Experience tags used to sit on
+// every one of them, which turned 12 events into 20 cards and put a coastal
+// walk under Nightlife and Sports; it now lands on the first of its tags in
+// this order — its primary shelf — and nowhere else.
+export const SHELF_ORDER = [
+  'Outdoor', 'On the water', 'Adventure', 'Cultural', 'Music', 'Food',
+  'Wellness', 'Dance', 'Film', 'Books', 'Sports', 'Games', 'Nightlife',
+]
+
+function shelfRank(name: string): number {
+  const i = SHELF_ORDER.indexOf(name)
+  return i === -1 ? SHELF_ORDER.length : i
+}
+
+/** The Experience tag an event is shelved under, or null when it has none. */
+export function primaryShelf(event: { tags: ExperienceEventLike['tags'] }): { name: string; emoji: string } | null {
+  let best: { name: string; emoji: string } | null = null
+  for (const t of event.tags) {
+    if (t.tag.group.name !== 'Experience') continue
+    if (!best || shelfRank(t.tag.name) < shelfRank(best.name)) best = { name: t.tag.name, emoji: t.tag.emoji }
+  }
+  return best
+}
+
+// How each shelf reads in a sentence — lower-case, plural where a count of
+// events would be, so "outdoor days, culture and food" scans as a list.
+const SHELF_PHRASE: Record<string, string> = {
+  'Outdoor':      'outdoor days',
+  'On the water': 'days on the water',
+  'Adventure':    'adventures',
+  'Cultural':     'culture',
+  'Music':        'live music',
+  'Food':         'food',
+  'Wellness':     'wellness',
+  'Dance':        'dance',
+  'Film':         'film',
+  'Books':        'books',
+  'Sports':       'sport',
+  'Games':        'game nights',
+  'Nightlife':    'nights out',
+}
+
+/**
+ * The hero's opening list, built from the shelves that exist — "Outdoor
+ * days, adventures, culture and food". The old line promised sailing,
+ * workshops and day trips whatever was on the page; this one can only name
+ * what a visitor is about to scroll past. Null when there are no shelves,
+ * so the caller writes the honest empty line instead.
+ */
+export function describeShelves(shelfNames: string[]): string | null {
+  const phrases = shelfNames.slice(0, 4).map(n => SHELF_PHRASE[n] ?? n.toLowerCase())
+  if (phrases.length === 0) return null
+  const text = phrases.length === 1 ? phrases[0]
+    : `${phrases.slice(0, -1).join(', ')} and ${phrases[phrases.length - 1]}`
+  return text.charAt(0).toUpperCase() + text.slice(1)
+}
 
 function chrono(a: SeriesGroupable, b: SeriesGroupable): number {
   return a.date.localeCompare(b.date) || a.time.localeCompare(b.time)
@@ -61,18 +116,14 @@ function chrono(a: SeriesGroupable, b: SeriesGroupable): number {
 export function buildShelves<T extends ExperienceEventLike>(events: T[]): ExperienceShelf<T>[] {
   const shelves = new Map<string, { emoji: string; events: T[] }>()
   for (const e of events) {
-    for (const t of e.tags) {
-      if (t.tag.group.name !== 'Experience') continue
-      const shelf = shelves.get(t.tag.name) ?? { emoji: t.tag.emoji, events: [] }
-      shelf.events.push(e)
-      shelves.set(t.tag.name, shelf)
-    }
+    const primary = primaryShelf(e)
+    if (!primary) continue
+    const shelf = shelves.get(primary.name) ?? { emoji: primary.emoji, events: [] }
+    shelf.events.push(e)
+    shelves.set(primary.name, shelf)
   }
   return [...shelves.entries()]
-    .sort((a, b) => {
-      const ia = SHELF_ORDER.indexOf(a[0]); const ib = SHELF_ORDER.indexOf(b[0])
-      return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib)
-    })
+    .sort((a, b) => shelfRank(a[0]) - shelfRank(b[0]))
     .map(([name, s]) => ({ name, emoji: s.emoji, cards: buildCards(s.events) }))
 }
 

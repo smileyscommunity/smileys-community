@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'fs'
 import { join } from 'path'
-import { buildCards, buildShelves, experienceWindow, type ExperienceEventLike } from '@/lib/experiences'
+import { buildCards, buildShelves, describeShelves, experienceWindow, primaryShelf, SHELF_ORDER, type ExperienceEventLike } from '@/lib/experiences'
 
 // The experiences page mirrors the events feed on three rules it used to get
 // wrong: a started event drops after the same grace, a cancelled occurrence is
@@ -91,13 +91,32 @@ describe('buildCards', () => {
 })
 
 describe('buildShelves', () => {
-  it('puts an event on every Experience shelf it is tagged with, in curated order', () => {
+  it('puts an event on ONE shelf — the first of its Experience tags in the curated order', () => {
     const shelves = buildShelves([
-      ev({ id: 'x', date: '2026-10-01', tags: [tag('Games'), tag('Cultural'), tag('Outdoor')] }),
-      ev({ id: 'y', date: '2026-10-02', tags: [tag('Food'), { tag: { name: 'Chill', emoji: '·', group: { name: 'Energy' } } }] }),
+      ev({ id: 'walk', date: '2026-10-01', tags: [tag('Sports'), tag('Nightlife'), tag('Cultural'), tag('Outdoor')] }),
+      ev({ id: 'play', date: '2026-10-02', tags: [tag('Games'), tag('Cultural')] }),
+      ev({ id: 'dinner', date: '2026-10-03', tags: [tag('Food'), { tag: { name: 'Chill', emoji: '·', group: { name: 'Energy' } } }] }),
     ])
-    expect(shelves.map(s => s.name)).toEqual(['Outdoor', 'Cultural', 'Food', 'Games'])
-    expect(shelves.find(s => s.name === 'Food')!.cards.map(c => c.event.id)).toEqual(['y'])
+    expect(shelves.map(s => s.name)).toEqual(['Outdoor', 'Cultural', 'Food'])
+    expect(shelves.flatMap(s => s.cards.map(c => c.event.id))).toEqual(['walk', 'play', 'dinner'])
+  })
+  it('every tag in the Experience group has a place in the order; an unknown one sorts last', () => {
+    for (const name of ['Adventure', 'Books', 'Cultural', 'Dance', 'Film', 'Food', 'Games', 'Music', 'Nightlife', 'On the water', 'Outdoor', 'Sports', 'Wellness']) {
+      expect(SHELF_ORDER, name).toContain(name)
+    }
+    expect(primaryShelf(ev({ id: 'x', date: '2026-10-01', tags: [tag('Karaoke'), tag('Nightlife')] }))?.name).toBe('Nightlife')
+    expect(primaryShelf(ev({ id: 'y', date: '2026-10-01', tags: [{ tag: { name: 'Chill', emoji: '·', group: { name: 'Energy' } } }] }))).toBeNull()
+  })
+})
+
+describe('describeShelves', () => {
+  it('names what is on the page, at most four shelves, as a sentence opener', () => {
+    expect(describeShelves(['Outdoor', 'Adventure', 'Cultural', 'Food', 'Games'])).toBe('Outdoor days, adventures, culture and food')
+    expect(describeShelves(['Cultural'])).toBe('Culture')
+    expect(describeShelves(['On the water', 'Nightlife'])).toBe('Days on the water and nights out')
+  })
+  it('is null with nothing on the shelves, so the page writes the honest line instead', () => {
+    expect(describeShelves([])).toBeNull()
   })
 })
 

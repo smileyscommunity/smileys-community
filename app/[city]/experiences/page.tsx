@@ -7,9 +7,13 @@ import { APP_URL, SITE_URL } from '@/lib/env'
 import { jsonLdHtml } from '@/lib/jsonLd'
 import { eventListJsonLd } from '@/lib/eventJsonLd'
 import { shareCover } from '@/lib/shareCover'
+import { getSession } from '@/lib/session'
+import { describeShelves } from '@/lib/experiences'
 import JoinCityButton from '@/components/JoinCityButton'
-import { getExperiencesData } from '@/app/experiences/data'
+import { getExperiencesData, shelfViewer, fallbackEvents } from '@/app/experiences/data'
 import Shelves from '@/app/experiences/Shelves'
+import NothingYet from '@/app/experiences/NothingYet'
+import Crosslinks from '@/app/experiences/Crosslinks'
 import { hubCanonical, isDefaultCitySlug } from '../data'
 
 // /[city]/experiences — the crawlable shelves of a fixed city. The global
@@ -21,12 +25,21 @@ import { hubCanonical, isDefaultCitySlug } from '../data'
 
 interface Params { params: Promise<{ city: string }> }
 
+// Same rule as the global page: the copy names what is on the shelves.
+function intro(shelfNames: string[], cityName: string): string {
+  const what = describeShelves(shelfNames)
+  return what
+    ? `${what} — the experiences worth having in ${cityName}, joined with people worth having them with.`
+    : `Experiences you can join with the Smileys community in ${cityName}, as hosts schedule them.`
+}
+
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { city: slug } = await params
   const city = await getPublicCity(slug)
   if (!city || city.status !== CITY_STATUS.Live) return {}
   const title       = `Experiences in ${city.name} — Smileys Community`
-  const description = `Sailing, workshops, day trips and culture — curated experiences you can join with the Smileys community in ${city.name}.`
+  const { shelves } = await getExperiencesData(city.id)
+  const description = intro(shelves.map(s => s.name), city.name)
   const image = shareCover('experiences', city, title)
   return {
     title, description,
@@ -43,9 +56,16 @@ export default async function CityExperiencesPage({ params }: Params) {
   // A pre-launch city has nothing to join yet; its own page says what it is.
   if (city.status !== CITY_STATUS.Live) redirect(`/${city.slug}`)
 
+  const session = await getSession()
   const { shelves, events } = await getExperiencesData(city.id)
+  const [viewer, fallback] = await Promise.all([
+    shelfViewer(session, events.map(e => e.id)),
+    shelves.length === 0 ? fallbackEvents(city.id, session) : Promise.resolve([]),
+  ])
   const jsonLd = eventListJsonLd(events.filter(e => e.status !== 'cancelled'), city, { appUrl: APP_URL, siteUrl: SITE_URL })
-  const eventsHref = isDefaultCitySlug(city.slug) ? '/events' : `/${city.slug}/events`
+  const isDefault  = isDefaultCitySlug(city.slug)
+  const eventsHref = isDefault ? '/events' : `/${city.slug}/events`
+  const guideHref  = isDefault ? '/guide'  : `/guide?city=${city.slug}`
 
   return (
     <>
@@ -61,20 +81,21 @@ export default async function CityExperiencesPage({ params }: Params) {
           <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-gray-900 mb-3">
             Experiences in <span className="text-amber-600">{city.name}</span>
           </h1>
-          <p className="text-lg text-gray-600 max-w-2xl">
-            {shelves.length === 0
-              ? `The first sailing trips, walks and workshops in ${city.name} start with the first members.`
-              : `Sailing, workshops, day trips, culture — the experiences worth having in ${city.name}, joined with people worth having them with.`}
-          </p>
+          <p className="text-lg text-gray-600 max-w-2xl">{intro(shelves.map(s => s.name), city.name)}</p>
         </div>
       </section>
 
       <section className="py-10 sm:py-14 bg-warm border-t border-gray-100">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 space-y-12">
-          <Shelves shelves={shelves} eventsHref={eventsHref} />
-          <div className="flex justify-center">
-            <JoinCityButton slug={city.slug} name={city.name} />
-          </div>
+          {shelves.length === 0
+            ? <NothingYet city={city} events={fallback} eventsHref={eventsHref} />
+            : <Shelves shelves={shelves} viewer={viewer} />}
+          <Crosslinks cityName={city.name} guideHref={guideHref} eventsHref={eventsHref} />
+          {!session && (
+            <div className="flex justify-center">
+              <JoinCityButton slug={city.slug} name={city.name} />
+            </div>
+          )}
         </div>
       </section>
     </>
