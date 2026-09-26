@@ -60,15 +60,15 @@ export function rankHosts(a: RosterHost, b: RosterHost): number {
 /**
  * What a viewer may see of a host roster. Hosts hold a public title, so the
  * roster is a public surface — but the same guest rule as every other one
- * (redactEventForGuest, authorProjector): a first name to say who it is and
- * no id to follow to a profile. The photo stays: a Meet the Hosts page of
- * initials recruits nobody, and the /hosts page has shown faces to guests
- * since it launched. Flip `profilePhoto` to null here to change that
- * everywhere at once.
+ * (redactEventForGuest, authorProjector): a first name to say who it is,
+ * no photo file to fetch, and no id to follow to a profile. Nate's call,
+ * 2026-09-27: a logged-out visitor sees no host's face — the old /hosts page
+ * had shown them, and a roster of every host's photo across the cities is
+ * exactly what the events review took away from scrapers. Members see it all.
  */
 export function projectRosterForViewer<T extends RosterHost>(hosts: T[], signedIn: boolean): T[] {
   if (signedIn) return hosts
-  return hosts.map(h => ({ ...h, id: '', name: firstNameOf(h.name) || h.name }))
+  return hosts.map(h => ({ ...h, id: '', name: firstNameOf(h.name) || h.name, profilePhoto: null }))
 }
 
 /** The one-line summary under a host's name on a card. */

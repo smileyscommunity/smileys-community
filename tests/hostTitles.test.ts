@@ -34,10 +34,11 @@ describe('projectRosterForViewer', () => {
   it('leaves a member\'s view untouched', () => {
     expect(projectRosterForViewer(roster, true)).toEqual(roster)
   })
-  it('gives a guest a first name and no id to follow, and keeps the title', () => {
+  it('gives a guest a first name, no photo and no id to follow, and keeps the title', () => {
     const guest = projectRosterForViewer(roster, false)
     expect(guest.map(h => h.name)).toEqual(['Ayşe', 'Nate'])
     expect(guest.every(h => h.id === '')).toBe(true)
+    expect(guest.every(h => h.profilePhoto === null)).toBe(true)
     expect(guest[1].title).toBe('lead')
   })
   it('never lets a guest see an empty name', () => {
