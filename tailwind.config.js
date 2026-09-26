@@ -4,6 +4,11 @@ module.exports = {
     './pages/**/*.{js,ts,jsx,tsx,mdx}',
     './components/**/*.{js,ts,jsx,tsx,mdx}',
     './app/**/*.{js,ts,jsx,tsx,mdx}',
+    // Class strings also live in lib/ (arrival-accents, clubTemplates,
+    // listingDisplay…). Until 2026-09-26 those were purged unless the same
+    // utility happened to appear under app/ or in the safelist below — the
+    // arrival cards' sky/emerald/violet borders shipped as no border at all.
+    './lib/**/*.{js,ts,jsx,tsx}',
   ],
   // Club.color and Club.bgColor are stored as raw strings in the DB
   // and read straight into className across ~15 consumers (club
