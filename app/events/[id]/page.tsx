@@ -380,7 +380,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
 
   const cohostRecords = await prisma.eventCoHost.findMany({
     where: { eventId: id },
-    include: { user: { select: { id: true, name: true, color: true, profilePhoto: true } } },
+    include: { user: { select: { id: true, name: true, color: true, profilePhoto: true, nationality: true, profileVisibility: true } } },
     orderBy: { addedAt: 'asc' },
   })
   const cohostIds = cohostRecords.map(c => c.user.id)
@@ -779,6 +779,10 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                     ) : (
                       <span className="font-semibold text-gray-900">{firstNameOf(event.hostName)}</span>
                     )}
+                    {/* Flags follow the same rule as the attendee grid: none for a
+                        connections-only profile (enrichHosts nulls the host's;
+                        co-hosts are checked here). */}
+                    {countryFlag(event.hostNationality) && <span aria-hidden="true"> {countryFlag(event.hostNationality)}</span>}
                     {cohosts.length > 0 && (
                       <span className="text-gray-400">
                         {' '}& {cohosts.map((c, i) => (
@@ -790,6 +794,9 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                               </Link>
                             ) : (
                               <span className="font-semibold text-gray-900">{firstNameOf(c.user.name)}</span>
+                            )}
+                            {c.user.profileVisibility !== 'connections' && countryFlag(c.user.nationality) && (
+                              <span aria-hidden="true"> {countryFlag(c.user.nationality)}</span>
                             )}
                           </span>
                         ))}

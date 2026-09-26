@@ -161,6 +161,7 @@ function mapEvent(e: any, spotsLeft?: number): Event {
     hostName:         '',
     hostColor:        undefined,
     hostPhoto:        null,
+    hostNationality:  null,
     clubId:           e.clubId,
     cityId:           e.cityId,
     clubName:         e.club?.name ?? '',
@@ -184,7 +185,7 @@ async function enrichHosts(events: Event[]): Promise<Event[]> {
   if (!ids.length) return events
   const users = await prisma.user.findMany({
     where: { id: { in: ids } },
-    select: { id: true, name: true, color: true, profilePhoto: true },
+    select: { id: true, name: true, color: true, profilePhoto: true, nationality: true, profileVisibility: true },
   })
   const map = Object.fromEntries(users.map(u => [u.id, u]))
   return events.map(e => ({
@@ -192,6 +193,10 @@ async function enrichHosts(events: Event[]): Promise<Event[]> {
     hostName:  map[e.hostId]?.name        ?? '',
     hostColor: map[e.hostId]?.color       ?? undefined,
     hostPhoto: map[e.hostId]?.profilePhoto ?? null,
+    // Nationality is the attribute a connections-only profile withholds from
+    // non-connections (memberPrivacy). Lists have no per-viewer check, so a
+    // private host simply gets no flag anywhere.
+    hostNationality: map[e.hostId]?.profileVisibility === 'connections' ? null : (map[e.hostId]?.nationality ?? null),
   }))
 }
 
@@ -233,6 +238,7 @@ export function redactEventForGuest(event: Event): Event {
     // face across the cities through ?all=1).
     hostName:         firstNameOf(event.hostName),
     hostPhoto:        null,
+    hostNationality:  null,
     hostId:           '',
     address:          undefined,
     lat:              null,

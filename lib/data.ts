@@ -122,6 +122,9 @@ export interface Event {
   hostName: string
   hostColor?: string
   hostPhoto?: string | null
+  // The host's nationality for the flag beside their name; null for guests
+  // (redactEventForGuest) and for hosts whose profile is connections-only.
+  hostNationality?: string | null
   clubId: string
   // The event's home city (optional so hand-built fixtures in tests don't
   // all need it). Surfaces that need the city's timezone resolve it from

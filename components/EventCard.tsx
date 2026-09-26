@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import type { Event } from '@/lib/data'
+import { countryFlag } from '@/lib/countries'
 import { formatShortDate, formatTime, formatPrice, vibeConfig, resolveImageUrl, BLUR_PLACEHOLDER, firstNameOf} from '@/lib/data'
 import { getUrgency, getBarColor, buildSocialLabel } from '@/lib/utils/event'
 import { neighborhoodToSlug } from '@/lib/neighborhoods'
@@ -234,6 +235,7 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
                   }
                 </div>
                 <span className="truncate">{firstNameOf(event.hostName)}</span>
+                {countryFlag(event.hostNationality) && <span aria-hidden="true">{countryFlag(event.hostNationality)}</span>}
               </span>
             )}
             {/* Only when the host set one — an unlabelled event is not

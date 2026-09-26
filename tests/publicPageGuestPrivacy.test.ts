@@ -58,3 +58,26 @@ describe('/neighborhoods/[slug] sections', () => {
     expect(page).toContain('viewer={session}')
   })
 })
+
+describe('host flags on event surfaces', () => {
+  const db   = readFileSync('lib/db.ts', 'utf-8')
+  const page = readFileSync('app/events/[id]/page.tsx', 'utf-8')
+  const card = readFileSync('components/EventCard.tsx', 'utf-8')
+
+  it('a guest never receives the host nationality', () => {
+    // redactEventForGuest feeds the public list, the guest page and its JSON-LD.
+    const redact = db.slice(db.indexOf('export function redactEventForGuest'))
+    expect(redact.slice(0, redact.indexOf('\n}'))).toMatch(/hostNationality:\s*null/)
+  })
+
+  it('a connections-only host gets no flag, in lists or on the page', () => {
+    // Same attribute the attendee grid withholds (memberPrivacy.restrictedSetFor).
+    expect(db).toMatch(/hostNationality:\s*map\[e\.hostId\]\?\.profileVisibility === 'connections' \? null/)
+    expect(page).toMatch(/c\.user\.profileVisibility !== 'connections' && countryFlag\(c\.user\.nationality\)/)
+  })
+
+  it('the flag renders beside the host name on the page and the card', () => {
+    expect(page).toMatch(/countryFlag\(event\.hostNationality\)/)
+    expect(card).toMatch(/countryFlag\(event\.hostNationality\)/)
+  })
+})
