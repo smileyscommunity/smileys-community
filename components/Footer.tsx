@@ -228,7 +228,7 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
                 // here rather than in the city column.
                 { href: '/moving',      label: 'Moving here? 🏡' },
                 { href: '/remote-work', label: 'Remote work 💻'  },
-                { href: '/students',    label: 'International students 🎓' },
+                { href: '/students',    label: 'Studying here? 🎓' },
                 { href: '/members',  label: 'Members 👥'      },
                 // The Cup is seasonal and currently dormant — /cup is
                 // member-gated, so this used to dead-end visitors at the

@@ -75,7 +75,7 @@ describe('Discover ordering', () => {
       'Neighborhoods',
       'Moving Here',
       'Remote Work',
-      'International Students',
+      'Studying Here',
       'City Guide',
       'Handbook',
       'Hosts',
