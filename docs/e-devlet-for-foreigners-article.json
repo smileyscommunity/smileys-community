@@ -1,0 +1,43 @@
+{
+  "slug": "e-devlet-for-foreigners-getting-your-password-and-what-you-can-do-with-it",
+  "title": "e-Devlet for Foreigners: Getting Your Password and What You Can Do With It",
+  "excerpt": "e-Devlet is Türkiye's government services portal. Who can use it as a foreigner, how to get your password at PTT, and what it's useful for once you're in.",
+  "category": "Mobile & Digital",
+  "citySlug": null,
+  "country": "TR",
+  "bodyHtml": "<p>e-Devlet (turkiye.gov.tr) is Türkiye's single portal for government services. Once you live here, it is where you look things up, get documents and do official errands without queuing. Several of the other guides in this Handbook send you to it.</p><p>This guide is practical information; service availability for foreigners can change.</p><h2>Who can use it</h2><p>You need a <strong>foreign identity number (yabancı kimlik numarası, YKN)</strong> — the number starting with 99 that foreigners staying in Türkiye for six months or more receive, and which is printed on your residence permit card. If you're visiting on a passport alone, you won't have one, and you can't get an e-Devlet password.</p><p>Not sure of your number? You can look it up on the population registry's identity number site (tckimlik.nvi.gov.tr) with your residence permit details.</p><h2>Getting your password</h2><p>Foreigners get their password <strong>in person at a PTT branch</strong> (Türksat cable offices also issue them). Bring:</p><ul><li><p>your valid residence permit and your passport, or</p></li><li><p>your work permit and your passport (protection status holders bring their own ID document instead).</p></li></ul><p>You sign for the password and receive it in an envelope. There is a small fee.</p><p>Keep it safe: foreign users can't use e-Devlet's online password reset, so if you forget it you'll need to go back to PTT with your documents.</p><p>e-Devlet also accepts an e-signature or a mobile signature (mobil imza, arranged through your mobile operator) instead of a password.</p><h2>What it's useful for</h2><p>Services vary, and not every one is open to foreign users, but these are the ones this Handbook sends you to:</p><ul><li><p><strong>Registering a phone brought from abroad</strong> (IMEI registration) — see our SIM and internet guide.</p></li><li><p><strong>Finding your earthquake assembly area</strong> and checking the earthquake hazard map for an address — see our earthquake preparedness guide.</p></li><li><p><strong>Health services</strong> such as MHRS hospital appointments and e-Nabız, your health record, which sign in with e-Devlet.</p></li></ul><p>Once you're logged in, use the search box at the top of the portal — typing what you need is usually the quickest way to find a service.</p><h2>Stay safe</h2><ul><li><p>Only log in at <strong>turkiye.gov.tr</strong> or the official e-Devlet app. Lookalike sites and messages asking you to \"verify your e-Devlet account\" are scams.</p></li><li><p>Never give your e-Devlet password to anyone — including agents offering to \"handle it for you\". Anyone with it can act in your name across government services.</p></li></ul>",
+  "tags": [
+    "e-Devlet",
+    "turkiye.gov.tr",
+    "e-Devlet şifresi",
+    "password",
+    "PTT",
+    "foreign ID number",
+    "yabancı kimlik numarası",
+    "YKN",
+    "mobile signature",
+    "mobil imza"
+  ],
+  "officialSources": [
+    {
+      "label": "e-Devlet — information for non-citizens",
+      "url": "https://www.turkiye.gov.tr/non-citizens"
+    },
+    {
+      "label": "e-Devlet — frequently asked questions (passwords, documents for foreigners, password reset)",
+      "url": "https://www.turkiye.gov.tr/bilgilendirme?konu=sikcaSorulanlar"
+    },
+    {
+      "label": "PTT — e-Devlet password issuing",
+      "url": "https://www.ptt.gov.tr/e-devlet-kapisi-sifre-verme-islemleri"
+    },
+    {
+      "label": "MCKS (BTK) — registering a phone brought from abroad",
+      "url": "https://www.mcks.gov.tr/kayit-ve-eslestirme"
+    },
+    {
+      "label": "AFAD Istanbul — finding your assembly area via e-Devlet",
+      "url": "https://istanbul.afad.gov.tr/toplanma-alanina-erisim"
+    }
+  ]
+}
