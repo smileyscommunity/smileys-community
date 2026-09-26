@@ -333,7 +333,7 @@ export default async function HomePage() {
               {
                 hub:   'students' as const,
                 href:  singleCity ? `/students?city=${flagship.slug}` : '/students',
-                emoji: '🎓', title: singleCity ? `Studying in ${flagship.name}?` : 'Studying here?',
+                emoji: '🎓', title: 'Studying here?',
                 body:  'Meet people beyond your campus, discover the city, and make your semester more than lectures.',
                 cta:   'Your first week',
               },
