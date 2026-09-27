@@ -13,6 +13,8 @@ import { canonicalCategory, categoryMeta, storedKeysFor } from '@/lib/handbook-c
 import { articleCover } from '@/lib/articleCover'
 import { storyBylines } from '@/lib/storyByline'
 import { reviewLabel } from '@/lib/handbook-review'
+import ReviewChip from '@/components/ReviewChip'
+import { getCityConfig } from '@/lib/city'
 
 // Queried by every stored key that maps to this canonical category, so legacy
 // rows still filed under the old vocabulary appear here rather than vanishing
@@ -24,7 +26,7 @@ const getHandbookCategory = unstable_cache(
     where:   { kind: 'handbook', status: 'published', category: { in: storedKeys }, ...postCityScope(cityId, country) },
     orderBy: { publishedAt: 'desc' },
     select:  {
-      id: true, slug: true, title: true, excerpt: true, coverImage: true, body: true, category: true, publishedAt: true,
+      id: true, slug: true, title: true, excerpt: true, coverImage: true, body: true, category: true, publishedAt: true, cityId: true,
       lastReviewedAt: true, reviewIntervalDays: true, officialSources: true,
       // Projected per viewer after the cache — see the index.
       author: { select: {
@@ -98,6 +100,10 @@ export default async function HandbookCategoryPage({ params, searchParams }: Par
   const qs       = cityQs(cfg.slug)
   const articles = await getHandbookCategory(storedKeysFor(canonical), cityId, cfg.country ?? null)
   const byline   = await storyBylines(session, articles.map(a => a.author))
+  // A city-local article's date reads on ITS city's clock, as on the article
+  // page; national ones on the viewer's. The page used the viewer's for all.
+  const localIds = [...new Set(articles.map(a => a.cityId).filter((id): id is string => !!id))]
+  const tzById   = new Map(await Promise.all(localIds.map(async id => [id, (await getCityConfig(id)).timezone] as const)))
 
   return (
     <main className="bg-gray-50 min-h-screen">
@@ -116,7 +122,7 @@ export default async function HandbookCategoryPage({ params, searchParams }: Par
             <p className="flex gap-2 mt-5 rounded-xl border border-gray-200 bg-gray-50 p-4 text-xs text-gray-700 leading-relaxed max-w-xl">
               <span aria-hidden="true">⚠️</span>
               <span>
-                <span className="font-bold text-gray-900">Member-written, not professional advice.</span>{' '}
+                <span className="font-bold text-gray-900">Written by the Smileys team, not professional advice.</span>{' '}
                 These guides explain how things work in practice; they are not legal, immigration, tax or
                 medical advice, and rules and fees change. Where a guide links official sources, those set
                 the current requirements.
@@ -133,10 +139,11 @@ export default async function HandbookCategoryPage({ params, searchParams }: Par
               Nothing in {cat.label} for {cfg.name} yet.
             </div>
           ) : articles.map(a => {
-            // Cover → first inline body image (own uploads only, the rule the
-            // article page and og:image follow — a private copy of this regex
-            // here took any host) → the category banner. One helper.
-            const cover = articleCover({ coverImage: a.coverImage, body: a.body, category: canonical })
+            // Cover → first inline body image (own uploads only), and NOT the
+            // category banner: those are text graphics carrying retired
+            // category names ("Daily Life" on Home & Housing), which the
+            // index already refuses. No photo → no photo band.
+            const cover = articleCover({ coverImage: a.coverImage, body: a.body })
             return (
               <Link key={a.id} href={`/handbook/${a.slug}`}
                 className="block bg-white rounded-2xl border border-gray-200 overflow-hidden hover:border-amber-300 hover:shadow-sm hover:-translate-y-0.5 transition-all group">
@@ -149,7 +156,7 @@ export default async function HandbookCategoryPage({ params, searchParams }: Par
                   )}
                   <div className="p-6 min-w-0">
                     <div className="flex items-center gap-2 mb-2 text-xs text-gray-600">
-                      {a.publishedAt && <span>{formatDate(a.publishedAt, cfg.timezone)}</span>}
+                      {a.publishedAt && <span>{formatDate(a.publishedAt, (a.cityId && tzById.get(a.cityId)) || cfg.timezone)}</span>}
                       <span>· by {byline(a.author).name}</span>
                     </div>
                     <h2 className="text-lg sm:text-xl font-extrabold text-gray-900 group-hover:text-amber-600 transition-colors leading-tight">
@@ -168,7 +175,7 @@ export default async function HandbookCategoryPage({ params, searchParams }: Par
                       return (
                         <p className="flex flex-wrap gap-x-3 gap-y-1 text-xs mt-3">
                           {cites && <span className="font-semibold text-gray-700">Links official sources</span>}
-                          {reviewed && <span className={reviewed.stale ? 'text-gray-500' : 'font-semibold text-emerald-700'}>{reviewed.stale ? 'Review overdue' : reviewed.text}</span>}
+                          <ReviewChip text={reviewed?.text ?? null} stale={reviewed?.stale ?? false} size="xs" />
                         </p>
                       )
                     })()}

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
+import { reviewQueue } from '@/lib/handbook-review'
 
 interface Post {
   id:           string
@@ -16,6 +17,8 @@ interface Post {
   updatedAt:    string
   views:        number
   kind:         string
+  lastReviewedAt:     string | null
+  reviewIntervalDays: number | null
   // Author can be null if a future migration relaxes the FK to SetNull.
   // Defensive render path below.
   author:       { name: string } | null
@@ -120,6 +123,11 @@ export default function AdminPostsPage() {
 
   const filtered = posts.filter(p => filter === 'all' || p.status === filter)
   const awaiting = posts.filter(p => p.status === 'submitted').length
+  // The Handbook's review queue (lib/handbook-review): the staff view that
+  // did not exist — "Reviewed today" lives on each article page, and nothing
+  // said which articles needed it.
+  const queue    = reviewQueue(posts)
+  const queued   = [...queue.overdue, ...queue.unreviewed, ...queue.soon]
 
   // "Draft · created …" was shown for anything unpublished, which hid the
   // review queue's two states from the one line staff actually scan.
@@ -151,6 +159,35 @@ export default function AdminPostsPage() {
           New article
         </Link>
       </div>
+
+      {queued.length > 0 && (
+        <section className="mb-6 bg-zinc-800 border border-zinc-700 rounded-xl p-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+            <h2 className="text-sm font-bold text-zinc-100">Handbook review queue</h2>
+            <p className="text-xs text-zinc-400">
+              {queue.overdue.length} overdue · {queue.unreviewed.length} never reviewed · {queue.soon.length} due soon
+            </p>
+          </div>
+          <ul className="space-y-1.5">
+            {queued.slice(0, 20).map(p => {
+              const state = queue.overdue.includes(p) ? 'overdue' : queue.unreviewed.includes(p) ? 'never reviewed' : 'due soon'
+              return (
+                <li key={p.id} className="flex items-center gap-3 text-sm">
+                  <span className={`shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                    state === 'overdue' ? 'bg-red-900/50 text-red-300' : state === 'never reviewed' ? 'bg-zinc-700 text-zinc-300' : 'bg-amber-900/50 text-amber-300'}`}>
+                    {state}
+                  </span>
+                  {/* The article page holds the "Reviewed today" button. */}
+                  <a href={`/app/handbook/${p.slug}`} target="_blank" rel="noopener noreferrer"
+                    className="min-w-0 truncate text-zinc-200 hover:text-amber-400">{p.title}</a>
+                  <span className="ml-auto shrink-0 text-xs text-zinc-500">{p.category}</span>
+                </li>
+              )
+            })}
+          </ul>
+          {queued.length > 20 && <p className="text-xs text-zinc-500 mt-2">+ {queued.length - 20} more</p>}
+        </section>
+      )}
 
       {/* Filter tabs */}
       <div className="flex gap-1 mb-5 overflow-x-auto scrollbar-hide">

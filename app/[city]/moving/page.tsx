@@ -174,7 +174,7 @@ export default async function CityMovingPage({ params }: Params) {
             <div className="mb-8">
               <h2 id="topics-title" className="section-title">The practical side</h2>
               <p className="section-subtitle max-w-2xl">
-                Member-written guides from the {city.name} Handbook. Where a guide links official sources, those are the requirements; the rest is lived experience.
+                Guides from the {city.name} Handbook, written by the Smileys team. Where a guide links official sources, those are the requirements; the rest is lived experience.
               </p>
             </div>
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">

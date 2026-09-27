@@ -7,6 +7,7 @@ import { APP_URL } from '@/lib/env'
 import { shareCover } from '@/lib/shareCover'
 import { categoryMeta } from '@/lib/handbook-categories'
 import { reviewLabel } from '@/lib/handbook-review'
+import ReviewChip from '@/components/ReviewChip'
 import { getCityHandbookIndex } from '@/lib/handbookIndex'
 import { lifeStage, articlesForStage, includesHighStakes } from '@/lib/relocation'
 
@@ -73,7 +74,7 @@ export default async function HandbookStagePage({ params, searchParams }: Props)
             <p className="flex gap-2 rounded-xl border border-gray-200 bg-white p-4 text-xs text-gray-700 leading-relaxed">
               <span aria-hidden="true">⚠️</span>
               <span>
-                <span className="font-bold text-gray-900">Member-written, not professional advice.</span>{' '}
+                <span className="font-bold text-gray-900">Written by the Smileys team, not professional advice.</span>{' '}
                 These guides explain how things work in practice; they are not legal, immigration, tax or
                 medical advice. Where a guide links official sources, those set the current requirements.
               </span>
@@ -93,9 +94,8 @@ export default async function HandbookStagePage({ params, searchParams }: Props)
                 </h2>
                 {a.excerpt && <p className="text-sm text-gray-600 mt-2 leading-relaxed line-clamp-2">{a.excerpt}</p>}
                 <p className="flex flex-wrap gap-x-3 gap-y-1 text-xs mt-3">
-                  <span className="text-gray-500">Member-written guide</span>
                   {a.hasOfficialSources && <span className="font-semibold text-gray-700">Links official sources</span>}
-                  {reviewed && <span className={reviewed.stale ? 'text-gray-500' : 'font-semibold text-emerald-700'}>{reviewed.stale ? 'Review overdue' : reviewed.text}</span>}
+                  <ReviewChip text={reviewed?.text ?? null} stale={reviewed?.stale ?? false} size="xs" />
                 </p>
               </Link>
             )

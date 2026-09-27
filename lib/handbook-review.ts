@@ -49,6 +49,25 @@ export function reviewState(
   return 'current'
 }
 
+/**
+ * The staff review queue: what is overdue, what was never reviewed, and what
+ * is due soon — over published Handbook rows. This existed nowhere: the
+ * interval field sat on the form, the state was computed for readers, and
+ * the only way to find the 13 unreviewed articles was to open each one.
+ * Overdue first (a lapsed promise), then never-reviewed, then due-soon.
+ */
+export function reviewQueue<A extends { kind: string; status: string; category: string; lastReviewedAt: Date | string | null; reviewIntervalDays?: number | null }>(
+  posts: A[],
+  now: Date = new Date(),
+): { overdue: A[]; unreviewed: A[]; soon: A[] } {
+  const live = posts.filter(p => p.kind === 'handbook' && p.status === 'published')
+  return {
+    overdue:    live.filter(p => reviewState(p, now) === 'needs-review'),
+    unreviewed: live.filter(p => reviewState(p, now) === 'unreviewed'),
+    soon:       live.filter(p => reviewState(p, now) === 'review-soon'),
+  }
+}
+
 /** Public-facing review line, or null when there is nothing honest to show.
  *  'review-soon' is deliberately indistinguishable from 'current' to readers —
  *  it is an editorial signal, not a warning to the public (brief §15). */
@@ -74,7 +93,7 @@ const WORDS_PER_MINUTE = 220
 export function readingTime(html: string): number {
   const text = html
     .replace(/<[^>]+>/g, ' ')      // strip tags
-    .replace(/&[a-z]+;|&#\d+;/gi, ' ')  // strip entities
+    .replace(/&[a-z]+;|&#x[0-9a-f]+;|&#\d+;/gi, ' ')  // strip entities (named, hex, decimal)
     .trim()
   if (!text) return 1
   const words = text.split(/\s+/).length

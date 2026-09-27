@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { searchHandbook, type HandbookSearchItem } from '@/lib/handbook-search'
+import ReviewChip from '@/components/ReviewChip'
 
 // The Handbook homepage's dominant action: "what do you need help with?".
 // Search runs client-side over the index the server passes down — the corpus
@@ -69,8 +70,8 @@ export default function HandbookSearch({ items, boardHref = '/board' }: { items:
                   <span aria-hidden="true">{r.emoji}</span>
                   <span className="font-semibold">{r.category}</span>
                   <span>· {r.minutes} min read</span>
-                  {/* Reviewed line only when a review actually happened. */}
-                  {r.reviewed && <span className="hidden sm:inline">· {r.reviewed}</span>}
+                  {/* The same chip as every listing; nothing when never reviewed. */}
+                  <span className="hidden sm:inline"><ReviewChip text={r.reviewed} stale={r.reviewedStale} size="xs" /></span>
                 </div>
                 <p className="text-sm font-extrabold text-gray-900 group-hover:text-amber-600 transition-colors leading-tight">
                   {r.title}

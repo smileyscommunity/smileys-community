@@ -427,6 +427,14 @@ export default function PostForm({ initial = {} }: PostFormProps) {
                 className="w-full bg-zinc-900 border border-zinc-700 text-white text-sm rounded-lg px-3 py-2 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
               />
               <p className="text-[11px] text-zinc-500 mt-1.5 mb-3">Days between reviews — leave blank to use the category&rsquo;s own cadence.</p>
+              {/* The interval counts from the last review. On an article nobody
+                  has reviewed it does nothing, and four live articles carried
+                  one for weeks with no effect. */}
+              {!initial.lastReviewedAt && reviewDays && (
+                <p className="text-[11px] text-amber-400 -mt-1.5 mb-3">
+                  This only counts from the first review — mark the article reviewed from its page, or the interval never runs.
+                </p>
+              )}
 
               <label className="block text-xs font-semibold text-zinc-400 mb-1.5" htmlFor="post-tags">Tags</label>
               <input

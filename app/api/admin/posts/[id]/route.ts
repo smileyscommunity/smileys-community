@@ -75,7 +75,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   // SEO + bookmark preservation choice.
   // See POST: both vocabularies normalise (handbook → canonical IA key,
   // retired per-city guide names → 'City Guide').
-  const cleanCategory = postKind === 'handbook' ? normalizeHandbookCategory(category) : normalizeCommunityCategory(category)
+  // An unchanged category is kept verbatim: the article page deliberately
+  // renders a row whose stored key matches nothing (an old typo) under its
+  // raw label, and normalising it here refiled such a row to the first
+  // category on any inline save of the title or body.
+  const cleanCategory = category === existing.category
+    ? existing.category
+    : postKind === 'handbook' ? normalizeHandbookCategory(category) : normalizeCommunityCategory(category)
   const cleanCover = coverImage ? String(coverImage).trim() : ''
   if (cleanCover && !COVER_PATH_RE.test(cleanCover)) {
     return NextResponse.json({ error: 'Cover image must be uploaded via the form — external URLs are not allowed' }, { status: 400 })

@@ -202,7 +202,10 @@ describe('caches and the crawler', () => {
   })
 
   it('the sitemap lists live cities\' stories, newest first', () => {
-    expect(src('app/sitemap.ts')).toContain("where:   { status: 'published', OR: [{ cityId: null }, { cityId: { in: cityIds } }] },")
+    // 2026-09-27: stories and the Handbook are two reads (the Handbook uncapped); the stories one keeps the scope, order and cap.
+    const sm = src('app/sitemap.ts')
+    expect(sm).toContain("where:   { status: 'published', kind: { not: 'handbook' }, OR: [{ cityId: null }, { cityId: { in: cityIds } }] },")
+    expect(sm).toContain("orderBy: { publishedAt: 'desc' },\n        take:    200,")
   })
 
   it('the queue and the delete have a second factor for admins', () => {

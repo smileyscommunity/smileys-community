@@ -1,4 +1,6 @@
 import { MetadataRoute } from 'next'
+import { canonicalCategory } from '@/lib/handbook-categories'
+import { populatedStages } from '@/lib/relocation'
 import { statSync } from 'fs'
 import { join } from 'path'
 import { prisma } from '@/lib/prisma'
@@ -48,12 +50,23 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // Unpinned articles (global / national) plus the live cities' own — a
     // coming-soon city's stories were being indexed, and `take` with no order
     // was an arbitrary 200 once the table passed that.
-    prisma.post.findMany({
-      where:   { status: 'published', OR: [{ cityId: null }, { cityId: { in: cityIds } }] },
-      select:  { slug: true, publishedAt: true, kind: true },
-      orderBy: { publishedAt: 'desc' },
-      take:    200,
-    }),
+    // Two reads, not one capped list: the Handbook is evergreen and small,
+    // and ordered newest-first with the stories its older articles were the
+    // first to drop off once the two kinds together passed 200. Every
+    // published Handbook article is listed; stories keep the cap.
+    Promise.all([
+      prisma.post.findMany({
+        where:   { status: 'published', kind: 'handbook', OR: [{ cityId: null }, { cityId: { in: cityIds } }] },
+        select:  { slug: true, title: true, publishedAt: true, kind: true, category: true, cityId: true, country: true },
+        orderBy: { publishedAt: 'desc' },
+      }),
+      prisma.post.findMany({
+        where:   { status: 'published', kind: { not: 'handbook' }, OR: [{ cityId: null }, { cityId: { in: cityIds } }] },
+        select:  { slug: true, title: true, publishedAt: true, kind: true, category: true, cityId: true, country: true },
+        orderBy: { publishedAt: 'desc' },
+        take:    200,
+      }),
+    ]).then(([handbook, stories]) => [...handbook, ...stories]),
     // Marketplace listings are public — let Google crawl them so search hits
     // like "flats in Moda" can land on the listing.
     // The same rows the listing page will actually serve: a sitemap that
@@ -161,6 +174,28 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // The pages with no hub of their own: for every city but the default they
   // are canonical at their ?city= URL (lib/cityPageParam), which nothing linked
   // for a crawler to find. The default city keeps the bare URLs listed below.
+  // The Handbook's category and life-stage pages, per live city — none was
+  // listed before. A category is advertised for a city when that city's
+  // scope (its own + its country's national + global, lib/postScope) has an
+  // article in it; a stage when lib/relocation would populate it. The
+  // default city's are bare URLs, every other city's carry ?city=.
+  const handbookRows = posts.filter(p => p.kind === 'handbook')
+  const handbookSectionRoutes: MetadataRoute.Sitemap = cities
+    .filter(c => c.status === CITY_STATUS.Live)
+    .flatMap(c => {
+      const qs   = c.slug === DEFAULT_CITY_SLUG ? '' : `?city=${c.slug}`
+      const mine = handbookRows.filter(p => p.cityId === c.id || (p.cityId === null && (p.country === null || p.country === c.country)))
+      const cats = new Set(mine.map(p => canonicalCategory(p.category)).filter((k): k is string => !!k))
+      return [
+        ...[...cats].map(key => ({
+          url: `${BASE}/handbook/category/${encodeURIComponent(key)}${qs}`, priority: 0.6, changeFrequency: 'weekly' as const, lastModified: newestPost,
+        })),
+        ...populatedStages(mine, c.id).map(({ stage }) => ({
+          url: `${BASE}/handbook/stage/${stage.key}${qs}`, priority: 0.5, changeFrequency: 'weekly' as const, lastModified: newestPost,
+        })),
+      ]
+    })
+
   const cityParamRoutes: MetadataRoute.Sitemap = cities
     .filter(c => c.status === CITY_STATUS.Live && c.slug !== DEFAULT_CITY_SLUG)
     .flatMap(c => [
@@ -310,6 +345,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...eventRoutes,
     ...clubRoutes,
     ...postRoutes,
+    ...handbookSectionRoutes,
     ...listingRoutes,
     ...movingSaleRoutes,
     ...businessRoutes,

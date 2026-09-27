@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import dynamic from 'next/dynamic'
 import { confirmToast } from '@/lib/confirmToast'
+import ReviewChip from '@/components/ReviewChip'
 
 // TipTap is heavy — lazy-load it so anonymous handbook readers never pay
 // for the editor bundle; it only downloads when a staff member edits.
@@ -75,6 +76,10 @@ export default function EditableArticle(props: Props) {
   const [loadingEdit, setLoadingEdit] = useState(false)
   const [saving, setSaving]   = useState(false)
   const [reviewing, setReviewing] = useState(false)
+  // The read view after a save used to show the OLD text for a beat: edit
+  // mode closed at once and the server re-render arrived later. Closing it
+  // inside the refresh transition makes both land together.
+  const [refreshing, startRefresh] = useTransition()
 
   // Edit form state — only meaningful while editing; seeded from the admin
   // API row each time edit mode opens, so it always reflects the latest
@@ -172,9 +177,11 @@ export default function EditableArticle(props: Props) {
         return
       }
       toast.success('Article saved')
-      setConflict(false)
-      setEditing(false)
-      router.refresh()
+      startRefresh(() => {
+        router.refresh()
+        setConflict(false)
+        setEditing(false)
+      })
     } catch {
       toast.error('Network error — could not save')
     } finally {
@@ -218,9 +225,9 @@ export default function EditableArticle(props: Props) {
               className="px-3 py-1.5 text-sm font-semibold text-gray-500 hover:text-gray-700 disabled:opacity-50">
               Cancel
             </button>
-            <button onClick={save} disabled={saving}
+            <button onClick={save} disabled={saving || refreshing}
               className={`px-4 py-1.5 rounded-lg disabled:opacity-50 text-white text-sm font-bold ${conflict ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-500 hover:bg-amber-600'}`}>
-              {saving ? 'Saving…' : conflict ? 'Save anyway' : 'Save changes'}
+              {saving || refreshing ? 'Saving…' : conflict ? 'Save anyway' : 'Save changes'}
             </button>
           </div>
         </div>
@@ -313,17 +320,7 @@ export default function EditableArticle(props: Props) {
         {/* An article nobody has reviewed says so plainly; it never borrows
             `updatedAt` to look fresher than it is. */}
         <div className="mt-4">
-          {props.reviewText === null ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1 text-[11px] font-bold text-gray-500">
-              <span aria-hidden="true">○</span> Not yet reviewed
-            </span>
-          ) : (
-            <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold ${
-              props.reviewStale ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
-            }`}>
-              <span aria-hidden="true">{props.reviewStale ? '⏳' : '✓'}</span> {props.reviewText}
-            </span>
-          )}
+          <ReviewChip text={props.reviewText} stale={props.reviewStale} showUnreviewed />
         </div>
       </div>
 
