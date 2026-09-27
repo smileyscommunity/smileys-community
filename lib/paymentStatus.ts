@@ -14,6 +14,15 @@ import { writeAudit } from '@/lib/audit'
 
 export const TERMINAL_PAYMENT_STATUSES = new Set(['refunded', 'cancelled'])
 
+/** paidAt for a status change: stamped on becoming paid, cleared when a paid
+ *  payment goes back to pending (it wasn't paid after all). A refund keeps it
+ *  — the money was collected, then returned. */
+export function paidAtFor(from: string | null | undefined, to: string | undefined): { paidAt?: Date | null } {
+  if (to === 'paid' && from !== 'paid') return { paidAt: new Date() }
+  if (from === 'paid' && to === 'pending') return { paidAt: null }
+  return {}
+}
+
 export async function changePaymentStatus(args: {
   paymentId: string
   from:      string
@@ -29,7 +38,7 @@ export async function changePaymentStatus(args: {
   const { paymentId, from, to, actor } = args
   const res = await prisma.payment.updateMany({
     where: { id: paymentId, status: from },
-    data:  { status: to, ...(args.extra ?? {}) },
+    data:  { status: to, ...paidAtFor(from, to), ...(args.extra ?? {}) },
   })
   if (res.count === 0) return false
   await prisma.paymentLog.create({

@@ -131,8 +131,9 @@ export async function GET(req: Request) {
     // trend used to set all-time revenue against one previous month, so it
     // read hugely positive forever. Pending is everything still owed,
     // whenever it was created.
-    prisma.payment.groupBy({ by: ['currency'], where: { status: 'paid', createdAt: { gte: monthAgo }, ...viaEvent }, _sum: { amount: true } }),
-    prisma.payment.groupBy({ by: ['currency'], where: { status: 'paid', createdAt: { gte: prevMonth, lt: monthAgo }, ...viaEvent }, _sum: { amount: true } }),
+    // By when it was PAID (paidAt), not when the row was written at RSVP.
+    prisma.payment.groupBy({ by: ['currency'], where: { status: 'paid', paidAt: { gte: monthAgo }, ...viaEvent }, _sum: { amount: true } }),
+    prisma.payment.groupBy({ by: ['currency'], where: { status: 'paid', paidAt: { gte: prevMonth, lt: monthAgo }, ...viaEvent }, _sum: { amount: true } }),
     prisma.payment.groupBy({ by: ['currency'], where: { status: 'pending', ...viaEvent }, _sum: { amount: true }, _count: { _all: true } }),
     // Hangouts pulse — active (in-flight) hangouts, today's posts, and
     // references created in the last 7 days. References-this-week is the

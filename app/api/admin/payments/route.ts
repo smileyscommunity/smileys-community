@@ -1,4 +1,5 @@
 import { canManagePayments } from '@/lib/access'
+import { paidAtFor } from '@/lib/paymentStatus'
 import { roundMoney } from '@/lib/money'
 import { requireStepUp } from '@/lib/stepUp'
 import { NextRequest, NextResponse } from 'next/server'
@@ -76,7 +77,10 @@ function paymentFilterWhere(
   const contains = { contains: q, mode: 'insensitive' as const }
   return {
     ...(ALLOWED_STATUSES.has(status) && { status }),
-    ...(Object.keys(createdAt).length > 0 && { createdAt }),
+    // Filtering paid payments by date means "paid in this range" — the bank
+    // reconciliation case — so it reads paidAt; any other status keeps the
+    // row's own date.
+    ...(Object.keys(createdAt).length > 0 && (status === 'paid' ? { paidAt: createdAt } : { createdAt })),
     ...(q && { OR: [
       { user:  { name:  contains } },
       { user:  { email: contains } },
@@ -289,6 +293,7 @@ export async function PATCH(req: NextRequest) {
     where: { id, status: current.status },
     data: {
       ...(status !== undefined && { status }),
+      ...(statusChanging ? paidAtFor(current.status, status) : {}),
       ...(notesChanged && { notes: nextNotes }),
     },
   })

@@ -393,7 +393,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         }
         const payment = await prisma.payment.create({
           data: { userId, eventId, amount: Math.max(0, Number(evt.price) || 0),
-                  currency: evt.currency ?? DEFAULT_CURRENCY, status: 'paid', method: 'manual' },
+                  currency: evt.currency ?? DEFAULT_CURRENCY, status: 'paid', method: 'manual', paidAt: new Date() },
         })
         await prisma.paymentLog.create({
           data: { paymentId: payment.id, adminId: session.id, adminName: session.name,

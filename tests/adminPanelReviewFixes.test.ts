@@ -196,7 +196,8 @@ describe('dashboard stats', () => {
   it('revenue is per currency: last 30 days against the 30 before, pending as still owed', async () => {
     p.payment.groupBy.mockImplementation(async ({ where }: any) => {
       if (where.status === 'pending') return [{ currency: 'EUR', _sum: { amount: 40 }, _count: { _all: 2 } }]
-      if (where.createdAt?.lt) return [{ currency: 'TRY', _sum: { amount: 1000 } }]          // previous window
+      // Windows read paidAt — when the money came in (2026-09-27).
+      if (where.paidAt?.lt) return [{ currency: 'TRY', _sum: { amount: 1000 } }]             // previous window
       return [{ currency: 'TRY', _sum: { amount: 1500 } }, { currency: 'EUR', _sum: { amount: 90 } }]
     })
     const body = await run()
@@ -208,7 +209,7 @@ describe('dashboard stats', () => {
     // No window-less paid read: the trend compares like with like.
     const paid = p.payment.groupBy.mock.calls.map(c => c[0].where).filter(w => w.status === 'paid')
     expect(paid).toHaveLength(2)
-    for (const w of paid) expect(w.createdAt?.gte).toBeInstanceOf(Date)
+    for (const w of paid) expect(w.paidAt?.gte).toBeInstanceOf(Date)
     for (const c of p.payment.groupBy.mock.calls) expect(c[0].by).toEqual(['currency'])
   })
 

@@ -266,7 +266,7 @@ describe('participants PATCH markPaid', () => {
       const res = await PATCH(req({ userId: 'u1', action: 'markPaid' }), params)
       expect(res.status).toBe(200)
       expect(p.payment.findFirst.mock.calls[0][0].where).toEqual({ userId: 'u1', eventId: 'e1', status: { in: ['pending', 'paid'] } })
-      expect(p.payment.updateMany).toHaveBeenCalledWith({ where: { id: 'pay1', status: 'pending' }, data: { status: 'paid' } })
+      expect(p.payment.updateMany).toHaveBeenCalledWith({ where: { id: 'pay1', status: 'pending' }, data: { status: 'paid', paidAt: expect.any(Date) } })
       // …and it is audited now, like a change from /admin/payments.
       expect(writeAudit).toHaveBeenCalledWith('a1', 'Admin', 'payment.status', 'pay1', 'payment', expect.objectContaining({ from: 'pending', to: 'paid' }), expect.any(String))
       expect(p.paymentLog.create.mock.calls[0][0].data).toMatchObject({ paymentId: 'pay1', adminId: 'a1', fromStatus: 'pending', toStatus: 'paid' })
@@ -287,7 +287,7 @@ describe('participants PATCH markPaid', () => {
       const res = await PATCH(req({ userId: 'u1', action: 'markPaid' }), params)
       expect(res.status).toBe(200)
       expect(p.payment.create).toHaveBeenCalledWith({
-        data: { userId: 'u1', eventId: 'e1', amount: 300, currency: 'TRY', status: 'paid', method: 'manual' },
+        data: { userId: 'u1', eventId: 'e1', amount: 300, currency: 'TRY', status: 'paid', method: 'manual', paidAt: expect.any(Date) },
       })
       expect(p.paymentLog.create.mock.calls[0][0].data).toMatchObject({ paymentId: 'new1', fromStatus: null, toStatus: 'paid' })
     })

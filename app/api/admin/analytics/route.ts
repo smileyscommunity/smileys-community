@@ -107,7 +107,7 @@ export async function GET(req: NextRequest) {
       }),
       prisma.payment.findMany({
         where: { ...viaEvent },
-        select: { status: true, amount: true, currency: true, createdAt: true },
+        select: { status: true, amount: true, currency: true, createdAt: true, paidAt: true },
       }),
       prisma.report.groupBy({ by: ['status'], where: { ...reportedCity }, _count: true }),
       prisma.event.findMany({
@@ -343,7 +343,8 @@ export async function GET(req: NextRequest) {
 
     const revenueByMonth = emptyMonths()
     for (const p of paid) {
-      const d = new Date(p.createdAt)
+      // The month it was paid in (paidAt), falling back to the row's date.
+      const d = new Date(p.paidAt ?? p.createdAt)
       if (d < periodStart) continue
       const key = d.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' })
       if (key in revenueByMonth) revenueByMonth[key] += p.amount

@@ -198,7 +198,8 @@ describe('refunding a payment keeps its note', () => {
   it('a status change with no reason leaves the note alone', async () => {
     p.payment.findUnique.mockResolvedValue({ status: 'pending', amount: 300, currency: 'TRY', notes: 'keep me' })
     await patch({ id: 'p1', status: 'paid' })
-    expect(p.payment.updateMany.mock.calls[0][0].data).toEqual({ status: 'paid' })
+    // …and becoming paid stamps paidAt (2026-09-27).
+    expect(p.payment.updateMany.mock.calls[0][0].data).toEqual({ status: 'paid', paidAt: expect.any(Date) })
   })
 })
 
@@ -209,8 +210,9 @@ describe('payments filters run on the server', () => {
     const where = p.payment.findMany.mock.calls[0][0].where
     expect(where.status).toBe('paid')
     // Istanbul midnight is 21:00 UTC the day before; "to" covers the whole day.
-    expect(where.createdAt.gte.toISOString()).toBe('2026-04-30T21:00:00.000Z')
-    expect(where.createdAt.lt.toISOString()).toBe('2026-05-01T21:00:00.000Z')
+    // Paid rows are filtered by when they were paid (paidAt, 2026-09-27).
+    expect(where.paidAt.gte.toISOString()).toBe('2026-04-30T21:00:00.000Z')
+    expect(where.paidAt.lt.toISOString()).toBe('2026-05-01T21:00:00.000Z')
     // name, email, event title, and the member id the RSVP route links with.
     expect(where.OR).toHaveLength(4)
   })

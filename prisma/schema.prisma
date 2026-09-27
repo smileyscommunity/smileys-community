@@ -1220,6 +1220,10 @@ model Payment {
   // Stamped by sweep-payment-reminders when the one-and-only "your spot
   // needs payment" nudge goes out — the stamp is what makes it one-and-only.
   reminderSentAt DateTime?
+  // When it became paid — revenue and the payments date filter read this,
+  // not createdAt (the RSVP). Set by lib/paymentStatus and /admin/payments;
+  // cleared when a paid payment goes back to pending.
+  paidAt         DateTime?
   event          Event    @relation(fields: [eventId], references: [id])
   user           User     @relation(fields: [userId], references: [id])
 
@@ -1229,6 +1233,7 @@ model Payment {
   @@index([createdAt])
   @@index([eventId, status])
   @@index([userId, eventId, status])
+  @@index([paidAt])
   @@map("payments")
 }
 
