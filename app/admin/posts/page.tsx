@@ -135,7 +135,7 @@ export default function AdminPostsPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-100">Articles</h1>
+          <h1 className="text-2xl font-bold text-zinc-100">Stories &amp; Handbook</h1>
           <p className="text-zinc-400 text-sm mt-0.5">
             {posts.length} total · {posts.filter(p => p.status === 'published').length} published
             {awaiting > 0 && <> · <span className="text-amber-400">{awaiting} awaiting review</span></>}
