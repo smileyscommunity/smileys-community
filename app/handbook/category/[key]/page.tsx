@@ -1,10 +1,14 @@
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
+import type { Metadata } from 'next'
+import { notFound, redirect } from 'next/navigation'
 import { postCityScope } from '@/lib/postScope'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { resolveCityForPage, type CitySearch } from '@/lib/cityPageParam'
+import { resolveCityForPage, cityQs, type CitySearch } from '@/lib/cityPageParam'
+import { DEFAULT_CITY_SLUG } from '@/lib/city'
+import { APP_URL } from '@/lib/env'
+import { shareCover } from '@/lib/shareCover'
 import { canonicalCategory, categoryMeta, storedKeysFor } from '@/lib/handbook-categories'
 import { articleCover } from '@/lib/articleCover'
 import { storyBylines } from '@/lib/storyByline'
@@ -50,18 +54,30 @@ function categoryKeyFrom(param: string): string {
 
 type Params = { params: Promise<{ key: string }>; searchParams?: Promise<CitySearch> }
 
-export async function generateMetadata({ params, searchParams }: Params) {
+export async function generateMetadata({ params, searchParams }: Params): Promise<Metadata> {
   const { key } = await params
-  const cat = categoryMeta(categoryKeyFrom(key))
-  if (!cat) return { title: 'Handbook — Smileys Community' }
+  const canonicalKey = canonicalCategory(categoryKeyFrom(key))
+  const cat = canonicalKey ? categoryMeta(canonicalKey) : null
+  if (!canonicalKey || !cat) return { title: 'Handbook — Smileys Community' }
   // Names the viewer's city — ?city= when the link carries one (the hubs and
   // stage pages link that way), else the session. A crawler carries neither,
   // so it resolves to the default city and keeps the indexed "… — Istanbul
   // Handbook" titles intact.
   const { city } = await resolveCityForPage(searchParams)
+  const title = `${cat.label} — ${city.name} Handbook`
+  // One canonical per city, on the CANONICAL key: the legacy indexed URLs
+  // (/category/Bureaucracy) and the ?city= variants all point here, so none
+  // of them indexes as a duplicate. A page-level openGraph replaces the
+  // layout's whole object — without one this page shared as the homepage
+  // card with the site root as og:url.
+  const url   = `${APP_URL}/handbook/category/${encodeURIComponent(canonicalKey)}${cityQs(city.slug)}`
+  const image = shareCover('handbook', city, `${title} — Smileys Community`)
   return {
-    title:       `${cat.label} — ${city.name} Handbook | Smileys Community`,
+    title:       `${title} | Smileys Community`,
     description: cat.tagline,
+    alternates:  { canonical: url },
+    openGraph:   { title, description: cat.tagline, url, siteName: 'Smileys Community', type: 'website', images: [image] },
+    twitter:     { card: image.twitterCard, title, description: cat.tagline, images: [image.url] },
   }
 }
 
@@ -75,7 +91,11 @@ export default async function HandbookCategoryPage({ params, searchParams }: Par
   if (!canonical || !cat) notFound()
 
   const session  = await getSession()
-  const { city: cfg, cityId } = await resolveCityForPage(searchParams)
+  const { city: cfg, cityId, pinned } = await resolveCityForPage(searchParams)
+  // Same rule as the index: put the city in the URL for anyone off the
+  // default city, so the address bar they copy survives being shared.
+  if (!pinned && cfg.slug !== DEFAULT_CITY_SLUG) redirect(`/handbook/category/${encodeURIComponent(canonical)}?city=${cfg.slug}`)
+  const qs       = cityQs(cfg.slug)
   const articles = await getHandbookCategory(storedKeysFor(canonical), cityId, cfg.country ?? null)
   const byline   = await storyBylines(session, articles.map(a => a.author))
 
@@ -83,7 +103,7 @@ export default async function HandbookCategoryPage({ params, searchParams }: Par
     <main className="bg-gray-50 min-h-screen">
       <section className="bg-white border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12"><div className="max-w-3xl">
-          <Link href="/handbook" className="text-xs text-amber-600 font-semibold hover:underline">← The Handbook</Link>
+          <Link href={`/handbook${qs}`} className="text-xs text-amber-600 font-semibold hover:underline">← The {cfg.name} Handbook</Link>
           <div className="flex items-center gap-3 mt-4 mb-3">
             <span className="text-4xl">{cat.emoji}</span>
             <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 leading-tight">{cat.label}</h1>

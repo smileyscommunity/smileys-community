@@ -10,7 +10,7 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { DEFAULT_CITY_SLUG } from '@/lib/city'
 import { DEFAULT_TZ } from '@/lib/cityTime'
-import { resolveCityForPage, type CitySearch } from '@/lib/cityPageParam'
+import { resolveCityForPage, cityQs, type CitySearch } from '@/lib/cityPageParam'
 import { shareCover } from '@/lib/shareCover'
 import { postCityScope } from '@/lib/postScope'
 import { articleCover } from '@/lib/articleCover'
@@ -283,7 +283,7 @@ export default async function HandbookPage({ searchParams }: { searchParams?: Pr
                 written by the Smileys team, with official sources linked where the details matter.
               </p>
               <div className="max-w-2xl mt-6">
-                <HandbookSearch items={enriched} />
+                <HandbookSearch items={enriched} boardHref={`/board${cityQs(cfg.slug)}`} />
               </div>
             </div>
           </div>

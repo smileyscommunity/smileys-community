@@ -6,6 +6,7 @@ import { resolveCityForPage, type CitySearch } from '@/lib/cityPageParam'
 import { DEFAULT_CITY_SLUG } from '@/lib/city'
 import { APP_URL } from '@/lib/env'
 import { loadQuickReference } from '@/lib/quickReference'
+import { shareCover } from '@/lib/shareCover'
 
 // /handbook/quick-reference — the apps, official sites and practical links
 // that used to fill the bottom of the Handbook index. There it was 64% of
@@ -21,10 +22,16 @@ type Props = { searchParams?: Promise<CitySearch> }
 
 export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
   const { city } = await resolveCityForPage(searchParams)
+  const title       = `Quick reference — ${city.name} Handbook`
+  const description = `Apps, official sites and practical links for day-to-day life in ${city.name}.`
+  const url         = `${APP_URL}/handbook/quick-reference`
+  const image       = shareCover('handbook', city, `${title} — Smileys Community`)
   return {
-    title:       `Quick reference — ${city.name} Handbook | Smileys Community`,
-    description: `Apps, official sites and practical links for day-to-day life in ${city.name}.`,
-    alternates:  { canonical: `${APP_URL}/handbook/quick-reference` },
+    title:       `${title} | Smileys Community`,
+    description,
+    alternates:  { canonical: url },
+    openGraph:   { title, description, url, siteName: 'Smileys Community', type: 'website', images: [image] },
+    twitter:     { card: image.twitterCard, title, description, images: [image.url] },
   }
 }
 

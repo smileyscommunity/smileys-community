@@ -6,6 +6,7 @@ import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { resolveCityId, getCityConfig, DEFAULT_CITY_SLUG } from '@/lib/city'
+import { cityQs } from '@/lib/cityPageParam'
 import { postCityScope } from '@/lib/postScope'
 import { sanitizeArticle } from '@/lib/sanitize'
 import { resolveImageUrl } from '@/lib/data'
@@ -177,17 +178,23 @@ export default async function HandbookArticlePage({ params }: Params) {
   // VIEWER's city — see getHandbookRelated.
   const articleCity = post.cityId ? await getCityConfig(post.cityId) : viewerCity
   const cityName    = articleCity.name
-  // The "Quick links for this topic" callout deep-links into /handbook's
-  // quick-reference block — Istanbul's link pack, rendered on the default
-  // city's index only — so the callout follows the same gate (same rule as
-  // handbookCity() on the index; per-city quick reference is the follow-up).
-  const viewerCityIsDefault = viewerCity.slug === DEFAULT_CITY_SLUG
+  // The city every link out of this page names, and the one "More in …" is
+  // scoped to: the article's own when it has one, else the viewer's. It all
+  // followed the viewer before, so a cookie-less guest on İzmir's transport
+  // guide got an Istanbul breadcrumb, Istanbul's category page, Istanbulkart
+  // as "more in this category" and Istanbul's quick links at the foot.
+  const linkCity = post.cityId ? articleCity : viewerCity
+  const qs       = cityQs(linkCity.slug)
+  // The "Quick links for this topic" callout deep-links into the quick
+  // reference — Istanbul's link pack — so it shows only when the article's
+  // city IS the default (per-city quick reference is the follow-up).
+  const linkCityIsDefault = linkCity.slug === DEFAULT_CITY_SLUG
 
   const related = preview ? [] : await getHandbookRelated(
     canonical ? storedKeysFor(canonical) : [post.category],
     post.id,
-    cityId,
-    viewerCity.country ?? null,
+    post.cityId ?? cityId,
+    linkCity.country ?? null,
   )
   const seeAlsoTarget = seeAlsoSlug(post.slug)
   const seeAlso = seeAlsoTarget && !preview ? await getSeeAlso(seeAlsoTarget) : null
@@ -296,10 +303,10 @@ export default async function HandbookArticlePage({ params }: Params) {
             article — icons at the top were removed). A row whose category
             matches nothing has no category page to link. */}
         <nav className="flex items-center gap-2 text-xs text-gray-600 flex-wrap mb-6">
-          <Link href="/handbook" className="hover:text-amber-600 font-semibold">📖 Handbook</Link>
+          <Link href={`/handbook${qs}`} className="hover:text-amber-600 font-semibold">📖 Handbook</Link>
           <span>›</span>
           {canonical
-            ? <Link href={`/handbook/category/${encodeURIComponent(catKey)}`} className="hover:text-amber-600 font-semibold">{catLabel}</Link>
+            ? <Link href={`/handbook/category/${encodeURIComponent(catKey)}${qs}`} className="hover:text-amber-600 font-semibold">{catLabel}</Link>
             : <span className="font-semibold">{catLabel}</span>}
         </nav>
 
@@ -313,6 +320,7 @@ export default async function HandbookArticlePage({ params }: Params) {
             silently dropped every colour the toolbar offers. */}
         <EditableArticle
           id={post.id}
+          slug={post.slug}
           cityId={post.cityId}
           title={post.title}
           excerpt={post.excerpt}
@@ -411,7 +419,7 @@ export default async function HandbookArticlePage({ params }: Params) {
             to bookmark*. Showing both right at the end of the article
             answers the natural next question ("OK, now what app do I
             use?") without sending members away to search. */}
-        {viewerCityIsDefault && HANDBOOK_TO_GUIDE[catKey] && (
+        {linkCityIsDefault && HANDBOOK_TO_GUIDE[catKey] && (
           <section className="mt-12 pt-8 border-t border-gray-100">
             <Link href={`/handbook/quick-reference#${HANDBOOK_TO_GUIDE[catKey].anchor}`}
               className="block bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-2xl px-5 py-4 transition-colors group">
@@ -485,7 +493,7 @@ export default async function HandbookArticlePage({ params }: Params) {
         )}
 
         <div className="mt-12 pt-6 border-t border-gray-100">
-          <Link href="/handbook" className="text-sm text-amber-600 font-bold hover:underline">← Back to the Handbook</Link>
+          <Link href={`/handbook${qs}`} className="text-sm text-amber-600 font-bold hover:underline">← Back to the Handbook</Link>
         </div>
       </article></div>
     </main>

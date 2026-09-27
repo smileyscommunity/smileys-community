@@ -21,7 +21,9 @@ import { searchHandbook, type HandbookSearchItem } from '@/lib/handbook-search'
 // handbook, İzmirim Kart doesn't appear on Istanbul's.
 const CHIP_CANDIDATES = ['Istanbulkart', 'İzmirim Kart', 'Residence permit', 'Bank account', 'Doctor', 'Rent', 'Scams']
 
-export default function HandbookSearch({ items }: { items: HandbookSearchItem[] }) {
+// `boardHref` is the city's board — the empty state used to link the bare
+// /board, which sent a guest on İzmir's handbook to Istanbul's questions.
+export default function HandbookSearch({ items, boardHref = '/board' }: { items: HandbookSearchItem[]; boardHref?: string }) {
   const [query, setQuery] = useState('')
   const results = useMemo(() => searchHandbook(items, query), [items, query])
   const suggestions = useMemo(() => CHIP_CANDIDATES.filter(s => searchHandbook(items, s).length > 0), [items])
@@ -83,8 +85,12 @@ export default function HandbookSearch({ items }: { items: HandbookSearchItem[] 
       {showEmpty && (
         <div className="mt-4 bg-gray-50 border border-gray-200 rounded-xl px-4 py-4 text-center">
           <p className="text-sm font-bold text-gray-900 mb-1">We couldn’t find that.</p>
-          <p className="text-xs text-gray-600 mb-3">Try one of the suggestions above — or ask people who’ve been through it.</p>
-          <Link href="/board" className="inline-block text-xs font-bold text-amber-600 hover:text-amber-700">
+          <p className="text-xs text-gray-600 mb-3">
+            {suggestions.length > 0
+              ? 'Try one of the suggestions above — or ask people who’ve been through it.'
+              : 'Nothing is written on that yet — ask people who’ve been through it.'}
+          </p>
+          <Link href={boardHref} className="inline-block text-xs font-bold text-amber-600 hover:text-amber-700">
             Ask the community on the Board →
           </Link>
         </div>

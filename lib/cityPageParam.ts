@@ -20,8 +20,19 @@
 // 404: a stale link should show a page, not an error.
 
 import { getPublicCity } from './cities'
-import { getCityConfig, resolveCityId } from './city'
+import { getCityConfig, resolveCityId, DEFAULT_CITY_SLUG } from './city'
 import { getSession } from './session'
+
+/**
+ * The query string that keeps a link on its city: '' for the default city
+ * (its bare URLs are the canonical ones), '?city=<slug>' for any other. For
+ * every page that resolves its city through resolveCityForPage, a self-link
+ * without it sends a cookie-less guest — the one who arrived on a shared
+ * İzmir link — to the default city.
+ */
+export function cityQs(citySlug: string): string {
+  return citySlug === DEFAULT_CITY_SLUG ? '' : `?city=${citySlug}`
+}
 
 // A repeated ?city= arrives as an array; the first one wins.
 export type CitySearch = { city?: string | string[] }

@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import { resolveCityForPage, type CitySearch } from '@/lib/cityPageParam'
 import { DEFAULT_CITY_SLUG } from '@/lib/city'
 import { APP_URL } from '@/lib/env'
+import { shareCover } from '@/lib/shareCover'
 import { categoryMeta } from '@/lib/handbook-categories'
 import { reviewLabel } from '@/lib/handbook-review'
 import { getCityHandbookIndex } from '@/lib/handbookIndex'
@@ -26,11 +27,18 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   const stage = lifeStage(key)
   if (!stage) return {}
   const { city } = await resolveCityForPage(searchParams)
-  const qs = city.slug === DEFAULT_CITY_SLUG ? '' : `?city=${city.slug}`
+  const qs    = city.slug === DEFAULT_CITY_SLUG ? '' : `?city=${city.slug}`
+  const title = `${stage.label} — ${city.name} Handbook`
+  const url   = `${APP_URL}/handbook/stage/${stage.key}${qs}`
+  // The city's Handbook cover (lib/shareCover) — without a page-level
+  // openGraph this page shared as the site-wide brand card.
+  const image = shareCover('handbook', city, `${title} — Smileys Community`)
   return {
-    title:       `${stage.label} — ${city.name} Handbook | Smileys Community`,
+    title:       `${title} | Smileys Community`,
     description: stage.blurb,
-    alternates:  { canonical: `${APP_URL}/handbook/stage/${stage.key}${qs}` },
+    alternates:  { canonical: url },
+    openGraph:   { title, description: stage.blurb, url, siteName: 'Smileys Community', type: 'website', images: [image] },
+    twitter:     { card: image.twitterCard, title, description: stage.blurb, images: [image.url] },
   }
 }
 

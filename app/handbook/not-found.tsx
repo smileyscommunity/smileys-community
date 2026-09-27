@@ -1,9 +1,15 @@
 import Link from 'next/link'
+import { getSession } from '@/lib/session'
+import { resolveCityId, getCityConfig } from '@/lib/city'
+import { cityQs } from '@/lib/cityPageParam'
 
 // An article that isn't here — unpublished, moved, or a slug that never
 // existed. The root not-found spoke for the whole site ("Browse events");
-// this one knows the reader was looking something up.
-export default function HandbookNotFound() {
+// this one knows the reader was looking something up. The way back names
+// the reader's city (cookie or home), so an İzmir member is not sent to
+// Istanbul's index by a dead link.
+export default async function HandbookNotFound() {
+  const city = await getCityConfig(await resolveCityId(await getSession()))
   return (
     <main className="bg-white min-h-screen">
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-24 text-center">
@@ -14,7 +20,7 @@ export default function HandbookNotFound() {
         <p className="text-gray-600 leading-relaxed mb-8">
           It may have been taken down, or the link is wrong. The index has everything that is.
         </p>
-        <Link href="/handbook" className="btn-primary px-6 py-3">The Handbook</Link>
+        <Link href={`/handbook${cityQs(city.slug)}`} className="btn-primary px-6 py-3">The {city.name} Handbook</Link>
       </div>
     </main>
   )

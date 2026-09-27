@@ -27,6 +27,7 @@ const RichTextEditor = dynamic(() => import('@/components/RichTextEditor'), {
 // guest never downloads the unsanitized source of every article they read.
 interface Props {
   id:            string
+  slug:          string          // the compare link in the conflict notice
   title:         string
   excerpt:       string | null
   sanitizedBody: string   // server-sanitized HTML for the read view
@@ -89,6 +90,10 @@ export default function EditableArticle(props: Props) {
   // is the version the PUT checks (409 if the article was saved elsewhere
   // after edit mode opened).
   const [loaded, setLoaded]   = useState<{ coverImage: string | null; status: string; category: string; updatedAt: string } | null>(null)
+  // Set when a save hit 409: the article was saved elsewhere after edit mode
+  // opened. The typed text stays; the row's version is re-read so a second,
+  // explicit "Save anyway" wins the version check instead of 409ing again.
+  const [conflict, setConflict] = useState(false)
 
   useEffect(() => {
     fetch('/app/api/auth/me')
@@ -151,12 +156,23 @@ export default function EditableArticle(props: Props) {
       })
       if (!res.ok) {
         const d = await res.json().catch(() => ({}))
-        // 409: saved elsewhere since edit mode opened. The toast stays until
-        // dismissed and the edit stays open, so the text can be copied out.
-        toast.error(d.error ?? 'Save failed', res.status === 409 ? { duration: Infinity } : undefined)
+        if (res.status === 409) {
+          // Saved elsewhere since edit mode opened. Every retry 409'd
+          // before, because the version we sent never moved; and both ways
+          // out threw the typed text away. Re-read the row's version (and
+          // the fields we round-trip), keep the text, and say so.
+          const fresh = await fetch(`/app/api/admin/posts/${props.id}`, { credentials: 'include' })
+            .then(r => (r.ok ? r.json() : null)).catch(() => null)
+          if (fresh) setLoaded({ coverImage: fresh.coverImage ?? null, status: fresh.status, category: fresh.category, updatedAt: fresh.updatedAt })
+          setConflict(true)
+          toast.error('Someone saved this article while you were editing. Your text is still here — review theirs, or save anyway to replace it.')
+          return
+        }
+        toast.error(d.error ?? 'Save failed')
         return
       }
       toast.success('Article saved')
+      setConflict(false)
       setEditing(false)
       router.refresh()
     } catch {
@@ -198,16 +214,27 @@ export default function EditableArticle(props: Props) {
         <div className="flex items-center justify-between gap-3 mb-4 pb-4 border-b border-gray-100">
           <span className="text-xs font-bold text-amber-600 uppercase tracking-widest">Editing article</span>
           <div className="flex items-center gap-2">
-            <button onClick={() => setEditing(false)} disabled={saving}
+            <button onClick={() => { setEditing(false); setConflict(false) }} disabled={saving}
               className="px-3 py-1.5 text-sm font-semibold text-gray-500 hover:text-gray-700 disabled:opacity-50">
               Cancel
             </button>
             <button onClick={save} disabled={saving}
-              className="px-4 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-bold">
-              {saving ? 'Saving…' : 'Save changes'}
+              className={`px-4 py-1.5 rounded-lg disabled:opacity-50 text-white text-sm font-bold ${conflict ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-500 hover:bg-amber-600'}`}>
+              {saving ? 'Saving…' : conflict ? 'Save anyway' : 'Save changes'}
             </button>
           </div>
         </div>
+
+        {conflict && (
+          <div className="mb-4 flex items-start gap-2 rounded-xl bg-red-50 border border-red-200 px-3 py-2.5 text-xs text-red-800">
+            <span aria-hidden="true">⚠️</span>
+            <span>
+              Someone saved this article after you opened it. Your text below is untouched.{' '}
+              <a href={`/app/handbook/${props.slug}`} target="_blank" rel="noopener noreferrer" className="font-bold underline">Open their version</a>
+              {' '}in a new tab to compare, then <span className="font-bold">Save anyway</span> replaces it with yours.
+            </span>
+          </div>
+        )}
 
         {!props.coverImage && (
           <div className="mb-4 flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2.5 text-xs text-amber-800">
