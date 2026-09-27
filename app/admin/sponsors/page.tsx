@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { useAdminLoad } from '@/lib/admin/useAdminLoad'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
-import { DEFAULT_CURRENCY, formatMoney, currencySymbol } from '@/lib/data'
+import { DEFAULT_CURRENCY, formatMoney, KNOWN_CURRENCIES } from '@/lib/data'
 
 interface SponsorLead {
   id: string
@@ -23,7 +23,7 @@ interface SponsorLead {
 
 interface SponsorsPayload {
   leads: SponsorLead[]
-  summary: { wonValue: number; wonCount: number }
+  summary: { won: { currency: string; value: number; count: number }[]; wonCount: number }
 }
 
 const STATUSES = ['new', 'contacted', 'negotiating', 'won', 'lost'] as const
@@ -62,7 +62,7 @@ export default function AdminSponsorsPage() {
   const [openId, setOpenId] = useState<string | null>(null)
   // Per-lead draft for value/notes so typing doesn't fire a PATCH per
   // keystroke — saved explicitly via the Save button.
-  const [drafts, setDrafts] = useState<Record<string, { dealValue: string; adminNotes: string }>>({})
+  const [drafts, setDrafts] = useState<Record<string, { dealValue: string; currency: string; adminNotes: string }>>({})
 
   const leads = useMemo(() => {
     const all = data?.leads ?? []
@@ -112,7 +112,7 @@ export default function AdminSponsorsPage() {
       return
     }
     try {
-      const updated = await patch(lead.id, { dealValue: value, adminNotes: draft.adminNotes })
+      const updated = await patch(lead.id, { dealValue: value, currency: draft.currency, adminNotes: draft.adminNotes })
       setData(prev => prev && {
         ...prev,
         leads: prev.leads.map(l => (l.id === lead.id ? updated : l)),
@@ -127,12 +127,22 @@ export default function AdminSponsorsPage() {
 
   function recalcSummary(all: SponsorLead[]) {
     const won = all.filter(l => l.status === 'won')
-    return { wonValue: won.reduce((s, l) => s + (l.dealValue ?? 0), 0), wonCount: won.length }
+    const byCur = new Map<string, { value: number; count: number }>()
+    for (const l of won) {
+      const row = byCur.get(l.currency) ?? { value: 0, count: 0 }
+      row.value += l.dealValue ?? 0; row.count++
+      byCur.set(l.currency, row)
+    }
+    return {
+      won: [...byCur.entries()].map(([currency, r]) => ({ currency, value: Math.round(r.value * 100) / 100, count: r.count })).sort((a, b) => b.value - a.value),
+      wonCount: won.length,
+    }
   }
 
   function draftFor(lead: SponsorLead) {
     return drafts[lead.id] ?? {
       dealValue:  lead.dealValue === null ? '' : String(lead.dealValue),
+      currency:   lead.currency || cur,
       adminNotes: lead.adminNotes ?? '',
     }
   }
@@ -147,7 +157,12 @@ export default function AdminSponsorsPage() {
           <p className="text-zinc-500 text-sm mt-1">B2B leads from the advertise page — work them from enquiry to closed deal.</p>
         </div>
         <div className="text-right">
-          <div className="text-2xl font-bold text-green-400">{fmtMoney(data?.summary.wonValue ?? 0, cur)}</div>
+          {/* Won deals per currency — never one sum across lira and euros. */}
+          <div className="text-2xl font-bold text-green-400">
+            {(data?.summary.won?.length ?? 0) > 0
+              ? data!.summary.won.map(w => fmtMoney(w.value, w.currency)).join(' + ')
+              : fmtMoney(0, cur)}
+          </div>
           <div className="text-xs text-zinc-500">{data?.summary.wonCount ?? 0} won deal{(data?.summary.wonCount ?? 0) === 1 ? '' : 's'}</div>
         </div>
       </div>
@@ -192,7 +207,7 @@ export default function AdminSponsorsPage() {
                     </span>
                     <span className="text-xs text-zinc-500">{FORMAT_LABELS[lead.format] ?? lead.format}</span>
                     {lead.status === 'won' && lead.dealValue !== null && (
-                      <span className="text-xs font-semibold text-green-400">{fmtMoney(lead.dealValue, cur)}</span>
+                      <span className="text-xs font-semibold text-green-400">{fmtMoney(lead.dealValue, lead.currency || cur)}</span>
                     )}
                   </div>
                   <div className="text-xs text-zinc-500 mt-1 truncate">
@@ -210,10 +225,19 @@ export default function AdminSponsorsPage() {
                   <p className="text-sm text-zinc-300 whitespace-pre-wrap break-words">{lead.message}</p>
                   <div className="flex items-end gap-3 flex-wrap">
                     <div>
-                      <label className="block text-xs text-zinc-500 mb-1">Deal value ({currencySymbol(cur).trim()})</label>
-                      <input type="number" min={0} value={draft.dealValue}
-                        onChange={e => setDrafts(prev => ({ ...prev, [lead.id]: { ...draft, dealValue: e.target.value } }))}
-                        placeholder="—" className={`${inputCls} w-36`} />
+                      <label className="block text-xs text-zinc-500 mb-1">Deal value</label>
+                      <div className="flex gap-1.5">
+                        <input type="number" min={0} value={draft.dealValue}
+                          onChange={e => setDrafts(prev => ({ ...prev, [lead.id]: { ...draft, dealValue: e.target.value } }))}
+                          placeholder="—" className={`${inputCls} w-32`} />
+                        {/* The deal's own currency — it used to take the
+                            currency of whichever city the admin was viewing. */}
+                        <select value={draft.currency} aria-label="Currency"
+                          onChange={e => setDrafts(prev => ({ ...prev, [lead.id]: { ...draft, currency: e.target.value } }))}
+                          className={`${inputCls} w-24`}>
+                          {KNOWN_CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
                     </div>
                     <div className="flex-1 min-w-[220px]">
                       <label className="block text-xs text-zinc-500 mb-1">Notes</label>

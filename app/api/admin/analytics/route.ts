@@ -6,6 +6,8 @@ import { canViewAnalytics } from '@/lib/access'
 import { getCached, setCached } from '@/lib/analyticsCache'
 import { todayInCity, resolveCityId } from '@/lib/city'
 import { COMMUNITY_MEMBER_WHERE, MEMBER_ROLE_FILTER } from '@/lib/memberCount'
+import { DEFAULT_CURRENCY } from '@/lib/data'
+import { roundMoney } from '@/lib/money'
 
 const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
 
@@ -105,7 +107,7 @@ export async function GET(req: NextRequest) {
       }),
       prisma.payment.findMany({
         where: { ...viaEvent },
-        select: { status: true, amount: true, createdAt: true },
+        select: { status: true, amount: true, currency: true, createdAt: true },
       }),
       prisma.report.groupBy({ by: ['status'], where: { ...reportedCity }, _count: true }),
       prisma.event.findMany({
@@ -172,7 +174,7 @@ export async function GET(req: NextRequest) {
       prisma.payment.findMany({
         where: { status: 'paid', ...viaEvent },
         select: {
-          amount: true,
+          amount: true, currency: true,
           event: { select: { clubId: true, club: { select: { name: true, emoji: true } } } },
         },
       }),
@@ -181,7 +183,7 @@ export async function GET(req: NextRequest) {
         where: { status: { in: ['paid', 'refunded'] }, ...viaEvent },
         select: {
           status: true,
-          amount: true,
+          amount: true, currency: true,
           event: {
             select: {
               hostId: true,
@@ -319,12 +321,25 @@ export async function GET(req: NextRequest) {
     }
 
     // ── Revenue ───────────────────────────────────────────────────────────────
-    const paid     = allPayments.filter(p => p.status === 'paid')
-    const pending  = allPayments.filter(p => p.status === 'pending')
-    const refunded = allPayments.filter(p => p.status === 'refunded')
-    const revenueCollected = paid.reduce((s, p) => s + p.amount, 0)
-    const revenuePending   = pending.reduce((s, p) => s + p.amount, 0)
-    const revenueRefunded  = refunded.reduce((s, p) => s + p.amount, 0)
+    // One currency per report. Every figure below was a plain sum across
+    // currencies — lira and euros added into one number (the page could only
+    // print it bare, "mixed currencies"). The report now runs in the scope's
+    // main currency (most paid revenue) and names what it left out.
+    const curOf = (p: { currency: string | null }) => p.currency ?? DEFAULT_CURRENCY
+    const paidByCur = new Map<string, number>()
+    for (const p of allPayments) if (p.status === 'paid') paidByCur.set(curOf(p), (paidByCur.get(curOf(p)) ?? 0) + p.amount)
+    const revenueCurrency = [...paidByCur.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]
+      ?? (allPayments[0] ? curOf(allPayments[0]) : DEFAULT_CURRENCY)
+    const revenueOtherCurrencies = [...paidByCur.entries()]
+      .filter(([c]) => c !== revenueCurrency)
+      .map(([currency, collected]) => ({ currency, collected: roundMoney(collected) }))
+    const inRevCur = (p: { currency: string | null }) => curOf(p) === revenueCurrency
+    const paid     = allPayments.filter(p => p.status === 'paid'     && inRevCur(p))
+    const pending  = allPayments.filter(p => p.status === 'pending'  && inRevCur(p))
+    const refunded = allPayments.filter(p => p.status === 'refunded' && inRevCur(p))
+    const revenueCollected = roundMoney(paid.reduce((s, p) => s + p.amount, 0))
+    const revenuePending   = roundMoney(pending.reduce((s, p) => s + p.amount, 0))
+    const revenueRefunded  = roundMoney(refunded.reduce((s, p) => s + p.amount, 0))
 
     const revenueByMonth = emptyMonths()
     for (const p of paid) {
@@ -343,7 +358,7 @@ export async function GET(req: NextRequest) {
     const clubRevMap: Record<string, { name: string; emoji: string; revenue: number; payments: number }> = {}
     for (const p of revenueByClubRaw) {
       const clubId = p.event.clubId
-      if (!clubId) continue
+      if (!clubId || !inRevCur(p)) continue
       if (!clubRevMap[clubId]) clubRevMap[clubId] = { name: p.event.club?.name ?? clubId, emoji: p.event.club?.emoji ?? '⬡', revenue: 0, payments: 0 }
       clubRevMap[clubId].revenue   += p.amount
       clubRevMap[clubId].payments  += 1
@@ -359,8 +374,10 @@ export async function GET(req: NextRequest) {
       const hostId = p.event.hostId
       if (!hostId) continue
       if (!hostRefundMap[hostId]) hostRefundMap[hostId] = { hostId, clubName: p.event.club?.name ?? '—', paid: 0, refunded: 0, refundedAmount: 0, paidAmount: 0 }
-      if (p.status === 'paid')     { hostRefundMap[hostId].paid++;     hostRefundMap[hostId].paidAmount     += p.amount }
-      if (p.status === 'refunded') { hostRefundMap[hostId].refunded++; hostRefundMap[hostId].refundedAmount += p.amount }
+      // Counts across every currency (a refund rate is a ratio of payments);
+      // amounts only in the report's currency.
+      if (p.status === 'paid')     { hostRefundMap[hostId].paid++;     if (inRevCur(p)) hostRefundMap[hostId].paidAmount     += p.amount }
+      if (p.status === 'refunded') { hostRefundMap[hostId].refunded++; if (inRevCur(p)) hostRefundMap[hostId].refundedAmount += p.amount }
     }
 
     // Enrich with host names
@@ -698,7 +715,11 @@ export async function GET(req: NextRequest) {
       },
       revenue: {
         collected: revenueCollected, pending: revenuePending, refunded: revenueRefunded,
-        byMonth: Object.values(revenueByMonth),
+        byMonth: Object.values(revenueByMonth).map(roundMoney),
+        // The currency every revenue figure here is in, and paid revenue in
+        // any other currency the scope has (named on the page, not summed).
+        currency: revenueCurrency,
+        otherCurrencies: revenueOtherCurrencies,
       },
       reports: { pending: reportPending, actioned: reportActioned, dismissed: reportDismissed },
       topEvents: topEventsRaw.map(e => ({

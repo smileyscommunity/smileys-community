@@ -20,7 +20,7 @@ interface Analytics {
   engagement:   { activeMemberCount: number; activeMemberRate: number; dormantCount: number; repeatRsvpRate: number; totalUniqueRsvpers: number; repeatRsvpers: number; dormantMembers: { id: string; name: string; joinedAt: string; interests: string[]; neighborhood: string | null }[] }
   applications: { total: number; approved: number; rejected: number; pending: number; approvalRate: number | null; byMonth: number[]; topInterests: { interest: string; count: number }[] }
   events:       { total: number; published: number; past: number; upcoming: number; avgFillRate: number; totalRsvps: number; byMonth: number[]; rsvpByMonth: number[] }
-  revenue:      { collected: number; pending: number; refunded: number; byMonth: number[] }
+  revenue:      { collected: number; pending: number; refunded: number; byMonth: number[]; currency?: string; otherCurrencies?: { currency: string; collected: number }[] }
   reports:      { pending: number; actioned: number; dismissed: number }
   topEvents:    { id: string; title: string; date: string; totalSpots: number; attending: number; fillRate: number }[]
   topClubs:     { id: string; name: string; emoji: string; members: number; events: number }[]
@@ -310,7 +310,10 @@ function AnalyticsInner() {
       .map(c => (c as { currency?: string }).currency)
       .filter((x): x is string => !!x),
   ))
-  const revCur: string | null = scopedCurrencies.length === 0 ? cur : scopedCurrencies.length === 1 ? scopedCurrencies[0] : null
+  // The server now reports revenue in one currency and says which; the
+  // guess from the scoped cities is only the fallback before data arrives.
+  const revCur: string | null = data?.revenue?.currency
+    ?? (scopedCurrencies.length === 0 ? cur : scopedCurrencies.length === 1 ? scopedCurrencies[0] : null)
   const revMoney    = (n: number) => revCur ? formatMoney(n, revCur) : n.toLocaleString('en-GB')
   const revCurLabel = revCur ? ` (${currencySymbol(revCur).trim()})` : ' (mixed currencies)'
   const [reengageId,    setReengageId]    = useState<string | null>(null)
@@ -1398,6 +1401,11 @@ function AnalyticsInner() {
               <StatCard label="Collected"  value={revMoney(data.revenue.collected)} subColor="text-green-400" sub="Paid transactions" />
               <StatCard label="Pending"    value={revMoney(data.revenue.pending)}   subColor="text-amber-400" sub="Awaiting payment" href="/admin/payments" />
               <StatCard label="Refunded"   value={revMoney(data.revenue.refunded)}  subColor="text-zinc-400"  sub="Total refunded" />
+              {(data.revenue.otherCurrencies?.length ?? 0) > 0 && (
+                <p className="col-span-full text-xs text-zinc-500">
+                  Figures here are in {currencySymbol(data.revenue.currency ?? cur).trim()} only. Also collected: {data.revenue.otherCurrencies!.map(o => formatMoney(o.collected, o.currency)).join(', ')}.
+                </p>
+              )}
             </div>
             <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5">
               <div className="text-xs font-semibold text-zinc-400 mb-3">Revenue collected — last {periodWindowLabel(period)}{revCurLabel}</div>

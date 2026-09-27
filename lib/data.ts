@@ -282,6 +282,8 @@ const CURRENCY_SYMBOLS: Record<string, string> = {
   TRY: '\u20ba', USD: '$', EUR: '\u20ac', GBP: '\u00a3',
   GEL: '\u20be', BGN: '\u043b\u0432', CHF: 'CHF ', AED: 'AED ',
 }
+/** The currencies the site formats — e.g. for a picker. */
+export const KNOWN_CURRENCIES = Object.keys(CURRENCY_SYMBOLS)
 // The founding city's currency, and the last-resort fallback wherever a row
 // predates the currency column. Spelled once: every other 'TRY' in the code
 // was a guess about which city the reader is in. Sibling of DEFAULT_TZ.

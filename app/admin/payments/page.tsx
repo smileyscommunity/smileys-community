@@ -427,7 +427,7 @@ function AdminPaymentsPageInner() {
             {stats.byEvent.map(e => {
               const max = stats.byEvent[0].paidTotal || 1
               return (
-                <div key={e.eventId}>
+                <div key={`${e.eventId}:${e.currency}`}>
                   <div className="flex flex-wrap items-center justify-between mb-1 gap-2">
                     <span className="text-xs text-zinc-300 font-medium truncate max-w-[60%]">{e.emoji} {e.title}</span>
                     <div className="flex items-center gap-2 shrink-0">

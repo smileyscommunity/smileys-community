@@ -9,6 +9,7 @@ import { stalledLiveCities, stalledSeverity, describeStalled } from '@/lib/cityO
 import { loadPostponedEvents, planPostponed } from '@/lib/postponedEvents'
 import { countRoomsNeedingReview } from '@/lib/attendanceReview'
 import { COMMUNITY_MEMBER_WHERE, NOT_ACTIVATED_MEMBER_WHERE, MEMBER_ROLE_FILTER } from '@/lib/memberCount'
+import { roundMoney } from '@/lib/money'
 import { reportQueueWhere } from '@/lib/admin/reportScope'
 
 // The funnel follows one cohort: applications made in this many days. Recent
@@ -231,7 +232,7 @@ export async function GET(req: Request) {
 
   // One row per currency that has any paid or pending money, largest 30-day
   // take first. Amounts are never summed across currencies.
-  const sumFor = (arr: PayBucket[], c: string) => arr.find(p => p.currency === c)?._sum.amount ?? 0
+  const sumFor = (arr: PayBucket[], c: string) => roundMoney(arr.find(p => p.currency === c)?._sum.amount)
   const revenue = [...new Set([...nowArr, ...prevArr, ...pendingArr].map(p => p.currency))]
     .map(currency => {
       const collected = sumFor(nowArr, currency)

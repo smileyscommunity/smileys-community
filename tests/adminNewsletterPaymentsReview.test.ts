@@ -20,7 +20,8 @@ const h = vi.hoisted(() => {
     newsletter: { findMany: vi.fn(async () => []), create: vi.fn(), update: vi.fn(async () => ({})), deleteMany: vi.fn() },
     newsletterEmailLog: { createMany: vi.fn() },
     appSetting: { findUnique: vi.fn(async () => null) },
-    payment:    { findUnique: vi.fn(), findMany: vi.fn(async () => []), update: vi.fn(), count: vi.fn(async () => 0), groupBy: vi.fn(async () => []) },
+    // updateMany + findUniqueOrThrow: the PATCH is a compare-and-set now (2026-09-27).
+    payment:    { findUnique: vi.fn(), findUniqueOrThrow: vi.fn(async () => ({ id: 'p1', user: { name: 'M', email: 'm@x' }, event: { title: 'T', emoji: '🎉' } })), findMany: vi.fn(async () => []), update: vi.fn(), updateMany: vi.fn(async () => ({ count: 1 })), count: vi.fn(async () => 0), groupBy: vi.fn(async () => []) },
     paymentLog: { create: vi.fn() },
     event:      { findMany: vi.fn(async () => []) },
     $transaction: vi.fn(async (fn: any) => fn(prisma)),
@@ -182,7 +183,7 @@ describe('refunding a payment keeps its note', () => {
   it('the reason is appended, and the audit carries the note before/after', async () => {
     const res = await patch({ id: 'p1', status: 'refunded', reason: 'event cancelled' })
     expect(res.status).toBe(200)
-    expect(p.payment.update.mock.calls[0][0].data).toEqual({ status: 'refunded', notes: 'paid cash to Elif · Refund: event cancelled' })
+    expect(p.payment.updateMany.mock.calls[0][0].data).toEqual({ status: 'refunded', notes: 'paid cash to Elif · Refund: event cancelled' })
     const audit = (writeAudit as any).mock.calls.find((c: any[]) => c[2] === 'payment.status')
     expect(audit[5]).toMatchObject({ from: 'paid', to: 'refunded', reason: 'event cancelled', notesBefore: 'paid cash to Elif', notesAfter: 'paid cash to Elif · Refund: event cancelled' })
     expect(p.paymentLog.create.mock.calls[0][0].data.note).toContain('paid cash to Elif')
@@ -191,13 +192,13 @@ describe('refunding a payment keeps its note', () => {
 
   it('a tab that still sends the reason as `notes` appends too, never overwrites', async () => {
     await patch({ id: 'p1', status: 'refunded', notes: 'duplicate payment' })
-    expect(p.payment.update.mock.calls[0][0].data.notes).toBe('paid cash to Elif · Refund: duplicate payment')
+    expect(p.payment.updateMany.mock.calls[0][0].data.notes).toBe('paid cash to Elif · Refund: duplicate payment')
   })
 
   it('a status change with no reason leaves the note alone', async () => {
     p.payment.findUnique.mockResolvedValue({ status: 'pending', amount: 300, currency: 'TRY', notes: 'keep me' })
     await patch({ id: 'p1', status: 'paid' })
-    expect(p.payment.update.mock.calls[0][0].data).toEqual({ status: 'paid' })
+    expect(p.payment.updateMany.mock.calls[0][0].data).toEqual({ status: 'paid' })
   })
 })
 

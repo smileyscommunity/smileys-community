@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { KNOWN_CURRENCIES } from '@/lib/data'
+import { roundMoney } from '@/lib/money'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin } from '@/lib/access'
@@ -13,23 +15,27 @@ export async function GET() {
   const session = await getSession()
   if (!session || !isAdmin(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const [leads, wonAgg] = await Promise.all([
+  const [leads, wonByCurrency] = await Promise.all([
     prisma.sponsorLead.findMany({
       orderBy: { createdAt: 'desc' },
       take: 500,
     }),
-    prisma.sponsorLead.aggregate({
-      where: { status: 'won' },
-      _sum: { dealValue: true },
-      _count: true,
+    // Per currency: a lira deal and a euro deal don't add up to a number.
+    prisma.sponsorLead.groupBy({
+      by:     ['currency'],
+      where:  { status: 'won' },
+      _sum:   { dealValue: true },
+      _count: { _all: true },
     }),
   ])
 
   return NextResponse.json({
     leads,
     summary: {
-      wonValue: wonAgg._sum.dealValue ?? 0,
-      wonCount: wonAgg._count,
+      won: wonByCurrency
+        .map(g => ({ currency: g.currency, value: roundMoney(g._sum.dealValue), count: g._count._all }))
+        .sort((a, b) => b.value - a.value),
+      wonCount: wonByCurrency.reduce((n, g) => n + g._count._all, 0),
     },
   })
 }
@@ -39,13 +45,13 @@ export async function PATCH(req: NextRequest) {
   if (!session || !isAdmin(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await req.json()
-  const { id, status, dealValue, adminNotes } = body
+  const { id, status, dealValue, currency, adminNotes } = body
   if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
 
   const current = await prisma.sponsorLead.findUnique({ where: { id } })
   if (!current) return NextResponse.json({ error: 'Lead not found' }, { status: 404 })
 
-  const data: { status?: string; dealValue?: number | null; adminNotes?: string | null } = {}
+  const data: { status?: string; dealValue?: number | null; currency?: string; adminNotes?: string | null } = {}
 
   if (status !== undefined) {
     if (!STATUSES.includes(status)) {
@@ -58,6 +64,14 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid deal value' }, { status: 400 })
     }
     data.dealValue = dealValue
+  }
+  // The deal's currency — never settable before, so every deal was stored
+  // as lira whatever it was agreed in.
+  if (currency !== undefined) {
+    if (typeof currency !== 'string' || !KNOWN_CURRENCIES.includes(currency)) {
+      return NextResponse.json({ error: 'Invalid currency' }, { status: 400 })
+    }
+    data.currency = currency
   }
   if (adminNotes !== undefined) {
     if (adminNotes !== null && typeof adminNotes !== 'string') {
