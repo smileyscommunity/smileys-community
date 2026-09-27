@@ -145,6 +145,7 @@ function mapEvent(e: any, spotsLeft?: number): Event {
     vibes,
     coverImage:         e.coverImage         ?? undefined,
     coverImagePosition: e.coverImagePosition ?? 50,
+    flyerImage:         e.flyerImage         ?? undefined,
     whatsappUrl:      e.whatsappUrl      ?? undefined,
     meetingUrl:       e.meetingUrl       ?? undefined,
     currency:         e.currency         ?? DEFAULT_CURRENCY,

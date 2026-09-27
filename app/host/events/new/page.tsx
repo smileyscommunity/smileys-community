@@ -74,6 +74,7 @@ function HostNewEventForm() {
     description: '',
     coverImage:          '',
     coverImagePosition:  50,
+    flyerImage:          '',
   })
 
   // The event's city is the selected club's — the server files it there — not
@@ -126,6 +127,7 @@ function HostNewEventForm() {
           description:  dup.description  ?? f.description,
           coverImage:   dup.coverImage   ?? f.coverImage,
           coverImagePosition: typeof dup.coverImagePosition === 'number' ? dup.coverImagePosition : f.coverImagePosition,
+          flyerImage:   dup.flyerImage   ?? f.flyerImage,
           intent:       dup.intent === 'professional' || dup.intent === 'social' ? dup.intent : f.intent,
         }))
         // A ticket link is what "Buy online" means (see paymentMethod above).
@@ -318,6 +320,7 @@ function HostNewEventForm() {
         description:  form.description.trim(),
         coverImage:         form.coverImage,
         coverImagePosition: form.coverImagePosition,
+        flyerImage:         form.flyerImage || null,
         hostId,
         price:        parseInt(form.price) || 0,
         memberPrice:  form.memberPrice ? parseInt(form.memberPrice) : undefined,
@@ -661,6 +664,15 @@ function HostNewEventForm() {
           folder="events"
           position={form.coverImagePosition}
           onPositionChange={pos => setForm(f => ({ ...f, coverImagePosition: pos }))}
+        />
+
+        {/* The flyer — shown whole on the event page; the cover above is
+            cropped to a banner everywhere, so a poster doesn't belong there. */}
+        <ImageUpload
+          value={form.flyerImage}
+          onChange={url => setForm(f => ({ ...f, flyerImage: url }))}
+          label="Flyer (optional) — shown uncropped on the event page"
+          folder="events"
         />
 
         {/* Description */}

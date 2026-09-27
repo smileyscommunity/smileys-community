@@ -32,7 +32,7 @@ const emptyForm = {
   isPremium: false, membersOnly: false, limitedSpots: true, isFirstTimerFriendly: false, isRecurring: false,
   approvalRequired: false,
   genderBalance: false, maleQuota: '', femaleQuota: '', turkishMaleQuota: '',
-  coverImage: '', coverImagePosition: 50, meetingUrl: '', whatsappUrl: '',
+  coverImage: '', coverImagePosition: 50, flyerImage: '', meetingUrl: '', whatsappUrl: '',
   minAge: '', maxAge: '',
   language: '', refundPolicy: '', registrationDeadline: '',
   endTime: '', lat: '', lng: '',
@@ -160,6 +160,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
           isRecurring:  event.isRecurring  ?? false,
           coverImage:         event.coverImage         ?? '',
           coverImagePosition: event.coverImagePosition ?? 50,
+          flyerImage:         event.flyerImage         ?? '',
           meetingUrl:         event.meetingUrl         ?? '',
           whatsappUrl:  event.whatsappUrl  ?? '',
           minAge:       event.minAge != null   ? String(event.minAge)   : '',
@@ -320,6 +321,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
       turkishMaleQuota: form.genderBalance && form.turkishMaleQuota ? parseInt(form.turkishMaleQuota) : null,
       coverImage:         form.coverImage   || null,
       coverImagePosition: form.coverImagePosition,
+      flyerImage:         form.flyerImage   || null,
       meetingUrl:         form.meetingUrl   || null,
       whatsappUrl:  form.whatsappUrl  || null,
       address:      form.address      || null,
@@ -678,6 +680,12 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
           <div className="col-span-full">
             <ImageUpload value={form.coverImage} onChange={url => set('coverImage', url)} folder="events"
               position={form.coverImagePosition} onPositionChange={pos => set('coverImagePosition', pos)} />
+            {/* The flyer — shown whole on the event page. The cover above is
+                cropped to a banner everywhere, so a poster doesn't belong there. */}
+            <div className="mt-4">
+              <ImageUpload value={form.flyerImage} onChange={url => set('flyerImage', url)} folder="events"
+                label="Flyer (optional) — shown uncropped on the event page" />
+            </div>
           </div>
         </div>
       </section>

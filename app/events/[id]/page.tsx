@@ -948,6 +948,17 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
             <h2 className="text-base font-bold text-gray-900 mb-3">About this event</h2>
             <div className="rich-content text-sm text-gray-600 leading-relaxed" dangerouslySetInnerHTML={{ __html: sanitize(event.description ?? '') }} />
 
+            {/* The flyer, whole — the cover is cropped to a banner, which cut
+                the date, place and price off a poster. Tap for full size. */}
+            {event.flyerImage && (
+              <a href={resolveImageUrl(event.flyerImage)} target="_blank" rel="noopener noreferrer" className="block mt-6 group">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={resolveImageUrl(event.flyerImage)} alt={`Flyer for ${event.title}`} loading="lazy"
+                  className="w-full max-w-md mx-auto rounded-2xl border border-gray-100 shadow-sm object-contain" />
+                <span className="block text-center text-xs text-gray-400 mt-2 group-hover:text-amber-600 transition-colors">Open the flyer full size ↗</span>
+              </a>
+            )}
+
             {canSeeLocation && mapsHref && (
               <div className="mt-6 space-y-3">
                 <div className="flex items-center justify-between">

@@ -33,7 +33,7 @@ const emptyForm = {
   emoji: '🎉', status: 'published',
   isPremium: false, membersOnly: false, limitedSpots: true, isRecurring: false,
   approvalRequired: false,
-  coverImage: '', coverImagePosition: 50, meetingUrl: '', whatsappUrl: '', ticketUrl: '',
+  coverImage: '', coverImagePosition: 50, flyerImage: '', meetingUrl: '', whatsappUrl: '', ticketUrl: '',
   minAge: '', maxAge: '',
   language: '', refundPolicy: '', registrationDeadline: '',
   endTime: '',
@@ -223,6 +223,7 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
         isRecurring:  event.isRecurring  ?? false,
         coverImage:         event.coverImage         ?? '',
         coverImagePosition: event.coverImagePosition ?? 50,
+        flyerImage:         event.flyerImage         ?? '',
         meetingUrl:         event.meetingUrl         ?? '',
         whatsappUrl:        event.whatsappUrl        ?? '',
         ticketUrl:          event.ticketUrl          ?? '',
@@ -389,7 +390,7 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
           businessId: venue?.id ?? null,
           minAge: form.minAge ? parseInt(form.minAge) : null,
           maxAge: form.maxAge ? parseInt(form.maxAge) : null,
-          coverImage: form.coverImage || null, coverImagePosition: form.coverImagePosition,
+          coverImage: form.coverImage || null, coverImagePosition: form.coverImagePosition, flyerImage: form.flyerImage || null,
           meetingUrl: form.meetingUrl || null,
           whatsappUrl: form.whatsappUrl || null, address: form.address || null,
           language: form.language || null, refundPolicy: form.refundPolicy || null,
@@ -464,7 +465,7 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
       businessId: venue?.id ?? null,
       minAge: form.minAge ? parseInt(form.minAge) : null,
       maxAge: form.maxAge ? parseInt(form.maxAge) : null,
-      coverImage: form.coverImage || null, meetingUrl: form.meetingUrl || null,
+      coverImage: form.coverImage || null, flyerImage: form.flyerImage || null, meetingUrl: form.meetingUrl || null,
       whatsappUrl: form.whatsappUrl || null, address: form.address || null,
       language: form.language || null, refundPolicy: form.refundPolicy || null,
       registrationDeadline: null,
@@ -679,6 +680,12 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
             <div className="col-span-full">
               <ImageUpload value={form.coverImage} onChange={url => set('coverImage', url)} folder="events"
                 position={form.coverImagePosition} onPositionChange={pos => set('coverImagePosition', pos)} />
+              {/* The flyer — shown whole on the event page. The cover above is
+                  cropped to a banner everywhere, so a poster doesn't belong there. */}
+              <div className="mt-4">
+                <ImageUpload value={form.flyerImage} onChange={url => set('flyerImage', url)} folder="events"
+                  label="Flyer (optional) — shown uncropped on the event page" />
+              </div>
             </div>
           </div>
         </section>

@@ -170,6 +170,8 @@ export interface Event {
   address?: string
   coverImage?: string
   coverImagePosition?: number
+  // The flyer, shown uncropped on the event page.
+  flyerImage?: string
   meetingUrl?: string
   lat?: number | null
   lng?: number | null

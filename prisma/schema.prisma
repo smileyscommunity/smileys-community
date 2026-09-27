@@ -669,6 +669,9 @@ model Event {
   featured             Boolean         @default(false)
   seriesId             String?
   coverImagePosition   Int             @default(50)
+  // The event's flyer, shown uncropped on the event page (the cover is
+  // cropped to a banner everywhere). Optional.
+  flyerImage           String?
   femaleQuota          Int?
   cityId               String
   surveyDispatchedAt   DateTime?

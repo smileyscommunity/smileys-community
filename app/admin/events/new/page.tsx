@@ -44,7 +44,7 @@ export default function NewEventPage() {
     maleQuota: '',
     femaleQuota: '',
     turkishMaleQuota: '',
-    coverImage: '', coverImagePosition: 50, meetingUrl: '', whatsappUrl: '',
+    coverImage: '', coverImagePosition: 50, flyerImage: '', meetingUrl: '', whatsappUrl: '',
     minAge: '', maxAge: '',
     language: 'English', refundPolicy: '', registrationDeadline: '',
     endTime: '', lat: '', lng: '',
@@ -272,6 +272,7 @@ export default function NewEventPage() {
       maxAge:    form.maxAge    ? parseInt(form.maxAge)    : null,
       coverImage:         form.coverImage   || null,
       coverImagePosition: form.coverImagePosition,
+      flyerImage:         form.flyerImage   || null,
       meetingUrl:         form.meetingUrl   || null,
       whatsappUrl:  form.whatsappUrl  || null,
       address:      form.address      || null,
@@ -443,6 +444,12 @@ export default function NewEventPage() {
             <div className="col-span-full">
               <ImageUpload value={form.coverImage} onChange={url => set('coverImage', url)} folder="events"
                 position={form.coverImagePosition} onPositionChange={pos => set('coverImagePosition', pos)} />
+              {/* The flyer — shown whole on the event page. The cover above is
+                  cropped to a banner everywhere, so a poster doesn't belong there. */}
+              <div className="mt-4">
+                <ImageUpload value={form.flyerImage} onChange={url => set('flyerImage', url)} folder="events"
+                  label="Flyer (optional) — shown uncropped on the event page" />
+              </div>
             </div>
           </div>
         </div>

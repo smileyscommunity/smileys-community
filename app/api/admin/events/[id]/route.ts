@@ -197,7 +197,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
       ...(admin ? ['totalSpots', 'spotsLeft', 'cancelCutoffHours'] : []),
       'tierOverride',
       'price', 'memberPrice', 'payTo', 'paymentContact', 'ticketUrl', 'intent', 'emoji', 'isPremium',
-      'membersOnly', 'limitedSpots', 'soldOut', 'isFirstTimerFriendly', 'vibes', 'status', 'coverImage', 'coverImagePosition', 'meetingUrl',
+      'membersOnly', 'limitedSpots', 'soldOut', 'isFirstTimerFriendly', 'vibes', 'status', 'coverImage', 'coverImagePosition', 'flyerImage', 'meetingUrl',
       'whatsappUrl', 'minAge', 'maxAge', 'language', 'difficulty', 'refundPolicy',
       'registrationDeadline', 'endTime', 'currency', 'approvalRequired', 'isRecurring',
       'lat', 'lng', 'featured', 'genderBalance', 'maleQuota', 'femaleQuota', 'turkishMaleQuota',
@@ -229,6 +229,10 @@ export async function PUT(req: NextRequest, { params }: Params) {
     const safeHttps     = (v: unknown) => !v || (typeof v === 'string' && v.startsWith('https://'))
     if ('coverImage'  in rest && !safeLocalFile(rest.coverImage))
       return NextResponse.json({ error: 'Invalid cover image URL' }, { status: 400 })
+    if ('flyerImage'  in rest && !safeLocalFile(rest.flyerImage))
+      return NextResponse.json({ error: 'Invalid flyer image URL' }, { status: 400 })
+    // Removing the flyer sends '' — store no flyer, not an empty string.
+    if ('flyerImage'  in rest && !rest.flyerImage) rest.flyerImage = null
     if ('meetingUrl'  in rest && !safeHttps(rest.meetingUrl))
       return NextResponse.json({ error: 'Meeting URL must start with https://' }, { status: 400 })
     if ('whatsappUrl' in rest && !safeHttps(rest.whatsappUrl))

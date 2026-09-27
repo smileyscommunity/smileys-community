@@ -121,7 +121,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { title, date, time, location, neighborhood, clubId, hostId, description,
             totalSpots, price, memberPrice, payTo, paymentContact, ticketUrl, intent, emoji, isPremium, membersOnly, limitedSpots, isFirstTimerFriendly,
-            vibes, tagIds, tags, status, coverImage, coverImagePosition, meetingUrl, whatsappUrl, address,
+            vibes, tagIds, tags, status, coverImage, coverImagePosition, flyerImage, meetingUrl, whatsappUrl, address,
             minAge, maxAge, language, difficulty,
             refundPolicy, registrationDeadline, endTime, currency, approvalRequired,
             // Pre-existing gap: genderBalance + the three quotas were destructured
@@ -170,6 +170,7 @@ export async function POST(req: NextRequest) {
     const safeLocalFile = (v: unknown) => !v || /^\/app\/api\/files\/[a-zA-Z0-9\-]+\/[a-zA-Z0-9\-]+\.(jpg|jpeg|png|webp|gif)$/.test(String(v))
     const safeHttps     = (v: unknown) => !v || (typeof v === 'string' && v.startsWith('https://'))
     if (!safeLocalFile(coverImage))  return NextResponse.json({ error: 'Invalid cover image URL' }, { status: 400 })
+    if (!safeLocalFile(flyerImage))  return NextResponse.json({ error: 'Invalid flyer image URL' }, { status: 400 })
     if (!safeHttps(meetingUrl))      return NextResponse.json({ error: 'Meeting URL must start with https://' }, { status: 400 })
     if (!safeHttps(whatsappUrl))     return NextResponse.json({ error: 'WhatsApp URL must start with https://' }, { status: 400 })
     if (!safeHttps(ticketUrl))       return NextResponse.json({ error: 'Ticket URL must start with https://' }, { status: 400 })
@@ -443,6 +444,7 @@ export async function POST(req: NextRequest) {
         status:               eventStatus,
         coverImage:           coverImage           ?? null,
         coverImagePosition:   coverImagePosition   ?? 50,
+        flyerImage:           flyerImage || null,
         meetingUrl:           meetingUrl           ?? null,
         whatsappUrl:          whatsappUrl ?? null,
         minAge:               parsedMinAge as number | null,
