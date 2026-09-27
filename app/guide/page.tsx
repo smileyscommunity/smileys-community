@@ -1,19 +1,17 @@
-// This `revalidate` does NOT currently do anything, and the page used to
-// claim otherwise: it said ISR cut the DB load "from every-request to
-// once-per-5-min". It didn't. The root layout awaits headers() for the CSP
-// nonce (app/layout.tsx), which forces EVERY route in the app to render per
-// request, so route-level ISR never engages — the live response says
-// `Cache-Control: no-store`. Moving the viewer CTA into a client island
-// (./GuideCTA) to keep the cookie read out of this route was real care
-// defeated one level up, and all four queries below ran on every hit of a
-// public page that crawlers fetch.
+// Rendering mode, stated once so nothing below builds on the wrong premise:
+// every route under /guide renders PER REQUEST. The root layout reads
+// cookies() for the session and headers() for the CSP nonce (app/layout.tsx),
+// which makes the whole app dynamic — the live response says
+// `Cache-Control: no-store`, and the production build's prerender manifest
+// has no /guide entries. A `revalidate` export here did nothing and was
+// removed; the comments that justified client islands "so the page can be
+// cached" were wrong for the same reason. The islands that remain exist for
+// per-viewer BEHAVIOUR (buttons, the composer, the CTA branch), and their
+// data arrives from the server render.
 //
-// The saving is now taken where the rendering mode can't cancel it:
+// The saving is taken where the rendering mode can't cancel it:
 // unstable_cache is a DATA cache, independent of whether the route is static
-// or dynamic (same pattern as /posts, /why and the landing page). The export
-// stays because the intent is right and it costs nothing — if the nonce ever
-// stops needing headers(), ISR resumes for free.
-export const revalidate = 300
+// or dynamic (same pattern as /posts, /why and the landing page).
 
 import { readFileSync } from 'fs'
 import { todayInTz } from '@/lib/cityTime'
@@ -40,7 +38,7 @@ import ExperienceExplorer from './ExperienceExplorer'
 import MySaved from './MySaved'
 import CityToday from './CityToday'
 import { computeTodayPicks } from '@/lib/guideToday'
-import { collectionsFor, moodsFor, seasonsFor, seasonNow, audiencesFor, matchesAudience } from '@/lib/guide'
+import { collectionsFor, moodsFor, seasonsFor, seasonNow, audiencesFor, matchesAudience, experienceSearchText, SEASON_VALUES, type ExplorerCard } from '@/lib/guide'
 import { loadExperiences, loadRoutes, guideCityQs } from '@/lib/guideContent'
 
 interface Banner {
@@ -190,6 +188,7 @@ export default async function GuidePage({ searchParams }: { searchParams?: Promi
   // area that happens to have a listing. Bodrum had 15 areas and one event,
   // and showed a single card.
   const TOP_UP_TO = 6
+  const SHOWN = 6
   const seen = new Set(withEvents.map(n => n.name))
   const neighborhoods = [
     ...withEvents,
@@ -201,6 +200,8 @@ export default async function GuidePage({ searchParams }: { searchParams?: Promi
         emoji: row.emoji, vibe: row.vibe, side: row.area,
       })),
   ]
+
+  const shownNeighborhoods = neighborhoods.slice(0, SHOWN)
 
   const banner = loadBanner()
 
@@ -287,10 +288,10 @@ export default async function GuidePage({ searchParams }: { searchParams?: Promi
               Explore {city.name}
             </a>
             {experiences.length > 0 && (() => {
-              /* Rotates with the page's ISR window — a genuinely different
-                 action from the Explore anchor (the old second button
-                 scrolled to essentially the same place). Retire when
-                 "What should I do today?" becomes a full feature. */
+              /* A fresh pick per request — a genuinely different action from
+                 the Explore anchor (the old second button scrolled to
+                 essentially the same place). Retire when "What should I do
+                 today?" becomes a full feature. */
               const surprise = experiences[Math.floor(Math.random() * experiences.length)]
               return (
                 <Link href={`/guide/${surprise.slug}`}
@@ -332,7 +333,11 @@ export default async function GuidePage({ searchParams }: { searchParams?: Promi
                 discovery control. Same rule the shelves and audience cards
                 already follow. */}
             <ExperienceExplorer
-              experiences={experiences}
+              experiences={experiences.map((e): ExplorerCard => ({
+                slug: e.slug, title: e.title, emoji: e.emoji, tagline: e.tagline,
+                cost: e.cost, time: e.time, moods: e.moods, photo: e.photo,
+                search: experienceSearchText(e, moods),
+              }))}
               moods={moods.filter(m => experiences.some(e => (e.moods ?? []).includes(m.value)))}
             />
           </div>
@@ -473,14 +478,31 @@ export default async function GuidePage({ searchParams }: { searchParams?: Promi
               The current season leads and is marked, because that's the one the
               reader can act on today. */}
           {(() => {
-            const bySeason = seasons
-              .map(s2 => ({ ...s2, items: experiences.filter(e => e.seasons?.includes(s2.value)) }))
-              .filter(s2 => s2.items.length > 0)
-            if (bySeason.length === 0) return null
-            const ordered = [
-              ...bySeason.filter(s2 => s2.value === thisSeason),
-              ...bySeason.filter(s2 => s2.value !== thisSeason),
+            // An entry appears ONCE, under the first of its seasons in this
+            // order (the current season leads). Entries tagged for three of
+            // the four seasons used to sit on three shelves, so a city with
+            // one tagged experience showed the same card under Autumn,
+            // Summer and Spring; and an entry tagged for every season says
+            // nothing about seasons at all, so it stays off the shelf. Fewer
+            // than two cards is not a section.
+            const orderedSeasons = [
+              ...seasons.filter(s2 => s2.value === thisSeason),
+              ...seasons.filter(s2 => s2.value !== thisSeason),
             ]
+            const placed = new Set<string>()
+            const ordered = orderedSeasons
+              .map(s2 => ({
+                ...s2,
+                items: experiences.filter(e => {
+                  const tagged = e.seasons ?? []
+                  if (placed.has(e.slug) || tagged.length === 0 || tagged.length >= SEASON_VALUES.length) return false
+                  if (!tagged.includes(s2.value)) return false
+                  placed.add(e.slug)
+                  return true
+                }),
+              }))
+              .filter(s2 => s2.items.length > 0)
+            if (placed.size < 2) return null
             return (
               <div className="mt-12">
                 <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900 mb-1">{city.name} by season</h2>
@@ -538,8 +560,9 @@ export default async function GuidePage({ searchParams }: { searchParams?: Promi
             )
           })()}
 
-          {/* §18/§27 — the viewer's saved list. Client island; renders
-              nothing for guests or empty lists. */}
+          {/* §18/§27 — the viewer's saved list. Client island (it is the
+              viewer's own data, read after hydration); renders nothing for
+              guests or empty lists. */}
           <MySaved cityName={city.name} cityId={cityId} experiences={experiences.map(e => ({ slug: e.slug, title: e.title, emoji: e.emoji }))} />
         </div>
       )}
@@ -701,18 +724,26 @@ export default async function GuidePage({ searchParams }: { searchParams?: Promi
                   Neighborhoods
                 </h2>
               </div>
+              {/* "Live · sorted by upcoming events" is a claim about the
+                  ordering; it is only made when an event exists to order by.
+                  The count is of the cards below, not of the longer list
+                  they were cut from ("8 areas" over six cards). */}
               <div className="mt-2 ml-[52px] flex items-center gap-2 text-xs font-medium">
-                <span className="inline-flex items-center gap-1 text-green-700" aria-label="Live — neighborhoods are sorted by upcoming-event count in real time">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-500" aria-hidden="true" />
-                  Live
-                </span>
-                <span className="text-gray-300">·</span>
-                <span className="text-gray-400">{neighborhoods.length} {neighborhoods.length === 1 ? 'area' : 'areas'}</span>
+                {withEvents.length > 0 ? (
+                  <>
+                    <span className="inline-flex items-center gap-1 text-green-700" aria-label="Live — neighborhoods are sorted by upcoming-event count in real time">
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-500" aria-hidden="true" />
+                      Live
+                    </span>
+                    <span className="text-gray-300">·</span>
+                  </>
+                ) : null}
+                <span className="text-gray-400">{shownNeighborhoods.length} {shownNeighborhoods.length === 1 ? 'area' : 'areas'}{withEvents.length === 0 ? ' to explore' : ''}</span>
               </div>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {neighborhoods.slice(0, 6).map(n => (
+              {shownNeighborhoods.map(n => (
                 <Link key={n.slug} href={`/neighborhoods/${n.slug}`}
                   className="group bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-amber-200 transition-all flex flex-col justify-center">
                   <div className="flex items-start gap-3">
@@ -744,8 +775,8 @@ export default async function GuidePage({ searchParams }: { searchParams?: Promi
             </div>
 
             <p className="text-xs text-gray-400 text-center mt-4">
-              Sorted by upcoming events ·{' '}
-              <Link href="/neighborhoods" className="text-amber-600 hover:underline">See all neighborhoods</Link>
+              {withEvents.length > 0 && <>Sorted by upcoming events ·{' '}</>}
+              <Link href={`/neighborhoods${cityQs}`} className="text-amber-600 hover:underline">See all neighborhoods</Link>
             </p>
           </div>
         )}
@@ -775,10 +806,8 @@ export default async function GuidePage({ searchParams }: { searchParams?: Promi
           <ExploreMore current="guide" cityId={cityId} cityName={city.name} />
         </div>
 
-        {/* CTA — client island, branches on useAuth().isLoggedIn.
-            Lives outside the cached server tree so the same HTML can
-            be served to members and visitors. */}
-        <GuideCTA cityName={city.name} />
+        {/* CTA — client island, branches on useAuth().isLoggedIn. */}
+        <GuideCTA cityName={city.name} applyHref={`/apply${cityQs}`} />
 
         </div>
       </div>

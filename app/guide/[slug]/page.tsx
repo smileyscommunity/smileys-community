@@ -1,8 +1,9 @@
 // Experience pages (§9 of the Guide plan) — designed around DOING, not
 // reading: why / The Smileys Take / structured how-to sections / nearby
 // neighborhoods / do-it-with-people. Public growth surface like the rest
-// of /guide; all content is editorial JSON, no member data.
-export const revalidate = 300
+// of /guide. Rendered per request (see app/guide/page.tsx on why there is
+// no ISR here), so the viewer's own layer — saves, tips — is read on the
+// server and handed to the islands, not fetched after hydration.
 
 import type { Metadata } from 'next'
 import Link from 'next/link'
@@ -10,6 +11,9 @@ import Image from 'next/image'
 import { notFound } from 'next/navigation'
 import { collectionsFor } from '@/lib/guide'
 import { loadExperiences, getExperienceAnyCity, guideCityQs } from '@/lib/guideContent'
+import { getSession } from '@/lib/session'
+import { guideViewerState, listGuideTips } from '@/lib/guideTips'
+import { guideReviewLine } from '@/lib/guide'
 import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
 import { getCityConfig } from '@/lib/city'
 import { todayInTz } from '@/lib/cityTime'
@@ -21,10 +25,6 @@ import EventMatches from './EventMatches'
 import TrackedLink from '@/components/TrackedLink'
 import ClubLink from '@/components/ClubLink'
 import TipsBlock from './TipsBlock'
-
-export async function generateStaticParams() {
-  return (await loadExperiences()).map(e => ({ slug: e.slug }))
-}
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
@@ -72,7 +72,7 @@ export default async function ExperiencePage({ params }: { params: Promise<{ slu
   const nearby = nearbyRows.map(r => r.name)
 
   // §15 — upcoming events in this experience's neighborhoods. Public
-  // data, refreshed with the page's ISR window; empty renders nothing.
+  // data, read per request; empty renders nothing.
   // Scoped to the owning city: neighborhood names repeat across cities
   // (Göztepe exists in both Istanbul and İzmir), and "today" is the owning
   // city's calendar day, not UTC's.
@@ -101,6 +101,19 @@ export default async function ExperiencePage({ params }: { params: Promise<{ slu
   const related = (await loadExperiences(cityId))
     .filter(e => e.slug !== exp.slug && (e.collection === exp.collection || e.moods.some(m => exp.moods.includes(m))))
     .slice(0, 3)
+
+  // The viewer's layer, read here rather than by the islands after
+  // hydration (lib/guideTips).
+  const session = await getSession()
+  const [viewerState, tips] = await Promise.all([
+    guideViewerState(exp.slug, cityId, session),
+    listGuideTips(exp.slug, cityId, session),
+  ])
+  const reviewLine = guideReviewLine(exp.lastReviewedAt)
+  // "Do it with people" only promises company it can show: on a city with
+  // no events and no clubs the block used to say the community does this
+  // every week over an empty box.
+  const hasCompany = matchedEvents.length > 0 || matchedClubs.length > 0
 
   return (
     <div className="min-h-screen bg-white">
@@ -135,14 +148,24 @@ export default async function ExperiencePage({ params }: { params: Promise<{ slu
           </div>
           <p className="text-base sm:text-lg text-gray-300 mt-4 max-w-2xl">{exp.tagline}</p>
           <div className="flex flex-wrap gap-2 mt-5">
-            {[exp.cost, exp.time, exp.when].map(chip => (
+            {/* Empty chips render as blank pills; an entry may have no cost
+                or duration. */}
+            {[exp.cost, exp.time, exp.when].filter(Boolean).map(chip => (
               <span key={chip} className="text-xs font-semibold text-white bg-white/10 border border-white/10 rounded-full px-3 py-1 backdrop-blur-sm">
                 {chip}
               </span>
             ))}
           </div>
+          {/* The trust line: a date only when a staff member earned it with
+              "Reviewed today", never updatedAt (lib/guide guideReviewLine).
+              Its absence is the honest state and is said out loud. */}
+          <p className="text-xs text-gray-300 mt-4">
+            {reviewLine
+              ? <><span aria-hidden="true">✓</span> {reviewLine}</>
+              : <>Not yet checked by the Smileys team — prices and hours may have moved.</>}
+          </p>
           <div className="mt-6">
-            <ExperienceActions slug={exp.slug} cityName={cityName} applyHref={`/apply${qs}`} />
+            <ExperienceActions slug={exp.slug} cityName={cityName} applyHref={`/apply${qs}`} initial={viewerState} />
           </div>
         </div>
       </div>
@@ -162,13 +185,14 @@ export default async function ExperiencePage({ params }: { params: Promise<{ slu
           <p className="text-gray-800 leading-relaxed font-medium">{exp.take}</p>
         </section>
 
-        {/* Structured sections — routes, rituals, good-to-knows. */}
-        {exp.sections.map(sec => (
-          <section key={sec.title}>
+        {/* Structured sections — routes, rituals, good-to-knows. Keyed by
+            position: the admin does not dedupe titles or items. */}
+        {exp.sections.map((sec, si) => (
+          <section key={`${si}-${sec.title}`}>
             <h2 className="text-xl font-extrabold tracking-tight text-gray-900 mb-3">{sec.title}</h2>
             <ul className="space-y-2.5">
-              {sec.items.map(item => (
-                <li key={item} className="flex items-start gap-2.5 text-gray-700 leading-relaxed">
+              {sec.items.map((item, ii) => (
+                <li key={`${ii}-${item}`} className="flex items-start gap-2.5 text-gray-700 leading-relaxed">
                   <span aria-hidden="true" className="text-amber-500 font-bold shrink-0 mt-0.5">·</span>
                   {item}
                 </li>
@@ -227,7 +251,9 @@ export default async function ExperiencePage({ params }: { params: Promise<{ slu
           <div aria-hidden="true" className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_80%_20%,#f59e0b_0%,transparent_60%)]" />
           <h2 className="relative text-xl font-extrabold text-white mb-2">Do it with people</h2>
           <p className="relative text-sm text-gray-300 mb-5">
-            The Smileys community does things like this every week — organized events, spontaneous hangouts, and visitors looking for company.
+            {hasCompany
+              ? 'The Smileys community does things like this — organized events, spontaneous hangouts, and visitors looking for company.'
+              : `Nothing is scheduled around this in ${cityName} yet. When a host plans it, it shows here — the calendar and hangouts are the places to look meanwhile.`}
           </p>
           <EventMatches events={matchedEvents} />
           {matchedClubs.length > 0 && (
@@ -240,7 +266,7 @@ export default async function ExperiencePage({ params }: { params: Promise<{ slu
                     className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 rounded-xl px-4 py-2 transition-colors">
                     <span aria-hidden="true">{c.emoji}</span>
                     <span className="text-sm font-bold text-white">{c.name}</span>
-                    {c.memberCount > 0 && <span className="text-xs text-gray-300">{c.memberCount} members</span>}
+                    {c.memberCount > 0 && <span className="text-xs text-gray-300">{c.memberCount} member{c.memberCount === 1 ? '' : 's'}</span>}
                   </ClubLink>
                 ))}
               </div>
@@ -258,7 +284,7 @@ export default async function ExperiencePage({ params }: { params: Promise<{ slu
         </section>
 
         {/* §25 — member tips. */}
-        <TipsBlock slug={exp.slug} applyHref={`/apply${qs}`} />
+        <TipsBlock slug={exp.slug} applyHref={`/apply${qs}`} initialTips={tips} />
 
         {/* Related experiences */}
         {related.length > 0 && (

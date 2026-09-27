@@ -2,12 +2,11 @@ import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { loadExperiences } from '@/lib/guideContent'
 import type { Experience } from '@/lib/guide'
-import { computeTodayPicks, HEADLINE } from '@/lib/guideToday'
+import { computeTodayPicks, headlineFor } from '@/lib/guideToday'
 
 // §5 of the Guide plan — "<City> Today": the page reacting to the actual time
-// of day and season instead of being a static brochure. Server component; the
-// page's 5-minute ISR window means the time bucket lags a boundary by at most a
-// few minutes. Time math runs in the CITY's zone (h23 per house rules — never
+// of day and season instead of being a static brochure. Server component,
+// rendered per request (the guide routes are dynamic — see app/guide/page.tsx). Time math runs in the CITY's zone (h23 per house rules — never
 // hour12:false, which renders midnight as 24:MM on server ICU).
 //
 // Picks: Istanbul keeps its hand-curated slug table. Any other city derives
@@ -23,7 +22,7 @@ export default async function CityToday(
 ) {
   const experiences = await loadExperiences(cityId)
   if (experiences.length === 0) return null
-  const { bucket, slugs } = computeTodayPicks(exclude, { citySlug, timezone, available: experiences })
+  const { bucket, hour, slugs } = computeTodayPicks(exclude, { citySlug, timezone, available: experiences })
   const bySlug = new Map(experiences.map(e => [e.slug, e]))
   const picks = slugs.map(s => bySlug.get(s)).filter((e): e is Experience => !!e)
   if (picks.length === 0) return null
@@ -33,7 +32,7 @@ export default async function CityToday(
   const todayHere = new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(new Date())
   const eventsToday = await prisma.event.count({ where: { status: 'published', date: todayHere, cityId } })
 
-  const { title, line } = HEADLINE[bucket]
+  const { title, line } = headlineFor(bucket, hour)
 
   return (
     <div className="mt-12 bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100 rounded-3xl p-6 sm:p-8">

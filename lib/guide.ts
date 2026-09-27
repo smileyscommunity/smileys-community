@@ -1,4 +1,5 @@
 import { foldPlaceName } from './neighborhoods'
+import { DEFAULT_TZ } from './cityTime'
 
 // Istanbul Guide — experience content layer. The Guide answers "what
 // should I experience?" (the Handbook answers "how do I function here",
@@ -25,11 +26,53 @@ export function experienceMatchesQuery(
   query: string,
   moods: GuideTaxon[] = [],
 ): boolean {
-  const q = foldPlaceName(query)
-  if (!q) return true
+  return searchTextMatches(experienceSearchText(exp, moods), query)
+}
+
+/**
+ * The folded haystack an experience is searched by. Built once on the
+ * server and shipped to the explorer INSTEAD of the why/take/sections: the
+ * index used to send every experience's full text to the browser (174 KB of
+ * page for fifteen cards) so that client-side search could read it.
+ */
+export function experienceSearchText(
+  exp: { title: string; tagline: string; why?: string; take?: string; moods: string[] },
+  moods: GuideTaxon[] = [],
+): string {
   const labels = exp.moods.map(m => moods.find(t => t.value === m)?.label ?? m)
-  const hay = foldPlaceName([exp.title, exp.tagline, exp.why ?? '', exp.take ?? '', ...exp.moods, ...labels].join(' '))
-  return hay.includes(q)
+  return foldPlaceName([exp.title, exp.tagline, exp.why ?? '', exp.take ?? '', ...exp.moods, ...labels].join(' '))
+}
+
+export function searchTextMatches(searchText: string, query: string): boolean {
+  const q = foldPlaceName(query)
+  return !q || searchText.includes(q)
+}
+
+/** What the mood explorer needs for a card — and nothing it doesn't. */
+export interface ExplorerCard {
+  slug: string
+  title: string
+  emoji: string
+  tagline: string
+  cost: string
+  time: string
+  moods: string[]
+  photo?: string | null
+  search: string
+}
+
+/**
+ * The trust line under an experience: "Checked by Smileys · 12 March 2026",
+ * or the honest absence. Never derived from updatedAt — a typo fix is not a
+ * review (same rule as the Handbook, lib/handbook-review). Unlike Handbook
+ * articles, experiences carry no category, so there is no staleness tier:
+ * the date is shown as-is and the reader judges.
+ */
+export function guideReviewLine(lastReviewedAt: string | Date | null | undefined): string | null {
+  if (!lastReviewedAt) return null
+  const d = new Date(lastReviewedAt)
+  if (Number.isNaN(d.getTime())) return null
+  return `Checked by Smileys · ${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: DEFAULT_TZ })}`
 }
 
 // Istanbul's vocabulary. "Be by the Bosphorus" is not a mood a Bodrum member
@@ -331,6 +374,9 @@ export interface Experience {
   // Annotated at render time by the server loader when
   // public/images/guide/<slug>.jpg exists — never set in the JSON.
   photo?: string | null
+  // When a staff member last checked the entry against reality (ISO). Set
+  // only by the "Reviewed today" action; null reads as "not yet reviewed".
+  lastReviewedAt?: string | null
   // Contextual integrations (IA brief §16/§18/§19) — the Guide references
   // canonical homes, never duplicates them. All optional.
   handbook?: { slug: string; label: string }[]

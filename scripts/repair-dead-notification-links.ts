@@ -44,7 +44,7 @@ export const PAGE_ROUTES = [
   '/about', '/activate', '/admin', '/admin/analytics', '/admin/announcements', '/admin/applications',
   '/admin/abuse', '/admin/attendance-review', '/admin/audit',
   '/admin/banners', '/admin/campaigns', '/admin/campaigns/[id]', '/admin/checkin', '/admin/cities', '/admin/club-requests', '/admin/clubs',
-  '/admin/clubs/[id]', '/admin/content', '/admin/directory', '/admin/engagement', '/admin/events',
+  '/admin/clubs/[id]', '/admin/content', '/admin/directory', '/admin/events',
   '/admin/events/[id]/edit', '/admin/events/[id]/participants', '/admin/events/new', '/admin/feedback', '/admin/guide',
   '/admin/guide-entries', '/admin/hangouts', '/admin/hosts', '/admin/jobs', '/admin/listings', '/admin/listings/[id]',
   '/admin/listings/bulk', '/admin/listings/new', '/admin/moderation', '/admin/moderator', '/admin/moving-sales',

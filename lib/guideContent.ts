@@ -104,6 +104,9 @@ function rowToExperience(r: any, citySlug?: string): Experience {
     // pipeline) wins over the deploy-time filesystem convention — uploads
     // survive rsync --delete; files dropped into public/ at runtime don't.
     photo: (typeof c.photo === 'string' && c.photo ? c.photo : null) ?? photoFor(r.slug, citySlug),
+    // Date → ISO here: the row is memoised and serialised, and the page
+    // formats it anyway.
+    lastReviewedAt: r.lastReviewedAt instanceof Date ? r.lastReviewedAt.toISOString() : (r.lastReviewedAt ?? null),
   } as Experience
 }
 

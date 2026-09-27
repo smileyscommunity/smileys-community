@@ -63,7 +63,9 @@ describe('19. board posts, replies and guide tips project their authors', () => 
   it.each([
     ['app/api/board/route.ts',             'user: project(p.user),'],
     ['app/api/board/[id]/replies/route.ts', 'user: project(r.user),'],
-    ['app/api/guide/[slug]/tips/route.ts',  'user: project(t.user),'],
+    // The tips list read moved to lib/guideTips (shared by the route and the
+    // experience page); the projection rule travels with it.
+    ['lib/guideTips.ts',                    'user: project(t.user),'],
   ])('%s', (file, snippet) => {
     const src = read(file)
     expect(src).toContain('await authorProjector(session,')

@@ -4,14 +4,17 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import posthog from 'posthog-js'
-import { experienceMatchesQuery, type Experience, type GuideMood, type GuideTaxon } from '@/lib/guide'
+import { searchTextMatches, type ExplorerCard, type GuideMood, type GuideTaxon } from '@/lib/guide'
 
 // §4 of the Guide plan — "What are you in the mood for?" chips filtering
 // the experience grid client-side. Same interaction pattern as the
 // Hangouts activity chips: exclusive toggle, tap again to clear.
 // `moods` comes from the server page, which knows which city is being viewed —
 // the chips are Bodrum's verbs on Bodrum's guide, Istanbul's on Istanbul's.
-export default function ExperienceExplorer({ experiences, moods }: { experiences: Experience[]; moods: GuideTaxon[] }) {
+// `experiences` are ExplorerCards: what a card shows plus a pre-folded search
+// string — not the full entries, whose why/take/sections used to ride along
+// to the browser for every experience on the page.
+export default function ExperienceExplorer({ experiences, moods }: { experiences: ExplorerCard[]; moods: GuideTaxon[] }) {
   const [mood, setMood] = useState<GuideMood | null>(null)
   const [showAll, setShowAll] = useState(false)
   const [query, setQuery] = useState('')
@@ -33,7 +36,7 @@ export default function ExperienceExplorer({ experiences, moods }: { experiences
     return () => clearTimeout(t)
   }, [q])
   const searched = q
-    ? experiences.filter(e => experienceMatchesQuery(e, q, moods))
+    ? experiences.filter(e => searchTextMatches(e.search, q))
     : null
   const filtered = searched
     ? (mood ? searched.filter(e => e.moods.includes(mood)) : searched)
@@ -121,7 +124,7 @@ export default function ExperienceExplorer({ experiences, moods }: { experiences
                 {/* Two meta chips only (§8: don't clutter cards) — the
                     "when" line lives on the detail page. */}
                 <div className="flex flex-wrap gap-1.5 mt-3">
-                  {[e.cost, e.time].map(chip => (
+                  {[e.cost, e.time].filter(Boolean).map(chip => (
                     <span key={chip} className="text-[11px] font-semibold text-gray-500 bg-gray-50 border border-gray-100 rounded-full px-2 py-0.5">
                       {chip}
                     </span>

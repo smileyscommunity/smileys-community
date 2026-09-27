@@ -7,7 +7,7 @@ import { useAuth } from '@/contexts/AuthContext'
 interface ExperienceCard { slug: string; title: string; emoji: string }
 
 // §18/§27 — the viewer's saved list on the guide homepage. Client island
-// (the page is ISR-cached); guests and members with nothing saved render
+// (it is the viewer's own data); guests and members with nothing saved render
 // nothing at all. Named for what it does rather than for one city — it was
 // MyIstanbul, which is a heading Bodrum members were also shown.
 export default function MySaved({ cityName, cityId, experiences }: { cityName: string; cityId: string; experiences: ExperienceCard[] }) {

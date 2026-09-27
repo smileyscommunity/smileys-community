@@ -147,10 +147,12 @@ describe('hidden members (items 7–8)', () => {
     expect(read('app/guide/page.tsx')).toContain('cityId, neighborhoodVisible: true, hiddenFromMembers: false }')
   })
   it('tips hide admin-hidden authors and blocked pairs; likes only land on visible tips', () => {
-    const tips = read('app/api/guide/[slug]/tips/route.ts')
+    // The list read lives in lib/guideTips (shared by the route and the page).
+    const tips = read('lib/guideTips.ts')
     expect(tips).toContain("user: { status: 'approved', hiddenFromMembers: false }")
     expect(tips).toContain('blockedPairIds(session?.id ?? null)')
     expect(tips).toContain('userId: { notIn: blocked }')
+    expect(read('app/api/guide/[slug]/tips/route.ts')).toContain('listGuideTips(slug, owner.cityId, session)')
     expect(read('app/api/guide/tips/[tipId]/like/route.ts')).toContain("user: { status: 'approved', hiddenFromMembers: false }")
   })
 })

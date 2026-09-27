@@ -3,12 +3,13 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
 import { getExperienceAnyCity } from '@/lib/guideContent'
+import { guideViewerState } from '@/lib/guideTips'
 
 type Params = { params: Promise<{ slug: string }> }
 
-// Viewer state + public recommend count for one experience. Public —
-// the experience pages are ISR-cached, so per-viewer state has to come
-// from this endpoint via a client island (same pattern as GuideCTA).
+// Viewer state + public recommend count for one experience. The page
+// renders the same read into its first response (lib/guideTips); this
+// endpoint remains for a re-read after a mutation.
 export async function GET(_req: NextRequest, { params }: Params) {
   const { slug } = await params
   // ANY city's experience, not the default city's. getExperience(slug) with no
@@ -19,23 +20,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
   if (!found) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   const { cityId } = found
 
-  const session = await getSession()
-  const [recommendCount, mine] = await Promise.all([
-    // Scoped to the city that owns the experience — the count was network-wide,
-    // so a slug reused by two cities would have pooled their recommendations.
-    prisma.guideSave.count({ where: { cityId, slug, recommended: true } }),
-    session
-      ? prisma.guideSave.findUnique({
-          where:  { userId_cityId_slug: { userId: session.id, cityId, slug } },
-          select: { saved: true, recommended: true, done: true },
-        })
-      : Promise.resolve(null),
-  ])
-
-  return NextResponse.json({
-    recommendCount,
-    viewer: session ? { saved: mine?.saved ?? false, recommended: mine?.recommended ?? false, done: mine?.done ?? false } : null,
-  })
+  return NextResponse.json(await guideViewerState(slug, cityId, await getSession()))
 }
 
 // Toggle save or recommend. Member-only. Upsert keeps one row per
