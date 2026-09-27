@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { MESSAGEABLE_USER } from '@/lib/attendeeAudience'
 import { todayInCity } from '@/lib/city'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
@@ -53,7 +54,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     // door ("a penalty is never made out of host inaction"). Approved
     // accounts only — the broadcast route's rule; a ban keeps its seats.
     const settledNoShows = (await prisma.eventAttendee.findMany({
-      where: { eventId: id, status: 'approved', attendance: 'no_show', user: { status: 'approved' } },
+      where: { eventId: id, status: 'approved', attendance: 'no_show', user: MESSAGEABLE_USER },
       include: { user: { select: { id: true, name: true, email: true } } },
     })).filter(a => !carded.has(a.userId))
     // Once per member per event, whoever presses the button and however often:

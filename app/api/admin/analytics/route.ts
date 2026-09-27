@@ -5,7 +5,7 @@ import { getSession } from '@/lib/session'
 import { canViewAnalytics } from '@/lib/access'
 import { getCached, setCached } from '@/lib/analyticsCache'
 import { todayInCity, resolveCityId } from '@/lib/city'
-import { COMMUNITY_MEMBER_WHERE, MEMBER_ROLE_FILTER } from '@/lib/memberCount'
+import { MEMBER_ROLE_FILTER } from '@/lib/memberCount'
 import { DEFAULT_CURRENCY } from '@/lib/data'
 import { roundMoney } from '@/lib/money'
 
@@ -63,7 +63,6 @@ export async function GET(req: NextRequest) {
     const today = await todayInCity(cityId ?? await resolveCityId(session))
     const day30 = new Date(now.getTime() - 30 * 86400000)
     const day60 = new Date(now.getTime() - 60 * 86400000)
-    const day90 = new Date(now.getTime() - 90 * 86400000)
     const periodStart = new Date(now.getFullYear(), now.getMonth() - (numMonths - 1), 1)
 
     // Month labels for selected period
@@ -80,7 +79,7 @@ export async function GET(req: NextRequest) {
     const [
       allUsers, allApps, allEvents, allAttendees, allPayments, allReports,
       topEventsRaw, topClubs,
-      activeAttendees, dormantMembers, repeatRsvpData,
+      activeAttendees, repeatRsvpData,
       memberNeighborhoods, eventNeighborhoods, attendedEventTags,
       revenueByClubRaw, refundsByHostRaw,
       hangoutsInPeriod, referencesInPeriod,
@@ -131,22 +130,9 @@ export async function GET(req: NextRequest) {
         select: { userId: true },
         distinct: ['userId'],
       }),
-      // Dormant members: activated community members (every role but
-      // admin/partner — hosts were dropped before) with no event attendance in
-      // 90+ days. Activated, because someone who never set a password didn't go
-      // quiet, they never arrived — they're the admin stats "not activated" gap.
-      prisma.user.findMany({
-        where: {
-          ...COMMUNITY_MEMBER_WHERE,
-          joinedEvents: {
-            none: { joinedAt: { gte: day90 }, status: 'approved' },
-          },
-          ...userCity,
-        },
-        select: { id: true, name: true, joinedAt: true, interests: true, neighborhood: true },
-        orderBy: { joinedAt: 'asc' },
-        take: 20,
-      }),
+      // "Dormant" is Retention's (/api/admin/retention): one definition, one
+      // list. This tab's own 90-day version (capped at 20, so its count was
+      // too) sat on the same screen as Retention's 60-day one.
       // Repeat RSVP rate: users with more than 1 RSVP vs total unique attendees
       prisma.eventAttendee.groupBy({
         by: ['userId'],
@@ -253,7 +239,7 @@ export async function GET(req: NextRequest) {
       // not activation: a ban can land on an account that never activated.
       // Roles per MEMBER_ROLE_FILTER (hosts count), like admin stats.
       prisma.user.count({ where: { status: 'approved', role: MEMBER_ROLE_FILTER, ...userCity } }),
-    ]) as [any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], number]
+    ]) as [any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], number]
 
     // ── Members ──────────────────────────────────────────────────────────────
     const approved = allUsers.filter((u: any) => u.status === 'approved')
@@ -454,7 +440,6 @@ export async function GET(req: NextRequest) {
     // ── Engagement ────────────────────────────────────────────────────────────
     const activeMemberCount  = activeAttendees.length
     const activeMemberRate   = approved.length > 0 ? Math.round((activeMemberCount / approved.length) * 100) : 0
-    const dormantCount       = dormantMembers.length
     const totalUniqueRsvpers = repeatRsvpData.length
     const repeatRsvpers      = repeatRsvpData.filter(r => r._count.userId > 1).length
     const repeatRsvpRate     = totalUniqueRsvpers > 0 ? Math.round((repeatRsvpers / totalUniqueRsvpers) * 100) : 0
@@ -692,14 +677,9 @@ export async function GET(req: NextRequest) {
       engagement: {
         activeMemberCount,
         activeMemberRate,
-        dormantCount,
         repeatRsvpRate,
         totalUniqueRsvpers,
         repeatRsvpers,
-        dormantMembers: dormantMembers.map(u => ({
-          id: u.id, name: u.name, joinedAt: u.joinedAt,
-          interests: u.interests ?? [], neighborhood: u.neighborhood ?? null,
-        })),
       },
       applications: {
         total: allApps.length, approved: appApproved, rejected: appRejected,

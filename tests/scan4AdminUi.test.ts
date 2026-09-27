@@ -67,9 +67,11 @@ describe('create buttons cannot stick on a non-JSON error (4)', () => {
 
 describe('analytics (5)', () => {
   const src = read('app/admin/analytics/page.tsx')
-  it('dormant Draft / Send toast failures', () => {
-    expect(src).toContain("toast.error(d?.error ?? 'Could not draft')")
-    expect(src).toContain("toast.error(d?.error ?? 'Could not send')")
+  it('dormant Draft / Send failures are shown, not swallowed', () => {
+    // The tab's own dormant list went (2026-09-27); Retention's rows here show
+    // a draft or send failure inline instead of doing nothing.
+    expect(src).toContain("setError(data?.error ?? 'Could not draft')")
+    expect(src).toContain("setError(d?.error ?? 'Could not send')")
   })
   it('top events format the text date with formatDay', () => {
     expect(src).not.toContain('new Date(e.date).toLocaleDateString()')

@@ -34,12 +34,12 @@ describe('2. a guide editor cannot wipe the live guide', () => {
 describe('3–4. attendee emails reach the right people once', () => {
   const noShows = read('app/api/admin/events/[id]/notify-noshows/route.ts')
   it('no-show notices go to settled no-shows with approved accounts, once each', () => {
-    expect(noShows).toContain("where: { eventId: id, status: 'approved', attendance: 'no_show', user: { status: 'approved' } },")
+    expect(noShows).toContain("where: { eventId: id, status: 'approved', attendance: 'no_show', user: MESSAGEABLE_USER },")
     expect(noShows).toContain('claimOnce(`noshow-notice:${a.userId}:${id}`')
     expect(noShows).not.toContain('checkedIn: false')
   })
   it('remind-attendees skips banned and deleted accounts', () => {
-    expect(read('app/api/admin/events/[id]/remind-attendees/route.ts')).toContain("where: { eventId: id, status: 'approved', user: { status: 'approved' } },")
+    expect(read('app/api/admin/events/[id]/remind-attendees/route.ts')).toContain("where: { eventId: id, status: 'approved', user: MESSAGEABLE_USER },")
   })
 })
 

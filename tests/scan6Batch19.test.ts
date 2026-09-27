@@ -121,10 +121,11 @@ describe('29. analytics member counts use the shared role rule', () => {
 
   it('the dormant list is activated community members (hosts included), city-scoped', async () => {
     await run()
+    // Analytics no longer builds its own dormant list (2026-09-27): "dormant"
+    // is Retention's, one definition, and that route uses COMMUNITY_MEMBER_WHERE.
     const dormant = p.user.findMany.mock.calls.map((c: any[]) => c[0]).find((a: any) => a.where?.joinedEvents)
-    expect(dormant).toBeDefined()
-    expect(dormant.where).toMatchObject({ ...COMMUNITY_MEMBER_WHERE, cityId: 'c-tbs' })
-    expect(dormant.where.role).toEqual({ notIn: ['admin', 'partner'] })
+    expect(dormant).toBeUndefined()
+    expect(COMMUNITY_MEMBER_WHERE.role).toEqual({ notIn: ['admin', 'partner'] })
   })
 
   it('the ban-rate denominator is approved members by MEMBER_ROLE_FILTER, city-scoped', async () => {

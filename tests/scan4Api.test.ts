@@ -231,7 +231,7 @@ describe('3 host broadcast', () => {
     expect(res.status).toBe(200)
     // Banned/deleted accounts are filtered too (host panel review): createNotification
     // skips them but reports them handled, so `sent` counted people nobody reached.
-    expect(p.eventAttendee.findMany.mock.calls[0][0].where).toEqual({ eventId: 'e1', status: 'approved', userId: { not: 'ch' }, user: { status: { notIn: ['banned', 'deleted'] } } })
+    expect(p.eventAttendee.findMany.mock.calls[0][0].where).toEqual({ eventId: 'e1', status: 'approved', userId: { not: 'ch' }, user: { status: 'approved' } })
     expect((await res.json()).sent).toBe(2)
     expect((createNotification as any).mock.calls.map((c: any) => c[0])).toEqual(['u1', 'u2'])
   })

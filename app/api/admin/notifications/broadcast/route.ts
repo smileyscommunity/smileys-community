@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse, after } from 'next/server'
+import { MESSAGEABLE_USER } from '@/lib/attendeeAudience'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { canSendBroadcasts, isAdmin, failClosedCityId } from '@/lib/access'
@@ -362,13 +363,13 @@ export async function POST(req: NextRequest) {
         // Live accounts only: a ban keeps club memberships and seats on
         // purpose, and a self-deleted account is a banned one with a dead
         // @deleted.smileys address — both were emailed.
-        where:   { eventId: cleanEventId!, status: 'approved', user: { status: 'approved' } },
+        where:   { eventId: cleanEventId!, status: 'approved', user: MESSAGEABLE_USER },
         include: { user: { select: PICK } },
       })
       users = attendees.map(a => a.user)
     } else if (aud === 'club') {
       const members = await prisma.clubMembership.findMany({
-        where:   { clubId: cleanClubId!, status: 'approved', user: { status: 'approved' } },
+        where:   { clubId: cleanClubId!, status: 'approved', user: MESSAGEABLE_USER },
         include: { user: { select: PICK } },
       })
       users = members.map(m => m.user)
