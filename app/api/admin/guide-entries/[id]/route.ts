@@ -37,7 +37,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   const updated = await prisma.guideEntry.update({
     where: { id },
-    data:  guideEntryPayload(check.value),
+    // The existing content rides along: see CARRIED_CONTENT_KEYS.
+    data:  guideEntryPayload(check.value, existing.content),
     select: { id: true, slug: true, status: true },
   })
   await writeAudit(session.id, session.name, 'guide_entry_update', updated.id, 'guide_entry', {

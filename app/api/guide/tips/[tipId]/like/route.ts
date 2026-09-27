@@ -16,7 +16,12 @@ export async function POST(_req: NextRequest, { params }: Params) {
   }
 
   const { tipId } = await params
-  const tip = await prisma.guideTip.findUnique({ where: { id: tipId }, select: { id: true } })
+  // Only a tip the reader could see: a hidden or banned author's tip is not
+  // on any page, so it is not likeable by id either.
+  const tip = await prisma.guideTip.findFirst({
+    where:  { id: tipId, user: { status: 'approved', hiddenFromMembers: false } },
+    select: { id: true },
+  })
   if (!tip) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const existing = await prisma.guideTipLike.findUnique({

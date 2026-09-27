@@ -19,7 +19,7 @@ import { useAuth } from '@/contexts/AuthContext'
 // already holds itself to (see GuideStickyNav).
 const PILL = 'inline-flex items-center gap-1.5 min-h-11 px-4 py-2.5 text-sm font-bold rounded-xl transition-colors border'
 const IDLE = 'bg-black/50 hover:bg-black/65 border-white/25 text-white backdrop-blur-sm'
-export default function ExperienceActions({ slug, cityName }: { slug: string; cityName: string }) {
+export default function ExperienceActions({ slug, cityName, applyHref }: { slug: string; cityName: string; applyHref: string }) {
   const { isLoggedIn } = useAuth()
   const [saved,       setSaved]       = useState(false)
   const [recommended, setRecommended] = useState(false)
@@ -70,7 +70,7 @@ export default function ExperienceActions({ slug, cityName }: { slug: string; ci
   if (!isLoggedIn) {
     return (
       <div className="flex flex-wrap items-center gap-3">
-        <Link href="/apply" className={`${PILL} ${IDLE}`}>
+        <Link href={applyHref} className={`${PILL} ${IDLE}`}>
           <span aria-hidden="true">♡</span> Save for later — join Smileys
         </Link>
         {(count ?? 0) > 0 && (

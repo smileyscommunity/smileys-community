@@ -9,7 +9,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { notFound } from 'next/navigation'
 import { collectionsFor } from '@/lib/guide'
-import { loadExperiences, getExperienceAnyCity } from '@/lib/guideContent'
+import { loadExperiences, getExperienceAnyCity, guideCityQs } from '@/lib/guideContent'
 import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
 import { getCityConfig } from '@/lib/city'
 import { todayInTz } from '@/lib/cityTime'
@@ -56,6 +56,12 @@ export default async function ExperiencePage({ params }: { params: Promise<{ slu
   const { experience: exp, cityId, citySlug, cityName } = found
 
   const collection = collectionsFor(citySlug).find(c => c.value === exp.collection)
+  // Every link out of this page names the owning city (lib/guideContent
+  // guideCityQs): the back link, the neighbourhoods, events and the
+  // application. A guest who arrived on a shared İzmir link and tapped
+  // "← İzmir Guide" used to land on Istanbul's, because the bare URLs read
+  // the cookie they don't have.
+  const qs = guideCityQs(citySlug)
   // "Explore nearby" validates against the OWNING city's registry, not
   // Istanbul's constant: a Bodrum experience listing Gümüşlük would otherwise
   // drop it silently and link Istanbul emoji for anything that did match.
@@ -111,7 +117,7 @@ export default async function ExperiencePage({ params }: { params: Promise<{ slu
           <div aria-hidden="true" className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_75%_30%,#f59e0b_0%,transparent_55%)]" />
         )}
         <div className="relative max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-12 sm:pt-14 sm:pb-16">
-          <Link href="/guide" className="inline-block text-xs font-bold text-amber-300 hover:text-amber-200 mb-5">
+          <Link href={`/guide${qs}`} className="inline-block text-xs font-bold text-amber-300 hover:text-amber-200 mb-5">
             ← {cityName} Guide
           </Link>
           <div className="flex items-start gap-4">
@@ -136,7 +142,7 @@ export default async function ExperiencePage({ params }: { params: Promise<{ slu
             ))}
           </div>
           <div className="mt-6">
-            <ExperienceActions slug={exp.slug} cityName={cityName} />
+            <ExperienceActions slug={exp.slug} cityName={cityName} applyHref={`/apply${qs}`} />
           </div>
         </div>
       </div>
@@ -203,7 +209,7 @@ export default async function ExperiencePage({ params }: { params: Promise<{ slu
                   links to a page that exists — neighborhoodToSlug is a pure
                   string transform and can't know a second city's slugs. */}
               {nearbyRows.map(r => (
-                <TrackedLink key={r.name} href={`/neighborhoods/${r.slug}`} event="guide_to_neighborhood"
+                <TrackedLink key={r.name} href={`/neighborhoods/${r.slug}${qs}`} event="guide_to_neighborhood"
                   eventProps={{ experience: exp.slug, neighborhood: r.name }}
                   className="bg-white border border-gray-100 rounded-2xl p-4 text-center shadow-sm hover:border-amber-300 hover:-translate-y-0.5 transition-all group">
                   <span aria-hidden="true" className="block text-2xl mb-1.5">{r.emoji}</span>
@@ -240,9 +246,9 @@ export default async function ExperiencePage({ params }: { params: Promise<{ slu
               </div>
             </div>
           )}
-          <LiveHangouts neighborhoods={nearby} />
+          <LiveHangouts neighborhoods={nearby} citySlug={citySlug} timezone={cityCfg.timezone} />
           <div className="relative flex flex-wrap gap-3 mt-5">
-            <Link href="/events" className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
+            <Link href={`/events${qs}`} className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
               Browse events
             </Link>
             <Link href="/hangouts" className="px-5 py-2.5 bg-white/10 hover:bg-white/20 text-white text-sm font-bold rounded-xl transition-colors">
@@ -252,7 +258,7 @@ export default async function ExperiencePage({ params }: { params: Promise<{ slu
         </section>
 
         {/* §25 — member tips. */}
-        <TipsBlock slug={exp.slug} />
+        <TipsBlock slug={exp.slug} applyHref={`/apply${qs}`} />
 
         {/* Related experiences */}
         {related.length > 0 && (

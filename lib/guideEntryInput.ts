@@ -149,14 +149,25 @@ export async function validateGuideEntry(
   }
 }
 
+// Keys of `content` the editor cannot write but the detail page renders: the
+// Handbook article, Directory category and club chips seeded by the migration
+// (scripts/migrate-guide-to-db.ts). The payload used to rebuild `content`
+// from the form alone, so the first admin save of any seeded entry silently
+// dropped all three — no field, no diff, no audit trace. Carried through
+// from the existing row until the editor grows fields for them.
+export const CARRIED_CONTENT_KEYS = ['handbook', 'directory', 'clubs'] as const
+
 /** The Prisma data shape — `content` holds the long-form fields as JSON. */
-export function guideEntryPayload(v: GuideEntryValue) {
+export function guideEntryPayload(v: GuideEntryValue, existingContent?: unknown) {
+  const prior = (existingContent && typeof existingContent === 'object' ? existingContent : {}) as Record<string, unknown>
+  const carried: Record<string, unknown> = {}
+  for (const key of CARRIED_CONTENT_KEYS) if (prior[key] !== undefined) carried[key] = prior[key]
   return {
     slug: v.slug, title: v.title, emoji: v.emoji, tagline: v.tagline,
     collection: v.collection, moods: v.moods, seasons: v.seasons,
     cost: v.cost || null, time: v.time || null, when: v.when || null,
     neighborhoods: v.neighborhoods, firstTime: v.firstTime,
-    content: { why: v.why, take: v.take, sections: v.sections, photo: v.photo },
+    content: { ...carried, why: v.why, take: v.take, sections: v.sections, photo: v.photo },
     status: v.status, sortOrder: v.sortOrder,
   }
 }

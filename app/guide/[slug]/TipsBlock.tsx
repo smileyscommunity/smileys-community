@@ -18,7 +18,7 @@ interface Tip {
 // §25 — "Tips from Smileys": short member advice under each experience.
 // Client island (pages are ISR-cached); renders nothing while empty for
 // guests so the page doesn't grow an empty box.
-export default function TipsBlock({ slug }: { slug: string }) {
+export default function TipsBlock({ slug, applyHref }: { slug: string; applyHref: string }) {
   const { user, isLoggedIn } = useAuth()
   const [tips,    setTips]    = useState<Tip[]>([])
   const [loaded,  setLoaded]  = useState(false)
@@ -133,7 +133,7 @@ export default function TipsBlock({ slug }: { slug: string }) {
         </div>
       ) : tips.length > 0 && (
         <p className="text-xs text-gray-500">
-          Have a tip of your own? <Link href="/apply" className="text-amber-600 font-semibold hover:underline">Join Smileys</Link> to share it.
+          Have a tip of your own? <Link href={applyHref} className="text-amber-600 font-semibold hover:underline">Join Smileys</Link> to share it.
         </p>
       )}
     </section>

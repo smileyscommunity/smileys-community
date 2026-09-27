@@ -4,8 +4,6 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import posthog from 'posthog-js'
 import { useAuth } from '@/contexts/AuthContext'
-import { useCurrentCity } from '@/hooks/useCurrentCity'
-import { DEFAULT_TZ } from '@/lib/cityTime'
 
 interface LiveHangout { id: string; title: string; neighborhood: string | null; startsAt: string }
 
@@ -13,15 +11,19 @@ interface LiveHangout { id: string; title: string; neighborhood: string | null; 
 // island fetches only for signed-in viewers (guests render nothing) and
 // filters to the experience's neighborhoods. Same member-gated-fetch
 // pattern as BoardFeed's hangouts module.
-export default function LiveHangouts({ neighborhoods }: { neighborhoods: string[] }) {
-  // Times belong to the city the content is in, not the reader's device.
-  const tz = useCurrentCity()?.timezone ?? DEFAULT_TZ
+//
+// `citySlug` and `timezone` are the CONTENT's city, passed down by the page.
+// The fetch used to carry no city, so the API answered with the reader's
+// cookie city and the neighbourhood-name filter did the rest: an Istanbul
+// member on İzmir's Göztepe page was offered Istanbul's Göztepe plans, with
+// times in whatever zone the reader's cookie said.
+export default function LiveHangouts({ neighborhoods, citySlug, timezone: tz }: { neighborhoods: string[]; citySlug: string; timezone: string }) {
   const { isLoggedIn } = useAuth()
   const [hangouts, setHangouts] = useState<LiveHangout[]>([])
 
   useEffect(() => {
     if (!isLoggedIn) return
-    fetch('/app/api/hangouts', { credentials: 'include' })
+    fetch(`/app/api/hangouts?city=${encodeURIComponent(citySlug)}`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : { hangouts: [] })
       .then(d => {
         const list = (d.hangouts ?? []) as LiveHangout[]
@@ -29,7 +31,7 @@ export default function LiveHangouts({ neighborhoods }: { neighborhoods: string[
       })
       .catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoggedIn])
+  }, [isLoggedIn, citySlug])
 
   if (hangouts.length === 0) return null
 

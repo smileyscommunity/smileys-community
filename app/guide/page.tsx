@@ -41,7 +41,7 @@ import MySaved from './MySaved'
 import CityToday from './CityToday'
 import { computeTodayPicks } from '@/lib/guideToday'
 import { collectionsFor, moodsFor, seasonsFor, seasonNow, audiencesFor, matchesAudience } from '@/lib/guide'
-import { loadExperiences, loadRoutes } from '@/lib/guideContent'
+import { loadExperiences, loadRoutes, guideCityQs } from '@/lib/guideContent'
 
 interface Banner {
   id: string; type: string; active: boolean
@@ -82,7 +82,11 @@ const getNeighborhoodCounts = unstable_cache(
     // "N local members" — activated members only (lib/memberCount).
     prisma.user.groupBy({
       by:    ['neighborhood'],
-      where: { ...ACTIVATED_MEMBER_WHERE, neighborhood: { not: null }, cityId },
+      // Same two filters as /neighborhoods: a member who opted out of the
+      // neighbourhood map, or whom an admin hid, must not be counted here
+      // either — in a thin area the difference between the two pages'
+      // numbers said that somebody hidden lives there.
+      where: { ...ACTIVATED_MEMBER_WHERE, neighborhood: { not: null }, cityId, neighborhoodVisible: true, hiddenFromMembers: false },
       _count: { _all: true },
     }),
   ]),
@@ -215,6 +219,12 @@ export default async function GuidePage({ searchParams }: { searchParams?: Promi
   const wantedFor   = (await searchParams)?.for?.trim()
   const activeFor   = audiences.find(a => a.value === wantedFor) ?? null
   const experiences = activeFor ? allExperiences.filter(e => matchesAudience(e, activeFor)) : allExperiences
+  // Every self-link carries the city: without it the audience cards on
+  // İzmir's guide pointed at /guide?for=foodie, which resolves the city from
+  // the cookie, finds none, and 307s back to the plain İzmir guide — filter
+  // gone, and the cards looked dead.
+  const cityQs = guideCityQs(city.slug)
+  const guideHref = (extra: string) => `/guide${cityQs}${cityQs ? '&' : '?'}${extra}`.replace(/\?$/, '')
   // De-duplication across homepage sections (reviewer feedback): the
   // explorer's default six lead; Istanbul Today picks around them; the
   // editorial Popular list picks around both. Collections stay the one
@@ -311,7 +321,7 @@ export default async function GuidePage({ searchParams }: { searchParams?: Promi
                   {experiences.length === 1 ? 'experience' : 'experiences'} for{' '}
                   <span className="font-bold">{activeFor.label.toLowerCase()}</span>.
                 </p>
-                <Link href="/guide#experiences" className="text-sm font-bold text-amber-700 hover:underline">
+                <Link href={`/guide${cityQs}#experiences`} className="text-sm font-bold text-amber-700 hover:underline">
                   Show everything
                 </Link>
               </div>
@@ -350,7 +360,7 @@ export default async function GuidePage({ searchParams }: { searchParams?: Promi
                   const active = activeFor?.value === a.value
                   return (
                     <Link key={a.value}
-                      href={active ? '/guide#experiences' : `/guide?for=${a.value}#experiences`}
+                      href={active ? `/guide${cityQs}#experiences` : `${guideHref(`for=${a.value}`)}#experiences`}
                       className={`rounded-2xl border p-4 transition-all group ${
                         active
                           ? 'bg-amber-500 border-amber-500 shadow-md'

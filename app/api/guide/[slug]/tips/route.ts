@@ -5,6 +5,7 @@ import { canActInCity } from '@/lib/access'
 import { rateLimit } from '@/lib/rateLimit'
 import { getExperienceAnyCity } from '@/lib/guideContent'
 import { authorProjector } from '@/lib/authorProjection'
+import { blockedPairIds } from '@/lib/boardAccess'
 
 type Params = { params: Promise<{ slug: string }> }
 
@@ -22,10 +23,19 @@ export async function GET(_req: NextRequest, { params }: Params) {
   if (!owner) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const session = await getSession()
+  // A pair who blocked each other see neither's tips — same rule as the
+  // board. Empty for guests.
+  const blocked = await blockedPairIds(session?.id ?? null)
   const tips = await prisma.guideTip.findMany({
     // §48 (Members brief): deactivated/banned authors drop out of
     // discovery surfaces — their tips hide rather than showing a ghost.
-    where:   { slug, cityId: owner.cityId, user: { status: 'approved' } },
+    // hiddenFromMembers is the admin's "not listed anywhere" switch; every
+    // sibling surface (board, hangouts, rosters) honours it, this one didn't.
+    where:   {
+      slug, cityId: owner.cityId,
+      user: { status: 'approved', hiddenFromMembers: false },
+      ...(blocked.length ? { userId: { notIn: blocked } } : {}),
+    },
     orderBy: [{ likes: { _count: 'desc' } }, { createdAt: 'desc' }],
     take:    30,
     select: {

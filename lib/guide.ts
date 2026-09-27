@@ -1,3 +1,5 @@
+import { foldPlaceName } from './neighborhoods'
+
 // Istanbul Guide — experience content layer. The Guide answers "what
 // should I experience?" (the Handbook answers "how do I function here",
 // the Directory "where do I find a business"). Experiences are editorial
@@ -8,6 +10,27 @@
 // stable ids used in experience JSON + URL params; labels/emoji render
 // the chips. Order = display order.
 export interface GuideTaxon { value: string; label: string; emoji: string }
+
+/**
+ * Does an experience match a free-text search?
+ *
+ * Both sides are folded with the neighbourhoods' Turkish fold, so "izmir"
+ * finds "İzmir" and "kadikoy" finds "Kadıköy" from a Latin keyboard —
+ * `toLowerCase()` alone turns İ into i̇ (dotted i + combining dot) and never
+ * matches plain i. Mood LABELS are searched as well as values: "Go Out
+ * Tonight" used to find nothing because only 'night-out' was indexed.
+ */
+export function experienceMatchesQuery(
+  exp: { title: string; tagline: string; why?: string; take?: string; moods: string[] },
+  query: string,
+  moods: GuideTaxon[] = [],
+): boolean {
+  const q = foldPlaceName(query)
+  if (!q) return true
+  const labels = exp.moods.map(m => moods.find(t => t.value === m)?.label ?? m)
+  const hay = foldPlaceName([exp.title, exp.tagline, exp.why ?? '', exp.take ?? '', ...exp.moods, ...labels].join(' '))
+  return hay.includes(q)
+}
 
 // Istanbul's vocabulary. "Be by the Bosphorus" is not a mood a Bodrum member
 // can act on, which is the whole reason these are per city now: a shared list

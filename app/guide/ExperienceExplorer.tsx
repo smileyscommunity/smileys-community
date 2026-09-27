@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import posthog from 'posthog-js'
-import { type Experience, type GuideMood, type GuideTaxon } from '@/lib/guide'
+import { experienceMatchesQuery, type Experience, type GuideMood, type GuideTaxon } from '@/lib/guide'
 
 // §4 of the Guide plan — "What are you in the mood for?" chips filtering
 // the experience grid client-side. Same interaction pattern as the
@@ -33,8 +33,7 @@ export default function ExperienceExplorer({ experiences, moods }: { experiences
     return () => clearTimeout(t)
   }, [q])
   const searched = q
-    ? experiences.filter(e =>
-        [e.title, e.tagline, e.why, e.take, ...e.moods].join(' ').toLowerCase().includes(q))
+    ? experiences.filter(e => experienceMatchesQuery(e, q, moods))
     : null
   const filtered = searched
     ? (mood ? searched.filter(e => e.moods.includes(mood)) : searched)
