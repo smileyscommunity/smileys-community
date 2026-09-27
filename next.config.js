@@ -68,6 +68,13 @@ const nextConfig = {
         destination: '/admin/campaigns',
         permanent:   true,
       },
+      // Legacy /admin/engagement (announcements + polls, misnamed) — was a
+      // page whose only job was redirect(); the list is where redirects live.
+      {
+        source:      '/admin/engagement',
+        destination: '/admin/announcements',
+        permanent:   true,
+      },
       // /listings → /board rename. Permanent 308 so bookmarks, Google's index,
       // and old email/notification deep-links keep landing on the renamed
       // section instead of 404'ing. Does not touch /api/listings (data API)
