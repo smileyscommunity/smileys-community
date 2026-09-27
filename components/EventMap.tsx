@@ -78,6 +78,7 @@ export default function EventMap({ events, selectedId, onSelect, attendance, def
         mapRef.current = null
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- init once; later effects follow defaultCenter and the pins
   }, [])
 
   // The city (and its centre) arrives from an async fetch, usually after the
@@ -152,6 +153,7 @@ export default function EventMap({ events, selectedId, onSelect, attendance, def
     if (event?.lat && event?.lng) {
       mapRef.current.panTo([event.lat, event.lng], { animate: true, duration: 0.4 })
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- pan on a new selection only, not whenever the list re-renders
   }, [selectedId, ready])
 
   const noCoords = events.length > 0 && mappable.length === 0

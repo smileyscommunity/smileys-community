@@ -923,7 +923,7 @@ function AdminApplicationsPageInner() {
               {/* Checkbox */}
               <input type="checkbox" checked={selected2.has(app.id)}
                 onClick={e => e.stopPropagation()}
-                onChange={() => setSelected2(prev => { const s = new Set(prev); s.has(app.id) ? s.delete(app.id) : s.add(app.id); return s })}
+                onChange={() => setSelected2(prev => { const s = new Set(prev); if (s.has(app.id)) s.delete(app.id); else s.add(app.id); return s })}
                 className="w-4 h-4 rounded accent-amber-500 shrink-0" />
 
               {/* Avatar */}

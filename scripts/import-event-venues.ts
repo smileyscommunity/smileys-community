@@ -169,7 +169,8 @@ async function main() {
           tags: ['We meet here'],
         },
       })
-      isApproved ? approved++ : pending++
+      if (isApproved) approved++
+      else pending++
     }
   }
 

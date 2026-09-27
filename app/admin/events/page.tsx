@@ -201,7 +201,7 @@ function AdminEventsPageInner() {
     '/app/api/admin/clubs',
     (v): v is Club[] => Array.isArray(v),
   )
-  const events = eventsData ?? []
+  const events = useMemo(() => eventsData ?? [], [eventsData])
   const clubs  = clubsData  ?? []
   const loading = eventsLoading || clubsLoading
   const error   = eventsError || clubsError
@@ -478,7 +478,7 @@ function AdminEventsPageInner() {
   }
 
   function toggleSelect(id: string) {
-    setSelected(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
+    setSelected(prev => { const s = new Set(prev); if (s.has(id)) s.delete(id); else s.add(id); return s })
   }
 
   // "Upcoming" = published-style events with a future date. Cancelled,

@@ -135,7 +135,8 @@ export default function DirectoryReviews({
   // currentUserId can change mid-render (auth bootstrap on mount), so
   // we depend on it too — otherwise myReview hydrates as null on first
   // render and never refreshes.
-  useEffect(() => { load() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [businessId, currentUserId])
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- load is redefined every render
+  useEffect(() => { load() }, [businessId, currentUserId])
 
   async function submitReview(e: React.FormEvent) {
     e.preventDefault()

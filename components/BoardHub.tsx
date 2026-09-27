@@ -1028,7 +1028,8 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
     const wasSaved = savedSet.has(listingId)
     setSavedSet(prev => {
       const next = new Set(prev)
-      wasSaved ? next.delete(listingId) : next.add(listingId)
+      if (wasSaved) next.delete(listingId)
+      else next.add(listingId)
       return next
     })
     if (category === 'SAVED' && wasSaved) {
@@ -1042,7 +1043,8 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
     } catch {
       setSavedSet(prev => {
         const next = new Set(prev)
-        wasSaved ? next.add(listingId) : next.delete(listingId)
+        if (wasSaved) next.add(listingId)
+        else next.delete(listingId)
         return next
       })
       toast.error('Could not update — check your connection')

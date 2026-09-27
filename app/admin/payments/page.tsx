@@ -158,7 +158,7 @@ function AdminPaymentsPageInner() {
       Array.isArray((v as PaymentsResponse).payments) &&
       typeof (v as PaymentsResponse).stats === 'object',
   )
-  const payments = data?.payments ?? []
+  const payments = useMemo(() => data?.payments ?? [], [data])
   const stats    = data?.stats
   // A bad city timezone (admin-edited text) would throw in render.
   const tz       = safeTz(data?.tz ?? DEFAULT_TZ)
@@ -252,9 +252,8 @@ function AdminPaymentsPageInner() {
           setLogs(prev => ({ ...prev, [p.id]: Array.isArray(fresh) ? fresh : [] }))
         }
         if (refundEmail) {
-          refundEmail.sent
-            ? toast.success('Refund processed — confirmation email sent')
-            : toast.error('Refund processed, but email failed to send. Notify the member manually.')
+          if (refundEmail.sent) toast.success('Refund processed — confirmation email sent')
+          else toast.error('Refund processed, but email failed to send. Notify the member manually.')
         } else {
           toast.success(`Status → ${next}`)
         }

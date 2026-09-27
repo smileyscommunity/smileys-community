@@ -219,7 +219,7 @@ function CheckInPageInner() {
     if (showAllEvents) return events
     const today = todayInTz(tz)
     return events.filter(e => e.date >= today)
-  }, [events, showAllEvents])
+  }, [events, showAllEvents, tz])
   // Only surface the city in the option label when the visible events span
   // more than one — otherwise it's noise in single-city door ops.
   const multiCity = new Set(visibleEvents.map(e => e.city?.slug).filter(Boolean)).size > 1
@@ -237,7 +237,7 @@ function CheckInPageInner() {
       const next = events.find(e => e.date >= today)
       if (next) setSelectedId(next.id)
     }
-  }, [showAllEvents, selectedId, events])
+  }, [showAllEvents, selectedId, events, tz])
 
   // Taps that can't reach the server wait on this device (lib/checkinQueue);
   // one the server turns down on replay is undone and said out loud.

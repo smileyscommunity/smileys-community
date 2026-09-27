@@ -123,7 +123,7 @@ export default function NotificationsPage() {
     } finally {
       setLoadingOlder(false)
     }
-  }, [notifications, loadingOlder, router])
+  }, [notifications, loadingOlder, router, sync])
 
   useEffect(() => {
     load().finally(() => setLoading(false))

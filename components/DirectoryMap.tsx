@@ -86,6 +86,7 @@ export default function DirectoryMap({ businesses, onPinClick, defaultCenter }: 
       }
       markersRef.current = []
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- init once; the marker effect re-centres on defaultCenter
   }, [])
 
   // Re-render pins whenever the business set changes (filter, search,

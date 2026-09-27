@@ -84,13 +84,23 @@ function NewVisitingPageInner() {
       .then((rows: PublicCity[]) => {
         const live = rows.filter(c => c.status === 'live')
         setCities(live)
-        // The city asked for, else the viewer's own — never Istanbul by
-        // default for a member reading Izmir's page.
-        const wanted = requestedCity ?? viewerCity
-        if (!editId && wanted && live.some(c => c.slug === wanted)) setDestination(wanted)
       })
       .catch(() => {})
   }, [])
+
+  // The city asked for, else the viewer's own — never Istanbul by default
+  // for a member reading Izmir's page. Its own effect because the viewer's
+  // city is fetched too: when the cities list won that race, this used to
+  // run once with no viewer city and leave the default in place. Primed
+  // once, so a late answer can't overwrite a pick the member already made.
+  const destinationPrimed = useRef(false)
+  useEffect(() => {
+    if (destinationPrimed.current || editId) return
+    const wanted = requestedCity ?? viewerCity
+    if (!wanted || !cities.some(c => c.slug === wanted)) return
+    setDestination(wanted)
+    destinationPrimed.current = true
+  }, [cities, editId, requestedCity, viewerCity])
 
   useEffect(() => {
     // Neighborhood options follow the destination; clear a stale pick when

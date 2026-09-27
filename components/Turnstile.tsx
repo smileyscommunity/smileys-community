@@ -31,6 +31,8 @@ export default function Turnstile({ onVerify, onExpire, resetSignal }: Props) {
   const widgetId     = useRef<string | null>(null)
   const onVerifyRef  = useRef(onVerify)
   onVerifyRef.current = onVerify
+  const onExpireRef  = useRef(onExpire)
+  onExpireRef.current = onExpire
   // 'failed' surfaces a load/render/challenge failure so the user gets a
   // reason + a retry instead of a silently-stuck, disabled login button.
   const [failed, setFailed] = useState(false)
@@ -61,7 +63,7 @@ export default function Turnstile({ onVerify, onExpire, resetSignal }: Props) {
           // Keep the handle and reset in place instead: Cloudflare issues a
           // fresh challenge and the parent gets a new token via `callback`.
           'expired-callback': () => {
-            onExpire?.()
+            onExpireRef.current?.()
             if (widgetId.current && window.turnstile) {
               try { window.turnstile.reset(widgetId.current) } catch { setFailed(true) }
             }

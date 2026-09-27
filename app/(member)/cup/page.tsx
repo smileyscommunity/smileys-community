@@ -235,7 +235,7 @@ export default function CupPredictionsPage() {
       setDraftSF(bracket.bracket.semifinalists)
       draftPrimedRef.current = true
     }
-  }, [bracket])
+  }, [bracket, setDraftChampion, setDraftSF])
 
   // (Draft persisting moved into usePersistedState above.)
 
@@ -1773,7 +1773,7 @@ function computeStandings(groupLetter: string, fixtures: Fixture[]): TeamStandin
 function GroupsCard({ fixtures }: { fixtures: Fixture[] | null }) {
   const [openLetter, setOpenLetter] = useState<string | null>(null)
 
-  const safeFixtures = fixtures ?? []
+  const safeFixtures = useMemo(() => fixtures ?? [], [fixtures])
   const totalPlayed  = useMemo(
     () => safeFixtures.filter(f => f.round === 'group' && f.homeScore !== null && f.awayScore !== null).length,
     [safeFixtures],
