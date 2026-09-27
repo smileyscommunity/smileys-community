@@ -5,6 +5,7 @@ import { isAdmin, isAdminOrModerator, canActInCity } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
 import { writeAudit } from '@/lib/audit'
 import { requireStepUp } from '@/lib/stepUp'
+import { afterBan, warnMember } from '@/lib/memberDiscipline'
 import { reportCityOf } from '@/lib/admin/reportScope'
 
 type Params = { params: Promise<{ id: string }> }
@@ -154,38 +155,17 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     if (action === 'warn') {
-      await prisma.user.update({
-        where: { id: report.reportedId },
-        data: { warningCount: { increment: 1 } },
+      // lib/memberDiscipline: the same warning as the users page gives —
+      // now also noted on the member's record, which a report warning never was.
+      await warnMember({
+        userId: report.reportedId,
+        reason: reviewNote || 'Your behaviour was reported and reviewed',
+        actor:  { id: session.id, name: session.name },
+        auditMeta: { reportId: id },
       })
-      await createNotification(
-        report.reportedId,
-        'warning',
-        'Community warning',
-        reviewNote || 'Your behaviour has been flagged. Further violations may result in removal.',
-        undefined,
-      )
-      writeAudit(session.id, session.name, 'user.warn', report.reportedId, 'user',
-        { reportId: id, note: reviewNote },
-        `Warning issued to ${reported?.name ?? report.reportedId}${reviewNote ? ` — "${reviewNote}"` : ''}`,
-      )
     }
 
     if (action === 'ban') {
-      // Decrement club memberCount for this user's approved memberships so a
-      // banned member stops inflating club counts. Guarded so re-banning an
-      // already-banned user can't double-decrement.
-      if (reported?.status !== 'banned') {
-        const approvedClubs = await prisma.clubMembership.findMany({
-          where:  { userId: report.reportedId, status: 'approved' },
-          select: { clubId: true },
-        })
-        if (approvedClubs.length) {
-          await prisma.$transaction(approvedClubs.map(m =>
-            prisma.club.update({ where: { id: m.clubId }, data: { memberCount: { decrement: 1 } } })
-          ))
-        }
-      }
       const banReason = reviewNote || 'Banned following community report'
       const banned = await prisma.user.update({
         where: { id: report.reportedId },
@@ -199,24 +179,15 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         },
         select: { email: true, phone: true, name: true },
       })
-      // Same two follow-ups the users route does on a ban. Without the
-      // blacklist row the apply route finds nothing when they re-apply with
-      // a new email — the "no blacklist = re-apply hole" of the 2026-07 wave.
-      if (banned.email) {
-        await prisma.blacklist.upsert({
-          where:  { email: banned.email },
-          create: { email: banned.email, phone: banned.phone ?? undefined, name: banned.name ?? undefined, reason: banReason, bannedBy: session.name },
-          update: {},
-        }).catch(err => console.error('[moderation ban] blacklist upsert failed', { id: report.reportedId, err: String(err) }))
-      }
-      await prisma.passwordResetToken.deleteMany({ where: { userId: report.reportedId } })
-        .catch(err => console.error('[moderation ban] token cleanup failed', { id: report.reportedId, err: String(err) }))
-      // And the member is told, as a ban from the users page tells them.
-      createNotification(report.reportedId, 'rsvp', 'Your account has been suspended', `Your account was suspended: ${banReason}. Contact us if you believe this is a mistake.`).catch(() => {})
-      writeAudit(session.id, session.name, 'user.ban', report.reportedId, 'user',
-        { reportId: id, note: reviewNote },
-        `${reported?.name ?? report.reportedId} banned — ${reviewNote || 'community report'}`,
-      )
+      // Club counts, blacklist, outstanding links, the member told, audit —
+      // the same afterBan the users route runs (lib/memberDiscipline).
+      await afterBan({
+        userId: report.reportedId,
+        before: { status: reported?.status ?? null, email: banned.email, phone: banned.phone, name: banned.name },
+        reason: banReason,
+        actor:  { id: session.id, name: session.name },
+        auditMeta: { reportId: id },
+      })
     }
 
     return NextResponse.json({ ok: true })

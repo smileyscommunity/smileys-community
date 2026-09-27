@@ -47,7 +47,9 @@ describe('5. a ban from the moderation queue is guarded like one from the users 
   it('asks for step-up, tells the member, and the button confirms', () => {
     const route = read('app/api/admin/moderation/[id]/route.ts')
     expect(route).toContain("if (action === 'ban') {\n      const stepUp = requireStepUp(session)")
-    expect(route).toContain("createNotification(report.reportedId, 'rsvp', 'Your account has been suspended'")
+    // The member notice lives in the shared afterBan now (lib/memberDiscipline).
+    expect(route).toContain('await afterBan({')
+    expect(read('lib/memberDiscipline.ts')).toContain("createNotification(userId, 'rsvp', 'Your account has been suspended',")
     expect(read('app/admin/moderation/page.tsx')).toContain("if (!(await confirmToast(`Ban ${who}?")
   })
 })

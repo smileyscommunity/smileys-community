@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma'
 import { activeAttendeeWhere } from '@/lib/attendance'
 import { getSession } from '@/lib/session'
 import { createNotification } from '@/lib/notify'
+import { afterBan, UNBAN_CLEARS } from '@/lib/memberDiscipline'
 import { sendPremiumUpgradeEmail, recordEmailFailure } from '@/lib/email'
 import { isPremium } from '@/lib/membership'
 import { writeAudit } from '@/lib/audit'
@@ -450,6 +451,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (allowed.status === 'banned') {
       allowed.bannedAt = new Date()
     }
+    // An unban clears the ban's own fields and any appeal, whichever screen
+    // sent it (lib/memberDiscipline). Three unban buttons sent three
+    // payloads, and the ones that left appealStatus 'pending' made the
+    // appeal route drop the member's next appeal after a later ban.
+    const unbanning = target.status === 'banned' && allowed.status !== undefined && allowed.status !== 'banned'
+    if (unbanning) Object.assign(allowed, UNBAN_CLEARS)
 
     if (allowed.suspendedUntil) {
       allowed.suspendedAt = new Date()
@@ -503,27 +510,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       }
     }
 
-    // Auto-add to blacklist on ban so they can't re-apply
-    if (allowed.status === 'banned' && before?.email) {
-      await prisma.blacklist.upsert({
-        where:  { email: before.email },
-        create: {
-          email:    before.email,
-          phone:    before.phone    ?? undefined,
-          name:     before.name     ?? undefined,
-          reason:   typeof allowed.banReason === 'string' && allowed.banReason ? allowed.banReason : 'banned',
-          bannedBy: session.name,
-        },
-        update: {},
-      }).catch(err => console.error('[user PATCH ban] blacklist upsert failed', { id, email: before.email, err: String(err) }))
-      // Kill any outstanding activation / reset links. Activation tokens are
-      // passwordResetToken rows with a 7-day window — left alive, a banned
-      // member could click the link still in their inbox and reactivate
-      // (the activate route now also checks status, but the token should
-      // not survive the ban either way).
-      await prisma.passwordResetToken.deleteMany({ where: { userId: id } })
-        .catch(err => console.error('[user PATCH ban] token cleanup failed', { id, err: String(err) }))
-    }
+    // A ban's blacklist row, token cleanup, club counts, notice and audit:
+    // lib/memberDiscipline.afterBan, in the status block below.
 
     // Unban → take away the blacklist row the ban put there. Activation and
     // registration both refuse a blacklisted email, so an unbanned member
@@ -590,25 +578,22 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       // Keep club memberCount in sync with bans: a banned member shouldn't
       // be counted, and unbanning restores the count. Membership rows are
       // preserved either way, so an unban brings the member back intact.
-      if (allowed.status === 'banned' || before?.status === 'banned') {
+      // Unbanning restores the club counts a ban took (membership rows are
+      // kept, so the member comes back intact). The ban side is in afterBan.
+      if (before?.status === 'banned' && allowed.status !== 'banned') {
         const approvedClubs = await prisma.clubMembership.findMany({
           where:  { userId: id, status: 'approved' },
           select: { clubId: true },
         })
         if (approvedClubs.length) {
-          const delta = allowed.status === 'banned' ? { decrement: 1 } : { increment: 1 }
           await prisma.$transaction(approvedClubs.map(m =>
-            prisma.club.update({ where: { id: m.clubId }, data: { memberCount: delta } })
+            prisma.club.update({ where: { id: m.clubId }, data: { memberCount: { increment: 1 } } })
           ))
         }
       }
       if (allowed.status === 'banned') {
         const reason = typeof allowed.banReason === 'string' && allowed.banReason ? allowed.banReason : 'violation of the community rules'
-        createNotification(id, 'rsvp', 'Your account has been suspended', `Your account was suspended: ${reason}. Contact us if you believe this is a mistake.`).catch(() => {})
-        writeAudit(session.id, session.name, 'user.ban', id, 'user',
-          { reason, name: before?.name },
-          `${before?.name ?? id} banned — ${reason}`,
-        )
+        await afterBan({ userId: id, before: { status: before?.status ?? null, email: before?.email ?? null, phone: before?.phone ?? null, name: before?.name ?? null }, reason, actor: { id: session.id, name: session.name } })
       } else {
         writeAudit(session.id, session.name, 'user.status_change', id, 'user',
           { from: before?.status, to: allowed.status, name: before?.name },
@@ -631,13 +616,15 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         { from: before?.membershipType ?? null, to: allowed.membershipType, name: before?.name },
         `Membership ${before?.membershipType ?? 'standard'} → ${allowed.membershipType} for ${who}`)
     }
-    if ('appealStatus' in allowed) {
+    if ('appealStatus' in allowed && !unbanning) {
       writeAudit(session.id, session.name, 'user.appeal_decision', id, 'user',
         { decision: allowed.appealStatus, name: before?.name }, `Appeal ${String(allowed.appealStatus)} for ${who}`)
     }
     const auditedAbove = new Set(['role', 'status', 'suspendedUntil', 'membershipType', 'appealStatus',
       // stamps the handler sets itself, not fields the editor changed
-      'bannedAt', 'suspendedAt', 'suspendedBy', ...(allowed.status === 'banned' ? ['banReason'] : [])])
+      'bannedAt', 'suspendedAt', 'suspendedBy', ...(allowed.status === 'banned' ? ['banReason'] : []),
+      // an unban's automatic clearing (UNBAN_CLEARS), not an editor's change
+      ...(unbanning ? Object.keys(UNBAN_CLEARS) : [])])
     const edited = Object.keys(allowed).filter(k => !auditedAbove.has(k))
     if (edited.length) {
       writeAudit(session.id, session.name, 'user.update', id, 'user', { fields: edited, name: before?.name },

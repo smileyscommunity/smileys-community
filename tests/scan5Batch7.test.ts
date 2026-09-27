@@ -8,7 +8,9 @@ const read = (p: string) => readFileSync(p, 'utf8')
 const p = vi.hoisted(() => {
   const m: Record<string, any> = {
     report:         { findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
-    user:           { findUnique: vi.fn(), update: vi.fn() },
+    user:           { findUnique: vi.fn(), update: vi.fn(async () => ({ name: 'B', warningCount: 1 })) },
+    // A warning is noted on the member's record now (lib/memberDiscipline, 2026-09-27).
+    adminNote:      { create: vi.fn() },
     eventSurvey:    { updateMany: vi.fn() },
     event:          { findUnique: vi.fn() },
     eventAttendee:  { findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn(), count: vi.fn() },
