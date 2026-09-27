@@ -91,7 +91,9 @@ export default async function CityExperiencesPage({ params }: Params) {
             ? <NothingYet city={city} events={fallback} eventsHref={eventsHref} />
             : <Shelves shelves={shelves} viewer={viewer} />}
           <Crosslinks cityName={city.name} guideHref={guideHref} eventsHref={eventsHref} />
-          {!session && (
+          {/* The empty state carries its own join button when the city has
+              no events at all; a second one under it read as a glitch. */}
+          {!session && shelves.length > 0 && (
             <div className="flex justify-center">
               <JoinCityButton slug={city.slug} name={city.name} />
             </div>
