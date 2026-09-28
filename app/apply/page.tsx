@@ -1,7 +1,8 @@
 import type { Metadata } from 'next'
 import { APP_URL } from '@/lib/env'
 import { getPublicCity, DEFAULT_CITY_SLUG } from '@/lib/cities'
-import ApplyClient from './ApplyClient'
+import ApplyClient, { type InitialCity } from './ApplyClient'
+import { CITY_STATUS } from '@/lib/cityStatus'
 
 // City-aware metadata. Homepage city cards and member invite links land here
 // as /apply?city=<slug>; the OG card (the link-preview image on WhatsApp/
@@ -12,7 +13,7 @@ import ApplyClient from './ApplyClient'
 export async function generateMetadata(
   { searchParams }: { searchParams: Promise<{ city?: string }> },
 ): Promise<Metadata> {
-  const { city: citySlug } = await searchParams
+  const citySlug = (await searchParams).city?.trim().toLowerCase()
   // Fall back to the default city for a missing/unknown slug — a bad param
   // shouldn't blank the preview, and Istanbul is the honest default.
   const city = citySlug && citySlug !== DEFAULT_CITY_SLUG ? await getPublicCity(citySlug) : null
@@ -46,6 +47,13 @@ export async function generateMetadata(
   }
 }
 
-export default function ApplyPage() {
-  return <ApplyClient />
+export default async function ApplyPage({ searchParams }: { searchParams: Promise<{ city?: string }> }) {
+  // The city named in the link, resolved here so the form's first paint names
+  // it (ApplyClient). Case-insensitive: ?city=Tbilisi fell back to Istanbul.
+  const slug = (await searchParams).city?.trim().toLowerCase()
+  const city = slug ? await getPublicCity(slug) : null
+  const initialCity: InitialCity | null = city && city.status !== CITY_STATUS.Paused
+    ? { slug: city.slug, name: city.name, status: city.status }
+    : null
+  return <ApplyClient initialCity={initialCity} />
 }

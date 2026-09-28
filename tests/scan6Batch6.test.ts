@@ -43,7 +43,8 @@ describe('useCityNeighborhoods(null) fetches nothing', () => {
   it('returns before building a URL when the city is not known yet', () => {
     const hook = read('hooks/useCityNeighborhoods.ts')
     expect(hook).toMatch(/city\?: string \| null/)
-    expect(hook).toMatch(/if \(city === null\) \{ setNeighborhoods\(\[\]\); return \}/)
+    // 2026-09-29: the early return also resets `loaded` (useCityNeighborhoodList).
+    expect(hook).toMatch(/if \(city === null\) \{ setNeighborhoods\(\[\]\); setLoaded\(false\); return \}/)
     expect(hook.indexOf('city === null')).toBeLessThan(hook.indexOf('const url ='))
   })
 })

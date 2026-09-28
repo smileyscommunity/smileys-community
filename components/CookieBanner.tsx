@@ -6,8 +6,8 @@ import { usePathname } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '@/contexts/AuthContext'
 import { isBottomNavRoute } from '@/lib/bottomNav'
-
-const STORAGE_KEY = 'smileys-cookie-consent'
+import posthog from 'posthog-js'
+import { CONSENT_KEY as STORAGE_KEY } from '@/lib/consent'
 
 export default function CookieBanner() {
   const [visible, setVisible] = useState(false)
@@ -25,13 +25,21 @@ export default function CookieBanner() {
     } catch {}
   }, [])
 
+  // The answer takes effect now, not on the next page load: accepting starts
+  // analytics (persisted from here on); "Essential only" keeps it off.
   function accept() {
     try { localStorage.setItem(STORAGE_KEY, 'accepted') } catch {}
+    try {
+      posthog.set_config({ persistence: 'localStorage+cookie', disable_session_recording: false, disable_external_dependency_loading: false })
+      posthog.opt_in_capturing()
+      posthog.startSessionRecording()
+    } catch { /* analytics is optional */ }
     setVisible(false)
   }
 
   function decline() {
     try { localStorage.setItem(STORAGE_KEY, 'essential') } catch {}
+    try { posthog.opt_out_capturing() } catch { /* analytics is optional */ }
     setVisible(false)
   }
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { resolvePublicCityIdFromSlug } from '@/lib/cities'
+import { resolvePublicCityIdFromSlug, CITY_STATUS } from '@/lib/cities'
 import { getSession } from '@/lib/session'
 import { resolveCityId } from '@/lib/city'
 import { getNeighborhoodsForCity } from '@/lib/neighborhoodsDb'
@@ -19,8 +19,15 @@ export async function GET(req: NextRequest) {
   // slugs fail closed to an empty list. Default: the viewer's city.
   let cityId: string
   const citySlug = req.nextUrl.searchParams.get('city')?.trim()
+  // ?for=apply: the application form, which also serves coming-soon cities
+  // (a guest on /tbilisi is sent to "Apply to join Smileys Tbilisi"). The
+  // default excludes them, so Tbilisi's 17 neighbourhoods came back empty and
+  // the required field stopped every applicant on step 1.
+  const forApply = req.nextUrl.searchParams.get('for') === 'apply'
   if (citySlug) {
-    cityId = await resolvePublicCityIdFromSlug(citySlug)
+    cityId = await resolvePublicCityIdFromSlug(citySlug.toLowerCase(), forApply
+      ? [CITY_STATUS.Live, CITY_STATUS.Preparing, CITY_STATUS.ComingSoon]
+      : undefined)
   } else {
     cityId = await resolveCityId(session)
   }

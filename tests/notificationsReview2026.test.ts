@@ -37,7 +37,10 @@ describe('an application', () => {
   it('reaches the staff of the city applied to, not every moderator everywhere', () => {
     const apply = src('app/api/apply/route.ts')
     expect(apply).toContain("await notifyCityStaff(targetCityId, 'application', notifTitle, notifBody, '/admin/applications')")
-    expect(apply).toContain("await notifyCityStaff(targetCityId, 'application', '⚠️ Velocity block triggered',")
+    // 2026-09-29 (apply scan item 4): the velocity rule is a flag on the one
+    // city-scoped notification now, not a separate auto-reject alert.
+    expect(apply).not.toContain('Velocity block triggered')
+    expect(apply).toContain("if (manyFromNetwork)   flags.push(`${ipCount + 1} applications from this network today`)")
     expect(apply).not.toContain('const admins = await prisma.user.findMany({ where: { role: { in: [Role.Admin, Role.Moderator] } }')
   })
 })

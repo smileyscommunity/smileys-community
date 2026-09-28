@@ -7,7 +7,8 @@ import Turnstile from '@/components/Turnstile'
 import { z } from 'zod'
 import { resolveImageUrl } from '@/lib/data'
 import { COUNTRIES } from '@/lib/countries'
-import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
+import { useCityNeighborhoodList } from '@/hooks/useCityNeighborhoods'
+import { hasAnalyticsConsent } from '@/lib/consent'
 import FingerprintJS from '@fingerprintjs/fingerprintjs'
 import posthog from 'posthog-js'
 import { INTERESTS as INTERESTS_LIST, COMMON_LANGUAGES, LOOKING_FOR_OPTIONS } from '@/lib/profileOptions'
@@ -66,21 +67,30 @@ const SOCIAL_STYLES = [
 // vocabulary shared with registration and /profile, matched to
 // interest_tag_map so personalization works.
 
-export default function ApplyClient() {
+// The city the page resolved on the server from ?city= (case-insensitive,
+// public cities only) — so the first paint names the right city. The form
+// used to start on Istanbul and switch once /api/cities answered: the server
+// HTML said "a curated community in Istanbul" on /apply?city=tbilisi, and if
+// that fetch failed the application silently went to Istanbul.
+export interface InitialCity { slug: string; name: string; status: string }
+
+export default function ApplyClient({ initialCity = null }: { initialCity?: InitialCity | null }) {
   return (
     <Suspense>
-      <ApplyForm />
+      <ApplyForm initialCity={initialCity} />
     </Suspense>
   )
 }
 
-function ApplyForm() {
+const DEFAULT_APPLY_CITY: InitialCity = { slug: 'istanbul', name: 'Istanbul', status: 'live' }
+
+function ApplyForm({ initialCity }: { initialCity: InitialCity | null }) {
   const country = useCurrentCity()?.country
   const searchParams = useSearchParams()
   const refCode = searchParams.get('ref') ?? ''
   // Homepage city cards link here as /apply?city=<slug> — both the "Explore"
   // path and the "Get notified" path for a city that hasn't launched.
-  const cityParam = searchParams.get('city') ?? ''
+  const cityParam = (searchParams.get('city') ?? '').trim().toLowerCase()
   // Arrived from the student hub (/[city]/students): one reassurance line in
   // the header. Nothing else changes — students apply like anyone else.
   const fromStudents = searchParams.get('from') === 'students'
@@ -104,19 +114,24 @@ function ApplyForm() {
   // Available cities for the target-city selector. Populated from
   // /api/cities; defaults to Istanbul-only on first load so the form
   // is usable while the fetch is in flight.
-  const [cities,         setCities]         = useState<{ slug: string; name: string; status: string }[]>([{ slug: 'istanbul', name: 'Istanbul', status: 'live' }])
-  const [targetCitySlug, setTargetCitySlug] = useState('istanbul')
+  const [cities,         setCities]         = useState<{ slug: string; name: string; status: string }[]>([initialCity ?? DEFAULT_APPLY_CITY])
+  const [targetCitySlug, setTargetCitySlug] = useState(initialCity?.slug ?? DEFAULT_APPLY_CITY.slug)
 
   // The neighborhood options belong to the city being applied TO, not to
   // whatever city the browser is resolved into — someone applying to İzmir
   // from an Istanbul-pinned session must pick from İzmir's list.
-  const neighborhoods = useCityNeighborhoods(targetCitySlug)
+  const { list: neighborhoods, loaded: hoodsLoaded } = useCityNeighborhoodList(targetCitySlug, { forApply: true })
+  // A city with no neighbourhoods on file (Athens, Sofia) can't require a
+  // pick: the empty select used to stop every applicant on step 1.
+  const hoodOptional = hoodsLoaded && neighborhoods.length === 0
   // The city being applied TO — drives the visible copy so a Bodrum applicant
   // isn't asked about Istanbul. Falls back to the default until cities load.
-  const targetCityName = cities.find(c => c.slug === targetCitySlug)?.name ?? 'Istanbul'
+  const targetCityName = cities.find(c => c.slug === targetCitySlug)?.name ?? initialCity?.name ?? DEFAULT_APPLY_CITY.name
 
   useEffect(() => {
-    FingerprintJS.load().then(fp => fp.get()).then(result => setFingerprint(result.visitorId)).catch(() => {})
+    // Device fingerprinting only after "Accept all" (lib/consent). The server
+    // treats a missing fingerprint as nothing unusual.
+    if (hasAnalyticsConsent()) FingerprintJS.load().then(fp => fp.get()).then(result => setFingerprint(result.visitorId)).catch(() => {})
     try { setBrowserTz(Intl.DateTimeFormat().resolvedOptions().timeZone) } catch {}
   }, [])
 
@@ -141,11 +156,11 @@ function ApplyForm() {
       .then(d => {
         if (!Array.isArray(d) || d.length === 0) return
         setCities(d)
-        // Honour ?city= only once the list is known, so a stale or made-up
-        // slug can't route an application at a city that doesn't exist.
-        if (cityParam && d.some((c: { slug: string }) => c.slug === cityParam)) {
-          setTargetCitySlug(cityParam)
-        }
+        // ?city= wins when it names a real city; otherwise keep the current
+        // pick (the server's, or a restored draft's) if it is still in the
+        // list, and fall back to the default if it isn't.
+        const has = (slug: string) => d.some((c: { slug: string }) => c.slug === slug)
+        setTargetCitySlug(cur => cityParam && has(cityParam) ? cityParam : has(cur) ? cur : DEFAULT_APPLY_CITY.slug)
       })
       .catch(() => {})
   }, [cityParam])
@@ -210,10 +225,14 @@ function ApplyForm() {
         if (d.socialStyles) setSocialStyles(d.socialStyles)
         if (d.languages)    setLanguages(d.languages)
         if (d.lookingFor)   setLookingFor(d.lookingFor)
+        // The city the draft was for — unless the link names one. The draft
+        // didn't keep it, so a half-finished İzmir form reopened from a
+        // plain /apply link went to Istanbul.
+        if (!cityParam && typeof d.targetCitySlug === 'string' && d.targetCitySlug) setTargetCitySlug(d.targetCitySlug)
         // A draft from the five-step form may sit on a step that no longer
-        // exists; land it on the last one rather than off the end.
-        if (typeof d.step === 'number' && d.step >= STEPS.length) setStep(STEPS.length - 1)
-        if (typeof d.step === 'number') setStep(d.step)
+        // exists. The clamp was immediately overwritten by the raw step, which
+        // opened an empty card with no verification widget and no way to submit.
+        if (typeof d.step === 'number') setStep(Math.min(Math.max(0, Math.floor(d.step)), STEPS.length - 1))
       }
     } catch {}
     setDraftHydrated(true)
@@ -225,10 +244,10 @@ function ApplyForm() {
     if (!draftHydrated) return
     try {
       localStorage.setItem(DRAFT_KEY, JSON.stringify({
-        form: { ...form, profilePhoto: '' }, interests, socialStyles, languages, lookingFor, step,
+        form: { ...form, profilePhoto: '' }, interests, socialStyles, languages, lookingFor, step, targetCitySlug,
       }))
     } catch {}
-  }, [draftHydrated, form, interests, socialStyles, languages, lookingFor, step])
+  }, [draftHydrated, form, interests, socialStyles, languages, lookingFor, step, targetCitySlug])
 
   // Switching the target city invalidates a neighborhood picked from the
   // previous city's list. Clear it only once the new list has actually loaded
@@ -236,9 +255,12 @@ function ApplyForm() {
   // "the slug changed" keeps a restored draft's valid pick intact when the
   // ?city= resolution lands on the city that draft was already for.
   useEffect(() => {
-    if (neighborhoods.length === 0) return
+    // Only once the list has arrived — an empty list that is still loading
+    // must not wipe a restored draft's valid pick; an empty list that IS the
+    // answer must (a Tbilisi application went in with an Istanbul name).
+    if (!hoodsLoaded) return
     setForm(f => (f.neighborhood && !neighborhoods.includes(f.neighborhood) ? { ...f, neighborhood: '' } : f))
-  }, [neighborhoods])
+  }, [neighborhoods, hoodsLoaded])
 
   function set(key: string, value: string) {
     setForm(f => ({ ...f, [key]: value }))
@@ -273,6 +295,10 @@ function ApplyForm() {
       const res  = await fetch('/app/api/apply/upload', { method: 'POST', body: fd })
       const data = await res.json()
       if (!res.ok || !data.url) {
+        // The preview went up before the upload; a refusal takes it down, so
+        // a failed photo can't sit there looking accepted (or stand in for
+        // the one that will actually be submitted).
+        URL.revokeObjectURL(localUrl); setLocalPhoto('')
         // Say it where the applicant is looking. This used to set the banner
         // at the top of the page and leave the rotate dialog open on top of
         // it, so a refused upload looked like one that never finished
@@ -297,6 +323,7 @@ function ApplyForm() {
         return true
       }
     } catch (e) {
+      URL.revokeObjectURL(localUrl); setLocalPhoto('')
       // ImageUploadError carries a user-facing, actionable message
       // (0-byte iCloud photo, unconvertible oversized file) — show it
       // verbatim instead of the generic fallback.
@@ -308,18 +335,24 @@ function ApplyForm() {
     }
   }
 
+  // Step 1's rules, used by Continue and again at Submit: a restored draft
+  // can land past step 1 with a field that no longer holds (its city's
+  // neighbourhood cleared), and the server then answered with a raw schema
+  // message naming no field.
+  function step0Errors(): FieldErrors {
+    const result = step0Schema.safeParse(hoodOptional ? { ...form, neighborhood: form.neighborhood || '—' } : form)
+    const errs: FieldErrors = {}
+    if (!result.success) result.error.issues.forEach(i => {
+      const key = i.path[0] as keyof FieldErrors
+      if (!errs[key]) errs[key] = i.message
+    })
+    return errs
+  }
+
   function validateStep(): boolean {
     if (step === 0) {
-      const result = step0Schema.safeParse(form)
-      if (!result.success) {
-        const errs: FieldErrors = {}
-        result.error.issues.forEach(i => {
-          const key = i.path[0] as keyof FieldErrors
-          if (!errs[key]) errs[key] = i.message
-        })
-        setFieldErrors(errs)
-        return false
-      }
+      const errs = step0Errors()
+      if (Object.keys(errs).length > 0) { setFieldErrors(errs); return false }
       setFieldErrors({})
     }
     if (step === STEPS.length - 1) {
@@ -356,6 +389,13 @@ function ApplyForm() {
   }
 
   async function handleSubmit() {
+    const first = step0Errors()
+    if (Object.keys(first).length > 0) {
+      setFieldErrors(first)
+      setStep(0)
+      showError('A few details on the first step need another look.')
+      return
+    }
     if (!validateStep()) return
     if (!turnstileToken) {
       showError('Please complete the human verification above before submitting.')
@@ -376,12 +416,13 @@ function ApplyForm() {
         setTurnstileReset(n => n + 1)
         return
       }
+      // No nationality or neighbourhood: personal details don't belong in an
+      // analytics event (and it only fires at all with consent).
       posthog.capture('application_submitted', {
         source:      form.source,
         interests:   interests,
         has_referral: !!refCode,
-        neighborhood: form.neighborhood,
-        country:     form.country,
+        target_city: targetCitySlug,
       })
       setSubmitted(true)
       try { localStorage.removeItem(DRAFT_KEY) } catch {}
@@ -408,7 +449,7 @@ function ApplyForm() {
             Thanks for applying to Smileys Community. We personally review every application to
             make sure we're bringing together the right people for our community.
           </p>
-          <p className="text-gray-600 text-sm mb-3">
+          <p className="text-gray-600 text-sm mb-3 ph-no-capture">
             We'll get back to you at <strong>{form.email}</strong> within 24–48 hours.
           </p>
           {/* What approval actually leads to. Applicants read "approved" as "I'm in"
@@ -498,7 +539,7 @@ function ApplyForm() {
             face beats any aggregate stat for conversion, so it sits
             above the generic social-proof block on step 0. */}
         {step === 0 && referralCtx?.inviter && (
-          <div className="bg-amber-100 border border-amber-200 rounded-2xl p-3.5 mb-3 flex items-center gap-3">
+          <div className="bg-amber-100 border border-amber-200 rounded-2xl p-3.5 mb-3 flex items-center gap-3 ph-no-capture">
             <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ backgroundColor: referralCtx.inviter.color }}>
               {referralCtx.inviter.profilePhoto
                 ? <img src={referralCtx.inviter.profilePhoto.startsWith('http') ? referralCtx.inviter.profilePhoto : `/app${referralCtx.inviter.profilePhoto}`} alt="" className="w-full h-full object-cover" />
@@ -650,6 +691,14 @@ function ApplyForm() {
               </select>
               {fieldErrors.gender && <p className="text-xs text-red-500 mt-1">{fieldErrors.gender}</p>}
             </div>
+            {hoodOptional ? (
+              <div>
+                <p className="block text-xs font-semibold text-gray-600 mb-2">Neighborhood / Area</p>
+                <p className="text-sm text-gray-600 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5">
+                  No neighbourhoods are listed for {targetCityName} yet — you can add yours once you&apos;re in.
+                </p>
+              </div>
+            ) : (
             <div>
               <label htmlFor="ap-neighborhood" className="block text-xs font-semibold text-gray-600 mb-2">Neighborhood / Area *</label>
               <select id="ap-neighborhood" value={form.neighborhood}
@@ -662,6 +711,7 @@ function ApplyForm() {
               </select>
               {fieldErrors.neighborhood && <p className="text-xs text-red-500 mt-1">{fieldErrors.neighborhood}</p>}
             </div>
+            )}
             <div>
               <label htmlFor="ap-phone" className="block text-xs font-semibold text-gray-600 mb-2">Phone (WhatsApp) *</label>
               <input id="ap-phone" type="tel" value={form.phone}
@@ -931,10 +981,14 @@ function ApplyForm() {
                 { key: 'conduct' as const, text: <>I&apos;ll treat every member with respect. Smileys is curated, and membership can be revoked.</> },
                 { key: 'marketing' as const, text: <>Email me about events and community news. <span className="text-gray-400">(optional)</span></> },
               ]).map(({ key, text }) => (
-                <label key={key} className="flex items-start gap-3 cursor-pointer group"
-                  onClick={() => setAgreements(a => ({ ...a, [key]: !a[key] }))}>
-                  <div className={`mt-0.5 w-5 h-5 rounded-md border-2 shrink-0 flex items-center justify-center transition-colors ${
-                    agreements[key] ? 'bg-amber-500 border-amber-500' : 'border-gray-300 group-hover:border-amber-400'
+                // A real checkbox behind the styled box: it was a <label> with
+                // an onClick around a <div>, which a keyboard can't reach and a
+                // screen reader can't tick — and two of these are required.
+                <label key={key} className="flex items-start gap-3 cursor-pointer group">
+                  <input type="checkbox" className="sr-only peer" checked={agreements[key]}
+                    onChange={e => setAgreements(a => ({ ...a, [key]: e.target.checked }))} />
+                  <div aria-hidden="true" className={`mt-0.5 w-5 h-5 rounded-md border-2 shrink-0 flex items-center justify-center transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-amber-500 peer-focus-visible:ring-offset-2 ${
+                    agreements[key] ? 'bg-amber-700 border-amber-700' : 'border-gray-300 group-hover:border-amber-400'
                   }`}>
                     {agreements[key] && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />

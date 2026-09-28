@@ -27,7 +27,9 @@ const applySchema = z.object({
   email:       z.string().trim().email().max(320),
   phone:       z.string().trim().min(1).max(30),
   country:     z.string().trim().min(1).max(100),
-  neighborhood:z.string().trim().min(1).max(200),
+  // Required only where the city has neighbourhoods on file (checked below):
+  // Athens and Sofia have none, and the form can't offer an empty list.
+  neighborhood:z.string().trim().max(200).optional().nullable(),
   gender:      z.string().trim().min(1).max(50),
   profilePhoto:z.string().trim().refine(v => isUploadedImageUrl(v, ['applications']), 'Invalid profile photo'),
   // Optional fields
@@ -71,15 +73,6 @@ const applySchema = z.object({
   _tz: z.string().max(60).optional().nullable(),  // browser timezone
 })
 
-async function getIpTimezone(ip: string): Promise<string | null> {
-  try {
-    const res = await fetch(`http://ip-api.com/json/${ip}?fields=timezone`, { signal: AbortSignal.timeout(3000) })
-    if (!res.ok) return null
-    const data = await res.json()
-    return data.timezone ?? null
-  } catch { return null }
-}
-
 function nameDistance(a: string, b: string): number {
   // Simple normalized edit distance for name similarity
   const s = a.toLowerCase().replace(/[^a-z]/g, '')
@@ -94,21 +87,35 @@ function nameDistance(a: string, b: string): number {
   return dp[m][n] / Math.max(m, n)
 }
 
+// Refusals end with a way to reach a person: every one of them used to be a
+// dead end ("This application cannot be accepted." and nothing else).
+const CONTACT = 'If you think this is a mistake, write to info@smileyscommunity.com.'
+const REFUSED = `This application cannot be accepted. ${CONTACT}`
+
+// A schema failure names the field in words — the raw message ("Too small:
+// expected string to have >=1 characters") said nothing an applicant could fix.
+const FIELD_LABEL: Record<string, string> = {
+  firstName: 'first name', lastName: 'last name', email: 'email address', phone: 'phone number',
+  country: 'nationality', neighborhood: 'neighbourhood', gender: 'gender', profilePhoto: 'photo',
+  birthdate: 'date of birth', termsAccepted: 'terms',
+}
+
 export async function POST(req: NextRequest) {
   try {
     // Membership intake can be paused from /admin/settings.
     if (!areApplicationsOpen()) {
       return NextResponse.json({ error: 'Applications are currently closed. Please check back soon.' }, { status: 403 })
     }
-    // 3 applications per hour per IP
-    if (!await rateLimit(`apply:${getIp(req)}`, 3, 60 * 60_000)) {
-      return NextResponse.json({ error: 'Too many applications from this IP. Try again later.' }, { status: 429 })
-    }
-
     const raw = await req.json().catch(() => null)
     const parsed = applySchema.safeParse(raw)
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Invalid request' }, { status: 400 })
+      const issue = parsed.error.issues[0]
+      const field = issue ? FIELD_LABEL[String(issue.path[0])] : undefined
+      // The terms refinement carries its own sentence; everything else is
+      // named by field.
+      const msg = issue?.path[0] === 'termsAccepted' ? issue.message
+        : field ? `Please check your ${field}.` : 'Something in the form needs another look.'
+      return NextResponse.json({ error: msg }, { status: 400 })
     }
     const {
       firstName, lastName, email, phone, birthdate, gender, country, city, neighborhood,
@@ -123,6 +130,14 @@ export async function POST(req: NextRequest) {
 
     if (!(await verifyTurnstile(_cf ?? '', getIp(req)))) {
       return NextResponse.json({ error: 'Human verification failed. Please try again.' }, { status: 400 })
+    }
+
+    // 3 applications per hour per IP — counted only once the request is real
+    // (verified and well-formed). It was spent before either check, so three
+    // junk POSTs from anyone on a shared network locked everyone on it out
+    // for an hour, and an applicant's own failed attempts used it up.
+    if (!await rateLimit(`apply:${getIp(req)}`, 3, 60 * 60_000)) {
+      return NextResponse.json({ error: `Too many applications from this network in the last hour. Please try again later. ${CONTACT}` }, { status: 429 })
     }
 
     if (_hp) return NextResponse.json({ ok: true })
@@ -160,6 +175,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Applications to "${wantedSlug}" aren't open right now.` }, { status: 400 })
     }
     const targetCityId = targetCity.id
+    const cleanNeighborhood = neighborhood?.trim() || null
+    if (!cleanNeighborhood && await prisma.neighborhood.count({ where: { cityId: targetCityId, active: true } }) > 0) {
+      return NextResponse.json({ error: 'Please check your neighbourhood.' }, { status: 400 })
+    }
 
     // Normalise on the way in, like every other write path does
     // (auth/register, auth/me, admin/users/[id]). This one didn't, and it is
@@ -182,21 +201,29 @@ export async function POST(req: NextRequest) {
     // first XFF entry is client-spoofable, which would let a blacklisted or
     // rate-limited applicant forge a fresh IP to evade the velocity/blacklist/
     // cooldown checks below (all keyed on this value). Also validated, so it's
-    // safe to interpolate into the getIpTimezone() fetch URL.
+    // safe to store and compare.
     const trustedIp = getIp(req)
     const ip = trustedIp === 'unknown' ? null : trustedIp
     const fingerprint = typeof _fp === 'string' && _fp.length > 0 ? _fp.slice(0, 64) : null
-    const blacklistConditions = [
+    // A blacklisted EMAIL or PHONE is the person; a blacklisted DEVICE
+    // fingerprint or NETWORK address is not — the free fingerprint collides
+    // across ordinary browsers (see below) and one address covers a campus, a
+    // coworking or a mobile carrier. Those two flag the application for the
+    // reviewer instead of refusing whoever happens to share them.
+    const identityConditions = [
       cleanEmail  ? { email: cleanEmail }   : null,
       cleanPhone  ? { phone: cleanPhone }   : null,
+    ].filter(Boolean) as object[]
+    const deviceConditions = [
       fingerprint ? { fingerprint }         : null,
       ip          ? { ipAddress: ip }       : null,
     ].filter(Boolean) as object[]
-    const blacklisted = blacklistConditions.length > 0
-      ? await prisma.blacklist.findFirst({ where: { OR: blacklistConditions } })
-      : null
+    const [blacklisted, blacklistedDevice] = await Promise.all([
+      identityConditions.length > 0 ? prisma.blacklist.findFirst({ where: { OR: identityConditions } }) : Promise.resolve(null),
+      deviceConditions.length   > 0 ? prisma.blacklist.findFirst({ where: { OR: deviceConditions }, select: { id: true } }) : Promise.resolve(null),
+    ])
     if (blacklisted) {
-      return NextResponse.json({ error: 'This application cannot be accepted.' }, { status: 403 })
+      return NextResponse.json({ error: REFUSED }, { status: 403 })
     }
 
     // Duplicate / rejected applicant checks — use generic message to prevent enumeration.
@@ -207,10 +234,13 @@ export async function POST(req: NextRequest) {
     const cooldownDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
     const emailApps = await prisma.memberApplication.findMany({
       where: { email: cleanEmail },
-      select: { status: true, reviewedAt: true, createdAt: true },
+      select: { status: true, reviewedAt: true, createdAt: true, reviewNote: true },
     })
+    // A network auto-reject (the old velocity rule) was never a decision
+    // about this person — it must not lock their email for 90 days.
     const emailBlocked = emailApps.some(a =>
-      a.status !== 'rejected' || (a.reviewedAt ?? a.createdAt) >= cooldownDate
+      !(a.status === 'rejected' && a.reviewNote?.startsWith('Auto-rejected: velocity'))
+      && (a.status !== 'rejected' || (a.reviewedAt ?? a.createdAt) >= cooldownDate)
     )
     if (emailBlocked) {
       // When the block is because this email already belongs to an APPROVED
@@ -229,10 +259,12 @@ export async function POST(req: NextRequest) {
           && await rateLimit(`apply-already-member:${cleanEmail}`, 1, 24 * 60 * 60_000)) {
         sendAlreadyRegisteredEmail(cleanEmail, existingUser.name).catch(() => {})
       }
-      return NextResponse.json({ error: 'This application cannot be accepted.' }, { status: 409 })
+      return NextResponse.json({ error: REFUSED }, { status: 409 })
     }
 
-    // 90-day cooldown after rejection (phone or IP)
+    // 90-day cooldown after rejection — by phone only. By IP it refused
+    // everyone behind the same address (a campus, a coworking, a carrier's
+    // NAT) for 90 days after one person there was turned down.
     // Build OR conditions, filtering out nulls to avoid Prisma empty-object
     // matching all records when a field isn't provided.
     // Fingerprint intentionally excluded from cooldown: non-unique on the free
@@ -240,7 +272,6 @@ export async function POST(req: NextRequest) {
     // browser config with a rejected person to be blocked.
     const cooldownConditions = [
       cleanPhone ? { phone: cleanPhone } : null,
-      ip         ? { ipAddress: ip }     : null,
     ].filter(Boolean) as object[]
     const recentRejection = cooldownConditions.length > 0
       ? await prisma.memberApplication.findFirst({
@@ -248,7 +279,7 @@ export async function POST(req: NextRequest) {
         })
       : null
     if (recentRejection) {
-      return NextResponse.json({ error: 'This application cannot be accepted.' }, { status: 409 })
+      return NextResponse.json({ error: REFUSED }, { status: 409 })
     }
 
     // (No unconditional phone match here — the cooldown check above already
@@ -260,7 +291,7 @@ export async function POST(req: NextRequest) {
         where: { instagram: cleanInstagram, status: 'rejected', reviewedAt: { gte: cooldownDate } },
       })
       if (igMatch) {
-        return NextResponse.json({ error: 'This application cannot be accepted.' }, { status: 409 })
+        return NextResponse.json({ error: REFUSED }, { status: 409 })
       }
     }
 
@@ -270,9 +301,10 @@ export async function POST(req: NextRequest) {
     const emailDomain     = cleanEmail.split('@')[1] ?? ''
     const isDisposable    = disposableDomains.includes(emailDomain)
 
-    // Timezone mismatch check
-    const ipTimezone      = ip ? await getIpTimezone(ip) : null
-    const timezoneMismatch = !!(browserTz && ipTimezone && browserTz !== ipTimezone)
+    // No IP geolocation: the timezone check sent every applicant's address to
+    // a third party over plain HTTP for a weak VPN signal. The browser's
+    // timezone is still stored for the reviewer; the mismatch flag stays off.
+    const timezoneMismatch = false
 
     // IP velocity — auto-reject if 3+ applications from same IP in 24h.
     // Fingerprint is intentionally excluded: the free FingerprintJS tier
@@ -283,7 +315,12 @@ export async function POST(req: NextRequest) {
     const ipCount = ip
       ? await prisma.memberApplication.count({ where: { ipAddress: ip, createdAt: { gte: since24h } } })
       : 0
-    const velocityBlock = ipCount >= 3
+    // Several applications from one network in a day is a signal for the
+    // reviewer, not a verdict: friends applying together on venue Wi-Fi, a
+    // class on campus Wi-Fi and a carrier's shared address all look like
+    // this. It auto-rejected the fourth applicant — and, through the email
+    // check above, locked their email for 90 days.
+    const manyFromNetwork = ipCount >= 3
 
     // Similar name check against blacklist
     const blacklistNames = await prisma.blacklist.findMany({ select: { name: true } })
@@ -294,23 +331,6 @@ export async function POST(req: NextRequest) {
     // Bursa moderator got an Istanbul applicant's name, sometimes a second
     // member's name, and the device/timezone signals behind a queue they
     // can't even open.
-
-    if (velocityBlock) {
-      // Still save but mark as rejected immediately
-      await prisma.memberApplication.create({
-        data: {
-          firstName: cleanFirst, lastName: cleanLast, fullName,
-          email: cleanEmail, phone: cleanPhone, ipAddress: ip, userAgent: req.headers.get('user-agent')?.slice(0, 500) || null,
-          fingerprint, timezone: browserTz, timezoneMismatch, disposableEmail: isDisposable,
-          status: 'rejected', reviewNote: 'Auto-rejected: velocity limit (3+ applications from same IP within 24h)',
-          assignedClubs: [], interests: [], socialStyles: [],
-          targetCityId,
-        },
-      })
-      await notifyCityStaff(targetCityId, 'application', '⚠️ Velocity block triggered',
-        `${fullName} was auto-rejected — same IP applied 3+ times in 24h`, '/admin/applications')
-      return NextResponse.json({ error: 'This application cannot be accepted.' }, { status: 403 })
-    }
 
     // Check if fingerprint or IP matches a REJECTED application — alert admins.
     // Only match rejected (not approved/hold) — approved members sharing a
@@ -328,6 +348,8 @@ export async function POST(req: NextRequest) {
     // gets stronger language).
     let suspicionScore = 0
     if (timezoneMismatch) suspicionScore += 1   // possible VPN
+    if (manyFromNetwork)  suspicionScore += 2   // 3+ applications from this network today
+    if (blacklistedDevice) suspicionScore += 2  // a blacklisted device or network
     if (isDisposable)     suspicionScore += 2   // temp/throwaway email
     if (nameSimilar)      suspicionScore += 2   // close to a blacklist name
     if (fpMatch)          suspicionScore += 1   // fingerprint hit on prior decision
@@ -346,7 +368,7 @@ export async function POST(req: NextRequest) {
         // Berlin applicant was stored with targetCityId=Berlin but city="Istanbul",
         // mislabeling them in every admin view/export that reads the string.
         city:        targetCity.name,
-        neighborhood,
+        neighborhood: cleanNeighborhood,
         instagram:   cleanInstagram,
         linkedin:    linkedin   || null,
         profession,  timeInCity, reasonHere,
@@ -378,7 +400,8 @@ export async function POST(req: NextRequest) {
     // Notify admins — push alert for suspicious signals, standard in-app for normal
     const flags: string[] = []
     if (isKnownDevice)     flags.push(fpMatch ? `known device (prev: ${fpMatch.fullName})` : ipMatch ? `known IP (prev: ${ipMatch.fullName})` : 'name similar to blacklist')
-    if (timezoneMismatch)  flags.push(`timezone mismatch (browser: ${browserTz}, IP: ${ipTimezone})`)
+    if (manyFromNetwork)   flags.push(`${ipCount + 1} applications from this network today`)
+    if (blacklistedDevice) flags.push('device or network on the blacklist')
     if (isDisposable)      flags.push('disposable email')
     if (nameSimilar && !isKnownDevice) flags.push('name similar to blacklisted person')
 

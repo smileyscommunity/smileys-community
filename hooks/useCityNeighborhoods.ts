@@ -22,16 +22,27 @@ import { useState, useEffect } from 'react'
 // composer waiting on its POSTING city (lib/postingNeighborhoods) passes null
 // rather than undefined, which would fetch the browsed city's list and flash
 // it before the posting city's arrived.
-export function useCityNeighborhoods(city?: string | null): string[] {
+export function useCityNeighborhoods(city?: string | null, opts: { forApply?: boolean } = {}): string[] {
+  return useCityNeighborhoodList(city, opts).list
+}
+
+/**
+ * The same list plus whether it has arrived — an empty list that is still
+ * loading and an empty list that is the answer ("this city has none on
+ * file") mean different things to a form that requires a pick.
+ */
+export function useCityNeighborhoodList(city?: string | null, opts: { forApply?: boolean } = {}): { list: string[]; loaded: boolean } {
   const [neighborhoods, setNeighborhoods] = useState<string[]>([])
+  const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
-    if (city === null) { setNeighborhoods([]); return }
+    if (city === null) { setNeighborhoods([]); setLoaded(false); return }
+    setLoaded(false)
     // The cancelled flag drops out-of-order responses — a slow earlier fetch
     // must not overwrite a faster later one when `city` changes.
     let cancelled = false
     const url = city
-      ? `/app/api/neighborhoods?city=${encodeURIComponent(city)}`
+      ? `/app/api/neighborhoods?city=${encodeURIComponent(city)}${opts.forApply ? '&for=apply' : ''}`
       : '/app/api/neighborhoods'
     // The bare URL answers from the view-city cookie, so it must never come
     // from the HTTP cache: it was served public, max-age=60 + 300s stale, and
@@ -39,10 +50,10 @@ export function useCityNeighborhoods(city?: string | null): string[] {
     // keyed by its URL and may use the cache.
     fetch(url, { credentials: 'include', cache: city ? 'default' : 'no-store' })
       .then(r => r.json())
-      .then(d => { if (!cancelled) setNeighborhoods((d.neighborhoods ?? []).map((n: { name: string }) => n.name)) })
-      .catch(() => { if (!cancelled) setNeighborhoods([]) })
+      .then(d => { if (!cancelled) { setNeighborhoods((d.neighborhoods ?? []).map((n: { name: string }) => n.name)); setLoaded(true) } })
+      .catch(() => { if (!cancelled) { setNeighborhoods([]); setLoaded(false) } })
     return () => { cancelled = true }
-  }, [city])
+  }, [city, opts.forApply])
 
-  return neighborhoods
+  return { list: neighborhoods, loaded }
 }
