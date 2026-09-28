@@ -20,6 +20,7 @@ import AvatarImg from '@/components/AvatarImg'
 import { eventStartDate } from '@/lib/eventJsonLd'
 import { todayInTz, shiftDay } from '@/lib/cityTime'
 import { PUBLIC_EVENT_STATUSES } from '@/lib/db'
+import { PhotoCredit, creditedCoverOk } from '@/components/PhotoCredit'
 
 // Same rule as HeroStats: public and actually held — no drafts/pending/flagged,
 // no cancelled, no postponed.
@@ -273,7 +274,7 @@ export default async function NeighborhoodSections({
       take:    6,
       select:  {
         id: true, name: true, category: true, description: true,
-        logo: true, coverImage: true, website: true, instagram: true,
+        logo: true, coverImage: true, coverCredit: true, website: true, instagram: true,
         isExpatOwned: true, isExpatFriendly: true,
       },
     }),
@@ -460,7 +461,8 @@ export default async function NeighborhoodSections({
         description:  b.description
           ? b.description.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 500)
           : undefined,
-        image:        absoluteImageUrl(b.logo || b.coverImage),
+        // A credited cover stays out of structured data (no room for its credit).
+        image:        absoluteImageUrl(b.logo || (creditedCoverOk(b) ? b.coverImage : null)),
         url:          `${APP_URL}/directory/${b.id}`,
         address: {
           '@type':         'PostalAddress',
@@ -873,6 +875,12 @@ export default async function NeighborhoodSections({
                       {logo && (
                         <div className="absolute bottom-2 right-2 w-9 h-9 rounded-xl overflow-hidden border-2 border-white shadow-sm bg-white">
                           <img src={logo} alt={b.name} className="w-full h-full object-cover" />
+                        </div>
+                      )}
+                      {/* The whole card is a link, so the credit is text only. */}
+                      {cover && b.coverCredit && (
+                        <div className="absolute bottom-2 left-2 max-w-[65%]">
+                          <PhotoCredit credit={b.coverCredit} variant="overlay" />
                         </div>
                       )}
                     </div>

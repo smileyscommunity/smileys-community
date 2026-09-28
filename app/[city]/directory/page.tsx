@@ -8,6 +8,7 @@ import { APP_URL } from '@/lib/env'
 import { resolveImageUrl } from '@/lib/data'
 import { shareCover } from '@/lib/shareCover'
 import ExploreMore from '@/components/ExploreMore'
+import { PhotoCredit } from '@/components/PhotoCredit'
 import { getCityDirectoryHub, enterLinkFor, hubCanonical, isDefaultCitySlug } from '../data'
 
 // /[city]/directory — the crawlable list of a city's member-recommended
@@ -86,6 +87,12 @@ export default async function CityDirectoryPage({ params }: Params) {
                         <span className="absolute top-2 left-2 bg-white/90 text-gray-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
                           {b.isExpatOwned ? 'Expat-owned' : 'Expat-friendly'}
                         </span>
+                      )}
+                      {/* The whole card is a link, so the credit is text only. */}
+                      {b.coverImage && b.coverCredit && (
+                        <div className="absolute bottom-2 left-2 max-w-[70%]">
+                          <PhotoCredit credit={b.coverCredit} variant="overlay" />
+                        </div>
                       )}
                     </div>
                     <div className="p-4">

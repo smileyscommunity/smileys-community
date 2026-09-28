@@ -32,6 +32,8 @@ export const DIRECTORY_LIMITS = {
   languages:    200,
   logo:         500,
   coverImage:   500,
+  coverCredit:    160,
+  coverCreditUrl: 500,
   memberDiscount: 80,
 } as const
 

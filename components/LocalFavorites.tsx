@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { resolveImageUrl, firstNameOf} from '@/lib/data'
+import { PhotoCredit } from '@/components/PhotoCredit'
 
 export interface LocalPick {
   id:           string
@@ -10,6 +11,7 @@ export interface LocalPick {
   category:     string
   neighborhood: string | null
   coverImage:   string | null
+  coverCredit?: string | null
   reviewCount:  number
   quote:        string | null
   quoteBy:      string | null
@@ -65,12 +67,20 @@ export default function LocalFavorites({ picks, directoryHref = '/directory' }: 
           <Link key={p.id} href={`/directory/${p.id}`}
             className="group bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:border-amber-200 transition-all">
             {p.coverImage && (
-              /* Directory covers are member uploads served through the files
-                 route, so next/image isn't in play here — plain img keeps the
-                 existing resolveImageUrl behaviour. */
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={resolveImageUrl(p.coverImage)} alt={p.name}
-                className="w-full h-36 object-cover" loading="lazy" />
+              <div className="relative">
+                {/* Directory covers are member uploads served through the files
+                    route, so next/image isn't in play here — plain img keeps the
+                    existing resolveImageUrl behaviour. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={resolveImageUrl(p.coverImage)} alt={p.name}
+                  className="w-full h-36 object-cover" loading="lazy" />
+                {/* The whole card is a link, so the credit is text only. */}
+                {p.coverCredit && (
+                  <div className="absolute bottom-1.5 left-1.5 max-w-[80%]">
+                    <PhotoCredit credit={p.coverCredit} variant="overlay" />
+                  </div>
+                )}
+              </div>
             )}
             <div className="p-4">
               <h3 className="font-bold text-gray-900 leading-snug group-hover:text-amber-700 transition-colors">{p.name}</h3>

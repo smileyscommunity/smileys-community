@@ -2194,6 +2194,12 @@ model Business {
   instagram       String?
   logo            String?
   coverImage      String?
+  // Credit for a cover that is someone else's photo — a Wikimedia Commons
+  // image under CC BY / BY-SA must name its author and licence wherever it is
+  // shown (components/PhotoCredit). Cleared whenever the cover changes, so a
+  // credit never outlives its photo.
+  coverCredit     String?
+  coverCreditUrl  String?
   isExpatOwned    Boolean          @default(false)
   isExpatFriendly Boolean          @default(false)
   languages       String?

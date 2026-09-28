@@ -468,7 +468,7 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
     // one — a one-star or moderator-hidden review was the endorsement before.
     where:  { isApproved: true, isActive: true, cityId, coverImage: { not: null }, reviews: { some: { isHidden: false } } },
     select: {
-      id: true, name: true, category: true, neighborhood: true, coverImage: true,
+      id: true, name: true, category: true, neighborhood: true, coverImage: true, coverCredit: true,
       reviews: {
         where:  { comment: { not: null }, isHidden: false, rating: { gte: 4 } },
         select: { comment: true, author: { select: { name: true } } },
@@ -490,6 +490,7 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
     category:     b.category,
     neighborhood: b.neighborhood,
     coverImage:   b.coverImage,
+    coverCredit:  b.coverCredit,
     reviewCount:  b._count.reviews,
     quote:        b.reviews[0]?.comment ?? null,
     // First name only, and cut HERE rather than at render. LocalFavorites

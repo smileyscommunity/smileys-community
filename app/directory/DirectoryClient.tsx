@@ -12,6 +12,7 @@ import DirectorySaveButton from '@/components/DirectorySaveButton'
 import { getOpenStatus } from '@/lib/businessHours'
 import dynamic from 'next/dynamic'
 import { SkeletonCard } from '@/components/Skeleton'
+import { PhotoCredit } from '@/components/PhotoCredit'
 
 // Leaflet hits `window` on import, so the map can't render during SSR
 // or the static-paths analysis. Dynamic-import with ssr:false keeps the
@@ -35,6 +36,8 @@ interface Business {
   instagram: string | null
   logo: string | null
   coverImage: string | null
+  coverCredit?: string | null
+  coverCreditUrl?: string | null
   isExpatOwned: boolean
   isExpatFriendly: boolean
   languages: string | null
@@ -196,6 +199,9 @@ function BusinessCard({
         </div>
 
         <p className="text-xs text-gray-600 line-clamp-2 flex-1">{b.description}</p>
+        {/* A licensed cover's credit. Every corner of the photo is taken
+            (badges, save, open-now, logo), so it sits in the text. */}
+        {cover && <PhotoCredit credit={b.coverCredit} url={b.coverCreditUrl} variant="line" link />}
 
         {/* Sub-tag chips. Capped to 4 visible (overflow truncates) so
             the card height stays predictable. Clicking a chip writes

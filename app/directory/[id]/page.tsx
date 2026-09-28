@@ -23,6 +23,7 @@ import {
 } from '@/lib/businessHours'
 import { neighborhoodToSlug, getNeighborhoodMeta } from '@/lib/neighborhoods'
 import { HeaderActions, ReviewCta, FooterActions } from './DetailClient'
+import { PhotoCredit, creditedCoverOk } from '@/components/PhotoCredit'
 
 // Per-business detail page — the dedicated route that unlocks SEO,
 // JSON-LD LocalBusiness markup, shareable URLs, and per-listing OG
@@ -50,7 +51,8 @@ export async function generateMetadata({ params }: RouteParams): Promise<Metadat
     return { title: 'Business not found — Smileys Community' }
   }
   // ?w=1200 keeps the OG image under WhatsApp/iMessage/X's ~600 KB cap.
-  const cover = b.coverImage ? `${SITE_URL}${resolveImageUrl(b.coverImage)}?w=1200` : `${APP_URL}/api/og`
+  // A credited cover can't carry its credit into a share card, so it isn't used there.
+  const cover = creditedCoverOk(b) ? `${SITE_URL}${resolveImageUrl(b.coverImage)}?w=1200` : `${APP_URL}/api/og`
   const title = `${b.name}${b.neighborhood ? ` · ${b.neighborhood}` : ''} — Smileys Community`
   const desc  = b.description.length > 155 ? `${b.description.slice(0, 152)}…` : b.description
   const url   = `${APP_URL}/directory/${b.id}`
@@ -178,7 +180,9 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
   // ?w=1200: see absoluteImageUrl comment above. Crawlers ingesting
   // JSON-LD pick up images at the same size as the OG variant.
 
-  const ldImage = business.coverImage
+  // A credited cover stays out of structured data: search results show the
+  // image without its credit.
+  const ldImage = creditedCoverOk(business)
     ? `${SITE_URL}${resolveImageUrl(business.coverImage)}?w=1200`
     : business.logo
       ? `${SITE_URL}${resolveImageUrl(business.logo)}?w=1200`
@@ -284,6 +288,13 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
           <div className="w-full h-full flex items-center justify-center text-7xl text-gray-300">🏢</div>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+        {/* A licensed cover's credit, linked to its source. Top-right: the
+            header card overlaps the bottom of the hero. */}
+        {cover && (
+          <div className="absolute top-3 right-3 sm:top-5 sm:right-5 max-w-[55%]">
+            <PhotoCredit credit={business.coverCredit} url={business.coverCreditUrl} variant="overlay" link />
+          </div>
+        )}
         {/* Breadcrumb */}
         <div className="absolute top-3 left-3 sm:top-5 sm:left-5">
           <Link href={`/directory?city=${businessCity.slug}`}

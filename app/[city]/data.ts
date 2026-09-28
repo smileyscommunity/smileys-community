@@ -308,13 +308,15 @@ export const getCityDirectoryHub = unstable_cache(
     // browser, so it must hold nothing the page doesn't show.
     const items = page.items.slice(0, HUB_LIMIT).map(b => ({
       id: b.id, name: b.name, category: b.category, description: b.description,
-      neighborhood: b.neighborhood, coverImage: b.coverImage, logo: b.logo,
+      neighborhood: b.neighborhood, coverImage: b.coverImage, coverCredit: b.coverCredit, logo: b.logo,
       isExpatOwned: b.isExpatOwned, isExpatFriendly: b.isExpatFriendly,
       memberDiscount: b.memberDiscount, avgRating: b.avgRating, reviewCount: b.reviewCount,
     }))
     return { items, total: page.total }
   },
-  ['city-directory-hub'],
+  // v2: items carry coverCredit — a new key so no cached v1 value (without
+  // it) is served as the new shape.
+  ['city-directory-hub-v2'],
   { revalidate: 60, tags: ['home'] },
 )
 
