@@ -213,7 +213,7 @@ export default function ContentPage() {
         {TABS.map(t => (
           <button key={t.key} onClick={() => setTab(t.key)}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${
-              tab === t.key ? 'bg-amber-500 text-white' : 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700'
+              tab === t.key ? 'bg-amber-700 text-white' : 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700'
             }`}>
             <span>{t.icon}</span>{t.label}
           </button>
@@ -583,7 +583,7 @@ function SaveButton({ onClick, saving }: { onClick: () => void; saving: boolean 
   return (
     <div className="flex justify-end pt-2 border-t border-zinc-800">
       <button onClick={onClick} disabled={saving}
-        className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm disabled:opacity-40 transition-colors">
+        className="px-6 py-2.5 rounded-xl bg-amber-700 hover:bg-amber-800 text-white font-bold text-sm disabled:opacity-40 transition-colors">
         {saving ? 'Saving…' : 'Save changes'}
       </button>
     </div>

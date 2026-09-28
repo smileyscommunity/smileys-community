@@ -41,7 +41,7 @@ function UnsubscribePage() {
               You've been removed from Smileys Community newsletters and announcements.
               You'll still receive transactional emails (event confirmations, account updates).
             </p>
-            <Link href="/events" className="inline-block px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors">
+            <Link href="/events" className="inline-block px-5 py-2.5 rounded-xl bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold transition-colors">
               Browse events
             </Link>
           </>
@@ -67,7 +67,7 @@ function UnsubscribePage() {
             <button
               onClick={confirm}
               disabled={phase === 'working'}
-              className="inline-block px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors disabled:opacity-50"
+              className="inline-block px-5 py-2.5 rounded-xl bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold transition-colors disabled:opacity-50"
             >
               {phase === 'working' ? 'Unsubscribing…' : 'Unsubscribe'}
             </button>

@@ -106,7 +106,7 @@ export default function PhotoRotateDialog({
             Cancel
           </button>
           <button type="button" onClick={() => prepared && onConfirm(prepared)} disabled={!prepared || busy || !!error}
-            className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-50 flex items-center justify-center gap-2">
+            className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-amber-700 hover:bg-amber-800 disabled:opacity-50 flex items-center justify-center gap-2">
             {busy && <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
             {busy ? 'Uploading…' : 'Use photo'}
           </button>

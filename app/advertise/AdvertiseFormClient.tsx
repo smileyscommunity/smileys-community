@@ -138,7 +138,7 @@ export default function AdvertiseFormClient() {
         <button
           type="submit"
           disabled={loading || !form.name.trim() || !form.email.trim() || !form.company.trim() || !form.message.trim()}
-          className="w-full py-3.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm transition-colors disabled:opacity-50">
+          className="w-full py-3.5 rounded-xl bg-amber-700 hover:bg-amber-800 text-white font-bold text-sm transition-colors disabled:opacity-50">
           {loading ? 'Sending…' : 'Send enquiry'}
         </button>
 

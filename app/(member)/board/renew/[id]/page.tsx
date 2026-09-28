@@ -48,7 +48,7 @@ export default function RenewListingPage({ params }: { params: Promise<{ id: str
               ? 'Your listing is live on the marketplace again.'
               : 'Glad it worked out — the board stays honest when filled listings say so.'}
           </p>
-          <Link href="/marketplace?tab=MINE" className="inline-block mt-8 bg-amber-500 hover:bg-amber-600 text-white font-bold px-8 py-3.5 rounded-xl transition-colors">
+          <Link href="/marketplace?tab=MINE" className="inline-block mt-8 bg-amber-700 hover:bg-amber-800 text-white font-bold px-8 py-3.5 rounded-xl transition-colors">
             Back to your listings
           </Link>
         </div>
@@ -68,7 +68,7 @@ export default function RenewListingPage({ params }: { params: Promise<{ id: str
           <button
             onClick={() => act({ renew: true }, 'renewed')}
             disabled={working}
-            className="bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-bold px-8 py-3.5 rounded-xl transition-colors"
+            className="bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white font-bold px-8 py-3.5 rounded-xl transition-colors"
           >
             {working ? 'Working…' : 'Yes — renew for 30 days'}
           </button>

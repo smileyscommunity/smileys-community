@@ -376,7 +376,7 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
           {eventTitle && <p className="text-sm text-zinc-400 mt-0.5 truncate">{eventTitle}</p>}
         </div>
         <Link href={`/host/checkin?event=${id}`}
-          className="text-xs font-semibold text-white bg-amber-500 hover:bg-amber-600 px-3 py-2 rounded-lg transition-colors shrink-0">
+          className="text-xs font-semibold text-white bg-amber-700 hover:bg-amber-800 px-3 py-2 rounded-lg transition-colors shrink-0">
           Check in
         </Link>
       </div>
@@ -443,7 +443,7 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
             <button
               onClick={broadcast}
               disabled={!broadcastMsg.trim() || broadcasting}
-              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-40"
+              className="px-4 py-2 bg-amber-700 hover:bg-amber-800 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-40"
             >
               {broadcasting ? 'Sending…' : `Send to ${guests.length} ${guests.length === 1 ? 'attendee' : 'attendees'}`}
             </button>

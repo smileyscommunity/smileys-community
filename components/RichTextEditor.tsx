@@ -46,7 +46,7 @@ function ToolbarBtn({ active, onClick, title, children }: { active?: boolean; on
       aria-label={title}
       aria-pressed={active}
       className={`px-2 py-1 rounded text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 ${
-        active ? 'bg-amber-500 text-white' : 'text-zinc-300 hover:bg-zinc-700 hover:text-white'
+        active ? 'bg-amber-700 text-white' : 'text-zinc-300 hover:bg-zinc-700 hover:text-white'
       }`}
     >
       {children}

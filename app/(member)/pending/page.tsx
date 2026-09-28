@@ -70,7 +70,7 @@ export default function PendingStatusPage() {
           </p>
 
           <div className="space-y-2">
-            <Link href="/events" className="block w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-semibold text-sm transition-colors">
+            <Link href="/events" className="block w-full py-3 rounded-xl bg-amber-700 hover:bg-amber-800 text-white font-semibold text-sm transition-colors">
               Browse events
             </Link>
             <button onClick={logout} className="block w-full py-3 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm transition-colors">

@@ -718,7 +718,7 @@ export default function AdminNotificationsPage() {
           <div className="space-y-2">
             <div className="flex flex-col sm:flex-row gap-2">
               <button type="button" onClick={handleSend} disabled={!canSend || sending}
-                className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl disabled:opacity-30 transition-colors">
+                className="flex-1 py-3 bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold rounded-xl disabled:opacity-30 transition-colors">
                 {sending ? 'Sending…' : 'Send broadcast'}
               </button>
               <button type="button" onClick={sendTest} disabled={!canTest}
@@ -792,7 +792,7 @@ export default function AdminNotificationsPage() {
                     </p>
                     <div className="flex gap-2">
                       <button type="button" onClick={() => saveEdit(b)} disabled={savingEdit || uploadingEditImage || !editing.title.trim() || !editing.message.trim()}
-                        className="text-xs px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold transition-colors disabled:opacity-40">
+                        className="text-xs px-4 py-2 rounded-lg bg-amber-700 hover:bg-amber-800 text-white font-bold transition-colors disabled:opacity-40">
                         {savingEdit ? 'Saving…' : 'Save changes'}
                       </button>
                       <button type="button" onClick={closeEdit}

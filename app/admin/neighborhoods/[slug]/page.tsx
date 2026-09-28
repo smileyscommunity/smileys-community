@@ -287,7 +287,7 @@ function EditNeighborhoodPageInner({ params }: { params: Promise<{ slug: string 
           <button
             onClick={save}
             disabled={saving || !loaded || !dirty}
-            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            className="px-4 py-2 bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
           >
             {saving ? 'Saving…' : dirty ? 'Save' : 'Saved'}
           </button>
@@ -778,7 +778,7 @@ function EditNeighborhoodPageInner({ params }: { params: Promise<{ slug: string 
         <button
           onClick={save}
           disabled={saving || !loaded || !dirty}
-          className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50"
+          className="px-5 py-2.5 bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50"
         >
           {saving ? 'Saving…' : 'Save'}
         </button>

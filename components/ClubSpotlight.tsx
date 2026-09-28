@@ -177,7 +177,7 @@ export default function ClubSpotlight({ slug, initialSpotlight, canEdit, dark }:
           </div>
           {error && <p className="text-xs text-red-500">{error}</p>}
           <button onClick={save} disabled={!selected || saving}
-            className="w-full px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-40">
+            className="w-full px-4 py-2 bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-40">
             {saving ? 'Saving…' : 'Save spotlight'}
           </button>
         </div>

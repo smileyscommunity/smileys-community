@@ -158,7 +158,7 @@ export default function ClubFeedPage() {
             <p className="text-sm font-semibold text-gray-600">Couldn&apos;t load the feed</p>
             <p className="text-xs text-gray-400 mt-1">Network blip or the server&apos;s having a moment.</p>
             <button onClick={load}
-              className="inline-block mt-4 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
+              className="inline-block mt-4 px-4 py-2 bg-amber-700 hover:bg-amber-800 text-white text-sm font-bold rounded-xl transition-colors">
               Try again
             </button>
           </div>
@@ -167,7 +167,7 @@ export default function ClubFeedPage() {
             <div className="text-4xl mb-3">🏛️</div>
             <p className="text-sm font-semibold text-gray-600">No activity yet</p>
             <p className="text-xs text-gray-400 mt-1">Join clubs to see their events and posts here</p>
-            <Link href="/clubs" className="inline-block mt-4 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
+            <Link href="/clubs" className="inline-block mt-4 px-4 py-2 bg-amber-700 hover:bg-amber-800 text-white text-sm font-bold rounded-xl transition-colors">
               Browse clubs
             </Link>
           </div>

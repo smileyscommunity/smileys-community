@@ -130,7 +130,7 @@ function ContactForm() {
                       Send another message
                     </button>
                     <Link href="/events"
-                      className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors">
+                      className="px-5 py-2.5 rounded-xl bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold transition-colors">
                       Browse events
                     </Link>
                   </div>
@@ -268,7 +268,7 @@ function ContactForm() {
                   Join the most vibrant social community in your city. Apply today.
                 </p>
                 <Link href="/apply"
-                  className="block text-center py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors">
+                  className="block text-center py-2.5 rounded-xl bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold transition-colors">
                   Apply to join
                 </Link>
               </div>

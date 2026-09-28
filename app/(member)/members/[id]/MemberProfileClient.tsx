@@ -656,7 +656,7 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
                 <button
                   onClick={() => handleRespondToRequest('accept')}
                   disabled={connecting}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-2xl transition-colors shadow-sm disabled:opacity-60">
+                  className="flex-1 flex items-center justify-center gap-2 py-3 bg-amber-700 hover:bg-amber-800 text-white text-sm font-bold rounded-2xl transition-colors shadow-sm disabled:opacity-60">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
@@ -688,7 +688,7 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
                 className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold rounded-2xl transition-colors shadow-sm disabled:opacity-60 ${
                   connStatus === 'pending'
                     ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    : 'bg-amber-500 hover:bg-amber-600 text-white'
+                    : 'bg-amber-700 hover:bg-amber-800 text-white'
                 }`}>
                 {connStatus === 'pending' ? (
                   <>
@@ -716,7 +716,7 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
               <Link href={`/messages/${member.id}`}
                 className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold rounded-2xl transition-colors shadow-sm ${
                   isAccepted
-                    ? 'bg-amber-500 hover:bg-amber-600 text-white'
+                    ? 'bg-amber-700 hover:bg-amber-800 text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}>
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -785,7 +785,7 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
                 Send without note
               </button>
               <button onClick={() => handleConnect(note)} disabled={connecting}
-                className="px-5 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-colors">
+                className="px-5 py-2 bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-colors">
                 {connecting ? '…' : 'Send request'}
               </button>
             </div>

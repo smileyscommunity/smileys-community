@@ -379,7 +379,7 @@ function AppEventsPageInner() {
                 <button
                   onClick={() => setShowMap(v => !v)}
                   className={`flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors border ${
-                    showMap ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-gray-600 border-gray-200 hover:border-amber-400 hover:text-amber-600'
+                    showMap ? 'bg-amber-700 text-white border-amber-500' : 'bg-white text-gray-600 border-gray-200 hover:border-amber-400 hover:text-amber-600'
                   }`}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -391,7 +391,7 @@ function AppEventsPageInner() {
               {canCreate && (
                 <Link
                   href={user.role === 'admin' ? '/admin/events/new' : '/host/events/new'}
-                  className="flex items-center gap-1.5 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors"
+                  className="flex items-center gap-1.5 px-4 py-2.5 bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold rounded-xl transition-colors"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -431,7 +431,7 @@ function AppEventsPageInner() {
                 onClick={() => { setTab(t); setTimeFilter('All'); setSelectedTags([]); setNeighborhoodFilter(''); offset.current = 0; setGoingOnly(false); setFirstTimerOnly(false); setFreeOnly(false) }}
                 className={`px-4 py-2 text-sm font-semibold rounded-full transition-colors ${
                   tab === t
-                    ? 'bg-amber-500 text-white shadow-sm'
+                    ? 'bg-amber-700 text-white shadow-sm'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-800'
                 }`}
               >
@@ -458,7 +458,7 @@ function AppEventsPageInner() {
                 aria-pressed={timeFilter === f}
                 className={`shrink-0 px-4 py-2 rounded-full text-sm font-bold border whitespace-nowrap transition-all ${
                   timeFilter === f
-                    ? 'bg-amber-500 text-white border-amber-500 shadow-sm'
+                    ? 'bg-amber-700 text-white border-amber-500 shadow-sm'
                     : 'bg-white text-gray-600 border-gray-200 hover:border-amber-300 hover:text-amber-600'
                 }`}
               >
@@ -480,7 +480,7 @@ function AppEventsPageInner() {
               onClick={() => setGoingOnly(v => !v)}
               className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
                 goingOnly
-                  ? 'bg-amber-500 text-white border-amber-500'
+                  ? 'bg-amber-700 text-white border-amber-500'
                   : 'bg-white border-gray-200 text-gray-600 hover:border-amber-300 hover:text-amber-600'
               }`}
               aria-pressed={goingOnly}
@@ -497,7 +497,7 @@ function AppEventsPageInner() {
                 aria-pressed={t.on}
                 className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
                   t.on
-                    ? 'bg-amber-500 text-white border-amber-500'
+                    ? 'bg-amber-700 text-white border-amber-500'
                     : 'bg-white border-gray-200 text-gray-600 hover:border-amber-300 hover:text-amber-600'
                 }`}
               >
@@ -508,7 +508,7 @@ function AppEventsPageInner() {
               onClick={() => setShowFilterSheet(true)}
               className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
                 sheetFilterCount > 0
-                  ? 'bg-amber-500 text-white border-amber-500'
+                  ? 'bg-amber-700 text-white border-amber-500'
                   : 'bg-white border-gray-200 text-gray-600 hover:border-amber-300 hover:text-amber-600'
               }`}
               aria-haspopup="dialog"
@@ -636,7 +636,7 @@ function AppEventsPageInner() {
             <p className="text-sm text-gray-600 mb-5">Check your connection and try again.</p>
             <button
               onClick={() => { setLoading(true); loadEvents(tab, true).finally(() => setLoading(false)) }}
-              className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors"
+              className="px-5 py-2.5 rounded-xl bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold transition-colors"
             >
               Retry
             </button>
@@ -664,7 +664,7 @@ function AppEventsPageInner() {
                     before /api/city/current answers. */}
                 <p className="text-sm text-gray-600 mb-3">But {viewCity?.name ?? 'the city'} isn&apos;t exactly standing still.</p>
                 <Link href="/hangouts"
-                  className="inline-block px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
+                  className="inline-block px-5 py-2.5 bg-amber-700 hover:bg-amber-800 text-white text-sm font-bold rounded-xl transition-colors">
                   See hangouts happening now →
                 </Link>
               </div>
@@ -675,7 +675,7 @@ function AppEventsPageInner() {
             <div className="flex flex-col gap-2 mb-6">
               {neighborhoodFilter && !selectedTags.length && timeFilter === 'All' && (
                 <button onClick={() => setNeighborhoodFilter('')}
-                  className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors">
+                  className="px-5 py-2.5 bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold rounded-xl transition-colors">
                   See all events
                 </button>
               )}
@@ -841,7 +841,7 @@ function AppEventsPageInner() {
                       onClick={() => setTimeFilter(prev => prev === f ? 'All' : f)}
                       className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
                         timeFilter === f
-                          ? 'bg-amber-500 text-white border-amber-500'
+                          ? 'bg-amber-700 text-white border-amber-500'
                           : 'bg-white border-gray-200 text-gray-600 hover:border-amber-300 hover:text-amber-600'
                       }`}
                     >
@@ -868,7 +868,7 @@ function AppEventsPageInner() {
                           title={isEmpty ? 'No events in this neighborhood under your current filters' : undefined}
                           className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
                             isActive
-                              ? 'bg-amber-500 text-white border-amber-500'
+                              ? 'bg-amber-700 text-white border-amber-500'
                               : isEmpty
                                 ? 'bg-white border-gray-100 text-gray-300 cursor-not-allowed'
                                 : 'bg-white border-gray-200 text-gray-600 hover:border-amber-300 hover:text-amber-600'
@@ -936,7 +936,7 @@ function AppEventsPageInner() {
                 <button
                   type="button"
                   onClick={() => setShowFilterSheet(false)}
-                  className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors"
+                  className="px-4 py-2 bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold rounded-xl transition-colors"
                 >
                   Done
                 </button>

@@ -58,7 +58,7 @@ describe('"most active" is about events (item 16)', () => {
 describe('guests are sent to the application, not members-only routes (item 17)', () => {
   it('index "Create a meetup" is for members; guests get /apply with the city', () => {
     expect(index).toContain('{session ? (\n                  <Link href={`/hangouts?new=1')
-    expect(index).toContain('<Link href={`/apply${cityQuery}`}\n                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-500')
+    expect(index).toContain('<Link href={`/apply${cityQuery}`}\n                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-700')
   })
   it('the two /members links on the detail page render only for members', () => {
     const links = sections.split('<Link href={`/members?neighborhood=${encodeURIComponent(name)}`}').length - 1
@@ -72,7 +72,7 @@ describe('every outbound link keeps the city (item 18)', () => {
     expect(detail).toContain('<Link href={`/neighborhoods${cityQuery}`} className="inline-flex items-center gap-1.5 text-sm text-white/70')
     expect(detail).toContain("name: 'Neighborhoods', item: `${APP_URL}/neighborhoods${cityQuery}` }")
     expect(detail).toContain('url={pageUrl}')
-    expect(detail).toContain('<Link href={`/apply${cityQuery}`} className="px-6 py-3 rounded-xl bg-amber-500')
+    expect(detail).toContain('<Link href={`/apply${cityQuery}`} className="px-6 py-3 rounded-xl bg-amber-700')
     expect(detail).not.toContain('href="/neighborhoods"')
     expect(detail).not.toContain('href="/apply"')
   })

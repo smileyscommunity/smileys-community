@@ -244,7 +244,7 @@ function AdminNeighborhoodsPageInner() {
               onClick={() => setFilter(f)}
               className={`px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${
                 filter === f
-                  ? 'bg-amber-500 text-white'
+                  ? 'bg-amber-700 text-white'
                   : 'bg-zinc-900 border border-zinc-700 text-zinc-400 hover:text-white'
               }`}
             >
@@ -326,7 +326,7 @@ function AdminNeighborhoodsPageInner() {
               </div>
               <div className="flex items-center gap-2 mt-4">
                 <button onClick={() => saveAttrs(n)} disabled={savingAttrs}
-                  className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-40">
+                  className="px-3 py-1.5 bg-amber-700 hover:bg-amber-800 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-40">
                   {savingAttrs ? 'Saving…' : 'Save'}
                 </button>
                 <button onClick={() => setEditingSlug(null)} disabled={savingAttrs}

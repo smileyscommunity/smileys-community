@@ -30,7 +30,7 @@ export default function CityNotifyChip({ slug, name }: { slug: string; name: str
   if (!isLoggedIn) {
     return (
       <Link href={`/apply?city=${slug}`} onClick={e => e.stopPropagation()}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-colors">
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-700 hover:bg-amber-800 text-white text-xs font-bold transition-colors">
         🔔 Get notified
       </Link>
     )
@@ -68,7 +68,7 @@ export default function CityNotifyChip({ slug, name }: { slug: string; name: str
           toast.error('Could not save')
         } finally { setBusy(false) }
       }}
-      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-colors disabled:opacity-60">
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-700 hover:bg-amber-800 text-white text-xs font-bold transition-colors disabled:opacity-60">
       {busy ? 'Saving…' : '🔔 Get notified'}
     </button>
   )

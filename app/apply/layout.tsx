@@ -17,7 +17,7 @@ export default function ApplyLayout({ children }: { children: React.ReactNode })
           <p className="text-sm text-gray-600 mb-6">
             We&apos;ve paused new member applications while we focus on our current community. Follow us on Instagram to hear when we reopen.
           </p>
-          <Link href="/" className="inline-block px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors">
+          <Link href="/" className="inline-block px-5 py-2.5 rounded-xl bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold transition-colors">
             Back to home
           </Link>
         </div>

@@ -751,7 +751,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
               },
             ].map((st, i) => (
               <li key={st.title} className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 flex flex-col">
-                <span aria-hidden="true" className="w-8 h-8 rounded-full bg-amber-500 text-white text-sm font-extrabold flex items-center justify-center mb-3">{i + 1}</span>
+                <span aria-hidden="true" className="w-8 h-8 rounded-full bg-amber-700 text-white text-sm font-extrabold flex items-center justify-center mb-3">{i + 1}</span>
                 <h3 className="font-bold text-gray-900 mb-1.5">{st.title}</h3>
                 <p className="text-sm text-gray-600 leading-relaxed flex-1">{st.body}</p>
                 {st.href

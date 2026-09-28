@@ -147,7 +147,7 @@ export default function RSVPButton({ eventId, hostId, spotsLeft, soldOut = false
                 <p className="text-sm font-semibold text-amber-800">Still coming?</p>
                 <p className="text-xs text-amber-700 mb-2">People are waiting for a spot. Unanswered spots may go to the waitlist {RECONFIRM_RELEASE_HOURS_BEFORE} hours before the start.</p>
                 <button onClick={confirmComing} disabled={loading}
-                  className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors disabled:opacity-50">
+                  className="w-full py-2.5 rounded-xl bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold transition-colors disabled:opacity-50">
                   {loading ? 'Confirming…' : "Yes, I'll be there ✓"}
                 </button>
               </div>

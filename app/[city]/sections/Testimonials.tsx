@@ -32,7 +32,7 @@ export default function Testimonials({ city, testimonials }: { city: PublicCity;
                 {t.photo ? (
                   <img src={resolveImageUrl(t.photo)} alt={t.memberName} className="w-11 h-11 rounded-full object-cover shrink-0" />
                 ) : (
-                  <div className="w-11 h-11 rounded-full shrink-0 bg-amber-500 flex items-center justify-center text-white text-sm font-bold">
+                  <div className="w-11 h-11 rounded-full shrink-0 bg-amber-700 flex items-center justify-center text-white text-sm font-bold">
                     {t.memberName[0]}
                   </div>
                 )}

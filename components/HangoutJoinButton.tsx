@@ -41,7 +41,7 @@ export default function HangoutJoinButton({ hangoutId, initialJoined }: { hangou
       className={`w-full text-sm font-bold px-4 py-3 rounded-2xl transition-colors disabled:opacity-50 ${
         joined
           ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-          : 'bg-amber-500 text-white hover:bg-amber-600'
+          : 'bg-amber-700 text-white hover:bg-amber-800'
       }`}
     >
       {joined ? "You're in ✓ · tap to leave" : "I'm in"}

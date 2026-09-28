@@ -230,7 +230,7 @@ function CoffeeInviteModal({ target, onClose }: { target: VisitorUser; onClose: 
             Cancel
           </button>
           <button onClick={send} disabled={sending}
-            className="flex-1 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white text-sm font-bold rounded-xl transition-colors">
+            className="flex-1 px-4 py-2.5 bg-amber-700 hover:bg-amber-800 disabled:opacity-60 text-white text-sm font-bold rounded-xl transition-colors">
             {sending ? 'Sending…' : 'Send invite'}
           </button>
         </div>
@@ -265,7 +265,7 @@ function ConnectButton({ targetUserId, targetName }: { targetUserId: string; tar
   if (sent) return <span className="text-xs font-bold text-green-700 bg-green-100 px-2.5 py-1.5 rounded-full whitespace-nowrap">✓ Sent</span>
   return (
     <button onClick={handleConnect} disabled={sending}
-      className="shrink-0 text-xs font-bold px-3 py-1.5 rounded-full transition-colors bg-amber-500 hover:bg-amber-600 text-white disabled:opacity-60 whitespace-nowrap">
+      className="shrink-0 text-xs font-bold px-3 py-1.5 rounded-full transition-colors bg-amber-700 hover:bg-amber-800 text-white disabled:opacity-60 whitespace-nowrap">
       {sending ? '…' : '👋 Connect'}
     </button>
   )
@@ -527,7 +527,7 @@ function AnnouncementCard({ a, viewerId, viewerInterests, viewerLanguages, viewe
       {viewerId && a.user && !isSelf && (
         <div className="flex flex-wrap items-center gap-2 mt-auto pt-4">
           <button onClick={() => setCoffeeOpen(true)}
-            className="shrink-0 text-xs font-bold px-3 py-1.5 rounded-full bg-amber-500 hover:bg-amber-600 text-white transition-colors whitespace-nowrap">
+            className="shrink-0 text-xs font-bold px-3 py-1.5 rounded-full bg-amber-700 hover:bg-amber-800 text-white transition-colors whitespace-nowrap">
             ☕ Invite for coffee
           </button>
           <Link href={`/members/${a.user.id}`}
@@ -654,7 +654,7 @@ export default function VisitingClient({ announcements: all, events, cityCount, 
             <button key={c.key} onClick={() => setFilter(c.key)}
               className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-colors border whitespace-nowrap ${
                 filter === c.key
-                  ? 'bg-amber-500 border-amber-500 text-white'
+                  ? 'bg-amber-700 border-amber-500 text-white'
                   : 'bg-white border-gray-200 text-gray-600 hover:border-amber-200 hover:text-amber-700'
               }`}>
               {c.label} <span className={`ml-1 text-[10px] tabular-nums ${filter === c.key ? 'opacity-80' : 'text-gray-400'}`}>{c.count}</span>

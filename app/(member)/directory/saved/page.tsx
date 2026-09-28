@@ -135,7 +135,7 @@ export default function SavedDirectoryPage() {
               Tap the star on any business in the directory to add it here.
             </p>
             <Link href="/directory"
-              className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors">
+              className="px-5 py-2.5 bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold rounded-xl transition-colors">
               Browse the directory
             </Link>
           </div>
@@ -153,7 +153,7 @@ export default function SavedDirectoryPage() {
                       <div className="w-full h-full flex items-center justify-center text-4xl text-gray-300">🏢</div>
                     )}
                     <div className="absolute top-2 left-2 flex flex-col gap-1">
-                      {b.isExpatOwned    && <span className="bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-tight">Expat-owned</span>}
+                      {b.isExpatOwned    && <span className="bg-amber-700 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-tight">Expat-owned</span>}
                       {b.isExpatFriendly && <span className="bg-teal-500  text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-tight">Expat-friendly</span>}
                       {b.memberDiscount  && <span className="bg-fuchsia-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-tight max-w-[140px] truncate">💸 {b.memberDiscount}</span>}
                     </div>

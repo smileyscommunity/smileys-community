@@ -730,7 +730,7 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
               <div className="flex gap-2">
                 <input type="text" value={form.address} onChange={e => set('address', e.target.value)} onBlur={() => { if (form.address.trim() && !form.lat) geocodeAddress() }} className={`${inputCls} flex-1`} />
                 <button type="button" onClick={geocodeAddress} disabled={geocoding || (!form.location && !form.address)}
-                  className="shrink-0 px-3 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold disabled:opacity-40 transition-colors whitespace-nowrap">
+                  className="shrink-0 px-3 py-2.5 rounded-xl bg-amber-700 hover:bg-amber-800 text-white text-xs font-semibold disabled:opacity-40 transition-colors whitespace-nowrap">
                   {geocoding ? '…' : '📍 Look up'}
                 </button>
               </div>
@@ -924,7 +924,7 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
             <Link href="/host/events" className="px-5 py-2.5 text-sm font-medium text-zinc-300 border border-zinc-700 rounded-xl hover:bg-zinc-800 transition-colors">
               Cancel
             </Link>
-            <button onClick={handleSave} disabled={saving} className="px-6 py-2.5 text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-white rounded-xl transition-colors disabled:opacity-50">
+            <button onClick={handleSave} disabled={saving} className="px-6 py-2.5 text-sm font-semibold bg-amber-700 hover:bg-amber-800 text-white rounded-xl transition-colors disabled:opacity-50">
               {saving ? 'Saving…' : 'Save changes'}
             </button>
           </div>
@@ -947,7 +947,7 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
               <input type="number" min={MIN_SERIES_COPIES} max={MAX_SERIES_COPIES} value={occurrences} onChange={e => setOccurrences(Math.min(MAX_SERIES_COPIES, parseInt(e.target.value) || 0))} className={inputCls} />
             </div>
             <div className="flex items-end">
-              <button onClick={handleSpawn} disabled={spawning || !form.date || form.date < todayInTz(tz)} className="w-full px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors disabled:opacity-50">
+              <button onClick={handleSpawn} disabled={spawning || !form.date || form.date < todayInTz(tz)} className="w-full px-4 py-2.5 rounded-xl bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold transition-colors disabled:opacity-50">
                 {spawning ? 'Creating…' : `Create ${clampOccurrences(occurrences, MIN_SERIES_COPIES, MAX_SERIES_COPIES)} more`}
               </button>
             </div>

@@ -135,7 +135,7 @@ export default function HangoutDiscussion({ hangoutId, initialMessages, canPost,
             placeholder="Say something…"
             className="flex-1 input text-sm resize-none leading-relaxed" />
           <button type="submit" disabled={sending || !draft.trim()}
-            className="text-xs font-bold bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white px-4 py-2 rounded-xl shrink-0">
+            className="text-xs font-bold bg-amber-700 hover:bg-amber-800 disabled:opacity-40 text-white px-4 py-2 rounded-xl shrink-0">
             Send
           </button>
         </form>

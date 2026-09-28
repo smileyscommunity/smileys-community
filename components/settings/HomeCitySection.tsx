@@ -135,7 +135,7 @@ export default function HomeCitySection({ staff = false }: { staff?: boolean }) 
         <button
           onClick={move}
           disabled={!selected || saving}
-          className="shrink-0 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold disabled:opacity-40 transition-colors"
+          className="shrink-0 px-4 py-2.5 rounded-xl bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold disabled:opacity-40 transition-colors"
         >
           {saving ? 'Moving…' : 'Move'}
         </button>

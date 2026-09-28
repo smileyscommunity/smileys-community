@@ -143,7 +143,7 @@ export default async function CityRemoteWorkPage({ params }: Params) {
           <ol className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             {checklist.map((step, i) => (
               <li key={step.key} className="bg-gray-50 border border-gray-100 rounded-2xl p-5 flex flex-col">
-                <span aria-hidden="true" className="w-8 h-8 rounded-full bg-amber-500 text-white text-sm font-extrabold flex items-center justify-center mb-3">{i + 1}</span>
+                <span aria-hidden="true" className="w-8 h-8 rounded-full bg-amber-700 text-white text-sm font-extrabold flex items-center justify-center mb-3">{i + 1}</span>
                 <h3 className="font-bold text-gray-900 mb-1.5">{step.title}</h3>
                 <p className="text-sm text-gray-600 leading-relaxed flex-1">{step.body}</p>
                 {step.href && (

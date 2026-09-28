@@ -360,7 +360,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
               <p className="text-xs text-gray-500">Sign in to RSVP, or apply to Smileys</p>
             </div>
             <Link href={`/login?return=/events/${id}`}
-              className="flex-1 sm:flex-none text-center px-5 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold transition-colors">
+              className="flex-1 sm:flex-none text-center px-5 py-3 rounded-xl bg-amber-700 hover:bg-amber-800 text-white text-sm font-bold transition-colors">
               Sign in to RSVP
             </Link>
             <Link href="/apply"

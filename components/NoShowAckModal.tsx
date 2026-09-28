@@ -41,7 +41,7 @@ export default function NoShowAckModal({ open, onConfirm, onCancel, busy = false
             Not this time
           </button>
           <button onClick={onConfirm} disabled={busy}
-            className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors disabled:opacity-50">
+            className="flex-1 py-2.5 rounded-xl bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold transition-colors disabled:opacity-50">
             {busy ? 'Joining…' : "I'll actually come"}
           </button>
         </div>

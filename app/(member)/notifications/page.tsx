@@ -417,7 +417,7 @@ export default function NotificationsPage() {
                 aria-pressed={filter === f}
                 className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
                   filter === f
-                    ? 'bg-amber-500 text-white'
+                    ? 'bg-amber-700 text-white'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
@@ -558,7 +558,7 @@ export default function NotificationsPage() {
                       <Link
                         href={n.link}
                         onClick={() => openRow(n)}
-                        className="relative z-10 pointer-events-auto inline-block mt-2 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg transition-colors"
+                        className="relative z-10 pointer-events-auto inline-block mt-2 px-3 py-1.5 bg-amber-700 hover:bg-amber-800 text-white text-xs font-bold rounded-lg transition-colors"
                       >
                         Leave feedback →
                       </Link>

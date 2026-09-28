@@ -197,7 +197,7 @@ export default function AdminGuideEntriesPage() {
           <select value={citySlug} onChange={e => setCitySlug(e.target.value)} className="input w-auto">
             {cities.map(c => <option key={c.slug} value={c.slug}>{c.name}</option>)}
           </select>
-          <button onClick={startNew} className="px-4 py-2 rounded-xl bg-amber-500 text-white text-sm font-bold hover:bg-amber-600 transition-colors">
+          <button onClick={startNew} className="px-4 py-2 rounded-xl bg-amber-700 text-white text-sm font-bold hover:bg-amber-800 transition-colors">
             New experience
           </button>
         </div>
@@ -287,7 +287,7 @@ export default function AdminGuideEntriesPage() {
                 <button key={m.value} type="button" onClick={() => setDraft(d => ({ ...d, moods: toggle(d.moods, m.value) }))}
                   className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors ${
                     draft.moods.includes(m.value)
-                      ? 'bg-amber-500 border-amber-500 text-white'
+                      ? 'bg-amber-700 border-amber-500 text-white'
                       : 'bg-white border-gray-200 text-gray-700 hover:border-amber-300'}`}>
                   {m.emoji} {m.label}
                 </button>
@@ -302,7 +302,7 @@ export default function AdminGuideEntriesPage() {
                 <button key={s.value} type="button" onClick={() => setDraft(d => ({ ...d, seasons: toggle(d.seasons, s.value) }))}
                   className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors ${
                     draft.seasons.includes(s.value)
-                      ? 'bg-amber-500 border-amber-500 text-white'
+                      ? 'bg-amber-700 border-amber-500 text-white'
                       : 'bg-white border-gray-200 text-gray-700 hover:border-amber-300'}`}>
                   {s.emoji} {s.label}
                 </button>
@@ -389,7 +389,7 @@ export default function AdminGuideEntriesPage() {
 
           <div className="flex items-center gap-2">
             <button onClick={save} disabled={saving}
-              className="px-4 py-2 rounded-xl bg-amber-500 text-white text-sm font-bold hover:bg-amber-600 disabled:opacity-50 transition-colors">
+              className="px-4 py-2 rounded-xl bg-amber-700 text-white text-sm font-bold hover:bg-amber-800 disabled:opacity-50 transition-colors">
               {saving ? 'Saving…' : editing === 'new' ? 'Create' : 'Save changes'}
             </button>
             <button onClick={() => setEditing(null)} disabled={saving}

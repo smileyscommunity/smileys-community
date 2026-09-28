@@ -265,7 +265,7 @@ function HostEventsList() {
     <div className="p-4 sm:p-8">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-white">My Events</h1>
-        <Link href="/host/events/new" className="text-sm bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-xl font-medium transition-colors">
+        <Link href="/host/events/new" className="text-sm bg-amber-700 hover:bg-amber-800 text-white px-4 py-2 rounded-xl font-medium transition-colors">
           + New Event
         </Link>
       </div>
@@ -311,7 +311,7 @@ function HostEventsList() {
             {tab === 'upcoming' ? 'Create your first event to get started.' : tab === 'pending' ? 'Nothing of yours is waiting on a moderator.' : 'Past events will appear here.'}
           </div>
           {tab === 'upcoming' && (
-            <Link href="/host/events/new" className="inline-block bg-amber-500 hover:bg-amber-600 text-white text-sm px-5 py-2.5 rounded-xl font-medium transition-colors">
+            <Link href="/host/events/new" className="inline-block bg-amber-700 hover:bg-amber-800 text-white text-sm px-5 py-2.5 rounded-xl font-medium transition-colors">
               Create Event
             </Link>
           )}

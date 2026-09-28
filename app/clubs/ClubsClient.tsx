@@ -150,7 +150,7 @@ function ClubCard({ club, membership, toggling, onToggle, href }: {
               {isJoined && (
                 // Solid amber-500 = active commitment, matches the
                 // events page's amber-not-green Going treatment.
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-500 text-white">
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-700 text-white">
                   {isHost ? 'Host' : '✓ Joined'}
                 </span>
               )}
@@ -231,7 +231,7 @@ function ClubCard({ club, membership, toggling, onToggle, href }: {
                 onClick={() => onToggle(club)}
                 disabled={toggling === club.id}
                 aria-busy={toggling === club.id}
-                className="text-xs px-3 py-1.5 rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors font-semibold disabled:opacity-50">
+                className="text-xs px-3 py-1.5 rounded-lg bg-amber-700 text-white hover:bg-amber-800 transition-colors font-semibold disabled:opacity-50">
                 {toggling === club.id ? '…' : club.isPrivate ? 'Request' : 'Join'}
               </button>
             )}
@@ -477,7 +477,7 @@ function AppClubsPageInner() {
             </div>
             {isLoggedIn && user.role === 'admin' && (
               <Link href="/admin/clubs"
-                className="hidden sm:flex items-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors shrink-0 shadow-sm">
+                className="hidden sm:flex items-center gap-2 px-4 py-2.5 bg-amber-700 hover:bg-amber-800 text-white text-sm font-bold rounded-xl transition-colors shrink-0 shadow-sm">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
@@ -505,7 +505,7 @@ function AppClubsPageInner() {
                 aria-selected={tab === key}
                 className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold border whitespace-nowrap transition-all ${
                   tab === key
-                    ? 'bg-amber-500 text-white border-amber-500'
+                    ? 'bg-amber-700 text-white border-amber-500'
                     : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
                 }`}>
                 {label}
@@ -540,7 +540,7 @@ function AppClubsPageInner() {
                 <button key={g.value} onClick={() => setActiveCategory(g.value)}
                   className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold border whitespace-nowrap transition-all ${
                     activeCategory === g.value
-                      ? 'bg-amber-500 text-white border-amber-500'
+                      ? 'bg-amber-700 text-white border-amber-500'
                       : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
                   }`}>
                   <span aria-hidden="true">{g.emoji}</span> {g.label}
@@ -645,7 +645,7 @@ function AppClubsPageInner() {
             <h2 className="text-lg font-bold text-gray-900 mb-2">Couldn&apos;t load clubs</h2>
             <p className="text-sm text-gray-600 mb-6">Something went wrong on our side — please try again.</p>
             <button type="button" onClick={() => setReloadKey(k => k + 1)}
-              className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors">
+              className="px-5 py-2.5 bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold rounded-xl transition-colors">
               Try again
             </button>
           </div>
@@ -663,7 +663,7 @@ function AppClubsPageInner() {
             <div className="flex flex-col gap-2 items-center">
               {tab === 'mine' && (
                 <button onClick={() => setTab('explore')}
-                  className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors">
+                  className="px-5 py-2.5 bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold rounded-xl transition-colors">
                   Explore clubs
                 </button>
               )}

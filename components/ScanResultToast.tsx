@@ -7,15 +7,15 @@ import type { ScanResult } from '@/lib/checkin'
 // admin page's "X already checked in" because no shared source.
 const TYPE_STYLE: Record<ScanResult['type'], { cls: string; icon: string }> = {
   success:    { cls: 'bg-green-500 text-white', icon: '✓' },
-  already:    { cls: 'bg-amber-500 text-white', icon: '↩' },
+  already:    { cls: 'bg-amber-700 text-white', icon: '↩' },
   // Registered, but not in a seat: the host has something to do about it,
   // which is not the same as turning someone away.
-  waitlisted: { cls: 'bg-amber-500 text-white', icon: '⏳' },
-  pending:    { cls: 'bg-amber-500 text-white', icon: '⏳' },
+  waitlisted: { cls: 'bg-amber-700 text-white', icon: '⏳' },
+  pending:    { cls: 'bg-amber-700 text-white', icon: '⏳' },
   notfound:   { cls: 'bg-red-500 text-white',   icon: '✕' },
   invalid:    { cls: 'bg-red-500 text-white',   icon: '✕' },
-  expired:    { cls: 'bg-amber-500 text-white', icon: '⏳' },
-  outdated:   { cls: 'bg-amber-500 text-white', icon: '⏳' },
+  expired:    { cls: 'bg-amber-700 text-white', icon: '⏳' },
+  outdated:   { cls: 'bg-amber-700 text-white', icon: '⏳' },
   error:      { cls: 'bg-red-500 text-white',   icon: '✕' },
 }
 

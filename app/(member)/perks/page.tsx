@@ -33,7 +33,7 @@ function PartnerCard({ p }: { p: Partner }) {
           <div className="w-full h-full flex items-center justify-center text-4xl opacity-20">🏪</div>
         )}
         {/* Discount badge */}
-        <div className="absolute top-3 right-3 bg-amber-500 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow">
+        <div className="absolute top-3 right-3 bg-amber-700 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow">
           {p.discount}
         </div>
       </div>

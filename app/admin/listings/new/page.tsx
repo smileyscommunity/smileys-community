@@ -277,7 +277,7 @@ function AdminNewListingPageInner() {
         <button
           type="submit"
           disabled={submitting}
-          className="w-full py-3 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-bold rounded-xl transition-colors"
+          className="w-full py-3 bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white font-bold rounded-xl transition-colors"
         >
           {submitting ? 'Creating…' : 'Create listing'}
         </button>

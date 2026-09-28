@@ -43,7 +43,7 @@ function formatRange(startsOn: string, endsOn: string) {
 function ViewProfileLink({ targetUserId }: { targetUserId: string }) {
   return (
     <Link href={`/members/${targetUserId}`}
-      className="shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-full transition-colors bg-amber-500 hover:bg-amber-600 text-white whitespace-nowrap">
+      className="shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-full transition-colors bg-amber-700 hover:bg-amber-800 text-white whitespace-nowrap">
       View profile
     </Link>
   )

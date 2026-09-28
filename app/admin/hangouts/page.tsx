@@ -299,7 +299,7 @@ export default function AdminHangoutsPage() {
             <p className="text-xs text-zinc-500">Changing the title, location or time notifies everyone who joined.</p>
             <div className="flex gap-3 justify-end pt-2">
               <button onClick={() => setEditing(null)} className="px-4 py-2 text-sm text-zinc-400 hover:text-white transition-colors">Close</button>
-              <button onClick={handleSaveEdit} disabled={saving || uploading} className="px-5 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-colors">
+              <button onClick={handleSaveEdit} disabled={saving || uploading} className="px-5 py-2 bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-colors">
                 {saving ? 'Saving…' : 'Save changes'}
               </button>
             </div>

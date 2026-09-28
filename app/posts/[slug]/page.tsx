@@ -269,7 +269,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
       </div>
 
       {preview && (
-        <div className="bg-amber-500 text-white text-sm font-semibold text-center px-4 py-2">
+        <div className="bg-amber-700 text-white text-sm font-semibold text-center px-4 py-2">
           Preview — this story is {post.status === 'submitted' ? 'awaiting review' : post.status}, not published. Only staff can see this page.
         </div>
       )}
@@ -374,10 +374,10 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
             <p className="text-white font-extrabold text-xl mb-2">Have a story of your own?</p>
             <p className="text-amber-100 text-sm mb-5">The best pages here are written by members. Tell yours in your own words — it goes up under your name.</p>
             <div className="flex items-center justify-center gap-3 flex-wrap">
-              <Link href="/share-story" className="px-6 py-2.5 rounded-xl bg-white text-amber-600 font-bold text-sm hover:bg-amber-50 transition-colors">
+              <Link href="/share-story" className="px-6 py-2.5 rounded-xl bg-white text-amber-700 font-bold text-sm hover:bg-amber-50 transition-colors">
                 Share your story
               </Link>
-              <Link href="/events" className="px-6 py-2.5 rounded-xl border border-amber-400/50 text-white font-semibold text-sm hover:bg-amber-600 transition-colors">
+              <Link href="/events" className="px-6 py-2.5 rounded-xl border border-amber-400/50 text-white font-semibold text-sm hover:bg-amber-700 transition-colors">
                 Browse events
               </Link>
             </div>
@@ -387,10 +387,10 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
             <p className="text-white font-extrabold text-xl mb-2">Sound like your kind of {city.name}?</p>
             <p className="text-amber-100 text-sm mb-5">Smileys is where people here meet in real life — dinners, walks, clubs. Small, curated, no feed to scroll.</p>
             <div className="flex items-center justify-center gap-3 flex-wrap">
-              <Link href="/apply" className="px-6 py-2.5 rounded-xl bg-white text-amber-600 font-bold text-sm hover:bg-amber-50 transition-colors">
+              <Link href="/apply" className="px-6 py-2.5 rounded-xl bg-white text-amber-700 font-bold text-sm hover:bg-amber-50 transition-colors">
                 Apply to join
               </Link>
-              <Link href="/events" className="px-6 py-2.5 rounded-xl border border-amber-400/50 text-white font-semibold text-sm hover:bg-amber-600 transition-colors">
+              <Link href="/events" className="px-6 py-2.5 rounded-xl border border-amber-400/50 text-white font-semibold text-sm hover:bg-amber-700 transition-colors">
                 Browse events
               </Link>
             </div>

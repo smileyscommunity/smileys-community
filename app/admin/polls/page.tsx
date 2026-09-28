@@ -286,7 +286,7 @@ export default function PollsPage() {
             <button
               onClick={createPoll}
               disabled={!canPublish}
-              className="px-5 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-30 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-colors"
+              className="px-5 py-2 bg-amber-700 hover:bg-amber-800 disabled:opacity-30 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-colors"
             >
               {creating ? 'Creating…' : 'Publish poll'}
             </button>

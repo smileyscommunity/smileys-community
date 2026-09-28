@@ -138,7 +138,7 @@ export default function NpsPage() {
             const tone = n <= 6 ? 'detractor' : n <= 8 ? 'passive' : 'promoter'
             const activeCls =
               tone === 'promoter'  ? 'bg-green-500 text-white  border-green-500'
-            : tone === 'passive'   ? 'bg-amber-500 text-white  border-amber-500'
+            : tone === 'passive'   ? 'bg-amber-700 text-white  border-amber-500'
             :                        'bg-red-500   text-white  border-red-500'
             const idleCls =
               tone === 'promoter'  ? 'bg-zinc-900 text-green-400 border-zinc-700 hover:bg-zinc-800'
@@ -182,7 +182,7 @@ export default function NpsPage() {
       <button
         onClick={submit}
         disabled={score === null || submitting}
-        className="w-full mt-8 py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        className="w-full mt-8 py-3 bg-amber-700 hover:bg-amber-800 text-white text-sm font-bold rounded-xl disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
       >
         {submitting ? 'Sending…' : 'Submit'}
       </button>

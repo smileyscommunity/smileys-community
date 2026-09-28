@@ -567,7 +567,7 @@ export default function AdminClubDetailPage() {
                 Cancel
               </button>
               <button onClick={archiveClub} disabled={archiving}
-                className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors disabled:opacity-60">
+                className="px-4 py-2 rounded-xl bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold transition-colors disabled:opacity-60">
                 {archiving ? 'Archiving…' : 'Archive'}
               </button>
             </div>

@@ -108,7 +108,7 @@ function BusinessCard({
         {/* Expat badges */}
         <div className="absolute top-2 left-2 flex flex-col gap-1">
           {b.isExpatOwned && (
-            <span className="bg-amber-500 text-white text-[11px] font-bold px-1.5 py-0.5 rounded-full leading-tight">Expat-owned</span>
+            <span className="bg-amber-700 text-white text-[11px] font-bold px-1.5 py-0.5 rounded-full leading-tight">Expat-owned</span>
           )}
           {b.isExpatFriendly && (
             <span className="bg-teal-500 text-white text-[11px] font-bold px-1.5 py-0.5 rounded-full leading-tight">Expat-friendly</span>
@@ -473,7 +473,7 @@ function DirectoryPageInner() {
                 ))}
               </div>
               <Link href={isLoggedIn ? `/directory/submit${pinnedCity ? `?city=${pinnedCity}` : ''}` : '/login?return=/directory/submit'}
-                className="shrink-0 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors">
+                className="shrink-0 px-4 py-2.5 bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold rounded-xl transition-colors">
                 {isLoggedIn ? '+ Submit' : 'Sign in to submit'}
               </Link>
             </div>
@@ -507,7 +507,7 @@ function DirectoryPageInner() {
             {isLoggedIn && (
               <Link
                 href="/directory/saved"
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold border whitespace-nowrap bg-amber-500 text-white border-amber-500 hover:bg-amber-600 hover:border-amber-600 transition-all"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold border whitespace-nowrap bg-amber-700 text-white border-amber-500 hover:bg-amber-800 hover:border-amber-600 transition-all"
               >
                 ★ Saved
               </Link>
@@ -521,7 +521,7 @@ function DirectoryPageInner() {
               <button key={s} onClick={() => setSort(s)}
                 className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold border whitespace-nowrap transition-all ${
                   sort === s
-                    ? 'bg-amber-500 text-white border-amber-500'
+                    ? 'bg-amber-700 text-white border-amber-500'
                     : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
                 }`}>
                 <span aria-hidden="true">{s === 'recent' ? '🆕' : s === 'trending' ? '🔥' : '⭐'}</span> {s === 'recent' ? 'Recent' : s === 'trending' ? 'Trending' : 'Top rated'}
@@ -539,7 +539,7 @@ function DirectoryPageInner() {
               <button key={f.id} onClick={() => setType(f.id)}
                 className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold border whitespace-nowrap transition-all ${
                   type === f.id
-                    ? 'bg-amber-500 text-white border-amber-500'
+                    ? 'bg-amber-700 text-white border-amber-500'
                     : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
                 }`}>
                 {f.icon && <span aria-hidden="true">{f.icon}</span>} {f.label}
@@ -550,7 +550,7 @@ function DirectoryPageInner() {
             <button onClick={() => setMeetOnly(v => !v)}
               className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold border whitespace-nowrap transition-all ${
                 meetOnly
-                  ? 'bg-amber-500 text-white border-amber-500'
+                  ? 'bg-amber-700 text-white border-amber-500'
                   : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
               }`}>
               <span aria-hidden="true">🤝</span> We meet here
@@ -563,7 +563,7 @@ function DirectoryPageInner() {
               <button key={c.id} onClick={() => setCategory(category === c.id ? 'all' : c.id)}
                 className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold border whitespace-nowrap transition-all ${
                   category === c.id
-                    ? 'bg-amber-500 text-white border-amber-500'
+                    ? 'bg-amber-700 text-white border-amber-500'
                     : 'bg-white text-gray-600 border-gray-200 hover:border-amber-200'
                 }`}>
                 {c.label}
@@ -600,7 +600,7 @@ function DirectoryPageInner() {
                 </button>
               )}
               <Link href={isLoggedIn ? `/directory/submit${pinnedCity ? `?city=${pinnedCity}` : ''}` : '/login?return=/directory/submit'}
-                className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors">
+                className="px-5 py-2.5 bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold rounded-xl transition-colors">
                 {isLoggedIn ? 'Submit a Business' : 'Sign in to submit'}
               </Link>
             </div>

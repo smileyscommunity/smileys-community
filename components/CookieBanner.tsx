@@ -76,7 +76,7 @@ export default function CookieBanner() {
                 </button>
                 <button
                   onClick={accept}
-                  className="relative px-2.5 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl bg-amber-500 hover:bg-amber-400 text-white text-xs md:text-sm font-semibold transition-colors before:absolute before:content-[''] before:inset-x-0 before:-inset-y-2.5 md:before:inset-0"
+                  className="relative px-2.5 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl bg-amber-700 hover:bg-amber-800 text-white text-xs md:text-sm font-semibold transition-colors before:absolute before:content-[''] before:inset-x-0 before:-inset-y-2.5 md:before:inset-0"
                 >
                   Accept all
                 </button>

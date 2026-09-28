@@ -308,7 +308,7 @@ export default async function WhyPage() {
                       <img src={resolveImageUrl(t.photo)} alt={t.memberName}
                         className="w-9 h-9 rounded-full object-cover shrink-0" />
                     ) : (
-                      <div className="w-9 h-9 rounded-full shrink-0 bg-amber-500 flex items-center justify-center text-white text-xs font-bold">
+                      <div className="w-9 h-9 rounded-full shrink-0 bg-amber-700 flex items-center justify-center text-white text-xs font-bold">
                         {t.memberName[0]}
                       </div>
                     )}
@@ -431,7 +431,7 @@ export default async function WhyPage() {
           <div className="space-y-6">
             {PHILOSOPHY.map((p, i) => (
               <div key={i} className="flex items-center gap-4 text-left">
-                <div className="w-8 h-8 rounded-full bg-amber-500 text-white font-bold text-sm flex items-center justify-center shrink-0">
+                <div className="w-8 h-8 rounded-full bg-amber-700 text-white font-bold text-sm flex items-center justify-center shrink-0">
                   {i + 1}
                 </div>
                 <p className="text-lg text-gray-800 font-medium">{p}</p>

@@ -210,7 +210,7 @@ export default function QuickReference({ categories }: { categories: Category[] 
               <a key={t.id} data-tab={t.id} href={`#${t.id}`} onClick={e => { e.preventDefault(); jump(t.id) }}
                 aria-current={!q && active === t.id ? 'true' : undefined}
                 className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
-                  !q && active === t.id ? 'bg-amber-500 border-amber-500 text-white' : 'bg-white border-gray-200 text-gray-700 hover:border-amber-300'
+                  !q && active === t.id ? 'bg-amber-700 border-amber-500 text-white' : 'bg-white border-gray-200 text-gray-700 hover:border-amber-300'
                 }`}>
                 <span aria-hidden="true">{t.icon}</span>{t.label}
               </a>

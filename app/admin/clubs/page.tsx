@@ -491,7 +491,7 @@ export default function AdminClubsPage() {
           >
             {seeding ? 'Seeding…' : '🌍 Seed regional clubs'}
           </button>
-          <button onClick={() => { setShowCreate(!showCreate); setEditingId(null) }} className="bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl px-4 py-2 text-sm">
+          <button onClick={() => { setShowCreate(!showCreate); setEditingId(null) }} className="bg-amber-700 hover:bg-amber-800 text-white font-semibold rounded-xl px-4 py-2 text-sm">
             + Create club
           </button>
         </div>
@@ -535,7 +535,7 @@ export default function AdminClubsPage() {
           </div>
           <ClubForm value={newForm} onChange={setNewForm} />
           <div className="flex gap-3 mt-5">
-            <button onClick={handleCreate} disabled={saving || !newForm.name.trim()} className="bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl px-4 py-2 text-sm disabled:opacity-50">
+            <button onClick={handleCreate} disabled={saving || !newForm.name.trim()} className="bg-amber-700 hover:bg-amber-800 text-white font-semibold rounded-xl px-4 py-2 text-sm disabled:opacity-50">
               {saving ? 'Creating…' : 'Create club'}
             </button>
             <button onClick={() => setShowCreate(false)} className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-xl px-4 py-2 text-sm">Cancel</button>
@@ -609,7 +609,7 @@ export default function AdminClubsPage() {
           <p className="text-3xl mb-3">🪴</p>
           <p className="text-white font-semibold mb-1">No clubs yet</p>
           <p className="text-sm text-zinc-500 mb-5">Clubs group events, hosts, and members around a shared interest.</p>
-          <button onClick={() => setShowCreate(true)} className="bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl px-4 py-2 text-sm">
+          <button onClick={() => setShowCreate(true)} className="bg-amber-700 hover:bg-amber-800 text-white font-semibold rounded-xl px-4 py-2 text-sm">
             + Create your first club
           </button>
         </div>
@@ -626,7 +626,7 @@ export default function AdminClubsPage() {
                 <h3 className="text-white font-bold mb-4">Edit — {club.name}</h3>
                 <ClubForm value={editForm} onChange={setEditForm} />
                 <div className="flex gap-2 mt-4">
-                  <button onClick={() => saveEdit(club.id)} disabled={saving} className="bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl text-xs py-2 px-4 disabled:opacity-50">
+                  <button onClick={() => saveEdit(club.id)} disabled={saving} className="bg-amber-700 hover:bg-amber-800 text-white font-semibold rounded-xl text-xs py-2 px-4 disabled:opacity-50">
                     {saving ? 'Saving…' : 'Save'}
                   </button>
                   <button onClick={() => setEditingId(null)} className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-xl text-xs py-2 px-4">Cancel</button>
@@ -780,7 +780,7 @@ export default function AdminClubsPage() {
                 Cancel
               </button>
               <button onClick={confirmDeactivate}
-                className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors">
+                className="px-4 py-2 rounded-xl bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold transition-colors">
                 Deactivate
               </button>
             </div>

@@ -140,8 +140,8 @@ export default async function GetInvolvedPage({ searchParams }: { searchParams?:
                   <Link href={w.href}
                     className={`inline-flex items-center gap-2 px-6 py-3 rounded-2xl font-bold text-sm transition-colors ${
                       w.accent
-                        ? 'bg-white text-amber-600 hover:bg-amber-50'
-                        : 'bg-amber-500 text-white hover:bg-amber-600'
+                        ? 'bg-white text-amber-700 hover:bg-amber-50'
+                        : 'bg-amber-700 text-white hover:bg-amber-800'
                     }`}>
                     {w.cta}
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

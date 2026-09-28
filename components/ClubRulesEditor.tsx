@@ -101,7 +101,7 @@ export default function ClubRulesEditor({ slug, initialRules, canEdit, clubName,
             <span className={`text-xs ${draft.length > 4500 ? 'text-red-500' : muted}`}>{draft.length} / 5000</span>
             {error && <p className="text-xs text-red-500">{error}</p>}
             <button onClick={save} disabled={saving}
-              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-40">
+              className="px-4 py-2 bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-40">
               {saving ? 'Saving…' : 'Save rules'}
             </button>
           </div>

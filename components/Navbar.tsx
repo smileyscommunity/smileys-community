@@ -306,7 +306,7 @@ export default function Navbar({
                   Log in
                 </Link>
                 {/* The one prominent action in the header. */}
-                <Link href="/apply" className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors">
+                <Link href="/apply" className="px-4 py-2 rounded-xl bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold transition-colors">
                   Join Smileys
                 </Link>
               </div>
@@ -397,7 +397,7 @@ export default function Navbar({
                     findable on mobile" (2026-09-08). Members returning on a
                     phone are the ones who most need it one tap away. */}
                 <Link href="/login" className="px-3 py-2 min-h-[44px] inline-flex items-center rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-100 transition-colors whitespace-nowrap">Log in</Link>
-                <Link href="/apply" className="px-3 py-2 min-h-[44px] inline-flex items-center rounded-xl bg-amber-500 text-white text-sm font-semibold">Join</Link>
+                <Link href="/apply" className="px-3 py-2 min-h-[44px] inline-flex items-center rounded-xl bg-amber-700 text-white text-sm font-semibold">Join</Link>
               </>
             )}
           </div>
@@ -455,7 +455,7 @@ export default function Navbar({
                   </Link>
                 ))}
                 <Link href="/apply" onClick={() => setMobileOpen(false)}
-                  className="block px-3 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-base font-semibold text-center transition-colors">
+                  className="block px-3 py-3 rounded-xl bg-amber-700 hover:bg-amber-800 text-white text-base font-semibold text-center transition-colors">
                   Join Smileys
                 </Link>
               </div>

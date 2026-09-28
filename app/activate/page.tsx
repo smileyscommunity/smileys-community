@@ -107,7 +107,7 @@ function ActivateForm() {
             <p className="text-sm text-gray-600">Your spot is still yours — we can send you a fresh link that works for 7 days.</p>
             {resendErr && <p className="text-sm text-red-600">{resendErr}</p>}
             <button type="button" onClick={resend} disabled={resending}
-              className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl transition-colors disabled:opacity-50 text-sm">
+              className="w-full py-3 bg-amber-700 hover:bg-amber-800 text-white font-semibold rounded-xl transition-colors disabled:opacity-50 text-sm">
               {resending ? 'Sending…' : 'Send me a new link →'}
             </button>
           </>
@@ -252,7 +252,7 @@ function ActivateForm() {
         <button
           type="submit"
           disabled={loading || !agreed}
-          className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl transition-colors disabled:opacity-50 text-sm"
+          className="w-full py-3 bg-amber-700 hover:bg-amber-800 text-white font-semibold rounded-xl transition-colors disabled:opacity-50 text-sm"
         >
           {loading ? 'Activating…' : 'Activate my account →'}
         </button>

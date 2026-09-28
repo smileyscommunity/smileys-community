@@ -256,7 +256,7 @@ export default function NotificationBell() {
                       <Link
                         href={n.link}
                         onClick={e => { e.stopPropagation(); openRow(n) }}
-                        className="relative z-10 pointer-events-auto inline-block mt-1.5 px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold rounded-lg transition-colors"
+                        className="relative z-10 pointer-events-auto inline-block mt-1.5 px-2.5 py-1 bg-amber-700 hover:bg-amber-800 text-white text-[11px] font-bold rounded-lg transition-colors"
                       >
                         Leave feedback →
                       </Link>

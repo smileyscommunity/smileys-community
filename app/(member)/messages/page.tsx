@@ -101,7 +101,7 @@ export default function MessagesPage() {
                 <div className="relative">
                   <Avatar user={c.partner} />
                   {c.unread > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-amber-500 text-white text-xs font-bold rounded-full flex items-center justify-center px-1">
+                    <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-amber-700 text-white text-xs font-bold rounded-full flex items-center justify-center px-1">
                       {c.unread > 9 ? '9+' : c.unread}
                     </span>
                   )}

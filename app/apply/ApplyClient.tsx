@@ -964,12 +964,12 @@ function ApplyForm() {
           )}
           {step < STEPS.length - 1 ? (
             <button onClick={next}
-              className="flex-1 py-3.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl transition-colors text-sm">
+              className="flex-1 py-3.5 bg-amber-700 hover:bg-amber-800 text-white font-bold rounded-xl transition-colors text-sm">
               Continue →
             </button>
           ) : (
             <button onClick={handleSubmit} disabled={saving}
-              className="flex-1 py-3.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl disabled:opacity-50 transition-colors text-sm">
+              className="flex-1 py-3.5 bg-amber-700 hover:bg-amber-800 text-white font-bold rounded-xl disabled:opacity-50 transition-colors text-sm">
               {saving ? 'Submitting…' : 'Submit application →'}
             </button>
           )}

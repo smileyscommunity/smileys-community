@@ -93,7 +93,7 @@ export default async function HeroStats({ name, cityId, groupLink, groupLabel, u
         )}
         {approvedHost && belongsHere && (
           <Link href={`/host/events/new?neighborhood=${encodeURIComponent(name)}`}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-white text-amber-600 text-xs font-bold rounded-xl hover:bg-amber-50 transition-colors shadow-sm">
+            className="inline-flex items-center gap-2 px-4 py-2 bg-white text-amber-700 text-xs font-bold rounded-xl hover:bg-amber-50 transition-colors shadow-sm">
             + Host an event here
           </Link>
         )}

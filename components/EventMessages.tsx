@@ -239,7 +239,7 @@ export default function EventMessages({ eventId, eventDate, eventTz, canPost }: 
                       <button
                         onClick={() => handleSaveEdit(msg.id)}
                         disabled={!editDraft.trim() || savingEdit}
-                        className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg disabled:opacity-40 transition-colors"
+                        className="px-3 py-1.5 bg-amber-700 hover:bg-amber-800 text-white text-xs font-semibold rounded-lg disabled:opacity-40 transition-colors"
                       >
                         {savingEdit ? 'Saving…' : 'Save'}
                       </button>
@@ -327,7 +327,7 @@ export default function EventMessages({ eventId, eventDate, eventTz, canPost }: 
           <button
             onClick={handleSend}
             disabled={!text.trim() || sending || tooLong}
-            className="px-4 py-2.5 shrink-0 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl disabled:opacity-40 transition-colors"
+            className="px-4 py-2.5 shrink-0 bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold rounded-xl disabled:opacity-40 transition-colors"
           >
             {sending ? '…' : 'Send'}
           </button>

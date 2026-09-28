@@ -226,7 +226,7 @@ export default function TwoFactorSection({ show, canEnroll = true }: Props) {
         <button
           onClick={startEnroll}
           disabled={busy}
-          className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold disabled:opacity-50"
+          className="px-4 py-2 rounded-xl bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold disabled:opacity-50"
         >
           {busy ? 'Setting up…' : 'Enable 2FA'}
         </button>
@@ -268,7 +268,7 @@ export default function TwoFactorSection({ show, canEnroll = true }: Props) {
         <button
           onClick={confirmEnroll}
           disabled={busy || code.length !== 6}
-          className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold disabled:opacity-50"
+          className="w-full py-2.5 rounded-xl bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold disabled:opacity-50"
         >
           {busy ? 'Verifying…' : 'Verify & enable'}
         </button>
@@ -370,7 +370,7 @@ export default function TwoFactorSection({ show, canEnroll = true }: Props) {
               disabled={busy || code.length !== 6}
               className={`flex-1 py-2 rounded-xl text-sm font-semibold disabled:opacity-50 ${
                 confirmAction === 'regen'
-                  ? 'bg-amber-500 hover:bg-amber-600 text-white'
+                  ? 'bg-amber-700 hover:bg-amber-800 text-white'
                   : 'bg-red-600 hover:bg-red-700 text-white'}`}
             >
               {busy ? 'Verifying…' : confirmAction === 'regen' ? 'Regenerate' : 'Disable 2FA'}

@@ -77,7 +77,7 @@ export default function ExperienceActions({ slug, cityName, applyHref, initial }
   return (
     <div className="flex flex-wrap items-center gap-3">
       <button onClick={() => toggle('save')} aria-pressed={saved}
-        className={`${PILL} ${saved ? 'bg-amber-500 border-amber-500 text-white' : IDLE}`}>
+        className={`${PILL} ${saved ? 'bg-amber-700 border-amber-500 text-white' : IDLE}`}>
         <span aria-hidden="true">{saved ? '♥' : '♡'}</span> {saved ? 'Saved' : 'Save'}
       </button>
       <button onClick={() => toggle('recommend')} aria-pressed={recommended}

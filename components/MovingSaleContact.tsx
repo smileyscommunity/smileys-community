@@ -34,14 +34,14 @@ export default function MovingSaleContact({ saleId, firstName }: { saleId: strin
       <div className="flex gap-2">
         <button onClick={() => setOpen(false)} className="px-4 py-2 text-xs font-bold text-gray-500">Cancel</button>
         <button onClick={send} disabled={sending || !text.trim()}
-          className="flex-1 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-colors">
+          className="flex-1 py-2 bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-colors">
           {sending ? 'Sending…' : 'Send message'}
         </button>
       </div>
     </div>
   ) : (
     <button onClick={() => setOpen(true)}
-      className="w-full py-3.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-2xl transition-colors">
+      className="w-full py-3.5 bg-amber-700 hover:bg-amber-800 text-white text-sm font-bold rounded-2xl transition-colors">
       💬 Contact {firstName}
     </button>
   )

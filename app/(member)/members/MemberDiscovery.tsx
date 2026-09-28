@@ -117,7 +117,7 @@ export default function MemberDiscovery() {
               <p className="font-bold text-gray-900">Find people around you</p>
               <p className="text-sm text-gray-600 mt-0.5">Choose your neighborhood to discover your local community.</p>
             </div>
-            <Link href="/profile" className="shrink-0 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
+            <Link href="/profile" className="shrink-0 px-4 py-2 bg-amber-700 hover:bg-amber-800 text-white text-sm font-bold rounded-xl transition-colors">
               Choose neighborhood
             </Link>
           </div>
@@ -143,7 +143,7 @@ export default function MemberDiscovery() {
           <p className="text-sm text-gray-600 mt-1 mb-4">
             Join a club or pick some interests and we&apos;ll show you people you may actually meet.
           </p>
-          <Link href="/clubs" className="inline-block px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
+          <Link href="/clubs" className="inline-block px-5 py-2.5 bg-amber-700 hover:bg-amber-800 text-white text-sm font-bold rounded-xl transition-colors">
             Explore clubs →
           </Link>
         </div>

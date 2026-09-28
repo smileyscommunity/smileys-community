@@ -47,7 +47,7 @@ export default function SayHiButton({ targetId, targetName }: { targetId: string
 
   return (
     <button onClick={send} disabled={sending}
-      className="text-xs font-bold px-3 py-1.5 rounded-full bg-amber-500 hover:bg-amber-600 text-white disabled:opacity-60 transition-colors whitespace-nowrap">
+      className="text-xs font-bold px-3 py-1.5 rounded-full bg-amber-700 hover:bg-amber-800 text-white disabled:opacity-60 transition-colors whitespace-nowrap">
       {sending ? '…' : '👋 Say hi'}
     </button>
   )

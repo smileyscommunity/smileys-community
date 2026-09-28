@@ -274,7 +274,7 @@ export default async function ExperiencePage({ params }: { params: Promise<{ slu
           )}
           <LiveHangouts neighborhoods={nearby} citySlug={citySlug} timezone={cityCfg.timezone} />
           <div className="relative flex flex-wrap gap-3 mt-5">
-            <Link href={`/events${qs}`} className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
+            <Link href={`/events${qs}`} className="px-5 py-2.5 bg-amber-700 hover:bg-amber-800 text-white text-sm font-bold rounded-xl transition-colors">
               Browse events
             </Link>
             <Link href="/hangouts" className="px-5 py-2.5 bg-white/10 hover:bg-white/20 text-white text-sm font-bold rounded-xl transition-colors">

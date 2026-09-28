@@ -165,7 +165,7 @@ export default async function MovingSaleDetailPage({ params }: { params: Promise
                 <p className="text-sm font-semibold text-gray-700">Members only</p>
                 <p className="text-xs text-gray-600">Sign in to contact {firstNameOf(sale.user.name)} and claim items.</p>
                 <Link href={`/login?return=/moving-sales/${id}`}
-                  className="inline-block px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
+                  className="inline-block px-6 py-2.5 bg-amber-700 hover:bg-amber-800 text-white text-sm font-bold rounded-xl transition-colors">
                   Sign in to Smileys →
                 </Link>
               </div>

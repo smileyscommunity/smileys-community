@@ -160,7 +160,7 @@ export default function AdminStandingPage() {
             {isAdmin && (
               <button onClick={() => toggle(!overview.enforced)} disabled={busy === 'switch'}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors disabled:opacity-50 ${
-                  overview.enforced ? 'bg-zinc-700 text-zinc-200 hover:bg-zinc-600' : 'bg-amber-500 text-white hover:bg-amber-600'
+                  overview.enforced ? 'bg-zinc-700 text-zinc-200 hover:bg-zinc-600' : 'bg-amber-700 text-white hover:bg-amber-800'
                 }`}>
                 {overview.enforced ? 'Switch off' : 'Switch on'}
               </button>

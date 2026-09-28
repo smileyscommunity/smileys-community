@@ -321,7 +321,7 @@ export default function NeighborhoodGrid({ groups, userNeighborhood, mapCenter, 
         <div className="flex gap-2 flex-wrap">
           <button onClick={() => setActiveSide(null)}
             className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
-              activeSide === null ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+              activeSide === null ? 'bg-amber-700 text-white border-amber-500' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
             }`}>
             All areas
           </button>
@@ -360,7 +360,7 @@ export default function NeighborhoodGrid({ groups, userNeighborhood, mapCenter, 
               <button key={v.key} onClick={() => setView(v.key)}
                 aria-pressed={view === v.key}
                 className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-colors ${
-                  view === v.key ? 'bg-amber-500 text-white' : 'text-gray-600 hover:text-gray-900'
+                  view === v.key ? 'bg-amber-700 text-white' : 'text-gray-600 hover:text-gray-900'
                 }`}>
                 {v.label}
               </button>

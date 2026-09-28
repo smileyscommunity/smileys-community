@@ -465,7 +465,7 @@ export default async function HandbookPage({ searchParams }: { searchParams?: Pr
             <p className="text-sm text-gray-600 max-w-md mx-auto mb-6">
               Nothing here yet for {city.name}. Lived through something the rest of us are about to face — a permit, a bank, a landlord? Tell us and we&apos;ll write it together, under your name.
             </p>
-            <Link href="/contact?topic=handbook" className="inline-block px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm transition-colors">
+            <Link href="/contact?topic=handbook" className="inline-block px-6 py-3 rounded-xl bg-amber-700 hover:bg-amber-800 text-white font-bold text-sm transition-colors">
               Pitch a topic →
             </Link>
           </div>
@@ -481,7 +481,7 @@ export default async function HandbookPage({ searchParams }: { searchParams?: Pr
             <p className="text-sm text-gray-600 max-w-md mx-auto mb-6">
               Write the article you wish had existed when you arrived — it goes up under your name, and we edit it together. Tell us the topic.
             </p>
-            <Link href="/contact?topic=handbook" className="inline-block px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm transition-colors">
+            <Link href="/contact?topic=handbook" className="inline-block px-6 py-3 rounded-xl bg-amber-700 hover:bg-amber-800 text-white font-bold text-sm transition-colors">
               Pitch a topic →
             </Link>
           </div>
