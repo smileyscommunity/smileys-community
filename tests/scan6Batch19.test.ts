@@ -168,7 +168,7 @@ describe('30b. neighbourhood HeroStats', () => {
   const src = read('app/neighborhoods/[slug]/HeroStats.tsx')
 
   it('"local members" excludes hidden-neighbourhood and admin-hidden accounts, like NeighborhoodSections', () => {
-    expect(src).toMatch(/prisma\.user\.count\(\{ where: \{ \.\.\.ACTIVATED_MEMBER_WHERE, neighborhood: name, cityId, neighborhoodVisible: true, hiddenFromMembers: false \} \}\)/)
+    expect(src).toMatch(/prisma\.user\.count\(\{ where: \{\s*\.\.\.ACTIVATED_MEMBER_WHERE, neighborhood: name, cityId, neighborhoodVisible: true, hiddenFromMembers: false,/)
   })
 
   it('"today" and "this month" come from the city timezone, not server UTC', () => {

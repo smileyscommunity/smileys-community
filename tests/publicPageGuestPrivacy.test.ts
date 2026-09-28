@@ -38,8 +38,9 @@ describe('/neighborhoods/[slug] sections', () => {
     expect(src).toMatch(/myId \? prisma\.hangout\.findMany\(/)
   })
 
-  it("members-only visits stay off the public neighbourhood page, and a banned author's card goes with them", () => {
-    expect(src).toMatch(/neighborhood: name, cityId, status: 'active', endsOn: \{ gte: today \},\s*\.\.\.\(myId \? \{\} : \{ visibility: 'public' \}\)/)
+  it("visits are members-only on the neighbourhood page (2026-09-28: guests got the neighbourhood, origin and intro /visiting withholds), and a banned author's card goes with them", () => {
+    expect(src).toMatch(/!myId \? Promise\.resolve\(\[\]\) : \(async \(\) => \{\s*const rows = await prisma\.visitorAnnouncement\.findMany/)
+    expect(src).not.toContain("visibility: 'public'")
     expect(src).toMatch(/\{ OR: \[\{ userId: null \}, \{ user: \{ status: 'approved', hiddenFromMembers: false \} \}\] \}/)
   })
 

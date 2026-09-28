@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { guestView, visitorName } from '@/lib/visitorPolicy'
+import { visitorName } from '@/lib/visitorPolicy'
 import { jsonLdHtml } from '@/lib/jsonLd'
 import Image from 'next/image'
 import { readFileSync } from 'fs'
@@ -291,7 +291,7 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
 
   let yourNeighborhoodMembers: { id: string; name: string; color: string; profilePhoto: string | null }[] = []
   if (session && userNeighborhood) {
-    yourNeighborhoodMembers = await prisma.user.findMany({
+    const rows = await prisma.user.findMany({
       // Only ever rendered to a signed-in member with a neighborhood set, so
       // these are full names by design — but the member's own opt-out still
       // has to hold. This query had none of it: a member who switched
@@ -303,10 +303,18 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
         neighborhoodVisible: true, hiddenFromMembers: false,
         id: { notIn: [session.id, ...blockedIds] },
       },
-      select:  { id: true, name: true, color: true, profilePhoto: true },
+      select:  { id: true, name: true, color: true, profilePhoto: true, profileVisibility: true },
       take:    5,
       orderBy: { joinedAt: 'desc' },
     })
+    // A connections-only neighbour this member is not connected to reads as
+    // a first name with no photo — the rule every other strip applies. The
+    // full name went into the avatar's alt text and the photo file into the
+    // payload regardless.
+    const restrictedYours = await restrictedSetFor(session, rows)
+    yourNeighborhoodMembers = rows.map(m => restrictedYours.has(m.id)
+      ? { id: m.id, name: firstNameOf(m.name) || 'Smileys member', color: m.color, profilePhoto: null }
+      : { id: m.id, name: m.name, color: m.color, profilePhoto: m.profilePhoto })
   }
 
   // "Near you" needs somewhere to point. With no neighborhood set — every
@@ -394,14 +402,17 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
   // §13 — visitors heading for the focus neighborhood. Renders only when
   // there are real ones; an empty "coming to your neighborhood" block is
   // worse than no block. Contact details are never selected here.
-  const visitorsNearby = focusNeighborhood
+  // Members only: the section names the neighbourhood, the origin city and
+  // the dates, which lib/visitorPolicy withholds from guests on /visiting.
+  // A connections-only author this viewer is not connected to is a first
+  // name with no photo — the name reached the say-hi button's props in full.
+  const visitorsNearby = session && focusNeighborhood
     ? await prisma.visitorAnnouncement.findMany({
         where:  {
           status: 'active',
           cityId,
           neighborhood: focusNeighborhood,
           endsOn: { gte: today },
-          ...(session ? {} : { visibility: 'public' }),
           AND: [
             { OR: [{ userId: null }, { user: { status: 'approved', hiddenFromMembers: false } }] },
             ...(blockedIds.length ? [{ OR: [{ userId: null }, { userId: { notIn: blockedIds } }] }] : []),
@@ -409,12 +420,21 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
         },
         select: {
           id: true, name: true, fromCity: true, startsOn: true, endsOn: true,
-          user: { select: { id: true, name: true, color: true, profilePhoto: true } },
+          user: { select: { id: true, name: true, color: true, profilePhoto: true, profileVisibility: true } },
         },
         orderBy: { startsOn: 'asc' },
         take: 4,
-      // A guest gets a first name and the month, no author (lib/visitorPolicy).
-      }).then(rows => session ? rows.map(r => ({ ...r, name: visitorName(r.name), approximate: false })) : rows.map(r => ({ ...r, ...guestView(r), user: null })))
+      }).then(async rows => {
+        const restricted = await restrictedSetFor(session, rows.flatMap(r => r.user ? [r.user] : []))
+        return rows.map(r => ({
+          ...r,
+          name: visitorName(r.name),
+          approximate: false,
+          user: r.user && restricted.has(r.user.id)
+            ? { id: r.user.id, name: firstNameOf(r.user.name) || 'Smileys member', color: r.user.color, profilePhoto: null }
+            : r.user,
+        }))
+      })
     : []
 
   // §8 — local picks. Every approved+active listing has a cover image, but

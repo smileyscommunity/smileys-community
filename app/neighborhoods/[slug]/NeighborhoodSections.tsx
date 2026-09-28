@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { guestView, visitorName } from '@/lib/visitorPolicy'
+import { visitorName } from '@/lib/visitorPolicy'
 import { jsonLdHtml } from '@/lib/jsonLd'
 import Image from 'next/image'
 import { prisma } from '@/lib/prisma'
@@ -151,8 +151,14 @@ export default async function NeighborhoodSections({
       orderBy: { _count: { hostId: 'desc' } },
       take:    4,
     }),
-    // A public member total — activated members only (lib/memberCount).
-    prisma.user.count({ where: { ...ACTIVATED_MEMBER_WHERE, neighborhood: name, cityId, neighborhoodVisible: true, hiddenFromMembers: false } }),
+    // A public member total — activated members only (lib/memberCount). For a
+    // guest it counts the same people the strip shows: a connections-only
+    // member is hidden from guests above, and "Local members (3)" over two
+    // tiles told a guest a private member lives here.
+    prisma.user.count({ where: {
+      ...ACTIVATED_MEMBER_WHERE, neighborhood: name, cityId, neighborhoodVisible: true, hiddenFromMembers: false,
+      ...(viewer ? {} : { profileVisibility: { not: 'connections' } }),
+    } }),
     prisma.event.groupBy({
       by:    ['neighborhood'],
       // "N upcoming" on the nearby cards: the same published-only rule as the
@@ -160,14 +166,29 @@ export default async function NeighborhoodSections({
       where: { cityId, date: { gte: today }, status: 'published' },
       _count: { _all: true },
     }),
-    // Each photo links to its event and borrows its title — never from an
-    // event the event page itself wouldn't show.
-    prisma.eventPhoto.findMany({
-      where:   { event: { neighborhood: name, cityId, status: { in: [...PUBLIC_EVENT_STATUSES] } } },
-      take:    9,
-      orderBy: { createdAt: 'desc' },
-      select:  { id: true, url: true, caption: true, event: { select: { id: true, title: true } } },
-    }),
+    // Event photos are a roster: the event page shows its gallery only to the
+    // host, co-hosts, approved attendees and staff, because the pictures name
+    // who was there (stealth attendees included). This strip ran the query
+    // for everyone and put member faces from events on an indexed page for
+    // any logged-out visitor. Same rule as the event page now: a guest gets
+    // nothing, a member their own events' photos, staff all of them.
+    myId
+      ? prisma.eventPhoto.findMany({
+          where: {
+            event: {
+              neighborhood: name, cityId, status: { in: [...PUBLIC_EVENT_STATUSES] },
+              ...(isStaff ? {} : { OR: [
+                { hostId: myId },
+                { cohosts:   { some: { userId: myId } } },
+                { attendees: { some: { userId: myId, status: 'approved' } } },
+              ] }),
+            },
+          },
+          take:    9,
+          orderBy: { createdAt: 'desc' },
+          select:  { id: true, url: true, caption: true, event: { select: { id: true, title: true } } },
+        })
+      : Promise.resolve([]),
     myId ? prisma.neighborhoodPost.count({ where: { neighborhood: name, cityId } }) : Promise.resolve(null),
     // Active marketplace listings tagged to this neighborhood — lets housing
     // posts surface where people look for them ("flats in Moda" arrives on the
@@ -187,11 +208,14 @@ export default async function NeighborhoodSections({
     // Members-only visits are for members (the form promises "off the
     // public web"); a banned or hidden author's card goes with them; a
     // blocked pair sees nothing of each other.
-    (async () => {
+    // Members only. lib/visitorPolicy promises a guest "a first name and the
+    // month, never the neighbourhood" — and this section IS the neighbourhood,
+    // with the origin city and the intro beside it. /visiting withholds all
+    // three from guests; a public neighbourhood page cannot hand them out.
+    !myId ? Promise.resolve([]) : (async () => {
       const rows = await prisma.visitorAnnouncement.findMany({
         where:   {
           neighborhood: name, cityId, status: 'active', endsOn: { gte: today },
-          ...(myId ? {} : { visibility: 'public' }),
           AND: [
             { OR: [{ userId: null }, { user: { status: 'approved', hiddenFromMembers: false } }] },
             ...(blockedIds.length ? [{ OR: [{ userId: null }, { userId: { notIn: blockedIds } }] }] : []),
@@ -203,8 +227,7 @@ export default async function NeighborhoodSections({
           id: true, name: true, fromCity: true, startsOn: true, endsOn: true, intro: true,
         },
       })
-      // A guest gets a first name and the month, not the days (lib/visitorPolicy).
-      return myId ? rows.map(r => ({ ...r, name: visitorName(r.name), approximate: false })) : rows.map(r => ({ ...r, ...guestView(r) }))
+      return rows.map(r => ({ ...r, name: visitorName(r.name), approximate: false }))
     })(),
     // Active hangouts in this neighborhood — sweeper flips them to 'expired'
     // when endsAt passes, but we also filter by endsAt >= now so a missed
@@ -987,7 +1010,7 @@ export default async function NeighborhoodSections({
               </Link>
             ))}
           </div>
-          <p className="text-xs text-gray-400 mt-3 text-center">Photos from Smileys events in {name}</p>
+          <p className="text-xs text-gray-400 mt-3 text-center">{isStaff ? `Photos from Smileys events in ${name}` : `Photos from your Smileys events in ${name}`}</p>
         </div>
       )}
 

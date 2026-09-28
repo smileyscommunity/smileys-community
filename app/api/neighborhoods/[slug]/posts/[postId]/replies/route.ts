@@ -5,7 +5,9 @@ import { rateLimit } from '@/lib/rateLimit'
 import { notifyMentions } from '@/lib/mentions'
 import { postMatchesSlug } from '@/lib/neighborhoodsDb'
 import { LIVE_BOARD_AUTHOR } from '@/lib/boardAccess'
-import { blockedIdsFor } from '@/lib/memberPrivacy'
+import { blockedIdsFor, isBlockedEitherWay } from '@/lib/memberPrivacy'
+import { resolvePostingCityId } from '@/lib/cityMembership'
+import { getCityConfig, DEFAULT_CITY_SLUG } from '@/lib/city'
 import { wallAuthors } from '@/lib/wallAuthor'
 
 type Params = { params: Promise<{ slug: string; postId: string }> }
@@ -50,8 +52,16 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   const { slug, postId } = await params
-  const post = await prisma.neighborhoodPost.findUnique({ where: { id: postId }, select: { id: true, neighborhood: true, cityId: true } })
+  const post = await prisma.neighborhoodPost.findUnique({ where: { id: postId }, select: { id: true, neighborhood: true, cityId: true, userId: true } })
   if (!post || !await postMatchesSlug(post, slug)) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  // The same two gates the post route has and this one lacked: a write lands
+  // in a city the member has joined (resolvePostingCityId), and a blocked
+  // pair cannot attach to each other's posts — the author never saw the
+  // reply, everyone else did, on a thread they could not moderate.
+  if (post.cityId !== await resolvePostingCityId(session)) {
+    return NextResponse.json({ error: 'You can reply on your own city\'s neighborhood walls — join this city first' }, { status: 403 })
+  }
+  if (await isBlockedEitherWay(session.id, post.userId)) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const { content } = await req.json().catch(() => ({}))
   // A non-string content used to reach .trim() and 500.
@@ -67,7 +77,11 @@ export async function POST(req: NextRequest, { params }: Params) {
     include: { user: { select: { id: true, name: true, color: true, profilePhoto: true, role: true } } },
   })
 
-  notifyMentions({ content: trimmed, authorId: session.id, authorName: session.name, cityId: post.cityId, link: `/neighborhoods/${slug}` }).catch(() => {})
+  // The mention lands on the page the reply is on: a bare slug is the
+  // default city's page for the four shared ones (same fix as the post route).
+  const wallCity = await getCityConfig(post.cityId)
+  const link = `/neighborhoods/${slug}${wallCity.slug === DEFAULT_CITY_SLUG ? '' : `?city=${wallCity.slug}`}`
+  notifyMentions({ content: trimmed, authorId: session.id, authorName: session.name, cityId: post.cityId, link }).catch(() => {})
 
   return NextResponse.json({
     id: reply.id, content: reply.content, createdAt: reply.createdAt,

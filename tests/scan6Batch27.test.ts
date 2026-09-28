@@ -94,8 +94,9 @@ describe('neighbourhood page siblings', () => {
     expect(index).toMatch(/by: \['neighborhood'\],\s*(\/\/[^\n]*\n\s*)*where: \{ cityId, date: \{ gte: today \}, status: 'published' \}/)
   })
 
-  it('community photos only come from publicly visible events', () => {
-    expect(sections).toContain('where:   { event: { neighborhood: name, cityId, status: { in: [...PUBLIC_EVENT_STATUSES] } } }')
+  it('community photos only come from publicly visible events — and only the viewer\'s own (2026-09-28)', () => {
+    expect(sections).toContain("neighborhood: name, cityId, status: { in: [...PUBLIC_EVENT_STATUSES] },\n              ...(isStaff ? {} : { OR: [")
+    expect(sections).toContain("myId\n      ? prisma.eventPhoto.findMany")
   })
 
   it('"clubs active here" counts held events, on the city calendar', () => {
