@@ -7,11 +7,11 @@ import { join } from 'path'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { ACTIVATED_MEMBER_WHERE } from '@/lib/memberCount'
-import { neighborhoodToSlug } from '@/lib/neighborhoods'
 import { APP_URL } from '@/lib/env'
 import { getSession } from '@/lib/session'
 import { redirect } from 'next/navigation'
-import { resolveCityId, getCityConfig, DEFAULT_CITY_SLUG } from '@/lib/city'
+import { DEFAULT_CITY_SLUG } from '@/lib/city'
+import { todayInTz } from '@/lib/cityTime'
 import { resolveCityForPage, type CitySearch } from '@/lib/cityPageParam'
 import { shareCover } from '@/lib/shareCover'
 import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
@@ -158,12 +158,17 @@ function getActivitySignal(eventCount: number, memberCount: number) {
 export default async function NeighborhoodsPage({ searchParams }: { searchParams?: Promise<CitySearch> }) {
   const c = loadContent()
   const nh = c.neighborhoods ?? {}
-  const today = new Date().toISOString().split('T')[0]
 
   // The stats are city-scoped now, so the city has to resolve first — the
   // session and the city id are both cheap (JWT decode + module-memory cache).
   const session = await getSession()
   const { city, cityId, pinned } = await resolveCityForPage(searchParams)
+  // The city's day, like the hero and the sections of every neighbourhood
+  // page (house rule: never server UTC). This was the UTC date, so between
+  // midnight and 03:00 Istanbul yesterday's events were still "upcoming" in
+  // every card, the header total and the "Happening in" cards — and cached
+  // under that wrong day for five minutes after the flip.
+  const today = todayInTz(city.timezone)
   // Put the city in the URL for anyone not on the default city, so the address
   // bar they copy is a link that survives being shared. Guarded on `pinned` so
   // this can't loop, and skipped for the default city to leave its established
@@ -187,11 +192,17 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
   // names are exactly where it bites.
   const userNeighborhood = session?.cityId === cityId ? session?.neighborhood ?? null : null
 
-  let adBanner: { active: boolean; type: string; headline: string; subtitle: string; emoji: string; link: string; cta: string } | null = null
+  // The admin saves an ARRAY of banners per page (app/api/admin/banners); this
+  // read the value as one object, so no neighbourhoods banner could ever
+  // render. Same shape and the same city rule as the dashboard: a banner
+  // belongs to the city it names, else the default city.
+  type NbBanner = { active: boolean; type: string; headline: string; subtitle: string; emoji: string; link: string; cta: string; city?: string }
+  let adBanner: NbBanner | null = null
   try {
-    const raw = JSON.parse(readFileSync(join(process.cwd(), 'data', 'banners.json'), 'utf-8'))
-    const b = raw?.neighborhoods
-    if (b?.active && b?.headline) adBanner = b
+    const raw  = JSON.parse(readFileSync(join(process.cwd(), 'data', 'banners.json'), 'utf-8'))
+    const data = raw?.neighborhoods
+    const list: NbBanner[] = Array.isArray(data) ? data : data?.active && data?.headline ? [data] : []
+    adBanner = list.find(b => b?.active && b?.headline && ((typeof b.city === 'string' && b.city) ? b.city : DEFAULT_CITY_SLUG) === city.slug) ?? null
   } catch { /* no banner */ }
 
   // The list comes from the viewer's city, not the hard-coded Istanbul constant.
@@ -326,6 +337,10 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
     .sort((a, b) => b._count._all - a._count._all)[0]?.neighborhood ?? null
   const focusNeighborhood = userNeighborhood ?? busiest
   const focusIsYours      = !!userNeighborhood
+  // Links are built from the registry's slug, never re-derived from the name:
+  // an admin can edit a slug, after which the derived one 404s while every
+  // card on the same page (view.slug) still works.
+  const focusSlug = focusNeighborhood ? viewByName.get(focusNeighborhood)?.slug ?? null : null
 
   let nearbyEvents: {
     id: string; title: string; emoji: string; date: string; location: string
@@ -548,7 +563,11 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
                     do next: jump to their own neighborhood, go set one, or
                     join first. A single fixed target would be a dead end for
                     two of the three. */}
-                <Link href={userNeighborhood ? '#your-neighborhood' : session ? '/settings' : '/apply'}
+                {/* The neighbourhood picker is on /profile (the settings page
+                    only has the visibility toggle) — both buttons sent the
+                    one audience they target, a member with none set, to a
+                    page that could not set it. */}
+                <Link href={userNeighborhood ? '#your-neighborhood' : session ? '/profile' : '/apply'}
                   className="inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-amber-500 hover:bg-amber-600 text-white text-base font-bold rounded-xl transition-colors shadow-lg">
                   <span aria-hidden="true">📍</span> Find My Neighborhood
                 </Link>
@@ -589,7 +608,7 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
                 </div>
               )}
             </div>
-            <Link href={`/neighborhoods/${neighborhoodToSlug(userNeighborhood)}${cityQuery}`}
+            <Link href={`/neighborhoods/${viewByName.get(userNeighborhood)!.slug}${cityQuery}`}
               className="px-4 py-2 rounded-xl bg-amber-500 text-white text-sm font-semibold hover:bg-amber-600 transition-colors shrink-0">
               See your area →
             </Link>
@@ -788,10 +807,12 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
                 </div>
               ))}
             </div>
-            <Link href={`/neighborhoods/${neighborhoodToSlug(focusNeighborhood!)}${cityQuery}`}
-              className="inline-block mt-6 text-sm font-bold text-amber-600 hover:underline">
-              See everyone in {focusNeighborhood} →
-            </Link>
+            {focusSlug && (
+              <Link href={`/neighborhoods/${focusSlug}${cityQuery}`}
+                className="inline-block mt-6 text-sm font-bold text-amber-600 hover:underline">
+                See everyone in {focusNeighborhood} →
+              </Link>
+            )}
           </section>
         )}
 
@@ -883,7 +904,7 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
             Choose your neighborhood and discover who&apos;s around you.
           </p>
           <div className="mt-7 flex flex-col sm:flex-row gap-3 justify-center">
-            <Link href={session ? '/settings' : '/apply'}
+            <Link href={session ? '/profile' : '/apply'}
               className="inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-amber-500 hover:bg-amber-600 text-white text-base font-bold rounded-xl transition-colors">
               <span aria-hidden="true">📍</span> {session ? 'Set my neighborhood' : 'Join Smileys'}
             </Link>

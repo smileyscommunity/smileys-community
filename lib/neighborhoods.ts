@@ -2,6 +2,33 @@
 // lib/neighborhoodsDb.ts — importing prisma here breaks the client bundle
 // (EventCard and BottomNav both import this module). See that file's header.
 
+/** Great-circle distance in km between two points (haversine). */
+export function distanceKm(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
+  const toRad = (d: number) => (d * Math.PI) / 180
+  const dLat = toRad(b.lat - a.lat)
+  const dLon = toRad(b.lon - a.lon)
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon / 2) ** 2
+  return 2 * 6371 * Math.asin(Math.sqrt(h))
+}
+
+/**
+ * The `take` nearest neighbourhoods to `from`, by real distance when both
+ * sides have coordinates; siblings without coordinates never rank. Used for
+ * "It's close to X and Y" on the neighbourhood page — which was the first
+ * two same-area rows by registry sort order, so Florya (western coast) read
+ * as close to Beykoz and Sarıyer, 30 km away across the Bosphorus.
+ */
+export function nearestByDistance<T extends { name: string; lat: number | null; lon: number | null }>(from: T, siblings: T[], take: number): T[] {
+  if (from.lat == null || from.lon == null) return []
+  const here = { lat: from.lat, lon: from.lon }
+  return siblings
+    .filter(n => n.name !== from.name && n.lat != null && n.lon != null)
+    .map(n => ({ n, d: distanceKm(here, { lat: n.lat as number, lon: n.lon as number }) }))
+    .sort((a, b) => a.d - b.d)
+    .slice(0, take)
+    .map(x => x.n)
+}
+
 export function neighborhoodToSlug(name: string): string {
   return name
     .toLowerCase()

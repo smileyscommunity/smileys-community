@@ -6,7 +6,7 @@ import Image from 'next/image'
 import { readFileSync } from 'fs'
 import { join } from 'path'
 import { getNeighborhoodViews, resolveNeighborhoodBySlug, type NeighborhoodView } from '@/lib/neighborhoodsDb'
-import { neighborhoodImage } from '@/lib/neighborhoods'
+import { neighborhoodImage, nearestByDistance } from '@/lib/neighborhoods'
 import { resolveCityId, getCityConfig, DEFAULT_CITY_SLUG } from '@/lib/city'
 import { resolveCityForPage, type CitySearch } from '@/lib/cityPageParam'
 import { countryName } from '@/lib/countries'
@@ -174,11 +174,16 @@ function buildAboutCopy(meta: NeighborhoodView, cityName: string, nearbyNames: s
   return `${opener}${near} Smileys members based in ${name} connect through neighborhood events, meetups, and each other — this page tracks who's around, what's on, and what's nearby.`
 }
 
-// Nearest-neighbors within the same area (mirrors the "Also on the side" list
-// computed later in NeighborhoodSections). Reads the city's own registry — the
-// 60s-cached list the page already resolved its own neighborhood from, so this
-// costs nothing extra.
+// The nearest neighbourhoods by real distance (lib/neighborhoods
+// nearestByDistance) — this text is indexed on every page and repeated in the
+// Place structured data, and it used to be the first two same-area rows by
+// registry sort order, which put Florya "close to Beykoz and Sarıyer" and
+// Pendik next to Kağıthane. Every active row has coordinates today; a
+// neighbourhood without them falls back to the old same-area order rather
+// than claiming nothing.
 function nearestNeighborhoods(meta: NeighborhoodView, siblings: NeighborhoodView[], take: number): Array<{ name: string; slug: string }> {
+  const byDistance = nearestByDistance(meta, siblings, take)
+  if (byDistance.length > 0) return byDistance.map(n => ({ name: n.name, slug: n.slug }))
   if (!meta.area) return []
   return siblings
     .filter(n => n.area === meta.area && n.name !== meta.name)

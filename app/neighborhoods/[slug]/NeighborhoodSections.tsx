@@ -353,8 +353,12 @@ export default async function NeighborhoodSections({
     orderBy: { _count: { clubId: 'desc' } },
     take: 3,
   })
+  // The clubs are already this neighbourhood's: the activity above is scoped
+  // to this city's events here. Filtering the clubs by cityId again dropped
+  // the global ones (cityId null — the Culture and Language clubs), which
+  // could be the most active club on the page and vanish from its section.
   const clubsActiveHere = clubActivity.length > 0 ? await prisma.club.findMany({
-    where:  { id: { in: clubActivity.map(c => c.clubId as string) }, isActive: true, cityId },
+    where:  { id: { in: clubActivity.map(c => c.clubId as string) }, isActive: true },
     select: { id: true, slug: true, name: true, emoji: true, memberCount: true },
   }).then(clubs => clubs.map(c => ({
     ...c,
@@ -662,7 +666,11 @@ export default async function NeighborhoodSections({
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {upcomingRaw.slice(0, 3).map((event, idx) => {
               const spotsLeft  = Math.max(0, event.spotsLeft)
-              const goingCount = event.totalSpots - spotsLeft
+              // The approved attendees the query already counts, not
+              // capacity arithmetic: RSVPs decrement spotsLeft on unlimited
+              // events too, so "going" capped at the default 20 and the
+              // Popular badge followed it.
+              const goingCount = event._count.attendees
               const isHot      = idx === 0 && goingCount >= 3
               return (
                 <Link key={event.id} href={`/events/${event.id}`} className="group block">
