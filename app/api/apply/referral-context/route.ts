@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
     ref
       ? prisma.user.findUnique({
           where:  { referralCode: ref },
-          select: { name: true, color: true, profilePhoto: true, status: true },
+          select: { name: true, color: true, profilePhoto: true, status: true, profileVisibility: true, hiddenFromMembers: true, suspendedUntil: true },
         })
       : Promise.resolve(null),
     // Distinct members who've brought in ≥1 approved/active applicant.
@@ -47,11 +47,17 @@ export async function GET(req: NextRequest) {
 
   // Mask anything off about the inviter (banned / not yet approved) so
   // the form doesn't accidentally welcome someone with a stale code.
-  const inviterPayload = inviter && inviter.status === 'approved'
+  // Suspended or admin-hidden members don't recruit (their referral isn't
+  // credited either — app/api/apply). A connections-only member's face is not
+  // public: a guest gets the first name and the colour, no photo — the rule
+  // the members-only invite route already applies.
+  const listable = inviter && inviter.status === 'approved' && !inviter.hiddenFromMembers
+    && !(inviter.suspendedUntil && inviter.suspendedUntil > new Date())
+  const inviterPayload = inviter && listable
     ? {
         firstName:    firstNameOf(inviter.name),
         color:        inviter.color,
-        profilePhoto: inviter.profilePhoto,
+        profilePhoto: inviter.profileVisibility === 'connections' ? null : inviter.profilePhoto,
       }
     : null
 

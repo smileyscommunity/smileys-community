@@ -455,26 +455,64 @@ export async function sendPasswordResetEmail(email: string, name: string, token:
   })
 }
 
-export async function sendApplicationReceivedEmail(email: string, name: string) {
+export async function sendApplicationReceivedEmail(
+  email: string,
+  name: string,
+  // Double opt-in (2026-09-29): the link that confirms the address is ours.
+  // Optional so a caller without one (a resend path) still sends the receipt.
+  confirmUrl?: string,
+  cityName?: string,
+  cityLive = true,
+) {
+  const where = cityName ? ` to Smileys ${esc(cityName)}` : ''
   await send('sendApplicationReceivedEmail', {
     from: FROM, to: email,
-    subject: 'We received your application 😊',
+    subject: confirmUrl ? 'Confirm your Smileys application 😊' : 'We received your application 😊',
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
         <div style="text-align:center;margin-bottom:32px">
           <span style="font-size:40px">😊</span>
-          <h1 style="font-size:24px;font-weight:800;color:#111;margin:8px 0 4px">Thanks for applying, ${esc(name)}!</h1>
+          <h1 style="font-size:24px;font-weight:800;color:#111;margin:8px 0 4px">Thanks for applying${where}, ${esc(name)}!</h1>
           <p style="color:#6b7280;font-size:14px;margin:0">Your application has been received</p>
         </div>
+        ${confirmUrl ? `
+        <a href="${confirmUrl}" style="display:block;text-align:center;background:#b45309;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:12px">
+          Confirm it's you
+        </a>
+        <p style="color:#6b7280;font-size:13px;text-align:center;margin:0 0 24px">
+          One tap tells us this address really is yours. If you didn't apply, ignore this email — nothing more will happen.
+        </p>` : ''}
         <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:20px 24px;margin-bottom:24px">
           <p style="color:#92400e;font-size:14px;margin:0;line-height:1.6">
             Our team personally reviews every application to keep Smileys a high-quality community.
-            We'll get back to you within <strong>24–48 hours</strong>.
+            We'll get back to you within <strong>24–48 hours</strong>.${cityLive ? '' : ` Smileys ${esc(cityName ?? '')} hasn't opened yet — its first events start once the founding members are in.`}
           </p>
         </div>
-        <p style="color:#9ca3af;font-size:12px;text-align:center">
+        <p style="color:#6b7280;font-size:12px;text-align:center">
           Questions? Reply to this email or reach us at info@smileyscommunity.com
         </p>
+      </div>
+    `,
+  })
+}
+
+/**
+ * Someone applied again with an email that already has an application on
+ * file. The screen stays neutral (it can't say whose email it is); the inbox
+ * owner learns where things stand. The retry used to read as a rejection.
+ */
+export async function sendApplicationOnFileEmail(email: string, name: string) {
+  await send('sendApplicationOnFileEmail', {
+    from: FROM, to: email,
+    subject: 'Your Smileys application is already with us',
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <h1 style="font-size:22px;font-weight:800;color:#111;margin:0 0 12px">Hi ${esc(name)},</h1>
+        <p style="color:#374151;font-size:14px;line-height:1.6;margin:0 0 16px">
+          Someone just tried to start a new Smileys application with this email. We already have one from you,
+          so there's nothing more to do — our team reviews every application and will get back to you within 24–48 hours.
+        </p>
+        <p style="color:#6b7280;font-size:12px">If that wasn't you, you can ignore this email. Questions? Reach us at info@smileyscommunity.com</p>
       </div>
     `,
   })

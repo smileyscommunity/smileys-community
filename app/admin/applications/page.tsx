@@ -34,6 +34,7 @@ interface Application {
   // Single-dimension axis for sorting the pending queue when spam waves
   // hit; rendered as a "🚨 Sus N" pill in the badge row.
   suspicionScore?: number
+  emailConfirmedAt?: string | null
   referrer?: { name: string } | null
   escalated?: boolean; escalatedNote?: string | null
   // Which Smileys city they applied to — NOT the free-text `city` above,
@@ -955,6 +956,14 @@ function AdminApplicationsPageInner() {
                       : 'bg-amber-500/10 text-amber-400'
                     }`}>
                       🚨 Sus {app.suspicionScore}
+                    </span>
+                  )}
+                  {/* Double opt-in: the applicant hasn't clicked the link in
+                      their email yet. It may not be their address — a
+                      rejection sends them nothing until they do. */}
+                  {app.emailConfirmedAt === null && (
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-zinc-700/60 text-zinc-300" title="The applicant hasn't confirmed this email address yet">
+                      ✉️ Email not confirmed
                     </span>
                   )}
                   {/* Info-requested badge — shown for hold-status apps that

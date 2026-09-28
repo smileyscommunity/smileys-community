@@ -1288,6 +1288,13 @@ model MemberApplication {
   disposableEmail      Boolean   @default(false)
   timezone             String?
   timezoneMismatch     Boolean   @default(false)
+  // Double opt-in (2026-09-29): anyone could apply with someone else's email,
+  // lock that address out and have Smileys email them. An application still
+  // reaches review at once; until the link in its email is clicked it does
+  // not count against that email or phone, and a rejection sends nothing.
+  // Rows from before the change were backfilled as confirmed.
+  emailConfirmedAt     DateTime?
+  confirmToken         String?   @unique
   aboutCommunity       String?
   languages            String[]
   openToCoffee         Boolean   @default(false)

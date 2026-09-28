@@ -53,7 +53,9 @@ export const dynamic = 'force-dynamic'
 import { checkCronAuth } from '@/lib/cronAuth'
 
 const MIN_AGE_MS = 48 * 60 * 60 * 1000
-const MAX_DELETIONS_PER_RUN = 500
+// 2000 a night: the applications/ folder alone could take 60 uploads a day
+// from each address, and 500 (shared with broadcasts/) fell behind.
+const MAX_DELETIONS_PER_RUN = 2000
 
 // One folder's worth of everything below: the directory it lists, the path
 // segment a reference must contain, and the columns the last look before a

@@ -1,5 +1,6 @@
 'use client'
 
+import { hasAnalyticsConsent } from '@/lib/consent'
 import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -209,8 +210,9 @@ function LoginPageInner() {
     if (data.role === 'admin' || data.role === 'moderator') {
       posthog.opt_out_capturing()
     } else {
-      // Re-enable in case the previous session on this browser was staff.
-      posthog.opt_in_capturing()
+      // Re-enable in case the previous session on this browser was staff —
+      // only where the visitor accepted analytics (lib/consent).
+      if (hasAnalyticsConsent()) posthog.opt_in_capturing()
       // Keep person properties PII-light; we already store name/email/etc. in our DB
       // and can join on distinctId when we need them.
       posthog.identify(data.id, {

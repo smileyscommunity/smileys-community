@@ -3,7 +3,13 @@ import { isUploadedImageUrl } from '@/lib/uploadedImageUrl'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { Role } from '@/lib/constants'
-import { sendApplicationReceivedEmail, sendAdminNewApplicationEmail, sendAlreadyRegisteredEmail, recordEmailFailure } from '@/lib/email'
+import { sendApplicationReceivedEmail, sendAdminNewApplicationEmail, sendAlreadyRegisteredEmail, sendApplicationOnFileEmail, recordEmailFailure } from '@/lib/email'
+import { randomBytes } from 'crypto'
+import { APP_URL } from '@/lib/env'
+import { INTEREST_VALUES } from '@/lib/profileOptions'
+import { GENDERS } from '@/lib/profileFields'
+import { SOCIAL_STYLES } from '@/lib/socialStyles'
+import { canonicalEmail, canonicalPhone, isValidTimeZone, ageOn } from '@/lib/applicantIdentity'
 import { rateLimit, getIp } from '@/lib/rateLimit'
 import { notifyCityStaff } from '@/lib/staffNotify'
 import { LOOKING_FOR_VALUES } from '@/lib/profileOptions'
@@ -51,6 +57,9 @@ const applySchema = z.object({
   socialStyles:    z.array(z.string().max(50)).max(20).optional().default([]),
   lookingFor:      z.array(z.string().max(50)).max(10).optional().default([]),
   referrerName:    z.string().trim().max(100).optional().nullable(),
+  // "I don't live here (yet)" — a visitor, or someone still moving, has no
+  // neighbourhood to pick and used to have to invent one.
+  notResident:     z.boolean().optional().default(false),
   // The one box that matters legally: Terms + Privacy + 18 or older.
   termsAccepted:   z.boolean().refine(v => v === true, 'Please accept the Terms of Service and Privacy Policy'),
   // Unticked by default — a choice, not a default (GDPR).
@@ -90,7 +99,14 @@ function nameDistance(a: string, b: string): number {
 // Refusals end with a way to reach a person: every one of them used to be a
 // dead end ("This application cannot be accepted." and nothing else).
 const CONTACT = 'If you think this is a mistake, write to info@smileyscommunity.com.'
-const REFUSED = `This application cannot be accepted. ${CONTACT}`
+// One sentence and one status (409) for every refusal — blacklist, duplicate
+// and cooldown alike. A 403 for the blacklist beside a 409 for a recent
+// rejection let anyone who typed a stranger's phone number learn which of the
+// two that person was. Neutral, because the screen can't know whose details
+// these are; the inbox owner is told the rest by email where it applies.
+const REFUSED = `We can't take a new application with these details right now. If you've applied before, check your inbox. ${CONTACT}`
+const SOCIAL_STYLE_IDS = new Set<string>(SOCIAL_STYLES.map(st => st.id))
+const CONTRIBUTIONS = new Set(['attend', 'organize', 'host'])
 
 // A schema failure names the field in words — the raw message ("Too small:
 // expected string to have >=1 characters") said nothing an applicant could fix.
@@ -119,12 +135,11 @@ export async function POST(req: NextRequest) {
     }
     const {
       firstName, lastName, email, phone, birthdate, gender, country, city, neighborhood,
-      instagram, linkedin, profession, timeInCity, reasonHere,
-      aboutCommunity, socialJudgment, languages, interests, socialStyles, lookingFor, referrerName, emailMarketing,
-      openToCoffee, openToLanguage, openToHosting,
-      whyJoin, enjoyWith, goodCommunity,
-      contribution, groupBehavior, removedFromCommunity, toxicBehavior,
-      profilePhoto, targetCitySlug, bio, source, referredBy,
+      profession, timeInCity, reasonHere,
+      aboutCommunity, languages, interests, socialStyles, lookingFor, referrerName, emailMarketing,
+      openToCoffee, openToLanguage, openToHosting, notResident,
+      contribution,
+      profilePhoto, targetCitySlug, source, referredBy,
       _hp, _cf, _fp, _tz,
     } = parsed.data
 
@@ -175,9 +190,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Applications to "${wantedSlug}" aren't open right now.` }, { status: 400 })
     }
     const targetCityId = targetCity.id
-    const cleanNeighborhood = neighborhood?.trim() || null
-    if (!cleanNeighborhood && await prisma.neighborhood.count({ where: { cityId: targetCityId, active: true } }) > 0) {
+    // The neighbourhood must be one of the city's own (a draft for another
+    // city sent an Istanbul name to İzmir); required where the city has any,
+    // unless the applicant doesn't live there yet.
+    const cityHoods = await prisma.neighborhood.findMany({ where: { cityId: targetCityId, active: true }, select: { name: true } })
+    const cleanNeighborhood = notResident ? null : (neighborhood?.trim() || null)
+    if (cleanNeighborhood && !cityHoods.some(h => h.name === cleanNeighborhood)) {
       return NextResponse.json({ error: 'Please check your neighbourhood.' }, { status: 400 })
+    }
+    if (!cleanNeighborhood && !notResident && cityHoods.length > 0) {
+      return NextResponse.json({ error: 'Please check your neighbourhood.' }, { status: 400 })
+    }
+    // The form's closed lists, checked here too — approval copies them onto
+    // the member's profile, so a hand-made request could set anything.
+    if (!(GENDERS as readonly string[]).includes(gender)) {
+      return NextResponse.json({ error: 'Please check your gender.' }, { status: 400 })
+    }
+    const age = ageOn(birthdate)
+    if (age !== null && age < 18) {
+      return NextResponse.json({ error: 'Smileys is for adults — you need to be 18 or older to apply.' }, { status: 400 })
     }
 
     // Normalise on the way in, like every other write path does
@@ -190,9 +221,18 @@ export async function POST(req: NextRequest) {
     const fullName    = `${cleanFirst} ${cleanLast}`
     const cleanEmail  = email.toLowerCase()
     const cleanPhone  = phone || null
-    const cleanInstagram = instagram?.trim() || null
     const cleanRef    = referredBy?.trim() || null
-    const validRef    = cleanRef && /^[A-Z2-9]{8}$/.test(cleanRef) ? cleanRef : null
+    // Only a member in good standing refers: a suspended or hidden member's
+    // code no longer credits them (their chip is withheld on the form too).
+    const refOwner    = cleanRef && /^[A-Z2-9]{8}$/.test(cleanRef)
+      ? await prisma.user.findUnique({ where: { referralCode: cleanRef }, select: { status: true, hiddenFromMembers: true, suspendedUntil: true } })
+      : null
+    const validRef    = refOwner && refOwner.status === 'approved' && !refOwner.hiddenFromMembers
+      && !(refOwner.suspendedUntil && refOwner.suspendedUntil > new Date()) ? cleanRef : null
+    // What the checks compare (lib/applicantIdentity): spacing, a +tag or
+    // Gmail's dots no longer walk past the blacklist and the cooldowns.
+    const idEmail = canonicalEmail(cleanEmail)
+    const idPhone = canonicalPhone(cleanPhone)
 
     // Blacklist check — email, phone, fingerprint, IP
     // Filter out null/empty values — an empty {} in Prisma OR matches ALL records,
@@ -210,20 +250,19 @@ export async function POST(req: NextRequest) {
     // across ordinary browsers (see below) and one address covers a campus, a
     // coworking or a mobile carrier. Those two flag the application for the
     // reviewer instead of refusing whoever happens to share them.
-    const identityConditions = [
-      cleanEmail  ? { email: cleanEmail }   : null,
-      cleanPhone  ? { phone: cleanPhone }   : null,
-    ].filter(Boolean) as object[]
     const deviceConditions = [
       fingerprint ? { fingerprint }         : null,
       ip          ? { ipAddress: ip }       : null,
     ].filter(Boolean) as object[]
-    const [blacklisted, blacklistedDevice] = await Promise.all([
-      identityConditions.length > 0 ? prisma.blacklist.findFirst({ where: { OR: identityConditions } }) : Promise.resolve(null),
-      deviceConditions.length   > 0 ? prisma.blacklist.findFirst({ where: { OR: deviceConditions }, select: { id: true } }) : Promise.resolve(null),
+    // The blacklist is small: read its identities and compare canonical forms.
+    const [blacklistIds, blacklistedDevice] = await Promise.all([
+      prisma.blacklist.findMany({ where: { OR: [{ email: { not: null } }, { phone: { not: null } }] }, select: { email: true, phone: true } }),
+      deviceConditions.length > 0 ? prisma.blacklist.findFirst({ where: { OR: deviceConditions }, select: { id: true } }) : Promise.resolve(null),
     ])
+    const blacklisted = blacklistIds.some(b =>
+      (idEmail && canonicalEmail(b.email) === idEmail) || (idPhone && canonicalPhone(b.phone) === idPhone))
     if (blacklisted) {
-      return NextResponse.json({ error: REFUSED }, { status: 403 })
+      return NextResponse.json({ error: REFUSED }, { status: 409 })
     }
 
     // Duplicate / rejected applicant checks — use generic message to prevent enumeration.
@@ -232,16 +271,30 @@ export async function POST(req: NextRequest) {
     // inside the cooldown window (velocity auto-rejects have reviewedAt null,
     // so age those by createdAt instead).
     const cooldownDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
-    const emailApps = await prisma.memberApplication.findMany({
-      where: { email: cleanEmail },
-      select: { status: true, reviewedAt: true, createdAt: true, reviewNote: true },
-    })
-    // A network auto-reject (the old velocity rule) was never a decision
-    // about this person — it must not lock their email for 90 days.
-    const emailBlocked = emailApps.some(a =>
-      !(a.status === 'rejected' && a.reviewNote?.startsWith('Auto-rejected: velocity'))
-      && (a.status !== 'rejected' || (a.reviewedAt ?? a.createdAt) >= cooldownDate)
-    )
+    const [emailApps, recentRejected] = await Promise.all([
+      prisma.memberApplication.findMany({
+        where: { email: cleanEmail },
+        select: { status: true, emailConfirmedAt: true, fullName: true },
+      }),
+      // Rejections inside the cooldown, compared by canonical email / phone /
+      // Instagram below. Only CONFIRMED ones: an application someone else made
+      // with this email or phone was never this person's (double opt-in). A
+      // network auto-reject (the old velocity rule) was never a decision
+      // about anyone and doesn't count either.
+      prisma.memberApplication.findMany({
+        where: {
+          status: 'rejected', emailConfirmedAt: { not: null },
+          NOT: { reviewNote: { startsWith: 'Auto-rejected: velocity' } },
+          OR: [{ reviewedAt: { gte: cooldownDate } }, { reviewedAt: null, createdAt: { gte: cooldownDate } }],
+        },
+        select: { email: true, phone: true, instagram: true },
+      }),
+    ])
+    // A live application on this email blocks a second one — once its email
+    // is confirmed (or it was approved). An unconfirmed one may be someone
+    // else's claim on the address; it must not lock the real owner out.
+    const liveApp = emailApps.find(a => a.status !== 'rejected' && (a.emailConfirmedAt || a.status === 'approved'))
+    const emailBlocked = !!liveApp
     if (emailBlocked) {
       // When the block is because this email already belongs to an APPROVED
       // member, the on-screen message stays generic (no enumeration for
@@ -258,6 +311,11 @@ export async function POST(req: NextRequest) {
       if (existingUser?.status === 'approved'
           && await rateLimit(`apply-already-member:${cleanEmail}`, 1, 24 * 60 * 60_000)) {
         sendAlreadyRegisteredEmail(cleanEmail, existingUser.name).catch(() => {})
+      } else if (liveApp?.status !== 'approved'
+          && await rateLimit(`apply-on-file:${cleanEmail}`, 1, 24 * 60 * 60_000)) {
+        // Still being reviewed: a retry (a dropped connection after the save,
+        // a second try from another device) used to read as a rejection.
+        sendApplicationOnFileEmail(cleanEmail, liveApp?.fullName ?? cleanFirst).catch(() => {})
       }
       return NextResponse.json({ error: REFUSED }, { status: 409 })
     }
@@ -270,32 +328,14 @@ export async function POST(req: NextRequest) {
     // Fingerprint intentionally excluded from cooldown: non-unique on the free
     // FingerprintJS tier, so including it causes innocent applicants sharing a
     // browser config with a rejected person to be blocked.
-    const cooldownConditions = [
-      cleanPhone ? { phone: cleanPhone } : null,
-    ].filter(Boolean) as object[]
-    const recentRejection = cooldownConditions.length > 0
-      ? await prisma.memberApplication.findFirst({
-          where: { status: 'rejected', reviewedAt: { gte: cooldownDate }, OR: cooldownConditions },
-        })
-      : null
+    const recentRejection = recentRejected.some(r =>
+      (idEmail && canonicalEmail(r.email) === idEmail) || (idPhone && canonicalPhone(r.phone) === idPhone))
     if (recentRejection) {
       return NextResponse.json({ error: REFUSED }, { status: 409 })
     }
 
-    // (No unconditional phone match here — the cooldown check above already
-    // covers phone within the 90-day window; matching all-time would make
-    // rejection a lifetime ban, contradicting the cooldown policy.)
-
-    if (cleanInstagram) {
-      const igMatch = await prisma.memberApplication.findFirst({
-        where: { instagram: cleanInstagram, status: 'rejected', reviewedAt: { gte: cooldownDate } },
-      })
-      if (igMatch) {
-        return NextResponse.json({ error: REFUSED }, { status: 409 })
-      }
-    }
-
-    const browserTz    = typeof _tz === 'string' ? _tz.slice(0, 60) : null
+    // An IANA name or nothing: it arrives as free text and reaches staff views.
+    const browserTz    = isValidTimeZone(_tz) ? _tz : null
 
     // Disposable email check
     const emailDomain     = cleanEmail.split('@')[1] ?? ''
@@ -337,10 +377,9 @@ export async function POST(req: NextRequest) {
     // fingerprint is a FingerprintJS false positive (same browser config),
     // not a security signal.
     const [fpMatch, ipMatch] = await Promise.all([
-      fingerprint ? prisma.memberApplication.findFirst({ where: { fingerprint, status: 'rejected' }, select: { fullName: true, status: true } }) : Promise.resolve(null),
-      ip          ? prisma.memberApplication.findFirst({ where: { ipAddress: ip, status: 'rejected' }, select: { fullName: true } }) : Promise.resolve(null),
+      fingerprint ? prisma.memberApplication.findFirst({ where: { fingerprint, status: 'rejected' }, select: { id: true } }) : Promise.resolve(null),
+      ip          ? prisma.memberApplication.findFirst({ where: { ipAddress: ip, status: 'rejected' }, select: { id: true } }) : Promise.resolve(null),
     ])
-    const isKnownDevice = !!(fpMatch || ipMatch || nameSimilar)
 
     // Aggregate suspicion score — single dimension admins can sort by. Each
     // signal contributes a weight; admins can later tune via constants. Score
@@ -356,9 +395,12 @@ export async function POST(req: NextRequest) {
     if (ipMatch)          suspicionScore += 1   // IP hit on prior rejection
     if (!cleanPhone)      suspicionScore += 1   // no phone provided
 
+    const confirmToken = randomBytes(24).toString('hex')
     await prisma.memberApplication.create({
       data: {
         firstName: cleanFirst, lastName: cleanLast, fullName,
+        emailConfirmedAt: null,
+        confirmToken,
         email:       cleanEmail,
         phone:       cleanPhone,
         birthdate:   birthdate  || null,
@@ -369,22 +411,25 @@ export async function POST(req: NextRequest) {
         // mislabeling them in every admin view/export that reads the string.
         city:        targetCity.name,
         neighborhood: cleanNeighborhood,
-        instagram:   cleanInstagram,
-        linkedin:    linkedin   || null,
+        // Instagram, LinkedIn, bio and the old essays are no longer on the
+        // form; the API accepted and stored them anyway, and a LinkedIn value
+        // rendered as a link on the review screen. Accepted (old drafts don't
+        // break) and dropped.
         profession,  timeInCity, reasonHere,
-        whyJoin,     enjoyWith,  goodCommunity,
-        interests,   socialStyles, languages,
+        interests:    interests.filter(v => INTEREST_VALUES.has(v)),
+        socialStyles: socialStyles.filter(v => SOCIAL_STYLE_IDS.has(v)).slice(0, 3),
+        languages,
         // Only the profile's own options, whatever the client sent.
         lookingFor:   lookingFor.filter(v => LOOKING_FOR_VALUES.has(v)),
         referrerName: source === 'friend' ? (referrerName?.trim() || null) : null,
         termsAcceptedAt: new Date(),
         emailMarketing,
-        contribution, groupBehavior, removedFromCommunity, toxicBehavior,
-        aboutCommunity, socialJudgment,
+        contribution: contribution && CONTRIBUTIONS.has(contribution) ? contribution : null,
+        aboutCommunity,
         openToCoffee, openToLanguage, openToHosting,
         profilePhoto: profilePhoto || null,
         assignedClubs: [],
-        bio,  source,
+        source,
         referredBy:           validRef,
         ipAddress:            ip,
         userAgent:            req.headers.get('user-agent')?.slice(0, 500) || null,
@@ -399,11 +444,13 @@ export async function POST(req: NextRequest) {
 
     // Notify admins — push alert for suspicious signals, standard in-app for normal
     const flags: string[] = []
-    if (isKnownDevice)     flags.push(fpMatch ? `known device (prev: ${fpMatch.fullName})` : ipMatch ? `known IP (prev: ${ipMatch.fullName})` : 'name similar to blacklist')
+    // No other applicant's name: this goes to the target city's moderators as
+    // a push, and named a rejected applicant from any city they can't open.
+    if (fpMatch || ipMatch) flags.push('device or network matches a previously rejected application')
     if (manyFromNetwork)   flags.push(`${ipCount + 1} applications from this network today`)
     if (blacklistedDevice) flags.push('device or network on the blacklist')
     if (isDisposable)      flags.push('disposable email')
-    if (nameSimilar && !isKnownDevice) flags.push('name similar to blacklisted person')
+    if (nameSimilar)       flags.push('name similar to a blacklisted person')
 
     const isSuspicious = flags.length > 0
     const notifTitle   = isSuspicious ? '⚠️ Suspicious application' : 'New application 📋'
@@ -414,7 +461,7 @@ export async function POST(req: NextRequest) {
     await notifyCityStaff(targetCityId, 'application', notifTitle, notifBody, '/admin/applications')
 
     Promise.all([
-      sendApplicationReceivedEmail(cleanEmail, fullName.trim()),
+      sendApplicationReceivedEmail(cleanEmail, fullName.trim(), `${APP_URL}/api/apply/confirm?token=${confirmToken}`, targetCity.name, targetCity.status === 'live'),
       // Admin new-application email respects the mute toggle — but suspicious
       // applications always email (a security signal you can't silence).
       ...(newApplicationEmailsEnabled() || isSuspicious ? [sendAdminNewApplicationEmail(fullName.trim(), cleanEmail)] : []),

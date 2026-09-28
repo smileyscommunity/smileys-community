@@ -8,7 +8,7 @@ const read = (p: string) => readFileSync(join(__dirname, '..', p), 'utf8')
 describe('1. moderators do not receive applicants\' private data', () => {
   const src = read('app/api/admin/applications/route.ts')
   it('non-admins get the masked rows', () => {
-    expect(src).toContain('return NextResponse.json(isAdmin(session) ? applications : applications.map(forModerator))')
+    expect(src).toContain('return NextResponse.json(isAdmin(session) ? rows : rows.map(forModerator))')
   })
   it('contact masked, IP/fingerprint hashed, device dropped, birthdate only while deciding', () => {
     expect(src).toContain('email:       maskEmail(a.email)')

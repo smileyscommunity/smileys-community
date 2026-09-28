@@ -14,8 +14,9 @@ describe('the 48h orphan-upload reaper cannot strand an application', () => {
   })
   it('the browser draft neither stores nor restores the uploaded photo', () => {
     const src = read('app/apply/ApplyClient.tsx')
-    expect(src).toContain("form: { ...form, profilePhoto: '' }, interests")
-    expect(src).toContain("setForm(f => ({ ...f, ...d.form, profilePhoto: '' }))")
+    expect(src).toContain("form: { ...answers, profilePhoto: '' }, interests")
+    // 2026-09-29: contact details come back from sessionStorage (lib/applyDraft).
+    expect(src).toContain("setForm(f => ({ ...f, ...d.form, ...contact, profilePhoto: '' }))")
     expect(src).not.toMatch(/setPhotoPreview\(d\.photoPreview\)/)
   })
   it('the sweep is watched by the cron staleness check', () => {

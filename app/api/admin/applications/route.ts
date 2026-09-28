@@ -73,7 +73,10 @@ export async function GET(req: NextRequest) {
         targetCity: { select: { name: true, slug: true } },
       },
     })
-    return NextResponse.json(isAdmin(session) ? applications : applications.map(forModerator))
+    // The confirm token is the applicant's proof of owning the address; staff
+    // see whether it was used (emailConfirmedAt), never the token itself.
+    const rows = applications.map(({ confirmToken: _t, ...a }) => a)
+    return NextResponse.json(isAdmin(session) ? rows : rows.map(forModerator))
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
@@ -369,8 +372,12 @@ export async function PATCH(req: NextRequest) {
         // 'pending' is only enforced at login; the bump revokes the live session.
         await prisma.user.update({ where: { id: linkedUser.id }, data: { status: 'pending', tokenVersion: { increment: 1 } } })
       }
-      sendApplicationRejectedEmail(application.email, application.fullName, rejectionMessage)
-        .catch(err => recordEmailFailure({ helper: 'sendApplicationRejectedEmail', recipient: application.email, error: err, context: { applicationId: id } }))
+      // An application whose email was never confirmed may not be that
+      // person's at all (double opt-in): rejecting it sends them nothing.
+      if (application.emailConfirmedAt) {
+        sendApplicationRejectedEmail(application.email, application.fullName, rejectionMessage)
+          .catch(err => recordEmailFailure({ helper: 'sendApplicationRejectedEmail', recipient: application.email, error: err, context: { applicationId: id } }))
+      }
       // cityId passed rather than left to the lookup: the application's city
       // is already in hand, and moderators' city-scoped audit view reads it.
       writeAudit(session.id, session.name, 'application.reject', id, 'memberApplication',

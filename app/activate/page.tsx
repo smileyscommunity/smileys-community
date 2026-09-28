@@ -1,5 +1,6 @@
 'use client'
 
+import { hasAnalyticsConsent } from '@/lib/consent'
 import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -68,7 +69,7 @@ function ActivateForm() {
       // same way the login flow does — activation was previously anonymous, so these
       // newcomers showed up in PostHog as throwaway UUIDs. New activations are always
       // non-staff; person props stay PII-light (we join on distinctId server-side).
-      posthog.opt_in_capturing()
+      if (hasAnalyticsConsent()) posthog.opt_in_capturing()
       posthog.identify(data.id, { role: data.role })
       posthog.capture('account_activated', { role: data.role })
       setDone(true)

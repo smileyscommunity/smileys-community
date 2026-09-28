@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { readFile, access } from 'fs/promises'
 import { join, extname, normalize } from 'path'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator } from '@/lib/access'
+import { isAdminOrModerator, isAdmin, canActInCity } from '@/lib/access'
 import { uploadRoot } from '@/lib/uploadRoot'
 import { prisma } from '@/lib/prisma'
 import sharp from 'sharp'
@@ -61,6 +61,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
     const session = await getSession()
     if (!session || !isAdminOrModerator(session)) {
       return new NextResponse('Forbidden', { status: 403 })
+    }
+    // A moderator reviews their own city's queue; an applicant photo from
+    // another city's is not theirs to open (admins see all).
+    if (folder === 'applications' && !isAdmin(session)) {
+      const owner = await prisma.memberApplication.findFirst({
+        where:  { profilePhoto: { endsWith: `/applications/${file}` } },
+        select: { targetCityId: true },
+      })
+      if (!owner || !canActInCity(session, owner.targetCityId)) {
+        return new NextResponse('Forbidden', { status: 403 })
+      }
     }
   }
 

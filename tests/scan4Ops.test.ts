@@ -440,12 +440,14 @@ describe('7 sweep-orphan-uploads', () => {
     expect(h.recordCronRun).toHaveBeenCalledWith('sweep-orphan-uploads', false, expect.any(Error))
   })
 
-  it('caps deletions per run at 500', async () => {
-    for (let i = 0; i < 503; i++) touch(`${1000 + i}-x.jpg`, 3 * DAY)
+  // 2026-09-29 (apply scan item 16): the cap went from 500 to 2000 — the
+  // applications/ folder could take more in a day than 500 a night cleared.
+  it('caps deletions per run at 2000', async () => {
+    for (let i = 0; i < 2003; i++) touch(`${1000 + i}-x.jpg`, 3 * DAY)
     const { json } = await post()
-    expect(json).toMatchObject({ deleted: 500, eligible: 503, deferred: 3 })
+    expect(json).toMatchObject({ deleted: 2000, eligible: 2003, deferred: 3 })
     expect(readdirSync(dir)).toHaveLength(3)
-  })
+  }, 60_000)
 
   it('a missing applications folder is an empty run', async () => {
     rmSync(dir, { recursive: true })

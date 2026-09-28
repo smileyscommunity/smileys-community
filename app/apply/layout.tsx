@@ -12,10 +12,11 @@ export default function ApplyLayout({ children }: { children: React.ReactNode })
     return (
       <div className="min-h-screen flex items-center justify-center bg-warm px-4">
         <div className="max-w-md text-center bg-white rounded-2xl shadow-card p-8">
-          <div className="text-4xl mb-4">🌿</div>
+          <div aria-hidden="true" className="text-4xl mb-4">🌿</div>
           <h1 className="text-xl font-extrabold text-gray-900 mb-2">Applications are closed right now</h1>
           <p className="text-sm text-gray-600 mb-6">
-            We&apos;ve paused new member applications while we focus on our current community. Follow us on Instagram to hear when we reopen.
+            We&apos;ve paused new member applications while we focus on our current community.{' '}
+            Follow us on <a href="https://www.instagram.com/smileys.community" target="_blank" rel="noopener noreferrer" className="font-semibold text-amber-700 hover:underline">Instagram</a> to hear when we reopen.
           </p>
           <Link href="/" className="inline-block px-5 py-2.5 rounded-xl bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold transition-colors">
             Back to home
