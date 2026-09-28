@@ -24,13 +24,19 @@ export const getCityHostRoster = unstable_cache(
     const today = todayInTz(timezone)
 
     // Two ways in: hosting a club, or a city-level grant. Union them — most
-    // leads also host a club, and either alone belongs on the roster.
+    // leads also host a club, and either alone belongs on the roster. A
+    // global club (cityId null — a third of the active clubs) has no city
+    // to list its hosts under, so they count for the city they live in:
+    // six hosts, two of Istanbul's last 38 events, were on no roster at all.
     const [clubHostRows, cityHostRows] = await Promise.all([
       prisma.clubMembership.findMany({
         where: {
           role: 'host', status: 'approved',
-          club: { isActive: true, cityId },
           user: { status: 'approved', hiddenFromMembers: false },
+          OR: [
+            { club: { isActive: true, cityId } },
+            { club: { isActive: true, cityId: null }, user: { cityId } },
+          ],
         },
         select: {
           userId: true,

@@ -78,6 +78,7 @@ export default async function CityMovingPage({ params }: Params) {
   const boardHref = isDefaultCitySlug(city.slug) ? '/board' : `/${city.slug}/board`
   const clubsHref = isDefaultCitySlug(city.slug) ? '/clubs' : `/${city.slug}/clubs`
   const eventsHref = `/${city.slug}/events`
+  const hostsHref  = isDefaultCitySlug(city.slug) ? '/hosts' : `/${city.slug}/hosts`
 
   return (
     <>
@@ -289,7 +290,7 @@ export default async function CityMovingPage({ params }: Params) {
                 {hub.clubCount > 0 ? `${hub.clubCount} active club${hub.clubCount === 1 ? '' : 's'} — hiking, language, food, film and more.` : 'Interest groups that meet regularly.'}
               </p>
             </Link>
-            <Link href="/hosts" className="group bg-white border border-gray-100 rounded-2xl p-5 hover:border-amber-200 hover:shadow-md transition-all">
+            <Link href={hostsHref} className="group bg-white border border-gray-100 rounded-2xl p-5 hover:border-amber-200 hover:shadow-md transition-all">
               <div aria-hidden="true" className="text-2xl mb-2">🙋</div>
               <h3 className="font-bold text-gray-900 group-hover:text-amber-700">Meet the hosts</h3>
               <p className="text-sm text-gray-600 mt-1">The members who run events and clubs.</p>

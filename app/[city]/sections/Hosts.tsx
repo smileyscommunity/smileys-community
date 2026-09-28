@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { cityQs } from '@/lib/cityPageParam'
 import HostRosterCard from '@/components/HostRosterCard'
 import { HOST_TITLE } from '@/lib/hostTitles'
 import { hubCanonical } from '../data'
@@ -38,7 +39,7 @@ export default function Hosts({ city, hosts, hostTotal, signedIn }: {
           </div>
         )}
         <div className="flex items-center gap-4 flex-wrap">
-          <Link href="/get-involved" className="btn-primary px-6 py-3">
+          <Link href={`/get-involved${cityQs(city.slug)}`} className="btn-primary px-6 py-3">
             {hosts.length === 0 ? `Host the first thing in ${city.name}` : 'Become a host'}
           </Link>
           <Link href={hubCanonical(city.slug, 'hosts')} className="text-sm font-bold text-amber-600 hover:underline">
