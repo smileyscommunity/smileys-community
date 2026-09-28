@@ -298,7 +298,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       // belong to the default city alone — Ankara's Ulus was claiming the
       // mtime of Istanbul's ulus.json.
       lastModified:    (citySlug === DEFAULT_CITY_SLUG ? neighborhoodMtimes.get(n.slug) : undefined) ?? n.updatedAt,
-      priority:        0.7,
+      // A neighbourhood with a hand-written guide is a real page; one running
+      // on the generated paragraph alone is not worth the same crawl budget.
+      priority:        (citySlug === DEFAULT_CITY_SLUG
+        ? neighborhoodMtimes.get(n.slug) !== undefined
+        : !!citySlug && fileMtime('neighborhoods', citySlug, `${n.slug}.json`) !== undefined) ? 0.7 : 0.5,
       changeFrequency: 'weekly' as const,
     }] as const
   })).values()]

@@ -26,7 +26,8 @@ describe('/neighborhoods/[slug] sections', () => {
   const src = readFileSync('app/neighborhoods/[slug]/NeighborhoodSections.tsx', 'utf-8')
 
   it('local members honour the opt-out, admin hiding and connections-only profiles', () => {
-    expect(src).toMatch(/neighborhood: name, cityId, status: 'approved',\s*neighborhoodVisible: true, hiddenFromMembers: false,\s*\.\.\.\(viewer \? \{\} : \{ profileVisibility: \{ not: 'connections' \} \}\)/)
+    // 2026-09-28: status:'approved' became ...ACTIVATED_MEMBER_WHERE (the set totalLocals counts).
+    expect(src).toMatch(/neighborhood: name, cityId, \.\.\.ACTIVATED_MEMBER_WHERE,\s*neighborhoodVisible: true, hiddenFromMembers: false,\s*\.\.\.\(viewer \? \{\} : \{ profileVisibility: \{ not: 'connections' \} \}\)/)
     expect(src).toMatch(/restrictedSetFor\(viewer, localCandidates\)/)
   })
 

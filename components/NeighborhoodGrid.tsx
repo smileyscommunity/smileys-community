@@ -53,7 +53,9 @@ function fmt(d: string) {
 // ── Featured card (large, gradient) ──────────────────────────────────────────
 function FeaturedCard({ n, cityQuery = '' }: { n: NeighborhoodItem; cityQuery?: string }) {
   const gradient = SIDE_GRADIENT[n.meta.side] ?? 'from-amber-500 to-orange-400'
-  const photo = neighborhoodImage(n.name)
+  // The photo map is Istanbul's, keyed by bare name: another city's Fatih
+  // must not get Istanbul's picture. cityQuery is '' only for the default city.
+  const photo = cityQuery ? null : neighborhoodImage(n.name)
   return (
     <Link href={`/neighborhoods/${n.slug}${cityQuery}`}
       className="group relative rounded-2xl overflow-hidden shadow-md hover:shadow-xl hover:-translate-y-1 transition-all">
@@ -135,7 +137,7 @@ function NeighborhoodCard({ n, cardBg, cardBorder, cityQuery = '' }: { n: Neighb
   const border = n.isYours ? 'border-amber-300 ring-1 ring-amber-200' : (cardBorder ?? 'border-gray-100 hover:border-gray-200')
   const bg     = cardBg ?? 'bg-white'
 
-  const photo = neighborhoodImage(n.name)
+  const photo = cityQuery ? null : neighborhoodImage(n.name)
 
   return (
     <Link href={`/neighborhoods/${n.slug}${cityQuery}`}
@@ -401,7 +403,7 @@ export default function NeighborhoodGrid({ groups, userNeighborhood, mapCenter, 
         <div>
           <div className="flex items-center gap-2 mb-4">
             <span className="text-xs font-bold text-gray-600 uppercase tracking-widest">
-              {sort === 'events' ? 'Events this week' : 'Most active right now'}
+              {sort === 'events' ? 'Events this week' : shortlist.some(n => n.eventCount > 0) ? 'Most active right now' : 'Where members live'}
             </span>
             <div className="flex-1 h-px bg-gray-100" />
           </div>

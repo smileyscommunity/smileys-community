@@ -29,7 +29,7 @@ const CATEGORY_LABEL: Record<string, string> = {
   Other:      '✨ More',
 }
 
-export default function LocalFavorites({ picks }: { picks: LocalPick[] }) {
+export default function LocalFavorites({ picks, directoryHref = '/directory' }: { picks: LocalPick[]; directoryHref?: string }) {
   const categories = [...new Set(picks.map(p => p.category))]
     .sort((a, b) => picks.filter(p => p.category === b).length - picks.filter(p => p.category === a).length)
 
@@ -98,7 +98,7 @@ export default function LocalFavorites({ picks }: { picks: LocalPick[] }) {
         ))}
       </div>
 
-      <Link href="/directory" className="inline-block mt-6 text-sm font-bold text-amber-600 hover:underline">
+      <Link href={directoryHref} className="inline-block mt-6 text-sm font-bold text-amber-600 hover:underline">
         See all local picks →
       </Link>
     </section>

@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { resolvePostingCityId } from '@/lib/cityMembership'
 import { visitorName } from '@/lib/visitorPolicy'
 import { jsonLdHtml } from '@/lib/jsonLd'
 import Image from 'next/image'
@@ -98,6 +99,12 @@ export default async function NeighborhoodSections({
 
   const now = new Date()
 
+  // Who may write here: a member's own city, or one they have joined
+  // (resolvePostingCityId — the rule the wall's POST enforces). Said up
+  // front, so a member browsing another city is not handed a composer that
+  // fails on submit.
+  const canPost = viewer ? (await resolvePostingCityId(viewer)) === cityId : false
+
   // A blocked pair sees nothing of each other, on every card below that names
   // a member — the visits and the hangouts both read this list.
   const blockedIds = myId
@@ -135,7 +142,10 @@ export default async function NeighborhoodSections({
     // connected (restrictedSetFor, applied below).
     prisma.user.findMany({
       where:   {
-        neighborhood: name, cityId, status: 'approved',
+        // Activated members (lib/memberCount), the same people totalLocals
+        // counts — a never-activated account made "(N)" smaller than its
+        // own avatar row.
+        neighborhood: name, cityId, ...ACTIVATED_MEMBER_WHERE,
         neighborhoodVisible: true, hiddenFromMembers: false,
         ...(viewer ? {} : { profileVisibility: { not: 'connections' } }),
       },
@@ -521,7 +531,7 @@ export default async function NeighborhoodSections({
         <div>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">Clubs active around {name}</h2>
-            <Link href="/clubs" className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
+            <Link href={`/clubs${cityQuery}`} className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
               All clubs →
             </Link>
           </div>
@@ -594,10 +604,12 @@ export default async function NeighborhoodSections({
             <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">
               Local members ({totalLocals})
             </h2>
-            <Link href={`/members?neighborhood=${encodeURIComponent(name)}`}
+            {myId && (
+              <Link href={`/members?neighborhood=${encodeURIComponent(name)}`}
               className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
               See all →
             </Link>
+            )}
           </div>
           <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
             <div className="flex flex-wrap gap-4">
@@ -658,10 +670,12 @@ export default async function NeighborhoodSections({
         <div>
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">Upcoming events</h2>
-            <Link href={`/members?neighborhood=${encodeURIComponent(name)}`}
+            {myId && (
+              <Link href={`/members?neighborhood=${encodeURIComponent(name)}`}
               className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
               {totalLocals} local member{totalLocals !== 1 ? 's' : ''} →
             </Link>
+            )}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {upcomingRaw.slice(0, 3).map((event, idx) => {
@@ -724,7 +738,7 @@ export default async function NeighborhoodSections({
             })}
           </div>
           <div className="mt-6 text-center">
-            <Link href={`/events?neighborhood=${encodeURIComponent(name)}`}
+            <Link href={`/events?neighborhood=${encodeURIComponent(name)}&city=${encodeURIComponent(city.slug)}`}
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 hover:border-amber-300 hover:text-amber-700 transition-colors">
               See all events in {name}
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -807,7 +821,7 @@ export default async function NeighborhoodSections({
                 ? `${s.toLocaleDateString('en-GB', { day: 'numeric', timeZone: 'UTC' })}–${e.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })}`
                 : `${s.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })} – ${e.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })}`
               return (
-                <Link key={v.id} href="/visiting" className="group block">
+                <Link key={v.id} href={`/visiting${cityQuery}`} className="group block">
                   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hover:shadow-md hover:-translate-y-0.5 transition-all h-full">
                     <div className="flex items-center gap-2 mb-2">
                       <span aria-hidden="true" className="text-2xl">👋</span>
@@ -948,13 +962,13 @@ export default async function NeighborhoodSections({
               Neighborhood Wall{wallPostCount !== null && wallPostCount > 0 ? ` (${wallPostCount})` : ''}
             </h2>
             <div className="flex-1 h-px bg-gray-100" />
-            <span className="text-xs text-gray-400">Open to all members</span>
+            <span className="text-xs text-gray-400">Members of {city.name}</span>
           </div>
           {/* isStaff arrives as a bare role check from the parent page, so a
               moderator for another city was handed this city's wall controls.
               Scope it here as well — the wall's own API has to enforce it, but
               the affordance shouldn't be offered to someone who can't act. */}
-          <NeighborhoodWall slug={slug} name={name} myId={myId} citySlug={city.slug}
+          <NeighborhoodWall slug={slug} name={name} myId={myId} citySlug={city.slug} canPost={canPost} cityName={city.name}
             isStaff={isStaff && !!viewer && canActInCity(viewer, cityId)} />
         </div>
       )}
@@ -979,7 +993,7 @@ export default async function NeighborhoodSections({
                 l.category === 'BUY_SELL' ? '🛍️' :
                 l.category === 'FREE'     ? '🎁' : '⭐'
               return (
-                <Link key={l.id} href={`/board?l=${l.id}`} className="group block">
+                <Link key={l.id} href={`/board?l=${l.id}&city=${encodeURIComponent(city.slug)}`} className="group block">
                   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all h-full">
                     {l.photo ? (
                       <div className="relative h-32 bg-gray-100">
@@ -1036,8 +1050,8 @@ export default async function NeighborhoodSections({
                   <span aria-hidden="true">{cat.emoji}</span> {cat.category}
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {cat.items.map(place => (
-                    <div key={place.name} className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+                  {(cat.items ?? []).map((place, pi) => (
+                    <div key={`${pi}-${place.name}`} className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
                       <div className="flex items-start justify-between gap-2 mb-1">
                         <span className="text-sm font-bold text-gray-900">{place.name}</span>
                         {place.badge && (

@@ -310,7 +310,7 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
       // all turned up in the strip (and in the avatar alt text with them).
       // Same rules as NeighborhoodSections' local strip and HeroStats' count.
       where:   {
-        neighborhood: userNeighborhood, cityId, status: 'approved',
+        neighborhood: userNeighborhood, cityId, ...ACTIVATED_MEMBER_WHERE,
         neighborhoodVisible: true, hiddenFromMembers: false,
         id: { notIn: [session.id, ...blockedIds] },
       },
@@ -332,15 +332,20 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
   // logged-out visitor, and members who haven't picked one — these sections
   // would otherwise be blank, so they fall back to the busiest neighborhood
   // and say so in the heading rather than implying it's the viewer's own.
-  const busiest = [...memberCounts]
-    .filter(m => m.neighborhood && viewByName.has(m.neighborhood))
-    .sort((a, b) => b._count._all - a._count._all)[0]?.neighborhood ?? null
+  // The busiest neighbourhood by ACTIVITY (events first, then members) — it
+  // was the largest headcount, and the heading called it the most active.
+  const busiest = [...neighborhoods]
+    .sort((a, b) => b.activityScore - a.activityScore || b.memberCount - a.memberCount)[0]?.name ?? null
   const focusNeighborhood = userNeighborhood ?? busiest
   const focusIsYours      = !!userNeighborhood
+  const focusHasEvents    = (neighborhoods.find(n => n.name === focusNeighborhood)?.eventCount ?? 0) > 0
   // Links are built from the registry's slug, never re-derived from the name:
   // an admin can edit a slug, after which the derived one 404s while every
   // card on the same page (view.slug) still works.
   const focusSlug = focusNeighborhood ? viewByName.get(focusNeighborhood)?.slug ?? null : null
+  // Four slugs are shared with another city, so a bare URL is the default
+  // city's page — every link and every <loc> carries the city.
+  const cityQuery = city.slug === DEFAULT_CITY_SLUG ? '' : `?city=${city.slug}`
 
   let nearbyEvents: {
     id: string; title: string; emoji: string; date: string; location: string
@@ -373,7 +378,7 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
       where: {
         neighborhood: focusNeighborhood,
         cityId,
-        status: 'approved',
+        ...ACTIVATED_MEMBER_WHERE,
         neighborhoodVisible: true,
         hiddenFromMembers: false,
         ...(session
@@ -458,16 +463,19 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
   const localPicks = await prisma.business.findMany({
     // cityId, or an İzmir member browsing their own neighborhoods page is
     // recommended cafés in Kadıköy.
-    where:  { isApproved: true, isActive: true, cityId, coverImage: { not: null } },
+    // "Places Smileys members actually recommend": at least one visible
+    // recommendation, counted the same way; the quote is a positive, visible
+    // one — a one-star or moderator-hidden review was the endorsement before.
+    where:  { isApproved: true, isActive: true, cityId, coverImage: { not: null }, reviews: { some: { isHidden: false } } },
     select: {
       id: true, name: true, category: true, neighborhood: true, coverImage: true,
       reviews: {
-        where:  { comment: { not: null } },
+        where:  { comment: { not: null }, isHidden: false, rating: { gte: 4 } },
         select: { comment: true, author: { select: { name: true } } },
         take:   1,
         orderBy: { createdAt: 'desc' },
       },
-      _count: { select: { reviews: true } },
+      _count: { select: { reviews: { where: { isHidden: false } } } },
     },
     // Ordered by recommendation count: "Recommended by 18 Smileys" carries
     // community consensus, "by 1 Smiley" doesn't, and unordered results let
@@ -499,7 +507,6 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
   // Four slugs are shared with another city, so a bare URL is the default
   // city's page — qualify every link and every <loc> the way the detail
   // page's canonical does.
-  const cityQuery = city.slug === DEFAULT_CITY_SLUG ? '' : `?city=${city.slug}`
   const neighborhoodsJsonLd = {
     '@context': 'https://schema.org',
     '@type':    'ItemList',
@@ -567,7 +574,7 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
                     only has the visibility toggle) — both buttons sent the
                     one audience they target, a member with none set, to a
                     page that could not set it. */}
-                <Link href={userNeighborhood ? '#your-neighborhood' : session ? '/profile' : '/apply'}
+                <Link href={userNeighborhood ? '#your-neighborhood' : session ? '/profile' : `/apply${cityQuery}`}
                   className="inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-amber-500 hover:bg-amber-600 text-white text-base font-bold rounded-xl transition-colors shadow-lg">
                   <span aria-hidden="true">📍</span> Find My Neighborhood
                 </Link>
@@ -701,12 +708,16 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
         {focusNeighborhood && (
           <section className="mb-12">
             <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">
-              {focusIsYours ? 'Happening near you' : `Happening in ${focusNeighborhood}`}
+              {focusIsYours ? 'Happening near you' : focusHasEvents ? `Happening in ${focusNeighborhood}` : `Around ${focusNeighborhood}`}
             </h2>
+            {/* "Most active" is a claim about events; with none on the calendar
+                the honest line is where the members are. */}
             <p className="text-gray-600 mt-1.5 mb-6">
               {focusIsYours
                 ? `Events and plans around your side of ${city.name}.`
-                : `${city.name}'s most active Smileys neighborhood right now.`}
+                : focusHasEvents
+                ? `${city.name}'s most active Smileys neighborhood right now.`
+                : `Where the most Smileys members in ${city.name} live right now.`}
             </p>
             {nearbyEvents.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -731,10 +742,18 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
                 <p className="text-sm text-gray-600 mt-1 mb-4">
                   Neighborhoods come alive when someone starts something.
                 </p>
-                <Link href={`/hangouts?new=1${focusNeighborhood ? `&neighborhood=${encodeURIComponent(focusNeighborhood)}` : ''}`}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
-                  Create a meetup →
-                </Link>
+                {/* Hangouts are members-only; a guest's path is the application. */}
+                {session ? (
+                  <Link href={`/hangouts?new=1${focusNeighborhood ? `&neighborhood=${encodeURIComponent(focusNeighborhood)}` : ''}`}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
+                    Create a meetup →
+                  </Link>
+                ) : (
+                  <Link href={`/apply${cityQuery}`}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
+                    Join Smileys to start one →
+                  </Link>
+                )}
               </div>
             )}
           </section>
@@ -825,7 +844,7 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
         </section>
 
         {/* ── Local favorites (§8) ── */}
-        <LocalFavorites picks={serialisedPicks} />
+        <LocalFavorites picks={serialisedPicks} directoryHref={`/directory${cityQuery}`} />
 
         {/* ── Coming to your neighborhood (§13) ──
             Rendered only when real visitors exist; an empty "coming to your
@@ -904,7 +923,7 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
             Choose your neighborhood and discover who&apos;s around you.
           </p>
           <div className="mt-7 flex flex-col sm:flex-row gap-3 justify-center">
-            <Link href={session ? '/profile' : '/apply'}
+            <Link href={session ? '/profile' : `/apply${cityQuery}`}
               className="inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-amber-500 hover:bg-amber-600 text-white text-base font-bold rounded-xl transition-colors">
               <span aria-hidden="true">📍</span> {session ? 'Set my neighborhood' : 'Join Smileys'}
             </Link>

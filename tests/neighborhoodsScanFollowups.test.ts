@@ -17,8 +17,9 @@ const sections = read('app/neighborhoods/[slug]/NeighborhoodSections.tsx')
 describe('the two "set your neighbourhood" buttons go to the page with the picker (item 7)', () => {
   it('index CTAs never send a member to /settings', () => {
     expect(index).not.toContain("'/settings'")
-    expect(index).toContain("session ? '/profile' : '/apply'")
-    expect(index).toContain("userNeighborhood ? '#your-neighborhood' : session ? '/profile' : '/apply'")
+    // 2026-09-28 item 18: the guest path carries the city.
+    expect(index).toContain("session ? '/profile' : `/apply${cityQuery}`")
+    expect(index).toContain("userNeighborhood ? '#your-neighborhood' : session ? '/profile' : `/apply${cityQuery}`")
   })
 })
 

@@ -7,7 +7,7 @@ import { readFileSync } from 'fs'
 import { join } from 'path'
 import { getNeighborhoodViews, resolveNeighborhoodBySlug, type NeighborhoodView } from '@/lib/neighborhoodsDb'
 import { neighborhoodImage, nearestByDistance } from '@/lib/neighborhoods'
-import { resolveCityId, getCityConfig, DEFAULT_CITY_SLUG } from '@/lib/city'
+import { getCityConfig, DEFAULT_CITY_SLUG } from '@/lib/city'
 import { resolveCityForPage, type CitySearch } from '@/lib/cityPageParam'
 import { countryName } from '@/lib/countries'
 import { APP_URL } from '@/lib/env'
@@ -52,9 +52,12 @@ export async function generateMetadata(
     ? guide.places.flatMap((cat: { items?: { name: string }[] }) => cat.items?.map(it => it.name) ?? []).slice(0, 2)
     : []
 
+  // Without a guide the page has no "things to do" and, on most cities, no
+  // events either — six cities' pages were titled "Social Events in İzmir"
+  // over zero events. The neutral title says what the page is.
   const title = guide?.tagline
     ? `${meta.emoji} ${name}: Things to Do & Local Guide · Smileys Community`
-    : `${meta.emoji} ${name} — Social Events in ${city.name} · Smileys Community`
+    : `${meta.emoji} ${name} — ${city.name} Neighborhoods · Smileys Community`
   // Taglines run 79-199 chars on their own (avg 150), so a raw concat with
   // place names routinely blew past Google's ~155-160 char display budget.
   // Brand mention is dropped here — it's already in the title, and every
@@ -64,8 +67,9 @@ export async function generateMetadata(
   const rawDesc = guide?.tagline
     ? `${guide.tagline}${topPlaces.length ? ` Try ${topPlaces.join(', ')}.` : ''}`
     // meta.vibe defaults to '' for a bulk-added neighborhood, which left
-    // "…, Ankara. . Join Smileys…" in the indexed description.
-    : `Discover upcoming social events in ${name}, ${city.name}.${meta.vibe ? ` ${meta.vibe}.` : ''} Join Smileys Community — ${city.name}'s expat & digital nomad social platform.`
+    // "…, Ankara. . Join Smileys…" in the indexed description. No promise of
+    // events: the page shows who's around and what's on, which may be nothing.
+    : `${name}, ${city.name}${meta.vibe ? ` — ${meta.vibe}` : ''}. Who's around, what's on and what's nearby, on the Smileys community's neighborhood page.`
   const desc = rawDesc.length > 160
     ? `${rawDesc.slice(0, 157).replace(/\s+\S*$/, '').trimEnd()}…`
     : rawDesc
@@ -81,7 +85,7 @@ export async function generateMetadata(
   const ogImage = `${APP_URL}/api/og?${new URLSearchParams({
     title:   `${meta.emoji} ${name}`,
     eyebrow: `${city.name} Neighborhoods · Smileys Community`,
-    cta:     'See events here',
+    cta:     guide?.tagline ? 'See events here' : "See who's around",
   }).toString()}`
   return {
     title,
@@ -157,19 +161,19 @@ function buildAboutCopy(meta: NeighborhoodView, cityName: string, nearbyNames: s
   // free text — so an İzmir neighborhood filed under "Central" read "Alsancak
   // is one of Izmir's … neighborhoods, in central Istanbul". Only Istanbul gets
   // the hand-written phrasing; everyone else gets the neutral form.
-  const where = (isDefaultCity ? SIDE_PHRASE[area] : undefined) ?? (area ? `in ${area}` : `in ${cityName}`)
+  // Another city's area is its own vocabulary ("Central", "Old Town",
+  // "Campus Belt", "Peninsula"), so it reads as a part of the city rather
+  // than being dropped in raw: "a neighborhood in Central" was the result.
+  const where = (isDefaultCity ? SIDE_PHRASE[area] : undefined) ?? (area ? `in the ${area} part of ${cityName}` : `in ${cityName}`)
   const priced = COST_LABEL[cost] ? `, generally ${COST_LABEL[cost]} by local standards` : ''
-  // Istanbul's vibes are short adjective phrases ("leafy and calm"), so they
-  // read inside the sentence. Every other city was seeded full descriptive
-  // sentences, which produced "Ulus is one of Ankara's where the republic
-  // started — the first parliament, the roman baths, hacı bayram and the
-  // old-town bazaars neighborhoods" — ungrammatical, and force-lowercased
-  // over proper nouns. Only an adjective-shaped vibe goes inside; anything
-  // longer or punctuated follows as its own sentence, unaltered.
-  const adjectival = !!vibe && vibe.length <= 40 && !/[,.;:—–]/.test(vibe)
-  const opener = adjectival
-    ? `${name} is one of ${cityName}'s ${vibe.toLowerCase()} neighborhoods, ${where}${priced}.`
-    : `${name} is a neighborhood ${where}${priced}.${vibe ? ` ${vibe}${/[.!?]$/.test(vibe) ? '' : '.'}` : ''}`
+  // The vibe keeps its own casing — it was force-lowercased into the
+  // sentence, which turned "New Istanbul", "Bosphorus & affluent" and "Black
+  // Sea beaches" into lower-case proper nouns. So it leads as its own phrase
+  // and the sentence follows.
+  const vibeLine = vibe ? `${name}: ${vibe}${/[.!?]$/.test(vibe) ? '' : '.'} ` : ''
+  const opener = vibeLine
+    ? `${vibeLine}One of ${cityName}'s neighborhoods, ${where}${priced}.`
+    : `${name} is a neighborhood ${where}${priced}.`
   const near = nearbyNames.length > 0 ? ` It's close to ${nearbyNames.join(' and ')}.` : ''
   return `${opener}${near} Smileys members based in ${name} connect through neighborhood events, meetups, and each other — this page tracks who's around, what's on, and what's nearby.`
 }
@@ -261,12 +265,17 @@ export default async function NeighborhoodPage(
 
   const name  = meta.name
   const guide = loadNeighborhoodGuide(city.slug, slug)
-  const heroImage = guide?.image ?? neighborhoodImage(name)
+  // The photo map (lib/neighborhoods) is keyed by bare name and is Istanbul's:
+  // another city's "Fatih" must not get Istanbul's picture.
+  const heroImage = guide?.image ?? (city.slug === DEFAULT_CITY_SLUG ? neighborhoodImage(name) : null)
 
   // …and only when this page is in the viewer's own city: the name alone made
   // an Istanbul member "the first local Smileys member here" on Ankara's Ulus.
   const isYourNeighborhood = session?.neighborhood === name && session?.cityId === cityId
-  const hasNoNeighborhood  = session && !session.neighborhood
+  // Only on the reader's own city: the picker on /profile lists the home
+  // city's neighbourhoods, so an Istanbul member on Ankara's Ulus was told
+  // to set a neighbourhood they could not pick.
+  const hasNoNeighborhood  = !!session && !session.neighborhood && session.cityId === cityId
   const isStaff = session?.role === 'admin' || session?.role === 'moderator'
 
   // Istanbul's six areas have hand-written display labels; another city's area
@@ -301,7 +310,7 @@ export default async function NeighborhoodPage(
     '@type':    'BreadcrumbList',
     itemListElement: [
       { '@type': 'ListItem', position: 1, name: 'Home',          item: APP_URL },
-      { '@type': 'ListItem', position: 2, name: 'Neighborhoods', item: `${APP_URL}/neighborhoods` },
+      { '@type': 'ListItem', position: 2, name: 'Neighborhoods', item: `${APP_URL}/neighborhoods${cityQuery}` },
       { '@type': 'ListItem', position: 3, name,                  item: pageUrl },
     ],
   }
@@ -366,7 +375,7 @@ export default async function NeighborhoodPage(
         )}
 
         <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
-          <Link href="/neighborhoods" className="inline-flex items-center gap-1.5 text-sm text-white/70 hover:text-white transition-colors mb-8">
+          <Link href={`/neighborhoods${cityQuery}`} className="inline-flex items-center gap-1.5 text-sm text-white/70 hover:text-white transition-colors mb-8">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
@@ -380,7 +389,7 @@ export default async function NeighborhoodPage(
             <h1 className="text-4xl sm:text-5xl font-extrabold text-white tracking-tight drop-shadow-sm">
               <span aria-hidden="true">{meta.emoji}</span> {name}, {city.name}
               <span className="block text-lg sm:text-xl font-semibold text-white/70 mt-1">
-                A neighborhood guide for the Smileys community
+                {guide ? 'A neighborhood guide for the Smileys community' : `A Smileys community neighborhood in ${city.name}`}
               </span>
             </h1>
             {isYourNeighborhood && (
@@ -509,26 +518,29 @@ export default async function NeighborhoodPage(
         {/* Share */}
         <SocialShare
           title={`${meta.emoji} ${name} — Smileys Community ${city.name}`}
-          url={`${APP_URL}/neighborhoods/${slug}`}
+          url={pageUrl}
           cacheKey={slug.slice(0, 6)}
         />
       </div>
 
-      {/* CTA */}
-      <section className="border-t border-gray-100 bg-gray-900">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-14 text-center">
-          <h2 className="text-2xl font-extrabold text-white mb-3">Want to join these events?</h2>
-          <p className="text-gray-400 mb-7 text-sm">Smileys is an application-based community. Apply once, attend everything.</p>
-          <div className="flex items-center justify-center gap-3 flex-wrap">
-            <Link href="/apply" className="px-6 py-3 rounded-xl bg-amber-500 text-white font-bold text-sm hover:bg-amber-600 transition-colors shadow-sm">
-              Apply to join
-            </Link>
-            <Link href="/neighborhoods" className="px-6 py-3 rounded-2xl border border-white/10 text-gray-300 font-semibold text-sm hover:bg-white/5 transition-colors">
-              More neighborhoods
-            </Link>
+      {/* CTA — guests only (a member was being asked to apply), and it does
+          not promise events the page may not have. */}
+      {!session && (
+        <section className="border-t border-gray-100 bg-gray-900">
+          <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-14 text-center">
+            <h2 className="text-2xl font-extrabold text-white mb-3">Want to meet people in {name}?</h2>
+            <p className="text-gray-400 mb-7 text-sm">Smileys is an application-based community. Apply once, join everything in {city.name}.</p>
+            <div className="flex items-center justify-center gap-3 flex-wrap">
+              <Link href={`/apply${cityQuery}`} className="px-6 py-3 rounded-xl bg-amber-500 text-white font-bold text-sm hover:bg-amber-600 transition-colors shadow-sm">
+                Apply to join
+              </Link>
+              <Link href={`/neighborhoods${cityQuery}`} className="px-6 py-3 rounded-2xl border border-white/10 text-gray-300 font-semibold text-sm hover:bg-white/5 transition-colors">
+                More neighborhoods
+              </Link>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
     </main>
   )
 }
