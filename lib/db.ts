@@ -5,7 +5,7 @@ import React from 'react'
 const cache: <T extends (...a: never[]) => unknown>(fn: T) => T =
   (React as unknown as { cache?: typeof cache }).cache ?? ((fn) => fn)
 import type { Club, Event, VibeTag } from './data'
-import { nowInTz, todayInTz, DEFAULT_TZ } from './cityTime'
+import { todayInTz, DEFAULT_TZ, startedCutoff } from './cityTime'
 import { getCityTz, getCityConfig } from './city'
 import { isSoldOut } from '@/lib/soldOut'
 import { COUNTED_CLUB_MEMBERSHIP_WHERE } from './clubMemberCount'
@@ -339,14 +339,9 @@ export async function getEvents(options?: {
     prisma.user.findMany({ where: { OR: [{ status: 'banned' }, { suspendedUntil: { gt: new Date() } }] }, select: { id: true } }),
   ])
   const unlistableIds = unlistable.map(u => u.id)
-  const { date: today, minutes: nowMins } = nowInTz(tz)
-  // Drop events whose start was > 5h ago — keeps in-progress events
-  // visible for a typical event's duration but removes finished ones.
-  // If subtracting 5h underflows past midnight, clamp to 00:00 (events
-  // that crossed midnight from a previous day are already excluded by
-  // the `date >= today` lower bound).
-  const cutoffMins  = Math.max(0, nowMins - 300)
-  const cutoffTime  = `${String(Math.floor(cutoffMins / 60)).padStart(2, '0')}:${String(cutoffMins % 60).padStart(2, '0')}`
+  // lib/cityTime startedCutoff: later days, plus today's events that started
+  // at most five hours ago — the same window the city's hero count uses.
+  const { today, cutoffTime } = startedCutoff(tz)
 
   // Include 'cancelled' so the EventCard banner is reachable — members
   // who heard about an event before it was killed need to see WHY it

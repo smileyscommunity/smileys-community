@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { bustCityPages } from '@/lib/cityPageCache'
 import { isTier } from '@/lib/standingPolicy'
 import { prisma } from '@/lib/prisma'
 import { claimOnce, releaseClaim, rateLimit } from '@/lib/rateLimit'
@@ -135,6 +136,7 @@ export async function DELETE(_: NextRequest, { params }: Params) {
       { title: eventScope.title, date: eventScope.date, attendeesRemoved: attendeeCount, cityId: eventScope.cityId },
       `Deleted event "${eventScope.title}" (${eventScope.date}, ${attendeeCount} attendees removed)`,
     )
+    bustCityPages()
     return NextResponse.json({ ok: true })
   } catch (e) {
     console.error(e)
@@ -844,6 +846,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
       })().catch(err => console.error('[event PATCH cancel] fan-out failed', { eventId: id, err: String(err) }))
     }
 
+    bustCityPages()
     return NextResponse.json(event)
   } catch (e) {
     console.error(e)
@@ -935,6 +938,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       })().catch(() => {})
     }
 
+    bustCityPages()
     return NextResponse.json(event)
   } catch (e) {
     console.error(e)

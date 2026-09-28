@@ -6,6 +6,8 @@ import CityPageTracker from '@/components/CityPageTracker'
 import { eventWindowFor } from '@/lib/data'
 import { getPublicCity, DEFAULT_CITY_SLUG } from '@/lib/cities'
 import { CITY_STATUS } from '@/lib/cityStatus'
+import { APP_URL } from '@/lib/env'
+import { jsonLdHtml } from '@/lib/jsonLd'
 import { cityMetadata, getCityPageData, getVisitors, getCityHosts, getTopNeighborhoods, arrangeEvents, featureClubs, enterLinkFor, publicLinkFor } from './data'
 import PreLaunch from './sections/PreLaunch'
 import Hero from './sections/Hero'
@@ -36,6 +38,33 @@ import FinalCta from './sections/FinalCta'
 
 interface Params { params: Promise<{ city: string }> }
 
+// The page's own structured data: where it sits (Smileys › Cities › the
+// city) and what it is about. The only block on the page was the layout's
+// Organization. City columns only — no member ever appears here.
+function CityJsonLd({ city }: { city: { slug: string; name: string; tagline?: string | null } }) {
+  const url = `${APP_URL}/${city.slug}`
+  const data = {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'WebPage', '@id': url, url, name: `Smileys ${city.name}`,
+        ...(city.tagline ? { description: city.tagline } : {}),
+        about: { '@type': 'City', name: city.name },
+        isPartOf: { '@type': 'WebSite', url: APP_URL, name: 'Smileys Community' },
+      },
+      {
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'Smileys', item: APP_URL },
+          { '@type': 'ListItem', position: 2, name: 'Cities', item: `${APP_URL}/cities` },
+          { '@type': 'ListItem', position: 3, name: city.name, item: url },
+        ],
+      },
+    ],
+  }
+  return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdHtml(data) }} />
+}
+
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { city: slug } = await params
   const city = await getPublicCity(slug)
@@ -51,7 +80,7 @@ export default async function CityPage({ params }: Params) {
   // Read before the pre-launch gate: the holding page's one button needs to
   // know whether it is talking to a guest (JoinCityButton `guest`).
   const session = await getSession()
-  if (city.status !== CITY_STATUS.Live) return <PreLaunch city={city} signedIn={!!session} />
+  if (city.status !== CITY_STATUS.Live) return <><CityJsonLd city={city} /><PreLaunch city={city} signedIn={!!session} /></>
 
   const { events: cachedEvents, clubs, neighborhoodCounts, testimonials, newMembersThisWeek, guideEntries, latestStories } =
     await getCityPageData(city.id, city.timezone, city.country ?? null)
@@ -79,6 +108,7 @@ export default async function CityPage({ params }: Params) {
 
   return (
     <>
+      <CityJsonLd city={city} />
       <CityPageTracker slug={city.slug} status={city.status} />
       <Hero city={city} enter={enter} signedIn={!!session} />
       <Events city={city} tabEvents={tabEvents} eventWindow={eventWindow} enter={enter} signedIn={!!session} />

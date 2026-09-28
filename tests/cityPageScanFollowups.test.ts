@@ -192,3 +192,77 @@ describe('item 9: quotes and stories say whose they are', () => {
     expect(s).not.toContain('>Real writing from the community.<')
   })
 })
+
+// Items 11–16 (2026-09-29): the cache is refreshed by the writes that change
+// the page; the page carries its own structured data; no borrowed photo;
+// per-city sitemap dates; decorative emoji; one "upcoming" window.
+
+import { startedCutoff } from '@/lib/cityTime'
+
+describe('item 11: admin writes refresh the city pages', () => {
+  it('the helper busts the tag the loaders use, safely outside a request', () => {
+    const h = read('lib/cityPageCache.ts')
+    expect(h).toContain("export const CITY_PAGE_TAG = 'home'")
+    expect(h).toContain('try { revalidateTag(CITY_PAGE_TAG) } catch {')
+    expect(read('app/[city]/data.ts')).toContain("tags: ['home']")
+  })
+  it('event create/edit/status/delete/duplicate, quotes and city edits call it', () => {
+    expect(read('app/api/admin/events/route.ts')).toContain('bustCityPages()\n    return NextResponse.json(event)')
+    expect(read('app/api/admin/events/[id]/route.ts').split('bustCityPages()').length - 1).toBe(3)
+    expect(read('app/api/admin/events/[id]/duplicate/route.ts')).toContain('bustCityPages()')
+    expect(read('app/api/admin/testimonials/route.ts')).toContain('bustCityPages()')
+    expect(read('app/api/admin/testimonials/[id]/route.ts').split('bustCityPages()').length - 1).toBe(2)
+    expect(read('app/api/admin/cities/[id]/route.ts')).toContain('const updated = await prisma.city.update({ where: { id }, data })\n  // Hero, tagline, description and status all render on the city page.\n  bustCityPages()')
+  })
+})
+
+describe('item 12: the city page has its own structured data', () => {
+  const page = read('app/[city]/page.tsx')
+  it('a WebPage about the city and a breadcrumb, escaped, on live and pre-launch pages', () => {
+    expect(page).toContain("about: { '@type': 'City', name: city.name },")
+    expect(page).toContain("{ '@type': 'ListItem', position: 3, name: city.name, item: url },")
+    expect(page).toContain('dangerouslySetInnerHTML={{ __html: jsonLdHtml(data) }}')
+    expect(page.split('<CityJsonLd city={city} />').length - 1).toBe(2)
+  })
+})
+
+describe('item 13: no borrowed hero photo', () => {
+  const img = read('app/[city]/sections/CityHeroImage.tsx')
+  it('a city without a hero gets a brand panel with its name, not Istanbul\'s photo', () => {
+    expect(img).not.toContain('hero-istanbul.jpg')
+    expect(img).toContain('if (!city.heroImage) {')
+    expect(img).toContain('alt={city.name}')
+    expect(img).not.toContain('Smileys members in')
+  })
+})
+
+describe('item 14: each city page carries its own freshness', () => {
+  it('lastModified comes from the city\'s own events and clubs', () => {
+    const sm = read('app/sitemap.ts')
+    expect(sm).toContain('...events.filter(e => e.cityId === c.id).map(e => e.updatedAt),')
+    expect(sm).toContain('...clubs.filter(cl => cl.cityId === c.id).map(cl => cl.createdAt),')
+    expect(sm).not.toContain('lastModified: newest([newestEvent, newestClub]) }')
+  })
+})
+
+describe('item 15: decorative emoji', () => {
+  it('the neighbourhood tiles hide their emoji from screen readers', () => {
+    expect(read('app/[city]/sections/Neighborhoods.tsx')).toContain('<span aria-hidden="true" className="text-3xl">{n.emoji}</span>')
+  })
+})
+
+describe('item 16: one upcoming window for the hero count and the list', () => {
+  it('the cutoff is five hours back, clamped at midnight', () => {
+    // 2026-09-29 18:30 Istanbul (UTC+3) = 15:30Z → cutoff 13:30
+    expect(startedCutoff('Europe/Istanbul', new Date('2026-09-29T15:30:00Z'))).toEqual({ today: '2026-09-29', cutoffTime: '13:30' })
+    // 02:00 Istanbul → clamped to 00:00
+    expect(startedCutoff('Europe/Istanbul', new Date('2026-09-28T23:00:00Z'))).toEqual({ today: '2026-09-29', cutoffTime: '00:00' })
+  })
+  it('both the event list and the city stats use it', () => {
+    expect(read('lib/db.ts')).toContain('const { today, cutoffTime } = startedCutoff(tz)')
+    const cities = read('lib/cities.ts')
+    expect(cities).toContain('const { today, cutoffTime } = startedCutoff(tzOf(id))')
+    expect(cities).toContain('return [{ cityId: id, date: { gt: today } }, { cityId: id, date: today, time: { gte: cutoffTime } }]')
+    expect(cities).not.toContain('date: { gte: todayOf(id) } })) },')
+  })
+})

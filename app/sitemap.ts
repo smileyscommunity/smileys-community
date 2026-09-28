@@ -39,13 +39,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const [events, clubs, posts, listings, businesses, movingSales, hoods, guideEntries] = await Promise.all([
     prisma.event.findMany({
       where: { status: 'published', cityId: { in: cityIds } },
-      select: { id: true, updatedAt: true },
+      select: { id: true, updatedAt: true, cityId: true },
       orderBy: { date: 'desc' },
       take: 200,
     }),
     prisma.club.findMany({
       where: { isActive: true, cityId: { in: cityIds } },
-      select: { slug: true, createdAt: true },
+      select: { slug: true, createdAt: true, cityId: true },
     }),
     // Unpinned articles (global / national) plus the live cities' own — a
     // coming-soon city's stories were being indexed, and `take` with no order
@@ -145,7 +145,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // them changes until they launch.
   const cityRoutes: MetadataRoute.Sitemap = cities.map(c => (
     c.status === CITY_STATUS.Live
-      ? { url: `${BASE}/${c.slug}`, priority: 0.95, changeFrequency: 'daily' as const, lastModified: newest([newestEvent, newestClub]) }
+      // Its own events and clubs — every city page claimed the newest change
+      // anywhere, so Bursa's page carried Istanbul's freshness. None → no
+      // date (the rule at the top of this file).
+      ? { url: `${BASE}/${c.slug}`, priority: 0.95, changeFrequency: 'daily' as const, lastModified: newest([
+          ...events.filter(e => e.cityId === c.id).map(e => e.updatedAt),
+          ...clubs.filter(cl => cl.cityId === c.id).map(cl => cl.createdAt),
+        ]) }
       : { url: `${BASE}/${c.slug}`, priority: 0.4,  changeFrequency: 'monthly' as const }
   ))
   // The crawlable listing layer per city (/[city]/events, /[city]/clubs).

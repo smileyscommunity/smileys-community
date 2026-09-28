@@ -31,7 +31,7 @@ export default function Neighborhoods({ city, topNeighborhoods, neighborhoodsHav
           {topNeighborhoods.map(n => (
             <a key={n.slug} href={enter('neighborhoods', n.slug)}
               className="group flex flex-col items-center text-center gap-2 bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-amber-200 hover:-translate-y-0.5 transition-all duration-200">
-              <span className="text-3xl">{n.emoji}</span>
+              <span aria-hidden="true" className="text-3xl">{n.emoji}</span>
               <span className="font-semibold text-sm text-gray-900 group-hover:text-amber-600 transition-colors leading-tight">{n.name}</span>
               {/* Event count where there are events; the neighborhood's own
                   vibe line otherwise. "0 events" on every card reads as a

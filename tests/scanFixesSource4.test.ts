@@ -29,8 +29,10 @@ describe('handbook review label', () => {
 describe('city stats "today"', () => {
   it('is computed per city from its own timezone', () => {
     const src = read('lib/cities.ts')
-    expect(src).toMatch(/const todayOf = \(id: string\) => todayInTz\(zones\.find\(z => z\.id === id\)\?\.timezone \?\? DEFAULT_TZ\)/)
-    expect(src).toMatch(/OR: cityIds\.map\(id => \(\{ cityId: id, date: \{ gte: todayOf\(id\) \} \}\)\)/)
+    // 2026-09-29 (city page scan item 16): still each city's own zone, now
+    // through the event list's started-cutoff window (lib/cityTime).
+    expect(src).toContain('const tzOf    = (id: string) => zones.find(z => z.id === id)?.timezone ?? DEFAULT_TZ')
+    expect(src).toContain('const { today, cutoffTime } = startedCutoff(tzOf(id))')
   })
 })
 

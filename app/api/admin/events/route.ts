@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { bustCityPages } from '@/lib/cityPageCache'
 import { isTier } from '@/lib/standingPolicy'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
@@ -530,6 +531,7 @@ export async function POST(req: NextRequest) {
       notifyNewEvent({ id: event.id, title: cleanTitle, clubId, hostId }).catch(() => {})
     }
 
+    bustCityPages()
     return NextResponse.json(event)
   } catch (e) {
     console.error(e)

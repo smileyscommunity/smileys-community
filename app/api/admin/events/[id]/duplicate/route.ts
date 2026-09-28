@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { bustCityPages } from '@/lib/cityPageCache'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator, canActInCity } from '@/lib/access'
@@ -62,6 +63,7 @@ export async function POST(_: NextRequest, { params }: Params) {
       `Duplicated "${source.title}" → "${copy.title}"`,
     )
 
+    bustCityPages()
     return NextResponse.json({ ...copy, host })
   } catch (e) {
     console.error(e)

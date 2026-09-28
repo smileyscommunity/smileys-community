@@ -236,3 +236,16 @@ export function fromWallClockInTz(value: string, tz: string = DEFAULT_TZ): Date 
   if (okAfter)             return new Date(after)
   return new Date(before)
 }
+
+/**
+ * The upcoming window every public event list uses: later days, plus today's
+ * events that started no more than five hours ago (still on, for a typical
+ * event). One definition, because the city page's "Upcoming" count used
+ * `date >= today` while the list under it dropped today's finished events —
+ * the two disagreed for the evening of every event day.
+ */
+export function startedCutoff(tz: string = DEFAULT_TZ, now: Date = new Date()): { today: string; cutoffTime: string } {
+  const { date: today, minutes } = nowInTz(tz, now)
+  const cutoffMins = Math.max(0, minutes - 300)
+  return { today, cutoffTime: `${String(Math.floor(cutoffMins / 60)).padStart(2, '0')}:${String(cutoffMins % 60).padStart(2, '0')}` }
+}

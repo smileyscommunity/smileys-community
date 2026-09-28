@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { bustCityPages } from '@/lib/cityPageCache'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin } from '@/lib/access'
@@ -139,6 +140,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 
   const updated = await prisma.city.update({ where: { id }, data })
+  // Hero, tagline, description and status all render on the city page.
+  bustCityPages()
 
   // Launch day: the status flip to live is the moment the interest list was
   // for. Awaited (lists are small) so the admin sees the count in the
