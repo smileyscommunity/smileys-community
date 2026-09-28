@@ -51,6 +51,8 @@ describe('hostActivityLine', () => {
   it('prefers something to join, then a track record, then the title itself', () => {
     expect(hostActivityLine({ title: 'host', upcomingCount: 2, hostedCount: 9 })).toBe('2 upcoming events')
     expect(hostActivityLine({ title: 'host', upcomingCount: 0, hostedCount: 1 })).toBe('1 event hosted')
-    expect(hostActivityLine({ title: 'lead', upcomingCount: 0, hostedCount: 0 })).toBe('City Lead')
+    // 2026-09-28: the chip already says the title; the line says what they do.
+    expect(hostActivityLine({ title: 'lead', upcomingCount: 0, hostedCount: 0 })).toBe('Leads the city')
+    expect(hostActivityLine({ title: 'host', upcomingCount: 0, hostedCount: 0 })).toBe('Runs a club')
   })
 })

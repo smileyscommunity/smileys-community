@@ -3,11 +3,11 @@ import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { getPublicCity } from '@/lib/cities'
 import { CITY_STATUS } from '@/lib/cityStatus'
-import { APP_URL } from '@/lib/env'
 import { shareCover } from '@/lib/shareCover'
 import { getSession } from '@/lib/session'
 import { getCityHostRoster } from '@/lib/hostRoster'
-import { projectRosterForViewer, HOST_TITLE } from '@/lib/hostTitles'
+import { projectRosterForViewer, rosterSummary } from '@/lib/hostTitles'
+import { cityQs } from '@/lib/cityPageParam'
 import HostRosterCard from '@/components/HostRosterCard'
 import HostPath from '@/components/HostPath'
 import { hubCanonical } from '../data'
@@ -27,10 +27,14 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const title = `Meet the Hosts in ${city.name} — Smileys Community`
   const description = `The members who host Smileys events and lead ${city.name} — and how to become one of them.`
   const image = shareCover('hosts', city, title)
+  // og:url is the canonical — for the default city that is the bare /hosts,
+  // and a share card that names a different URL than the canonical splits
+  // the page's signals.
+  const canonical = hubCanonical(city.slug, 'hosts')
   return {
     title, description,
-    alternates: { canonical: hubCanonical(city.slug, 'hosts') },
-    openGraph: { title, description, url: `${APP_URL}/${city.slug}/hosts`, images: [image] },
+    alternates: { canonical },
+    openGraph: { title, description, url: canonical, images: [image] },
     twitter: { card: image.twitterCard, title, description, images: [image.url] },
   }
 }
@@ -57,9 +61,7 @@ export default async function CityHostsPage({ params }: Params) {
             Meet the Hosts in <span className="text-amber-600">{city.name}</span>
           </h1>
           <p className="text-lg text-gray-600 max-w-2xl">
-            {hosts.length === 0
-              ? `${city.name} is looking for its first hosts — the seat is open.`
-              : `${hosts.length} host${hosts.length === 1 ? '' : 's'}${leads > 0 ? `, ${leads} ${leads === 1 ? HOST_TITLE.lead : `${HOST_TITLE.lead}s`}` : ''} — the members who make ${city.name} happen.`}
+            {rosterSummary(hosts.length, leads, city.name)}
           </p>
         </div>
       </section>
@@ -72,7 +74,7 @@ export default async function CityHostsPage({ params }: Params) {
               <p className="text-gray-600 mb-6 max-w-xl mx-auto">
                 Every city starts with one person who decides to host the first thing. In {city.name}, that could be you.
               </p>
-              <Link href="/get-involved" className="btn-primary inline-flex">Become a host</Link>
+              <Link href={`/get-involved${cityQs(city.slug)}`} className="btn-primary inline-flex">Become a host</Link>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -83,7 +85,7 @@ export default async function CityHostsPage({ params }: Params) {
           <HostPath cityName={city.name} className="mt-12" />
 
           <div className="mt-8 text-center">
-            <Link href="/get-involved" className="btn-primary text-base px-8 py-4 inline-flex">Become a host</Link>
+            <Link href={`/get-involved${cityQs(city.slug)}`} className="btn-primary text-base px-8 py-4 inline-flex">Become a host</Link>
           </div>
         </div>
       </section>
