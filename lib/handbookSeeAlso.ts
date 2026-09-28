@@ -4,7 +4,9 @@
 // here" points at the national one). Until they are merged, each names the
 // other. Editorial, by slug, both directions.
 const PAIRS: [string, string][] = [
-  ['istanbul-bank-account-guide',     'opening-turkish-bank-account'],
+  // Empty since 2026-09-28: both original pairs (residence permit, bank
+  // account) were merged into the national article, with a 308 in
+  // next.config.js. Add a pair here only while a merge is pending.
 ]
 
 const SEE_ALSO = new Map<string, string>()

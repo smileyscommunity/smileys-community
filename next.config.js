@@ -109,6 +109,14 @@ const nextConfig = {
         destination: '/handbook/residence-permit-first-application',
         permanent:   true,
       },
+      // Same for the Istanbul bank-account guide (2026-09-28): its branch
+      // tips, the SIM → tax number → bank order and the fee question now
+      // live in the national article; the Istanbul row is unpublished.
+      {
+        source:      '/handbook/istanbul-bank-account-guide',
+        destination: '/handbook/opening-turkish-bank-account',
+        permanent:   true,
+      },
     ]
   },
   async headers() {
