@@ -100,7 +100,10 @@ export async function ensurePendingVenueBusiness(opts: {
         address:       opts.address?.trim() || null,
         latitude:      opts.latitude ?? null,
         longitude:     opts.longitude ?? null,
-        tags:          ['Smileys venue'],
+        // The site's own signal for "Smileys meets here" (the 🤝 chip and the
+        // directory's filter) — the stub exists because an event was held
+        // here. Never "Smileys venue": that term is not used (Nate, 2026-09-28).
+        tags:          ['We meet here'],
         isApproved:    false,  // pending — hidden from the public directory
         isActive:      true,
         submittedById: opts.submittedById ?? null,

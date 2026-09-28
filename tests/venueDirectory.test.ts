@@ -71,7 +71,7 @@ describe('ensurePendingVenueBusiness', () => {
   it('makes a pending stub for a genuinely new venue', async () => {
     expect(await ensurePendingVenueBusiness({ location: 'Some New Cafe', cityId: 'c1' })).toBe('new_stub')
     const data = create.mock.calls[0][0].data
-    expect(data).toMatchObject({ name: 'Some New Cafe', cityId: 'c1', isApproved: false, isActive: true, category: 'Cafe' })
+    expect(data).toMatchObject({ name: 'Some New Cafe', cityId: 'c1', isApproved: false, isActive: true, category: 'Cafe', tags: ['We meet here'] })
   })
   it('never throws — a lookup failure must not break event creation', async () => {
     findMany.mockRejectedValueOnce(new Error('db down'))

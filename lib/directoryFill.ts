@@ -84,7 +84,7 @@ export const THIN_DESCRIPTION = 60
 // The factual placeholders earlier imports wrote so a row could exist before
 // anyone described the venue (scripts/import-event-venues.ts,
 // scripts/seed-city-places.ts, lib/eventVenue). They are filled, not kept.
-const PLACEHOLDER_RE = /Community venue\s*[—-]|Pending review|Awaiting an editorial description|has hosted \d+ Smileys event|regular for the Smileys community|^Smileys venue\b/i
+const PLACEHOLDER_RE = /Community venue\s*[—-]|Pending review|Awaiting an editorial description|has hosted \d+ Smileys event|regular for the Smileys community/i
 // The since-fact, in either the placeholder's clause form or the closing
 // sentence composeDescription appends.
 const SINCE_RE = /,?\s*hosting Smileys events? since [A-Z][a-z]+ \d{4}\.?/gi
@@ -165,8 +165,8 @@ export function instagramFromClaims(instagram: string | null | undefined, websit
 }
 
 const GENERATED_TAG_MAX = 5
-// Tags staff and imports set as signals, not descriptions (lowercased).
-const STAFF_SIGNAL_TAGS = new Set(['we meet here', 'smileys venue'])
+// The tag staff and venue imports set as a signal, not a description (lowercased).
+const STAFF_SIGNAL_TAGS = new Set(['we meet here'])
 
 // Folded for comparison: case, Turkish dotless/dotted i, and diacritics.
 const fold = (s: string) => s.toLocaleLowerCase('tr').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ı/g, 'i').trim()
@@ -284,7 +284,7 @@ export function buildFillPatch(row: FillableRow, r: VenueResearch, opts: FillOpt
   }
 
   // tags — filled like every other field: only while the row has nothing
-  // but staff signals ("We meet here", "Smileys venue" — kept, never
+  // but the staff signal ("We meet here" — kept, never
   // removed). A union on every run piled up near-duplicates ("cafe bar",
   // "cafe-bar", "live performance(s)") each time the script ran.
   const descriptiveTags = row.tags.filter(t => !STAFF_SIGNAL_TAGS.has(t.toLowerCase()))
