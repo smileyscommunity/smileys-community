@@ -127,3 +127,68 @@ describe('the guest CTAs (items 1–3)', () => {
     expect(read('app/[city]/sections/PreLaunch.tsx')).not.toContain('Join the list')
   })
 })
+
+// Items 6–10 (2026-09-29): city-carrying guest links, the small city-losing
+// links, stage-honest copy, honestly framed quotes and stories, the meta
+// description.
+
+import { cityMetadata } from '@/app/[city]/data'
+
+describe('items 6–7: links keep the city', () => {
+  it('the clubs empty state and the stories link carry the city; /posts reads ?city=', () => {
+    expect(read('app/[city]/sections/Clubs.tsx')).toContain('<Link href={`/get-involved${cityQs(city.slug)}`} className="btn-primary inline-flex">Become a host</Link>')
+    expect(read('app/[city]/sections/Stories.tsx')).toContain('href={`/posts${cityQs(city.slug)}`}')
+    const posts = read('app/posts/page.tsx')
+    expect(posts).toContain('const { cityId } = await resolveCityForPage(searchParams)')
+    expect(posts).not.toContain('resolveCityId(session)')
+  })
+})
+
+describe('item 8: the copy follows the calendar', () => {
+  const hero = read('app/[city]/sections/Hero.tsx')
+  it('a seeding city with no events is not told its first events are on the calendar', () => {
+    expect(hero).toContain('forming, and the first event is still to be set')
+    expect(hero).toContain('? stats.events > 0')
+  })
+  it('the applicant line is for guests only', () => {
+    expect(hero).toContain('{!signedIn ? (')
+  })
+  it('the closing CTA follows the calendar', () => {
+    const cta = read('app/[city]/sections/FinalCta.tsx')
+    expect(cta).toContain("hasEvents ? `See what's on in ${city.name} this week.` : `Nothing on the ${city.name} calendar yet — the clubs are where it starts.`")
+    expect(cta).toContain('See the clubs')
+    expect(read('app/[city]/page.tsx')).toContain('hasEvents={tabEvents.length > 0}')
+  })
+})
+
+describe('items 8 + 10: metadata', () => {
+  const base = { id: 'c', slug: 'bursa', name: 'Bursa', status: 'live', heroImage: null, description: 'A long hero paragraph. '.repeat(20), tagline: 'Short line.' }
+  it('a seeding city is not titled "discover events"; a growing one is', () => {
+    expect(cityMetadata({ ...base, stats: { members: 0, clubs: 3, events: 0, maturity: 'seeding' } } as never).title).toBe('Smileys Bursa — join the founding members')
+    expect(cityMetadata({ ...base, stats: { members: 900, clubs: 50, events: 30, maturity: 'self_sustaining' } } as never).title).toBe('Smileys Bursa — meet people, join clubs, discover events')
+  })
+  it('the description is the tagline first', () => {
+    expect(cityMetadata({ ...base } as never).description).toBe('Short line.')
+    expect(cityMetadata({ ...base, tagline: null } as never).description).toBe(base.description)
+  })
+  it('a preparing city is not called coming soon', () => {
+    expect(cityMetadata({ ...base, status: 'preparing' } as never).title).toBe('Smileys Bursa — in preparation')
+    expect(cityMetadata({ ...base, status: 'coming_soon' } as never).title).toBe('Smileys Bursa — coming soon')
+  })
+})
+
+describe('item 9: quotes and stories say whose they are', () => {
+  it('the city\'s own quotes lead, over-fetched then cut to three', () => {
+    const data = read('app/[city]/data.ts')
+    expect(data).toContain('take:    6,')
+    expect(data).toContain('const shownTestimonials = ownFirst(testimonials).slice(0, 3)')
+  })
+  it('the subtitles name the city only for the city\'s own words', () => {
+    const t = read('app/[city]/sections/Testimonials.tsx')
+    expect(t).toContain("'Real stories from Smileys members in our other cities.'")
+    expect(t).not.toContain('Real stories from real members.')
+    const s = read('app/[city]/sections/Stories.tsx')
+    expect(s).toContain('const hasOwn = latestStories.some(p => p.cityId === city.id)')
+    expect(s).not.toContain('>Real writing from the community.<')
+  })
+})

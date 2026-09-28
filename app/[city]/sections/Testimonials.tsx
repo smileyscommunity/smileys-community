@@ -1,18 +1,28 @@
 import { resolveImageUrl } from '@/lib/data'
-import type { CityPageData } from '../data'
+import type { CityPageData, PublicCity } from '../data'
 
 // Member quotes. No member-count gate here any more: the query itself is now
 // the honest filter. A quote reaches this page only if it belongs to this
 // city or was deliberately marked across-Smileys, so a brand-new city shows
 // nothing until someone says something about it.
-export default function Testimonials({ testimonials }: { testimonials: CityPageData['testimonials'] }) {
+export default function Testimonials({ city, testimonials }: { city: PublicCity; testimonials: CityPageData['testimonials'] }) {
   if (testimonials.length === 0) return null
+  // Quotes marked across-Smileys are other cities' members (an Istanbul
+  // Women's Day story on Bursa's page, which has none): say whose words
+  // they are rather than framing them as this city's.
+  const ownCount = testimonials.filter(t => t.cityId === city.id).length
   return (
     <section className="py-12 sm:py-16 bg-gray-50 border-t border-gray-100">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
           <h2 className="section-title">Life happens offline</h2>
-          <p className="section-subtitle">Real stories from real members.</p>
+          <p className="section-subtitle">
+            {ownCount === testimonials.length
+              ? `Real stories from members in ${city.name}.`
+              : ownCount > 0
+                ? `Real stories from members in ${city.name} and across Smileys.`
+                : 'Real stories from Smileys members in our other cities.'}
+          </p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {testimonials.map(t => (

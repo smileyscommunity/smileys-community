@@ -35,9 +35,13 @@ export default function Hero({ city, enter, signedIn }: { city: PublicCity; ente
               <JoinCityButton slug={city.slug} name={city.name} guest={!signedIn} />
               <a href={enter('events')} className="btn-secondary text-base px-8 py-4">See what's on</a>
             </div>
-            <p className="text-sm font-medium text-gray-700 mb-12">
-              Free to join · Applications reviewed by hand within 24–48 hours · Pay only for events you attend
-            </p>
+            {/* The applicant's line — a member was being told how their
+                application would be reviewed. */}
+            {!signedIn ? (
+              <p className="text-sm font-medium text-gray-700 mb-12">
+                Free to join · Applications reviewed by hand within 24–48 hours · Pay only for events you attend
+              </p>
+            ) : <div className="mb-12" />}
 
             {/* Seeding = live but empty; "1 / 11 / 1" in hero type reads as
                 a dead community, not a young one. Stage-honest copy instead —
@@ -47,9 +51,13 @@ export default function Hero({ city, enter, signedIn }: { city: PublicCity; ente
               <div className="rounded-2xl border border-amber-100 bg-amber-50/60 px-5 py-4">
                 <p className="text-sm font-bold text-amber-800 uppercase tracking-wider mb-1">Founding stage</p>
                 <p className="text-gray-700">
+                  {/* "the first events going on the calendar" sat on five cities
+                      for weeks with none — say what is true today. */}
                   {stats.clubs > 0
-                    ? <>{stats.clubs} club{stats.clubs === 1 ? '' : 's'} forming and the first events going on the calendar — the founding members shape everything here.</>
-                    : <>The first clubs and events are being set up now — the founding members shape everything here.</>}
+                    ? stats.events > 0
+                      ? <>{stats.clubs} club{stats.clubs === 1 ? '' : 's'} forming and the first events on the calendar — the founding members shape everything here.</>
+                      : <>{stats.clubs} club{stats.clubs === 1 ? '' : 's'} forming, and the first event is still to be set — the founding members shape everything here.</>
+                    : <>The first clubs and events are still to be started — the founding members shape everything here.</>}
                 </p>
                 {/* The scarcity that's actually true: joining now carries a
                     rank, and the rank is permanent (users.foundingMember). */}

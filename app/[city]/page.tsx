@@ -87,9 +87,9 @@ export default async function CityPage({ params }: Params) {
       <Neighborhoods city={city} topNeighborhoods={topNeighborhoods} neighborhoodsHaveEvents={neighborhoodsHaveEvents} enter={enter} />
       <Visitors city={city} visitors={visitors} visitorTotal={visitorTotal} isDefaultCity={isDefaultCity} signedIn={!!session} />
       <Guide city={city} hasGuide={guideEntries > 0} enter={enter} />
-      <Stories latestStories={latestStories} />
-      <Testimonials testimonials={testimonials} />
-      <FinalCta city={city} signedIn={!!session} newMembersThisWeek={newMembersThisWeek} enter={enter} />
+      <Stories city={city} latestStories={latestStories} />
+      <Testimonials city={city} testimonials={testimonials} />
+      <FinalCta city={city} signedIn={!!session} newMembersThisWeek={newMembersThisWeek} enter={enter} hasEvents={tabEvents.length > 0} />
     </>
   )
 }

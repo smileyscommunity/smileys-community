@@ -12,6 +12,7 @@ import { queryDirectory } from '@/lib/directory'
 import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
 import { getPublicCity, DEFAULT_CITY_SLUG } from '@/lib/cities'
 import { CITY_STATUS } from '@/lib/cityStatus'
+import { CITY_MATURITY } from '@/lib/cityMaturity'
 import { APP_URL } from '@/lib/env'
 import { absoluteOgImage } from '@/lib/og'
 import { isSoldOut } from '@/lib/soldOut'
@@ -43,11 +44,18 @@ export function cityMetadata(city: PublicCity): Metadata {
 
   // A pre-launch page must not promise joinable clubs and events in the
   // search snippet — say what it actually is.
-  const title = city.status === CITY_STATUS.Live
-    ? `Smileys ${city.name} — meet people, join clubs, discover events`
-    : `Smileys ${city.name} — coming soon`
-  const description = city.description
-    ?? city.tagline
+  // A live city still in its founding stage (lib/cityMaturity) has no
+  // events to "discover" — Bursa, with no members, was titled that way.
+  const title = city.status !== CITY_STATUS.Live
+    ? `Smileys ${city.name} — ${city.status === CITY_STATUS.Preparing ? 'in preparation' : 'coming soon'}`
+    : city.stats?.maturity === CITY_MATURITY.Seeding
+      ? `Smileys ${city.name} — join the founding members`
+      : `Smileys ${city.name} — meet people, join clubs, discover events`
+  // The tagline is the snippet-length line (≤160); the description is the
+  // hero paragraph, 300+ characters on some cities and cut off mid-sentence
+  // in a search result.
+  const description = city.tagline
+    ?? city.description
     ?? `Your international social life in ${city.name}. Events, clubs and community for people building a life abroad.`
 
   return {
@@ -88,10 +96,13 @@ export const getCityPageData = unstable_cache(
       }),
       // This city's members, plus quotes marked across-Smileys. Not every
       // quote: these used to be Istanbul's words on every city's page.
+      // Over-fetch, then the city's own quotes lead (below): the across-
+      // Smileys ones carried the lowest `order` values, so they filled
+      // Istanbul's own page ahead of its six Istanbul quotes.
       prisma.testimonial.findMany({
         where:   { active: true, OR: [{ cityId }, { cityId: null }] },
         orderBy: [{ order: 'asc' }],
-        take:    3,
+        take:    6,
       }),
       // A number is all the page renders — never fetch names for a count
       // (the shape invites the next edit to display them), and admin-hidden
@@ -122,7 +133,11 @@ export const getCityPageData = unstable_cache(
       .sort((a, b) => Number(b.cityId === cityId) - Number(a.cityId === cityId))
       .slice(0, 3)
 
-    return { events, clubs, neighborhoodCounts, testimonials, newMembersThisWeek, guideEntries, latestStories }
+    const ownFirst = <T extends { cityId: string | null }>(rows: T[]) =>
+      rows.sort((a, b) => Number(b.cityId === cityId) - Number(a.cityId === cityId))
+    const shownTestimonials = ownFirst(testimonials).slice(0, 3)
+
+    return { events, clubs, neighborhoodCounts, testimonials: shownTestimonials, newMembersThisWeek, guideEntries, latestStories }
   },
   ['city-page-data'],
   { revalidate: 60, tags: ['home'] },
@@ -268,6 +283,15 @@ export function publicLinkFor(slug: string, enter: EnterLink): EnterLink {
   return (to, n) => {
     if (to === 'events' || to === 'clubs' || to === 'directory' || to === 'board' || to === 'hosts') {
       return isDefaultCitySlug(slug) ? `/app/${to}` : `/app/${slug}/${to}`
+    }
+    // The rest have no per-city hub but every one of them reads ?city=
+    // (resolveCityForPage). The entry link sets a cookie and redirects to the
+    // bare path — a visitor without cookies, which is every crawler, landed
+    // on "Istanbul City Guide" from İzmir's "Read the Izmir guide".
+    if (to === 'guide' || to === 'handbook' || to === 'neighborhoods' || to === 'visiting') {
+      const qs = isDefaultCitySlug(slug) ? '' : `?city=${slug}`
+      if (to === 'neighborhoods' && n) return `/app/neighborhoods/${encodeURIComponent(n)}${qs}`
+      return `/app/${to}${qs}`
     }
     return enter(to, n)
   }

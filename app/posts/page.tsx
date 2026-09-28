@@ -3,7 +3,8 @@ import { APP_URL } from '@/lib/env'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { resolveCityId, getCityConfig } from '@/lib/city'
+import { getCityConfig } from '@/lib/city'
+import { resolveCityForPage, type CitySearch } from '@/lib/cityPageParam'
 import { postCityScope } from '@/lib/postScope'
 import { avatarUrl } from '@/lib/data'
 import { articleCover } from '@/lib/articleCover'
@@ -114,9 +115,13 @@ function AuthorDot({ author, size = 'w-6 h-6' }: {
   )
 }
 
-export default async function PostsPage() {
+export default async function PostsPage({ searchParams }: { searchParams?: Promise<CitySearch> }) {
   const session = await getSession()
-  const cityId  = await resolveCityId(session)
+  // ?city= first, like every other city-scoped list: a city page's "All
+  // stories" link used to land a cookie-less visitor in the default city's
+  // scope. The canonical stays /posts (the page's identity is the
+  // community's, see the metadata note above).
+  const { cityId } = await resolveCityForPage(searchParams)
   // Config first: the post scope needs the city's country. getCityConfig is
   // cached, so this costs nothing over the old parallel fetch.
   const city    = await getCityConfig(cityId)

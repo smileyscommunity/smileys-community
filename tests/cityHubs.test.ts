@@ -37,14 +37,23 @@ describe('publicLinkFor', () => {
     expect(guest('board')).toBe('/app/izmir/board')
     expect(guest('hosts')).toBe('/app/izmir/hosts')
   })
-  it('leaves every other destination on the cookie-setting entry link', () => {
-    expect(guest('guide')).toBe(enter('guide'))
-    expect(guest('neighborhoods', 'alsancak')).toBe(enter('neighborhoods', 'alsancak'))
+  // 2026-09-29 (city page scan item 6): these went through the cookie-setting
+  // entry link, which a cookie-less visitor (every crawler) followed to the
+  // default city's pages. Every one of them reads ?city=, so the guest link
+  // carries it; members keep the entry link (it sets their view city).
+  it('sends a guest to guide, handbook, neighbourhoods and visiting with the city in the URL', () => {
+    expect(guest('guide')).toBe('/app/guide?city=izmir')
+    expect(guest('handbook')).toBe('/app/handbook?city=izmir')
+    expect(guest('neighborhoods')).toBe('/app/neighborhoods?city=izmir')
+    expect(guest('neighborhoods', 'alsancak')).toBe('/app/neighborhoods/alsancak?city=izmir')
+    expect(guest('visiting')).toBe('/app/visiting?city=izmir')
     expect(enter('neighborhoods', 'alsancak')).toBe('/app/api/city/enter?city=izmir&to=neighborhoods&n=alsancak')
   })
   it('the default city has no separate hub: guests go to the global lists', () => {
     const d = publicLinkFor(DEFAULT_CITY_SLUG, enterLinkFor(DEFAULT_CITY_SLUG))
     expect(d('events')).toBe('/app/events')
     expect(d('clubs')).toBe('/app/clubs')
+    expect(d('guide')).toBe('/app/guide')
+    expect(d('neighborhoods', 'moda')).toBe('/app/neighborhoods/moda')
   })
 })

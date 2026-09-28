@@ -1,8 +1,8 @@
 import JoinCityButton from '@/components/JoinCityButton'
 import type { PublicCity, EnterLink } from '../data'
 
-export default function FinalCta({ city, signedIn, newMembersThisWeek, enter }: {
-  city: PublicCity; signedIn: boolean; newMembersThisWeek: number; enter: EnterLink
+export default function FinalCta({ city, signedIn, newMembersThisWeek, enter, hasEvents }: {
+  city: PublicCity; signedIn: boolean; newMembersThisWeek: number; enter: EnterLink; hasEvents: boolean
 }) {
   return (
     <section className="py-16 sm:py-20 bg-white border-t border-gray-100">
@@ -13,8 +13,10 @@ export default function FinalCta({ city, signedIn, newMembersThisWeek, enter }: 
         <p className="text-lg text-gray-600 mb-8">
           {/* "Join Smileys" to someone already signed in is an invitation to
               apply to a community they're already in. */}
+          {/* Follows the calendar: "See what's on this week" sat right under
+              "Events are coming soon" on every young city. */}
           {signedIn
-            ? `See what's on in ${city.name} this week.`
+            ? hasEvents ? `See what's on in ${city.name} this week.` : `Nothing on the ${city.name} calendar yet — the clubs are where it starts.`
             : `Join Smileys and start building your social life in ${city.name}.`}
           {newMembersThisWeek > 0 && ` ${newMembersThisWeek} new member${newMembersThisWeek === 1 ? '' : 's'} joined this week.`}
         </p>
@@ -26,9 +28,13 @@ export default function FinalCta({ city, signedIn, newMembersThisWeek, enter }: 
               JoinCityButton's comment describes, left behind when the hero
               was fixed. */}
           <JoinCityButton slug={city.slug} name={city.name} guest={!signedIn} />
-          <a href={enter('events')} className="btn-secondary text-base px-8 py-4">
-            {signedIn ? 'Browse events' : 'Browse events first'}
-          </a>
+          {hasEvents ? (
+            <a href={enter('events')} className="btn-secondary text-base px-8 py-4">
+              {signedIn ? 'Browse events' : 'Browse events first'}
+            </a>
+          ) : (
+            <a href={enter('clubs')} className="btn-secondary text-base px-8 py-4">See the clubs</a>
+          )}
         </div>
       </div>
     </section>

@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import ClubCard from '@/components/ClubCard'
 import { clubHref } from '@/lib/clubLink'
+import { cityQs } from '@/lib/cityPageParam'
 import type { PublicCity, CityPageData, EnterLink } from '../data'
 
 // Same rule as events: an empty grid becomes a host invitation.
@@ -14,7 +15,7 @@ export default function Clubs({ city, featuredClubs, enter, signedIn }: { city: 
             <p className="text-gray-600 mb-6 max-w-xl mx-auto">
               Have an activity you want to organize in {city.name}? The first clubs are started by members like you.
             </p>
-            <Link href="/get-involved" className="btn-primary inline-flex">Become a host</Link>
+            <Link href={`/get-involved${cityQs(city.slug)}`} className="btn-primary inline-flex">Become a host</Link>
           </div>
         </div>
       </section>
