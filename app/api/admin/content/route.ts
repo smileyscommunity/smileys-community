@@ -68,7 +68,11 @@ interface ContentValue {
 // when the incoming key isn't allowlisted; per-field validation caps
 // every string and bounds every array.
 const PHOTO_MAX = 300
-const HOME_PHOTO_RE = /^\/app\/api\/files\/(?!applications\/)[a-zA-Z0-9-]+\/[a-zA-Z0-9-]+\.(jpg|jpeg|png|webp|gif)$/
+// An allowlist of the public upload folders, not a denylist of one private
+// one: a private folder (messages/, reports/) 403s for every visitor and
+// crawler, so the hero and the share card silently broke. The hero upload
+// writes to general/; city heroes live in cities/.
+const HOME_PHOTO_RE = /^\/app\/api\/files\/(general|cities)\/[a-zA-Z0-9-]+\.(jpg|jpeg|png|webp|gif)$/
 
 function normalizeSection(key: string, raw: unknown):
   | { ok: true; value: unknown }
@@ -161,8 +165,10 @@ function normalizeSection(key: string, raw: unknown):
       return { ok: false, error: 'Invalid hero image URL' }
     }
     return { ok: true, value: {
-      headline:  str(r.headline, HEADLINE_MAX),
-      subtitle:  str(r.subtitle, SUBTITLE_MAX),
+      // Trimmed: a headline of spaces is truthy, so the page rendered it —
+      // an empty <h1> — instead of the shipped default.
+      headline:  str(r.headline, HEADLINE_MAX).trim(),
+      subtitle:  str(r.subtitle, SUBTITLE_MAX).trim(),
       badge:     str(r.badge,    BADGE_MAX),
       heroImage: hero,
       // What the photo shows, for screen readers and the share card. Trimmed:

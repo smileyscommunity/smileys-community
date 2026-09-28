@@ -38,7 +38,7 @@ export default function Testimonials({ city, testimonials }: { city: PublicCity;
                 )}
                 <div>
                   <p className="text-xs font-bold text-gray-900">{t.memberName}</p>
-                  {t.role && <p className="text-xs text-gray-400">{t.role}</p>}
+                  {t.role && <p className="text-xs text-gray-500">{t.role}</p>}
                 </div>
               </div>
             </div>

@@ -19,6 +19,9 @@ const TOPICS = [
   // member's errand, so it isn't offered as a chip to everyone who opens
   // the form, but stays selected (and visible) once the link set it.
   { value: 'nominate',    label: 'Nominate a remote worker',    icon: '💻', hidden: true },
+  // The landing page's "Somewhere you'd like to see Smileys? Tell us where."
+  // Arrived as a General Inquiry, so city demand was uncounted.
+  { value: 'city',        label: 'Suggest a city',              icon: '📍', hidden: true },
 ]
 
 const inputCls = 'input'
@@ -59,7 +62,7 @@ function ContactForm() {
       topic:   TOPICS.some(t => t.value === topic) ? topic! : prev.topic,
       message: prev.message ? prev.message
         : article    ? `About the Handbook article "${article}":\n\n`
-        : nomination ?? prev.message,
+        : nomination ?? (topic === 'city' ? 'I would love to see Smileys in: \n\n' : prev.message),
     }))
     // Once, on arrival: after that the form is the member's.
   }, [params])

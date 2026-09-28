@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useId, useRef } from 'react'
 import Link from 'next/link'
 import EventCard from '@/components/EventCard'
 import type { Event } from '@/lib/data'
@@ -74,18 +74,37 @@ export default function EventTabs({
   const [tab, setTab] = useState<TabKey>(() => TABS.find(t => counts[t.key] > 0)?.key ?? 'all')
 
   const shown = events.filter(e => matches(e, tab, w)).slice(0, limit)
+  // The ARIA tabs pattern: each tab controls one panel, only the selected
+  // tab is in the tab order, arrow keys (and Home/End) move between tabs.
+  const uid = useId()
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([])
+  const onTabKey = (ev: React.KeyboardEvent, i: number) => {
+    const last = TABS.length - 1
+    const to = ev.key === 'ArrowRight' ? (i === last ? 0 : i + 1)
+      : ev.key === 'ArrowLeft' ? (i === 0 ? last : i - 1)
+      : ev.key === 'Home' ? 0 : ev.key === 'End' ? last : -1
+    if (to < 0) return
+    ev.preventDefault()
+    setTab(TABS[to].key)
+    tabRefs.current[to]?.focus()
+  }
 
   return (
     <>
       <div role="tablist" aria-label="Filter events by date" className="flex flex-wrap gap-2 mb-6">
-        {TABS.map(t => {
+        {TABS.map((t, i) => {
           const active = t.key === tab
           const n = counts[t.key]
           return (
             <button
               key={t.key}
+              ref={el => { tabRefs.current[i] = el }}
+              id={`${uid}-tab-${t.key}`}
               role="tab"
               aria-selected={active}
+              aria-controls={`${uid}-panel`}
+              tabIndex={active ? 0 : -1}
+              onKeyDown={ev => onTabKey(ev, i)}
               onClick={() => setTab(t.key)}
               className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
                 active
@@ -96,12 +115,13 @@ export default function EventTabs({
               {t.label}
               {/* The count is the useful part — it says "worth a click" before
                   the click. Omitted at zero rather than shown as "(0)". */}
-              {n > 0 && <span className={`ml-1.5 tabular-nums ${active ? 'text-white/60' : 'text-gray-400'}`}>{n}</span>}
+              {n > 0 && <span className={`ml-1.5 tabular-nums ${active ? 'text-white/70' : 'text-gray-500'}`}>{n}</span>}
             </button>
           )
         })}
       </div>
 
+      <div role="tabpanel" id={`${uid}-panel`} aria-labelledby={`${uid}-tab-${tab}`}>
       {shown.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {shown.map(e => <EventCard key={e.id} event={e} linkPrefix={linkPrefix} cityName={e.cityName} timeZone={e.timeZone ?? timeZone} />)}
@@ -116,6 +136,7 @@ export default function EventTabs({
           </button>
         </div>
       )}
+      </div>
 
       <div className="mt-8 text-center md:text-left">
         {allHref

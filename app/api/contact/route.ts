@@ -29,6 +29,7 @@ const TOPIC_LABELS: Record<string, string> = {
   // A member nominating the next "Working from" interviewee — the remote-work
   // hub's link lands here with the city in the message (lib/remoteWork).
   nominate:    'Working from — nomination',
+  city:        'City suggestion',
   other:       'Other',
 }
 

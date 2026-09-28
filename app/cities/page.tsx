@@ -76,7 +76,7 @@ export default async function CitiesPage() {
           </h2>
           <div className={`grid gap-6 ${live.length === 1 ? 'lg:grid-cols-2' : 'md:grid-cols-2 lg:grid-cols-3'}`}>
             {live.map((c, i) => (
-              <CityCard key={c.id} city={c} featured={live.length === 1 && i === 0}
+              <CityCard key={c.id} city={c} featured={live.length === 1 && i === 0} priority={live.length === 1 && i === 0}
                 viewing={!!viewingId && c.id === viewingId} home={!!homeId && c.id === homeId} />
             ))}
           </div>

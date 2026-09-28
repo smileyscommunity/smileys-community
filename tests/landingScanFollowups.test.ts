@@ -103,3 +103,91 @@ describe('item 5: the events block says who can walk in', () => {
     expect(landing).not.toContain('A city filter joins these tabs once a second city is live')
   })
 })
+
+// Items 6–12 (2026-09-29).
+
+describe('item 6: landing links do not follow the view-city cookie', () => {
+  it('visiting, guides, handbook and View all events are pinned', () => {
+    expect(landing).toContain("href:  singleCity ? `/visiting?city=${flagship.slug}` : '/visiting',")
+    expect(landing).toContain('<Link key={c.id} href={`/guide?city=${c.slug}`}')
+    expect(landing).toContain("href={singleCity ? `/handbook?city=${flagship.slug}` : '/handbook'}")
+    expect(landing).toContain('allHref={singleCity ? `/app/events?city=${flagship.slug}` : undefined}')
+  })
+})
+
+describe('item 7: crawlable links', () => {
+  const card = read('components/CityCard.tsx')
+  it('live city cards link straight to the city page; coming-soon links have text', () => {
+    expect(card).toContain('? <Link href={`/${city.slug}`} className="group block h-full">{body}</Link>')
+    expect(card).not.toContain('/app/api/city/enter?city=${city.slug}&to=city')
+    expect(card).toContain('<span className="sr-only">About {city.name}</span>')
+  })
+  it('arrival cards go straight to the city hub, no redirect hop', () => {
+    for (const hub of ['remote-work', 'moving', 'students']) expect(landing).toContain(`\`/\${flagship.slug}/${hub}\``)
+  })
+})
+
+describe('item 8: copy the product can back', () => {
+  it('the visiting section speaks to a guest and names the application', () => {
+    expect(landing).toContain('Join Smileys — a short application, reviewed by hand.')
+    expect(landing).not.toContain('Local members see you&apos;re coming and reach out')
+    expect(landing).not.toContain('Your Smileys community travels with you')
+  })
+  it('no weekly promise, no "once you are in" for public pages, honest stories line', () => {
+    expect(landing).not.toContain('Something on every week')
+    expect(landing).not.toContain('guide, handbook, and community boards')
+    expect(landing).toContain('Stories, guides and words from the Smileys community.')
+  })
+  it('every live city\'s guide, and city suggestions arrive as their own topic', () => {
+    expect(landing).toContain('{[...liveCities, ...founding].map(c => (')
+    expect(landing).toContain('href="/contact?topic=city"')
+    expect(read('app/contact/page.tsx')).toContain("{ value: 'city',        label: 'Suggest a city',")
+    expect(read('app/api/contact/route.ts')).toContain("city:        'City suggestion',")
+  })
+})
+
+describe('item 9: hero images', () => {
+  it('the hidden hero never picks a real image and the visible one never the tiny one at 1024px', () => {
+    for (const f of ['app/page.tsx', 'app/[city]/sections/Hero.tsx']) {
+      const src = read(f)
+      expect(src).toContain('sizes="(min-width: 1024px) 0px, (max-width: 639px) calc(100vw - 32px), calc(100vw - 48px)"')
+      expect(src).toContain('sizes="(max-width: 1023px) 0px, (max-width: 1344px) calc(50vw - 64px), 576px"')
+    }
+  })
+  it('the city card preloads only when asked', () => {
+    expect(read('components/CityCard.tsx')).toContain('priority={priority}')
+    expect(read('app/cities/page.tsx')).toContain('priority={live.length === 1 && i === 0}')
+  })
+})
+
+describe('item 10: accessibility', () => {
+  it('emoji hidden, labels above 4.5:1', () => {
+    expect(landing.split('<div aria-hidden="true" className="text-3xl mb-4">{w.emoji}</div>').length - 1).toBe(2)
+    expect(landing).toContain('<div aria-hidden="true" className="text-2xl mb-3">📖</div>')
+    expect(landing).not.toContain('text-xs text-gray-400">{t.role}')
+  })
+  it('the tabs follow the ARIA pattern', () => {
+    const tabs = read('components/EventTabs.tsx')
+    expect(tabs).toContain('aria-controls={`${uid}-panel`}')
+    expect(tabs).toContain('tabIndex={active ? 0 : -1}')
+    expect(tabs).toContain('<div role="tabpanel" id={`${uid}-panel`} aria-labelledby={`${uid}-tab-${tab}`}>')
+    expect(tabs).toContain("ev.key === 'ArrowRight'")
+  })
+  it('cards under a group label are one level down', () => {
+    expect(landing).toContain('<CityCard key={c.id} city={c} headingLevel={4} />')
+  })
+})
+
+describe('items 11–12: hero guards, clock, WebSite markup', () => {
+  const route = read('app/api/admin/content/route.ts')
+  it('trimmed hero text and an allowlist of public photo folders', () => {
+    expect(route).toContain('headline:  str(r.headline, HEADLINE_MAX).trim(),')
+    expect(route).toContain('/^\\/app\\/api\\/files\\/(general|cities)\\/')
+    expect(landing).toContain("{home.headline?.trim() || 'Your people, in every city you land in.'}")
+  })
+  it('the tab window runs on the flagship\'s clock; the page declares its WebSite', () => {
+    expect(landing).toContain('const eventWindow = eventWindowFor(flagship?.timezone ?? DEFAULT_TZ)')
+    expect(landing).not.toContain('istanbulEventWindow()')
+    expect(landing).toContain("'@type': 'WebSite'")
+  })
+})

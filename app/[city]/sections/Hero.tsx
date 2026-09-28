@@ -25,7 +25,7 @@ export default function Hero({ city, enter, signedIn }: { city: PublicCity; ente
             </p>
 
             <div className="lg:hidden relative aspect-[3/2] rounded-2xl overflow-hidden shadow-xl mb-10">
-              <CityHeroImage city={city} sizes="(max-width: 639px) calc(100vw - 32px), calc(100vw - 48px)" />
+              <CityHeroImage city={city} sizes="(min-width: 1024px) 0px, (max-width: 639px) calc(100vw - 32px), calc(100vw - 48px)" />
             </div>
 
             <div className="flex flex-col sm:flex-row gap-4 mb-3">
@@ -86,7 +86,7 @@ export default function Hero({ city, enter, signedIn }: { city: PublicCity; ente
           </div>
 
           <div className="hidden lg:block relative h-[500px] rounded-2xl overflow-hidden shadow-xl">
-            <CityHeroImage city={city} sizes="(max-width: 1024px) 0px, (max-width: 1344px) calc(50vw - 64px), 576px" />
+            <CityHeroImage city={city} sizes="(max-width: 1023px) 0px, (max-width: 1344px) calc(50vw - 64px), 576px" />
           </div>
         </div>
       </div>
