@@ -13,9 +13,11 @@ interface Props {
   city:       { slug: string; name: string; timezone: string }
   events:     Event[]        // already redacted / projected for this viewer
   eventsHref: string
+  /** The page read no session: JoinCityButton renders the guest link on the server. */
+  guest?:     boolean
 }
 
-export default function NothingYet({ city, events, eventsHref }: Props) {
+export default function NothingYet({ city, events, eventsHref, guest = false }: Props) {
   return (
     <div className="space-y-10">
       <div className="rounded-3xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-8 sm:p-10 text-center">
@@ -27,7 +29,7 @@ export default function NothingYet({ city, events, eventsHref }: Props) {
         </p>
         {events.length === 0 && (
           <div className="flex justify-center mt-6">
-            <JoinCityButton slug={city.slug} name={city.name} />
+            <JoinCityButton slug={city.slug} name={city.name} guest={guest} />
           </div>
         )}
       </div>

@@ -4,7 +4,7 @@ import { CITY_MATURITY } from '@/lib/cityMaturity'
 import CityHeroImage from './CityHeroImage'
 import type { PublicCity, EnterLink } from '../data'
 
-export default function Hero({ city, enter }: { city: PublicCity; enter: EnterLink }) {
+export default function Hero({ city, enter, signedIn }: { city: PublicCity; enter: EnterLink; signedIn: boolean }) {
   const stats = city.stats
   return (
     <section className="relative bg-gradient-to-b from-amber-50 via-white to-white overflow-hidden">
@@ -32,7 +32,7 @@ export default function Hero({ city, enter }: { city: PublicCity; enter: EnterLi
               {/* Signed-in members get a one-tap join (their account already
                   exists — see components/JoinCityButton); guests fall through
                   to the application flow below. */}
-              <JoinCityButton slug={city.slug} name={city.name} />
+              <JoinCityButton slug={city.slug} name={city.name} guest={!signedIn} />
               <a href={enter('events')} className="btn-secondary text-base px-8 py-4">See what's on</a>
             </div>
             <p className="text-sm font-medium text-gray-700 mb-12">

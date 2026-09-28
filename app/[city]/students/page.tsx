@@ -100,7 +100,7 @@ export default async function CityStudentsPage({ params }: Params) {
           social life early — alongside members from all over the world and locals.
         </p>
         <div className="flex flex-col sm:flex-row gap-3">
-          <JoinCityButton slug={city.slug} name={city.name} from="students" />
+          <JoinCityButton slug={city.slug} name={city.name} from="students" guest={!session} />
           <Link href={firstEvents.length > 0 ? '#first-event' : eventsHref(city.slug)} className={HERO_SECONDARY}>
             {firstEvents.length > 0 ? 'See first-timer events' : 'See upcoming events'}
           </Link>
@@ -344,7 +344,7 @@ export default async function CityStudentsPage({ params }: Params) {
             Make your semester in {city.name} more than lectures.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <JoinCityButton slug={city.slug} name={city.name} from="students" />
+            <JoinCityButton slug={city.slug} name={city.name} from="students" guest={!session} />
             {budget
               ? <Link href={guideQs('budget')} className="btn-secondary text-base px-8 py-4">Explore {city.name} on a budget</Link>
               : <Link href={eventsHref(city.slug)} className="btn-secondary text-base px-8 py-4">See upcoming events</Link>}

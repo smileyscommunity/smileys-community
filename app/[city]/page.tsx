@@ -48,7 +48,10 @@ export default async function CityPage({ params }: Params) {
   const city = await getPublicCity(slug)
   if (!city) notFound()
 
-  if (city.status !== CITY_STATUS.Live) return <PreLaunch city={city} />
+  // Read before the pre-launch gate: the holding page's one button needs to
+  // know whether it is talking to a guest (JoinCityButton `guest`).
+  const session = await getSession()
+  if (city.status !== CITY_STATUS.Live) return <PreLaunch city={city} signedIn={!!session} />
 
   const { events: cachedEvents, clubs, neighborhoodCounts, testimonials, newMembersThisWeek, guideEntries, latestStories } =
     await getCityPageData(city.id, city.timezone, city.country ?? null)
@@ -56,7 +59,6 @@ export default async function CityPage({ params }: Params) {
   // Guest redaction happens per-request, OUTSIDE the shared cache entry —
   // a session-dependent branch must never write into unstable_cache. Same
   // projection as GET /api/events.
-  const session = await getSession()
   const events  = session ? await projectEventsForMember(cachedEvents, session) : cachedEvents.map(redactEventForGuest)
 
   const [{ visitors, visitorTotal }, { hosts, hostTotal }, { topNeighborhoods, neighborhoodsHaveEvents }] = await Promise.all([
@@ -78,12 +80,12 @@ export default async function CityPage({ params }: Params) {
   return (
     <>
       <CityPageTracker slug={city.slug} status={city.status} />
-      <Hero city={city} enter={enter} />
-      <Events city={city} tabEvents={tabEvents} eventWindow={eventWindow} enter={enter} />
+      <Hero city={city} enter={enter} signedIn={!!session} />
+      <Events city={city} tabEvents={tabEvents} eventWindow={eventWindow} enter={enter} signedIn={!!session} />
       <Clubs city={city} featuredClubs={featuredClubs} enter={enter} signedIn={!!session} />
       <Hosts city={city} hosts={hosts} hostTotal={hostTotal} signedIn={!!session} />
       <Neighborhoods city={city} topNeighborhoods={topNeighborhoods} neighborhoodsHaveEvents={neighborhoodsHaveEvents} enter={enter} />
-      <Visitors city={city} visitors={visitors} visitorTotal={visitorTotal} isDefaultCity={isDefaultCity} />
+      <Visitors city={city} visitors={visitors} visitorTotal={visitorTotal} isDefaultCity={isDefaultCity} signedIn={!!session} />
       <Guide city={city} hasGuide={guideEntries > 0} enter={enter} />
       <Stories latestStories={latestStories} />
       <Testimonials testimonials={testimonials} />

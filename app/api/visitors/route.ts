@@ -7,7 +7,7 @@ import { resolveCityId, todayInCity } from '@/lib/city'
 import { rateLimit, getIp } from '@/lib/rateLimit'
 import { VISITOR_TRAVELER_TYPES, VISITOR_LOOKING_FOR } from '@/lib/data'
 import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
-import { visitDatesError, cleanEmail, guestView, visitorName } from '@/lib/visitorPolicy'
+import { visitDatesError, cleanEmail, guestView, visitorName, visitAuthorOk } from '@/lib/visitorPolicy'
 import { notifyLocalsOfVisit } from '@/lib/visitorNotify'
 
 // "I'm visiting Istanbul" announcements. Members only: anonymous posting was
@@ -17,7 +17,6 @@ import { notifyLocalsOfVisit } from '@/lib/visitorNotify'
 // app/api/visitors/[id].
 
 /** Only approved, unhidden authors are listed; a card without an account has no author to check. */
-const AUTHOR_OK = { OR: [{ userId: null }, { user: { status: 'approved', hiddenFromMembers: false } }] }
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -49,7 +48,7 @@ export async function GET(req: NextRequest) {
       // Members get contact details below; a blocked pair gets nothing of
       // each other, like every other member surface.
       ...(blockedIds.length ? { OR: [{ userId: null }, { userId: { notIn: blockedIds } }] } : {}),
-      AND: [AUTHOR_OK],
+      AND: [visitAuthorOk()],
       // "Still ongoing" is judged on the visited city's calendar, not UTC —
       // a visit "ends today" until that city's midnight, not three hours early.
       endsOn: { gte: await todayInCity(cityId) },

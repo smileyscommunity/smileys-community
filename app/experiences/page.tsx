@@ -99,7 +99,7 @@ export default async function ExperiencesPage({ searchParams }: Props) {
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-8 space-y-12">
         {shelves.length === 0
-          ? <NothingYet city={city} events={fallback} eventsHref={eventsHref} />
+          ? <NothingYet city={city} events={fallback} eventsHref={eventsHref} guest={!session} />
           : <Shelves shelves={shelves} viewer={viewer} />}
         <Crosslinks cityName={city.name} guideHref={guideHref} eventsHref={eventsHref} />
       </div>

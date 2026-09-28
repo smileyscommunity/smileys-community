@@ -10,6 +10,8 @@ import { getCityTz, getCityConfig } from './city'
 import { isSoldOut } from '@/lib/soldOut'
 import { COUNTED_CLUB_MEMBERSHIP_WHERE } from './clubMemberCount'
 import { DEFAULT_CURRENCY, firstNameOf } from './data'
+import { blockedIdsFor, restrictedSetFor } from './memberPrivacy'
+import type { SessionUser } from './session'
 
 // ── Clubs ─────────────────────────────────────────────────────────────────
 
@@ -241,6 +243,10 @@ export function redactEventForGuest(event: Event): Event {
     hostPhoto:        null,
     hostNationality:  null,
     hostId:           '',
+    // `location` is free text: on a members-only event it is where a home
+    // dinner's host writes their building. The neighbourhood says enough to
+    // decide; the venue is the payoff of joining, like the address.
+    location:         event.membersOnly ? (event.neighborhood || 'Shared with members') : event.location,
     address:          undefined,
     lat:              null,
     lng:              null,
@@ -260,23 +266,52 @@ export function redactEventForGuest(event: Event): Event {
  * object, so one bulk fetch revealed what the single-event API withholds.
  * Attendee previews stay: members see who's going everywhere else too.
  */
-export async function projectEventsForMember<T extends Event>(events: T[], viewer: { id: string; role?: string | null }): Promise<T[]> {
+export async function projectEventsForMember<T extends Event>(events: T[], viewer: SessionUser): Promise<T[]> {
   // Admins and moderators see everything, as in GET /api/events/[id].
   if (events.length === 0 || viewer.role === 'admin' || viewer.role === 'moderator') return events
   const ids = events.map(e => e.id)
-  const [seats, cohosts] = await Promise.all([
+  // The people on the cards — host and attendee previews — pass the same
+  // privacy rules as the rest of the member pages: a blocked pair is not
+  // shown, and a connections-only member outside the viewer's connections
+  // is a first name with no photo (lib/memberPrivacy; the rule
+  // lib/authorProjection and the hosts roster apply). The list handed every
+  // member their full name and face, in the flight payload of a client list.
+  const people = [...new Set(events.flatMap(e => [e.hostId, ...(e.attendeePreviews ?? []).map(p => p.id)]))]
+    .filter(id => id && id !== viewer.id)
+  const [seats, cohosts, blocked, privateRows] = await Promise.all([
     prisma.eventAttendee.findMany({ where: { userId: viewer.id, eventId: { in: ids }, status: 'approved' }, select: { eventId: true } }),
     prisma.eventCoHost.findMany({ where: { userId: viewer.id, eventId: { in: ids } }, select: { eventId: true } }),
+    blockedIdsFor(viewer.id),
+    people.length
+      ? prisma.user.findMany({ where: { id: { in: people }, profileVisibility: 'connections' }, select: { id: true, profileVisibility: true } })
+      : Promise.resolve([] as { id: string; profileVisibility: string | null }[]),
   ])
+  const restricted = privateRows.length ? await restrictedSetFor(viewer, privateRows) : new Set<string>()
   const inside = new Set([...seats, ...cohosts].map(r => r.eventId))
-  return events.map(e => (e.hostId === viewer.id || inside.has(e.id)) ? e : {
-    ...e,
-    address:        undefined,
-    lat:            null,
-    lng:            null,
-    meetingUrl:     undefined,
-    whatsappUrl:    undefined,
-    paymentContact: undefined,
+
+  return events.map(orig => {
+    const hostHidden = blocked.has(orig.hostId) || restricted.has(orig.hostId)
+    const e: T = {
+      ...orig,
+      ...(hostHidden ? { hostName: firstNameOf(orig.hostName) || orig.hostName, hostPhoto: null, hostNationality: null } : {}),
+      // No id to follow to a profile that 404s for the pair.
+      ...(blocked.has(orig.hostId) ? { hostId: '' } : {}),
+      ...(orig.attendeePreviews ? {
+        attendeePreviews: orig.attendeePreviews
+          .filter(p => !blocked.has(p.id))
+          .map(p => restricted.has(p.id) ? { ...p, name: firstNameOf(p.name) || 'Smileys member', profilePhoto: null } : p),
+      } : {}),
+    }
+    if (orig.hostId === viewer.id || inside.has(orig.id)) return e
+    return {
+      ...e,
+      address:        undefined,
+      lat:            null,
+      lng:            null,
+      meetingUrl:     undefined,
+      whatsappUrl:    undefined,
+      paymentContact: undefined,
+    }
   })
 }
 
@@ -295,7 +330,15 @@ export async function getEvents(options?: {
   // unscoped traveller view falls back to the default city's. Both live
   // cities share Europe/Istanbul today, so this is behavior-neutral —
   // but Athens's evening events must not be cut off on Istanbul's clock.
-  const tz = cityId ? await getCityTz(cityId) : DEFAULT_TZ
+  // Banned or currently suspended members are not shown: their events drop
+  // out of the lists (the hosts roster already dropped them — the events it
+  // pointed at stayed, with RSVP open) and they leave the "going" previews.
+  // A small set (banned + suspended), so a notIn is cheap.
+  const [tz, unlistable] = await Promise.all([
+    cityId ? getCityTz(cityId) : Promise.resolve(DEFAULT_TZ),
+    prisma.user.findMany({ where: { OR: [{ status: 'banned' }, { suspendedUntil: { gt: new Date() } }] }, select: { id: true } }),
+  ])
+  const unlistableIds = unlistable.map(u => u.id)
   const { date: today, minutes: nowMins } = nowInTz(tz)
   // Drop events whose start was > 5h ago — keeps in-progress events
   // visible for a typical event's duration but removes finished ones.
@@ -338,7 +381,11 @@ export async function getEvents(options?: {
     // statuses. Previously this fell through to `{}` (no status/date filter),
     // so a hand-crafted GET /api/events leaked draft/pending/flagged events.
     : { status: { in: ['published', 'archived', 'cancelled'] } }
-  const where = cityId ? { ...baseWhere, cityId } : baseWhere
+  const where = {
+    ...baseWhere,
+    ...(cityId ? { cityId } : {}),
+    ...(unlistableIds.length ? { hostId: { notIn: unlistableIds } } : {}),
+  }
 
   // event.findMany must complete first because enrichHosts needs
   // the host ids from the rows. But the count query is independent
@@ -368,7 +415,9 @@ export async function getEvents(options?: {
       : Promise.resolve([]),
   ])
   const waitByEvent = new Map(waitCounts.map(w => [w.eventId, w._count._all]))
+  const hideAttendee = new Set(unlistableIds)
   for (const e of events) {
+    if (hideAttendee.size && e.attendeePreviews) e.attendeePreviews = e.attendeePreviews.filter(p => !hideAttendee.has(p.id))
     const n = waitByEvent.get(e.id)
     if (n) e.waitlistCount = n
   }

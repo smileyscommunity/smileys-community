@@ -25,7 +25,7 @@ export default function FinalCta({ city, signedIn, newMembersThisWeek, enter }: 
               This section owned a bare /apply link instead — exactly the bug
               JoinCityButton's comment describes, left behind when the hero
               was fixed. */}
-          <JoinCityButton slug={city.slug} name={city.name} />
+          <JoinCityButton slug={city.slug} name={city.name} guest={!signedIn} />
           <a href={enter('events')} className="btn-secondary text-base px-8 py-4">
             {signedIn ? 'Browse events' : 'Browse events first'}
           </a>

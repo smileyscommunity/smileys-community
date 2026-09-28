@@ -94,7 +94,7 @@ export default async function CityEventsPage({ params }: Params) {
                 Be one of the first to help build Smileys {city.name}.
               </p>
               <div className="flex justify-center">
-                <JoinCityButton slug={city.slug} name={city.name} />
+                <JoinCityButton slug={city.slug} name={city.name} guest={!session} />
               </div>
             </div>
           ) : (
@@ -104,7 +104,7 @@ export default async function CityEventsPage({ params }: Params) {
             </div>
           )}
           <div className="mt-10 flex flex-col sm:flex-row gap-4 items-center justify-center">
-            <JoinCityButton slug={city.slug} name={city.name} />
+            <JoinCityButton slug={city.slug} name={city.name} guest={!session} />
             {/* The interactive calendar — filters, tabs, your RSVPs — via the
                 cookie-setting entry so it opens on THIS city. */}
             <a href={enter('events')} className="btn-secondary text-base px-8 py-4">

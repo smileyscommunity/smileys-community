@@ -96,7 +96,7 @@ export default async function CityMovingPage({ params }: Params) {
           and build a real social life once you arrive.
         </p>
         <div className="flex flex-col sm:flex-row gap-3">
-          <JoinCityButton slug={city.slug} name={city.name} />
+          <JoinCityButton slug={city.slug} name={city.name} guest={!session} />
           <Link href={`/handbook${cityQs}`} className={HERO_SECONDARY}>Read the Handbook</Link>
         </div>
       </PhotoHero>
@@ -359,7 +359,7 @@ export default async function CityMovingPage({ params }: Params) {
             Joining is free. You only pay for events you choose, and the price is shown before you RSVP.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center flex-wrap">
-            <JoinCityButton slug={city.slug} name={city.name} />
+            <JoinCityButton slug={city.slug} name={city.name} guest={!session} />
             <Link href={`/handbook${cityQs}`} className="btn-secondary text-base px-6 py-4">Read the Handbook</Link>
             <Link href={`/neighborhoods${cityQs}`} className="btn-secondary text-base px-6 py-4">Explore neighbourhoods</Link>
             <Link href={eventsHref} className="btn-secondary text-base px-6 py-4">See upcoming events</Link>

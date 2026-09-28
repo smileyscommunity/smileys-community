@@ -3,7 +3,7 @@ import { unstable_cache } from 'next/cache'
 import { getCityHostRoster, rosterForViewer } from '@/lib/hostRoster'
 import type { SessionUser } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
-import { guestView, visitorName } from '@/lib/visitorPolicy'
+import { guestView, visitorName, visitAuthorOk } from '@/lib/visitorPolicy'
 import { ACTIVATED_MEMBER_WHERE } from '@/lib/memberCount'
 import { postCityScope } from '@/lib/postScope'
 import { todayInTz } from '@/lib/cityTime'
@@ -143,7 +143,7 @@ export async function getVisitors(city: PublicCity, signedIn: boolean) {
     cityId: city.id, status: 'active', endsOn: { gte: visitorsToday },
     ...(signedIn ? {} : { visibility: 'public' }),
     // A banned, suspended or admin-hidden author's card goes with them.
-    OR: [{ userId: null }, { user: { status: 'approved', hiddenFromMembers: false } }],
+    ...visitAuthorOk(),
   }
   const [visitors, visitorTotal] = await Promise.all([
     prisma.visitorAnnouncement.findMany({

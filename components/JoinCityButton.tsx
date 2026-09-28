@@ -19,6 +19,7 @@ export default function JoinCityButton({
   name,
   live = true,
   from,
+  guest = false,
 }: {
   slug: string
   name: string
@@ -30,6 +31,12 @@ export default function JoinCityButton({
   // form can say the one line that page's reader needs. Unknown values are
   // ignored there.
   from?: 'students'
+  // Set by a dynamic server page that has already read the session and found
+  // none. Auth resolves client-side and starts as "loading" for every guest,
+  // so without this the server HTML held a grey placeholder where the page's
+  // main call to action belongs — on every city page, and on a pre-launch
+  // page it was the only one. A guest the server saw is a guest.
+  guest?: boolean
 }) {
   const { isLoggedIn, isLoading } = useAuth()
   const [state, setState] = useState<'unknown' | 'member' | 'joinable' | 'interested' | 'notify'>('unknown')
@@ -55,16 +62,18 @@ export default function JoinCityButton({
   // guest CTA while it loads showed members an apply link for a second — long
   // enough to click, which is exactly how a member ended up on the application
   // form for a city they'd already joined Smileys for. Wait instead.
-  if (isLoading) {
+  if (isLoading && !guest) {
     return <span className="inline-block h-[52px] w-56 rounded-xl bg-gray-100 animate-pulse" aria-hidden="true" />
   }
 
   // Guests: the application flow either way — they need an account first, and
   // the form carries the city through so a pre-launch signup is captured.
+  // For a pre-launch city the label says what the link is: it was "Get
+  // notified about Tbilisi" over the full membership application.
   if (!isLoggedIn) {
     return (
       <Link href={`/apply?city=${slug}${from ? `&from=${from}` : ''}`} className="btn-primary text-base px-8 py-4">
-        {live ? `Join Smileys ${name}` : `Get notified about ${name}`}
+        {live ? `Join Smileys ${name}` : `Apply to join Smileys ${name}`}
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
         </svg>

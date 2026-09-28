@@ -121,7 +121,8 @@ describe('90e. "View all events" on a city page stays in that city', () => {
   it('EventTabs takes the link, the city section passes its entry link', () => {
     expect(read('components/EventTabs.tsx')).toContain('<a href={allHref} className="btn-secondary md:btn-ghost">View all events</a>')
     expect(read('app/[city]/sections/Events.tsx')).toContain("allHref={enter('events')}")
-    expect(read('app/[city]/page.tsx')).toContain('<Events city={city} tabEvents={tabEvents} eventWindow={eventWindow} enter={enter} />')
+    // 2026-09-29: the section also takes signedIn (JoinCityButton's server guest flag).
+    expect(read('app/[city]/page.tsx')).toContain('<Events city={city} tabEvents={tabEvents} eventWindow={eventWindow} enter={enter} signedIn={!!session} />')
   })
 })
 

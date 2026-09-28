@@ -25,7 +25,7 @@ import {
   parseTripRange, parseTripFilters, applyTripFilters, tripFilterOptions, tripEventWhen,
   cityAvailability, isFreeEvent, type TripWhen,
 } from '@/lib/tripPlan'
-import { guestView, visitorName } from '@/lib/visitorPolicy'
+import { guestView, visitorName, visitAuthorOk } from '@/lib/visitorPolicy'
 import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
 import { loadExperiences } from '@/lib/guideContent'
 import VisitingClient from './VisitingClient'
@@ -52,7 +52,7 @@ const VISIT_WHERE = (today: string, cityId: string, forMembers: boolean) => ({
   endsOn: { gte: today },
   ...(forMembers ? {} : { visibility: 'public' }),
   // A banned, suspended or admin-hidden author's card goes with them.
-  OR: [{ userId: null }, { user: { status: 'approved', hiddenFromMembers: false } }],
+  ...visitAuthorOk(),
 })
 
 const getAnnouncements = unstable_cache(

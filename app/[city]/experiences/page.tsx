@@ -88,14 +88,14 @@ export default async function CityExperiencesPage({ params }: Params) {
       <section className="py-10 sm:py-14 bg-warm border-t border-gray-100">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 space-y-12">
           {shelves.length === 0
-            ? <NothingYet city={city} events={fallback} eventsHref={eventsHref} />
+            ? <NothingYet city={city} events={fallback} eventsHref={eventsHref} guest={!session} />
             : <Shelves shelves={shelves} viewer={viewer} />}
           <Crosslinks cityName={city.name} guideHref={guideHref} eventsHref={eventsHref} />
           {/* The empty state carries its own join button when the city has
               no events at all; a second one under it read as a glitch. */}
           {!session && shelves.length > 0 && (
             <div className="flex justify-center">
-              <JoinCityButton slug={city.slug} name={city.name} />
+              <JoinCityButton slug={city.slug} name={city.name} guest={!session} />
             </div>
           )}
         </div>

@@ -126,7 +126,7 @@ export default async function CityRemoteWorkPage({ params }: Params) {
           <span className="text-white/70"> ({city.timezone})</span>
         </p>
         <div className="flex flex-col sm:flex-row gap-3">
-          <JoinCityButton slug={city.slug} name={city.name} />
+          <JoinCityButton slug={city.slug} name={city.name} guest={!session} />
           <Link href={events.length > 0 ? '#work-and-meet' : `/${city.slug}/events`} className={HERO_SECONDARY}>
             See upcoming events
           </Link>
@@ -386,7 +386,7 @@ export default async function CityRemoteWorkPage({ params }: Params) {
             Joining is free. You only pay for events you choose, and the price is shown before you RSVP.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <JoinCityButton slug={city.slug} name={city.name} />
+            <JoinCityButton slug={city.slug} name={city.name} guest={!session} />
             <Link href={`/${city.slug}/events`} className="btn-secondary text-base px-8 py-4">See upcoming events</Link>
           </div>
         </div>
