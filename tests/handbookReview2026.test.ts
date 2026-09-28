@@ -135,7 +135,9 @@ describe('the article page', () => {
   })
 
   it('names the article that overlaps it', () => {
-    expect(seeAlsoSlug('istanbul-residence-permit-guide')).toBe('residence-permit-first-application')
+    // The residence-permit pair was merged (2026-09-28) — a redirect, not a see-also.
+    expect(seeAlsoSlug('istanbul-residence-permit-guide')).toBeNull()
+    expect(seeAlsoSlug('residence-permit-first-application')).toBeNull()
     expect(seeAlsoSlug('opening-turkish-bank-account')).toBe('istanbul-bank-account-guide')
     expect(seeAlsoSlug('istanbulkart-mastery')).toBeNull()
     expect(page).toContain("where:  { slug, kind: 'handbook', status: 'published' },")

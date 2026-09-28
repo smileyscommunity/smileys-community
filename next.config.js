@@ -100,6 +100,15 @@ const nextConfig = {
         destination: '/handbook/sim-card-and-home-internet-in-turkiye',
         permanent:   true,
       },
+      // The Istanbul residence-permit guide was merged into the national one
+      // (2026-09-28): same process countrywide, and the Istanbul-only parts
+      // (appointment waits, the notary, PTT delivery) now live there. The
+      // Istanbul row is unpublished; this 308 keeps its indexed URL alive.
+      {
+        source:      '/handbook/istanbul-residence-permit-guide',
+        destination: '/handbook/residence-permit-first-application',
+        permanent:   true,
+      },
     ]
   },
   async headers() {

@@ -4,7 +4,6 @@
 // here" points at the national one). Until they are merged, each names the
 // other. Editorial, by slug, both directions.
 const PAIRS: [string, string][] = [
-  ['istanbul-residence-permit-guide', 'residence-permit-first-application'],
   ['istanbul-bank-account-guide',     'opening-turkish-bank-account'],
 ]
 
