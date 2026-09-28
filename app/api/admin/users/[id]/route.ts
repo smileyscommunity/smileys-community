@@ -16,6 +16,7 @@ import {formatName} from '@/lib/data'
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 import { todayInCity, resolveCityId } from '@/lib/city'
 import { setHomeCity } from '@/lib/cityMembership'
+import { bustHostRoster } from '@/lib/hostRoster'
 import { formatMoney } from '@/lib/data'
 import { rateLimit, claimOnce, releaseClaim } from '@/lib/rateLimit'
 import {
@@ -491,6 +492,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           }),
         ]))[0]
       : await prisma.user.update({ where: { id }, data: allowed, select: USER_PATCH_SELECT })
+    // A ban, a suspension, hiding a member or moving their city changes
+    // every roster they are on; the cached one otherwise showed them for
+    // five more minutes.
+    if (['status', 'suspendedUntil', 'hiddenFromMembers', 'cityId', 'role'].some(k => k in allowed)) bustHostRoster()
 
     // Premium/VIP grant → celebrate it (in-app + email). Fires only on a
     // genuine upgrade FROM a non-paid tier INTO a paid one — so re-saving an

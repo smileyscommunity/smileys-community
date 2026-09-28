@@ -61,7 +61,7 @@ export default async function CityPage({ params }: Params) {
 
   const [{ visitors, visitorTotal }, { hosts, hostTotal }, { topNeighborhoods, neighborhoodsHaveEvents }] = await Promise.all([
     getVisitors(city, !!session),
-    getCityHosts(city, !!session),
+    getCityHosts(city, session),
     getTopNeighborhoods(city.id, neighborhoodCounts),
   ])
 

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { createNotification } from '@/lib/notify'
 import { rateLimit } from '@/lib/rateLimit'
+import { bustHostRoster } from '@/lib/hostRoster'
 
 type Params = { params: Promise<{ slug: string }> }
 
@@ -120,6 +121,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       where: { userId_clubId: { userId: session.id, clubId: club.id } },
       data:  { role: 'member' },
     })
+    bustHostRoster()
     return NextResponse.json({ ok: true })
   } catch (e) {
     console.error(e)
@@ -162,6 +164,7 @@ export async function DELETE(_: NextRequest, { params }: Params) {
         data: { memberCount: { decrement: 1 } },
       })] : []),
     ])
+    if (membership.role === 'host') bustHostRoster()
 
     return NextResponse.json({ ok: true })
   } catch (e) {

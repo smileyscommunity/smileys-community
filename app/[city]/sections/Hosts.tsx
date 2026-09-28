@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { cityQs } from '@/lib/cityPageParam'
 import HostRosterCard from '@/components/HostRosterCard'
 import { HOST_TITLE } from '@/lib/hostTitles'
-import { hubCanonical } from '../data'
+import { hubPath } from '../data'
 import type { PublicCity, CityHosts } from '../data'
 
 // Meet your hosts — the people behind the clubs above, with the title each
@@ -28,21 +28,21 @@ export default function Hosts({ city, hosts, hostTotal, signedIn }: {
             </p>
           </div>
           {hostTotal > hosts.length && (
-            <Link href={hubCanonical(city.slug, 'hosts')} className="hidden md:flex btn-ghost text-sm items-center gap-1 shrink-0">
+            <Link href={hubPath(city.slug, 'hosts')} className="hidden md:flex btn-ghost text-sm items-center gap-1 shrink-0">
               All {hostTotal} hosts →
             </Link>
           )}
         </div>
         {hosts.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-            {hosts.map(h => <HostRosterCard key={h.id || h.name} host={h} signedIn={signedIn} citySlug={city.slug} compact />)}
+            {hosts.map((h, i) => <HostRosterCard key={h.id || `${h.name}-${i}`} host={h} signedIn={signedIn} citySlug={city.slug} compact />)}
           </div>
         )}
         <div className="flex items-center gap-4 flex-wrap">
           <Link href={`/get-involved${cityQs(city.slug)}`} className="btn-primary px-6 py-3">
             {hosts.length === 0 ? `Host the first thing in ${city.name}` : 'Become a host'}
           </Link>
-          <Link href={hubCanonical(city.slug, 'hosts')} className="text-sm font-bold text-amber-600 hover:underline">
+          <Link href={hubPath(city.slug, 'hosts')} className="text-sm font-bold text-amber-600 hover:underline">
             {hostTotal > hosts.length ? `See all ${hostTotal} hosts →` : 'How hosting works →'}
           </Link>
         </div>

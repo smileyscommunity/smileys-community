@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import Image from 'next/image'
-import { avatarUrl, BLUR_PLACEHOLDER } from '@/lib/data'
+import { avatarUrl, BLUR_PLACEHOLDER, getInitials } from '@/lib/data'
 import { clubHref } from '@/lib/clubLink'
 import { HOST_TITLE, hostActivityLine, type RosterHost } from '@/lib/hostTitles'
 
@@ -42,7 +42,9 @@ export default function HostRosterCard({ host: h, signedIn, citySlug, compact = 
             style={{ backgroundColor: h.color }}
             aria-hidden="true"
           >
-            {h.name.charAt(0)}
+            {/* getInitials, not charAt(0): an emoji-led name rendered half a
+                surrogate pair and a lowercase name stayed lowercase. */}
+            {getInitials(h.name) || Array.from(h.name)[0] || ''}
           </div>
         )}
         <div className="min-w-0">

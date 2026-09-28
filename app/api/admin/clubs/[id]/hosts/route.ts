@@ -96,5 +96,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     `Demoted ${user?.name ?? userId} from host of "${club?.name ?? clubId}" to member`,
   )
 
+  revalidateTag(HOST_ROSTER_TAG)
+
   return NextResponse.json({ ok: true })
 }

@@ -1,7 +1,9 @@
-import { unstable_cache } from 'next/cache'
+import { unstable_cache, revalidateTag } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { todayInTz } from '@/lib/cityTime'
-import { rankHosts, type RosterHost } from '@/lib/hostTitles'
+import { blockedIdsFor, restrictedSetFor } from '@/lib/memberPrivacy'
+import type { SessionUser } from '@/lib/session'
+import { rankHosts, projectRosterForViewer, projectHostForGuest, type RosterHost } from '@/lib/hostTitles'
 
 // A city's hosts, as a public roster: who they are, what they hold (Host /
 // City Lead — lib/hostTitles), the clubs they run and how much they host.
@@ -22,6 +24,13 @@ export const getCityHostRoster = unstable_cache(
     // The city's own day, not the founding city's: "upcoming" for a Tbilisi
     // host used to roll over on Istanbul's clock.
     const today = todayInTz(timezone)
+    // A suspension leaves status 'approved' and sets a date, so it needs its
+    // own gate — the members directory's (app/api/members). Without it a
+    // suspended host kept their card, photo and a profile link that 404'd.
+    const listable = {
+      status: 'approved' as const, hiddenFromMembers: false,
+      OR: [{ suspendedUntil: null }, { suspendedUntil: { lte: new Date() } }],
+    }
 
     // Two ways in: hosting a club, or a city-level grant. Union them — most
     // leads also host a club, and either alone belongs on the roster. A
@@ -32,7 +41,7 @@ export const getCityHostRoster = unstable_cache(
       prisma.clubMembership.findMany({
         where: {
           role: 'host', status: 'approved',
-          user: { status: 'approved', hiddenFromMembers: false },
+          user: listable,
           OR: [
             { club: { isActive: true, cityId } },
             { club: { isActive: true, cityId: null }, user: { cityId } },
@@ -41,15 +50,15 @@ export const getCityHostRoster = unstable_cache(
         select: {
           userId: true,
           club: { select: { id: true, name: true, slug: true, emoji: true } },
-          user: { select: { id: true, name: true, color: true, profilePhoto: true } },
+          user: { select: { id: true, name: true, color: true, profilePhoto: true, profileVisibility: true } },
         },
       }),
       prisma.cityHost.findMany({
         where: {
           cityId, status: 'approved', revokedAt: null,
-          user: { status: 'approved', hiddenFromMembers: false },
+          user: listable,
         },
-        select: { user: { select: { id: true, name: true, color: true, profilePhoto: true } } },
+        select: { user: { select: { id: true, name: true, color: true, profilePhoto: true, profileVisibility: true } } },
       }),
     ])
 
@@ -89,6 +98,33 @@ export const getCityHostRoster = unstable_cache(
   ['city-host-roster'],
   { revalidate: 300, tags: [HOST_ROSTER_TAG] },
 )
+
+/**
+ * The roster as THIS viewer may see it, per request, outside the cache. A
+ * guest gets the guest projection (lib/hostTitles). A member loses the hosts
+ * they have blocked or been blocked by — the profile route 404s the pair,
+ * so the card was a dead link with a face on it — and sees a connections-only
+ * host outside their connections the way a guest would (first name, no
+ * photo, no link), which is what that host's own profile shows them.
+ */
+export async function rosterForViewer<T extends RosterHost>(roster: T[], session: SessionUser | null | undefined): Promise<T[]> {
+  if (!session) return projectRosterForViewer(roster, false)
+  const [blocked, restricted] = await Promise.all([
+    blockedIdsFor(session.id),
+    restrictedSetFor(session, roster.map(h => ({ id: h.id, profileVisibility: h.profileVisibility ?? null }))),
+  ])
+  return roster.filter(h => !blocked.has(h.id)).map(h => (restricted.has(h.id) ? projectHostForGuest(h) : h))
+}
+
+/**
+ * Drop every city's cached roster. For the writes that change who is a host
+ * or whether they may be listed: a grant or a demotion, a ban, a suspension,
+ * hiding a member, deactivating a club, a host stepping down or moving
+ * city. Safe outside a request (a script, a test): the cache just ages out.
+ */
+export function bustHostRoster(): void {
+  try { revalidateTag(HOST_ROSTER_TAG) } catch { /* no request scope — the 5-minute TTL covers it */ }
+}
 
 /**
  * The cities a member leads, by name — for the profile chip. Live grants

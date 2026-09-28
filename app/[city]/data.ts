@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { unstable_cache } from 'next/cache'
-import { getCityHostRoster } from '@/lib/hostRoster'
-import { projectRosterForViewer } from '@/lib/hostTitles'
+import { getCityHostRoster, rosterForViewer } from '@/lib/hostRoster'
+import type { SessionUser } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import { guestView, visitorName } from '@/lib/visitorPolicy'
 import { ACTIVATED_MEMBER_WHERE } from '@/lib/memberCount'
@@ -166,9 +166,10 @@ export type Visitors = Awaited<ReturnType<typeof getVisitors>>
 // events above, the redaction never enters the shared cache entry.
 export const CITY_PAGE_HOST_LIMIT = 6
 
-export async function getCityHosts(city: PublicCity, signedIn: boolean) {
+export async function getCityHosts(city: PublicCity, session: SessionUser | null) {
   const roster = await getCityHostRoster(city.id, city.timezone)
-  return { hosts: projectRosterForViewer(roster.slice(0, CITY_PAGE_HOST_LIMIT), signedIn), hostTotal: roster.length }
+  const visible = await rosterForViewer(roster, session)
+  return { hosts: visible.slice(0, CITY_PAGE_HOST_LIMIT), hostTotal: visible.length }
 }
 
 export type CityHosts = Awaited<ReturnType<typeof getCityHosts>>
@@ -244,6 +245,11 @@ export type HubKind = 'events' | 'clubs' | 'directory' | 'board' | 'hosts' | 'ex
 
 export function isDefaultCitySlug(slug: string): boolean {
   return slug === DEFAULT_CITY_SLUG
+}
+
+/** The same hub as a path, for a <Link> — an absolute href is a full page load. */
+export function hubPath(slug: string, kind: HubKind): string {
+  return isDefaultCitySlug(slug) ? `/${kind}` : `/${slug}/${kind}`
 }
 
 /** The canonical URL for a city's hub — absolute, for <link rel=canonical>. */

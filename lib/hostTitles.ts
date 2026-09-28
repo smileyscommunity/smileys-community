@@ -45,6 +45,8 @@ export interface RosterHost {
   name: string
   color: string
   profilePhoto: string | null
+  /** Selected so a member's view can honour a connections-only profile; never rendered. */
+  profileVisibility?: string | null
   title: HostTitle
   clubs: RosterClub[]
   upcomingCount: number
@@ -68,7 +70,12 @@ export function rankHosts(a: RosterHost, b: RosterHost): number {
  */
 export function projectRosterForViewer<T extends RosterHost>(hosts: T[], signedIn: boolean): T[] {
   if (signedIn) return hosts
-  return hosts.map(h => ({ ...h, id: '', name: firstNameOf(h.name) || h.name, profilePhoto: null }))
+  return hosts.map(projectHostForGuest)
+}
+
+/** One host as a guest sees them — also what a connections-only host is to a member outside their connections. */
+export function projectHostForGuest<T extends RosterHost>(h: T): T {
+  return { ...h, id: '', name: firstNameOf(h.name) || h.name, profilePhoto: null }
 }
 
 /**

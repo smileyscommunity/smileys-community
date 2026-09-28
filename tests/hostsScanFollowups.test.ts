@@ -12,6 +12,7 @@ import { rosterSummary, hostActivityLine } from '@/lib/hostTitles'
 const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8')
 const cookiePage = read('app/hosts/page.tsx')
 const cityPage   = read('app/[city]/hosts/page.tsx')
+const hub        = read('components/HostsHub.tsx') // 2026-09-28 item 13: both pages render this
 const section    = read('app/[city]/sections/Hosts.tsx')
 const roster     = read('lib/hostRoster.ts')
 const moving     = read('app/[city]/moving/page.tsx')
@@ -32,7 +33,7 @@ describe('the hero line counts the lead once (item 1)', () => {
     expect(rosterSummary(0, 0, 'Tbilisi')).toBe('Tbilisi is looking for its first hosts — the seat is open.')
   })
   it('the page uses it', () => {
-    expect(cityPage).toContain('{rosterSummary(hosts.length, leads, city.name)}')
+    expect(hub).toContain('{rosterSummary(hosts.length, leads, city.name)}')
     expect(cityPage).not.toContain("`, ${leads} ${leads === 1 ? HOST_TITLE.lead")
   })
 })
@@ -49,9 +50,9 @@ describe('hosts of global clubs join their home city (item 3)', () => {
   it('the club-host query takes a city club OR a global club with the host living in the city', () => {
     expect(roster).toContain('{ club: { isActive: true, cityId } },')
     expect(roster).toContain('{ club: { isActive: true, cityId: null }, user: { cityId } },')
-    // The user gate still applies to both arms.
+    // The user gate still applies to both arms (item 9 made it `listable`).
     const q = roster.slice(roster.indexOf('prisma.clubMembership.findMany'), roster.indexOf('prisma.cityHost.findMany'))
-    expect(q).toContain("user: { status: 'approved', hiddenFromMembers: false },")
+    expect(q).toContain("user: listable,")
   })
 })
 
@@ -75,7 +76,8 @@ describe('the cookie page is per city (items 4–5)', () => {
     expect(involved).toContain('const { city } = await resolveCityForPage(searchParams)')
     expect(involved).toContain('<Link href={`/hosts${cityQs(city.slug)}`}')
     expect(involved).toContain('<HostPath cityName={city.name} />')
-    expect(cityPage.split('<Link href={`/get-involved${cityQs(city.slug)}`}').length - 1).toBe(2)
+    expect(hub).toContain('const involved = `/get-involved${cityQs(city.slug)}`')
+    expect(hub.split('href={involved}').length - 1).toBe(2)
     expect(section).toContain('<Link href={`/get-involved${cityQs(city.slug)}`}')
   })
 })
