@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import HostPath from '@/components/HostPath'
 import { resolveStats } from '@/lib/communityStats'
-import { resolveCityForPage, cityQs, type CitySearch } from '@/lib/cityPageParam'
 
 export const metadata = {
   title: 'Get Involved — Smileys Community',
@@ -76,15 +75,10 @@ export const revalidate = 3600
 // (No local stat fallback — see app/about/page.tsx: resolveStats measures
 // defaults from the DB; typed arrays drift.)
 
-export default async function GetInvolvedPage({ searchParams }: { searchParams?: Promise<CitySearch> }) {
+export default async function GetInvolvedPage() {
   const c          = loadContent()
   const gi         = c.get_involved ?? {}
   const STATS      = (await resolveStats(c.stats)).slice(0, 3)
-  // The city the reader came from (a city's hosts page or Meet your hosts
-  // section links here with ?city=), so "Meet the Hosts" leads back to that
-  // city's roster and the path names the city — the round trip from
-  // /izmir/hosts used to end on Istanbul's page.
-  const { city } = await resolveCityForPage(searchParams)
   return (
     <main>
 
@@ -175,10 +169,10 @@ export default async function GetInvolvedPage({ searchParams }: { searchParams?:
       {/* The path: Host, then City Lead (lib/hostTitles) */}
       <section className="bg-white border-t border-gray-100">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          <HostPath cityName={city.name} />
+          <HostPath />
           <p className="text-sm text-gray-500 mt-4">
             Every host and lead is a member volunteering their time. See who holds the titles today on the{' '}
-            <Link href={`/hosts${cityQs(city.slug)}`} className="font-semibold text-amber-600 hover:underline">Meet the Hosts</Link> page.
+            <Link href="/hosts" className="font-semibold text-amber-600 hover:underline">Meet the Hosts</Link> page.
           </p>
         </div>
       </section>

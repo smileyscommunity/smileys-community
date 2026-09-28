@@ -71,26 +71,9 @@ export function projectRosterForViewer<T extends RosterHost>(hosts: T[], signedI
   return hosts.map(h => ({ ...h, id: '', name: firstNameOf(h.name) || h.name, profilePhoto: null }))
 }
 
-/**
- * The one-line summary under a host's name on a card. With no events it says
- * what the person does, not the title again — the chip beside it already
- * says "City Lead", and every freshly launched city's only card read
- * "★ CITY LEAD  City Lead".
- */
+/** The one-line summary under a host's name on a card. */
 export function hostActivityLine(h: Pick<RosterHost, 'title' | 'upcomingCount' | 'hostedCount'>): string {
   if (h.upcomingCount > 0) return `${h.upcomingCount} upcoming event${h.upcomingCount === 1 ? '' : 's'}`
   if (h.hostedCount > 0) return `${h.hostedCount} event${h.hostedCount === 1 ? '' : 's'} hosted`
-  return h.title === 'lead' ? 'Leads the city' : 'Runs a club'
-}
-
-/**
- * The hero line over a city's roster. A City Lead IS one of the hosts, so
- * the count says so — "1 host, 1 City Lead" was read as two people on every
- * one-person city. The caller handles zero.
- */
-export function rosterSummary(total: number, leads: number, cityName: string): string {
-  if (total <= 0) return `${cityName} is looking for its first hosts — the seat is open.`
-  if (total === 1) return `${leads > 0 ? `One ${HOST_TITLE.lead}` : 'One host'} — the member who makes ${cityName} happen.`
-  const withLeads = leads === 0 ? '' : leads === 1 ? `, one of them the ${HOST_TITLE.lead}` : `, ${leads} of them ${HOST_TITLE.lead}s`
-  return `${total} hosts${withLeads} — the members who make ${cityName} happen.`
+  return HOST_TITLE[h.title]
 }
