@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { testimonialAuthorOk, TESTIMONIAL_SELECT, publicTestimonial } from '@/lib/testimonialQuery'
 import { unstable_cache } from 'next/cache'
 import { getCityHostRoster, rosterForViewer } from '@/lib/hostRoster'
 import type { SessionUser } from '@/lib/session'
@@ -100,10 +101,11 @@ export const getCityPageData = unstable_cache(
       // Smileys ones carried the lowest `order` values, so they filled
       // Istanbul's own page ahead of its six Istanbul quotes.
       prisma.testimonial.findMany({
-        where:   { active: true, OR: [{ cityId }, { cityId: null }] },
+        where:   { active: true, AND: [{ OR: [{ cityId }, { cityId: null }] }, testimonialAuthorOk()] },
         orderBy: [{ order: 'asc' }],
         take:    6,
-      }),
+        select:  TESTIMONIAL_SELECT,
+      }).then(rows => rows.map(publicTestimonial)),
       // A number is all the page renders — never fetch names for a count
       // (the shape invites the next edit to display them), and admin-hidden
       // accounts stay out of every public figure. Uncapped: 'take' was

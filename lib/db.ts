@@ -232,6 +232,10 @@ export async function canSeeEvent(
   return !!(await prisma.eventCoHost.findFirst({ where: { eventId: event.id, userId: viewer.id }, select: { id: true } }))
 }
 
+const ADMISSION_HIDDEN = {
+  maleQuota: null, femaleQuota: null, turkishMaleQuota: null, tierOverride: null, cancelCutoffHours: null,
+} as const
+
 export function redactEventForGuest(event: Event): Event {
   return {
     ...event,
@@ -247,6 +251,11 @@ export function redactEventForGuest(event: Event): Event {
     // dinner's host writes their building. The neighbourhood says enough to
     // decide; the venue is the payoff of joining, like the address.
     location:         event.membersOnly ? (event.neighborhood || 'Shared with members') : event.location,
+    // The admission rules (gender and nationality quotas, the seat tier, the
+    // cancel cutoff) are the host's and the server's — the seat logic reads
+    // them from the database, never from this object. No public page shows
+    // them; the lists shipped them to every guest.
+    ...ADMISSION_HIDDEN,
     address:          undefined,
     lat:              null,
     lng:              null,
@@ -288,6 +297,7 @@ export async function projectEventsForMember<T extends Event>(events: T[], viewe
   ])
   const restricted = privateRows.length ? await restrictedSetFor(viewer, privateRows) : new Set<string>()
   const inside = new Set([...seats, ...cohosts].map(r => r.eventId))
+  const cohostOf = new Set(cohosts.map(r => r.eventId))
 
   return events.map(orig => {
     const hostHidden = blocked.has(orig.hostId) || restricted.has(orig.hostId)
@@ -302,9 +312,12 @@ export async function projectEventsForMember<T extends Event>(events: T[], viewe
           .map(p => restricted.has(p.id) ? { ...p, name: firstNameOf(p.name) || 'Smileys member', profilePhoto: null } : p),
       } : {}),
     }
-    if (orig.hostId === viewer.id || inside.has(orig.id)) return e
+    const hosting = orig.hostId === viewer.id || cohostOf.has(orig.id)
+    if (hosting) return e
+    if (inside.has(orig.id)) return { ...e, ...ADMISSION_HIDDEN }
     return {
       ...e,
+      ...ADMISSION_HIDDEN,
       address:        undefined,
       lat:            null,
       lng:            null,
@@ -323,8 +336,11 @@ export async function getEvents(options?: {
   // for the default "show me my city's events" feed; pass undefined
   // for the cross-city "show all" view a traveller would want.
   cityId?: string
+  // Several cities at once — the landing page's live cities. Without it the
+  // unscoped query listed every city's events, a coming-soon city's included.
+  cityIds?: string[]
 }): Promise<{ events: Event[]; total: number }> {
-  const { limit = 24, offset = 0, upcoming, cityId } = options ?? {}
+  const { limit = 24, offset = 0, upcoming, cityId, cityIds } = options ?? {}
   // "Today" and the started-cutoff are computed in the CITY's timezone:
   // when the feed is scoped to a city we use that city's zone, and the
   // unscoped traveller view falls back to the default city's. Both live
@@ -378,7 +394,7 @@ export async function getEvents(options?: {
     : { status: { in: ['published', 'archived', 'cancelled'] } }
   const where = {
     ...baseWhere,
-    ...(cityId ? { cityId } : {}),
+    ...(cityId ? { cityId } : cityIds ? { cityId: { in: cityIds } } : {}),
     ...(unlistableIds.length ? { hostId: { notIn: unlistableIds } } : {}),
   }
 

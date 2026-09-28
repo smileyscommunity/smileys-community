@@ -51,7 +51,9 @@ export default function CityCard({
   // made one card speak two vocabularies. "Live" is reserved for cities whose
   // community carries itself; the badge follows the same derived maturity the
   // card body already uses.
-  const founding = isLive && city.stats?.maturity === CITY_MATURITY.Seeding
+  // Forming too: a forming city is still filed under "Founding now" on the
+  // landing page, so a "Live" badge there spoke the other vocabulary.
+  const founding = isLive && !!city.stats && city.stats.maturity !== CITY_MATURITY.SelfSustaining
 
   // Falls back rather than blocking: a city created two minutes ago with no
   // marketing copy yet still renders as a real card.

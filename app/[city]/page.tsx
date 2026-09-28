@@ -4,6 +4,7 @@ import { getSession } from '@/lib/session'
 import { redactEventForGuest, projectEventsForMember } from '@/lib/db'
 import CityPageTracker from '@/components/CityPageTracker'
 import { eventWindowFor } from '@/lib/data'
+import { toEventCard } from '@/lib/eventCard'
 import { getPublicCity, DEFAULT_CITY_SLUG } from '@/lib/cities'
 import { CITY_STATUS } from '@/lib/cityStatus'
 import { APP_URL } from '@/lib/env'
@@ -96,7 +97,8 @@ export default async function CityPage({ params }: Params) {
     getTopNeighborhoods(city.id, neighborhoodCounts),
   ])
 
-  const tabEvents = arrangeEvents(events)
+  // Cut to what a card renders (lib/eventCard): EventTabs is a client list.
+  const tabEvents = arrangeEvents(events).map(toEventCard)
   // The city's own week and weekend — this page had been computing them in
   // the founding city's terms, on a page whose entire subject is another city.
   const eventWindow   = eventWindowFor(city.timezone)

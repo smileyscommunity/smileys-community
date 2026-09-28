@@ -18,6 +18,8 @@ import { ACTIVATED_MEMBER_WHERE } from '@/lib/memberCount'
 import { absoluteOgImage } from '@/lib/og'
 import { isSoldOut } from '@/lib/soldOut'
 import { arrivalAccent } from '@/lib/arrival-accents'
+import { toEventCard } from '@/lib/eventCard'
+import { testimonialAuthorOk, TESTIMONIAL_SELECT, publicTestimonial } from '@/lib/testimonialQuery'
 
 // ── The global landing page ─────────────────────────────────────────────────
 // Smileys is not a website about Istanbul; Istanbul is the first Smileys city.
@@ -46,6 +48,14 @@ import { arrivalAccent } from '@/lib/arrival-accents'
 // (see visiting-hero-og.jpg for the same treatment).
 const HERO_FALLBACK    = '/app/images/hero-istanbul.jpg'
 const HERO_FALLBACK_OG = `${APP_URL}/images/hero-istanbul-og.jpg`
+// What the shipped photo shows. An admin-set hero carries its own alt
+// (/admin/content → Home); without one it is described as nothing rather
+// than as a dinner it may not be — "Smileys members together at a community
+// dinner" was the alt of every hero, including a four-skyline composite.
+const HERO_FALLBACK_ALT = 'Friends talking on a rooftop terrace above the Bosphorus at sunset'
+function heroAltFor(home: { heroImage?: string; heroAlt?: string }): string {
+  return home.heroAlt?.trim() || (home.heroImage ? '' : HERO_FALLBACK_ALT)
+}
 
 export async function generateMetadata(): Promise<Metadata> {
   const home    = loadContent().home ?? {}
@@ -54,9 +64,10 @@ export async function generateMetadata(): Promise<Metadata> {
   // An admin-set hero goes through the files route's resize; the bundled
   // fallback is pre-sized, so its dimensions are known.
   const adminHero = absoluteOgImage(home.heroImage)
+  const alt   = heroAltFor(home) || 'Smileys Community'
   const image = adminHero
-    ? { url: adminHero, alt: 'Smileys Community' }
-    : { url: HERO_FALLBACK_OG, width: 1200, height: 800, alt: 'Smileys Community' }
+    ? { url: adminHero, alt }
+    : { url: HERO_FALLBACK_OG, width: 1200, height: 800, alt }
   const title   = 'Smileys — your people, in every city you land in'
   const description =
     'Meet people, join clubs and discover experiences wherever your international life takes you. Smileys is a network of local communities, growing city by city.'
@@ -81,17 +92,28 @@ const getLandingData = unstable_cache(
     const liveCityRows = await prisma.city.findMany({
       where: { status: 'live' }, select: { id: true, name: true, timezone: true },
     })
+    const liveIds      = liveCityRows.map(c => c.id)
     const cityNameById = Object.fromEntries(liveCityRows.map(c => [c.id, c.name]))
     // Each card judges "started"/"deadline" on its own city's clock, not
     // Istanbul's — same query, one more column.
     const cityTzById   = Object.fromEntries(liveCityRows.map(c => [c.id, c.timezone]))
 
-    const [{ events: rawEvents }, testimonials, memberCount, stories] = await Promise.all([
-      // Wide enough for the tabs to filter across a month; the page is
-      // cached for 60s, so one fetch beats a request per tab. No cityId:
-      // the cross-city view getEvents was designed to serve.
-      getEvents({ limit: 24, upcoming: true }),
-      prisma.testimonial.findMany({ where: { active: true }, orderBy: [{ order: 'asc' }], take: 3 }),
+    const [{ events: crossCity }, perCity, testimonials, memberCount, stories] = await Promise.all([
+      // Live cities only (a coming-soon city's first event must not open the
+      // front page with no city name), and the whole upcoming list up to 60 so
+      // "All events" counts what the city cards count — it said 24 beside
+      // Istanbul's 37. Cards are small once projected (toEventCard).
+      getEvents({ limit: 60, upcoming: true, cityIds: liveIds }),
+      // Every live city's next few, so a founding city's first event lands
+      // here the day it is posted: ordered by date alone, Istanbul filled
+      // every slot a month ahead and İzmir's would never have shown.
+      Promise.all(liveIds.map(cityId => getEvents({ limit: 3, upcoming: true, cityId }).then(r => r.events))),
+      prisma.testimonial.findMany({
+        where:   { active: true, ...testimonialAuthorOk() },
+        orderBy: [{ order: 'asc' }],
+        take:    3,
+        select:  TESTIMONIAL_SELECT,
+      }).then(rows => rows.map(publicTestimonial)),
       // "N members and counting" — activated members only (lib/memberCount).
       prisma.user.count({ where: ACTIVATED_MEMBER_WHERE }),
       // Community write-ups — member and host stories, already public at
@@ -105,14 +127,22 @@ const getLandingData = unstable_cache(
       }),
     ])
 
+    const seen = new Set<string>()
+    const rawEvents = [...crossCity, ...perCity.flat()]
+      .filter(e => (seen.has(e.id) ? false : (seen.add(e.id), true)))
+      .sort((a, b) => Number(!!b.featured) - Number(!!a.featured) || a.date.localeCompare(b.date) || a.time.localeCompare(b.time))
+
     // This page redirects every session away (see HomePage), so the viewer
-    // is a guest BY CONSTRUCTION — redact inside the cache, unconditionally.
-    // Same projection as GET /api/events: no exact address/GPS, no chat or
-    // meeting links, no payment contact, no attendee identities.
-    const events = rawEvents.map(e => ({ ...redactEventForGuest(e), cityName: e.cityId ? cityNameById[e.cityId] : undefined, timeZone: e.cityId ? cityTzById[e.cityId] : undefined }))
-    return { events, testimonials, memberCount, stories }
+    // is a guest BY CONSTRUCTION — redact inside the cache, unconditionally,
+    // then cut each event to what a card renders (lib/eventCard): the whole
+    // object used to ship to the client list.
+    const events = rawEvents.map(e => toEventCard({ ...redactEventForGuest(e), cityName: e.cityId ? cityNameById[e.cityId] : undefined, timeZone: e.cityId ? cityTzById[e.cityId] : undefined }))
+    const anyMembersOnly = events.some(e => e.membersOnly)
+    return { events, testimonials, memberCount, stories, anyMembersOnly }
   },
-  ['global-landing-data'],
+  // v2: card-shaped events, filtered testimonials — a new key so no cached
+  // v1 value (whole events) is served after the deploy.
+  ['global-landing-data-v2'],
   { revalidate: 60, tags: ['home'] },
 )
 
@@ -142,9 +172,9 @@ export default async function HomePage() {
   // leaving the hero blank.
   const home = loadContent().home ?? {}
   const heroImage = home.heroImage || HERO_FALLBACK
-  const heroAlt   = 'Smileys members together at a community dinner'
+  const heroAlt   = heroAltFor(home)
 
-  const [cities, { events, testimonials, memberCount, stories }] = await Promise.all([
+  const [cities, { events, testimonials, memberCount, stories, anyMembersOnly }] = await Promise.all([
     getPublicCities(),
     getLandingData(),
   ])
@@ -157,10 +187,21 @@ export default async function HomePage() {
   // which corrects itself as each city matures — no flag to remember to
   // flip. Falls back to raw status if no city qualifies, so the hero never
   // says "Live in 0 cities".
+  // Three groups, one vocabulary everywhere on the page (pill, grid, network
+  // list): LIVE = a community that carries itself; FOUNDING = open to join,
+  // its first members shaping it; COMING SOON = not open yet. The pill used
+  // to count founding cities as "on the way" and file them under a heading
+  // shared with cities you cannot join, while the list at the bottom called
+  // them live. If no city qualifies as live, the flagship alone stands in —
+  // not every status-live city, which said "Live in 6 cities" over five
+  // empty ones.
   const statusLive  = cities.filter(c => c.status === CITY_STATUS.Live)
   const mature      = statusLive.filter(c => c.stats?.maturity === CITY_MATURITY.SelfSustaining)
-  const liveCities  = mature.length > 0 ? mature : statusLive
-  const otherCities = cities.filter(c => !liveCities.includes(c))
+  const fallback    = statusLive.find(c => c.slug === DEFAULT_CITY_SLUG) ?? statusLive[0]
+  const liveCities  = mature.length > 0 ? mature : (fallback ? [fallback] : [])
+  const founding    = statusLive.filter(c => !liveCities.includes(c))
+  const comingSoon  = cities.filter(c => c.status !== CITY_STATUS.Live)
+  const otherCities = [...founding, ...comingSoon]
   const flagship    = liveCities[0] ?? null
 
   // Cancelled events break trust in a showcase slot; sold-out ones sink to the
@@ -184,7 +225,10 @@ export default async function HomePage() {
   // seconds saw an Istanbul website. So the pill carries the rest of the
   // network and links down to it, which beats spending a third button on it.
   const eyebrow = singleCity ? `Live in ${flagship.name}` : `Live in ${liveCities.length} cities`
-  const onTheWay = otherCities.length > 0 ? ` · ${otherCities.length} more on the way` : ''
+  const onTheWay = [
+    founding.length   > 0 ? `${founding.length} founding` : '',
+    comingSoon.length > 0 ? `${comingSoon.length} coming soon` : '',
+  ].filter(Boolean).map(t => ` · ${t}`).join('')
 
   return (
     <>
@@ -281,9 +325,11 @@ export default async function HomePage() {
                   each card wears its own city name — multi-city truth by
                   construction, not by label. */}
               <h2 className="section-title">Happening this week</h2>
-              <p className="section-subtitle">Real plans, real people — walk into any of them.</p>
+              {/* Most of these are members-only: "walk into any of them" sat
+                  over a row of locked cards. */}
+              <p className="section-subtitle">{anyMembersOnly ? 'Real plans, real people — members walk into any of them.' : 'Real plans, real people — walk into any of them.'}</p>
             </div>
-            {/* A city filter joins these tabs once a second city is live. */}
+            {/* Each card names its city; a city filter is still to be built. */}
             <EventTabs events={tabEvents} window={eventWindow} />
           </div>
         </section>
@@ -372,11 +418,21 @@ export default async function HomePage() {
             ))}
           </div>
 
-          {otherCities.length > 0 && (
+          {founding.length > 0 && (
             <div className="mt-12 pt-10 border-t border-gray-100">
-              <h3 className="text-sm font-bold uppercase tracking-widest text-gray-500 mb-6">On the way</h3>
+              <h3 className="text-sm font-bold uppercase tracking-widest text-gray-500 mb-2">Founding now</h3>
+              <p className="text-sm text-gray-600 mb-6">Open to join — the first members shape what each one becomes.</p>
               <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                {otherCities.map(c => <CityCard key={c.id} city={c} />)}
+                {founding.map(c => <CityCard key={c.id} city={c} />)}
+              </div>
+            </div>
+          )}
+
+          {comingSoon.length > 0 && (
+            <div className="mt-12 pt-10 border-t border-gray-100">
+              <h3 className="text-sm font-bold uppercase tracking-widest text-gray-500 mb-6">Coming soon</h3>
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                {comingSoon.map(c => <CityCard key={c.id} city={c} />)}
               </div>
             </div>
           )}
@@ -580,15 +636,19 @@ export default async function HomePage() {
           {/* The network as it actually is — live cities marked, everything
               else honestly labelled. */}
           <div className="flex flex-wrap justify-center gap-x-8 gap-y-3 text-sm">
-            {cities.map(c => (
-              <span key={c.id} className="inline-flex items-center gap-2">
-                <span aria-hidden="true" className={`w-2 h-2 rounded-full ${c.status === CITY_STATUS.Live ? 'bg-emerald-500' : 'bg-gray-300'}`} />
-                <span className={c.status === CITY_STATUS.Live ? 'font-bold text-gray-900' : 'text-gray-500'}>{c.name}</span>
-                {c.status !== CITY_STATUS.Live && (
-                  <span className="text-xs text-gray-400 uppercase tracking-wide">soon</span>
-                )}
-              </span>
-            ))}
+            {/* Same three groups as the pill and the grid above. */}
+            {[...liveCities, ...founding, ...comingSoon].map(c => {
+              const stage = liveCities.includes(c) ? 'live' : founding.includes(c) ? 'founding' : 'soon'
+              return (
+                <span key={c.id} className="inline-flex items-center gap-2">
+                  <span aria-hidden="true" className={`w-2 h-2 rounded-full ${stage === 'live' ? 'bg-emerald-500' : stage === 'founding' ? 'bg-amber-400' : 'bg-gray-300'}`} />
+                  <span className={stage === 'soon' ? 'text-gray-500' : 'font-bold text-gray-900'}>{c.name}</span>
+                  {stage !== 'live' && (
+                    <span className="text-xs text-gray-500 uppercase tracking-wide">{stage === 'founding' ? 'founding' : 'soon'}</span>
+                  )}
+                </span>
+              )
+            })}
           </div>
           <p className="mt-6 text-sm text-gray-500">
             {/* Same rounded-down figure the footer's stat row shows — an exact

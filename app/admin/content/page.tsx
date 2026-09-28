@@ -12,7 +12,7 @@ interface FaqSection { id: string; icon: string; title: string; items: FaqItem[]
 interface Content {
   // `metric` set = published number comes from the database, not `value`.
   stats:         { value?: string; label: string; metric?: 'members' | 'events' | 'clubs' }[]
-  home:          { headline: string; subtitle: string; heroImage?: string }
+  home:          { headline: string; subtitle: string; heroImage?: string; heroAlt?: string }
   about:         { headline: string; subtitle: string; story_p1: string; story_p2: string; story_p3: string }
   why:           { headline: string; tagline: string; subtitle: string; closing: string }
   get_involved:  { headline: string; subtitle: string }
@@ -58,7 +58,7 @@ const labelCls  = 'block text-xs font-bold text-zinc-400 uppercase tracking-wide
 // throw on first edit.
 const DEFAULT_CONTENT: Content = {
   stats:         [],
-  home:          { headline: '', subtitle: '', heroImage: '' },
+  home:          { headline: '', subtitle: '', heroImage: '', heroAlt: '' },
   about:         { headline: '', subtitle: '', story_p1: '', story_p2: '', story_p3: '' },
   why:           { headline: '', tagline: '',  subtitle: '', closing: '' },
   get_involved:  { headline: '', subtitle: '' },
@@ -315,6 +315,13 @@ export default function ContentPage() {
                     Remove (back to the shipped photo)
                   </button>
                 )}
+                <div>
+                  <label className={labelCls}>Describe the photo (alt text)</label>
+                  <input value={content.home.heroAlt ?? ''} maxLength={200}
+                    onChange={e => set('home', { ...content.home, heroAlt: e.target.value })}
+                    placeholder="What a visitor who can't see it should know, e.g. Friends talking on a rooftop terrace at sunset"
+                    className={inputCls} />
+                </div>
                 <p className="text-[11px] text-zinc-600 leading-relaxed">
                   Landscape, ideally people rather than scenery — it sits beside the headline and is the first thing a
                   visitor sees. Save below to publish. Large photos are downscaled before upload.
