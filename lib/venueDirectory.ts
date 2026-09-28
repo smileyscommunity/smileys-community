@@ -32,6 +32,7 @@ export const VENUE_ALIASES: Readonly<Record<string, string>> = {
   blackcoffeeyeldegirmeni: 'blakcoffeecoyeldegirmeni',
   buka:                    'bukayeldegirmeni',
   dozze:                   'dozzekadikoy',
+  archcafe:                'archeocafeandhostel',
 }
 
 type VenueRow = { id: string; name: string; isApproved: boolean; isActive: boolean }

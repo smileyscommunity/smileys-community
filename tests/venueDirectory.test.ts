@@ -22,6 +22,7 @@ const ROWS = [
   { id: 'blak_live',    name: 'BLAK Coffee Co. Yeldeğirmeni',   isApproved: true,  isActive: true },
   { id: 'karyatid',     name: 'Karyatid Sahne',                 isApproved: false, isActive: true },
   { id: 'moda_hidden',  name: 'Moda Sahil',                     isApproved: false, isActive: false },
+  { id: 'archeo',       name: 'Archeo Cafe and Hostel',         isApproved: true,  isActive: true },
 ]
 
 const findMany = vi.mocked(prisma.business.findMany)
@@ -42,6 +43,7 @@ describe('matchVenue', () => {
     expect(matchVenue('Blak Yeldeğirmeni', ROWS)?.id).toBe('blak_live')
     expect(matchVenue('Karyadit Sahne', ROWS)?.id).toBe('karyatid')
     expect(matchVenue('Dozze', ROWS)?.id).toBe('dozze_live')
+    expect(matchVenue('Arch Cafe', ROWS)?.id).toBe('archeo')
   })
   it('still matches a hidden row when it is the only one — a hidden non-venue is not re-created', () => {
     expect(matchVenue('Moda Sahil', ROWS)?.id).toBe('moda_hidden')
