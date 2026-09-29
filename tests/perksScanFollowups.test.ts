@@ -12,7 +12,9 @@ describe('member perks', () => {
     const layout = read('app/layout.tsx')
     expect(layout).toContain("session ? prisma.partner.count({ where: { cityId: sessionCityId, isActive: true } }) : Promise.resolve(0),")
     expect(layout).toContain('hasPerks={hasPerks}')
-    expect(read('components/Footer.tsx')).toContain("...(hasPerks ? [{ href: '/perks', label: 'Member Perks 🎁' }] : []),")
+    // Nate 2026-09-29: the footer link stays for every member.
+    expect(read('components/Footer.tsx')).toContain("{ href: '/perks',        label: 'Member Perks 🎁'    },")
+    expect(read('components/Footer.tsx')).not.toContain('hasPerks')
     expect(read('components/AccountMenu.tsx')).toContain('{hasPerks && (')
     expect(read('components/Navbar.tsx')).toContain('<AccountMenu onItemClick={() => setDropdownOpen(false)} hasPerks={hasPerks} />')
     expect(read('components/BottomNav.tsx')).toContain('<AccountMenu onItemClick={() => setSheetOpen(false)} hasPerks={hasPerks} />')
