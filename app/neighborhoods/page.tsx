@@ -528,7 +528,7 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
   }
 
   return (
-    <main>
+    <div>
       <script type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: jsonLdHtml(neighborhoodsJsonLd) }} />
       {/* Hero — full-bleed photo with the copy overlaid. Same gradient
@@ -940,6 +940,6 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
           <ExploreMore current="neighborhoods" cityId={cityId} cityName={city.name} />
         </div>
       </div>
-    </main>
+    </div>
   )
 }

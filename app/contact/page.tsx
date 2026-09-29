@@ -145,7 +145,7 @@ function ContactForm() {
   }
 
   return (
-    <main className="min-h-screen bg-warm">
+    <div className="min-h-screen bg-warm">
 
         {/* Hero */}
         <div className="bg-white border-b border-gray-100">
@@ -335,6 +335,6 @@ function ContactForm() {
             </div>
           </div>
         </div>
-    </main>
+    </div>
   )
 }

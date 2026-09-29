@@ -334,7 +334,7 @@ export default async function NeighborhoodPage(
   }
 
   return (
-    <main>
+    <div>
       <script
         type="application/ld+json"
         // JSON.stringify doesn't escape `<`, so a literal `</script>` in any
@@ -541,6 +541,6 @@ export default async function NeighborhoodPage(
           </div>
         </section>
       )}
-    </main>
+    </div>
   )
 }

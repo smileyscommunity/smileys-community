@@ -152,7 +152,7 @@ export default async function WhyPage({ searchParams }: { searchParams?: Promise
   }
 
   return (
-    <main className="bg-white overflow-x-hidden">
+    <div className="bg-white overflow-x-hidden">
 
       {/* ── HERO ─────────────────────────────────────────────── */}
       <section className="bg-white border-b border-gray-100">
@@ -561,6 +561,6 @@ export default async function WhyPage({ searchParams }: { searchParams?: Promise
         </div>
       </section>
 
-    </main>
+    </div>
   )
 }

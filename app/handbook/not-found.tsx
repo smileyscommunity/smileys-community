@@ -11,7 +11,7 @@ import { cityQs } from '@/lib/cityPageParam'
 export default async function HandbookNotFound() {
   const city = await getCityConfig(await resolveCityId(await getSession()))
   return (
-    <main className="bg-white min-h-screen">
+    <div className="bg-white min-h-screen">
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-24 text-center">
         <span aria-hidden="true" className="text-5xl">📖</span>
         {/* Also serves the category route's 404, so it does not assume the
@@ -22,6 +22,6 @@ export default async function HandbookNotFound() {
         </p>
         <Link href={`/handbook${cityQs(city.slug)}`} className="btn-primary px-6 py-3">The {city.name} Handbook</Link>
       </div>
-    </main>
+    </div>
   )
 }

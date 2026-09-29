@@ -20,7 +20,7 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
   }, [error])
 
   return (
-    <main className="min-h-screen bg-warm flex items-center justify-center px-4">
+    <div className="min-h-screen bg-warm flex items-center justify-center px-4">
       <div className="max-w-md w-full text-center">
         <div className="text-6xl mb-6">⚠️</div>
         <h1 className="text-2xl font-extrabold text-gray-900 mb-3">Something went wrong</h1>
@@ -47,6 +47,6 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
           </a>
         </div>
       </div>
-    </main>
+    </div>
   )
 }

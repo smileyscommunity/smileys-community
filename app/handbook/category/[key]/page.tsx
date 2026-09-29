@@ -106,7 +106,7 @@ export default async function HandbookCategoryPage({ params, searchParams }: Par
   const tzById   = new Map(await Promise.all(localIds.map(async id => [id, (await getCityConfig(id)).timezone] as const)))
 
   return (
-    <main className="bg-gray-50 min-h-screen">
+    <div className="bg-gray-50 min-h-screen">
       <section className="bg-white border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12"><div className="max-w-3xl">
           <Link href={`/handbook${qs}`} className="text-xs text-amber-600 font-semibold hover:underline">← The {cfg.name} Handbook</Link>
@@ -186,6 +186,6 @@ export default async function HandbookCategoryPage({ params, searchParams }: Par
           })}
         </div></div>
       </section>
-    </main>
+    </div>
   )
 }

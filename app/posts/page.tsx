@@ -147,7 +147,7 @@ export default async function PostsPage({ searchParams }: { searchParams?: Promi
   const featuredCover = featured ? articleCover({ coverImage: featured.coverImage, body: featured.body }) : null
 
   return (
-    <main className="min-h-screen bg-warm">
+    <div className="min-h-screen bg-warm">
       {/* Hero */}
       <section className="bg-white border-b border-gray-100">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-6">
@@ -279,6 +279,6 @@ export default async function PostsPage({ searchParams }: { searchParams?: Promi
           <ExploreMore current="stories" cityId={cityId} cityName={city.name} />
         </div>
       </div>
-    </main>
+    </div>
   )
 }

@@ -255,7 +255,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
   const cityLabel = category === 'City Guide' && post.cityId ? (await getCityConfig(post.cityId)).name : null
 
   return (
-    <main className="min-h-screen bg-warm">
+    <div className="min-h-screen bg-warm">
       {/* Back */}
       <div className="bg-white border-b border-gray-100">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center gap-3">
@@ -415,6 +415,6 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
           </div>
         </section>
       )}
-    </main>
+    </div>
   )
 }

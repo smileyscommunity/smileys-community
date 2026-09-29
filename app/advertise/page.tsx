@@ -125,7 +125,7 @@ export default async function AdvertisePage() {
   const PRICES: Record<string, string> = adv.prices ?? {}
   const STATS = await resolveStats(c.stats)
   return (
-    <main>
+    <div>
 
       {/* Hero */}
       <section className="bg-white border-b border-gray-100">
@@ -339,6 +339,6 @@ export default async function AdvertisePage() {
         </div>
       </section>
 
-    </main>
+    </div>
   )
 }

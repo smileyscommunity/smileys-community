@@ -54,7 +54,7 @@ export default async function HandbookStagePage({ params, searchParams }: Props)
   const handbookHref = city.slug === DEFAULT_CITY_SLUG ? '/handbook' : `/handbook?city=${city.slug}`
 
   return (
-    <main className="bg-gray-50 min-h-screen">
+    <div className="bg-gray-50 min-h-screen">
       <section className="bg-white border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12"><div className="max-w-3xl">
           <Link href={handbookHref} className="text-xs text-amber-600 font-semibold hover:underline">← The {city.name} Handbook</Link>
@@ -102,6 +102,6 @@ export default async function HandbookStagePage({ params, searchParams }: Props)
           })}
         </div></div>
       </section>
-    </main>
+    </div>
   )
 }

@@ -88,7 +88,7 @@ export default async function ProPage() {
   })) : false
 
   return (
-    <main className="bg-zinc-950 text-white">
+    <div className="bg-zinc-950 text-white">
       {/* HERO */}
       <section className="relative overflow-hidden border-b border-white/5">
         {/* Glow gradient — premium, gold-on-black, distinct from the
@@ -211,6 +211,6 @@ export default async function ProPage() {
           </p>
         </div>
       </section>
-    </main>
+    </div>
   )
 }

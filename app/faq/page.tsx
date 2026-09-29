@@ -91,7 +91,7 @@ export default async function FAQPage() {
   }
 
   return (
-    <main className="bg-gray-50 min-h-screen">
+    <div className="bg-gray-50 min-h-screen">
       <script
         type="application/ld+json"
         // JSON.stringify doesn't escape `<`, so a literal `</script>` in any
@@ -167,6 +167,6 @@ export default async function FAQPage() {
         </div>
       </div>
 
-    </main>
+    </div>
   )
 }

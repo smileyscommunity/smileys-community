@@ -91,7 +91,7 @@ export default async function AboutPage() {
   }
 
   return (
-    <main>
+    <div>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdHtml(aboutJsonLd) }} />
 
       {/* ── Hero ── */}
@@ -319,6 +319,6 @@ export default async function AboutPage() {
         </div>
       </section>
 
-    </main>
+    </div>
   )
 }

@@ -242,7 +242,7 @@ export default async function HandbookPage({ searchParams }: { searchParams?: Pr
   const latest  = articles.filter(a => !onShelf.has(a.slug)).slice(0, 5)
 
   return (
-    <main>
+    <div>
       {/* Hero + search share one band. Search stays the page's primary
           action (brief §7/§41): on desktop the photo sits beside the title
           and search rather than above them, and on phones it's a short strip
@@ -487,6 +487,6 @@ export default async function HandbookPage({ searchParams }: { searchParams?: Pr
           </div>
         </section>
       )}
-    </main>
+    </div>
   )
 }

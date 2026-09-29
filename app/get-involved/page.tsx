@@ -120,7 +120,7 @@ export default async function GetInvolvedPage({ searchParams }: { searchParams?:
   const headline = gi.headline?.trim() || 'Help build the community you want to be part of'
   const subtitle = gi.subtitle?.trim() || 'Smileys is shaped by its members. The best events, the most active clubs, the warmest atmosphere — they all start with someone deciding to show up and contribute.'
   return (
-    <main>
+    <div>
 
       {/* Hero */}
       <section className="bg-white border-b border-gray-100">
@@ -240,6 +240,6 @@ export default async function GetInvolvedPage({ searchParams }: { searchParams?:
         </div>
       </section>
 
-    </main>
+    </div>
   )
 }

@@ -18,7 +18,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export default function TermsPage() {
   return (
-    <main className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white">
 
       {/* Header */}
       <div className="bg-gray-50 border-b border-gray-100">
@@ -176,6 +176,6 @@ export default function TermsPage() {
         </div>
       </div>
 
-    </main>
+    </div>
   )
 }

@@ -43,7 +43,7 @@ export default function GuidelinesPage() {
   const communityRules = loadCommunityRules()
 
   return (
-    <main className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white">
       {/* Header */}
       <div className="bg-gray-50 border-b border-gray-100">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-14">
@@ -250,6 +250,6 @@ export default function GuidelinesPage() {
           {' '}— we read every email.
         </div>
       </div>
-    </main>
+    </div>
   )
 }

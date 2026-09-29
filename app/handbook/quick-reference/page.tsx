@@ -42,7 +42,7 @@ export default async function QuickReferencePage({ searchParams }: Props) {
   if (categories.length === 0) redirect('/handbook')
 
   return (
-    <main className="bg-white">
+    <div className="bg-white">
       <section>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-6"><div className="max-w-3xl">
           <Link href="/handbook" className="text-xs text-amber-600 font-semibold hover:underline">← The {city.name} Handbook</Link>
@@ -64,6 +64,6 @@ export default async function QuickReferencePage({ searchParams }: Props) {
           <QuickReference categories={categories} />
         </div>
       </section>
-    </main>
+    </div>
   )
 }

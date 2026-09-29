@@ -273,7 +273,7 @@ export default async function HandbookArticlePage({ params }: Params) {
   )
 
   return (
-    <main className="bg-white">
+    <div className="bg-white">
       {!preview && (
         <script
           type="application/ld+json"
@@ -471,6 +471,6 @@ export default async function HandbookArticlePage({ params }: Params) {
           <Link href={`/handbook${qs}`} className="text-sm text-amber-600 font-bold hover:underline">← Back to the Handbook</Link>
         </div>
       </article></div>
-    </main>
+    </div>
   )
 }

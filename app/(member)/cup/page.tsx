@@ -516,7 +516,7 @@ export default function CupPredictionsPage() {
           the Rules / FAQ / Watch parties / Prizes cards. */}
       <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-6 lg:items-start">
         {/* ── Main column ───────────────────────────────────── */}
-        <main className="space-y-4 min-w-0 lg:col-start-1 lg:row-start-1">
+        <div className="space-y-4 min-w-0 lg:col-start-1 lg:row-start-1">
           {!bracketLocked && !cupFinished && accessState === 'member' && (
             <BracketCard
               bracket={bracket?.bracket ?? null}
@@ -584,7 +584,7 @@ export default function CupPredictionsPage() {
               accessState={accessState}
             />
           )}
-        </main>
+        </div>
 
         {/* ── Right sidebar — context cards ──────────────────────
             Sticky on lg+ (sits within col 2, spans both rows so
