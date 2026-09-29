@@ -300,3 +300,53 @@ export function buildFirstWeek(i: FirstWeekInput): FirstWeekStep[] {
     },
   ]
 }
+
+// ── Social proof ─────────────────────────────────────────────────────────────
+//
+// "200+ members joined as students" — counted, never estimated: activated
+// members of this city whose approved application gave a student reason for
+// being here, or a student profession. "Education" is NOT a student reason:
+// it is as likely a teacher's answer. Both patterns are Postgres ~* regexes
+// (app/[city]/data.ts getCityStudentCount).
+export const STUDENT_REASON_SQL     = '^\\s*(study|studying|university|student)'
+export const STUDENT_PROFESSION_SQL = 'student|öğrenci|ogrenci'
+/** Below this the line is left out: "2 members joined as students" argues
+ *  against the page it sits on. */
+export const STUDENT_PROOF_MIN = 50
+
+/** The count as the page says it — rounded DOWN to a round number with a
+ *  "+", so it is never more than is true; null when too small to show. */
+export function studentCountLabel(n: number): string | null {
+  if (!Number.isFinite(n) || n < STUDENT_PROOF_MIN) return null
+  const step = n >= 1000 ? 100 : n >= 100 ? 50 : 10
+  return `${Math.floor(n / step) * step}+`
+}
+
+/** Whether "most events are in English" is true of these events (upcoming,
+ *  not cancelled). Language is free text, so it is trimmed and case-folded. */
+export function mostlyEnglish(events: { language?: string | null; status?: string }[]): boolean {
+  const live = events.filter(e => e.status !== 'cancelled')
+  if (live.length === 0) return false
+  const english = live.filter(e => (e.language ?? '').trim().toLowerCase() === 'english').length
+  return english / live.length > 0.5
+}
+
+/** The page's questions and answers — plain text, so the same strings feed
+ *  the visible list and the FAQPage JSON-LD. Every answer is a fact the page
+ *  already states or the data shows; the English claim only when it holds. */
+export function studentFaqs(i: { cityName: string; mostlyEnglish: boolean }): { q: string; a: string }[] {
+  return [
+    { q: 'Can Erasmus and exchange students join Smileys?',
+      a: 'Yes. Erasmus, exchange and full-degree students are all welcome. You apply like anyone else, and no university details are asked.' },
+    { q: 'Is it free?',
+      a: 'Joining is free. You only pay for events you choose, and the price is on every event before you RSVP.' },
+    { q: 'Do I need to speak Turkish?',
+      a: i.mostlyEnglish
+        ? `No. Every event shows the language it runs in, and most events in ${i.cityName} are in English.`
+        : 'No, but check the event: every event shows the language it runs in.' },
+    { q: 'Can I go to an event on my own?',
+      a: 'Yes — plenty of people do. Events marked first-timer friendly are the ones picked as easy to come to alone.' },
+    { q: 'Is this instead of my university’s Erasmus network?',
+      a: 'No. Smileys sits alongside your university’s international office and student networks such as ESN — it is for the people and plans beyond campus.' },
+  ]
+}

@@ -21,7 +21,7 @@ import type { Event } from '@/lib/data'
 import { LIVE_BOARD_AUTHOR, SHOWN_REPLY } from '@/lib/boardAccess'
 import { firstNameOf } from '@/lib/data'
 import { isWorkClub, pickHubEvents, INTERVIEW_CATEGORY } from '@/lib/remoteWork'
-import { pickFirstEvents, pickRegularEvents, eventFilterLinks, STUDENT_STORY_CATEGORY, STUDENT_STORY_LIMIT } from '@/lib/students'
+import { pickFirstEvents, pickRegularEvents, eventFilterLinks, mostlyEnglish, STUDENT_STORY_CATEGORY, STUDENT_STORY_LIMIT, STUDENT_REASON_SQL, STUDENT_PROFESSION_SQL } from '@/lib/students'
 import { getCityHandbookIndex } from '@/lib/handbookIndex'
 import { articleCover } from '@/lib/articleCover'
 import { eventEndsAt } from '@/lib/eventTime'
@@ -556,6 +556,8 @@ export const getCityStudentHub = unstable_cache(
       forMembers:  pick(false),
       forGuests:   pick(true),
       filterLinks: eventFilterLinks(upcoming, citySlug),
+      // Backs the FAQ's "most events are in English" — said only when true.
+      mostlyEnglish: mostlyEnglish(upcoming),
       clubCount:   clubs.length,
       neighborhoodCount,
       // Cover resolved here so the body (up to 50k) never leaves the loader.
@@ -567,4 +569,27 @@ export const getCityStudentHub = unstable_cache(
   },
   ['city-student-hub'],
   { revalidate: 60, tags: ['home'] },
+)
+
+// How many of this city's activated members joined as students — the
+// student hub's "200+ members joined as students" (lib/students
+// studentCountLabel rounds it down and hides a small one). An application
+// has no userId, so the member's latest approved application is found by
+// email. Only a number leaves this function. Six hours: it moves slowly.
+export const getCityStudentCount = unstable_cache(
+  async (cityId: string): Promise<number> => {
+    const rows = await prisma.$queryRaw<{ n: bigint }[]>`
+      WITH m AS (
+        SELECT DISTINCT ON (u."id") a."profession", a."reasonHere"
+        FROM "users" u
+        JOIN "member_applications" a ON lower(a."email") = lower(u."email") AND a."status" = 'approved'
+        WHERE u."status" = 'approved' AND u."password" IS NOT NULL AND u."cityId" = ${cityId}
+        ORDER BY u."id", a."createdAt" DESC
+      )
+      SELECT count(*) AS n FROM m
+      WHERE m."reasonHere" ~* ${STUDENT_REASON_SQL} OR m."profession" ~* ${STUDENT_PROFESSION_SQL}`
+    return Number(rows[0]?.n ?? 0)
+  },
+  ['city-student-count'],
+  { revalidate: 21600, tags: ['home'] },
 )

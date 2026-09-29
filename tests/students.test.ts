@@ -282,3 +282,53 @@ describe('student hub review 2026-09-29', () => {
     expect(page).not.toMatch(/Explore \{city\.name\}\{budget/)
   })
 })
+
+// Add-ons 2026-09-29: a counted student line, hosts, an FAQ with JSON-LD and
+// an ESN pointer. The count and the English claim must never overstate.
+describe('student hub add-ons', () => {
+  it('rounds the student count down and hides a small one', async () => {
+    const { studentCountLabel, STUDENT_PROOF_MIN } = await import('@/lib/students')
+    expect(studentCountLabel(202)).toBe('200+')
+    expect(studentCountLabel(149)).toBe('100+')
+    expect(studentCountLabel(57)).toBe('50+')
+    expect(studentCountLabel(STUDENT_PROOF_MIN - 1)).toBeNull()
+    expect(studentCountLabel(1234)).toBe('1200+')
+    expect(studentCountLabel(NaN)).toBeNull()
+  })
+
+  it('does not count "Education" as a student reason (it is as likely a teacher)', async () => {
+    const { STUDENT_REASON_SQL } = await import('@/lib/students')
+    const re = new RegExp(STUDENT_REASON_SQL, 'i')
+    for (const r of ['Study', 'Studying', 'University', ' student']) expect(re.test(r), r).toBe(true)
+    expect(re.test('Education')).toBe(false)
+    expect(re.test('Work')).toBe(false)
+  })
+
+  it('says "most events are in English" only when more than half are', async () => {
+    const { mostlyEnglish, studentFaqs } = await import('@/lib/students')
+    expect(mostlyEnglish([{ language: 'English ' }, { language: 'english' }, { language: 'Turkish' }])).toBe(true)
+    expect(mostlyEnglish([{ language: 'English' }, { language: 'Turkish' }])).toBe(false)
+    expect(mostlyEnglish([{ language: 'English', status: 'cancelled' }, { language: 'Turkish' }])).toBe(false)
+    expect(mostlyEnglish([])).toBe(false)
+    const turkish = studentFaqs({ cityName: 'Bursa', mostlyEnglish: false }).find(f => /Turkish/.test(f.q))!
+    expect(turkish.a).not.toMatch(/most events/)
+  })
+
+  it('the count loader counts activated members, by parameterised pattern, and returns only a number', () => {
+    const src = readFileSync(join(process.cwd(), 'app/[city]/data.ts'), 'utf8')
+    const fn = src.slice(src.indexOf('export const getCityStudentCount'), src.indexOf("['city-student-count']"))
+    expect(fn).toMatch(/u\."status" = 'approved' AND u\."password" IS NOT NULL/)
+    expect(fn).toContain('~* ${STUDENT_REASON_SQL}')
+    expect(fn).toMatch(/Promise<number>/)
+  })
+
+  it('the page escapes its FAQ JSON-LD and reads hosts per viewer, outside the hub cache', () => {
+    const page = readFileSync(join(process.cwd(), 'app/[city]/students/page.tsx'), 'utf8')
+    expect(page).toContain(".replace(/</g, '\\\\u003c')")
+    expect(page).toContain('getCityHosts(city, session)')
+    const data = readFileSync(join(process.cwd(), 'app/[city]/data.ts'), 'utf8')
+    const hub = data.slice(data.indexOf('export const getCityStudentHub'), data.indexOf("['city-student-hub']"))
+    expect(hub).not.toMatch(/getCityHosts|getCityHostRoster/)
+    expect(page).toMatch(/ESN \(Erasmus Student Network\)/)
+  })
+})
