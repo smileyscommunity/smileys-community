@@ -444,6 +444,9 @@ export const getCityRemoteWorkHub = unstable_cache(
       workClubs,
       events:        pickHubEvents(events, workClubIds, REMOTE_WORK_EVENT_LIMIT),
       hasWorkEvents: workEvents.length > 0,
+      // Every coworking occurrence (series not collapsed) for the "this week"
+      // line — date and neighbourhood only, both already public on the cards.
+      workSessions:  workEvents.map(e => ({ date: e.date, neighborhood: e.neighborhood ?? null })),
       // Every upcoming session members-only → the page says so up front.
       workMembersOnly: workEvents.length > 0 && workEvents.every(e => e.membersOnly),
       neighborhoodCount,

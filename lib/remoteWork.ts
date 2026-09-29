@@ -1,5 +1,5 @@
 import { canonicalCategory } from './handbook-categories'
-import { safeTz } from './cityTime'
+import { safeTz, shiftDay } from './cityTime'
 
 // The remote-work hub (/[city]/remote-work) assembles pages that already
 // exist — Handbook articles, clubs, events — into one arrival path. It adds no
@@ -28,6 +28,8 @@ export const REMOTE_WORK_TOPICS = [
   { key: 'money',     title: 'Banking and money',           category: 'Money & Banking',   keywords: /bank|money|card|tax/i, lead: /bank/i },
   { key: 'transport', title: 'Getting around',              category: 'Getting Around',    keywords: /card|metro|bus|ferr|transport|kart|airport|arriv|havaliman/i },
   { key: 'legal',     title: 'Visas and residence',         category: 'Residence & Legal', keywords: /residence|permit|visa|ikamet|i̇kamet/i },
+  // Last: it matters once a stay turns into a residence permit, which needs insurance.
+  { key: 'health',    title: 'Health and insurance',        category: 'Healthcare',        keywords: /health|insurance|sigorta|hospital|doctor|pharma|sgk|gss/i },
 ] as const
 
 export type RemoteWorkTopicKey = (typeof REMOTE_WORK_TOPICS)[number]['key']
@@ -165,6 +167,60 @@ export function pickHubEvents<E extends HubEventLike>(events: E[], workClubIds: 
   const workTake = Math.min(work.length, Math.max(HUB_WORK_EVENT_CAP, limit - newbies.length))
   const picked = [...work.slice(0, workTake), ...newbies.slice(0, limit - workTake)]
   return picked.sort((a, b) => a.date.localeCompare(b.date))
+}
+
+/** Where a remote worker's employer most often is. A 9-to-5 in each is shown
+ *  in the city's local hours; a zone on the city's own offset says nothing
+ *  and is left out. */
+export const HOME_ZONES = [
+  { label: 'London',        tz: 'Europe/London' },
+  { label: 'Berlin',        tz: 'Europe/Berlin' },
+  { label: 'New York',      tz: 'America/New_York' },
+  { label: 'San Francisco', tz: 'America/Los_Angeles' },
+] as const
+
+/** A zone's offset from UTC in minutes at `now` — DST included. */
+export function offsetMinutes(tz: string, now: Date = new Date()): number {
+  const part = new Intl.DateTimeFormat('en-US', { timeZone: safeTz(tz), timeZoneName: 'shortOffset' })
+    .formatToParts(now)
+    .find(p => p.type === 'timeZoneName')?.value ?? 'GMT'
+  const m = part.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/)
+  if (!m) return 0
+  return (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3] ?? 0))
+}
+
+const clock = (min: number) => {
+  const m = ((min % 1440) + 1440) % 1440
+  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
+}
+
+export interface WorkdayOverlap { label: string; start: string; end: string }
+
+/**
+ * A 09:00–17:00 day in each home zone, as the city's clock reads it right
+ * now: what a remote worker actually needs to line up calls. Computed from
+ * both zones' current offsets, so it is right on either side of each DST
+ * change (which Europe and the US make on different weekends).
+ */
+export function workdayOverlap(cityTz: string, now: Date = new Date()): WorkdayOverlap[] {
+  const here = offsetMinutes(cityTz, now)
+  return HOME_ZONES.flatMap(({ label, tz }) => {
+    const diff = here - offsetMinutes(tz, now)
+    if (diff === 0) return []
+    return [{ label, start: clock(9 * 60 + diff), end: clock(17 * 60 + diff) }]
+  })
+}
+
+/** How many coworking sessions the next seven days hold (today included,
+ *  in the city's own day), and where — every occurrence counted, so a weekly
+ *  session twice in the window counts twice. Null when there are none: the
+ *  line is only worth showing when it has something to say. */
+export function coworkingWeek(sessions: { date: string; neighborhood?: string | null }[], today: string): { count: number; places: string[] } | null {
+  const end = shiftDay(today, 6)
+  const inWeek = sessions.filter(s => s.date >= today && s.date <= end).sort((a, b) => a.date.localeCompare(b.date))
+  if (inWeek.length === 0) return null
+  const places = [...new Set(inWeek.map(s => s.neighborhood?.trim()).filter((n): n is string => !!n))]
+  return { count: inWeek.length, places }
 }
 
 /** The city's UTC offset right now, e.g. 'UTC+3' or 'UTC−4:30' — what a remote

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import {
-  groupHubArticles, buildChecklist, isWorkClub, utcOffsetLabel, pickHubEvents,
+  groupHubArticles, buildChecklist, isWorkClub, utcOffsetLabel, pickHubEvents, workdayOverlap, coworkingWeek,
   ARTICLES_PER_TOPIC, HUB_WORK_EVENT_CAP, INTERVIEW_CATEGORY, NOMINATE_TOPIC, nominateHref,
   type HubArticle,
 } from '@/lib/remoteWork'
@@ -85,6 +85,49 @@ describe('groupHubArticles', () => {
 
   it('ignores articles in an unknown category rather than inventing a topic', () => {
     expect(groupHubArticles([article({ category: 'Nonsense' })], 'c1')).toEqual([])
+  })
+})
+
+describe('Health and insurance topic', () => {
+  it('files the health-insurance guide under its own topic, last', () => {
+    const topics = groupHubArticles([
+      article({ slug: 'bank', title: 'Bank account' }),
+      article({ slug: 'hi', title: 'Health Insurance for Your Residence Permit', category: 'Healthcare' }),
+    ], 'c1')
+    expect(topics.map(t => t.key)).toEqual(['money', 'health'])
+  })
+})
+
+describe('workdayOverlap', () => {
+  it('reads a London/Berlin/NY/SF 9-to-5 in Istanbul time in summer', () => {
+    expect(workdayOverlap('Europe/Istanbul', new Date('2026-07-15T12:00:00Z'))).toEqual([
+      { label: 'London', start: '11:00', end: '19:00' },
+      { label: 'Berlin', start: '10:00', end: '18:00' },
+      { label: 'New York', start: '16:00', end: '00:00' },
+      { label: 'San Francisco', start: '19:00', end: '03:00' },
+    ])
+  })
+  it('follows each side’s DST change — Europe and the US switch on different weekends', () => {
+    // 30 Oct 2026: Europe is back on winter time, the US not until 1 Nov.
+    const gap = workdayOverlap('Europe/Istanbul', new Date('2026-10-30T12:00:00Z'))
+    expect(gap.find(o => o.label === 'London')).toMatchObject({ start: '12:00', end: '20:00' })
+    expect(gap.find(o => o.label === 'New York')).toMatchObject({ start: '16:00', end: '00:00' })
+    const winter = workdayOverlap('Europe/Istanbul', new Date('2026-12-15T12:00:00Z'))
+    expect(winter.find(o => o.label === 'New York')).toMatchObject({ start: '17:00', end: '01:00' })
+  })
+  it('leaves out a home zone on the city’s own offset', () => {
+    expect(workdayOverlap('Europe/London', new Date('2026-07-15T12:00:00Z')).map(o => o.label)).not.toContain('London')
+  })
+})
+
+describe('coworkingWeek', () => {
+  const s = (date: string, neighborhood: string | null = null) => ({ date, neighborhood })
+  it('counts every session in the next 7 days and lists the places once, soonest first', () => {
+    expect(coworkingWeek([s('2026-10-06', 'Bomonti'), s('2026-09-30', 'Kadıköy'), s('2026-10-01', 'Beyoğlu'), s('2026-10-07', 'Kadıköy'), s('2026-10-02', 'Kadıköy')], '2026-09-30'))
+      .toEqual({ count: 4, places: ['Kadıköy', 'Beyoğlu', 'Bomonti'] })
+  })
+  it('is null on an empty week, and ignores past sessions', () => {
+    expect(coworkingWeek([s('2026-09-29', 'Kadıköy'), s('2026-10-08', 'Kadıköy')], '2026-09-30')).toBeNull()
   })
 })
 

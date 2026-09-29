@@ -8,7 +8,8 @@ import { CITY_STATUS } from '@/lib/cityStatus'
 import { APP_URL } from '@/lib/env'
 import { shareCover } from '@/lib/shareCover'
 import { reviewLabel } from '@/lib/handbook-review'
-import { groupHubArticles, buildChecklist, utcOffsetLabel, nominateHref } from '@/lib/remoteWork'
+import { groupHubArticles, buildChecklist, utcOffsetLabel, nominateHref, workdayOverlap, coworkingWeek } from '@/lib/remoteWork'
+import { todayInTz } from '@/lib/cityTime'
 import { storyBylines } from '@/lib/storyByline'
 import { prisma } from '@/lib/prisma'
 import { avatarUrl } from '@/lib/data'
@@ -90,7 +91,9 @@ export default async function CityRemoteWorkPage({ params }: Params) {
     workMembersOnly:  hub.workMembersOnly,
     hasEvents:        events.length > 0,
   })
-  const offset = utcOffsetLabel(city.timezone)
+  const offset  = utcOffsetLabel(city.timezone)
+  const overlap = workdayOverlap(city.timezone)
+  const week    = coworkingWeek(hub.workSessions, todayInTz(city.timezone))
   // The legal note may only point at official sources if the guides it is
   // talking about actually cite some.
   const legalCitesSources = topics
@@ -120,11 +123,25 @@ export default async function CityRemoteWorkPage({ params }: Params) {
           an offline community together — so within a few days you know where to work, where to live, what
           to set up, and who to spend time with.
         </p>
-        <p className="text-sm text-white/80 mb-8">
+        <p className={`text-sm text-white/80 ${overlap.length > 0 ? 'mb-2' : 'mb-8'}`}>
           <span aria-hidden="true">🕒 </span>
           Local time in {city.name} is <span className="font-semibold text-white">{offset}</span>
           <span className="text-white/70"> ({city.timezone})</span>
         </p>
+        {/* What the offset means for calls home, from today's offsets on
+            both sides (lib/remoteWork) — right through each DST change. */}
+        {overlap.length > 0 && (
+          <div className="text-sm text-white/80 mb-8 max-w-xl">
+            <p>A 9-to-5 back home, in {city.name} time:</p>
+            <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+              {overlap.map(o => (
+                <li key={o.label} className="whitespace-nowrap">
+                  {o.label} <span className="font-semibold text-white">{o.start}–{o.end}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div className="flex flex-col sm:flex-row gap-3">
           <JoinCityButton slug={city.slug} name={city.name} guest={!session} />
           <Link href={events.length > 0 ? '#work-and-meet' : `/${city.slug}/events`} className={HERO_SECONDARY}>
@@ -186,6 +203,16 @@ export default async function CityRemoteWorkPage({ params }: Params) {
               <span aria-hidden="true">🔒 </span>
               Coworking sessions are for Smileys members. Joining is free, and applications are reviewed
               within 24–48 hours — so if you&apos;re only here for a week, apply before you arrive.
+            </p>
+          )}
+
+          {/* The quick answer before the cards: is there somewhere to work
+              with people this week, and where. Hidden on an empty week. */}
+          {week && (
+            <p className="mb-6 text-base text-gray-800">
+              <span aria-hidden="true">💻 </span>
+              <span className="font-bold">{week.count} coworking session{week.count === 1 ? '' : 's'} in the next 7 days</span>
+              {week.places.length > 0 && <>: {week.places.join(', ')}</>}
             </p>
           )}
 
