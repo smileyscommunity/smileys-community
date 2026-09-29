@@ -70,7 +70,8 @@ describe('7: a cleared admin headline falls back to the default', () => {
   it('trimmed on the page (get-involved, about, why, advertise) and on save', () => {
     expect(page).toContain("const headline = gi.headline?.trim() ||")
     expect(read('app/about/page.tsx')).toContain('{about.headline?.trim() ||')
-    expect(read('app/why/page.tsx')).toContain('{why.headline?.trim() ||')
+    // /why builds its hero once, per city (why scan 2026-09-29).
+    expect(read('app/why/page.tsx')).toContain("headline: own.headline?.trim() ||")
     expect(read('app/advertise/page.tsx')).toContain('{adv.headline?.trim() ||')
     const admin = read('app/api/admin/content/route.ts')
     expect(admin).not.toMatch(/headline: str\(r\.headline, HEADLINE_MAX\),/)

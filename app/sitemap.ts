@@ -224,7 +224,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE}/hosts`,         priority: 0.6, changeFrequency: 'weekly',  lastModified: newestEvent },
     { url: `${BASE}/apply`,         priority: 0.8, changeFrequency: 'monthly' },
     { url: `${BASE}/about`,         priority: 0.7, changeFrequency: 'monthly' },
-    { url: `${BASE}/why`,           priority: 0.7, changeFrequency: 'monthly', lastModified: fileMtime('why-content.json') },
+    { url: `${BASE}/why`,           priority: 0.7, changeFrequency: 'monthly', lastModified: fileMtime('content.json') },
     { url: `${BASE}/faq`,           priority: 0.6, changeFrequency: 'monthly', lastModified: fileMtime('content.json') },
     { url: `${BASE}/contact`,       priority: 0.5, changeFrequency: 'monthly' },
     // The hosting and club pitch — linked from every city's Meet your hosts.

@@ -106,7 +106,6 @@ const BASELINE: Record<string, number> = {
   'app/pro/page.tsx': 2,
   'app/visiting/VisitingClient.tsx': 1,
   'app/visiting/page.tsx': 16,
-  'app/why/page.tsx': 15,
   'components/ClubActivityTimeline.tsx': 1,
   'components/ClubConversations.tsx': 1,
   'components/DashboardVisitorsStrip.tsx': 1,

@@ -203,7 +203,7 @@ describe('item 11: admin writes refresh the city pages', () => {
   it('the helper busts the tag the loaders use, safely outside a request', () => {
     const h = read('lib/cityPageCache.ts')
     expect(h).toContain("export const CITY_PAGE_TAG = 'home'")
-    expect(h).toContain('try { revalidateTag(CITY_PAGE_TAG) } catch {')
+    expect(h).toContain('try { revalidateTag(CITY_PAGE_TAG); revalidateTag(WHY_PAGE_TAG) } catch {')
     expect(read('app/[city]/data.ts')).toContain("tags: ['home']")
   })
   it('event create/edit/status/delete/duplicate, quotes and city edits call it', () => {

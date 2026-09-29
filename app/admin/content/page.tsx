@@ -356,7 +356,7 @@ export default function ContentPage() {
       {/* ── Why Smileys ── */}
       {tab === 'why' && (
         <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5 space-y-4">
-          <p className="text-xs text-zinc-500">Why Smileys page — hero section.</p>
+          <p className="text-xs text-zinc-500">Why Smileys page — hero section, shown for the default city. Other cities get a neutral hero with their own name. The stats band on that page is measured, not taken from the Stats tab.</p>
           <div>
             <label className={labelCls}>Headline</label>
             <input value={content.why.headline} onChange={e => set('why', { ...content.why, headline: e.target.value })} className={inputCls} />
@@ -412,7 +412,7 @@ export default function ContentPage() {
       {/* ── Week Timeline ── */}
       {tab === 'week' && (
         <div className="space-y-3">
-          <p className="text-xs text-zinc-500 bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3">Appears in the "A Week Inside Smileys" section on the Why Smileys page.</p>
+          <p className="text-xs text-zinc-500 bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3">Not shown on the site any more: the Why Smileys page now lists each city&apos;s real events for the next seven days.</p>
           {content.week.map((d, i) => (
             <div key={i} className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5 space-y-3">
               <div className="flex items-center gap-3">

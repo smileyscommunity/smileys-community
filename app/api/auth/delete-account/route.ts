@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
+import { bustCityPages } from '@/lib/cityPageCache'
 import { snapshotUserHistory } from '@/lib/admin/userHistory'
 import { prisma } from '@/lib/prisma'
 import { getSession, deleteSession } from '@/lib/session'
@@ -452,5 +453,7 @@ export async function POST(req: NextRequest) {
   }
   // The withdrawn visit card leaves the cached /visiting list at once.
   try { revalidateTag('visitor-announcements') } catch { /* outside a request (tests) */ }
+  // A self-submitted quote was just blanked; the city pages and /why cache it.
+  bustCityPages()
   return NextResponse.json({ ok: true })
 }

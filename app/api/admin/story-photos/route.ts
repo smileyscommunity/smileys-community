@@ -4,6 +4,7 @@ import { getSession } from '@/lib/session'
 import { isAdmin, isAdminOrModerator } from '@/lib/access'
 import { isUploadedImageUrl } from '@/lib/uploadedImageUrl'
 import { writeAudit } from '@/lib/audit'
+import { bustCityPages } from '@/lib/cityPageCache'
 
 export async function GET() {
   const session = await getSession()
@@ -49,5 +50,6 @@ export async function POST(req: NextRequest) {
   })
   writeAudit(session.id, session.name, 'story_photo.create', item.id, 'story_photo',
     { url: item.url, caption: item.caption, event: item.event }, `Added a story photo (${item.url})`)
+  bustCityPages()
   return NextResponse.json(item)
 }

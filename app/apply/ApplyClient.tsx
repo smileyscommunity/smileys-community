@@ -622,7 +622,7 @@ function ApplyForm({ initialCity }: { initialCity: InitialCity | null }) {
               </div>
             )}
             <div className="pt-2 border-t border-amber-200 mt-1">
-              <Link href="/why" className="text-xs font-bold text-amber-600 hover:underline">Read member stories →</Link>
+              <Link href={`/why?city=${targetCitySlug}`} className="text-xs font-bold text-amber-600 hover:underline">Read member stories <span aria-hidden="true">→</span></Link>
             </div>
           </div>
         )}
