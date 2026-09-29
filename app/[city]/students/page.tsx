@@ -128,10 +128,6 @@ export default async function CityStudentsPage({ params }: Params) {
             <span aria-hidden="true">🎓 </span>{studentsJoined} members joined Smileys {city.name} as students.
           </p>
         )}
-        <p className={`${studentsJoined ? 'mt-2' : 'mt-6'} text-sm text-white/75 max-w-xl`}>
-          Not instead of your university&apos;s orientation or student network — alongside it, for the people and plans
-          beyond campus.
-        </p>
       </PhotoHero>
 
       {/* ── Your first week ──────────────────────────────────────────── */}
