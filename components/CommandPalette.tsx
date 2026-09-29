@@ -104,6 +104,12 @@ export default function CommandPalette() {
     { id: 'marketplace',   label: 'Marketplace',    hint: 'Rooms, jobs, buy & sell',    icon: '🛍️', group: 'Navigate', action: () => go('/marketplace')   },
     { id: 'directory',     label: 'Directory',      hint: 'Local businesses & services', icon: '🏢', group: 'Navigate', action: () => go('/directory')     },
     { id: 'cities',        label: 'Cities',         hint: 'All Smileys cities',         icon: '🌍', group: 'Navigate', action: () => go('/cities')        },
+    // The footer's "Across Smileys" guides; each resolves to the viewer's
+    // own city's hub. Hints carry the words people search with.
+    { id: 'visiting',      label: 'Visiting?',         hint: 'In town for a short stay, travel',       icon: '👋', group: 'Navigate', action: () => go('/visiting')    },
+    { id: 'moving',        label: 'Moving here?',      hint: 'Relocating, settling in, newcomer',      icon: '🏡', group: 'Navigate', action: () => go('/moving')      },
+    { id: 'remote-work',   label: 'Working remotely?', hint: 'Digital nomad, coworking, remote work',  icon: '💻', group: 'Navigate', action: () => go('/remote-work') },
+    { id: 'students',      label: 'Studying here?',    hint: 'Students, university, Erasmus',          icon: '🎓', group: 'Navigate', action: () => go('/students')    },
     { id: 'dashboard',     label: 'Dashboard',      hint: 'Your personal dashboard',    icon: '⬛', group: 'You', action: () => go('/dashboard')     },
     { id: 'my-events',     label: 'My Events',      hint: 'Your events & QR codes',     icon: '🎟️', group: 'You', action: () => go('/my-events')     },
     { id: 'messages',      label: 'Messages',       hint: 'Direct messages',            icon: '💬', group: 'You', action: () => go('/messages')      },
