@@ -95,6 +95,14 @@ export interface StudentEventLike {
   status?:               string
 }
 
+/** The community-post category the hub's stories section reads
+ *  (app/admin/posts/constants). Pinned to this city only, like the remote-work
+ *  interview: "Erasmus in Istanbul" is not İzmir's, so no global fallback. */
+export const STUDENT_STORY_CATEGORY = 'Students'
+/** How many student stories the hub shows, newest first — two rows of three.
+ *  /posts has no category filter, so there is no "see all" to hand the rest to. */
+export const STUDENT_STORY_LIMIT = 6
+
 /** The tag the city's events use for language exchanges (an EventTag name —
  *  /events?tags= filters on the same names). */
 export const LANGUAGE_EXCHANGE_TAG = 'Language exchange'

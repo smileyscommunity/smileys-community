@@ -150,7 +150,7 @@ export default async function CityStudentsPage({ params }: Params) {
                 links: [
                   ...(entry ? [{ href: `/handbook/${entry.slug}`, label: 'Entry rules and stay limits' }] : []),
                   ...(residence ? [{ href: `/handbook/${residence.slug}`, label: 'How residence permits work' }] : []),
-                  ...(hub.story ? [{ href: `/posts/${hub.story.slug}`, label: 'Read: Erasmus in ' + city.name }] : []),
+                  ...(hub.stories.length > 0 ? [{ href: '#stories', label: 'Read: stories for students' }] : []),
                 ],
               },
               {
@@ -191,6 +191,43 @@ export default async function CityStudentsPage({ params }: Params) {
           </ol>
         </div>
       </section>
+
+      {/* ── Stories for students ─────────────────────────────────────── */}
+      {/* Community posts in the 'Students' category pinned to this city
+          (lib/students STUDENT_STORY_CATEGORY). Hidden until the city has one. */}
+      {hub.stories.length > 0 && (
+        <section id="stories" aria-labelledby="stories-title" className="py-12 sm:py-16 bg-white border-t border-gray-100 scroll-mt-20">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="mb-8">
+              <h2 id="stories-title" className="section-title">Worth reading before the semester</h2>
+              <p className="section-subtitle max-w-2xl">
+                Studying in {city.name}, from the campus side and the city side — what we wish someone had told us.
+              </p>
+            </div>
+            <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {hub.stories.map(story => (
+                <li key={story.slug}>
+                  <Link href={`/posts/${story.slug}`}
+                    className="group h-full flex flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm hover:border-amber-200 hover:shadow-md transition-all">
+                    {story.cover && (
+                      <div className="aspect-[16/9] bg-gray-100">
+                        <img src={story.cover} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
+                      </div>
+                    )}
+                    <div className="p-5 flex flex-col flex-1">
+                      <h3 className="font-bold text-gray-900 leading-snug group-hover:text-amber-700 transition-colors">{story.title}</h3>
+                      {story.excerpt && <p className="mt-2 text-sm text-gray-600 leading-relaxed line-clamp-3 flex-1">{story.excerpt}</p>}
+                      <span className="mt-4 text-sm font-bold text-amber-700 group-hover:text-amber-800">
+                        Read the story <span aria-hidden="true">→</span>
+                      </span>
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      )}
 
       {/* ── Your first event ─────────────────────────────────────────── */}
       <section id="first-event" aria-labelledby="first-event-title" className="py-12 sm:py-16 bg-white border-t border-gray-100 scroll-mt-20">

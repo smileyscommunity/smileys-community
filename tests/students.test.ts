@@ -181,3 +181,33 @@ describe('what the page promises', () => {
     expect(DISCOVER_LINKS.find(l => l.href === '/students')?.public).toBe(true)
   })
 })
+
+// The hub's stories section reads one community-post category. Pin the seams:
+// the category must be one the admin form can save (else it's unreachable),
+// the loader must query it pinned to the city (another city's Erasmus piece
+// is not this one's), and the title-match it replaced must not come back.
+describe('student stories', () => {
+  it('is a category the admin form and API accept', async () => {
+    const { STUDENT_STORY_CATEGORY } = await import('@/lib/students')
+    const { CATEGORIES, isCategory, normalizeCommunityCategory } = await import('@/app/admin/posts/constants')
+    expect(CATEGORIES).toContain(STUDENT_STORY_CATEGORY)
+    expect(isCategory(STUDENT_STORY_CATEGORY)).toBe(true)
+    expect(normalizeCommunityCategory(STUDENT_STORY_CATEGORY)).toBe(STUDENT_STORY_CATEGORY)
+  })
+
+  it('the loader queries the category, pinned to the city, and no title match', () => {
+    const src = readFileSync(join(process.cwd(), 'app/[city]/data.ts'), 'utf8')
+    const loader = src.slice(src.indexOf('export const getCityStudentHub'), src.indexOf("['city-student-hub']"))
+    expect(loader).toMatch(/category:\s*STUDENT_STORY_CATEGORY,\s*cityId\s*}/)
+    expect(loader).not.toMatch(/contains:\s*'Erasmus'/)
+    // The body is read for the cover only; it must not reach the page.
+    expect(loader).toMatch(/cover:\s*articleCover/)
+    expect(loader).not.toMatch(/stories:\s*stories,/)
+  })
+
+  it('every public badge map has a colour for it', () => {
+    for (const f of ['app/posts/page.tsx', 'app/posts/[slug]/page.tsx', 'app/admin/posts/page.tsx']) {
+      expect(readFileSync(join(process.cwd(), f), 'utf8'), f).toMatch(/'Students':\s*'bg-/)
+    }
+  })
+})

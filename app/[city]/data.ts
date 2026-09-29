@@ -21,7 +21,7 @@ import type { Event } from '@/lib/data'
 import { LIVE_BOARD_AUTHOR, SHOWN_REPLY } from '@/lib/boardAccess'
 import { firstNameOf } from '@/lib/data'
 import { isWorkClub, pickHubEvents, INTERVIEW_CATEGORY } from '@/lib/remoteWork'
-import { pickFirstEvents, pickRegularEvents, eventFilterLinks } from '@/lib/students'
+import { pickFirstEvents, pickRegularEvents, eventFilterLinks, STUDENT_STORY_CATEGORY, STUDENT_STORY_LIMIT } from '@/lib/students'
 import { getCityHandbookIndex } from '@/lib/handbookIndex'
 import { articleCover } from '@/lib/articleCover'
 
@@ -520,17 +520,22 @@ export const getCityMovingHub = unstable_cache(
 
 export const getCityStudentHub = unstable_cache(
   async (cityId: string, citySlug: string, country: string | null) => {
-    const [articles, { events }, clubs, neighborhoodCount, story] = await Promise.all([
+    const [articles, { events }, clubs, neighborhoodCount, stories] = await Promise.all([
       getCityHandbookIndex(cityId, country),
       getEvents({ limit: HUB_LIMIT, upcoming: true, cityId }),
       getClubs(cityId),
       prisma.neighborhood.count({ where: { cityId, active: true } }),
-      // The city's own student story — a community post pinned to this city,
-      // found by what it is about. None → the page leaves the link out.
-      prisma.post.findFirst({
-        where:   { kind: 'community', status: 'published', cityId, OR: [{ title: { contains: 'Erasmus', mode: 'insensitive' } }, { title: { contains: 'exchange student', mode: 'insensitive' } }] },
+      // The city's student stories — community posts in the 'Students'
+      // category pinned to this city (cityId, not the listing scope: another
+      // city's Erasmus piece is not this one's). A category, not a title
+      // match: "Erasmus" in a title found one story and missed the next.
+      // None → the page leaves the section out. No author: bylines are
+      // per-request projections and the cards don't show one.
+      prisma.post.findMany({
+        where:   { kind: 'community', status: 'published', category: STUDENT_STORY_CATEGORY, cityId },
         orderBy: { publishedAt: 'desc' },
-        select:  { slug: true, title: true, excerpt: true },
+        take:    STUDENT_STORY_LIMIT,
+        select:  { slug: true, title: true, excerpt: true, coverImage: true, body: true, publishedAt: true },
       }),
     ])
     const firstEvents   = pickFirstEvents(events)
@@ -542,7 +547,11 @@ export const getCityStudentHub = unstable_cache(
       filterLinks: eventFilterLinks(events, citySlug),
       clubCount:   clubs.length,
       neighborhoodCount,
-      story,
+      // Cover resolved here so the body (up to 50k) never leaves the loader.
+      stories: stories.map(s => ({
+        slug: s.slug, title: s.title, excerpt: s.excerpt, publishedAt: s.publishedAt,
+        cover: articleCover({ coverImage: s.coverImage, body: s.body }),
+      })),
     }
   },
   ['city-student-hub'],
