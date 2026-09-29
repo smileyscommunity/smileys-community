@@ -271,12 +271,13 @@ describe('student hub review 2026-09-29', () => {
     expect(loader).not.toMatch(/pickFirstEvents\(events/)
   })
 
-  it('the page shares its own cover, tells guests about 🔒 once, and swipes on phones', () => {
+  it('the page shares its own cover, tells guests about 🔒 once, and stacks on phones', () => {
     const page = readFileSync(join(process.cwd(), 'app/[city]/students/page.tsx'), 'utf8')
     expect(page).toContain("shareCover('students', city, title)")
     expect(page).toContain('session ? hub.forMembers : hub.forGuests')
     expect(page).toContain('guestLocked &&')
-    expect(page).toContain("const SWIPE_ROW  = 'flex overflow-x-auto snap-x snap-mandatory")
+    // Stacked grids on phones, not sideways swipe rows (Nate, 2026-09-29).
+    expect(page).not.toContain('snap-x')
     expect(page).not.toContain('Links official sources')
     expect(page).not.toMatch(/Explore \{city\.name\}\{budget/)
   })

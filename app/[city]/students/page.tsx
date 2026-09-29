@@ -28,12 +28,6 @@ import { getCityStudentHub } from '../data'
 
 interface Params { params: Promise<{ city: string }> }
 
-// Rows of cards swipe sideways on phones and become a grid from sm up — the
-// stacked cards made this page ~14,000px on a phone (the Clubs page's
-// pattern, app/clubs/ClubsClient SWIPE_ROW).
-const SWIPE_ROW  = 'flex overflow-x-auto snap-x snap-mandatory gap-4 -mx-4 px-4 pb-2 sm:mx-0 sm:px-0 sm:pb-0 sm:grid sm:grid-cols-2 lg:grid-cols-3 sm:gap-6 sm:overflow-visible'
-const SWIPE_ITEM = 'w-[85%] shrink-0 snap-start sm:w-auto'
-
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { city: slug } = await params
   const city = await getPublicCity(slug)
@@ -152,7 +146,7 @@ export default async function CityStudentsPage({ params }: Params) {
             <h2 id="semester-title" className="section-title">Your semester, stage by stage</h2>
             <p className="section-subtitle max-w-2xl">A semester goes faster than it looks from week one. What to do when.</p>
           </div>
-          <ol className="flex overflow-x-auto snap-x snap-mandatory gap-4 -mx-4 px-4 pb-2 sm:mx-0 sm:px-0 sm:pb-0 sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:gap-5 sm:overflow-visible">
+          <ol className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {[
               {
                 key: 'before', emoji: '🧳', title: 'Before arrival',
@@ -187,7 +181,7 @@ export default async function CityStudentsPage({ params }: Params) {
                   .map(a => ({ href: guideQs(a.value), label: a.label })),
               },
             ].map(s => (
-              <li key={s.key} className={`${SWIPE_ITEM} bg-white border border-gray-100 rounded-2xl shadow-sm p-5 flex flex-col`}>
+              <li key={s.key} className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 flex flex-col">
                 <div aria-hidden="true" className="text-2xl mb-2">{s.emoji}</div>
                 <h3 className="font-bold text-gray-900 mb-1.5">{s.title}</h3>
                 <p className="text-sm text-gray-600 leading-relaxed flex-1">{s.body}</p>
@@ -214,9 +208,9 @@ export default async function CityStudentsPage({ params }: Params) {
                 Studying in {city.name}, from the campus side and the city side — what we wish someone had told us.
               </p>
             </div>
-            <ul className={SWIPE_ROW}>
+            <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {hub.stories.map(story => (
-                <li key={story.slug} className={SWIPE_ITEM}>
+                <li key={story.slug}>
                   <Link href={`/posts/${story.slug}`}
                     className="group h-full flex flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm hover:border-amber-200 hover:shadow-md transition-all">
                     {story.cover && (
@@ -278,8 +272,8 @@ export default async function CityStudentsPage({ params }: Params) {
           )}
 
           {firstEvents.length > 0 ? (
-            <div className={SWIPE_ROW}>
-              {firstEvents.map(e => <div key={e.id} className={SWIPE_ITEM}><EventCard event={e} timeZone={city.timezone} /></div>)}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {firstEvents.map(e => <EventCard key={e.id} event={e} timeZone={city.timezone} />)}
             </div>
           ) : (
             <Link href={eventsHref(city.slug)} className="text-sm font-bold text-amber-700 hover:text-amber-800">
@@ -302,8 +296,8 @@ export default async function CityStudentsPage({ params }: Params) {
               <h2 id="regular-title" className="section-title">Something every week</h2>
               <p className="section-subtitle max-w-2xl">Regular activities members run — showing each one&apos;s next date. Going back is how you get to know people.</p>
             </div>
-            <div className={SWIPE_ROW}>
-              {regularEvents.map(e => <div key={e.id} className={SWIPE_ITEM}><EventCard event={e} timeZone={city.timezone} /></div>)}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {regularEvents.map(e => <EventCard key={e.id} event={e} timeZone={city.timezone} />)}
             </div>
             {hub.clubCount > 0 && (
               <Link href={`/${city.slug}/clubs`} className="inline-block mt-6 text-sm font-bold text-amber-700 hover:text-amber-800">
