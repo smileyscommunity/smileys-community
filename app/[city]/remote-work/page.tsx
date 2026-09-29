@@ -144,7 +144,7 @@ export default async function CityRemoteWorkPage({ params }: Params) {
         )}
         <div className="flex flex-col sm:flex-row gap-3">
           <JoinCityButton slug={city.slug} name={city.name} guest={!session} />
-          <Link href={events.length > 0 ? '#work-and-meet' : `/${city.slug}/events`} className={HERO_SECONDARY}>
+          <Link href={events.length > 0 ? '#sessions' : `/${city.slug}/events`} className={HERO_SECONDARY}>
             See upcoming events
           </Link>
         </div>
@@ -240,7 +240,7 @@ export default async function CityRemoteWorkPage({ params }: Params) {
           )}
 
           {events.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" aria-describedby="recurring-note">
+            <div id="sessions" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 scroll-mt-24" aria-describedby="recurring-note">
               {events.map(e => <EventCard key={e.id} event={e} timeZone={city.timezone} />)}
             </div>
           ) : (

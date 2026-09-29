@@ -263,6 +263,15 @@ describe('buildChecklist — arrival and membership', () => {
     ])
   })
 
+  it('sends "see sessions" and "first event" to the session cards, not the club cards above them', () => {
+    const steps = buildChecklist(base)
+    expect(steps.find(s => s.key === 'workspace')?.href).toBe('#sessions')
+    expect(steps.find(s => s.key === 'first-event')?.href).toBe('#sessions')
+    // No sessions yet: the clubs are the answer to "somewhere to work".
+    expect(buildChecklist({ ...base, hasWorkEvents: false }).find(s => s.key === 'workspace')?.href).toBe('#work-and-meet')
+    expect(src('app/[city]/remote-work/page.tsx')).toMatch(/id="sessions"/)
+  })
+
   it('says coworking is for members when every session is members-only', () => {
     const open = buildChecklist(base).find(s => s.key === 'workspace')!
     const closed = buildChecklist({ ...base, workMembersOnly: true }).find(s => s.key === 'workspace')!

@@ -306,7 +306,9 @@ export function buildChecklist({ citySlug, topics, hasNeighborhoods, hasWorkClub
         : hasWorkClubs
           ? 'Join a coworking or remote-work club to hear where members actually work from.'
           : 'Once you are in, ask members where they work from — there is no workspace list here yet.',
-      href: hasWorkClubs ? '#work-and-meet' : null,
+      // Straight to the session cards when there are sessions; the club
+      // cards head the section, so its top would land on those instead.
+      href: hasWorkEvents ? '#sessions' : hasWorkClubs ? '#work-and-meet' : null,
       cta:  hasWorkEvents ? 'See coworking sessions' : 'See the clubs',
     },
     {
@@ -324,7 +326,7 @@ export function buildChecklist({ citySlug, topics, hasNeighborhoods, hasWorkClub
       key: 'first-event',
       title: 'Join a first event',
       body: 'Pick something marked first-timer friendly, or a coworking session, and show up.',
-      href: hasEvents ? '#work-and-meet' : `/${citySlug}/events`,
+      href: hasEvents ? '#sessions' : `/${citySlug}/events`,
       cta:  'See upcoming events',
     },
   ]
