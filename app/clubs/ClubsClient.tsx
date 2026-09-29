@@ -390,22 +390,10 @@ function AppClubsPageInner() {
   // dormant ones made the page ~10,000px even as compact rows.
   const [showAllGlobal, setShowAllGlobal] = useState(false)
   const [showAllQuiet,  setShowAllQuiet]  = useState(false)
-  const [showAllLately, setShowAllLately] = useState(false)
-  const LATELY_PREVIEW = 6
   const GLOBAL_PREVIEW = 6
   const QUIET_PREVIEW  = 10
   // A search or a category filter is a request to see everything that matches.
   const filtering = !!q || activeCategory !== 'All'
-  // The hero sections swipe sideways on a phone — one card at a time with
-  // the next peeking in — and are a grid from md up. Stacked, 14 hero cards
-  // were ~3,300px of a 10,400px phone page (2026-09-29).
-  const SWIPE_ROW  = 'flex overflow-x-auto snap-x snap-mandatory gap-3 -mx-4 px-4 pb-2 md:mx-0 md:px-0 md:pb-0 md:grid md:grid-cols-2 xl:grid-cols-3 md:overflow-visible'
-  const SWIPE_ITEM = 'w-[85%] shrink-0 snap-start md:w-auto'
-  const renderSwipe = (list: Club[], label: string) => (
-    <div className={SWIPE_ROW} role="list" aria-label={label}>
-      {list.map(club => <div key={club.id} role="listitem" className={SWIPE_ITEM}>{renderCard(club)}</div>)}
-    </div>
-  )
   const renderCard = (club: Club) => (
     <ClubCard
       key={club.id}
@@ -551,7 +539,9 @@ function AppClubsPageInner() {
               // Every one of your clubs with something coming up (Nate: "all
               // clubs with events not just 4"), on the full card so it carries
               // the cover hero too.
-              renderSwipe(myUpcoming, 'Your clubs with events coming up')
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                {myUpcoming.map(club => renderCard(club))}
+              </div>
             ) : (
               <p className="text-sm text-gray-600">None of your clubs has anything planned right now.</p>
             )}
@@ -663,7 +653,9 @@ function AppClubsPageInner() {
                   <section aria-labelledby="clubs-soon">
                     <h2 id="clubs-soon" className="text-lg font-extrabold text-gray-900 mb-1">Happening soon</h2>
                     <p className="text-sm text-gray-600 mb-4">Clubs with an event coming up, soonest first.</p>
-                    {renderSwipe(sections.soon, 'Clubs with events coming up')}
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                      {sections.soon.map(club => renderCard(club))}
+                    </div>
                   </section>
                 )}
                 {sections.lately.length > 0 && (
@@ -671,14 +663,8 @@ function AppClubsPageInner() {
                     <h2 id="clubs-lately" className="text-lg font-extrabold text-gray-900 mb-1">Active lately</h2>
                     <p className="text-sm text-gray-600 mb-4">Met, talked or planned something in the last two months — or just started.</p>
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                      {(showAllLately || filtering ? sections.lately : sections.lately.slice(0, LATELY_PREVIEW)).map(club => renderCard(club))}
+                      {sections.lately.map(club => renderCard(club))}
                     </div>
-                    {!showAllLately && !filtering && sections.lately.length > LATELY_PREVIEW && (
-                      <button onClick={() => setShowAllLately(true)}
-                        className="mt-3 text-sm font-semibold text-amber-700 hover:underline">
-                        Show all {sections.lately.length} active clubs
-                      </button>
-                    )}
                   </section>
                 )}
                 {sections.global.length > 0 && (
