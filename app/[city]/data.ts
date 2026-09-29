@@ -24,6 +24,7 @@ import { isWorkClub, pickHubEvents, INTERVIEW_CATEGORY } from '@/lib/remoteWork'
 import { pickFirstEvents, pickRegularEvents, eventFilterLinks, STUDENT_STORY_CATEGORY, STUDENT_STORY_LIMIT } from '@/lib/students'
 import { getCityHandbookIndex } from '@/lib/handbookIndex'
 import { articleCover } from '@/lib/articleCover'
+import { eventEndsAt } from '@/lib/eventTime'
 
 // Everything the city shopfront reads, in one place, with the one boundary
 // that matters drawn explicitly:
@@ -519,7 +520,7 @@ export const getCityMovingHub = unstable_cache(
 // other hub; the filter links carry counts and paths, never event fields.
 
 export const getCityStudentHub = unstable_cache(
-  async (cityId: string, citySlug: string, country: string | null) => {
+  async (cityId: string, citySlug: string, country: string | null, timeZone: string) => {
     const [articles, { events }, clubs, neighborhoodCount, stories] = await Promise.all([
       getCityHandbookIndex(cityId, country),
       getEvents({ limit: HUB_LIMIT, upcoming: true, cityId }),
@@ -538,13 +539,23 @@ export const getCityStudentHub = unstable_cache(
         select:  { slug: true, title: true, excerpt: true, coverImage: true, body: true, publishedAt: true },
       }),
     ])
-    const firstEvents   = pickFirstEvents(events)
-    const regularEvents = pickRegularEvents(events, new Set(firstEvents.map(e => e.id)))
+    // getEvents' "upcoming" is by date, so an event that finished at 21:00
+    // stayed on the rows until midnight, its card saying "Event ended". Cut on
+    // the real end instead — accurate to the 60 s this loader is cached for.
+    const now      = Date.now()
+    const upcoming = events.filter(e => eventEndsAt(e, timeZone).getTime() > now)
+    // Two picks: a guest can RSVP to no members-only event, so theirs puts the
+    // open ones first (lib/students PickOptions). Chosen here, not per
+    // request — the page only chooses which pair to show.
+    const pick = (preferOpen: boolean) => {
+      const first = pickFirstEvents(upcoming, undefined, { preferOpen })
+      return { first, regular: pickRegularEvents(upcoming, new Set(first.map(e => e.id)), undefined, { preferOpen }) }
+    }
     return {
       articles,
-      firstEvents,
-      regularEvents,
-      filterLinks: eventFilterLinks(events, citySlug),
+      forMembers:  pick(false),
+      forGuests:   pick(true),
+      filterLinks: eventFilterLinks(upcoming, citySlug),
       clubCount:   clubs.length,
       neighborhoodCount,
       // Cover resolved here so the body (up to 50k) never leaves the loader.

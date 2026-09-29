@@ -28,13 +28,19 @@ import { getCityStudentHub } from '../data'
 
 interface Params { params: Promise<{ city: string }> }
 
+// Rows of cards swipe sideways on phones and become a grid from sm up — the
+// stacked cards made this page ~14,000px on a phone (the Clubs page's
+// pattern, app/clubs/ClubsClient SWIPE_ROW).
+const SWIPE_ROW  = 'flex overflow-x-auto snap-x snap-mandatory gap-4 -mx-4 px-4 pb-2 sm:mx-0 sm:px-0 sm:pb-0 sm:grid sm:grid-cols-2 lg:grid-cols-3 sm:gap-6 sm:overflow-visible'
+const SWIPE_ITEM = 'w-[85%] shrink-0 snap-start sm:w-auto'
+
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { city: slug } = await params
   const city = await getPublicCity(slug)
   if (!city || city.status !== CITY_STATUS.Live) return {}
   const title = `International students in ${city.name} — Erasmus, exchange & degree students | Smileys Community`
   const description = `Here for a semester or a year? Your first week in ${city.name}, the practical setup, first-timer-friendly events, regular activities and people beyond your campus.`
-  const image = shareCover('events', city, title)
+  const image = shareCover('students', city, title)
   const url = `${APP_URL}/${city.slug}/students`
   return {
     title, description,
@@ -52,14 +58,18 @@ export default async function CityStudentsPage({ params }: Params) {
   if (city.status !== CITY_STATUS.Live) redirect(`/${city.slug}`)
 
   const [hub, experiences, session] = await Promise.all([
-    getCityStudentHub(city.id, city.slug, city.country ?? null),
+    getCityStudentHub(city.id, city.slug, city.country ?? null, city.timezone),
     loadExperiences(city.id),
     getSession(),
   ])
   // Guest redaction is per request, outside the shared cache (../events/page.tsx).
-  const project = async (events: typeof hub.firstEvents) =>
+  const picked  = session ? hub.forMembers : hub.forGuests
+  const project = async (events: typeof picked.first) =>
     session ? projectEventsForMember(events, session) : events.map(redactEventForGuest)
-  const [firstEvents, regularEvents] = await Promise.all([project(hub.firstEvents), project(hub.regularEvents)])
+  const [firstEvents, regularEvents] = await Promise.all([project(picked.first), project(picked.regular)])
+  // A guest can RSVP to none of these; say so once, above the rows, instead
+  // of leaving them to find out card by card.
+  const guestLocked = !session && [...picked.first, ...picked.regular].some(e => e.membersOnly)
 
   const guides    = studentGuides(hub.articles, city.id)
   const guide     = (key: string) => guides.find(g => g.key === key)?.article ?? null
@@ -142,7 +152,7 @@ export default async function CityStudentsPage({ params }: Params) {
             <h2 id="semester-title" className="section-title">Your semester, stage by stage</h2>
             <p className="section-subtitle max-w-2xl">A semester goes faster than it looks from week one. What to do when.</p>
           </div>
-          <ol className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          <ol className="flex overflow-x-auto snap-x snap-mandatory gap-4 -mx-4 px-4 pb-2 sm:mx-0 sm:px-0 sm:pb-0 sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:gap-5 sm:overflow-visible">
             {[
               {
                 key: 'before', emoji: '🧳', title: 'Before arrival',
@@ -177,7 +187,7 @@ export default async function CityStudentsPage({ params }: Params) {
                   .map(a => ({ href: guideQs(a.value), label: a.label })),
               },
             ].map(s => (
-              <li key={s.key} className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 flex flex-col">
+              <li key={s.key} className={`${SWIPE_ITEM} bg-white border border-gray-100 rounded-2xl shadow-sm p-5 flex flex-col`}>
                 <div aria-hidden="true" className="text-2xl mb-2">{s.emoji}</div>
                 <h3 className="font-bold text-gray-900 mb-1.5">{s.title}</h3>
                 <p className="text-sm text-gray-600 leading-relaxed flex-1">{s.body}</p>
@@ -204,9 +214,9 @@ export default async function CityStudentsPage({ params }: Params) {
                 Studying in {city.name}, from the campus side and the city side — what we wish someone had told us.
               </p>
             </div>
-            <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            <ul className={SWIPE_ROW}>
               {hub.stories.map(story => (
-                <li key={story.slug}>
+                <li key={story.slug} className={SWIPE_ITEM}>
                   <Link href={`/posts/${story.slug}`}
                     className="group h-full flex flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm hover:border-amber-200 hover:shadow-md transition-all">
                     {story.cover && (
@@ -260,9 +270,16 @@ export default async function CityStudentsPage({ params }: Params) {
             </ul>
           )}
 
+          {guestLocked && (
+            <p className="mb-6 max-w-2xl rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 text-sm text-gray-700">
+              <span aria-hidden="true">🔒 </span>Events marked <strong>Members only</strong> open once you join — it&apos;s free,
+              and then you can RSVP to any of them.
+            </p>
+          )}
+
           {firstEvents.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {firstEvents.map(e => <EventCard key={e.id} event={e} timeZone={city.timezone} />)}
+            <div className={SWIPE_ROW}>
+              {firstEvents.map(e => <div key={e.id} className={SWIPE_ITEM}><EventCard event={e} timeZone={city.timezone} /></div>)}
             </div>
           ) : (
             <Link href={eventsHref(city.slug)} className="text-sm font-bold text-amber-700 hover:text-amber-800">
@@ -285,8 +302,8 @@ export default async function CityStudentsPage({ params }: Params) {
               <h2 id="regular-title" className="section-title">Something every week</h2>
               <p className="section-subtitle max-w-2xl">Regular activities members run — showing each one&apos;s next date. Going back is how you get to know people.</p>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {regularEvents.map(e => <EventCard key={e.id} event={e} timeZone={city.timezone} />)}
+            <div className={SWIPE_ROW}>
+              {regularEvents.map(e => <div key={e.id} className={SWIPE_ITEM}><EventCard event={e} timeZone={city.timezone} /></div>)}
             </div>
             {hub.clubCount > 0 && (
               <Link href={`/${city.slug}/clubs`} className="inline-block mt-6 text-sm font-bold text-amber-700 hover:text-amber-800">
@@ -302,7 +319,7 @@ export default async function CityStudentsPage({ params }: Params) {
         <section id="explore" aria-labelledby="explore-title" className="py-12 sm:py-16 bg-white border-t border-gray-100 scroll-mt-20">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="mb-6">
-              <h2 id="explore-title" className="section-title">Explore {city.name}{budget ? ' on a budget' : ''}</h2>
+              <h2 id="explore-title" className="section-title">Explore {city.name}</h2>
               <p className="section-subtitle max-w-2xl">Experiences from the {city.name} Guide, by what you&apos;re in the mood for.</p>
             </div>
             <ul className="flex flex-wrap gap-2">
@@ -347,7 +364,6 @@ export default async function CityStudentsPage({ params }: Params) {
                     className="block h-full bg-white border border-gray-100 rounded-2xl p-4 hover:border-amber-200 hover:shadow-md transition-all group">
                     <p className="text-xs font-bold uppercase tracking-widest text-gray-500">{g.label}</p>
                     <p className="font-semibold text-gray-900 group-hover:text-amber-700 transition-colors leading-snug mt-1">{g.article.title}</p>
-                    {g.article.hasOfficialSources && <p className="text-xs text-gray-500 mt-1">Links official sources</p>}
                   </Link>
                 </li>
               ))}
@@ -385,9 +401,9 @@ export default async function CityStudentsPage({ params }: Params) {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <JoinCityButton slug={city.slug} name={city.name} from="students" guest={!session} />
-            {budget
-              ? <Link href={guideQs('budget')} className="btn-secondary text-base px-8 py-4">Explore {city.name} on a budget</Link>
-              : <Link href={eventsHref(city.slug)} className="btn-secondary text-base px-8 py-4">See upcoming events</Link>}
+            <Link href={firstEvents.length > 0 ? '#first-event' : eventsHref(city.slug)} className="btn-secondary text-base px-8 py-4">
+              {firstEvents.length > 0 ? 'See first-timer events' : 'See upcoming events'}
+            </Link>
           </div>
         </div>
       </section>

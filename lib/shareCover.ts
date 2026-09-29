@@ -23,7 +23,7 @@ import { join } from 'path'
 import { APP_URL } from './env'
 import { absoluteOgImage } from './og'
 
-export type ShareCoverKind = 'handbook' | 'directory' | 'marketplace' | 'board' | 'events' | 'clubs' | 'hosts' | 'experiences' | 'neighborhoods' | 'guide' | 'visiting'
+export type ShareCoverKind = 'handbook' | 'directory' | 'marketplace' | 'board' | 'events' | 'clubs' | 'hosts' | 'experiences' | 'neighborhoods' | 'guide' | 'visiting' | 'students'
 
 // The brand card per kind, with its dimensions. The events and clubs cards
 // are square by design (they double as the Instagram assets); the rest use
@@ -44,6 +44,9 @@ const BRAND_CARD: Record<ShareCoverKind, { url: string; width: number; height: n
   // WhatsApp threshold; this copy is pre-resized).
   guide:       { url: `${APP_URL}/images/guide-og.jpg`,        width: 1200, height: 640 },
   visiting:    { url: `${APP_URL}/images/visiting-hero-og.jpg`, width: 1200, height: 800 },
+  // A city without its own students-cover-<slug>.jpg shares what the page
+  // shared before it had a kind of its own: the events card.
+  students:    { url: `${APP_URL}/images/events-og.jpg`, width: 1200, height: 1200 },
 }
 
 export interface ShareImage {

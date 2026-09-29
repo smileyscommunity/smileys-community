@@ -27,7 +27,9 @@ export const STUDENT_GUIDES = [
   { key: 'transport', label: 'Transport card and getting around',     category: 'Getting Around',       about: /kart|card|metro|transport|ferr/i },
   { key: 'airport',   label: 'From the airport into the city',        category: 'Getting Around',       about: /airport|arriv|havaliman/i },
   { key: 'money',     label: 'Money and bank accounts',               category: 'Money & Banking',      about: /bank|money/i },
-  { key: 'housing',   label: 'Renting a flat',                        category: 'Home & Housing',       about: /apartment|rent|hous|flat/i },
+  // Renting itself, not moving in: "Moving Into a Flat" (utilities, aidat)
+  // matched the old /apartment|rent|hous|flat/ and took the renting slot.
+  { key: 'housing',   label: 'Renting a flat',                        category: 'Home & Housing',       about: /\brent|landlord|lease|apartment.hunt/i },
   { key: 'safety',    label: 'Scams and staying safe',                category: 'Safety & Emergencies', about: /scam|safe/i },
   { key: 'emergency', label: 'Emergency numbers',                     category: 'Safety & Emergencies', about: /emergenc|\b112\b/i },
   { key: 'health',    label: 'How healthcare works',                  category: 'Healthcare',           about: /health|doctor|hospital/i },
@@ -93,6 +95,9 @@ export interface StudentEventLike {
   isRecurring?:          boolean
   isFirstTimerFriendly?: boolean
   status?:               string
+  membersOnly?:          boolean
+  title?:                string
+  clubName?:             string
 }
 
 /** The community-post category the hub's stories section reads
@@ -127,32 +132,61 @@ export const STUDENT_FIRST_EVENT_LIMIT = 3
 /** How many regular activities the "find your rhythm" row shows. */
 export const STUDENT_REGULAR_LIMIT = 6
 
+/** Coworking sessions are the remote-work hub's, not a student's first night
+ *  out — by the event's title or its club's name. (Not lib/remoteWork's
+ *  WORK_CLUB_PATTERN: that also counts "newcomer" clubs, which suit students.) */
+const COWORKING = /cowork|co-work/i
+const isCoworking = (e: StudentEventLike) => COWORKING.test(e.title ?? '') || COWORKING.test(e.clubName ?? '')
+
+export interface PickOptions {
+  /** A guest can RSVP to none of the members-only events, so for them the
+   *  open ones go first; members-only events only fill what is left. */
+  preferOpen?: boolean
+}
+
+/**
+ * Up to `limit` of `candidates` (soonest first), each accepted by `accept`
+ * given what is already chosen. With preferOpen, events a guest can join are
+ * considered before members-only ones. The result is back in date order.
+ */
+function choose<E extends StudentEventLike>(
+  candidates: E[], limit: number, { preferOpen = false }: PickOptions,
+  accept: (e: E, chosen: E[]) => boolean = () => true,
+): E[] {
+  const order = preferOpen
+    ? [...candidates.filter(e => !e.membersOnly), ...candidates.filter(e => e.membersOnly)]
+    : candidates
+  const chosen: E[] = []
+  for (const e of order) {
+    if (chosen.length >= limit) break
+    if (accept(e, chosen)) chosen.push(e)
+  }
+  return chosen.sort((a, b) => candidates.indexOf(a) - candidates.indexOf(b))
+}
+
 /** The "your first event" row: first-timer-friendly events, soonest first,
- *  each weekly session once. */
-export function pickFirstEvents<E extends StudentEventLike>(events: E[], limit = STUDENT_FIRST_EVENT_LIMIT): E[] {
-  return oncePerSeries(live(events).filter(e => e.isFirstTimerFriendly)).slice(0, limit)
+ *  each weekly session once, no coworking. */
+export function pickFirstEvents<E extends StudentEventLike>(events: E[], limit = STUDENT_FIRST_EVENT_LIMIT, opts: PickOptions = {}): E[] {
+  return choose(oncePerSeries(live(events).filter(e => e.isFirstTimerFriendly && !isCoworking(e))), limit, opts)
 }
 
 /**
  * The "regular things to join" row: recurring activities (a series, or an
  * event marked recurring), each once as its next date, soonest first. At most
- * one of them may be nightlife, so the row reads as a week of things to do
- * rather than a week of bars. Events already in `exclude` (the first-event
- * row) are skipped so the two rows don't repeat each other.
+ * one of them may be nightlife and at most one may cost money, so the row
+ * reads as a week of things a student can afford to do rather than a week of
+ * bars and boat trips; coworking sessions are left to the remote-work hub.
+ * Events already in `exclude` (the first-event row) are skipped so the two
+ * rows don't repeat each other.
  */
-export function pickRegularEvents<E extends StudentEventLike>(events: E[], exclude: Set<string> = new Set(), limit = STUDENT_REGULAR_LIMIT): E[] {
+export function pickRegularEvents<E extends StudentEventLike>(events: E[], exclude: Set<string> = new Set(), limit = STUDENT_REGULAR_LIMIT, opts: PickOptions = {}): E[] {
+  // exclude after oncePerSeries: a series whose next date is in the first-event
+  // row must not come back here as its date after that.
   const recurring = oncePerSeries(live(events).filter(e => e.seriesId || e.isRecurring))
-  const out: E[] = []
-  let nightlife = 0
-  for (const e of recurring) {
-    if (out.length >= limit) break
-    if (exclude.has(e.id)) continue
-    const isNight = e.vibes.includes(NIGHTLIFE_TAG)
-    if (isNight && nightlife >= 1) continue
-    if (isNight) nightlife++
-    out.push(e)
-  }
-  return out
+    .filter(e => !exclude.has(e.id) && !isCoworking(e))
+  const isNight = (e: E) => e.vibes.includes(NIGHTLIFE_TAG)
+  return choose(recurring, limit, opts, (e, chosen) =>
+    !(isNight(e) && chosen.some(isNight)) && !(e.price > 0 && chosen.some(c => c.price > 0)))
 }
 
 /** A link into the city's event calendar with one of its existing filters

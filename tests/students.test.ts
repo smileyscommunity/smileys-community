@@ -211,3 +211,73 @@ describe('student stories', () => {
     }
   })
 })
+
+// The 2026-09-29 review of the live Istanbul hub: an event that had ended at
+// 21:00 still sat in "Something every week"; a guest saw only members-only
+// cards; coworking sessions and a ₺1,200 boat trip filled a student's rows;
+// "Renting a flat" opened the utilities article.
+describe('student hub review 2026-09-29', () => {
+  const weekly = (id: string, over: Partial<StudentEventLike> = {}) => ev({ id, seriesId: `s-${id}`, ...over })
+
+  it('leaves coworking sessions to the remote-work hub, by title or club', () => {
+    const events = [
+      ev({ id: 'a', isFirstTimerFriendly: true, title: 'Coworking in Taksim' }),
+      ev({ id: 'b', isFirstTimerFriendly: true, title: 'Picnic', clubName: 'Kadıköy Co-working Club' }),
+      ev({ id: 'c', isFirstTimerFriendly: true, title: 'Newcomers drinks', clubName: 'Newcomers' }),
+    ]
+    expect(pickFirstEvents(events).map(e => e.id)).toEqual(['c'])
+    expect(pickRegularEvents(events.map(e => ({ ...e, seriesId: `s-${e.id}` }))).map(e => e.id)).toEqual(['c'])
+  })
+
+  it('shows at most one paid weekly activity', () => {
+    const events = [weekly('sail', { price: 1200 }), weekly('wine', { price: 300 }), weekly('picnic'), weekly('lang')]
+    expect(pickRegularEvents(events).map(e => e.id)).toEqual(['sail', 'picnic', 'lang'])
+  })
+
+  it('puts open events first for a guest, and keeps the row in date order', () => {
+    const events = [
+      ev({ id: 'm1', isFirstTimerFriendly: true, membersOnly: true, date: '2026-10-01' }),
+      ev({ id: 'm2', isFirstTimerFriendly: true, membersOnly: true, date: '2026-10-02' }),
+      ev({ id: 'o1', isFirstTimerFriendly: true, membersOnly: false, date: '2026-10-03' }),
+      ev({ id: 'm3', isFirstTimerFriendly: true, membersOnly: true, date: '2026-10-04' }),
+      ev({ id: 'o2', isFirstTimerFriendly: true, membersOnly: false, date: '2026-10-05' }),
+    ]
+    expect(pickFirstEvents(events).map(e => e.id)).toEqual(['m1', 'm2', 'o1'])
+    expect(pickFirstEvents(events, undefined, { preferOpen: true }).map(e => e.id)).toEqual(['m1', 'o1', 'o2'])
+  })
+
+  it('a series in the first-event row does not come back as its next date', () => {
+    const events = [
+      ev({ id: 'w1', seriesId: 's', isFirstTimerFriendly: true }),
+      ev({ id: 'w2', seriesId: 's', isFirstTimerFriendly: true, date: '2026-10-08' }),
+    ]
+    expect(pickRegularEvents(events, new Set(['w1']))).toEqual([])
+  })
+
+  it('"Renting a flat" is the renting guide, not the moving-in one', () => {
+    const articles = [
+      art('moving-into-a-flat-in-istanbul-electricity-water-gas-and-aidat', 'Moving Into a Flat in Istanbul: Electricity, Water, Gas and the Building Fee (Aidat)', 'Home & Housing', 'ist'),
+      art('istanbul-apartment-hunting-guide', 'Renting an Apartment in Istanbul: What Foreigners Should Know', 'Home & Housing', 'ist'),
+    ]
+    expect(studentGuides(articles, 'ist').find(g => g.key === 'housing')?.article.slug).toBe('istanbul-apartment-hunting-guide')
+    expect(studentGuides(articles.slice(0, 1), 'ist').find(g => g.key === 'housing')).toBeUndefined()
+  })
+
+  it('the loader cuts on the real end, and picks for guests and members', () => {
+    const src = readFileSync(join(process.cwd(), 'app/[city]/data.ts'), 'utf8')
+    const loader = src.slice(src.indexOf('export const getCityStudentHub'), src.indexOf("['city-student-hub']"))
+    expect(loader).toMatch(/eventEndsAt\(e, timeZone\)\.getTime\(\) > now/)
+    expect(loader).toMatch(/forGuests:\s*pick\(true\)/)
+    expect(loader).not.toMatch(/pickFirstEvents\(events/)
+  })
+
+  it('the page shares its own cover, tells guests about 🔒 once, and swipes on phones', () => {
+    const page = readFileSync(join(process.cwd(), 'app/[city]/students/page.tsx'), 'utf8')
+    expect(page).toContain("shareCover('students', city, title)")
+    expect(page).toContain('session ? hub.forMembers : hub.forGuests')
+    expect(page).toContain('guestLocked &&')
+    expect(page).toContain("const SWIPE_ROW  = 'flex overflow-x-auto snap-x snap-mandatory")
+    expect(page).not.toContain('Links official sources')
+    expect(page).not.toMatch(/Explore \{city\.name\}\{budget/)
+  })
+})
