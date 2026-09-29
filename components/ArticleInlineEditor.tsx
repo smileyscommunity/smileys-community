@@ -34,16 +34,28 @@ export default function ArticleInlineEditor({ postId, initial, children }: Props
   const canEdit = isLoggedIn && (user.role === 'admin' || user.role === 'moderator')
 
   const [editing, setEditing] = useState(false)
+  const [opening, setOpening] = useState(false)
   const [title,   setTitle]   = useState(initial.title)
   const [excerpt, setExcerpt] = useState(initial.excerpt)
   const [body,    setBody]    = useState(initial.body)
   const [saving,  setSaving]  = useState(false)
+  // The row as the admin API has it right now, read when editing starts.
+  // The page's copy comes out of a 300s unstable_cache, so its content and
+  // updatedAt can be behind the database; the PUT only lands when
+  // expectedUpdatedAt matches the row (optimistic concurrency, dfb1a397).
+  // This editor sent none, so every save came back "This editor is out of
+  // date — reload the page", and a reload could never fix it.
+  const [loaded, setLoaded] = useState<{
+    title: string; excerpt: string; body: string
+    category: string; status: string; coverImage: string | null; updatedAt: string
+  } | null>(null)
 
   // Unsaved edits: a stray tab close or back-swipe used to drop a half-edited
   // article without a word. The browser prompt only fires while there is
   // something to lose. (Hook runs before the early return below — hooks must
   // be unconditional.)
-  const dirty = title !== initial.title || excerpt !== initial.excerpt || body !== initial.body
+  const base  = loaded ?? initial
+  const dirty = title !== base.title || excerpt !== base.excerpt || body !== base.body
   const guard = editing && dirty
   useEffect(() => {
     if (!guard) return
@@ -54,7 +66,30 @@ export default function ArticleInlineEditor({ postId, initial, children }: Props
 
   if (!canEdit) return <>{children}</>
 
+  async function startEditing() {
+    setOpening(true)
+    try {
+      const res = await fetch(`/app/api/admin/posts/${postId}`, { credentials: 'include', cache: 'no-store' })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) { toast.error(d?.error ?? `Couldn't load the article (HTTP ${res.status})`); return }
+      const row = {
+        title: d.title ?? '', excerpt: d.excerpt ?? '', body: d.body ?? '',
+        category: d.category, status: d.status, coverImage: d.coverImage ?? null, updatedAt: d.updatedAt,
+      }
+      setLoaded(row)
+      setTitle(row.title)
+      setExcerpt(row.excerpt)
+      setBody(row.body)
+      setEditing(true)
+    } catch {
+      toast.error('Network error — could not load the article')
+    } finally {
+      setOpening(false)
+    }
+  }
+
   async function save() {
+    if (!loaded) return
     if (!title.trim() || !body.trim()) {
       toast.error('Title and body are required')
       return
@@ -71,11 +106,20 @@ export default function ArticleInlineEditor({ postId, initial, children }: Props
           title,
           excerpt,
           body,
-          category:   initial.category,
-          status:     initial.status,
-          coverImage: initial.coverImage ?? '',
+          category:   loaded.category,
+          status:     loaded.status,
+          coverImage: loaded.coverImage ?? '',
+          expectedUpdatedAt: loaded.updatedAt,
         }),
       })
+      // Someone else saved since editing started. Saving over it would undo
+      // their change, so the toast stays until dismissed and the form keeps
+      // what was typed (copy it out, reload), as in PostForm.
+      if (res.status === 409) {
+        const d = await res.json().catch(() => ({}))
+        toast.error(d.error || 'This article was changed since you opened it — reload before saving', { duration: Infinity })
+        return
+      }
       if (!res.ok) {
         const d = await res.json().catch(() => ({}))
         toast.error(d.error || 'Failed to save')
@@ -93,9 +137,9 @@ export default function ArticleInlineEditor({ postId, initial, children }: Props
 
   async function cancel() {
     if (dirty && !(await confirmToast('Discard your changes?', { confirmLabel: 'Discard' }))) return
-    setTitle(initial.title)
-    setExcerpt(initial.excerpt)
-    setBody(initial.body)
+    setTitle(base.title)
+    setExcerpt(base.excerpt)
+    setBody(base.body)
     setEditing(false)
   }
 
@@ -103,8 +147,9 @@ export default function ArticleInlineEditor({ postId, initial, children }: Props
     return (
       <div className="relative">
         <button
-          onClick={() => setEditing(true)}
-          className="absolute right-0 -top-1 z-10 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-900 text-white text-xs font-bold shadow-sm hover:bg-gray-700 transition-colors"
+          onClick={startEditing}
+          disabled={opening}
+          className="absolute right-0 -top-1 z-10 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-900 text-white text-xs font-bold shadow-sm hover:bg-gray-700 disabled:opacity-50 transition-colors"
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -121,7 +166,7 @@ export default function ArticleInlineEditor({ postId, initial, children }: Props
       <div className="flex items-center justify-between mb-5">
         <span className="text-xs font-bold uppercase tracking-wider text-amber-700">Editing article</span>
         <span className="text-[11px] text-gray-500">
-          {initial.status === 'published' ? 'Published — changes go live on save' : 'Draft'}
+          {base.status === 'published' ? 'Published — changes go live on save' : 'Draft'}
         </span>
       </div>
 

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { readFileSync } from 'node:fs'
+import { execSync } from 'node:child_process'
 import { join } from 'node:path'
 
 // Both post editors send every field they loaded. On 2026-09-26 a form opened
@@ -99,11 +100,23 @@ describe('non-content writes do not move updatedAt', () => {
     expect(read('lib/notify.ts')).toMatch(/\$executeRaw`UPDATE "posts" SET "notifiedAt" =/)
     expect(read('app/api/admin/posts/[id]/reviewed/route.ts')).toMatch(/\$executeRaw`UPDATE "posts" SET "lastReviewedAt" =/)
   })
-  it('both editors send the version they loaded', () => {
+  // Three editors, not two: the story page's inline editor was missed when
+  // the check went in, and every save from it was refused as "out of date".
+  it('every editor sends the version it loaded', () => {
     expect(read('app/admin/posts/PostForm.tsx')).toMatch(/expectedUpdatedAt: initial\.updatedAt/)
-    const inline = read('app/handbook/[slug]/EditableArticle.tsx')
-    expect(inline).toMatch(/expectedUpdatedAt: loaded\.updatedAt/)
-    // …and round-trip cover/status from the admin row, not the cached page props.
-    expect(inline).toMatch(/coverImage: loaded\.coverImage/)
+    for (const file of ['app/handbook/[slug]/EditableArticle.tsx', 'components/ArticleInlineEditor.tsx']) {
+      const inline = read(file)
+      expect(inline).toMatch(/expectedUpdatedAt: loaded\.updatedAt/)
+      // …and round-trip cover/status from the admin row, not the cached page props.
+      expect(inline).toMatch(/coverImage: loaded\.coverImage/)
+    }
+  })
+  it('no other client code saves a post without being in the list above', () => {
+    const callers = execSync(`grep -rlF "api/admin/posts/\\\${" app components`, { encoding: 'utf8' })
+      .split('\n').filter(f => f && !f.startsWith('app/api/'))
+    for (const f of callers) {
+      if (!/'PUT'/.test(read(f))) continue
+      expect(['app/admin/posts/PostForm.tsx', 'app/handbook/[slug]/EditableArticle.tsx', 'components/ArticleInlineEditor.tsx']).toContain(f)
+    }
   })
 })
