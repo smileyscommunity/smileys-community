@@ -7,10 +7,22 @@ import { join } from 'path'
 const src = readFileSync(join(process.cwd(), 'app/clubs/ClubsClient.tsx'), 'utf8')
 
 describe('clubs explore tab', () => {
-  it('no "Coming up in your clubs" box and no "Active this week" strip repeating the sections', () => {
-    expect(src).not.toContain('Coming up in your clubs</h2>')
+  it('one "your clubs" row, not a row plus a box; no "Active this week" strip', () => {
+    expect(src.split('Coming up in your clubs</h2>').length - 1).toBe(1)
     expect(src).not.toContain('Active this week</h2>')
     expect(src).not.toContain('const comingUp')
+  })
+  // Nate 2026-09-29: "show my clubs lots of empty clubs" — the row showed
+  // every joined club; half said "Nothing planned yet".
+  it('the top row is only your clubs with something coming up; the rest are one tap away', () => {
+    expect(src).toContain('() => joinedClubs.filter(c => c.nextEvent).sort((a, b) => a.nextEvent!.date.localeCompare(b.nextEvent!.date)),')
+    expect(src).toContain('{myUpcoming.slice(0, 4).map(c => (')
+    expect(src).not.toContain('Nothing planned yet</p>')
+    expect(src).toContain('All your clubs ({joinedClubs.length + pendingClubs.length}) →')
+  })
+  it('My Clubs: planned first as cards, quiet ones as a compact list', () => {
+    expect(src).toContain('{myClubs.filter(c => c.nextEvent).map(club => renderCard(club))}')
+    expect(src).toContain('>Nothing planned right now</h2>')
   })
   it('your own clubs (joined or pending) are not in Explore', () => {
     expect(src).toContain('const notMine = useMemo(() => clubs.filter(c => !mineIds.has(c.id)), [clubs, mineIds])')

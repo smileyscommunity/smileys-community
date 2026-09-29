@@ -344,8 +344,16 @@ function AppClubsPageInner() {
     [notMine, activeCategory, q]
   )
 
+  // Your clubs with an event coming up, soonest first — the top row.
+  const myUpcoming = useMemo(
+    () => joinedClubs.filter(c => c.nextEvent).sort((a, b) => a.nextEvent!.date.localeCompare(b.nextEvent!.date)),
+    [joinedClubs]
+  )
+  // My Clubs tab: planned first (by date), then the rest.
   const myClubs = useMemo(
-    () => [...joinedClubs, ...pendingClubs].filter(matches),
+    () => [...joinedClubs, ...pendingClubs].filter(matches).sort((a, b) =>
+      (a.nextEvent ? 0 : 1) - (b.nextEvent ? 0 : 1)
+      || (a.nextEvent && b.nextEvent ? a.nextEvent.date.localeCompare(b.nextEvent.date) : a.name.localeCompare(b.name))),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [joinedClubs, pendingClubs, activeCategory, q]
   )
@@ -503,31 +511,35 @@ function AppClubsPageInner() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Your Clubs (brief §5) — members with clubs never rediscover
-            them; the row leads the page on the explore tab. */}
+        {/* Your clubs — only the ones with something coming up, soonest
+            first. It listed every club a member had joined as a large card,
+            and half of a typical 14 said "Nothing planned yet" above
+            everything else (2026-09-29). The rest are one tap away. */}
         {!loading && tab === 'explore' && joinedClubs.length > 0 && (
           <div className="mb-8">
-            <h2 className="text-xl font-extrabold tracking-tight text-gray-900 mb-3">Your clubs</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              {joinedClubs.map(c => (
-                <Link key={c.id} href={`/clubs/${c.slug}`}
-                  className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:border-amber-200 hover:shadow-md transition-all group">
-                  <div className="flex items-center gap-2.5 mb-2">
-                    <span aria-hidden="true" className="text-2xl shrink-0">{c.emoji}</span>
-                    <p className="font-bold text-gray-900 leading-snug truncate group-hover:text-amber-700 transition-colors">{c.name}</p>
-                  </div>
-                  {c.nextEvent ? (
-                    <p className="text-xs text-gray-600">
-                      <span className="font-semibold text-amber-700">Next:</span> {c.nextEvent.title.slice(0, 40)}
-                      <span className="block text-gray-400 mt-0.5">{formatDay(c.nextEvent.date)}</span>
-                    </p>
-                  ) : (
-                    <p className="text-xs text-gray-400">Nothing planned yet</p>
-                  )}
-                  <span className="inline-block text-xs font-bold text-amber-600 mt-2">Open club →</span>
-                </Link>
-              ))}
+            <div className="flex items-baseline justify-between gap-3 mb-3">
+              <h2 className="text-xl font-extrabold tracking-tight text-gray-900">Coming up in your clubs</h2>
+              <button onClick={() => setTab('mine')} className="text-sm font-semibold text-amber-700 hover:underline shrink-0">
+                All your clubs ({joinedClubs.length + pendingClubs.length}) →
+              </button>
             </div>
+            {myUpcoming.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {myUpcoming.slice(0, 4).map(c => (
+                  <Link key={c.id} href={`/clubs/${c.slug}`}
+                    className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:border-amber-200 hover:shadow-md transition-all group">
+                    <div className="flex items-center gap-2.5 mb-2">
+                      <span aria-hidden="true" className="text-2xl shrink-0">{c.emoji}</span>
+                      <p className="font-bold text-gray-900 leading-snug truncate group-hover:text-amber-700 transition-colors">{c.name}</p>
+                    </div>
+                    <p className="text-xs font-semibold text-green-800">{formatDay(c.nextEvent!.date)}</p>
+                    <p className="text-xs text-gray-700 truncate">{c.nextEvent!.title}</p>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-600">None of your clubs has anything planned right now.</p>
+            )}
           </div>
         )}
 
@@ -597,8 +609,38 @@ function AppClubsPageInner() {
               </p>
             )}
             {tab === 'mine' ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                {displayClubs.map(club => renderCard(club))}
+              <div className="space-y-8">
+                {myClubs.some(c => c.nextEvent) && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                    {myClubs.filter(c => c.nextEvent).map(club => renderCard(club))}
+                  </div>
+                )}
+                {myClubs.some(c => !c.nextEvent) && (
+                  <section aria-labelledby="mine-quiet">
+                    <h2 id="mine-quiet" className="text-sm font-bold text-gray-600 uppercase tracking-widest mb-3">Nothing planned right now</h2>
+                    <ul className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-100">
+                      {myClubs.filter(c => !c.nextEvent).map(club => {
+                        const m = membershipByClubId.get(club.id)
+                        return (
+                          <li key={club.id} className="flex items-center gap-3 px-4 py-2.5">
+                            <span aria-hidden="true" className="text-xl shrink-0">{club.emoji}</span>
+                            <Link href={`/clubs/${club.slug}`} className="min-w-0 flex-1 group">
+                              <p className="text-sm font-semibold text-gray-900 truncate group-hover:text-amber-700">{club.name}</p>
+                              <p className="text-xs text-gray-500 truncate">{club.category}{memberLine(club) ? ` · ${memberLine(club)}` : ''}{m?.status === 'pending' ? ' · Request pending' : m?.role === 'host' ? ' · You host' : ''}</p>
+                            </Link>
+                            {m && m.role !== 'host' && (
+                              <button onClick={() => toggleMembership(club)} disabled={toggling === club.id} aria-busy={toggling === club.id}
+                                aria-label={`${m.status === 'pending' ? 'Cancel your request to join' : 'Leave'} ${club.name}`}
+                                className="text-xs px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors font-medium disabled:opacity-50 shrink-0">
+                                {toggling === club.id ? '…' : m.status === 'pending' ? 'Cancel' : 'Leave'}
+                              </button>
+                            )}
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </section>
+                )}
               </div>
             ) : (
               <div className="space-y-10">
