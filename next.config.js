@@ -57,6 +57,15 @@ const nextConfig = {
   },
   async redirects() {
     return [
+      // The typed addresses outside /app. nginx sends every path that starts
+      // with "/app" to this server unchanged, so /apply and /appeal (which
+      // begin with those letters) arrived here as /apply and /appeal — outside
+      // the basePath — and 404'd, while /events or /faq were redirected by
+      // nginx correctly. The FAQ tells people to type both. basePath: false
+      // lets the rule match the bare path.
+      { source: '/apply',         destination: '/app/apply',         basePath: false, permanent: true },
+      { source: '/apply/:path*',  destination: '/app/apply/:path*',  basePath: false, permanent: true },
+      { source: '/appeal',        destination: '/app/appeal',        basePath: false, permanent: true },
       // Legacy /admin/cup → consolidated into /admin/campaigns. The
       // Smileys Cup is one campaign among many now, with fixture
       // management surfaced as the "Fixtures + results" tab on the
