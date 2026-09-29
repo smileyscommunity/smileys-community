@@ -42,13 +42,18 @@ export async function POST(req: NextRequest) {
   try {
     const { name, email, company, format, message, _hp, _t, _cf } = await req.json()
 
-    // Honeypot check — bots fill this hidden field
-    if (_hp) return NextResponse.json({ ok: true })
-
-    // Timing check — must take at least 5 seconds; reject if _t is missing (direct API hit)
-    if (!_t || Date.now() - Number(_t) < 5000) {
+    // Honeypot — only a bot fills a field no person can see. The one silent
+    // drop, and it's logged.
+    if (_hp) {
+      console.warn('[advertise] dropped: honeypot filled')
       return NextResponse.json({ ok: true })
     }
+
+    // Faster than 5 seconds (or no timestamp) is a flag on the email, not a
+    // silent drop — autofill can do it, and Turnstile below keeps bots out.
+    // The contact form works the same way (2026-09-29).
+    const fast = !_t || Date.now() - Number(_t) < 5000
+    if (fast) console.warn('[advertise] flagged: sent within 5 seconds')
 
     const ip = getIp(req)
     if (!(await verifyTurnstile(_cf ?? '', ip))) {
@@ -93,7 +98,8 @@ export async function POST(req: NextRequest) {
         from:    `Smileys Advertise <${CONTACT_EMAIL}>`,
         to:      CONTACT_EMAIL,
         replyTo: email,
-        subject: `[Sponsor Lead] ${esc(company.trim())} — ${FORMAT_LABELS[safeFormat]}`,
+        // Plain text, not HTML-escaped: a subject is a header ("&amp;" showed).
+        subject: `[Sponsor Lead]${fast ? ' ⚠ check: sent within 5 seconds' : ''} ${company.trim()} — ${FORMAT_LABELS[safeFormat]}`,
         html: `
           <div style="font-family:system-ui,sans-serif;max-width:600px;margin:0 auto;background:#fff;border-radius:12px;padding:32px;border:1px solid #e5e7eb">
             <div style="margin-bottom:24px">
