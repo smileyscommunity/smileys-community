@@ -49,4 +49,10 @@ describe('clubs explore tab', () => {
     expect(src).toContain("const filtering = !!q || activeCategory !== 'All'")
     expect(src).toContain('Show all {sections.quiet.length} clubs looking for a host')
   })
+  // Nate 2026-09-29: clubs with an upcoming event get their cover as a hero.
+  it('a club with an upcoming event shows its cover, at the 800px preview size', () => {
+    expect(src).toContain('const heroSrc = club.nextEvent && club.coverImage ? resolveImageUrl(club.coverImage) : null')
+    expect(src).toContain("heroSrc.startsWith('/app/api/files/') ? `${heroSrc}?w=800` : heroSrc")
+    expect(src).toContain('<img src={hero} alt="" loading="lazy"')
+  })
 })

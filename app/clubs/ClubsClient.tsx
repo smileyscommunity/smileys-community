@@ -7,6 +7,7 @@ import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { toast } from 'sonner'
 import { CLUB_FILTER_GROUPS, HEALTH_RANK, type ClubHealthLabel } from '@/lib/clubDiscovery'
 import { useAuth } from '@/contexts/AuthContext'
+import { resolveImageUrl } from '@/lib/data'
 import { clubHref } from '@/lib/clubLink'
 import ClubCardSkeleton from '@/components/ClubCardSkeleton'
 import AdBannerStrip from '@/components/AdBannerStrip'
@@ -99,8 +100,20 @@ function ClubCard({ club, membership, toggling, onToggle, href }: {
   // two-line description that read the same on 107 clubs ("A curated social
   // club for…"). What a member decides on is what's on and when, so that
   // leads; the description stays on the club's own page.
+  // A club with something coming up gets its cover as a hero (Nate,
+  // 2026-09-29): those are the clubs worth a look, and all 14 have one.
+  // ?w=800: the file route's preview size — one cover was a 3 MB PNG.
+  const heroSrc = club.nextEvent && club.coverImage ? resolveImageUrl(club.coverImage) : null
+  const hero = heroSrc && heroSrc.startsWith('/app/api/files/') ? `${heroSrc}?w=800` : heroSrc
+
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-amber-200 transition-all p-4 flex items-start gap-3">
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-amber-200 transition-all overflow-hidden flex flex-col">
+      {hero && (
+        <Link href={href} tabIndex={-1} aria-hidden="true" className="block relative h-32 overflow-hidden">
+          <img src={hero} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
+        </Link>
+      )}
+    <div className="p-4 flex items-start gap-3">
       <Link href={href} tabIndex={-1} aria-hidden="true"
         className={`w-12 h-12 rounded-xl ${club.bgColor} flex items-center justify-center text-2xl shrink-0`}>
         {club.emoji}
@@ -164,6 +177,7 @@ function ClubCard({ club, membership, toggling, onToggle, href }: {
           </button>
         )}
       </div>
+    </div>
     </div>
   )
 }
@@ -362,7 +376,6 @@ function AppClubsPageInner() {
   // anything coming up and 107 had never met, so one grid sorted by health
   // made members scroll ~23 screens of dormant clubs to find the live ones.
   // Each club lands in the first section it qualifies for.
-  const exploreClubs = exploreBase
   const sections = useMemo(() => {
     const soon = exploreBase.filter(c => c.nextEvent)
       .sort((a, b) => a.nextEvent!.date.localeCompare(b.nextEvent!.date))
@@ -373,7 +386,6 @@ function AppClubsPageInner() {
     return { soon, lately, global, quiet }
   }, [exploreBase])
 
-  const displayClubs = tab === 'mine' ? myClubs : exploreClubs
   // The long tails open on request: 32 language/culture clubs and ~105
   // dormant ones made the page ~10,000px even as compact rows.
   const [showAllGlobal, setShowAllGlobal] = useState(false)
