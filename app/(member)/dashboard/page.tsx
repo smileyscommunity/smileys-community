@@ -1,9 +1,11 @@
 import Link from 'next/link'
-import { visitorName } from '@/lib/visitorPolicy'
+import { visitorName, visitAuthorOk } from '@/lib/visitorPolicy'
+import { testimonialAuthorOk } from '@/lib/testimonialQuery'
 import { formatDate, formatTime, formatPrice, resolveImageUrl, avatarUrl, BLUR_PLACEHOLDER, getInitials, firstNameOf} from '@/lib/data'
 import { articleCover } from '@/lib/articleCover'
 import { isPremium } from '@/lib/membership'
 import { neighborhoodToSlug } from '@/lib/neighborhoods'
+import { categoryMeta } from '@/lib/handbook-categories'
 import { prisma } from '@/lib/prisma'
 import { postCityScope } from '@/lib/postScope'
 import { getSession } from '@/lib/session'
@@ -41,7 +43,7 @@ import FirstEventBlock from '@/components/FirstEventBlock'
 import RecommendedClubs from '@/components/RecommendedClubs'
 import { recommendedClubsFor } from '@/lib/clubRecommendations'
 import Image from 'next/image'
-import { todayInTz, shiftDay, dayInTz } from '@/lib/cityTime'
+import { todayInTz, shiftDay, dayInTz, startedCutoff } from '@/lib/cityTime'
 import { DEFAULT_TZ } from '@/lib/cityTime'
 import { eventEndsAt } from '@/lib/eventTime'
 import { DEFAULT_CITY_SLUG } from '@/lib/cities'
@@ -132,13 +134,27 @@ export default async function DashboardPage() {
   const PULSE_TAKE  = 5
   // 29 ahead plus today = 30, for the same reason weekEndStr is 6.
   const monthEndStr = shiftDay(today, 29)
+  // "Upcoming" for every count on this page: later days, plus today's events
+  // that started no more than five hours ago — the window the public lists
+  // and the city page use. The counts cut on date alone, so at 21:00 a
+  // 10:00 brunch was still one of "5 events this week" above a list of 4.
+  const { cutoffTime } = startedCutoff(tz)
+  const NOT_OVER = { OR: [{ date: { gt: today } }, { date: today, time: { gte: cutoffTime } }] }
 
   const blockedIds     = blockRows.map(b => b.blockerId === session.id ? b.blockedId : b.blockerId)
   const notMeOrBlocked = [session.id, ...blockedIds]
   const connectedIds   = connectionRows.map(c => c.requesterId === session.id ? c.receiverId : c.requesterId)
   // An account shown on this page: live, not hidden (the RSVP feed's rule,
-  // now every feed's — hidden and banned members' activity was announced).
-  const LIVE = { status: 'approved', hiddenFromMembers: false } as const
+  // now every feed's — hidden and banned members' activity was announced),
+  // and not suspended right now. A suspension leaves status 'approved' and
+  // sets suspendedUntil; the member page 404s them and /api/members,
+  // discovery and the visitor/testimonial rules all leave them out, but this
+  // page kept their face on "Near you" and "Who's going" (2026-09-29).
+  // Inside AND so it can't collide with LISTABLE's own OR.
+  const LIVE = {
+    status: 'approved', hiddenFromMembers: false,
+    AND: [{ OR: [{ suspendedUntil: null }, { suspendedUntil: { lte: new Date() } }] }],
+  }
   // Someone listed as a person (near you, suggestions): also either public
   // or already connected to the viewer — profileVisibility 'connections'
   // means strangers don't get their photo, bio and neighbourhood.
@@ -159,7 +175,7 @@ export default async function DashboardPage() {
       where: { userId: session.id, status: 'approved' },
       // stealth too: an event the member attended invisibly can't make them
       // a familiar face to anyone, because nobody there saw their name.
-      select: { eventId: true, attendance: true, stealth: true, event: { select: { date: true, status: true } } },
+      select: { eventId: true, attendance: true, stealth: true, event: { select: { date: true, time: true, endTime: true, status: true, city: { select: { timezone: true } } } } },
       orderBy: { joinedAt: 'desc' },
     }),
     prisma.clubMembership.findMany({
@@ -217,9 +233,25 @@ export default async function DashboardPage() {
   // filter excluded hosts — so a host-role user in a seeding city passed every
   // gate but wasn't counted in their own rank and saw "member #0". Same rule
   // as getStatsFor, or the gate and the maturity it guards disagree again.
-  const cityMemberCount = await prisma.user.count({
-    where: { ...COMMUNITY_MEMBER_WHERE, cityId },
-  })
+  // The upcoming-seat query (below) and this count only need cityId and
+  // today, so they share one round trip instead of two serial ones.
+  const upcomingWhere = { userId: session.id, status: 'approved', event: { date: { gte: today }, status: 'published', cancelledAt: null } } as const
+  const [cityMemberCount, upcomingRaw] = await Promise.all([
+    prisma.user.count({ where: { ...COMMUNITY_MEMBER_WHERE, cityId } }),
+    prisma.eventAttendee.findMany({
+      where: upcomingWhere,
+      // city.timezone: an RSVP in another city ends on ITS clock, not the
+      // viewed city's (Tbilisi is an hour off Turkey).
+      include: { event: { select: { id: true, title: true, date: true, time: true, endTime: true, neighborhood: true, emoji: true, price: true, currency: true, coverImage: true, limitedSpots: true, spotsLeft: true, lat: true, lng: true, city: { select: { timezone: true } } } } },
+      orderBy: [{ event: { date: 'asc' } }, { event: { time: 'asc' } }],
+      // Was 6. The end-of-day filter below runs AFTER this cut, so a member
+      // holding six seats at events that all finished earlier today was shown
+      // an empty list with a seventh still ahead of them — and the tile above
+      // is now counted off this same list, so the cut also bounds the count.
+      // The deepest anyone holds today is 4.
+      take: 60,
+    }),
+  ])
   let founding: { cityName: string; rank: number; total: number; firstName: string } | null = null
   // Only for a member whose OWN city is seeding, and only once that city is
   // LIVE. Two guards:
@@ -248,25 +280,13 @@ export default async function DashboardPage() {
   // time (local `tsc --noEmit` didn't catch it; `next build` did).
   // Only published, not cancelled: an event still awaiting review 404s for
   // the people holding a seat on it (12 members had one as "Next").
-  const upcomingWhere = { userId: session.id, status: 'approved', event: { date: { gte: today }, status: 'published', cancelledAt: null } } as const
-  const upcomingRaw = await prisma.eventAttendee.findMany({
-    where: upcomingWhere,
-    include: { event: { select: { id: true, title: true, date: true, time: true, endTime: true, neighborhood: true, emoji: true, price: true, currency: true, coverImage: true, limitedSpots: true, spotsLeft: true, lat: true, lng: true } } },
-    orderBy: [{ event: { date: 'asc' } }, { event: { time: 'asc' } }],
-    // Was 6. The end-of-day filter below runs AFTER this cut, so a member
-    // holding six seats at events that all finished earlier today was shown
-    // an empty list with a seventh still ahead of them — and the tile above
-    // is now counted off this same list, so the cut also bounds the count.
-    // The deepest anyone holds today is 4.
-    take: 60,
-  })
   // An event that has already ended today isn't "Next" any more.
-  const upcomingAttendances = upcomingRaw.filter(a => eventEndsAt(a.event, tz).getTime() > Date.now()).slice(0, 5)
+  const upcomingAttendances = upcomingRaw.filter(a => eventEndsAt(a.event, a.event.city?.timezone ?? tz).getTime() > Date.now()).slice(0, 5)
   // …and the tile above the list has to count the same thing the list shows.
   // It was a separate count() over the unfiltered where, so at 17:01 the
   // sixteen people holding a seat at a 12:00–17:00 event read "Upcoming 1"
   // directly above "No upcoming events".
-  const upcomingCount = upcomingRaw.filter(a => eventEndsAt(a.event, tz).getTime() > Date.now()).length
+  const upcomingCount = upcomingRaw.filter(a => eventEndsAt(a.event, a.event.city?.timezone ?? tz).getTime() > Date.now()).length
 
   const unreviewed = unreviewedRaw
     .filter((a) => a.event.reviews.length === 0)
@@ -333,6 +353,11 @@ export default async function DashboardPage() {
 
   // The venue and testimonial asks don't depend on each other: one round.
   const [venuesToReview, askTestimonial] = await Promise.all([venuesToReviewP, askTestimonialP])
+
+  // The member's neighbourhood is a place in their HOME city. Viewing another
+  // city, "Near you", "My area" and the neighbourhood match used it against
+  // that city's members and events — a Kadıköy resident browsing İzmir.
+  const myHood = cityId === session.cityId ? (userProfile?.neighborhood ?? null) : null
 
   const clubIds        = myMemberships.map((m) => m.clubId)
   const joinedEventIds = myAttendances.map((a) => a.eventId)
@@ -406,10 +431,28 @@ export default async function DashboardPage() {
   const suggestedMembersWhere = (() => {
     const conditions: any[] = []
     if (clubIds.length) conditions.push({ clubMemberships: { some: { clubId: { in: clubIds }, status: 'approved' } } })
-    if (userProfile?.neighborhood) conditions.push({ neighborhood: userProfile.neighborhood, neighborhoodVisible: true })
+    if (myHood) conditions.push({ neighborhood: myHood, neighborhoodVisible: true })
     const base = { id: { notIn: [...notMeOrBlocked, ...connectedIds] }, cityId, AND: [LISTABLE] }
     return conditions.length > 0 ? { ...base, OR: conditions } : base
   })()
+
+  // Started now, awaited after the batch: neither depends on it, and each
+  // was a serial round trip after it.
+  const wantedTagsP = userProfile?.interests?.length
+    ? prisma.interestTagMap.findMany({ where: { interest: { in: userProfile.interests } }, select: { tagId: true } })
+    : Promise.resolve([] as { tagId: string }[])
+  const lineupP = userProfile && userProfile.joinedAt > new Date(Date.now() - 21 * 86_400_000)
+    ? recommendedClubsFor({
+        cityId,
+        interests:      userProfile.interests ?? [],
+        // The Language clubs are most of what a global-club city adds, and
+        // this is the only signal that reaches them.
+        languages:      userProfile.languages ?? [],
+        nationality:    userProfile.nationality,
+        newInTown:      userProfile.socialStyles?.includes('new_in_town') ?? false,
+        excludeClubIds: clubIds,
+      })
+    : Promise.resolve([] as Awaited<ReturnType<typeof recommendedClubsFor>>)
 
   // One big parallel batch instead of two sequential ones with two
   // standalone awaits sandwiched between. Previously the page fanned
@@ -461,7 +504,11 @@ export default async function DashboardPage() {
         ...(clubIds.length
           ? { clubId: { in: clubIds } }
           : { club: { isPrivate: false, isActive: true, OR: [{ cityId }, { cityId: null }] } }),
-        userId: { notIn: notMeOrBlocked }, status: 'approved', joinedAt: { gte: weekAgo }, user: LIVE,
+        // A global club (cityId null) is joined from every city; for the
+        // no-clubs fallback only this city's members' joins are this city's
+        // news — Istanbul's language-club joins filled Tbilisi's wall.
+        userId: { notIn: notMeOrBlocked }, status: 'approved', joinedAt: { gte: weekAgo },
+        user: clubIds.length ? LIVE : { ...LIVE, cityId },
       },
       include: { user: { select: { name: true, color: true } }, club: { select: { name: true, emoji: true, slug: true } } },
       orderBy: { joinedAt: 'desc' }, take: 5,
@@ -469,7 +516,7 @@ export default async function DashboardPage() {
     // Requests still waiting on an event that hasn't happened: a request on
     // last month's event sat here forever.
     prisma.eventAttendee.findMany({
-      where: { userId: session.id, status: 'pending', event: { date: { gte: today }, status: 'published', cancelledAt: null } },
+      where: { userId: session.id, status: 'pending', event: { ...NOT_OVER, status: 'published', cancelledAt: null } },
       include: { event: { select: { id: true, title: true, date: true, emoji: true } } },
       // Not capped at 10: the heading counts these, and the discovery
       // shelves leave every one of them out (see joinable).
@@ -485,7 +532,7 @@ export default async function DashboardPage() {
           : { club: { isPrivate: false, isActive: true, OR: [{ cityId }, { cityId: null }] } }),
         type: { in: ['post', 'announcement'] },
         userId: { notIn: blockedIds },
-        user: LIVE,
+        user: clubIds.length ? LIVE : { ...LIVE, cityId },
         createdAt: { gte: twoWeeksAgo },
       },
       orderBy: { createdAt: 'desc' }, take: 4,
@@ -553,8 +600,8 @@ export default async function DashboardPage() {
       // someone in a block with them.
       ? prisma.user.findUnique({
           where:  { id: spotlightData.userId },
-          select: { id: true, name: true, color: true, profilePhoto: true, neighborhood: true, neighborhoodVisible: true, status: true, hiddenFromMembers: true, cityId: true, profileVisibility: true },
-        }).then(u => (u && u.status === 'approved' && !u.hiddenFromMembers && u.cityId === cityId && !blockedIds.includes(u.id) ? u : null))
+          select: { id: true, name: true, color: true, profilePhoto: true, neighborhood: true, neighborhoodVisible: true, status: true, hiddenFromMembers: true, suspendedUntil: true, cityId: true, profileVisibility: true },
+        }).then(u => (u && u.status === 'approved' && !u.hiddenFromMembers && !(u.suspendedUntil && u.suspendedUntil > new Date()) && u.cityId === cityId && !blockedIds.includes(u.id) ? u : null))
       : Promise.resolve(null),
     // Active community poll with user's vote. City-scoped like every other
     // piece of content on this page: a poll with no city is a question for
@@ -562,9 +609,12 @@ export default async function DashboardPage() {
     // and Istanbul's 176 votes rendered on Tbilisi's dashboard.
     prisma.communityPoll.findFirst({
       where:   { active: true, OR: [{ cityId: null }, { cityId }] },
-      orderBy: [{ cityId: 'desc' }, { createdAt: 'desc' }],
+      // nulls last: Postgres sorts NULL first in a DESC order, so an active
+      // everywhere-poll hid the city's own poll for as long as both ran.
+      orderBy: [{ cityId: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }],
       include: {
-        options: { orderBy: { order: 'asc' }, include: { _count: { select: { votes: true } } } },
+        // The viewer's own vote rides along — it was a separate round trip.
+        options: { orderBy: { order: 'asc' }, include: { _count: { select: { votes: true } }, votes: { where: { userId: session.id }, select: { id: true } } } },
       },
     }),
     // Featured events not yet joined, in the city being viewed. Every
@@ -639,8 +689,10 @@ export default async function DashboardPage() {
       })
       if (!apps.length) return { friends: 0, events: 0 }
       const emails = apps.map(a => a.email.toLowerCase().trim())
+      // "Events attended": events that took place and weren't a no-show —
+      // it counted future RSVPs and no-shows too.
       const eventCount = await prisma.eventAttendee.count({
-        where: { user: { email: { in: emails } }, status: 'approved' }
+        where: { user: { email: { in: emails } }, status: 'approved', attendance: { not: 'no_show' }, event: { date: { lt: today }, status: { in: ['published', 'archived'] } } }
       })
       return { friends: emails.length, events: eventCount }
     })(),
@@ -660,7 +712,9 @@ export default async function DashboardPage() {
         // discovery once already; /api/visitors guards it exactly this way.
         AND: [
           { OR: [{ userId: null }, { userId: { notIn: notMeOrBlocked } }] },
-          { OR: [{ userId: null }, { user: { status: 'approved', hiddenFromMembers: false } }] },
+          // lib/visitorPolicy's rule, as /api/visitors uses it: the hand-rolled
+          // copy here had no suspension clause.
+          visitAuthorOk(),
         ],
       },
       orderBy: { startsOn: 'asc' },
@@ -691,7 +745,9 @@ export default async function DashboardPage() {
     }).then(rows => rows.map(m => ({ ...m, neighborhood: m.neighborhoodVisible ? m.neighborhood : null }))),
     prisma.event.findMany({
       where: { cityId, date: { gte: today, lte: weekEndStr }, status: 'published' },
-      orderBy: { date: 'asc' },
+      // time too: within a day the order was arbitrary, so a 22:00 event
+      // could sit ahead of the 10:00 one behind "+N more".
+      orderBy: [{ date: 'asc' }, { time: 'asc' }],
       take: 20,
       select: { ...SHELF, id: true, title: true, date: true, emoji: true, neighborhood: true, price: true, currency: true },
     }),
@@ -699,9 +755,9 @@ export default async function DashboardPage() {
     // counted admins and partners, so it disagreed with the panel above.
     // Same count as cityMemberCount above (the founding gate's), already read.
     Promise.resolve(cityMemberCount),
-    prisma.event.count({ where: { cityId, date: { gte: today, lte: weekEndStr }, status: 'published' } }),
-    userProfile?.neighborhood
-      ? prisma.event.count({ where: { cityId, neighborhood: userProfile.neighborhood, date: { gte: today }, status: 'published' } })
+    prisma.event.count({ where: { cityId, date: { lte: weekEndStr }, ...NOT_OVER, status: 'published' } }),
+    myHood
+      ? prisma.event.count({ where: { cityId, neighborhood: myHood, ...NOT_OVER, status: 'published' } })
       : Promise.resolve(0),
     prisma.user.findMany({
       // "Joined Smileys · <neighborhood>" is only said of members who show
@@ -715,19 +771,14 @@ export default async function DashboardPage() {
     // photo uploaded directly to a club (no event) still surfaces here.
     // Over-fetch from each pool, then trim to 9 after a unified sort.
     //
-    // Three sources, two ways of crediting them:
-    //   · events the viewer was at or ran, and their own uploads — credited
-    //     to the uploader, as before;
-    //   · everything else from a public, active club in the city — the
-    //     window onto clubs they haven't joined yet, and the reason this
-    //     strip widened (2026-09-24). Credited to the event or club, never
-    //     the person, and linked to the club's Photos tab.
-    // What was wrong before widening was never the photos: it was that the
-    // credit named the uploader — only attendees can upload, so a city-wide
-    // strip was an attendance roster, stealth guests included — and that
-    // private clubs' galleries went to everyone. Crediting the event (as the
-    // club gallery already does) and skipping private clubs keeps both shut;
-    // any member in the city can already open these public clubs' Photos tab.
+    // Only photos this member may open where they lead: events they were at,
+    // ran or co-hosted, their clubs' galleries, and their own uploads. The
+    // strip widened on 2026-09-24 to every public club in the city on the
+    // belief that those galleries were open to any member — they aren't: the
+    // club photos API answers "Members only" to non-members and event photos
+    // are for attendees, so 137 photos in 30 days (attendees' faces, captions
+    // in the alt text) reached people both galleries refuse, and each one
+    // linked to a lock (2026-09-29).
     Promise.all([
       prisma.eventPhoto.findMany({
         where: {
@@ -735,41 +786,37 @@ export default async function DashboardPage() {
           OR: [
             { event: { OR: [{ id: { in: joinedEventIds } }, { hostId: session.id }, { cohosts: { some: { userId: session.id } } }] } },
             { userId: session.id },
-            { event: { club: { isActive: true, isPrivate: false } } },
           ],
           userId: { notIn: blockedIds }, user: LIVE,
         },
         orderBy: { createdAt: 'desc' },
         take: 9,
         select: {
-          id: true, url: true, caption: true, createdAt: true, eventId: true, userId: true,
-          event: { select: { title: true, hostId: true, club: { select: { slug: true } }, cohosts: { where: { userId: session.id }, select: { id: true } } } },
+          id: true, url: true, caption: true, createdAt: true, eventId: true,
+          event: { select: { title: true } },
           user: { select: { name: true, color: true } },
         },
       }),
-      prisma.clubPhoto.findMany({
-        where: {
-          OR: [{ clubId: { in: clubIds } }, { userId: session.id }, { club: { isPrivate: false } }],
-          club: { isActive: true, OR: [{ cityId }, { cityId: null }] },
-          userId: { notIn: blockedIds }, user: LIVE,
-        },
-        orderBy: { createdAt: 'desc' },
-        take: 9,
-        select: { id: true, url: true, caption: true, createdAt: true, clubId: true, userId: true, club: { select: { slug: true, name: true } }, user: { select: { name: true, color: true } } },
-      }),
+      clubIds.length
+        ? prisma.clubPhoto.findMany({
+            where: {
+              OR: [{ clubId: { in: clubIds } }, { userId: session.id }],
+              club: { isActive: true, OR: [{ cityId }, { cityId: null }] },
+              userId: { notIn: blockedIds }, user: LIVE,
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 9,
+            select: { id: true, url: true, caption: true, createdAt: true, club: { select: { slug: true, name: true } }, user: { select: { name: true, color: true } } },
+          })
+        : prisma.clubPhoto.findMany({
+            where: { userId: session.id, club: { isActive: true, OR: [{ cityId }, { cityId: null }] } },
+            orderBy: { createdAt: 'desc' },
+            take: 9,
+            select: { id: true, url: true, caption: true, createdAt: true, club: { select: { slug: true, name: true } }, user: { select: { name: true, color: true } } },
+          }),
     ]).then(([eventPhotos, clubPhotos]) => [
-      ...eventPhotos.map(p => {
-        const inside = p.userId === session.id || joinedEventIds.includes(p.eventId) || p.event.hostId === session.id || p.event.cohosts.length > 0
-        return inside
-          ? { id: p.id, url: p.url, caption: p.caption, createdAt: p.createdAt, href: `/events/${p.eventId}`, title: p.event.title, user: p.user }
-          // The event page shows photos to attendees only, so an outsider is
-          // sent to the club's gallery, where these same photos are open.
-          : { id: p.id, url: p.url, caption: p.caption, createdAt: p.createdAt, href: p.event.club ? `/clubs/${p.event.club.slug}?tab=photos` : `/events/${p.eventId}`, title: p.event.title, user: null }
-      }),
-      ...clubPhotos.map(p => ({
-        id: p.id, url: p.url, caption: p.caption, createdAt: p.createdAt, href: `/clubs/${p.club.slug}?tab=photos`, title: p.club.name,
-        user: p.userId === session.id || clubIds.includes(p.clubId) ? p.user : null,
-      })),
+      ...eventPhotos.map(p => ({ id: p.id, url: p.url, caption: p.caption, createdAt: p.createdAt, href: `/events/${p.eventId}`, title: p.event.title, user: p.user })),
+      ...clubPhotos.map(p => ({ id: p.id, url: p.url, caption: p.caption, createdAt: p.createdAt, href: `/clubs/${p.club.slug}?tab=photos`, title: p.club.name, user: p.user })),
     ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, 9)),
     // Trending: upcoming events with the most attendees. The featured-
     // event exclusion that used to live in the WHERE clause is now a
@@ -784,9 +831,9 @@ export default async function DashboardPage() {
       select: { ...SHELF, id: true, title: true, date: true, emoji: true, neighborhood: true, price: true, currency: true, totalSpots: true, _count: { select: { attendees: { where: { status: 'approved' } } } } },
     }),
     // Members near you: same neighborhood, excluding self
-    userProfile?.neighborhood
+    myHood
       ? prisma.user.findMany({
-          where: { neighborhood: userProfile.neighborhood, neighborhoodVisible: true, cityId, id: { notIn: notMeOrBlocked }, AND: [LISTABLE] },
+          where: { neighborhood: myHood, neighborhoodVisible: true, cityId, id: { notIn: notMeOrBlocked }, AND: [LISTABLE] },
           select: { id: true, name: true, color: true, profilePhoto: true, bio: true },
           orderBy: { joinedAt: 'desc' },
           take: 6,
@@ -874,7 +921,12 @@ export default async function DashboardPage() {
         createdAt:  { gte: weekAgo },
         fromUserId: { notIn: notMeOrBlocked },
         fromUser:   LIVE,
-        hangout:    { cityId },
+        // The hangout itself: still up, and not a blocked or unlisted host's
+        // (its permalink is closed to a blocked pair) — and not the other
+        // side of the reference either.
+        hangout:    { cityId, status: 'active', userId: { notIn: blockedIds }, user: LIVE },
+        toUserId:   { notIn: blockedIds },
+        toUser:     LIVE,
       },
       orderBy: { createdAt: 'desc' },
       take: 5,
@@ -926,16 +978,23 @@ export default async function DashboardPage() {
     }),
     // Event reviews — 3★ and up (Nate, 2026-09-26: a middling review is
     // still activity; 1–2★ stay off the wall, which stays friendly, not gripey).
+    // A review says "I was there", so it follows the RSVP feed's rule
+    // (LISTABLE, no stealth attendees) — it named a connections-only member
+    // to the whole city (2026-09-29). Stealth is per seat, so it's checked
+    // against the event's stealth list after the fetch; over-fetch to cover it.
     prisma.review.findMany({
-      where:   { rating: { gte: 3 }, createdAt: { gte: weekAgo }, userId: { notIn: notMeOrBlocked }, user: LIVE, event: { cityId } },
+      where:   { rating: { gte: 3 }, createdAt: { gte: weekAgo }, userId: { notIn: notMeOrBlocked }, user: LISTABLE, event: { cityId, status: { in: ['published', 'archived'] } } },
       orderBy: { createdAt: 'desc' },
-      take: 4,
+      take: 12,
       select: {
-        rating: true, createdAt: true,
+        rating: true, createdAt: true, userId: true,
         user:  { select: { name: true, color: true } },
-        event: { select: { id: true, title: true, emoji: true } },
+        event: { select: { id: true, title: true, emoji: true, attendees: { where: { stealth: true }, select: { userId: true } } } },
       },
-    }),
+    }).then(rows => rows
+      .filter(r => !r.event.attendees.some(a => a.userId === r.userId))
+      .slice(0, 4)
+      .map(({ userId: _u, event: { attendees: _a, ...event }, ...r }) => ({ ...r, event }))),
     // Directory reviews — 3★ and up (same rule as event reviews), not
     // moderated away, on live places only.
     prisma.businessReview.findMany({
@@ -957,7 +1016,7 @@ export default async function DashboardPage() {
     }),
     // Hangout joins — joining is as strong a social signal as posting.
     prisma.hangoutJoin.findMany({
-      where:   { createdAt: { gte: weekAgo }, userId: { notIn: notMeOrBlocked }, user: LIVE, hangout: { status: 'active', cityId } },
+      where:   { createdAt: { gte: weekAgo }, userId: { notIn: notMeOrBlocked }, user: LIVE, hangout: { status: 'active', cityId, userId: { notIn: blockedIds }, user: LIVE } },
       orderBy: { createdAt: 'desc' },
       take: 4,
       select: {
@@ -987,7 +1046,9 @@ export default async function DashboardPage() {
       : Promise.resolve([]),
     // Fresh member testimonials (admin-curated, active only).
     prisma.testimonial.findMany({
-      where:   { active: true, createdAt: { gte: twoWeeksAgo }, OR: [{ cityId }, { cityId: null }] },
+      // The public pages' author rule (lib/testimonialQuery) and blocks, the
+      // NOT-with-NULL-safe way: a banned or blocked author's quote stayed.
+      where:   { active: true, createdAt: { gte: twoWeeksAgo }, AND: [{ OR: [{ cityId }, { cityId: null }] }, testimonialAuthorOk(), { OR: [{ userId: null }, { userId: { notIn: blockedIds } }] }] },
       orderBy: { createdAt: 'desc' },
       take: 2,
       select: { id: true, memberName: true, quote: true, createdAt: true },
@@ -995,7 +1056,7 @@ export default async function DashboardPage() {
     // Community-wide events in the next 30 days — the "Events this month" stat.
     // (eventsThisMonth above is the viewer's OWN attendances; this is the whole
     // community, parallel to eventsThisWeek's next-7-days count so month ≥ week.)
-    prisma.event.count({ where: { cityId, date: { gte: today, lte: monthEndStr }, status: 'published' } }),
+    prisma.event.count({ where: { cityId, date: { lte: monthEndStr }, ...NOT_OVER, status: 'published' } }),
   ])
 
   // Score the recommendation candidates by what the member actually told
@@ -1003,14 +1064,7 @@ export default async function DashboardPage() {
   // lib/firstEvent), their interests via interest_tag_map, and their
   // neighborhood. Ties fall back to soonest-first, which also means a
   // member with no signals gets exactly the old city-wide list.
-  const wantedTagIds = new Set(
-    (userProfile?.interests?.length
-      ? await prisma.interestTagMap.findMany({
-          where:  { interest: { in: userProfile.interests } },
-          select: { tagId: true },
-        })
-      : []).map(r => r.tagId),
-  )
+  const wantedTagIds = new Set((await wantedTagsP).map(r => r.tagId))
   const clubIdSet = new Set(clubIds)
 
   // "Your lineup" — club picks for the member's first three weeks, from
@@ -1019,18 +1073,7 @@ export default async function DashboardPage() {
   // Mapped to the tile's fields: RecommendedClubs is a client component, and
   // every field of a prop reaches the browser (getClubs rows carry the
   // WhatsApp invite link).
-  const lineupClubs = userProfile && userProfile.joinedAt > new Date(Date.now() - 21 * 86_400_000)
-    ? (await recommendedClubsFor({
-        cityId,
-        interests:      userProfile.interests ?? [],
-        // The Language clubs are most of what a global-club city adds, and
-        // this is the only signal that reaches them.
-        languages:      userProfile.languages ?? [],
-        nationality:    userProfile.nationality,
-        newInTown:      userProfile.socialStyles?.includes('new_in_town') ?? false,
-        excludeClubIds: clubIds,
-      })).map(c => ({ id: c.id, slug: c.slug, name: c.name, emoji: c.emoji, bgColor: c.bgColor, category: c.category, memberCount: c.memberCount }))
-    : []
+  const lineupClubs = (await lineupP).map(c => ({ id: c.id, slug: c.slug, name: c.name, emoji: c.emoji, bgColor: c.bgColor, category: c.category, memberCount: c.memberCount }))
 
   const recommendedEvents = recommendedCandidates
     .map(e => ({
@@ -1038,7 +1081,7 @@ export default async function DashboardPage() {
       score:
         (e.clubId && clubIdSet.has(e.clubId) ? 5 : 0) +
         Math.min(e.tags.filter(t => wantedTagIds.has(t.tagId)).length, 3) * 3 +
-        (userProfile?.neighborhood && e.neighborhood === userProfile.neighborhood ? 2 : 0),
+        (myHood && e.neighborhood === myHood ? 2 : 0),
     }))
     .sort((a, b) => b.score - a.score || (a.e.date < b.e.date ? -1 : a.e.date > b.e.date ? 1 : 0))
     .slice(0, 4)
@@ -1053,10 +1096,7 @@ export default async function DashboardPage() {
   // Build poll data for widget
   let pollForWidget = null
   if (activePoll) {
-    const userVote = await prisma.communityPollVote.findUnique({
-      where: { userId_pollId: { userId: session.id, pollId: activePoll.id } },
-      select: { optionId: true },
-    })
+    const userVote = { optionId: activePoll.options.find(o => o.votes.length > 0)?.id }
     const totalVotes = activePoll.options.reduce((s: number, o) => s + o._count.votes, 0)
     pollForWidget = {
       id:            activePoll.id,
@@ -1136,9 +1176,13 @@ export default async function DashboardPage() {
   // name it once above the faces.
   const goingEvent = new Set(whosGoing.map((a) => a.event.id)).size === 1 ? whosGoing[0].event : null
 
-  // Deduplicate nearbyMembers: exclude anyone already in suggestedMembers
-  const suggestedMemberIds = new Set(suggestedMembers.map((m) => m.id))
-  const deduplicatedNearby = nearbyMembers.filter((m) => !suggestedMemberIds.has(m.id))
+  // Each person in one people strip: "New this week" keeps its newcomers,
+  // suggestions leave them out, and "Near you" leaves out both — a newcomer in
+  // your neighbourhood was in all three.
+  const newMemberIds       = new Set(newMembers.map((m) => m.id))
+  const shownSuggested     = suggestedMembers.filter((m) => !newMemberIds.has(m.id))
+  const suggestedMemberIds = new Set(shownSuggested.map((m) => m.id))
+  const deduplicatedNearby = nearbyMembers.filter((m) => !suggestedMemberIds.has(m.id) && !newMemberIds.has(m.id))
 
   const upcomingDates  = upcomingEvents.map((a) => a.event.date)
   const nextEvent      = upcomingEvents[0]
@@ -1224,8 +1268,11 @@ export default async function DashboardPage() {
   // Published or archived only: 21 members hold a seat on a past POSTPONED
   // event and 3 on a draft, and neither took place, so neither is an event
   // they went to. pastEventIds already drew this line; this counter didn't.
-  const wentTo            = myAttendances.filter(a => a.event.date < today && a.attendance !== 'no_show'
-                                                  && (a.event.status === 'published' || a.event.status === 'archived'))
+  // Ended, not merely dated before today: a finished event left "Upcoming"
+  // at its end time but only reached these counts at midnight.
+  const wentTo            = myAttendances.filter(a => a.attendance !== 'no_show'
+                                                  && (a.event.status === 'published' || a.event.status === 'archived')
+                                                  && eventEndsAt(a.event, a.event.city?.timezone ?? tz).getTime() <= nowMs)
   const attendedThisMonth = wentTo.filter(a => a.event.date >= monthStartStr).length
   const stats: { label: string; value: number; href?: string }[] = [
     // "Events so far" implied attendance the platform cannot see: 61% of what
@@ -1238,7 +1285,8 @@ export default async function DashboardPage() {
     { label: 'Upcoming',       value: upcomingCount,          href: '/my-events' },
     { label: 'This month',     value: attendedThisMonth       },
     { label: 'Events joined',  value: wentTo.length           },
-    { label: 'My clubs',       value: clubs.length,           href: '/clubs' },
+    // The member's own clubs, not Explore.
+    { label: 'My clubs',       value: clubs.length,           href: '/clubs?tab=mine' },
   ]
 
   // From Smileys — latest published articles
@@ -1246,8 +1294,10 @@ export default async function DashboardPage() {
     <div>
       <div className="flex items-center justify-between mb-3">
         <div>
-          <h2 className="text-xl font-bold text-gray-900">From Smileys</h2>
-          <p className="text-xs text-gray-400 mt-0.5">News, guides &amp; community updates</p>
+          {/* The Stories section (nav, /posts) — members' own writing
+              included — not the team's news. */}
+          <h2 className="text-xl font-bold text-gray-900">Stories</h2>
+          <p className="text-xs text-gray-500 mt-0.5">Writing from the community</p>
         </div>
         <Link href="/posts" className="text-sm text-amber-600 font-semibold hover:underline">All →</Link>
       </div>
@@ -1264,10 +1314,10 @@ export default async function DashboardPage() {
               <div className="w-16 h-16 rounded-xl bg-amber-50 flex items-center justify-center text-2xl shrink-0">📰</div>
             )}
             <div className="min-w-0 flex-1">
-              <span className="text-[10px] font-bold text-amber-600 uppercase tracking-widest">{post.category}</span>
+              <span className="text-[10px] font-bold text-amber-600 uppercase tracking-widest">{categoryMeta(post.category)?.label ?? post.category}</span>
               <p className="text-sm font-semibold text-gray-900 group-hover:text-amber-700 transition-colors leading-snug mt-0.5">{post.title}</p>
               {post.excerpt && (
-                <p className="text-xs text-gray-400 mt-1 line-clamp-2 leading-relaxed">{post.excerpt}</p>
+                <p className="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed">{post.excerpt}</p>
               )}
             </div>
           </Link>
@@ -1287,7 +1337,7 @@ export default async function DashboardPage() {
       <div className="flex items-center justify-between mb-3">
         <div>
           <h2 className="text-xl font-bold text-gray-900">From The Handbook</h2>
-          <p className="text-xs text-gray-400 mt-0.5">Living in {city.name} — practical guides from the Smileys team</p>
+          <p className="text-xs text-gray-500 mt-0.5">Living in {city.name} — practical guides from the Smileys team</p>
         </div>
         <Link href="/handbook" className="text-sm text-amber-600 font-semibold hover:underline">All →</Link>
       </div>
@@ -1305,10 +1355,12 @@ export default async function DashboardPage() {
               <div className="w-16 h-16 rounded-xl bg-gray-50 flex items-center justify-center text-2xl shrink-0">📖</div>
             )}
             <div className="min-w-0 flex-1">
-              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{post.category}</span>
+              {/* The canonical label: a legacy "Living in Istanbul" row read
+                  as Istanbul's on every city's dashboard. */}
+              {categoryMeta(post.category) && <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{categoryMeta(post.category)!.label}</span>}
               <p className="text-sm font-semibold text-gray-900 group-hover:text-amber-700 transition-colors leading-snug mt-0.5">{post.title}</p>
               {post.excerpt && (
-                <p className="text-xs text-gray-400 mt-1 line-clamp-2 leading-relaxed">{post.excerpt}</p>
+                <p className="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed">{post.excerpt}</p>
               )}
             </div>
           </Link>
@@ -1360,7 +1412,7 @@ export default async function DashboardPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-5 sm:pt-10 sm:pb-6 relative z-10">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <p className="text-amber-700 text-sm font-medium mb-1">{getGreeting(tz)} 👋</p>
+              <p className="text-amber-700 text-sm font-medium mb-1">{getGreeting(tz)}<span aria-hidden="true"> 👋</span></p>
               <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 tracking-tight truncate">
                 {firstNameOf(session.name)}
               </h1>
@@ -1396,21 +1448,35 @@ export default async function DashboardPage() {
           {heroBanner && (
             <div className="mt-4">
               {heroBanner.link ? (
-                <a href={heroBanner.link}
-                  target={heroBanner.link.startsWith('http') ? '_blank' : undefined}
-                  rel={heroBanner.link.startsWith('http') ? 'noopener noreferrer' : undefined}
-                  className="flex items-center gap-3 bg-white border border-amber-200 hover:border-amber-300 rounded-xl px-3 py-2.5 transition-colors group">
-                  <div className="shrink-0 w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center text-lg">{heroBanner.emoji}</div>
+                // Internal links go through Link, which adds the /app base
+                // path; a raw <a href="/events/…"> left the app (the centre
+                // banners were fixed this way, this one wasn't).
+                heroBanner.link.startsWith('http') ? (
+                  <a href={heroBanner.link} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-3 bg-white border border-amber-200 hover:border-amber-300 rounded-xl px-3 py-2.5 transition-colors group">
+                  <div aria-hidden="true" className="shrink-0 w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center text-lg">{heroBanner.emoji}</div>
                   <div className="flex-1 min-w-0">
                     <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest mb-0.5">From Smileys</p>
                     <p className="text-sm font-bold text-gray-900 truncate">{heroBanner.headline}</p>
                     {heroBanner.subtitle && <p className="text-xs text-gray-600 truncate">{heroBanner.subtitle}</p>}
                   </div>
                   {heroBanner.cta && <span className="text-xs font-bold text-amber-700 shrink-0 group-hover:translate-x-0.5 transition-transform">{heroBanner.cta} →</span>}
-                </a>
+                  </a>
+                ) : (
+                  <Link href={heroBanner.link}
+                    className="flex items-center gap-3 bg-white border border-amber-200 hover:border-amber-300 rounded-xl px-3 py-2.5 transition-colors group">
+                  <div aria-hidden="true" className="shrink-0 w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center text-lg">{heroBanner.emoji}</div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest mb-0.5">From Smileys</p>
+                    <p className="text-sm font-bold text-gray-900 truncate">{heroBanner.headline}</p>
+                    {heroBanner.subtitle && <p className="text-xs text-gray-600 truncate">{heroBanner.subtitle}</p>}
+                  </div>
+                  {heroBanner.cta && <span className="text-xs font-bold text-amber-700 shrink-0 group-hover:translate-x-0.5 transition-transform">{heroBanner.cta} →</span>}
+                  </Link>
+                )
               ) : (
                 <div className="flex items-center gap-3 bg-white border border-amber-200 rounded-xl px-3 py-2.5">
-                  <div className="shrink-0 w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center text-lg">{heroBanner.emoji}</div>
+                  <div aria-hidden="true" className="shrink-0 w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center text-lg">{heroBanner.emoji}</div>
                   <div className="flex-1 min-w-0">
                     <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest mb-0.5">From Smileys</p>
                     <p className="text-sm font-bold text-gray-900 truncate">{heroBanner.headline}</p>
@@ -1483,7 +1549,7 @@ export default async function DashboardPage() {
                         this star has never appeared for anyone. It marks a
                         paying membership, like the badge on the card. */}
                     {isPremium(userProfile?.membershipType) && (
-                      <span className="absolute -bottom-1 -right-1 text-sm" title="Premium member">⭐</span>
+                      <span className="absolute -bottom-1 -right-1 text-sm" title="Premium member" role="img" aria-label="Premium member">⭐</span>
                     )}
                   </div>
                   <Link href="/profile"
@@ -1494,10 +1560,10 @@ export default async function DashboardPage() {
                 <p className="font-bold text-gray-900">{session.name}</p>
                 <div className="flex items-center gap-3 mt-0.5">
                   {userProfile?.neighborhood && (
-                    <p className="text-xs text-gray-400">📍 {userProfile.neighborhood}</p>
+                    <p className="text-xs text-gray-500"><span aria-hidden="true">📍 </span>{userProfile.neighborhood}</p>
                   )}
                   {memberSince && (
-                    <p className="text-xs text-gray-400">· {memberSince}</p>
+                    <p className="text-xs text-gray-500">· {memberSince}</p>
                   )}
                 </div>
                 {userProfile?.bio && (
@@ -1518,8 +1584,8 @@ export default async function DashboardPage() {
             {/* Who's Going — social context */}
             {whosGoing.length > 0 && (
               <div className="bg-white rounded-2xl shadow-card p-5">
-                <h2 className="text-sm font-bold text-gray-900 mb-1">Who's going 👀</h2>
-                <p className="text-xs text-gray-400 mb-3">
+                <h2 className="text-sm font-bold text-gray-900 mb-1">Who's going<span aria-hidden="true"> 👀</span></h2>
+                <p className="text-xs text-gray-500 mb-3">
                   {goingEvent
                     ? `Familiar faces at ${goingEvent.emoji} ${goingEvent.title}`
                     : "Familiar faces at the events you're going to"}
@@ -1570,7 +1636,7 @@ export default async function DashboardPage() {
             {shownSpotlight && spotlightData && (
               <div className="bg-white rounded-2xl shadow-card p-5">
                 <div className="flex items-center gap-1.5 mb-3">
-                  <span className="text-sm">⭐</span>
+                  <span aria-hidden="true" className="text-sm">⭐</span>
                   <h2 className="text-sm font-bold text-gray-900">Member spotlight</h2>
                 </div>
                 <div className="flex items-center gap-3 mb-3">
@@ -1586,7 +1652,7 @@ export default async function DashboardPage() {
                   <div className="min-w-0">
                     <p className="font-bold text-gray-900 truncate">{shownSpotlight.name}</p>
                     {shownSpotlight.neighborhood && (
-                      <p className="text-xs text-gray-400">📍 {shownSpotlight.neighborhood}</p>
+                      <p className="text-xs text-gray-500"><span aria-hidden="true">📍 </span>{shownSpotlight.neighborhood}</p>
                     )}
                   </div>
                 </div>
@@ -1615,7 +1681,7 @@ export default async function DashboardPage() {
             {newMembers.length > 0 && (
               <div className="bg-white rounded-2xl shadow-card p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">New this week 🌱</h2>
+                  <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">New this week<span aria-hidden="true"> 🌱</span></h2>
                   <Link href="/members" className="text-xs text-amber-600 font-semibold hover:underline">See all</Link>
                 </div>
                 <div className="space-y-2.5">
@@ -1638,7 +1704,7 @@ export default async function DashboardPage() {
                         )}
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold text-gray-900 truncate group-hover:text-amber-600 transition-colors">{m.name}</p>
-                          <p className="text-xs text-gray-400 truncate">{m.neighborhood ?? (daysAgo === 0 ? 'Joined today' : `${daysAgo}d ago`)}</p>
+                          <p className="text-xs text-gray-500 truncate">{m.neighborhood ?? (daysAgo === 0 ? 'Joined today' : `${daysAgo}d ago`)}</p>
                         </div>
                         {daysAgo === 0 && (
                           <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 shrink-0">New</span>
@@ -1654,7 +1720,7 @@ export default async function DashboardPage() {
             {recentPhotos.length > 0 && (
               <div className="bg-white rounded-2xl shadow-card p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">Recent photos 📸</h2>
+                  <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">Recent photos<span aria-hidden="true"> 📸</span></h2>
                 </div>
                 <div className="grid grid-cols-3 gap-1.5">
                   {recentPhotos.map((p) => (
@@ -1694,7 +1760,7 @@ export default async function DashboardPage() {
                 than one RSVP). */}
             {(myAttendances.length === 0 ||
               (userProfile?.socialStyles?.includes('new_in_town') &&
-                userProfile.joinedAt > new Date(Date.now() - 60 * 86_400_000))) && <FirstEventBlock />}
+                userProfile.joinedAt > new Date(Date.now() - 60 * 86_400_000))) && <FirstEventBlock excludeIds={[...claimedEventIds]} />}
 
             {lineupClubs.length > 0 && <RecommendedClubs clubs={lineupClubs} />}
 
@@ -1748,7 +1814,7 @@ export default async function DashboardPage() {
                   <p className="text-sm text-amber-900 flex-1 truncate">
                     <strong>{activeHangouts.length}</strong> hangout{activeHangouts.length !== 1 ? 's' : ''} happening now
                     {activeHangouts[0]?.neighborhood && (
-                      <span className="text-amber-700 font-normal"> · starting in {activeHangouts[0].neighborhood}</span>
+                      <span className="text-amber-700 font-normal"> · in {activeHangouts[0].neighborhood}</span>
                     )}
                   </p>
                   <span className="text-xs font-bold text-amber-600 shrink-0 group-hover:translate-x-0.5 transition-transform">See all →</span>
@@ -1786,7 +1852,7 @@ export default async function DashboardPage() {
                       <div className="flex-1 min-w-0 relative z-10">
                         <p className="text-xs font-bold text-amber-400 uppercase tracking-widest mb-0.5">Sponsored</p>
                         <p className="text-sm font-bold text-white leading-snug truncate group-hover:text-amber-300 transition-colors">{banner.headline}</p>
-                        {banner.subtitle && <p className="text-xs text-gray-400 truncate">{banner.subtitle}</p>}
+                        {banner.subtitle && <p className="text-xs text-gray-500 truncate">{banner.subtitle}</p>}
                         {banner.cta && <p className="text-xs text-amber-400 font-bold mt-1 group-hover:text-amber-300 transition-colors">{banner.cta} →</p>}
                       </div>
                       <div className="shrink-0 w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-xl relative z-10">{banner.emoji}</div>
@@ -1864,7 +1930,7 @@ export default async function DashboardPage() {
             {pickedRunningLow.length > 0 && (
               <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
                 <div className="flex items-center gap-2 mb-3">
-                  <span className="text-base">🔥</span>
+                  <span aria-hidden="true" className="text-base">🔥</span>
                   <h3 className="text-sm font-bold text-red-800">Filling up fast</h3>
                   <span className="ml-auto text-[10px] font-bold text-red-500 bg-red-100 px-2 py-0.5 rounded-full uppercase tracking-wide">Limited spots</span>
                 </div>
@@ -1875,7 +1941,7 @@ export default async function DashboardPage() {
                       <span className="text-xl shrink-0">{event.emoji}</span>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-semibold text-gray-900 group-hover:text-red-700 transition-colors truncate">{event.title}</p>
-                        <p className="text-xs text-gray-600 mt-0.5">{formatDate(event.date)} · 📍 {event.neighborhood}</p>
+                        <p className="text-xs text-gray-600 mt-0.5">{formatDate(event.date)} · <span aria-hidden="true">📍 </span>{event.neighborhood}</p>
                       </div>
                       <span className="text-xs font-extrabold text-red-600 bg-red-100 px-2 py-1 rounded-lg shrink-0">{event.spotsLeft} left</span>
                     </Link>
@@ -1887,12 +1953,17 @@ export default async function DashboardPage() {
             {/* Waitlisted events */}
             {waitlisted.length > 0 && (
               <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
-                <h3 className="text-sm font-bold text-amber-800 mb-2">⏳ Pending approval ({waitlisted.length})</h3>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-bold text-amber-800"><span aria-hidden="true">⏳ </span>Pending approval ({waitlisted.length})</h3>
+                  {waitlisted.length > 3 && (
+                    <Link href="/my-events" className="text-xs font-semibold text-amber-800 hover:underline">See all →</Link>
+                  )}
+                </div>
                 <div className="space-y-2">
                   {waitlisted.slice(0, 3).map(({ event }) => (
                     <Link key={event.id} href={`/events/${event.id}`}
                       className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-                      <span className="text-lg">{event.emoji}</span>
+                      <span aria-hidden="true" className="text-lg">{event.emoji}</span>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-semibold text-amber-900 truncate">{event.title}</p>
                         <p className="text-xs text-amber-700">{formatDate(event.date)}</p>
@@ -1908,7 +1979,7 @@ export default async function DashboardPage() {
                 content-discovery block below. Quiet eyebrow + hairline so
                 the rhythm reads without adding text noise. */}
             <div className="flex items-center gap-3 pt-2">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Discover</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Discover</span>
               <div className="flex-1 h-px bg-gray-200" />
             </div>
 
@@ -1953,7 +2024,7 @@ export default async function DashboardPage() {
                         <div className="flex-1 min-w-0">
                           <h3 className="font-bold text-amber-600 hover:underline truncate">{nextEvent.event.title}</h3>
                           <p className="text-xs text-gray-600 mt-0.5">{formatDate(nextEvent.event.date)} · {formatTime(nextEvent.event.time)}</p>
-                          <p className="text-xs text-gray-400 mt-0.5">📍 {nextEvent.event.neighborhood}</p>
+                          <p className="text-xs text-gray-500 mt-0.5"><span aria-hidden="true">📍 </span>{nextEvent.event.neighborhood}</p>
                         </div>
                         <span className={`shrink-0 text-xs font-bold px-2.5 py-1.5 rounded-xl ${
                           daysToNext === 0 ? 'bg-red-100 text-red-700' :
@@ -1978,11 +2049,11 @@ export default async function DashboardPage() {
                           </div>
                           <div className="min-w-0 flex-1">
                             <h3 className="text-sm font-semibold text-gray-900 group-hover:text-amber-600 transition-colors truncate">{event.title}</h3>
-                            <p className="text-xs text-gray-400 mt-0.5">{formatDate(event.date)} · {event.neighborhood}</p>
+                            <p className="text-xs text-gray-500 mt-0.5">{formatDate(event.date)} · {event.neighborhood}</p>
                           </div>
                           <div className="shrink-0 text-right">
                             <span className="text-xs font-bold text-gray-700">{event.price === 0 ? 'Free' : formatPrice(event.price, event.currency)}</span>
-                            <p className="text-[10px] text-gray-400 mt-0.5">{d === 0 ? 'Today' : d === 1 ? 'Tomorrow' : `${d}d`}</p>
+                            <p className="text-[10px] text-gray-500 mt-0.5">{d === 0 ? 'Today' : d === 1 ? 'Tomorrow' : `${d}d`}</p>
                           </div>
                         </Link>
                       )
@@ -1996,9 +2067,9 @@ export default async function DashboardPage() {
                   <h2 className="text-xl font-bold text-gray-900">My upcoming events</h2>
                 </div>
                 <div className="bg-white rounded-2xl shadow-card p-8 text-center">
-                  <div className="text-4xl mb-3">📅</div>
+                  <div aria-hidden="true" className="text-4xl mb-3">📅</div>
                   <p className="text-gray-600 font-medium">No upcoming events</p>
-                  <p className="text-gray-400 text-sm mt-1">Join something to add it to your calendar</p>
+                  <p className="text-gray-500 text-sm mt-1">Join something to add it to your calendar</p>
                   <Link href="/events" className="mt-4 inline-block btn-primary text-sm">Browse events →</Link>
                 </div>
               </div>
@@ -2012,7 +2083,7 @@ export default async function DashboardPage() {
                 <div className="flex items-center justify-between mb-3">
                   <div>
                     <h2 className="text-xl font-bold text-gray-900">★ Featured events</h2>
-                    <p className="text-xs text-gray-400 mt-0.5">Handpicked by the Smileys team</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Handpicked by the Smileys team</p>
                   </div>
                   <Link href="/events" className="text-sm text-amber-600 font-semibold hover:underline">Browse all →</Link>
                 </div>
@@ -2028,7 +2099,7 @@ export default async function DashboardPage() {
                           <h3 className="text-sm font-semibold text-gray-900 group-hover:text-amber-700 transition-colors truncate">{event.title}</h3>
                           <span className="shrink-0 text-xs font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full">★ Featured</span>
                         </div>
-                        <p className="text-xs text-gray-600 mt-0.5">{formatDate(event.date)} · 📍 {event.neighborhood}</p>
+                        <p className="text-xs text-gray-600 mt-0.5">{formatDate(event.date)} · <span aria-hidden="true">📍 </span>{event.neighborhood}</p>
                       </div>
                       <div className="text-right shrink-0 self-center">
                         <span className="text-sm font-bold text-gray-900">{event.price === 0 ? 'Free' : formatPrice(event.price, event.currency)}</span>
@@ -2048,7 +2119,7 @@ export default async function DashboardPage() {
                 <div className="flex items-center justify-between mb-4">
                   {/* Listings live on the marketplace since the board/marketplace
                       split; /board is the conversation feed. */}
-                  <h2 className="text-sm font-bold text-gray-900">🛍️ Marketplace</h2>
+                  <h2 className="text-sm font-bold text-gray-900"><span aria-hidden="true">🛍️ </span>Marketplace</h2>
                   <Link href="/marketplace" className="text-xs text-amber-600 font-semibold hover:underline">See all →</Link>
                 </div>
                 <div className="space-y-3">
@@ -2062,7 +2133,7 @@ export default async function DashboardPage() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold text-gray-900 group-hover:text-amber-600 transition-colors truncate">{l.title}</p>
-                          <p className="text-xs text-gray-400 truncate">
+                          <p className="text-xs text-gray-500 truncate">
                             {firstNameOf(l.user.name)}{l.price ? ` · ${l.price}` : ''}
                           </p>
                         </div>
@@ -2083,18 +2154,18 @@ export default async function DashboardPage() {
             {recentMovingSales.length > 0 && (
               <div className="bg-white rounded-2xl shadow-card p-5">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-sm font-bold text-gray-900">📦 Moving Sales</h2>
+                  <h2 className="text-sm font-bold text-gray-900"><span aria-hidden="true">📦 </span>Moving Sales</h2>
                   <Link href="/marketplace?tab=MOVING" className="text-xs text-amber-600 font-semibold hover:underline">See all →</Link>
                 </div>
                 <div className="space-y-3">
                   {recentMovingSales.map((s) => (
-                    <Link key={s.id} href="/marketplace?tab=MOVING" className="flex items-center gap-3 group">
-                      <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center text-lg shrink-0">📦</div>
+                    <Link key={s.id} href={`/moving-sales/${s.id}`} className="flex items-center gap-3 group">
+                      <div aria-hidden="true" className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center text-lg shrink-0">📦</div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-gray-900 group-hover:text-amber-600 transition-colors truncate">
                           {firstNameOf(s.user.name)} is leaving{s.neighborhood ? ` ${s.neighborhood}` : ''}
                         </p>
-                        <p className="text-xs text-gray-400 truncate">
+                        <p className="text-xs text-gray-500 truncate">
                           {s.items.map(it => it.name).join(', ')}
                         </p>
                       </div>
@@ -2109,8 +2180,8 @@ export default async function DashboardPage() {
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <div>
-                    <h2 className="text-xl font-bold text-gray-900">New this week ✨</h2>
-                    <p className="text-xs text-gray-400 mt-0.5">Just posted in your city</p>
+                    <h2 className="text-xl font-bold text-gray-900">New this week<span aria-hidden="true"> ✨</span></h2>
+                    <p className="text-xs text-gray-500 mt-0.5">Just posted in your city</p>
                   </div>
                   <Link href="/events" className="text-sm text-amber-600 font-semibold hover:underline">Browse all →</Link>
                 </div>
@@ -2123,7 +2194,7 @@ export default async function DashboardPage() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <h3 className="text-sm font-semibold text-gray-900 group-hover:text-amber-600 transition-colors truncate">{event.title}</h3>
-                        <p className="text-xs text-gray-400 mt-0.5">{formatDate(event.date)} · 📍 {event.neighborhood}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{formatDate(event.date)} · <span aria-hidden="true">📍 </span>{event.neighborhood}</p>
                       </div>
                       <div className="text-right shrink-0 self-center">
                         <span className="text-sm font-bold text-gray-900">{event.price === 0 ? 'Free' : formatPrice(event.price, event.currency)}</span>
@@ -2140,7 +2211,7 @@ export default async function DashboardPage() {
                 <div className="flex items-center justify-between mb-3">
                   <div>
                     <h2 className="text-xl font-bold text-gray-900">Recommended for you</h2>
-                    <p className="text-xs text-gray-400 mt-0.5">
+                    <p className="text-xs text-gray-500 mt-0.5">
                       {/* Scored by clubs, interests and neighbourhood together — the
                           old "Based on your clubs" was shown whatever did the picking. */}
                       {/* Keyed on whether a pick actually MATCHED, not on whether the
@@ -2163,7 +2234,7 @@ export default async function DashboardPage() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <h3 className="text-sm font-semibold text-gray-900 group-hover:text-amber-600 transition-colors truncate">{event.title}</h3>
-                        <p className="text-xs text-gray-400 mt-0.5">{formatDate(event.date)} · 📍 {event.neighborhood}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{formatDate(event.date)} · <span aria-hidden="true">📍 </span>{event.neighborhood}</p>
                       </div>
                       <div className="text-right shrink-0 self-center">
                         <span className="text-sm font-bold text-gray-900">{event.price === 0 ? 'Free' : formatPrice(event.price, event.currency)}</span>
@@ -2179,8 +2250,8 @@ export default async function DashboardPage() {
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <div>
-                    <h2 className="text-xl font-bold text-gray-900">Trending now 📈</h2>
-                    <p className="text-xs text-gray-400 mt-0.5">Most popular upcoming events</p>
+                    <h2 className="text-xl font-bold text-gray-900">Trending now<span aria-hidden="true"> 📈</span></h2>
+                    <p className="text-xs text-gray-500 mt-0.5">Most popular upcoming events</p>
                   </div>
                   <Link href="/events" className="text-sm text-amber-600 font-semibold hover:underline">Browse all →</Link>
                 </div>
@@ -2193,7 +2264,7 @@ export default async function DashboardPage() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <h3 className="text-sm font-semibold text-gray-900 group-hover:text-amber-600 transition-colors truncate">{event.title}</h3>
-                        <p className="text-xs text-gray-400 mt-0.5">{formatDate(event.date)} · 📍 {event.neighborhood}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{formatDate(event.date)} · <span aria-hidden="true">📍 </span>{event.neighborhood}</p>
                       </div>
                       <div className="text-right shrink-0 self-center">
                         <span className="text-xs font-bold text-violet-600 bg-violet-50 px-2 py-1 rounded-lg block">
@@ -2216,7 +2287,7 @@ export default async function DashboardPage() {
                 <div className="flex items-center justify-between mb-3">
                   <div>
                     <h2 className="text-lg font-bold text-gray-900">This week in {city.name}</h2>
-                    <p className="text-xs text-gray-400 mt-0.5">{thisWeekTotal} event{thisWeekTotal !== 1 ? 's' : ''} coming up</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{thisWeekTotal} event{thisWeekTotal !== 1 ? 's' : ''} coming up</p>
                   </div>
                   <Link href="/events" className="text-sm text-amber-600 font-semibold hover:underline">All →</Link>
                 </div>
@@ -2245,7 +2316,7 @@ export default async function DashboardPage() {
                                 <span className="text-lg w-8 text-center shrink-0">{e.emoji}</span>
                                 <div className="flex-1 min-w-0">
                                   <p className="text-sm font-semibold text-gray-900 group-hover:text-amber-600 transition-colors truncate">{e.title}</p>
-                                  <p className="text-xs text-gray-400 truncate">📍 {e.neighborhood}</p>
+                                  <p className="text-xs text-gray-500 truncate"><span aria-hidden="true">📍 </span>{e.neighborhood}</p>
                                 </div>
                                 {/* This week is the full calendar, so it keeps
                                     the member's own events — marked, rather
@@ -2288,29 +2359,23 @@ export default async function DashboardPage() {
             {/* ── PHASE: CONNECT ── people + clubs cluster, second of the
                 two visible phase dividers (Discover above, Connect here). */}
             <div className="flex items-center gap-3 pt-2">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Connect</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Connect</span>
               <div className="flex-1 h-px bg-gray-200" />
             </div>
 
             {/* ── PEOPLE ── */}
-            {suggestedMembers.length > 0 && (
+            {shownSuggested.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <div>
-                    <h2 className="text-lg font-bold text-gray-900">People you might know</h2>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {/* The subtitle used to name the member's own clubs or
-                          neighbourhood, but the suggestion match ORs the two
-                          and the cards now hide the neighbourhood of anyone
-                          who opted out — so both claims could be wrong about
-                          the six people underneath them. */}
-                      {clubIds.length > 0 || userProfile?.neighborhood ? 'People you might know' : 'Recent members'}
-                    </p>
+                    {/* The heading said "People you might know" and so did the
+                        subtitle under it. One line, and it says which list this is. */}
+                    <h2 className="text-lg font-bold text-gray-900">{clubIds.length > 0 || myHood ? 'People you might know' : 'Recent members'}</h2>
                   </div>
                   <Link href="/members" className="text-sm text-amber-600 font-semibold hover:underline">All →</Link>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {suggestedMembers.slice(0, 6).map((m) => (
+                  {shownSuggested.slice(0, 6).map((m) => (
                     <Link key={m.id} href={`/members/${m.id}`}
                       className="bg-white rounded-2xl shadow-card p-4 text-center hover:-translate-y-0.5 transition-all group">
                       {m.profilePhoto ? (
@@ -2323,8 +2388,8 @@ export default async function DashboardPage() {
                         </div>
                       )}
                       <p className="text-sm font-semibold text-gray-900 group-hover:text-amber-600 transition-colors truncate">{firstNameOf(m.name)}</p>
-                      {m.neighborhood && <p className="text-xs text-gray-400 mt-0.5 truncate">📍 {m.neighborhood}</p>}
-                      {m.bio && <p className="text-xs text-gray-400 mt-1 line-clamp-2 leading-tight">{m.bio}</p>}
+                      {m.neighborhood && <p className="text-xs text-gray-500 mt-0.5 truncate"><span aria-hidden="true">📍 </span>{m.neighborhood}</p>}
+                      {m.bio && <p className="text-xs text-gray-500 mt-1 line-clamp-2 leading-tight">{m.bio}</p>}
                     </Link>
                   ))}
                 </div>
@@ -2335,12 +2400,12 @@ export default async function DashboardPage() {
             <div className="bg-white rounded-2xl shadow-card p-5">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-sm font-bold text-gray-900">My clubs</h2>
-                <Link href="/clubs" className="text-xs text-amber-600 font-semibold hover:underline">All →</Link>
+                <Link href="/clubs?tab=mine" className="text-xs text-amber-600 font-semibold hover:underline">All →</Link>
               </div>
               {clubs.length === 0 ? (
                 <div className="text-center py-4">
-                  <div className="text-3xl mb-2">🏛️</div>
-                  <p className="text-gray-400 text-sm mb-2">Not in any clubs yet</p>
+                  <div aria-hidden="true" className="text-3xl mb-2">🏛️</div>
+                  <p className="text-gray-500 text-sm mb-2">Not in any clubs yet</p>
                   <Link href="/clubs" className="inline-block text-xs font-semibold text-amber-600 bg-amber-50 px-3 py-1.5 rounded-xl hover:bg-amber-100 transition-colors">
                     Explore clubs →
                   </Link>
@@ -2357,8 +2422,8 @@ export default async function DashboardPage() {
                     </Link>
                   ))}
                   <Link href="/clubs" className="shrink-0 flex flex-col items-center gap-2">
-                    <div className="w-14 h-14 rounded-2xl border-2 border-dashed border-gray-200 flex items-center justify-center text-gray-400 hover:border-amber-300 hover:text-amber-500 transition-colors text-xl">+</div>
-                    <p className="text-[11px] text-gray-400 text-center">More</p>
+                    <div className="w-14 h-14 rounded-2xl border-2 border-dashed border-gray-200 flex items-center justify-center text-gray-500 hover:border-amber-300 hover:text-amber-500 transition-colors text-xl">+</div>
+                    <p className="text-[11px] text-gray-500 text-center">More</p>
                   </Link>
                 </div>
               )}
@@ -2368,8 +2433,8 @@ export default async function DashboardPage() {
               <div className="bg-white rounded-2xl shadow-card p-5">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h2 className="text-sm font-bold text-gray-900">Clubs to explore 🏛️</h2>
-                    <p className="text-xs text-gray-400 mt-0.5">Communities you haven't joined yet</p>
+                    <h2 className="text-sm font-bold text-gray-900">Clubs to explore<span aria-hidden="true"> 🏛️</span></h2>
+                    <p className="text-xs text-gray-500 mt-0.5">Communities you haven't joined yet</p>
                   </div>
                   <Link href="/clubs" className="text-xs text-amber-600 font-semibold hover:underline">All →</Link>
                 </div>
@@ -2382,9 +2447,9 @@ export default async function DashboardPage() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-semibold text-gray-900 group-hover:text-amber-600 transition-colors truncate">{club.name}</p>
-                        {club.description && <p className="text-xs text-gray-400 mt-0.5 truncate">{club.description}</p>}
+                        {club.description && <p className="text-xs text-gray-500 mt-0.5 truncate">{club.description}</p>}
                       </div>
-                      <span className="text-xs text-gray-400 shrink-0">{club.memberCount} members</span>
+                      <span className="text-xs text-gray-500 shrink-0">{club.memberCount} {club.memberCount === 1 ? 'member' : 'members'}</span>
                     </Link>
                   ))}
                 </div>
@@ -2478,8 +2543,8 @@ export default async function DashboardPage() {
                 the centre Marketplace block shows. */}
 
             {/* My neighborhood */}
-            {userProfile?.neighborhood && (
-              <Link href={`/neighborhoods/${neighborhoodToSlug(userProfile.neighborhood)}`}
+            {myHood && (
+              <Link href={`/neighborhoods/${neighborhoodToSlug(myHood)}?city=${city.slug}`}
                 className="block bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100 rounded-2xl p-4 hover:border-amber-300 transition-colors group">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-xs font-bold text-amber-700 uppercase tracking-widest">My area</p>
@@ -2487,13 +2552,13 @@ export default async function DashboardPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
                 </div>
-                <p className="font-bold text-gray-900 text-sm">📍 {userProfile.neighborhood}</p>
+                <p className="font-bold text-gray-900 text-sm"><span aria-hidden="true">📍 </span>{myHood}</p>
                 {neighborhoodEventCount > 0 ? (
                   <p className="text-xs text-amber-700 mt-1">
                     {neighborhoodEventCount} upcoming event{neighborhoodEventCount !== 1 ? 's' : ''} nearby
                   </p>
                 ) : (
-                  <p className="text-xs text-gray-400 mt-1">Explore your neighborhood →</p>
+                  <p className="text-xs text-gray-500 mt-1">Explore your neighborhood →</p>
                 )}
               </Link>
             )}
@@ -2502,7 +2567,7 @@ export default async function DashboardPage() {
             {deduplicatedNearby.length > 0 && (
               <div className="bg-white rounded-2xl shadow-card p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-xs font-bold text-gray-900 uppercase tracking-widest">Near you 📍</h2>
+                  <h2 className="text-xs font-bold text-gray-900 uppercase tracking-widest">Near you<span aria-hidden="true"> 📍</span></h2>
                   <Link href="/members" className="text-xs text-amber-600 font-semibold hover:underline">All →</Link>
                 </div>
                 <div className="space-y-2.5">
@@ -2520,7 +2585,7 @@ export default async function DashboardPage() {
                         )}
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold text-gray-900 truncate group-hover:text-amber-600 transition-colors">{m.name}</p>
-                          {m.bio && <p className="text-xs text-gray-400 truncate">{m.bio}</p>}
+                          {m.bio && <p className="text-xs text-gray-500 truncate">{m.bio}</p>}
                         </div>
                       </Link>
                     )
@@ -2568,9 +2633,9 @@ export default async function DashboardPage() {
                   <span className="text-xs text-gray-600">Events next 30 days</span>
                   <span className="text-sm font-extrabold text-gray-900">{communityEventsThisMonth}</span>
                 </div>
-                {userProfile?.neighborhood && neighborhoodEventCount > 0 && (
+                {myHood && neighborhoodEventCount > 0 && (
                   <div className="flex items-center justify-between pt-2 border-t border-gray-50">
-                    <span className="text-xs text-gray-600 truncate pr-2">In {userProfile.neighborhood}</span>
+                    <span className="text-xs text-gray-600 truncate pr-2">In {myHood}</span>
                     <span className="text-sm font-extrabold text-green-600 shrink-0">{neighborhoodEventCount}</span>
                   </div>
                 )}

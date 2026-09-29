@@ -2,14 +2,19 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
+import { resolveCityId } from '@/lib/city'
 
 export async function GET() {
   const session = await getSession()
   if (!session) return NextResponse.json(null)
 
+  // The dashboard's rule: this city's poll first, then one for everyone. It
+  // returned the newest active poll anywhere, so after a vote the widget
+  // swapped to another city's question.
+  const cityId = await resolveCityId(session)
   const poll = await prisma.communityPoll.findFirst({
-    where:   { active: true },
-    orderBy: { createdAt: 'desc' },
+    where:   { active: true, OR: [{ cityId: null }, { cityId }] },
+    orderBy: [{ cityId: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }],
     include: {
       options: {
         orderBy: { order: 'asc' },
@@ -66,10 +71,14 @@ export async function POST(req: NextRequest) {
   // but a replayed/guessed pollId could otherwise mutate a closed poll's tally.
   const poll = await prisma.communityPoll.findUnique({
     where: { id: pollId },
-    select: { active: true },
+    select: { active: true, cityId: true },
   })
   if (!poll || !poll.active) {
     return NextResponse.json({ error: 'This poll is closed' }, { status: 400 })
+  }
+  // Another city's poll isn't this member's to vote in.
+  if (poll.cityId && poll.cityId !== await resolveCityId(session)) {
+    return NextResponse.json({ error: 'This poll is for another city' }, { status: 403 })
   }
 
   await prisma.communityPollVote.upsert({

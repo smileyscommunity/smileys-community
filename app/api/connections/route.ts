@@ -29,11 +29,11 @@ export async function GET(req: NextRequest) {
   const [sent, received] = await Promise.all([
     wantSent ? prisma.memberConnection.findMany({
       where: { requesterId: session.id, status },
-      include: { receiver: { select: { id: true, name: true, color: true, profilePhoto: true, neighborhood: true, profileVisibility: true } } },
+      include: { receiver: { select: { id: true, name: true, color: true, profilePhoto: true, neighborhood: true, neighborhoodVisible: true, profileVisibility: true } } },
     }) : Promise.resolve([]),
     wantReceived ? prisma.memberConnection.findMany({
       where: { receiverId: session.id, status },
-      include: { requester: { select: { id: true, name: true, color: true, profilePhoto: true, neighborhood: true, profileVisibility: true } } },
+      include: { requester: { select: { id: true, name: true, color: true, profilePhoto: true, neighborhood: true, neighborhoodVisible: true, profileVisibility: true } } },
     }) : Promise.resolve([]),
   ])
 
@@ -44,11 +44,14 @@ export async function GET(req: NextRequest) {
   // to read the full name and photo their card hides: ten members a day, per
   // account, with the strip on /members rendering it straight back.
   const restricted = await restrictedSetFor(session, [...sent.map(c => c.receiver), ...received.map(c => c.requester)])
-  const redact = <T extends { id: string; name: string; profilePhoto: string | null; neighborhood: string | null; profileVisibility?: string }>(p: T) => {
-    const { profileVisibility: _pv, ...rest } = p
+  // The neighbourhood also follows the member's own switch (neighborhoodVisible):
+  // sending a request and reading ?direction=sent returned an opted-out
+  // member's neighbourhood, which every other surface withholds.
+  const redact = <T extends { id: string; name: string; profilePhoto: string | null; neighborhood: string | null; neighborhoodVisible?: boolean; profileVisibility?: string }>(p: T) => {
+    const { profileVisibility: _pv, neighborhoodVisible, ...rest } = p
     return restricted.has(p.id)
       ? { ...rest, name: firstNameOf(p.name), profilePhoto: null, neighborhood: null }
-      : rest
+      : { ...rest, neighborhood: neighborhoodVisible ? rest.neighborhood : null }
   }
   return NextResponse.json({
     ...(wantSent     ? { sent:     sent.map(c => ({ ...c, receiver: redact(c.receiver) })) } : {}),

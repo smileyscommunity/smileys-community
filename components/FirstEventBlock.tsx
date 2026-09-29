@@ -31,21 +31,27 @@ type Card = {
   matchedTagIds: string[]
 }
 
-export default function FirstEventBlock() {
+export default function FirstEventBlock({ excludeIds = [] }: { excludeIds?: string[] }) {
   const [state, setState] = useState<{ events: Card[]; empty: boolean; returning?: boolean } | null>(null)
   const [failed, setFailed] = useState(false)
 
   useEffect(() => {
     let alive = true
-    fetch('/app/api/first-event?limit=3')
+    // The dashboard's shelves already show these; the block picks others.
+    const exclude = excludeIds.length ? `&exclude=${encodeURIComponent(excludeIds.join(','))}` : ''
+    fetch(`/app/api/first-event?limit=3${exclude}`)
       .then(r => (r.ok ? r.json() : Promise.reject()))
       .then(d => { if (alive) setState(d) })
       .catch(() => { if (alive) setFailed(true) })
     return () => { alive = false }
+    // Once, on arrival: the shelves under it don't change without a reload.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Non-critical surface — stay invisible while loading or on failure.
   if (failed || !state) return null
+  // Everything open is already on the shelves below — nothing to add here.
+  if (!state.empty && state.events.length === 0) return null
 
   const markClick = (id: string) => {
     // keepalive so the beacon survives the navigation the <Link> triggers.
@@ -55,7 +61,7 @@ export default function FirstEventBlock() {
   return (
     <section className="mb-6">
       <div className="flex items-baseline justify-between mb-3">
-        <h2 className="text-lg font-extrabold text-gray-900">{state.returning ? '👋 Your next event' : '👋 Your first event'}</h2>
+        <h2 className="text-lg font-extrabold text-gray-900"><span aria-hidden="true">👋 </span>{state.returning ? 'Your next event' : 'Your first event'}</h2>
         <Link href="/events" className="text-sm font-semibold text-amber-700 hover:text-amber-800">
           See all →
         </Link>

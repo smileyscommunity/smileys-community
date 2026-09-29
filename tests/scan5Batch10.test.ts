@@ -14,7 +14,7 @@ const p = vi.hoisted(() => {
     notificationPreference: { findMany: vi.fn(async () => []) },
     club:           { findUnique: vi.fn(), findMany: vi.fn(async () => []) },
     event:          { findUnique: vi.fn(), findMany: vi.fn(async () => []) },
-    city:           { findUnique: vi.fn(async ({ where }: any) => ({ id: where.id })) },
+    city:           { findUnique: vi.fn(async ({ where }: any) => ({ id: where.id })), findMany: vi.fn(async () => [{ slug: 'istanbul' }, { slug: 'izmir' }]) },
     user:           { findMany: vi.fn(async () => []), findUnique: vi.fn() },
     clubMembership: { findMany: vi.fn(async () => []) },
     eventAttendee:  { findMany: vi.fn(async () => []) },

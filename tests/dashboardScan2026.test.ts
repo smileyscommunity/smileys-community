@@ -69,7 +69,7 @@ describe('the numbers say what the page underneath them says', () => {
     // A separate count() over the unfiltered where meant sixteen people
     // holding a seat at a 12:00–17:00 event read "Upcoming 1" at 17:01,
     // directly above "No upcoming events".
-    expect(src).toContain('const upcomingCount = upcomingRaw.filter(a => eventEndsAt(a.event, tz).getTime() > Date.now()).length')
+    expect(src).toContain('const upcomingCount = upcomingRaw.filter(a => eventEndsAt(a.event, a.event.city?.timezone ?? tz).getTime() > Date.now()).length')
     expect(src).not.toContain('prisma.eventAttendee.count({ where: upcomingWhere })')
   })
 
@@ -77,7 +77,8 @@ describe('the numbers say what the page underneath them says', () => {
     // Pinned by value rather than by surrounding punctuation: the earlier
     // version matched exact indentation and broke on a reformat while the
     // property it named stayed true.
-    expect(src).toMatch(/const upcomingRaw = await prisma\.eventAttendee\.findMany\(\{[\s\S]{0,900}take: 60,/)
+    // Now fetched alongside the member count (one round trip, 2026-09-29).
+    expect(src).toMatch(/const \[cityMemberCount, upcomingRaw\] = await Promise\.all\(\[[\s\S]{0,1600}take: 60,/)
   })
 
   it('"events so far" counts events that actually happened', () => {

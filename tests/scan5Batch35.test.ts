@@ -164,7 +164,7 @@ describe('d. public and member-facing member totals use the rule', () => {
     const src = read('app/(member)/dashboard/page.tsx')
     // COMMUNITY_MEMBER_WHERE is ACTIVATED_MEMBER_WHERE plus the member-role
     // rule; the rank lives in lib/foundingRank (scan6Batch9).
-    expect(src).toMatch(/cityMemberCount = await prisma\.user\.count\(\{\s*where: \{ \.\.\.COMMUNITY_MEMBER_WHERE, cityId \}/)
+    expect(src).toMatch(/prisma\.user\.count\(\{ where: \{ \.\.\.COMMUNITY_MEMBER_WHERE, cityId \} \}\)/)
     expect(src).toMatch(/const rank = await foundingRankFor\(cityId, \{ joinedAt: userProfile\.joinedAt, activated: true \}\)/)
     // "Total members" reuses that one count (2026-09-26: it ran the same query twice).
     expect(src).toContain('Promise.resolve(cityMemberCount),')

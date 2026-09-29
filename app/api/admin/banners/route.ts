@@ -3,6 +3,7 @@ import { getSession } from '@/lib/session'
 import { isAdmin, isAdminOrModerator } from '@/lib/access'
 import { isSafeHref } from '@/lib/safeUrl'
 import { writeAudit } from '@/lib/audit'
+import { prisma } from '@/lib/prisma'
 import { readFileSync, writeFileSync, mkdirSync, renameSync } from 'fs'
 import { join } from 'path'
 
@@ -41,6 +42,8 @@ export interface Banner {
   link:     string
   cta:      string
   bg:       string
+  /** A city slug; absent = the default city (the dashboard filters on it). */
+  city?:    string
   updatedAt: string
 }
 
@@ -127,6 +130,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Validate and sanitize each banner
+  const knownCities = new Set((await prisma.city.findMany({ select: { slug: true } })).map(c => c.slug))
   const sanitized: Banner[] = []
   for (let index = 0; index < banners.length; index++) {
     const b = banners[index]
@@ -152,9 +156,18 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // The city a banner is for (a slug; empty = the default city). The
+    // dashboard filters on it, but this allowlist dropped it, so any save
+    // turned every city's banner into the default city's.
+    const citySlug = String(b.city ?? '').trim().toLowerCase()
+    if (citySlug && !knownCities.has(citySlug)) {
+      return NextResponse.json({ error: `Banner ${index + 1}: unknown city "${citySlug.slice(0, 40)}"` }, { status: 400 })
+    }
+
     sanitized.push({
       id: b.id || `${page}_${Date.now()}_${index}`,
       page, type, active, headline, subtitle, emoji, link, cta, bg,
+      ...(citySlug ? { city: citySlug } : {}),
       updatedAt: new Date().toISOString(),
     })
   }

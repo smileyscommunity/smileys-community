@@ -10,30 +10,27 @@ import { join } from 'path'
 const page = readFileSync(join(__dirname, '..', 'app/(member)/dashboard/page.tsx'), 'utf8')
 
 describe('privacy', () => {
-  // Widened 2026-09-24 to public clubs' photos, so members discover clubs
-  // they haven't joined. What must hold: private clubs stay out, and a photo
-  // from somewhere the viewer wasn't is credited to the event, not the
-  // uploader (an uploader is an attendee, so naming them is a roster).
-  it('photos come from galleries the viewer can open, and public clubs', () => {
-    expect(page).toContain("{ event: { club: { isActive: true, isPrivate: false } } },")
-    expect(page).toContain("OR: [{ clubId: { in: clubIds } }, { userId: session.id }, { club: { isPrivate: false } }],")
-  })
-
-  it('an outsider sees the event credited, not who uploaded', () => {
-    expect(page).toContain("const inside = p.userId === session.id || joinedEventIds.includes(p.eventId) || p.event.hostId === session.id || p.event.cohosts.length > 0")
-    expect(page).toContain("title: p.event.title, user: null }")
-    expect(page).toContain("user: p.userId === session.id || clubIds.includes(p.clubId) ? p.user : null,")
+  // Widened 2026-09-24 to public clubs' photos; narrowed back 2026-09-29
+  // (dashboard scan): the club photos API is members-only and event photos
+  // are for attendees, so the widened strip showed non-members what both
+  // galleries refuse them. Only galleries the viewer can open.
+  it('photos come only from galleries the viewer can open', () => {
+    expect(page).not.toContain("{ event: { club: { isActive: true, isPrivate: false } } },")
+    expect(page).not.toContain("{ club: { isPrivate: false } }],")
+    expect(page).toContain("{ event: { OR: [{ id: { in: joinedEventIds } }, { hostId: session.id }, { cohosts: { some: { userId: session.id } } }] } },")
+    expect(page).toContain("OR: [{ clubId: { in: clubIds } }, { userId: session.id }],")
   })
 
   it('the club lineup sends only the tile\'s fields to the browser', () => {
-    expect(page).toContain("})).map(c => ({ id: c.id, slug: c.slug, name: c.name, emoji: c.emoji, bgColor: c.bgColor, category: c.category, memberCount: c.memberCount }))")
+    expect(page).toContain("(await lineupP).map(c => ({ id: c.id, slug: c.slug, name: c.name, emoji: c.emoji, bgColor: c.bgColor, category: c.category, memberCount: c.memberCount }))")
   })
 
   it('people listed are live, public or connected, and chose to be listed by neighbourhood', () => {
     // Activated community members only (2026-09-26): never-activated accounts and admin/partner logins were listed.
     expect(page).toContain("const LISTABLE = { ...LIVE, ...COMMUNITY_MEMBER_WHERE, OR: [{ profileVisibility: { not: 'connections' } }, { id: { in: connectedIds } }] }")
-    expect(page).toContain("conditions.push({ neighborhood: userProfile.neighborhood, neighborhoodVisible: true })")
-    expect(page).toContain("where: { neighborhood: userProfile.neighborhood, neighborhoodVisible: true, cityId, id: { notIn: notMeOrBlocked }, AND: [LISTABLE] }")
+    // myHood: the home neighbourhood, only on the home city's dashboard.
+    expect(page).toContain("conditions.push({ neighborhood: myHood, neighborhoodVisible: true })")
+    expect(page).toContain("where: { neighborhood: myHood, neighborhoodVisible: true, cityId, id: { notIn: notMeOrBlocked }, AND: [LISTABLE] }")
     // Suggestions skip people already connected.
     expect(page).toContain("id: { notIn: [...notMeOrBlocked, ...connectedIds] }")
   })
@@ -52,11 +49,13 @@ describe('privacy', () => {
 describe('what the page says', () => {
   it('"Next event" and the upcoming count are published events that haven\'t ended', () => {
     expect(page).toContain("event: { date: { gte: today }, status: 'published', cancelledAt: null }")
-    expect(page).toContain('upcomingRaw.filter(a => eventEndsAt(a.event, tz).getTime() > Date.now())')
+    // Each RSVP ends on its own city's clock.
+    expect(page).toContain('upcomingRaw.filter(a => eventEndsAt(a.event, a.event.city?.timezone ?? tz).getTime() > Date.now())')
   })
 
   it('pending requests are for events still to come', () => {
-    expect(page).toContain("where: { userId: session.id, status: 'pending', event: { date: { gte: today }, status: 'published', cancelledAt: null } }")
+    // NOT_OVER: the public lists' window, so an event that ended today is out.
+    expect(page).toContain("where: { userId: session.id, status: 'pending', event: { ...NOT_OVER, status: 'published', cancelledAt: null } }")
   })
 
   it('no streak or profile-view tiles; counts are events actually gone to', () => {

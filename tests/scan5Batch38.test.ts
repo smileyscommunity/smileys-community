@@ -161,6 +161,7 @@ vi.mock('@/lib/session',    () => ({ getSession: h.getSession }))
 vi.mock('@/lib/cronAuth',   () => ({ checkCronAuth: vi.fn(() => null) }))
 vi.mock('@/lib/cronHealth', () => ({ recordCronRun: h.recordCronRun }))
 vi.mock('@/lib/firstEvent', () => ({ getFirstEventRecommendations: h.recs }))
+vi.mock('@/lib/city',       () => ({ resolveCityId: vi.fn(async () => 'city1') }))
 
 import {
   logRecommendations, stampRecommendation, planRecommendationPrune, pruneDuplicateRecommendations,

@@ -89,8 +89,8 @@ describe('dashboard is scoped to the city being viewed', () => {
   })
 
   it('counts events in the viewer\'s neighborhood within the city, since names repeat across cities', () => {
-    const seg = SRC.split('neighborhood: userProfile.neighborhood')[1]?.slice(0, 200) ?? ''
-    const decl = SRC.split('neighborhood: userProfile.neighborhood')[0].slice(-200)
-    expect(decl + seg).toContain('cityId')
+    // myHood is the home neighbourhood, used only on the home city's page.
+    expect(SRC).toContain('prisma.event.count({ where: { cityId, neighborhood: myHood, ...NOT_OVER, status: \'published\' } })')
+    expect(SRC).toContain("const myHood = cityId === session.cityId ? (userProfile?.neighborhood ?? null) : null")
   })
 })

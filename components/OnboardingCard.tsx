@@ -57,7 +57,8 @@ const ITEMS: Item[] = [
   {
     emoji:       '🗺️',
     title:       'City Guide',
-    description: 'Visa, healthcare, banking, mobile — the basics for new arrivals.',
+    // The Guide is places and experiences; visas and banking are the Handbook.
+    description: 'Places, neighbourhoods and experiences picked by members.',
     href:        '/guide',
   },
 ]

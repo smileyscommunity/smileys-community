@@ -60,7 +60,7 @@ export default function DashboardVisitorsStrip({ visitors, cityName }: Props) {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-sm font-bold text-gray-900">Visitors coming soon 👋</h2>
-          <p className="text-xs text-gray-400 mt-0.5">Members passing through {cityName} — say hello before they arrive.</p>
+          <p className="text-xs text-gray-400 mt-0.5">Members visiting {cityName} now or soon — say hello.</p>
         </div>
         <Link href="/visiting" className="text-xs font-bold text-amber-600 hover:underline shrink-0">View all →</Link>
       </div>

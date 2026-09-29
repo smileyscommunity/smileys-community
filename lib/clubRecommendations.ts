@@ -173,7 +173,11 @@ export async function recommendedClubsFor(opts: {
     .filter(c => !excluded.has(c.id))
     .map(c => ({
       c,
-      score:
+      // What the member's answers actually matched. The liveliness tiebreak
+      // below is added only to a club that matched something: added to all,
+      // it made every non-empty club pass the > 0 filter, so a newcomer with
+      // no matching club got the four biggest ones "matched to your interests".
+      match:
         (newInTown && c.category === 'Newcomers' ? 4 : 0) +
         // Above a category match, not level with it. An interest points at a
         // whole category — 'languages' covers all 13 Language clubs at once —
@@ -183,12 +187,12 @@ export async function recommendedClubsFor(opts: {
         // North African nowhere in it.
         (speaksFor(c) ? 4 : 0) +
         (homeClub && c.slug === homeClub ? 4 : 0) +
-        (wantedCategories.get(c.category) ?? 0) * 3 +
-        // Liveliness tiebreak, capped so a giant club can't outrank a
-        // genuine interest match.
-        Math.min((c.memberCount ?? 0) / 100, 2),
+        (wantedCategories.get(c.category) ?? 0) * 3,
     }))
-    .filter(x => x.score > 0)
+    .filter(x => x.match > 0)
+    // Liveliness tiebreak, capped so a giant club can't outrank a genuine
+    // interest match.
+    .map(x => ({ c: x.c, score: x.match + Math.min((x.c.memberCount ?? 0) / 100, 2) }))
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
     .map(x => x.c)

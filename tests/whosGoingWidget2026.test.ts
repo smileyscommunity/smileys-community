@@ -33,7 +33,7 @@ describe("who's going is about the events you're going to", () => {
   it('and inherits the "already ended" rule rather than re-deriving it', () => {
     // upcomingAttendances is filtered on eventEndsAt, so a 10:00 coffee is
     // not still advertised at 23:00 the same day.
-    expect(src).toContain('eventEndsAt(a.event, tz).getTime() > Date.now()')
+    expect(src).toContain('eventEndsAt(a.event, a.event.city?.timezone ?? tz).getTime() > Date.now()')
   })
 })
 

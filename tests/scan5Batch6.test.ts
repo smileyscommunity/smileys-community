@@ -31,7 +31,9 @@ const admin = { id: 'a1', role: 'admin', cityId: 'ist' } as never
 
 describe('23. the reviews list carries reviewer ids', () => {
   it('so the page can find your own review after a reload', () => {
-    expect(read('app/api/events/[id]/reviews/route.ts')).toContain('user: { select: { id: true, name: true, color: true } },')
+    expect(read('app/api/events/[id]/reviews/route.ts')).toContain('user: { select: { id: true, name: true, color: true, profileVisibility: true } },')
+    // …and your own review keeps its id even when you attended in stealth.
+    expect(read('app/api/events/[id]/reviews/route.ts')).toContain('user: u.id === session.id ? u')
   })
 })
 

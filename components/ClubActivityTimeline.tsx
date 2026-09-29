@@ -334,7 +334,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                     <span aria-hidden="true">{club.emoji}</span> {club.name}
                   </Link>
                 </p>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
+                <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
               </div>
             )
           }
@@ -351,9 +351,9 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                     {' '}{verb}{' '}
                     <span className="font-semibold text-amber-600"><span aria-hidden="true">{club.emoji}</span> {club.name}</span>
                   </p>
-                  <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{content || poll?.question}</p>
+                  <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{content || poll?.question}</p>
                 </div>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
+                <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
               </Link>
             )
           }
@@ -371,7 +371,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                     : 'New photos · '}
                   <span className="font-semibold text-amber-600">{title}</span>
                 </p>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
+                <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
               </Link>
             )
           }
@@ -386,7 +386,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                   {' is going to '}
                   <span className="font-semibold text-amber-600"><span aria-hidden="true">{event.emoji}</span> {event.title}</span>
                 </p>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
+                <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
               </Link>
             )
           }
@@ -400,7 +400,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                   {' joined Smileys'}
                   {neighborhood && <span className="text-gray-500"> · {neighborhood}</span>}
                 </p>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
+                <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
               </div>
             )
           }
@@ -417,7 +417,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                   {' — '}
                   <span className="font-semibold text-amber-600">{title}</span>
                 </p>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
+                <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
               </Link>
             )
           }
@@ -431,9 +431,9 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                   <span className="font-semibold">{firstNameOf(user.name)}</span>
                   {' is around to hang out'}
                   {neighborhood && <span className="text-gray-500"> · {neighborhood}</span>}
-                  {note && <span className="text-gray-400"> — {note}</span>}
+                  {note && <span className="text-gray-500"> — {note}</span>}
                 </p>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
+                <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
               </Link>
             )
           }
@@ -451,7 +451,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                   <span className="font-semibold">{firstNameOf(receiver.name)}</span>
                   {' connected'}
                 </p>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
+                <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
               </div>
             )
           }
@@ -466,7 +466,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                   {' left a good reference for '}
                   <span className="font-semibold text-amber-600">{hangout.title}</span>
                 </p>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
+                <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
               </Link>
             )
           }
@@ -480,9 +480,9 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                   <span className="font-semibold">{firstNameOf(user.name)}</span>
                   {' rated '}
                   <span className="font-semibold text-amber-600"><span aria-hidden="true">{event.emoji}</span> {event.title}</span>
-                  {' '}<span className="text-amber-500">{'★'.repeat(rating)}</span>
+                  {' '}<span aria-hidden="true" className="text-amber-500">{'★'.repeat(rating)}</span><span className="sr-only">{rating} out of 5 stars</span>
                 </p>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
+                <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
               </Link>
             )
           }
@@ -496,9 +496,9 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                   <span className="font-semibold">{firstNameOf(author.name)}</span>
                   {' reviewed '}
                   <span className="font-semibold text-amber-600">{business.name}</span>
-                  {' '}<span className="text-amber-500">{'★'.repeat(rating)}</span>
+                  {' '}<span aria-hidden="true" className="text-amber-500">{'★'.repeat(rating)}</span><span className="sr-only">{rating} out of 5 stars</span>
                 </p>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
+                <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
               </Link>
             )
           }
@@ -515,7 +515,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                   {' is visiting ' + cityName}
                   {fromCity && <span className="text-gray-500"> · from {fromCity}</span>}
                 </p>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
+                <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
               </Link>
             )
           }
@@ -530,7 +530,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                   {' joined a hangout — '}
                   <span className="font-semibold text-amber-600">{hangout.title}</span>
                 </p>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
+                <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
               </Link>
             )
           }
@@ -546,9 +546,9 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                     {' posted in '}
                     <span className="font-semibold text-amber-600">{neighborhood}</span>
                   </p>
-                  <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{content}</p>
+                  <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{content}</p>
                 </div>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
+                <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
               </Link>
             )
           }
@@ -566,7 +566,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                   {' — '}
                   <span className="font-semibold">{title}</span>
                 </p>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
+                <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
               </Link>
             )
           }
@@ -574,7 +574,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
             const { memberName, quote } = it.data
             return (
               <div key={`t-${i}`} className="flex gap-2.5">
-                <div className="w-7 h-7 rounded-xl bg-amber-50 flex items-center justify-center text-base shrink-0">
+                <div aria-hidden="true" className="w-7 h-7 rounded-xl bg-amber-50 flex items-center justify-center text-base shrink-0">
                   💬
                 </div>
                 <div className="min-w-0 flex-1">
@@ -582,9 +582,9 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                     <span className="font-semibold">{firstNameOf(memberName)}</span>
                     {' shared their Smileys story'}
                   </p>
-                  <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">“{quote}”</p>
+                  <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">“{quote}”</p>
                 </div>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
+                <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
               </div>
             )
           }
@@ -599,7 +599,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                   {' posted a listing — '}
                   <span className="font-semibold text-amber-600">{title}</span>
                 </p>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
+                <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
               </Link>
             )
           }
@@ -608,7 +608,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
             return (
               <Link key={`b-${i}`} href={`/directory/${id}`}
                     className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
-                <div className="w-7 h-7 rounded-xl bg-amber-50 flex items-center justify-center text-base shrink-0">
+                <div aria-hidden="true" className="w-7 h-7 rounded-xl bg-amber-50 flex items-center justify-center text-base shrink-0">
                   📍
                 </div>
                 <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
@@ -616,7 +616,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                   <span className="font-semibold text-amber-600">{name}</span>
                   <span className="text-gray-500"> · {category}</span>
                 </p>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
+                <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
               </Link>
             )
           }
@@ -627,14 +627,14 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
             return (
               <Link key={`ar-${i}`} href={href}
                     className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
-                <div className="w-7 h-7 rounded-xl bg-amber-50 flex items-center justify-center text-base shrink-0">
+                <div aria-hidden="true" className="w-7 h-7 rounded-xl bg-amber-50 flex items-center justify-center text-base shrink-0">
                   {isHandbook ? '📖' : '📰'}
                 </div>
                 <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
                   {isHandbook ? 'New in the Handbook — ' : 'New story — '}
                   <span className="font-semibold text-amber-600">{title}</span>
                 </p>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
+                <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
               </Link>
             )
           }
@@ -650,7 +650,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                   {'New club started — '}
                   <span className="font-semibold text-amber-600">{name}</span>
                 </p>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
+                <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
               </Link>
             )
           }
@@ -679,7 +679,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                 {' — '}
                 <span className="font-semibold text-amber-600">{title}</span>
               </p>
-              <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
+              <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
             </Link>
           )
         })}

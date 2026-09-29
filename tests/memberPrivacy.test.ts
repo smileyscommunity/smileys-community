@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // Mock the DB + role helpers so we test only restrictedSetFor's own logic.
-vi.mock('@/lib/prisma', () => ({ prisma: { memberConnection: { findMany: vi.fn() } } }))
+vi.mock('@/lib/prisma', () => ({ prisma: { memberConnection: { findMany: vi.fn() }, user: { findMany: vi.fn(async () => []) } } }))
 vi.mock('@/lib/access', () => ({
   isAdminOrModerator: vi.fn(() => false),
   isClubHost: vi.fn(async () => false),
@@ -33,11 +33,20 @@ describe('restrictedSetFor (connections-only privacy gating)', () => {
     expect(r.size).toBe(0)
   })
 
-  it('admins/moderators see everyone — no restriction, no DB hit', async () => {
+  it('admins see everyone — no restriction, no DB hit', async () => {
     ;(isAdminOrModerator as any).mockReturnValue(true)
-    const r = await restrictedSetFor(session, [m('a', 'connections')])
+    const r = await restrictedSetFor({ id: 'me', role: 'admin' } as any, [m('a', 'connections')])
     expect(r.size).toBe(0)
     expect(prisma.memberConnection.findMany).not.toHaveBeenCalled()
+  })
+
+  // 2026-09-29: a moderator is staff in their own city only (canActInCity).
+  it('a moderator sees their own city\'s members in full, not other cities\'', async () => {
+    ;(isAdminOrModerator as any).mockReturnValue(true)
+    ;((prisma as any).user.findMany as any).mockResolvedValue([{ id: 'local' }])
+    const r = await restrictedSetFor({ id: 'me', role: 'moderator', cityId: 'ist' } as any, [m('local', 'connections'), m('elsewhere', 'connections')])
+    expect([...r]).toEqual(['elsewhere'])
+    expect((prisma as any).user.findMany.mock.calls[0][0].where.cityId).toBe('ist')
   })
 
   it('club hosts see everyone', async () => {

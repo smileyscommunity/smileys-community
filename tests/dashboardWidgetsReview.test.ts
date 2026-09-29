@@ -155,7 +155,7 @@ describe('dashboard widget source guards', () => {
   })
   it('first-event block says "next" to members who already have an RSVP', () => {
     expect(read('app/api/first-event/route.ts')).toMatch(/returning: !!rsvp/)
-    expect(read('components/FirstEventBlock.tsx')).toMatch(/state\.returning \? '👋 Your next event' : '👋 Your first event'/)
+    expect(read('components/FirstEventBlock.tsx')).toMatch(/state\.returning \? 'Your next event' : 'Your first event'/)
   })
   it('testimonial prompt names the home city, not the viewed one', () => {
     const src = read('components/TestimonialPrompt.tsx')

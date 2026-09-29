@@ -6,6 +6,8 @@ import { todayInCity } from '@/lib/city'
 import { rateLimit } from '@/lib/rateLimit'
 import { getEventById, canSeeEvent } from '@/lib/db'
 import { Attendance } from '@/lib/constants'
+import { restrictedSetFor } from '@/lib/memberPrivacy'
+import { firstNameOf } from '@/lib/data'
 
 // Bodies are untyped JSON: rating "3" or 4.5 reached Prisma's Int column and
 // 500'd, text: 123 threw on .trim, and PATCH rating "abc" slipped past a
@@ -27,17 +29,42 @@ export async function GET(_: NextRequest, { params }: Params) {
     // club's or an unpublished event was readable to any member with its id.
     const event = await getEventById(eventId)
     if (!event || !await canSeeEvent(event, session)) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    const reviews = await prisma.review.findMany({
-      where: { eventId, user: { status: 'approved' } },
-      orderBy: { createdAt: 'desc' },
-      include: {
-        // id: the page finds "your review" by it. Without it the review form
-        // came back after every reload, its submit was refused as a duplicate,
-        // and your own review never showed a Delete button.
-        user: { select: { id: true, name: true, color: true } },
-      },
+    // Every reviewer attended, so this list is a roster and follows the
+    // roster rules (2026-09-29): hidden, suspended and blocked members are
+    // left out; a connections-only member is a first name; and someone who
+    // attended in stealth is "A guest" to everyone but themselves.
+    const blocks = await prisma.memberBlock.findMany({
+      where:  { OR: [{ blockerId: session.id }, { blockedId: session.id }] },
+      select: { blockerId: true, blockedId: true },
     })
-    return NextResponse.json(reviews)
+    const blockedIds = blocks.map(b => b.blockerId === session.id ? b.blockedId : b.blockerId)
+    const [reviews, stealthRows] = await Promise.all([
+      prisma.review.findMany({
+        where: {
+          eventId,
+          userId: { notIn: blockedIds },
+          user: { status: 'approved', hiddenFromMembers: false, OR: [{ suspendedUntil: null }, { suspendedUntil: { lte: new Date() } }] },
+        },
+        orderBy: { createdAt: 'desc' },
+        include: {
+          // id: the page finds "your review" by it. Without it the review form
+          // came back after every reload, its submit was refused as a duplicate,
+          // and your own review never showed a Delete button.
+          user: { select: { id: true, name: true, color: true, profileVisibility: true } },
+        },
+      }),
+      prisma.eventAttendee.findMany({ where: { eventId, stealth: true }, select: { userId: true } }),
+    ])
+    const stealth    = new Set(stealthRows.map(r => r.userId))
+    const restricted = await restrictedSetFor(session, reviews.map(r => r.user))
+    return NextResponse.json(reviews.map(({ user: { profileVisibility: _pv, ...u }, ...r }) => ({
+      ...r,
+      userId: u.id === session.id || !stealth.has(u.id) ? r.userId : '',
+      user: u.id === session.id ? u
+        : stealth.has(u.id)     ? { id: '', name: 'A guest', color: '#9ca3af' }
+        : restricted.has(u.id)  ? { ...u, name: firstNameOf(u.name) }
+        : u,
+    })))
   } catch (e) {
     console.error('[reviews GET]', e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

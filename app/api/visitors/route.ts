@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { restrictedSetFor } from '@/lib/memberPrivacy'
 import { resolvePublicCityIdFromSlug } from '@/lib/cities'
 import { revalidateTag } from 'next/cache'
 import { prisma } from '@/lib/prisma'
@@ -63,9 +64,17 @@ export async function GET(req: NextRequest) {
     select: {
       id: true, name: true, startsOn: true, endsOn: true, fromCity: true, neighborhood: true, intro: true,
       contact: true, email: true, travelerType: true, languages: true, lookingFor: true,
-      user: { select: { id: true, name: true, color: true, profilePhoto: true } },
+      user: { select: { id: true, name: true, color: true, profilePhoto: true, profileVisibility: true } },
     },
   })
+  // A connections-only author, to a member they aren't connected to, is the
+  // card without who posted it — the rule /visiting and the dashboard already
+  // apply to these same rows. This route returned the full name and photo.
+  const restricted = session
+    ? await restrictedSetFor(session, announcements.flatMap(a => a.user ? [a.user] : []))
+    : new Set<string>()
+  const authorOf = (u: typeof announcements[number]['user']) =>
+    u && !restricted.has(u.id) ? { id: u.id, name: u.name, color: u.color, profilePhoto: u.profilePhoto } : null
 
   // An allow-list, not the row: a guest gets a first name, the months and no
   // neighbourhood (lib/visitorPolicy guestView) and no author to follow to a
@@ -75,7 +84,7 @@ export async function GET(req: NextRequest) {
   const cleaned = announcements.map(a => ({
     id: a.id,
     ...(isMember
-      ? { name: visitorName(a.name), startsOn: a.startsOn, endsOn: a.endsOn, neighborhood: a.neighborhood, contact: a.contact, email: a.email, user: a.user }
+      ? { name: visitorName(a.name), startsOn: a.startsOn, endsOn: a.endsOn, neighborhood: a.neighborhood, contact: a.contact, email: a.email, user: authorOf(a.user) }
       : { ...guestView(a), neighborhood: null, contact: null, email: null, user: null }),
     fromCity: a.fromCity, intro: a.intro, travelerType: a.travelerType, languages: a.languages, lookingFor: a.lookingFor,
   }))

@@ -44,14 +44,27 @@ export async function restrictedSetFor(
   )
   if (privateOnes.length === 0) return new Set()
 
-  // Privileged viewers see everyone in full.
-  if (isAdminOrModerator(session) || (await isClubHost(session.id))) return new Set()
+  // Privileged viewers see everyone in full: admins, and club hosts (their
+  // exemption is platform-wide by design — Nate's call to narrow).
+  if (session.role === 'admin' || (await isClubHost(session.id))) return new Set()
+
+  // A moderator is staff in their OWN city (lib/access canActInCity). They
+  // were exempt everywhere, so an Ankara moderator viewing Istanbul saw its
+  // connections-only members in full (2026-09-29).
+  let exempt = new Set<string>()
+  if (isAdminOrModerator(session) && session.cityId) {
+    const rows = await prisma.user.findMany({
+      where:  { id: { in: privateOnes.map(m => m.id) }, cityId: session.cityId },
+      select: { id: true },
+    })
+    exempt = new Set(rows.map(r => r.id))
+  }
 
   const connectionIds = knownConnectionIds
     ? new Set(knownConnectionIds)
     : await connectionIdsFor(session.id)
 
-  return new Set(privateOnes.filter(m => !connectionIds.has(m.id)).map(m => m.id))
+  return new Set(privateOnes.filter(m => !connectionIds.has(m.id) && !exempt.has(m.id)).map(m => m.id))
 }
 
 /**
