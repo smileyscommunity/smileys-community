@@ -96,7 +96,8 @@ import { loadContent } from '@/lib/content'
 export default async function GetInvolvedPage({ searchParams }: { searchParams?: Promise<CitySearch> }) {
   const c          = loadContent()
   const gi         = c.get_involved ?? {}
-  const STATS      = (await resolveStats(c.stats)).slice(0, 3)
+  // Rows an admin left blank are skipped rather than rendered empty.
+  const STATS      = (await resolveStats(c.stats)).filter(s => s.value?.trim() && s.label?.trim()).slice(0, 3)
   // The city the reader came from (a city's hosts page or Meet your hosts
   // section links here with ?city=), so "Meet the Hosts" leads back to that
   // city's roster and the path names the city — the round trip from
@@ -125,7 +126,7 @@ export default async function GetInvolvedPage({ searchParams }: { searchParams?:
       <section className="bg-white border-b border-gray-100">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
           <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase mb-8">
-            ✦ Get involved
+            <span aria-hidden="true">✦</span> Get involved
           </span>
           <h1 className="text-5xl sm:text-6xl font-extrabold text-gray-900 tracking-tight leading-tight mb-6">
             {headline}
@@ -140,8 +141,8 @@ export default async function GetInvolvedPage({ searchParams }: { searchParams?:
       <section className="bg-amber-500">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-10">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-10 md:gap-8 text-center text-white">
-            {STATS.map((s: { value: string; label: string }) => (
-              <div key={s.label}>
+            {STATS.map((s: { value: string; label: string }, i: number) => (
+              <div key={`${i}-${s.label}`}>
                 <div className="text-5xl md:text-4xl font-extrabold mb-1">{s.value}</div>
                 <div className="text-amber-100 text-sm font-medium uppercase tracking-wider">{s.label}</div>
               </div>
@@ -160,14 +161,14 @@ export default async function GetInvolvedPage({ searchParams }: { searchParams?:
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-0">
                 {/* Left */}
                 <div className="p-8 lg:p-10">
-                  <div className="text-4xl mb-4">{w.emoji}</div>
-                  <p className={`text-xs font-bold uppercase tracking-widest mb-2 ${w.accent ? 'text-amber-100' : 'text-amber-600'}`}>
+                  <div aria-hidden="true" className="text-4xl mb-4">{w.emoji}</div>
+                  <p className={`text-xs font-bold uppercase tracking-widest mb-2 ${w.accent ? 'text-amber-950' : 'text-amber-600'}`}>
                     {w.subtitle}
                   </p>
-                  <h2 className={`text-3xl font-extrabold mb-4 ${w.accent ? 'text-white' : 'text-gray-900'}`}>
+                  <h2 className={`text-3xl font-extrabold mb-4 text-gray-900`}>
                     {w.title}
                   </h2>
-                  <p className={`leading-relaxed mb-6 ${w.accent ? 'text-amber-50' : 'text-gray-600'}`}>
+                  <p className={`leading-relaxed mb-6 ${w.accent ? 'text-amber-950' : 'text-gray-600'}`}>
                     {w.body}
                   </p>
                   <Link href={cta[w.key].href}
@@ -187,13 +188,13 @@ export default async function GetInvolvedPage({ searchParams }: { searchParams?:
                 <div className={`p-8 lg:p-10 flex flex-col justify-center ${
                   w.accent ? 'bg-amber-600/30' : 'bg-gray-50 border-t lg:border-t-0 lg:border-l border-gray-100'
                 }`}>
-                  <p className={`text-xs font-bold uppercase tracking-widest mb-4 ${w.accent ? 'text-amber-200' : 'text-gray-400'}`}>
+                  <p className={`text-xs font-bold uppercase tracking-widest mb-4 ${w.accent ? 'text-amber-950' : 'text-gray-500'}`}>
                     What you get
                   </p>
                   <ul className="space-y-3">
                     {w.perks.map(perk => (
-                      <li key={perk} className={`flex items-start gap-3 text-sm ${w.accent ? 'text-amber-50' : 'text-gray-600'}`}>
-                        <span className={`mt-0.5 shrink-0 font-bold ${w.accent ? 'text-white' : 'text-amber-500'}`}>✓</span>
+                      <li key={perk} className={`flex items-start gap-3 text-sm ${w.accent ? 'text-amber-950' : 'text-gray-600'}`}>
+                        <span aria-hidden="true" className={`mt-0.5 shrink-0 font-bold ${w.accent ? 'text-amber-950' : 'text-amber-500'}`}>✓</span>
                         {perk}
                       </li>
                     ))}
@@ -219,10 +220,12 @@ export default async function GetInvolvedPage({ searchParams }: { searchParams?:
       {/* Community quote */}
       <section className="bg-white border-t border-gray-100">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-          <div className="text-5xl mb-6">😊</div>
-          <blockquote className="text-2xl font-bold text-gray-900 leading-snug mb-4">
-            "The people who shape Smileys are the ones who show up."
-          </blockquote>
+          {/* Our own line, not a member's words: it was set as a quotation with
+              no speaker, which read as a testimonial nobody gave. */}
+          <div aria-hidden="true" className="text-5xl mb-6">😊</div>
+          <h2 className="text-2xl font-bold text-gray-900 leading-snug mb-4">
+            The people who shape Smileys are the ones who show up.
+          </h2>
           <p className="text-gray-600 mb-10">
             Every host, every club leader, every member who invites a friend — you're not just attending a community.
             You're building one.

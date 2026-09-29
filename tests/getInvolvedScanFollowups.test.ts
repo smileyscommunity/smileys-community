@@ -77,3 +77,32 @@ describe('7: a cleared admin headline falls back to the default', () => {
     expect(admin).not.toMatch(/subtitle: str\(r\.subtitle, SUBTITLE_MAX\),/)
   })
 })
+
+// Items 8–13 (2026-09-29).
+
+describe('8: readable text on the amber card (buttons untouched)', () => {
+  it('dark text on the accent card; grey labels darker; the card and button colours unchanged', () => {
+    expect(page).toContain("${w.accent ? 'text-amber-950' : 'text-amber-600'}")
+    expect(page).toContain("${w.accent ? 'text-amber-950' : 'text-gray-500'}")
+    expect(page).toContain("w.accent ? 'bg-amber-500 border-amber-500'")
+    expect(page).toContain("'bg-amber-500 text-white hover:bg-amber-600'")
+    expect(page).not.toContain("'text-amber-50'")
+  })
+})
+
+describe('9–10: city links', () => {
+  it('the city clubs page keeps its city; ?city= is case-insensitive', () => {
+    expect(read('app/[city]/clubs/page.tsx')).toContain('<Link href={`/get-involved${cityQs(city.slug)}`} className="btn-primary inline-flex">Become a host</Link>')
+    expect(read('lib/cityPageParam.ts')).toContain('?.trim().toLowerCase()')
+  })
+})
+
+describe('11–13: glyphs, the statement, the stats band', () => {
+  it('decorative glyphs hidden; the line is a statement, not a quote; blank stat rows skipped', () => {
+    expect(page).toContain('<span aria-hidden="true">✦</span> Get involved')
+    expect(page).toContain('<div aria-hidden="true" className="text-4xl mb-4">{w.emoji}</div>')
+    expect(page).not.toContain('<blockquote')
+    expect(page).toContain('.filter(s => s.value?.trim() && s.label?.trim()).slice(0, 3)')
+    expect(page).toContain('key={`${i}-${s.label}`}')
+  })
+})

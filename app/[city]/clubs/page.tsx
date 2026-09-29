@@ -10,6 +10,7 @@ import { resolveImageUrl } from '@/lib/data'
 import ClubCard from '@/components/ClubCard'
 import { clubHref } from '@/lib/clubLink'
 import { getSession } from '@/lib/session'
+import { cityQs } from '@/lib/cityPageParam'
 import { getCityClubsHub, enterLinkFor, hubCanonical, isDefaultCitySlug } from '../data'
 
 // /[city]/clubs — the crawlable grid of a city's clubs. The global /clubs is
@@ -104,7 +105,7 @@ export default async function CityClubsPage({ params }: Params) {
               <p className="text-gray-600 mb-6 max-w-xl mx-auto">
                 Have an activity you want to organize in {city.name}? The first clubs are started by members like you.
               </p>
-              <Link href="/get-involved" className="btn-primary inline-flex">Become a host</Link>
+              <Link href={`/get-involved${cityQs(city.slug)}`} className="btn-primary inline-flex">Become a host</Link>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">

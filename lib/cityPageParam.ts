@@ -48,7 +48,8 @@ export async function resolveCityForPage(
   searchParams: Promise<CitySearch> | undefined,
 ): Promise<ResolvedPageCity> {
   const raw    = (await searchParams)?.city
-  const wanted = (Array.isArray(raw) ? raw[0] : raw)?.trim()
+  // Slugs are lower-case; ?city=Izmir fell back to the default city.
+  const wanted = (Array.isArray(raw) ? raw[0] : raw)?.trim().toLowerCase()
   if (wanted) {
     const c = await getPublicCity(wanted)
     if (c) return { city: await getCityConfig(c.id), cityId: c.id, pinned: true }
