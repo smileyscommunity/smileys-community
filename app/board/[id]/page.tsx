@@ -162,7 +162,7 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
               renew action has to be, or the notice is a dead end. */}
           {availability === 'expired' && session?.id === raw.user.id && (
             <Link href={`/board/renew/${id}`}
-              className="inline-block mt-6 px-6 py-3 bg-amber-700 hover:bg-amber-800 text-white text-sm font-bold rounded-xl transition-colors">
+              className="inline-block mt-6 px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
               Renew for 30 days →
             </Link>
           )}
@@ -170,7 +170,7 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
             className={`inline-block mt-6 px-6 py-3 text-sm font-bold rounded-xl transition-colors ${
               availability === 'expired' && session?.id === raw.user.id
                 ? 'ml-3 bg-gray-100 hover:bg-gray-200 text-gray-700'
-                : 'bg-amber-700 hover:bg-amber-800 text-white'}`}>
+                : 'bg-amber-500 hover:bg-amber-600 text-white'}`}>
             Browse the marketplace →
           </Link>
         </div>
@@ -368,7 +368,7 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
                     dropped the reader on the dashboard, one page away from
                     the thing they'd followed a link to. */}
                 <Link href={`/login?return=/board/${raw.id}`}
-                  className="inline-block px-6 py-2.5 bg-amber-700 hover:bg-amber-800 text-white text-sm font-bold rounded-xl transition-colors">
+                  className="inline-block px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
                   Sign in to Smileys →
                 </Link>
               </div>

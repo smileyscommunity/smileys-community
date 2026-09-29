@@ -226,7 +226,7 @@ export default function DirectoryOwnerEdit({
                 Cancel
               </button>
               <button onClick={save} disabled={busy}
-                className="text-sm font-bold bg-amber-700 hover:bg-amber-800 text-white rounded-xl px-4 py-2 transition-colors disabled:opacity-50">
+                className="text-sm font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-xl px-4 py-2 transition-colors disabled:opacity-50">
                 {busy ? 'Saving…' : 'Save changes'}
               </button>
             </div>

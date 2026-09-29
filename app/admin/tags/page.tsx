@@ -174,7 +174,7 @@ export default function TagsPage() {
             placeholder="Group name (e.g. Venue type)" className={`${inputCls} flex-1 min-w-40`}
             onKeyDown={e => e.key === 'Enter' && addGroup()} />
           <button onClick={addGroup} disabled={savingGroup || !newGroupName.trim()}
-            className="px-4 py-2 text-sm font-semibold bg-amber-700 hover:bg-amber-800 text-white rounded-xl transition-colors disabled:opacity-50">
+            className="px-4 py-2 text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-white rounded-xl transition-colors disabled:opacity-50">
             {savingGroup ? '…' : 'Add group'}
           </button>
         </div>
@@ -221,7 +221,7 @@ export default function TagsPage() {
                       className={`${inputCls} flex-1 min-w-0`}
                       onKeyDown={e => e.key === 'Enter' && saveGroup(group.id)} />
                     <button onClick={() => saveGroup(group.id)}
-                      className="shrink-0 px-3 py-1.5 text-xs font-semibold bg-amber-700 hover:bg-amber-800 text-white rounded-lg transition-colors">
+                      className="shrink-0 px-3 py-1.5 text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors">
                       Save
                     </button>
                     <button onClick={() => setEditingGroup(null)}

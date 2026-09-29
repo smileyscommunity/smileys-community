@@ -108,7 +108,7 @@ export default function AdminHostsPage() {
           </p>
         </div>
         <button onClick={() => setPromoting(s => !s)}
-          className="text-xs px-3 py-2 rounded-xl bg-amber-700 hover:bg-amber-800 text-white font-bold transition-colors">
+          className="text-xs px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold transition-colors">
           {promoting ? 'Close' : '+ Promote member'}
         </button>
       </div>

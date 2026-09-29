@@ -531,7 +531,7 @@ export default async function NeighborhoodPage(
             <h2 className="text-2xl font-extrabold text-white mb-3">Want to meet people in {name}?</h2>
             <p className="text-gray-400 mb-7 text-sm">Smileys is an application-based community. Apply once, join everything in {city.name}.</p>
             <div className="flex items-center justify-center gap-3 flex-wrap">
-              <Link href={`/apply${cityQuery}`} className="px-6 py-3 rounded-xl bg-amber-700 text-white font-bold text-sm hover:bg-amber-800 transition-colors shadow-sm">
+              <Link href={`/apply${cityQuery}`} className="px-6 py-3 rounded-xl bg-amber-500 text-white font-bold text-sm hover:bg-amber-600 transition-colors shadow-sm">
                 Apply to join
               </Link>
               <Link href={`/neighborhoods${cityQuery}`} className="px-6 py-3 rounded-2xl border border-white/10 text-gray-300 font-semibold text-sm hover:bg-white/5 transition-colors">

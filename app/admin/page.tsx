@@ -471,7 +471,7 @@ export default function AdminPage() {
                 </div>
                 <div className="flex gap-2 shrink-0">
                   <Link href={`/admin/checkin?event=${e.id}`}
-                    className="text-xs font-bold px-3 py-2 rounded-lg bg-amber-700 text-white hover:bg-amber-800 transition-colors">
+                    className="text-xs font-bold px-3 py-2 rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors">
                     ✓ Check-in
                   </Link>
                   <Link href={`/admin/events/${e.id}/participants`}

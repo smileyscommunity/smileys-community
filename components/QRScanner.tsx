@@ -158,7 +158,7 @@ export default function QRScanner({ onScan, onClose }: Props) {
           <div className="text-5xl">📷</div>
           <p className="font-semibold">Camera not available</p>
           <p className="text-sm text-white/60">This browser can&apos;t open the camera here. Check people in from the list instead.</p>
-          <button onClick={close} className="mt-2 px-6 py-2.5 bg-amber-700 text-white rounded-xl text-sm font-semibold">Go back</button>
+          <button onClick={close} className="mt-2 px-6 py-2.5 bg-amber-500 text-white rounded-xl text-sm font-semibold">Go back</button>
         </div>
       ) : error ? (
         <div className="flex-1 flex flex-col items-center justify-center text-center px-8 gap-4">

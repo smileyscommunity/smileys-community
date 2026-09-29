@@ -151,7 +151,7 @@ export default function AdminPostsPage() {
         </div>
         <Link
           href="/admin/posts/new"
-          className="flex items-center gap-2 px-4 py-2.5 bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold rounded-xl transition-colors"
+          className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -216,7 +216,7 @@ export default function AdminPostsPage() {
           <div className="text-4xl mb-3">📝</div>
           <p className="font-semibold">No articles yet</p>
           <p className="text-sm mt-1">Create your first article to share with the community.</p>
-          <Link href="/admin/posts/new" className="mt-5 inline-block px-5 py-2.5 bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold rounded-xl transition-colors">
+          <Link href="/admin/posts/new" className="mt-5 inline-block px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors">
             Write first article
           </Link>
         </div>

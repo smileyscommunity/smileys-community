@@ -1369,7 +1369,7 @@ export default async function DashboardPage() {
                   <span>Next: {nextEvent.event.title}</span>
                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                     daysToNext === 0 ? 'bg-red-500 text-white' :
-                    daysToNext === 1 ? 'bg-amber-700 text-white' :
+                    daysToNext === 1 ? 'bg-amber-400 text-white' :
                     'bg-amber-100 text-amber-700'
                   }`}>
                     {daysToNext === 0 ? 'Today!' : daysToNext === 1 ? 'Tomorrow' : `${daysToNext}d`}
@@ -1938,7 +1938,7 @@ export default async function DashboardPage() {
                           </div>
                           <span className={`shrink-0 text-xs font-bold px-2.5 py-1.5 rounded-xl ${
                             daysToNext === 0 ? 'bg-red-500 text-white' :
-                            daysToNext === 1 ? 'bg-amber-700 text-white' :
+                            daysToNext === 1 ? 'bg-amber-500 text-white' :
                             'bg-white text-gray-900'
                           }`}>
                             {daysToNext === 0 ? 'Today!' : daysToNext === 1 ? 'Tomorrow' : `In ${daysToNext} days`}
@@ -2233,7 +2233,7 @@ export default async function DashboardPage() {
                       return (
                         <div key={date}>
                           <div className="flex items-center gap-2 mb-2">
-                            <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${isToday ? 'bg-amber-700 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                            <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${isToday ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-600'}`}>
                               {label}
                             </span>
                             <div className="flex-1 h-px bg-gray-100" />

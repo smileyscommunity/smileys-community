@@ -576,7 +576,7 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
                     one audience they target, a member with none set, to a
                     page that could not set it. */}
                 <Link href={userNeighborhood ? '#your-neighborhood' : session ? '/profile' : `/apply${cityQuery}`}
-                  className="inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-amber-700 hover:bg-amber-800 text-white text-base font-bold rounded-xl transition-colors shadow-lg">
+                  className="inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-amber-500 hover:bg-amber-600 text-white text-base font-bold rounded-xl transition-colors shadow-lg">
                   <span aria-hidden="true">📍</span> Find My Neighborhood
                 </Link>
                 <a href="#explore"
@@ -617,7 +617,7 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
               )}
             </div>
             <Link href={`/neighborhoods/${viewByName.get(userNeighborhood)!.slug}${cityQuery}`}
-              className="px-4 py-2 rounded-xl bg-amber-700 text-white text-sm font-semibold hover:bg-amber-800 transition-colors shrink-0">
+              className="px-4 py-2 rounded-xl bg-amber-500 text-white text-sm font-semibold hover:bg-amber-600 transition-colors shrink-0">
               See your area →
             </Link>
           </div>
@@ -699,7 +699,7 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
               page starts showing your people, your events, and your part of the city.
             </p>
             <Link href="/profile"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-amber-700 hover:bg-amber-800 text-white text-sm font-bold rounded-xl transition-colors">
+              className="inline-flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
               <span aria-hidden="true">📍</span> Choose my neighborhood
             </Link>
           </section>
@@ -746,12 +746,12 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
                 {/* Hangouts are members-only; a guest's path is the application. */}
                 {session ? (
                   <Link href={`/hangouts?new=1${focusNeighborhood ? `&neighborhood=${encodeURIComponent(focusNeighborhood)}` : ''}`}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-700 hover:bg-amber-800 text-white text-sm font-bold rounded-xl transition-colors">
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
                     Create a meetup →
                   </Link>
                 ) : (
                   <Link href={`/apply${cityQuery}`}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-700 hover:bg-amber-800 text-white text-sm font-bold rounded-xl transition-colors">
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
                     Join Smileys to start one →
                   </Link>
                 )}
@@ -925,7 +925,7 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
           </p>
           <div className="mt-7 flex flex-col sm:flex-row gap-3 justify-center">
             <Link href={session ? '/profile' : `/apply${cityQuery}`}
-              className="inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-amber-700 hover:bg-amber-800 text-white text-base font-bold rounded-xl transition-colors">
+              className="inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-amber-500 hover:bg-amber-600 text-white text-base font-bold rounded-xl transition-colors">
               <span aria-hidden="true">📍</span> {session ? 'Set my neighborhood' : 'Join Smileys'}
             </Link>
             <a href="#explore"

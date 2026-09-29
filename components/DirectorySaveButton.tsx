@@ -61,7 +61,7 @@ export default function DirectorySaveButton({
       title={saved ? 'Saved' : 'Save for later'}
       className={`w-7 h-7 rounded-full flex items-center justify-center shadow-sm transition-all duration-150 ${
         saved
-          ? 'bg-amber-700 text-white hover:bg-amber-800'
+          ? 'bg-amber-500 text-white hover:bg-amber-600'
           : 'bg-white/95 text-gray-600 hover:text-amber-600'
       } ${busy ? 'opacity-50' : ''}`}
     >

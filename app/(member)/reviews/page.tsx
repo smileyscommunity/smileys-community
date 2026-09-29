@@ -86,7 +86,7 @@ function ReviewCard({ event, onSubmit }: { event: EventStub; onSubmit: (eventId:
         <button
           type="submit"
           disabled={submitting || !rating}
-          className="px-5 py-2.5 bg-amber-700 hover:bg-amber-800 disabled:opacity-40 text-white text-sm font-semibold rounded-xl transition-colors"
+          className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white text-sm font-semibold rounded-xl transition-colors"
         >
           {submitting ? 'Submitting…' : 'Submit review'}
         </button>
@@ -144,7 +144,7 @@ function SubmittedCard({ review, onEdit, onDelete }: {
             className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
           />
           <div className="flex gap-2">
-            <button type="submit" disabled={saving} className="px-4 py-2 bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50">
+            <button type="submit" disabled={saving} className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50">
               {saving ? 'Saving…' : 'Save'}
             </button>
             <button type="button" onClick={() => { setEditing(false); setRating(review.rating); setText(review.text) }} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-700 rounded-xl transition-colors">
@@ -254,13 +254,13 @@ export default function ReviewsPage() {
           <div className="flex gap-2 mt-5">
             <button
               onClick={() => setTab('pending')}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${tab === 'pending' ? 'bg-amber-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${tab === 'pending' ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
             >
               To Review {pendingCount > 0 && <span className={`ml-1 text-xs ${tab === 'pending' ? 'text-white/80' : 'text-amber-600'}`}>({pendingCount})</span>}
             </button>
             <button
               onClick={() => setTab('submitted')}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${tab === 'submitted' ? 'bg-amber-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${tab === 'submitted' ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
             >
               Submitted {submittedCount > 0 && <span className={`ml-1 text-xs ${tab === 'submitted' ? 'text-white/80' : 'text-gray-400'}`}>({submittedCount})</span>}
             </button>
@@ -290,7 +290,7 @@ export default function ReviewsPage() {
               <div className="text-6xl mb-4">✨</div>
               <h3 className="text-lg font-bold text-gray-900 mb-2">All reviewed!</h3>
               <p className="text-sm text-gray-600 mb-6">You've reviewed all your past events. Keep attending to share more feedback.</p>
-              <Link href="/events" className="px-5 py-2.5 bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold rounded-xl transition-colors inline-block">
+              <Link href="/events" className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors inline-block">
                 Browse events
               </Link>
             </div>
@@ -307,7 +307,7 @@ export default function ReviewsPage() {
               <div className="text-6xl mb-4">⭐</div>
               <h3 className="text-lg font-bold text-gray-900 mb-2">No reviews yet</h3>
               <p className="text-sm text-gray-600 mb-6">After attending events, you can rate and share your experience here.</p>
-              <button onClick={() => setTab('pending')} className="px-5 py-2.5 bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold rounded-xl transition-colors">
+              <button onClick={() => setTab('pending')} className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors">
                 See events to review
               </button>
             </div>

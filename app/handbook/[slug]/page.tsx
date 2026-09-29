@@ -284,7 +284,7 @@ export default async function HandbookArticlePage({ params }: Params) {
       )}
       {!preview && <HandbookArticleTracker slug={post.slug} title={post.title} category={post.category} />}
       {preview && (
-        <div className="bg-amber-700 text-white text-sm font-semibold text-center px-4 py-2">
+        <div className="bg-amber-500 text-white text-sm font-semibold text-center px-4 py-2">
           Preview — this article is a {post.status}, not published. Only staff can see this page.
         </div>
       )}

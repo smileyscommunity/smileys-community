@@ -157,7 +157,7 @@ export default function PushPermission() {
             <div className="flex gap-2 mt-3">
               <button
                 onClick={handleAllow}
-                className="flex-1 bg-amber-700 hover:bg-amber-800 text-white text-xs font-semibold py-1.5 rounded-lg transition-colors"
+                className="flex-1 bg-amber-400 hover:bg-amber-500 text-white text-xs font-semibold py-1.5 rounded-lg transition-colors"
               >
                 Allow
               </button>

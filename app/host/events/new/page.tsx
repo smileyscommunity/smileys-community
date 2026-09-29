@@ -505,7 +505,7 @@ function HostNewEventForm() {
             {(['none', 'weekly', 'biweekly', 'monthly'] as const).map(r => (
               <button key={r} type="button" onClick={() => setRepeat(r)}
                 className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                  repeat === r ? 'bg-amber-700 text-white' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
+                  repeat === r ? 'bg-amber-500 text-white' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
                 }`}>
                 {r === 'none' ? 'No repeat' : r === 'weekly' ? 'Weekly' : r === 'biweekly' ? 'Every 2 weeks' : 'Monthly'}
               </button>
@@ -564,7 +564,7 @@ function HostNewEventForm() {
               className={`${inputCls} flex-1`}
             />
             <button type="button" onClick={geocodeAddress} disabled={geocoding || (!form.location && !form.address)}
-              className="shrink-0 px-3 py-2.5 rounded-xl bg-amber-700 hover:bg-amber-800 text-white text-xs font-semibold disabled:opacity-40 transition-colors whitespace-nowrap">
+              className="shrink-0 px-3 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold disabled:opacity-40 transition-colors whitespace-nowrap">
               {geocoding ? '…' : '📍 Look up'}
             </button>
           </div>
@@ -722,7 +722,7 @@ function HostNewEventForm() {
         <button
           type="submit"
           disabled={saving}
-          className="w-full py-3.5 bg-amber-700 hover:bg-amber-800 text-white font-bold rounded-xl transition-colors disabled:opacity-50 text-sm"
+          className="w-full py-3.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl transition-colors disabled:opacity-50 text-sm"
         >
           {saving ? 'Creating…' : repeat !== 'none' ? `Create ${clampOccurrences(occurrences)} Events` : 'Create Event'}
         </button>

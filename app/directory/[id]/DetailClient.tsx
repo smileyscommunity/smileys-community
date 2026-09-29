@@ -76,7 +76,7 @@ export function HeaderActions({
         // clicking save and getting a generic 401 toast.
         <Link
           href={`/login?return=/directory/${business.id}`}
-          className="text-xs font-bold bg-amber-700 hover:bg-amber-800 text-white rounded-xl px-3 py-1.5 transition-colors"
+          className="text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-xl px-3 py-1.5 transition-colors"
         >
           Sign in to save or review
         </Link>
@@ -132,7 +132,7 @@ export function ReviewCta({
     <>
       <button
         onClick={() => setReviewsOpen(true)}
-        className="text-xs font-bold bg-amber-700 hover:bg-amber-800 text-white rounded-xl px-3 py-1.5 transition-colors shrink-0"
+        className="text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-xl px-3 py-1.5 transition-colors shrink-0"
       >
         ★ {initialMyReviewId ? 'Edit my review' : 'Write a review'}
       </button>
@@ -218,7 +218,7 @@ export function FooterActions({
             <button
               onClick={submitClaim}
               disabled={busy}
-              className="flex-1 text-[11px] font-bold bg-amber-700 hover:bg-amber-800 text-white rounded-lg py-1.5 transition-colors disabled:opacity-50"
+              className="flex-1 text-[11px] font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-lg py-1.5 transition-colors disabled:opacity-50"
             >
               {busy ? 'Submitting…' : 'Submit claim'}
             </button>

@@ -78,7 +78,7 @@ export default function DirectoryReportButton({
                 <p className="text-sm font-semibold text-gray-900">Thanks for flagging</p>
                 <p className="text-xs text-gray-600 mt-1">An admin will review your report shortly.</p>
                 <button onClick={close}
-                  className="mt-4 px-4 py-2 bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold rounded-xl transition-colors">
+                  className="mt-4 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors">
                   Done
                 </button>
               </div>
@@ -120,7 +120,7 @@ export default function DirectoryReportButton({
                   <button
                     onClick={submit}
                     disabled={busy}
-                    className="text-sm font-bold bg-amber-700 hover:bg-amber-800 text-white rounded-xl px-4 py-2 transition-colors disabled:opacity-50"
+                    className="text-sm font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-xl px-4 py-2 transition-colors disabled:opacity-50"
                   >
                     {busy ? 'Sending…' : 'Send report'}
                   </button>

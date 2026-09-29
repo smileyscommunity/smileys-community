@@ -189,7 +189,7 @@ export default function EventDiscovery() {
         : (
           <div className="mb-8 bg-gray-50 border border-gray-200 rounded-2xl p-5 flex items-center justify-between gap-4 flex-wrap">
             <p className="text-sm text-gray-700">Choose your neighborhood to see what&apos;s happening nearby.</p>
-            <Link href="/profile" className="shrink-0 px-4 py-2 bg-amber-700 hover:bg-amber-800 text-white text-sm font-bold rounded-xl transition-colors">
+            <Link href="/profile" className="shrink-0 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
               Choose neighborhood
             </Link>
           </div>

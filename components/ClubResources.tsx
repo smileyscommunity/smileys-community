@@ -110,7 +110,7 @@ export default function ClubResources({ slug, initialResources, canEdit, dark }:
               placeholder="https://…"
               className={`flex-1 text-sm px-3 py-2 ${input}`} />
             <button onClick={addResource} disabled={!title.trim() || !url.trim() || adding}
-              className="px-4 py-2 bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-40 shrink-0">
+              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-40 shrink-0">
               {adding ? '…' : 'Add'}
             </button>
           </div>

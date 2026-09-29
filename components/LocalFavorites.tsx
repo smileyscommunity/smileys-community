@@ -48,14 +48,14 @@ export default function LocalFavorites({ picks, directoryHref = '/directory' }: 
       <div className="flex gap-2 flex-wrap mb-6">
         <button onClick={() => setActive(null)}
           className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
-            active === null ? 'bg-amber-700 text-white border-amber-500' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+            active === null ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
           }`}>
           All
         </button>
         {categories.map(cat => (
           <button key={cat} onClick={() => setActive(active === cat ? null : cat)}
             className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
-              active === cat ? 'bg-amber-700 text-white border-amber-500' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+              active === cat ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
             }`}>
             {CATEGORY_LABEL[cat] ?? cat}
           </button>

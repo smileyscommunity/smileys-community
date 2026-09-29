@@ -308,7 +308,7 @@ export default function AdminSettingsPage() {
                   setSaving(false)
                 }
               }}
-              className="px-4 py-2 bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-colors"
+              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-colors"
             >
               {saving ? 'Saving…' : 'Save changes'}
             </button>

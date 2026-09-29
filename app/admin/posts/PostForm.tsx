@@ -213,7 +213,7 @@ export default function PostForm({ initial = {} }: PostFormProps) {
           <button
             onClick={() => handleSave(true)}
             disabled={saving}
-            className="px-4 py-2 rounded-xl text-sm font-semibold bg-amber-700 hover:bg-amber-800 text-white transition-colors disabled:opacity-50"
+            className="px-4 py-2 rounded-xl text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-white transition-colors disabled:opacity-50"
           >
             {saving ? '…' : status === 'published' ? 'Update' : 'Publish'}
           </button>
@@ -283,7 +283,7 @@ export default function PostForm({ initial = {} }: PostFormProps) {
                     setCategory(k === 'handbook' ? HANDBOOK_CATEGORIES[0] : CATEGORIES[0])
                   }}
                   className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-colors ${
-                    kind === k ? 'bg-amber-700 text-white' : 'bg-zinc-700 text-zinc-400 hover:text-zinc-200'
+                    kind === k ? 'bg-amber-500 text-white' : 'bg-zinc-700 text-zinc-400 hover:text-zinc-200'
                   }`}
                 >
                   {label}

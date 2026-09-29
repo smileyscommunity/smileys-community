@@ -18,7 +18,7 @@ export default function ApplyLayout({ children }: { children: React.ReactNode })
             We&apos;ve paused new member applications while we focus on our current community.{' '}
             Follow us on <a href="https://www.instagram.com/smileys.community" target="_blank" rel="noopener noreferrer" className="font-semibold text-amber-700 hover:underline">Instagram</a> to hear when we reopen.
           </p>
-          <Link href="/" className="inline-block px-5 py-2.5 rounded-xl bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold transition-colors">
+          <Link href="/" className="inline-block px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors">
             Back to home
           </Link>
         </div>

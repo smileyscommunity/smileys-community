@@ -664,7 +664,7 @@ export default async function NeighborhoodSections({
           <div aria-hidden="true" className="text-5xl mb-4">🔍</div>
           <h2 className="text-xl font-bold text-gray-900 mb-2">No upcoming events in {name}</h2>
           <p className="text-gray-600 text-sm mb-6">New events are added weekly — check back soon.</p>
-          <Link href={`/neighborhoods${cityQuery}`} className="px-5 py-2.5 rounded-xl bg-amber-700 text-white text-sm font-semibold hover:bg-amber-800 transition-colors">
+          <Link href={`/neighborhoods${cityQuery}`} className="px-5 py-2.5 rounded-xl bg-amber-500 text-white text-sm font-semibold hover:bg-amber-600 transition-colors">
             Explore other neighborhoods
           </Link>
         </div>
@@ -869,7 +869,7 @@ export default async function NeighborhoodSections({
                       )}
                       {/* Expat badges — top-left so the logo (bottom-right) doesn't collide. */}
                       <div className="absolute top-2 left-2 flex flex-col gap-1">
-                        {b.isExpatOwned    && <span className="bg-amber-700 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-tight">Expat-owned</span>}
+                        {b.isExpatOwned    && <span className="bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-tight">Expat-owned</span>}
                         {b.isExpatFriendly && <span className="bg-teal-500  text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-tight">Expat-friendly</span>}
                       </div>
                       {logo && (
@@ -915,7 +915,7 @@ export default async function NeighborhoodSections({
             </p>
           </div>
           <Link href={`/board?compose=1&neighborhood=${encodeURIComponent(name)}&city=${city.slug}`}
-            className="shrink-0 px-4 py-2.5 bg-amber-700 hover:bg-amber-800 text-white text-sm font-bold rounded-xl transition-colors">
+            className="shrink-0 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
             Start the conversation
           </Link>
         </div>

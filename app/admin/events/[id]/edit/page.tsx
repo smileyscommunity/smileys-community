@@ -532,7 +532,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
                 <p className="text-xs text-zinc-500 font-normal mt-0.5">Only update {form.date}</p>
               </button>
               <button onClick={handleSaveAllFuture} disabled={saving}
-                className="w-full py-2.5 px-4 rounded-xl bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold transition-colors disabled:opacity-50 text-left">
+                className="w-full py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors disabled:opacity-50 text-left">
                 All future events in this series
                 <p className="text-xs text-amber-200 font-normal mt-0.5">Updates all upcoming events with the same title, price, location, etc.</p>
               </button>
@@ -699,7 +699,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
               <input type="date" value={form.date} onChange={e => { set('date', e.target.value); setSuccess('') }} className={`${inputCls} admin-date-input flex-1`} />
               {seriesId && (
                 <button type="button" onClick={handleSaveDateOnly} disabled={saving || !form.date}
-                  className="px-3 py-2 bg-amber-700 hover:bg-amber-800 text-white text-xs font-semibold rounded-xl transition-colors disabled:opacity-50 shrink-0">
+                  className="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-xl transition-colors disabled:opacity-50 shrink-0">
                   Save date
                 </button>
               )}
@@ -739,7 +739,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
             <div className="flex gap-2">
               <input type="text" value={form.address} onChange={e => set('address', e.target.value)} placeholder="e.g. Kemankeş Cad. No:10, Karaköy" className={`${inputCls} flex-1`} />
               <button type="button" onClick={geocodeAddress} disabled={geocoding || (!form.location && !form.address)}
-                className="shrink-0 px-3 py-2.5 rounded-xl bg-amber-700 hover:bg-amber-800 text-white text-xs font-semibold disabled:opacity-40 transition-colors">
+                className="shrink-0 px-3 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold disabled:opacity-40 transition-colors">
                 {geocoding ? '…' : '📍 Look up'}
               </button>
             </div>
@@ -967,7 +967,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
         </button>
         <div className="flex gap-3">
           <Link href="/admin/events" className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-xl px-4 py-2 text-sm font-semibold">Cancel</Link>
-          <button onClick={handleSave} disabled={saving} className="bg-amber-700 hover:bg-amber-800 text-white font-semibold rounded-xl px-6 py-2 text-sm disabled:opacity-50">
+          <button onClick={handleSave} disabled={saving} className="bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl px-6 py-2 text-sm disabled:opacity-50">
             {saving ? 'Saving…' : 'Save changes'}
           </button>
         </div>
@@ -990,7 +990,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
             <input type="number" min={MIN_SERIES_COPIES} max={MAX_SERIES_COPIES} value={occurrences} onChange={e => setOccurrences(Math.min(MAX_SERIES_COPIES, parseInt(e.target.value) || 0))} className={inputCls} />
           </div>
           <div className="flex items-end">
-            <button onClick={handleSpawn} disabled={spawning || !form.date} className="w-full bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold rounded-xl px-4 py-2.5 transition-colors disabled:opacity-50">
+            <button onClick={handleSpawn} disabled={spawning || !form.date} className="w-full bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl px-4 py-2.5 transition-colors disabled:opacity-50">
               {spawning ? 'Creating…' : `Create ${clampOccurrences(occurrences, MIN_SERIES_COPIES, MAX_SERIES_COPIES)} more`}
             </button>
           </div>

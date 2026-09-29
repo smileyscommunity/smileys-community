@@ -190,7 +190,7 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
               {formatShortDate(event.date)} · {formatTime(event.time)}{cityName ? ` · ${cityName}` : ''}
             </div>
             {event.featured && (
-              <div className="flex items-center gap-1 bg-amber-700 text-white text-[11px] font-bold px-2.5 py-1 rounded-full shadow-md">
+              <div className="flex items-center gap-1 bg-amber-500 text-white text-[11px] font-bold px-2.5 py-1 rounded-full shadow-md">
                 ★ Featured
               </div>
             )}
@@ -328,7 +328,7 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
                 status === 'error'   ? 'bg-red-100 text-red-600'     :
                 soldOut
                   ? 'bg-violet-100 text-violet-700'
-                  : 'bg-amber-700 hover:bg-amber-800 text-white'
+                  : 'bg-amber-500 hover:bg-amber-600 text-white'
               }`}
             >
               <AnimatePresence mode="wait" initial={false}>

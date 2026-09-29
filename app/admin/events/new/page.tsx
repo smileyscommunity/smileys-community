@@ -801,7 +801,7 @@ export default function NewEventPage() {
 
       <div className="flex gap-3 justify-end pb-4">
         <Link href="/admin/events" className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-xl px-4 py-2 text-sm font-semibold">Cancel</Link>
-        <button onClick={handleSave} disabled={saving} className="bg-amber-700 hover:bg-amber-800 text-white font-semibold rounded-xl px-8 py-2 text-sm disabled:opacity-50">
+        <button onClick={handleSave} disabled={saving} className="bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl px-8 py-2 text-sm disabled:opacity-50">
           {saving
             ? (repeat !== 'none' ? `Creating ${clampOccurrences(occurrences)} events…` : 'Creating…')
             : (repeat !== 'none' ? `Create ${clampOccurrences(occurrences)} events` : 'Create event')}

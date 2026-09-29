@@ -471,7 +471,7 @@ function FixtureRow({ fixture, onSaved }: { fixture: Fixture; onSaved: () => voi
               Cancel
             </button>
             <button onClick={save} disabled={saving}
-              className="flex-1 py-2 rounded-lg bg-amber-700 hover:bg-amber-800 text-white text-xs font-bold disabled:opacity-60">
+              className="flex-1 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold disabled:opacity-60">
               {saving ? 'Saving…' : 'Save'}
             </button>
           </div>

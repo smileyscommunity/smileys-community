@@ -780,7 +780,7 @@ export default function NewsletterPage() {
               <button onClick={() => setConfirm(false)} className="text-xs text-zinc-400 hover:text-zinc-200 px-3 py-1.5 rounded-lg transition-colors">
                 Cancel
               </button>
-              <button onClick={send} disabled={sending} className="text-xs font-semibold bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white px-4 py-1.5 rounded-lg transition-colors">
+              <button onClick={send} disabled={sending} className="text-xs font-semibold bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white px-4 py-1.5 rounded-lg transition-colors">
                 {sending ? (scheduleMode ? 'Scheduling…' : 'Sending…') : (scheduleMode ? 'Confirm schedule' : 'Confirm send')}
               </button>
             </div>
@@ -790,7 +790,7 @@ export default function NewsletterPage() {
             <button
               onClick={() => setConfirm(true)}
               disabled={!canSend}
-              className="px-5 py-2.5 bg-amber-700 hover:bg-amber-800 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-colors"
+              className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-colors"
             >
               {currentCount > 0
                 ? scheduleMode ? 'Schedule newsletter' : `Send to ${currentCount.toLocaleString()} members${targetCity ? ` in ${targetCity.name}` : ''}`

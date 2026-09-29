@@ -98,7 +98,7 @@ export default function AppealPage() {
                 <Turnstile onVerify={setTurnstileToken} onExpire={() => setTurnstileToken('')} resetSignal={turnstileReset} />
                 <button
                   type="submit" disabled={loading || !email.trim() || !note.trim()}
-                  className="w-full py-3 rounded-xl bg-amber-700 hover:bg-amber-800 text-white font-bold text-sm transition-colors disabled:opacity-50"
+                  className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm transition-colors disabled:opacity-50"
                 >
                   {loading ? 'Submitting…' : 'Submit appeal'}
                 </button>

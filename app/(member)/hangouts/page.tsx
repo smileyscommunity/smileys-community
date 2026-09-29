@@ -510,7 +510,7 @@ export default function HangoutsPage() {
               </button>
               <button onClick={() => { setShowForm(s => !s); setShowPulseForm(false) }}
                 aria-expanded={showForm}
-                className="flex-1 sm:flex-initial flex flex-col items-center justify-center px-4 py-2 bg-amber-700 hover:bg-amber-800 text-white rounded-xl transition-colors">
+                className="flex-1 sm:flex-initial flex flex-col items-center justify-center px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl transition-colors">
                 {showForm ? <span className="text-sm font-bold">× Close</span> : <>
                   <span className="text-sm font-bold">＋ Start a Hangout</span>
                   <span className="text-[10px] font-normal text-amber-100 mt-0.5">I’m at X — come join</span>
@@ -602,7 +602,7 @@ export default function HangoutsPage() {
                 {HANGOUT_ACTIVITIES.map(a => (
                   <button key={a.value} type="button" onClick={() => setActivity(activity === a.value ? '' : a.value)}
                     className={`text-xs font-semibold px-2.5 py-1.5 rounded-full border transition-colors ${
-                      activity === a.value ? 'bg-amber-700 text-white border-amber-500' : 'bg-white text-gray-600 border-gray-200 hover:border-amber-300'
+                      activity === a.value ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-gray-600 border-gray-200 hover:border-amber-300'
                     }`}>
                     {a.emoji} {a.label}
                   </button>
@@ -739,7 +739,7 @@ export default function HangoutsPage() {
               )}
             </div>
             <button type="submit" disabled={submitting || uploading}
-              className="w-full bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white font-bold py-3 rounded-xl transition-colors">
+              className="w-full bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-bold py-3 rounded-xl transition-colors">
               {submitting ? 'Posting…' : 'Post hangout'}
             </button>
           </form>
@@ -787,7 +787,7 @@ export default function HangoutsPage() {
               </label>
             </div>
             <button type="submit" disabled={pulsing}
-              className="w-full bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white font-bold py-3 rounded-xl transition-colors">
+              className="w-full bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-bold py-3 rounded-xl transition-colors">
               {pulsing ? 'Posting…' : 'Drop pulse'}
             </button>
           </form>
@@ -851,7 +851,7 @@ export default function HangoutsPage() {
                   aria-selected={activityFilter === opt.v}
                   className={`text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap transition-colors ${
                     activityFilter === opt.v
-                      ? 'bg-amber-700 text-white'
+                      ? 'bg-amber-500 text-white'
                       : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300'
                   }`}>
                   {opt.label}
@@ -871,7 +871,7 @@ export default function HangoutsPage() {
                   aria-selected={modeFilter === opt.v}
                   className={`text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap transition-colors ${
                     modeFilter === opt.v
-                      ? 'bg-amber-700 text-white'
+                      ? 'bg-amber-500 text-white'
                       : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300'
                   }`}>
                   {opt.label}
@@ -903,7 +903,7 @@ export default function HangoutsPage() {
                   aria-pressed={neighborhoodFilter === hood}
                   className={`text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap transition-colors ${
                     neighborhoodFilter === hood
-                      ? 'bg-amber-700 text-white'
+                      ? 'bg-amber-500 text-white'
                       : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300'
                   }`}>
                   📍 {hood}
@@ -919,7 +919,7 @@ export default function HangoutsPage() {
                 aria-pressed={languageOnly}
                 className={`text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap transition-colors ${
                   languageOnly
-                    ? 'bg-amber-700 text-white'
+                    ? 'bg-amber-500 text-white'
                     : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300'
                 }`}
                 title="Hosts who speak a language you do">
@@ -992,7 +992,7 @@ export default function HangoutsPage() {
                 </p>
                 <button
                   onClick={() => { setShowPulseForm(true); setShowForm(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
-                  className="mt-4 inline-flex items-center gap-1.5 px-5 py-2.5 bg-amber-700 hover:bg-amber-800 text-white text-sm font-bold rounded-xl transition-colors">
+                  className="mt-4 inline-flex items-center gap-1.5 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
                   ✦ I&apos;m around
                 </button>
                 {regulars.length > 0 && (
@@ -1150,7 +1150,7 @@ export default function HangoutsPage() {
                             {getInitials(r.name)}
                           </div>
                       }
-                      <span className="absolute -bottom-0.5 -right-0.5 bg-amber-700 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-sm">
+                      <span className="absolute -bottom-0.5 -right-0.5 bg-amber-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-sm">
                         {i + 1}
                       </span>
                     </div>
@@ -1619,7 +1619,7 @@ function HangoutCard({ h, currentUser, onCancel, onMutated, neighborhoods }: {
           </div>
           <div className="flex items-center gap-2 pt-1">
             <button type="submit" disabled={saving || editUploading}
-              className="px-4 py-2 rounded-lg bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white text-sm font-bold">
+              className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-bold">
               {saving ? 'Saving…' : 'Save changes'}
             </button>
             <button type="button" onClick={() => setEditing(false)}
@@ -1686,7 +1686,7 @@ function HangoutCard({ h, currentUser, onCancel, onMutated, neighborhoods }: {
                     ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                     : h.joinedByMe
                       ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-                      : 'bg-amber-700 text-white hover:bg-amber-800'
+                      : 'bg-amber-500 text-white hover:bg-amber-600'
                 }`}>
                 {isFull ? 'Full' : h.joinedByMe ? 'You’re in ✓' : "I’m in"}
               </button>
@@ -1732,7 +1732,7 @@ function HangoutCard({ h, currentUser, onCancel, onMutated, neighborhoods }: {
             <input value={draft} onChange={e => setDraft(e.target.value)} maxLength={1000}
               placeholder="Running 10min late…" className="flex-1 input text-sm" />
             <button type="submit" disabled={sending || !draft.trim()}
-              className="text-xs font-bold bg-amber-700 hover:bg-amber-800 disabled:opacity-40 text-white px-3 py-2 rounded-xl">
+              className="text-xs font-bold bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white px-3 py-2 rounded-xl">
               Send
             </button>
           </form>
@@ -1815,7 +1815,7 @@ function PulseCard({ pulse, onClear, onWave }: { pulse: Pulse; onClear?: () => v
             <span className="text-xs font-bold text-green-700 bg-green-50 border border-green-200 px-3 py-1.5 rounded-lg">✋ Waved</span>
           ) : (
             <button onClick={() => onWave?.(pulse)}
-              className="text-xs font-bold text-white bg-amber-700 hover:bg-amber-800 px-3 py-1.5 rounded-lg">
+              className="text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 px-3 py-1.5 rounded-lg">
               ✋ I&apos;m free too
             </button>
           )}

@@ -309,7 +309,7 @@ export default function AdminListingDetailPage() {
         <button
           onClick={handleSave}
           disabled={saving}
-          className="px-5 py-2.5 bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-colors"
+          className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-colors"
         >
           {saving ? 'Saving…' : 'Save changes'}
         </button>

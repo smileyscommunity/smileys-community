@@ -187,7 +187,7 @@ function TagPicker({ options, selected, onChange, max, label }: {
           <button key={opt} type="button" onClick={() => toggle(opt)} aria-pressed={selected.includes(opt)}
             className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${
               selected.includes(opt)
-                ? 'bg-amber-700 text-white'
+                ? 'bg-amber-500 text-white'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}>
             {opt}
@@ -212,7 +212,7 @@ function TagPicker({ options, selected, onChange, max, label }: {
       {selected.length > 0 && (
         <div className="flex flex-wrap gap-1.5 pt-1">
           {selected.filter(s => !options.includes(s)).map(s => (
-            <span key={s} className="flex items-center gap-1 text-xs bg-amber-700 text-white px-2.5 py-1 rounded-full max-w-full break-words">
+            <span key={s} className="flex items-center gap-1 text-xs bg-amber-500 text-white px-2.5 py-1 rounded-full max-w-full break-words">
               {s}
               <button type="button" onClick={() => onChange(selected.filter(x => x !== s))}
                 aria-label={`Remove ${s}`} className="ml-0.5 hover:opacity-70">×</button>
@@ -495,7 +495,7 @@ export default function ProfilePage() {
             <p className="text-sm font-semibold text-gray-900">We couldn&apos;t load your profile.</p>
             <p className="text-xs text-gray-500">Nothing has been changed. Check your connection and try again.</p>
             <button type="button" onClick={load}
-              className="px-5 py-2 bg-amber-700 hover:bg-amber-800 text-white text-sm font-bold rounded-xl transition-colors">
+              className="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
               Retry
             </button>
           </div>
@@ -642,7 +642,7 @@ export default function ProfilePage() {
                       title={s.desc}
                       className={`text-sm px-4 py-2 rounded-full font-medium transition-colors ${
                         active
-                          ? 'bg-amber-700 text-white'
+                          ? 'bg-amber-500 text-white'
                           : !active && form.socialStyles.length >= 3
                             ? 'bg-gray-100 text-gray-300 cursor-not-allowed'
                             : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -706,7 +706,7 @@ export default function ProfilePage() {
                       <button key={opt.id} type="button" aria-pressed={active}
                         onClick={() => set('professionalStatus', active ? '' : opt.id)}
                         className={`text-sm px-4 py-2 rounded-full font-medium transition-colors ${
-                          active ? 'bg-amber-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          active ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                         }`}>
                         {opt.label}
                       </button>
@@ -756,7 +756,7 @@ export default function ProfilePage() {
                     }}
                     className={`text-sm px-4 py-2 rounded-full font-medium transition-colors ${
                       form.lookingFor.includes(opt.id)
-                        ? 'bg-amber-700 text-white'
+                        ? 'bg-amber-500 text-white'
                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}>
                     {opt.label}
@@ -824,7 +824,7 @@ export default function ProfilePage() {
                 have to scroll back up to commit their changes. The sticky
                 bar below repeats it wherever the member is on the page. */}
             <button type="button" onClick={handleSave} disabled={saving || !dirty || !form.firstName.trim()}
-              className="w-full py-3 bg-amber-700 hover:bg-amber-800 text-white font-bold rounded-xl disabled:opacity-40 transition-colors">
+              className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl disabled:opacity-40 transition-colors">
               {saving ? 'Saving…' : dirty ? 'Save profile' : 'All changes saved'}
             </button>
 
@@ -871,7 +871,7 @@ export default function ProfilePage() {
               Discard
             </button>
             <button type="button" onClick={handleSave} disabled={saving || !form.firstName.trim()}
-              className="px-5 py-2 bg-amber-700 hover:bg-amber-800 text-white text-sm font-bold rounded-xl disabled:opacity-40 transition-colors">
+              className="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl disabled:opacity-40 transition-colors">
               {saving ? 'Saving…' : 'Save'}
             </button>
           </div>

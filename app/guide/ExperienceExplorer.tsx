@@ -76,7 +76,7 @@ export default function ExperienceExplorer({ experiences, moods }: { experiences
             })}
             className={`flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-sm font-bold border whitespace-nowrap transition-all ${
               mood === m.value
-                ? 'bg-amber-700 border-amber-500 text-white shadow-sm'
+                ? 'bg-amber-500 border-amber-500 text-white shadow-sm'
                 : 'bg-white border-gray-200 text-gray-700 hover:border-amber-300 hover:-translate-y-0.5'
             }`}>
             <span aria-hidden="true">{m.emoji}</span> {m.label}

@@ -36,7 +36,7 @@ export default function AttendanceClaim({ eventId }: { eventId: string }) {
       </div>
       {state !== 'sent' && (
         <button onClick={claim} disabled={state === 'sending'}
-          className="shrink-0 px-3 py-2 rounded-xl bg-amber-700 text-white text-xs font-bold hover:bg-amber-800 disabled:opacity-50">
+          className="shrink-0 px-3 py-2 rounded-xl bg-amber-500 text-white text-xs font-bold hover:bg-amber-600 disabled:opacity-50">
           {state === 'sending' ? 'Sending…' : 'I was there'}
         </button>
       )}

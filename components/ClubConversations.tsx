@@ -89,7 +89,7 @@ export default function ClubConversations({ slug, isMember }: { slug: string; is
                 {BOARD_POST_TYPES.map(t => (
                   <button key={t.value} onClick={() => setType(t.value)}
                     className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
-                      type === t.value ? 'bg-amber-700 text-white border-amber-500' : 'bg-white text-gray-600 border-gray-200'
+                      type === t.value ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-gray-600 border-gray-200'
                     }`}>
                     <span aria-hidden="true">{t.emoji}</span> {t.label}
                   </button>
@@ -104,7 +104,7 @@ export default function ClubConversations({ slug, isMember }: { slug: string; is
               <div className="flex justify-end gap-2">
                 <button onClick={() => setOpen(false)} className="px-4 py-2 text-sm font-semibold text-gray-600">Cancel</button>
                 <button onClick={submit} disabled={posting}
-                  className="px-4 py-2 bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-colors">
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-colors">
                   {posting ? '…' : 'Post'}
                 </button>
               </div>

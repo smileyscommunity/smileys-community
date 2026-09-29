@@ -227,7 +227,7 @@ export default function AdminGuidePage() {
           <p className="text-xs text-zinc-500 mt-0.5">Edit categories and resources shown on the member guide page</p>
         </div>
         <button onClick={save} disabled={saving || !loaded || !dirty || !canEdit}
-          className="px-4 py-2 bg-amber-700 hover:bg-amber-800 text-white text-sm font-bold rounded-xl disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+          className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-white text-sm font-bold rounded-xl disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
           {saving ? 'Saving…' : dirty ? 'Save' : 'Saved'}
         </button>
       </div>

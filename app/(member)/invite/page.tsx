@@ -111,7 +111,7 @@ export default function InvitePage() {
             <button
               onClick={copyLink}
               className={`shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
-                copied ? 'bg-green-100 text-green-700' : 'bg-amber-700 text-white hover:bg-amber-800'
+                copied ? 'bg-green-100 text-green-700' : 'bg-amber-500 text-white hover:bg-amber-600'
               }`}
             >
               {copied ? '✓ Copied!' : 'Copy'}

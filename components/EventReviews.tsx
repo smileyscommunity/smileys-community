@@ -132,7 +132,7 @@ export default function EventReviews({ eventId, isPast }: { eventId: string; isP
           <button
             type="submit"
             disabled={submitting}
-            className="px-4 py-2 bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50"
+            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50"
           >
             {submitting ? 'Submitting…' : 'Submit review'}
           </button>

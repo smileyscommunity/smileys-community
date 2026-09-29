@@ -21,7 +21,7 @@ export default async function ApplyConfirmedPage({ searchParams }: { searchParam
             ? 'Your application is with our team. We review every one by hand and will get back to you within 24–48 hours.'
             : 'If you applied, there is nothing more to do — our team will get back to you within 24–48 hours. Questions? Write to info@smileyscommunity.com.'}
         </p>
-        <Link href="/" className="text-amber-700 font-semibold text-sm hover:underline">← Back to Smileys</Link>
+        <Link href="/" className="text-amber-600 font-semibold text-sm hover:underline">← Back to Smileys</Link>
       </div>
     </div>
   )

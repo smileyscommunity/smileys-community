@@ -284,7 +284,7 @@ export default async function GuidePage({ searchParams }: { searchParams?: Promi
                 a young guide this pointed at nothing. Fall through to the one
                 section that does exist. */}
             <a href={experiences.length > 0 ? '#experiences' : neighborhoods.length > 0 ? '#neighborhoods' : '/events'}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-amber-700 hover:bg-amber-800 text-white text-sm font-bold rounded-xl transition-colors">
+              className="inline-flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
               Explore {city.name}
             </a>
             {experiences.length > 0 && (() => {

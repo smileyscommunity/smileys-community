@@ -447,7 +447,7 @@ function EditPanel({ campaign, onSaved, onCancel }: {
             Cancel
           </button>
           <button onClick={save} disabled={saving || deleting || showDeleteConfirm}
-            className="text-xs px-3 py-2 rounded-lg bg-amber-700 hover:bg-amber-800 text-white font-bold disabled:opacity-60">
+            className="text-xs px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold disabled:opacity-60">
             {saving ? 'Saving…' : 'Save'}
           </button>
         </div>

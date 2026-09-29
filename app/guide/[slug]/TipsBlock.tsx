@@ -121,7 +121,7 @@ export default function TipsBlock({ slug, applyHref, initialTips }: { slug: stri
             placeholder="Share a tip — timing, seating, the thing you wish you'd known…"
             className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition" />
           <button onClick={submit} disabled={posting || draft.trim().length < 10}
-            className="shrink-0 px-4 py-2.5 bg-amber-700 hover:bg-amber-800 disabled:opacity-40 text-white text-sm font-bold rounded-xl transition-colors">
+            className="shrink-0 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white text-sm font-bold rounded-xl transition-colors">
             {posting ? '…' : 'Add tip'}
           </button>
         </div>

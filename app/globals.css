@@ -61,20 +61,17 @@
 }
 
 @layer components {
-  /* White text needs amber-700 (#b45309, 5.0:1) to pass WCAG AA; on the
-     brand amber-500 it was 2.15:1 on every primary button (2026-09-29).
-     amber-500 stays the accent colour for fills without text. */
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 px-6 py-3 bg-amber-700 hover:bg-amber-800 text-white font-semibold rounded-xl transition-all duration-200 shadow-sm hover:shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none;
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl transition-all duration-200 shadow-sm hover:shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none;
   }
 
   .btn-primary--lg {
-    @apply inline-flex items-center justify-center gap-2 px-8 py-4 bg-amber-700 hover:bg-amber-800 text-white font-bold rounded-xl transition-all duration-200 shadow-sm hover:shadow-md active:scale-95 text-base;
+    @apply inline-flex items-center justify-center gap-2 px-8 py-4 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl transition-all duration-200 shadow-sm hover:shadow-md active:scale-95 text-base;
   }
 
   /* Use on amber/dark backgrounds */
   .btn-white {
-    @apply inline-flex items-center justify-center gap-2 px-8 py-4 bg-white hover:bg-amber-50 text-amber-700 font-bold rounded-xl transition-all duration-200 shadow-lg active:scale-95 text-base;
+    @apply inline-flex items-center justify-center gap-2 px-8 py-4 bg-white hover:bg-amber-50 text-amber-600 font-bold rounded-xl transition-all duration-200 shadow-lg active:scale-95 text-base;
   }
 
   .btn-secondary {

@@ -141,7 +141,7 @@ export default async function AdvertisePage() {
           </p>
           <div className="mt-10 flex items-center gap-4 flex-wrap">
             <a href="#formats"
-              className="px-8 py-4 rounded-2xl bg-amber-700 hover:bg-amber-800 text-white font-bold text-sm transition-colors shadow-sm">
+              className="px-8 py-4 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm transition-colors shadow-sm">
               See advertising options
             </a>
             <a href="#contact"
@@ -296,7 +296,7 @@ export default async function AdvertisePage() {
                 <a href="#contact"
                   className={`mt-3 block text-center py-2.5 rounded-xl text-sm font-semibold transition-colors ${
                     f.highlight
-                      ? 'bg-white text-amber-700 hover:bg-amber-50'
+                      ? 'bg-white text-amber-600 hover:bg-amber-50'
                       : 'border border-gray-200 text-gray-700 hover:bg-gray-50'
                   }`}>
                   Enquire

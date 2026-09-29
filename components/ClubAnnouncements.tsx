@@ -168,7 +168,7 @@ export default function ClubAnnouncements({ slug, canAnnounce, currentUserId, is
           <div className={`flex items-center justify-between mt-3 pt-3 border-t ${divider}`}>
             <span className={`text-xs ${content.length > 1800 ? 'text-red-500' : counter}`}>{content.length} / 2000</span>
             <button onClick={submit} disabled={!content.trim() || posting || content.length > 2000}
-              className="px-4 py-2 bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-40">
+              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-40">
               {posting ? 'Posting…' : 'Post announcement'}
             </button>
           </div>
@@ -244,7 +244,7 @@ export default function ClubAnnouncements({ slug, canAnnounce, currentUserId, is
                         {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
                         <div className="flex items-center gap-2 mt-2">
                           <button onClick={() => saveEdit(item.id)} disabled={!editDraft.trim() || savingEdit}
-                            className="px-3 py-1.5 bg-amber-700 hover:bg-amber-800 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-40">
+                            className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-40">
                             {savingEdit ? 'Saving…' : 'Save'}
                           </button>
                           <button onClick={cancelEdit}

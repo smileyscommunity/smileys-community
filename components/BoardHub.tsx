@@ -18,8 +18,8 @@ import SocialShare from '@/components/SocialShare'
 import { APP_URL } from '@/lib/env'
 
 const CATEGORIES: Array<{ id: string; label: string; emoji: string; activeCls: string; memberOnly?: boolean }> = [
-  { id: 'ALL',      label: 'All',             emoji: '🗂️', activeCls: 'bg-amber-700 text-white border-amber-500'         },
-  { id: 'MINE',     label: 'Mine',            emoji: '👤', activeCls: 'bg-amber-700 text-white border-amber-500', memberOnly: true },
+  { id: 'ALL',      label: 'All',             emoji: '🗂️', activeCls: 'bg-amber-500 text-white border-amber-500'         },
+  { id: 'MINE',     label: 'Mine',            emoji: '👤', activeCls: 'bg-amber-500 text-white border-amber-500', memberOnly: true },
   { id: 'SAVED',    label: 'Saved',           emoji: '❤️', activeCls: 'bg-red-500 text-white border-red-500',     memberOnly: true },
   { id: 'ROOMS',    label: 'Rooms',           emoji: '🏠', activeCls: 'bg-blue-500 text-white border-blue-500'           },
   { id: 'JOBS',     label: 'Jobs',            emoji: '💼', activeCls: 'bg-green-500 text-white border-green-500'         },
@@ -426,7 +426,7 @@ function ListingModal({ listing, currentUserId, isLoggedIn, isStaff, isSaved, on
         <div className="p-4 border-t border-gray-100 space-y-2 shrink-0">
           {isGuest && (
             <Link href={`/login?return=/board/${listing.id}`}
-              className="block text-center w-full py-3 bg-amber-700 hover:bg-amber-800 text-white text-sm font-bold rounded-2xl transition-colors">
+              className="block text-center w-full py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-2xl transition-colors">
               Sign in to see contact & full details →
             </Link>
           )}
@@ -440,7 +440,7 @@ function ListingModal({ listing, currentUserId, isLoggedIn, isStaff, isSaved, on
           {isLoggedIn && !isOwner && live && !contactSent && (
             !contactOpen ? (
               <button onClick={() => setContactOpen(true)}
-                className="w-full py-3 bg-amber-700 hover:bg-amber-800 text-white text-sm font-bold rounded-2xl transition-colors">
+                className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-2xl transition-colors">
                 💬 Contact {firstNameOf(listing.user.name)}
               </button>
             ) : (
@@ -466,7 +466,7 @@ function ListingModal({ listing, currentUserId, isLoggedIn, isStaff, isSaved, on
                         toast.success('Message sent — replies land in your Messages')
                       } finally { setContactSending(false) }
                     }}
-                    className="flex-1 py-2.5 bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-colors">
+                    className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-colors">
                     {contactSending ? 'Sending…' : 'Send message'}
                   </button>
                 </div>
@@ -560,7 +560,7 @@ function ListingModal({ listing, currentUserId, isLoggedIn, isStaff, isSaved, on
                     } finally { setEditSaving(false) }
                   }}
                   disabled={editSaving || !editForm.title.trim() || !editForm.description.trim()}
-                  className="flex-1 py-2 bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors">
+                  className="flex-1 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors">
                   {editSaving ? 'Saving…' : 'Save changes'}
                 </button>
               </div>
@@ -589,7 +589,7 @@ function ListingModal({ listing, currentUserId, isLoggedIn, isStaff, isSaved, on
                 <button onClick={() => { posthog.capture('listing_resolved', { category: listing.category }); onMarkFilled(listing.id); onClose() }} className="flex-1 text-sm font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-xl transition-colors">{RESOLVE_LABEL[listing.category] ?? 'Mark as done'}</button>
               )}
               {((live && daysLeft <= 7) || listing.status === 'expired') && (
-                <button onClick={() => { onRenew(listing.id); onClose() }} className="flex-1 text-sm font-semibold bg-amber-700 hover:bg-amber-800 text-white py-2.5 rounded-xl transition-colors">Renew listing</button>
+                <button onClick={() => { onRenew(listing.id); onClose() }} className="flex-1 text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-white py-2.5 rounded-xl transition-colors">Renew listing</button>
               )}
               {deleteConfirm ? (
                 <>
@@ -1233,7 +1233,7 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
             </div>
             {view === 'market' && <Link
               href={isLoggedIn ? '/board/new' : '/login?return=/board/new'}
-              className="hidden sm:flex items-center gap-2 px-5 py-2.5 bg-amber-700 hover:bg-amber-800 text-white text-sm font-bold rounded-xl transition-colors shrink-0 shadow-sm"
+              className="hidden sm:flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors shrink-0 shadow-sm"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1346,7 +1346,7 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
                 onClick={() => setShowAlertMenu(v => !v)}
                 className={`relative flex items-center justify-center w-9 h-9 rounded-full border transition-all ${
                   alertCategories.length > 0
-                    ? 'bg-amber-700 border-amber-500 text-white'
+                    ? 'bg-amber-500 border-amber-500 text-white'
                     : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
                 }`}
                 title="Listing alerts"
@@ -1406,7 +1406,7 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
         <div className="sm:hidden mb-6">
           <Link
             href={isLoggedIn ? '/board/new' : '/login?return=/board/new'}
-            className="flex items-center justify-center gap-2 w-full py-3 bg-amber-700 hover:bg-amber-800 text-white text-sm font-bold rounded-xl transition-colors shadow-sm"
+            className="flex items-center justify-center gap-2 w-full py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors shadow-sm"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1516,7 +1516,7 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
             <p className="text-sm text-gray-400 mt-2 mb-8">Something went wrong. Please try again.</p>
             <button
               onClick={loadListings}
-              className="inline-flex items-center gap-2 bg-amber-700 hover:bg-amber-800 text-white text-sm font-bold px-6 py-3 rounded-xl transition-colors shadow-sm"
+              className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold px-6 py-3 rounded-xl transition-colors shadow-sm"
             >
               Try again
             </button>
@@ -1574,7 +1574,7 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
               {category !== 'SAVED' && (
                 <Link
                   href={isLoggedIn ? '/board/new' : '/login?return=/board/new'}
-                  className="inline-flex items-center gap-2 bg-amber-700 hover:bg-amber-800 text-white text-sm font-bold px-6 py-3 rounded-xl transition-colors shadow-sm"
+                  className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold px-6 py-3 rounded-xl transition-colors shadow-sm"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />

@@ -71,11 +71,11 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
             <div className="flex flex-col items-center sm:items-end gap-2 shrink-0">
               <div className="flex items-center gap-3">
                 <Link href="/apply"
-                  className="px-6 py-3 rounded-2xl bg-white text-amber-700 font-bold text-sm hover:bg-amber-50 transition-colors shadow-sm">
+                  className="px-6 py-3 rounded-2xl bg-white text-amber-600 font-bold text-sm hover:bg-amber-50 transition-colors shadow-sm">
                   Apply to join
                 </Link>
                 <Link href="/about"
-                  className="px-6 py-3 rounded-2xl border border-amber-400/50 text-white font-semibold text-sm hover:bg-amber-700 transition-colors">
+                  className="px-6 py-3 rounded-2xl border border-amber-400/50 text-white font-semibold text-sm hover:bg-amber-600 transition-colors">
                   Learn more
                 </Link>
               </div>

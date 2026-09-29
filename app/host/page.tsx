@@ -178,7 +178,7 @@ export default function HostDashboard() {
       {canEvents && <>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-sm font-semibold text-zinc-300">Upcoming Events</h2>
-        <Link href="/host/events/new" className="text-xs bg-amber-700 hover:bg-amber-800 text-white px-3 py-1.5 rounded-lg font-medium transition-colors">
+        <Link href="/host/events/new" className="text-xs bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg font-medium transition-colors">
           + New Event
         </Link>
       </div>
@@ -192,7 +192,7 @@ export default function HostDashboard() {
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-8 text-center">
           <div aria-hidden="true" className="text-3xl mb-2">🎉</div>
           <div className="text-zinc-400 text-sm">No upcoming events. Create your first one!</div>
-          <Link href="/host/events/new" className="inline-block mt-4 text-xs bg-amber-700 hover:bg-amber-800 text-white px-4 py-2 rounded-lg font-medium transition-colors">
+          <Link href="/host/events/new" className="inline-block mt-4 text-xs bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg font-medium transition-colors">
             Create Event
           </Link>
         </div>

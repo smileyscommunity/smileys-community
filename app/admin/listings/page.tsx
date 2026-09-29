@@ -300,7 +300,7 @@ export default function AdminListingsPage() {
             </div>
             <div className="flex gap-3 justify-end pt-2">
               <button onClick={() => setEditing(null)} className="px-4 py-2 text-sm text-zinc-400 hover:text-white transition-colors">Cancel</button>
-              <button onClick={handleSaveEdit} className="px-5 py-2 bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold rounded-xl transition-colors">Save changes</button>
+              <button onClick={handleSaveEdit} className="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors">Save changes</button>
             </div>
           </div>
         </div>
@@ -404,7 +404,7 @@ export default function AdminListingsPage() {
           <button
             onClick={saveSettings}
             disabled={settingsSaving}
-            className="px-4 py-2 bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-colors"
+            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-colors"
           >
             {settingsSaving ? 'Saving…' : 'Save settings'}
           </button>

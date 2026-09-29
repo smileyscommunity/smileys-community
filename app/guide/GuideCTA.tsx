@@ -40,7 +40,7 @@ export default function GuideCTA({ cityName, applyHref }: { cityName: string; ap
         Smileys is a curated community of locals and expats hosting events across {cityName} every week. Apply to join — it&apos;s free.
       </p>
       <Link href={applyHref}
-        className="inline-block px-6 py-3 bg-white text-amber-700 font-bold rounded-xl hover:bg-amber-50 transition-colors text-sm">
+        className="inline-block px-6 py-3 bg-white text-amber-600 font-bold rounded-xl hover:bg-amber-50 transition-colors text-sm">
         Apply to join →
       </Link>
       <p className="text-xs text-amber-100 mt-4">

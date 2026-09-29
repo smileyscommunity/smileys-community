@@ -472,7 +472,7 @@ export default function CupPredictionsPage() {
               </li>
             </ol>
             <button onClick={() => router.push('/apply')}
-              className="w-full py-3.5 mt-5 bg-amber-700 hover:bg-amber-800 active:bg-amber-700 text-white text-base font-bold rounded-xl transition-colors shadow-sm">
+              className="w-full py-3.5 mt-5 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-base font-bold rounded-xl transition-colors shadow-sm">
               Apply to play →
             </button>
             <p className="text-[11px] text-gray-400 text-center mt-2">Free · no payment · ~5 min to apply</p>
@@ -1014,7 +1014,7 @@ function BracketCard({
         <div className="text-center py-4">
           <p className="text-sm text-gray-600 mb-3">No bracket yet. Pick your champion + 4 semifinalists before first kickoff.</p>
           <button onClick={onStartEdit}
-            className="px-5 py-2.5 bg-amber-700 hover:bg-amber-800 text-white text-sm font-bold rounded-xl transition-colors">
+            className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
             Lock in your bracket
           </button>
         </div>
@@ -1044,7 +1044,7 @@ function BracketCard({
                     onClick={() => onSetChampion(code)}
                     className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold border-2 transition-colors ${
                       draftChampion === code
-                        ? 'bg-amber-700 text-white border-amber-500'
+                        ? 'bg-amber-500 text-white border-amber-500'
                         : 'bg-white text-gray-700 border-gray-200 hover:border-amber-300'
                     }`}>
                     👑 {teamLabel(code)}
@@ -1059,7 +1059,7 @@ function BracketCard({
               Cancel
             </button>
             <button onClick={onSave} disabled={savingBracket || draftSF.length !== 4 || !draftChampion}
-              className="flex-1 py-2.5 bg-amber-700 hover:bg-amber-800 text-white text-sm font-bold rounded-xl transition-colors disabled:opacity-40">
+              className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors disabled:opacity-40">
               {savingBracket ? 'Saving…' : 'Save bracket'}
             </button>
           </div>
@@ -1091,7 +1091,7 @@ function TeamPickerGrid({ selected, onToggle, max }: { selected: string[]; onTog
                   disabled={disabled}
                   className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
                     isSelected
-                      ? 'bg-amber-700 text-white border-amber-500'
+                      ? 'bg-amber-500 text-white border-amber-500'
                       : disabled
                         ? 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed'
                         : 'bg-white text-gray-700 border-gray-200 hover:border-amber-300'
@@ -1205,7 +1205,7 @@ function FixturePickButton({ label, team, isPicked, isWinner, disabled, onClick 
   label: string; team: string | null; isPicked: boolean; isWinner: boolean; disabled: boolean; onClick: () => void
 }) {
   const cls = isWinner ? 'bg-green-500 text-white border-green-500'
-    : isPicked ? 'bg-amber-700 text-white border-amber-500'
+    : isPicked ? 'bg-amber-500 text-white border-amber-500'
     : disabled  ? 'bg-gray-50 text-gray-400 border-gray-100 cursor-not-allowed'
     : 'bg-white text-gray-700 border-gray-200 hover:border-amber-300'
   // min-w-0 + truncate so long names ("Bosnia-Herzegovina",
@@ -1280,7 +1280,7 @@ function ShareButton({ variant, finished = false }: { variant: 'visitor' | 'memb
       </a>
       <button onClick={copyLink}
         aria-label="Copy link"
-        className={`${iconBtn} bg-amber-700 hover:bg-amber-800 text-white`}>
+        className={`${iconBtn} bg-amber-500 hover:bg-amber-600 text-white`}>
         <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
         </svg>
@@ -2169,7 +2169,7 @@ function PushOptInStrip() {
           Not now
         </button>
         <button onClick={enable} disabled={busy}
-          className="px-3 py-2 bg-amber-700 hover:bg-amber-800 active:bg-amber-700 text-white text-xs font-bold rounded-lg disabled:opacity-50 transition-colors">
+          className="px-3 py-2 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-xs font-bold rounded-lg disabled:opacity-50 transition-colors">
           {busy ? 'Enabling…' : 'Enable'}
         </button>
       </div>

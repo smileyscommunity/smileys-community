@@ -46,7 +46,7 @@ function VerifyEmailContent() {
           <p className="text-sm text-gray-600">
             {changed ? 'Sign in with this address from now on. Other devices will ask you to sign in again.' : 'Your account is now fully active.'}
           </p>
-          <Link href="/dashboard" className="inline-block px-6 py-2.5 bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold rounded-xl transition-colors">
+          <Link href="/dashboard" className="inline-block px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors">
             Go to dashboard
           </Link>
         </>

@@ -245,7 +245,7 @@ export default function ModeratorPage() {
                 <div className="px-5 py-8 text-center">
                   <div className="text-zinc-500 text-sm mb-3">No upcoming events.</div>
                   <Link href="/admin/events/new"
-                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-700 hover:bg-amber-800 text-white text-xs font-semibold rounded-xl transition-colors">
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-xl transition-colors">
                     + Create event
                   </Link>
                 </div>

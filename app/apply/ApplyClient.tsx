@@ -495,7 +495,7 @@ function ApplyForm({ initialCity }: { initialCity: InitialCity | null }) {
               : `Smileys ${targetCityName} hasn't opened yet — its first events start once the founding members are in.`}
           </p>
           <p className="text-gray-600 text-sm mb-6">See you soon! 😊</p>
-          <Link href={`/${targetCitySlug}`} className="text-amber-700 font-semibold text-sm hover:underline">← Back to Smileys {targetCityName}</Link>
+          <Link href={`/${targetCitySlug}`} className="text-amber-600 font-semibold text-sm hover:underline">← Back to Smileys {targetCityName}</Link>
         </div>
       </div>
     )
@@ -1034,7 +1034,7 @@ function ApplyForm({ initialCity }: { initialCity: InitialCity | null }) {
                   <input type="checkbox" className="sr-only peer" checked={agreements[key]}
                     onChange={e => setAgreements(a => ({ ...a, [key]: e.target.checked }))} />
                   <div aria-hidden="true" className={`mt-0.5 w-5 h-5 rounded-md border-2 shrink-0 flex items-center justify-center transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-amber-500 peer-focus-visible:ring-offset-2 ${
-                    agreements[key] ? 'bg-amber-700 border-amber-700' : 'border-gray-300 group-hover:border-amber-400'
+                    agreements[key] ? 'bg-amber-500 border-amber-500' : 'border-gray-300 group-hover:border-amber-400'
                   }`}>
                     {agreements[key] && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
@@ -1064,12 +1064,12 @@ function ApplyForm({ initialCity }: { initialCity: InitialCity | null }) {
           )}
           {step < STEPS.length - 1 ? (
             <button onClick={next}
-              className="flex-1 py-3.5 bg-amber-700 hover:bg-amber-800 text-white font-bold rounded-xl transition-colors text-sm">
+              className="flex-1 py-3.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl transition-colors text-sm">
               Continue →
             </button>
           ) : (
             <button onClick={handleSubmit} disabled={saving}
-              className="flex-1 py-3.5 bg-amber-700 hover:bg-amber-800 text-white font-bold rounded-xl disabled:opacity-50 transition-colors text-sm">
+              className="flex-1 py-3.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl disabled:opacity-50 transition-colors text-sm">
               {saving ? 'Submitting…' : 'Submit application →'}
             </button>
           )}

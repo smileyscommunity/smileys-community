@@ -41,7 +41,7 @@ export default function EventInviteButton({ eventId, eventTitle, userId }: Props
       </div>
       <button
         onClick={handleInvite}
-        className="shrink-0 flex items-center gap-1.5 px-3 py-2 bg-amber-700 hover:bg-amber-800 text-white text-xs font-bold rounded-xl transition-colors"
+        className="shrink-0 flex items-center gap-1.5 px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl transition-colors"
       >
         {copied ? (
           <>

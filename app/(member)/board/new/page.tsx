@@ -515,7 +515,7 @@ function NewListingPageInner() {
           <button
             type="submit"
             disabled={submitting || uploading}
-            className="w-full bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition-colors"
+            className="w-full bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition-colors"
           >
             {submitting ? 'Posting…' : 'Post listing'}
           </button>

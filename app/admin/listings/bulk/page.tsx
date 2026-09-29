@@ -220,7 +220,7 @@ function BulkAddListingsPageInner() {
 
         <div className="mt-6 flex items-center gap-3">
           <button onClick={handleSubmit} disabled={submitting || validItems.length === 0}
-            className="px-5 py-2.5 bg-amber-700 hover:bg-amber-800 text-white font-bold rounded-lg text-sm disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+            className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg text-sm disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
             {submitting ? 'Creating…' : `Create ${validItems.length} listing${validItems.length !== 1 ? 's' : ''}`}
           </button>
           {invalidItems.length > 0 && (

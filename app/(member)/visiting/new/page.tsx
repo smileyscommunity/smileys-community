@@ -222,7 +222,7 @@ function NewVisitingPageInner() {
           )}
           <div className="flex flex-col sm:flex-row gap-3 mt-8">
             <Link href={visitingHref}
-              className="flex-1 inline-flex items-center justify-center px-6 py-3.5 bg-amber-700 hover:bg-amber-800 text-white font-bold rounded-xl transition-colors">
+              className="flex-1 inline-flex items-center justify-center px-6 py-3.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl transition-colors">
               See my visitor card
             </Link>
             <Link href={destination === 'istanbul' ? '/neighborhoods' : `/${destination}`}
@@ -333,7 +333,7 @@ function NewVisitingPageInner() {
                 return (
                   <button key={t.value} type="button" onClick={() => toggleLookingFor(t.value)}
                     className={`text-sm px-3 py-1.5 rounded-full border font-medium transition-colors ${
-                      active ? 'bg-amber-700 border-amber-500 text-white' : 'bg-white border-gray-200 text-gray-600 hover:border-amber-300'
+                      active ? 'bg-amber-500 border-amber-500 text-white' : 'bg-white border-gray-200 text-gray-600 hover:border-amber-300'
                     }`}>
                     {t.emoji} {t.label}
                   </button>
@@ -394,7 +394,7 @@ function NewVisitingPageInner() {
           )}
 
           <button type="submit" disabled={submitting}
-            className="w-full inline-flex items-center justify-center gap-2 bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition-colors">
+            className="w-full inline-flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition-colors">
             {submitting ? 'Posting…' : (
               <>
                 Let {cityName} Know I&apos;m Coming

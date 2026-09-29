@@ -661,7 +661,7 @@ export default function ThreadPage({ params }: { params: Promise<{ userId: strin
                         <div
                           className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words ${
                             isMe
-                              ? 'bg-amber-700 text-white rounded-br-sm'
+                              ? 'bg-amber-500 text-white rounded-br-sm'
                               : 'bg-white text-gray-900 shadow-sm border border-gray-100 rounded-bl-sm'
                           }`}
                         >
@@ -871,7 +871,7 @@ export default function ThreadPage({ params }: { params: Promise<{ userId: strin
                 type="submit"
                 aria-label="Send message"
                 disabled={(!text.trim() && !pendingImage) || sending || !!writeBlock}
-                className="p-2.5 bg-amber-700 hover:bg-amber-800 disabled:opacity-40 text-white rounded-xl transition-colors shrink-0"
+                className="p-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white rounded-xl transition-colors shrink-0"
               >
                 <svg className="w-5 h-5 rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />

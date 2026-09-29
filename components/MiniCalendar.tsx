@@ -48,7 +48,7 @@ export default function MiniCalendar({ eventDates, tz = DEFAULT_TZ }: Props) {
           return (
             <div key={i} className="relative flex flex-col items-center py-0.5">
               <span className={`text-xs w-7 h-7 flex items-center justify-center rounded-full font-medium transition-colors ${
-                isToday ? 'bg-amber-700 text-white font-bold' : 'text-gray-700 hover:bg-gray-100'
+                isToday ? 'bg-amber-500 text-white font-bold' : 'text-gray-700 hover:bg-gray-100'
               }`}>
                 {day}
               </span>

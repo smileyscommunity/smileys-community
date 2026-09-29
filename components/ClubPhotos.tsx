@@ -109,7 +109,7 @@ export default function ClubPhotos({ slug, canUpload, isMember, currentUserId, i
     : 'border border-gray-200 text-gray-800 placeholder-gray-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400'
   const uploadBtn   = uploading
     ? (dark ? 'bg-zinc-800 text-zinc-400 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed')
-    : 'bg-amber-700 hover:bg-amber-800 text-white'
+    : 'bg-amber-500 hover:bg-amber-600 text-white'
 
   if (!isMember) return (
     <div className="text-center py-16">

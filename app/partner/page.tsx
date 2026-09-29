@@ -52,7 +52,7 @@ export default function PartnerDashboard() {
           ) : (
             <div className="w-full h-full flex items-center justify-center text-zinc-600 text-sm">No cover image</div>
           )}
-          <div className="absolute top-3 right-3 bg-amber-700 text-white text-xs font-bold px-2.5 py-1 rounded-full">
+          <div className="absolute top-3 right-3 bg-amber-500 text-white text-xs font-bold px-2.5 py-1 rounded-full">
             {partner.discount}
           </div>
         </div>

@@ -279,7 +279,7 @@ export default function StoriesPage() {
         {([['testimonials', '💬 Testimonials'], ['photos', '📸 Event photos']] as const).map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)}
             className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
-              tab === key ? 'bg-amber-700 text-white' : 'bg-zinc-900 border border-zinc-700 text-zinc-400 hover:border-zinc-500'
+              tab === key ? 'bg-amber-500 text-white' : 'bg-zinc-900 border border-zinc-700 text-zinc-400 hover:border-zinc-500'
             }`}>
             {label}
           </button>
@@ -296,7 +296,7 @@ export default function StoriesPage() {
                 {showForm ? (editId ? 'Edit testimonial' : 'Add testimonial') : 'Add testimonial'}
               </h2>
               <button onClick={() => showForm ? resetTForm() : setShowForm(true)}
-                className={`text-xs font-bold px-3 py-1.5 rounded-xl transition-colors ${showForm ? 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600' : 'bg-amber-700 text-white hover:bg-amber-800'}`}>
+                className={`text-xs font-bold px-3 py-1.5 rounded-xl transition-colors ${showForm ? 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600' : 'bg-amber-500 text-white hover:bg-amber-600'}`}>
                 {showForm ? 'Cancel' : '+ Add'}
               </button>
             </div>
@@ -358,7 +358,7 @@ export default function StoriesPage() {
                 </div>
 
                 <button onClick={saveTestimonial} disabled={tSaving}
-                  className="w-full py-2.5 bg-amber-700 hover:bg-amber-800 text-white font-bold text-sm rounded-xl transition-colors disabled:opacity-40">
+                  className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm rounded-xl transition-colors disabled:opacity-40">
                   {tSaving ? 'Saving…' : editId ? 'Update testimonial' : 'Add testimonial'}
                 </button>
               </div>
@@ -489,7 +489,7 @@ export default function StoriesPage() {
             </div>
 
             <button onClick={savePhoto} disabled={pSaving || !pForm.url || uploading}
-              className="w-full py-2.5 bg-amber-700 hover:bg-amber-800 text-white font-bold text-sm rounded-xl transition-colors disabled:opacity-40">
+              className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm rounded-xl transition-colors disabled:opacity-40">
               {pSaving ? 'Saving…' : 'Add photo'}
             </button>
           </div>}

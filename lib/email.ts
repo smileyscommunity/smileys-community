@@ -476,7 +476,7 @@ export async function sendApplicationReceivedEmail(
           <p style="color:#6b7280;font-size:14px;margin:0">Your application has been received</p>
         </div>
         ${confirmUrl ? `
-        <a href="${confirmUrl}" style="display:block;text-align:center;background:#b45309;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:12px">
+        <a href="${confirmUrl}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:12px">
           Confirm it's you
         </a>
         <p style="color:#6b7280;font-size:13px;text-align:center;margin:0 0 24px">

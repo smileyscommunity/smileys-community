@@ -613,7 +613,7 @@ export default function SettingsPage() {
             )}
             {pwError && <p className="text-xs text-red-500">{pwError}</p>}
             <button type="submit" disabled={pwStatus === 'saving' || (pwNeedsTotp && pwTotp.length !== 6)}
-              className="w-full py-2.5 rounded-xl bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold transition-colors disabled:opacity-50">
+              className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors disabled:opacity-50">
               {pwStatus === 'saving' ? 'Saving…' : pwStatus === 'ok' ? '✓ Password updated' : 'Update password'}
             </button>
             <p className="text-xs text-gray-400">
@@ -832,7 +832,7 @@ export default function SettingsPage() {
                   className="w-full sm:w-32 px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-amber-400" />
               )}
               <button onClick={handleEmailChange} disabled={emailChanging || !newEmail.trim() || !emailPassword || (emailNeedsTotp && emailTotp.length !== 6)}
-                className="px-4 py-2.5 bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-colors">
+                className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-colors">
                 {emailChanging ? 'Saving…' : 'Update email'}
               </button>
             </div>

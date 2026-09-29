@@ -273,7 +273,7 @@ export default function DirectoryReviews({
                 <button
                   type="submit"
                   disabled={busy || rating < 1}
-                  className="text-xs font-bold bg-amber-700 hover:bg-amber-800 text-white rounded-lg px-3 py-1.5 transition-colors disabled:opacity-50"
+                  className="text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-lg px-3 py-1.5 transition-colors disabled:opacity-50"
                 >
                   {busy ? 'Saving…' : myReview ? 'Update review' : 'Post review'}
                 </button>

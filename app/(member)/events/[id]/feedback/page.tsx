@@ -246,7 +246,7 @@ export default function FeedbackPage({ params }: { params: Promise<{ id: string 
       <button
         onClick={submit}
         disabled={!canSubmit || submitting}
-        className="w-full mt-8 py-3 bg-amber-700 hover:bg-amber-800 text-white text-sm font-bold rounded-xl disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        className="w-full mt-8 py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
       >
         {submitting ? 'Sending…' : 'Submit feedback'}
       </button>

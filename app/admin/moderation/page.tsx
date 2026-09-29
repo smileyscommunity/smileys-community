@@ -580,7 +580,7 @@ function ModerationPageInner() {
               <button key={f.key} onClick={() => setStatusFilter(f.key)}
                 className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors border ${
                   statusFilter === f.key
-                    ? 'bg-amber-700 text-white border-amber-500'
+                    ? 'bg-amber-500 text-white border-amber-500'
                     // Unselected pills reuse STATUS_COLORS so each filter
                     // visually previews the status it represents — the
                     // map was already defined for the row badges and was
@@ -709,7 +709,7 @@ function ModerationPageInner() {
                     )}
                     {r.status === 'pending' && (
                       <button onClick={() => { setSelected(r); setReviewNote(''); setBanReason('') }}
-                        className="text-xs bg-amber-700 hover:bg-amber-800 text-white px-3 py-2 rounded-lg font-medium transition-colors">
+                        className="text-xs bg-amber-500 hover:bg-amber-600 text-white px-3 py-2 rounded-lg font-medium transition-colors">
                         Review
                       </button>
                     )}
@@ -1100,7 +1100,7 @@ function ModerationPageInner() {
                 Dismiss
               </button>
               <button onClick={() => handleAction('warn')} disabled={saving}
-                className="py-2.5 text-sm font-semibold bg-amber-700 hover:bg-amber-800 text-white rounded-xl transition-colors disabled:opacity-50">
+                className="py-2.5 text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-white rounded-xl transition-colors disabled:opacity-50">
                 {saving ? '…' : 'Warn'}
               </button>
               {isAdmin && (

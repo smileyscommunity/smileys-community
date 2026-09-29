@@ -45,7 +45,7 @@ export default function StickyVisitCta({ hasPosted, href }: { hasPosted: boolean
     <div className={`fixed bottom-0 left-0 right-0 z-40 md:hidden pb-[env(safe-area-inset-bottom)] ${clearsBottomNav ? 'mb-16' : ''}`}>
       <div className="bg-white/95 backdrop-blur-md border-t border-gray-200 px-4 py-3">
         <Link href={href}
-          className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-amber-700 hover:bg-amber-800 text-white text-base font-bold rounded-xl transition-colors shadow-sm">
+          className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-amber-500 hover:bg-amber-600 text-white text-base font-bold rounded-xl transition-colors shadow-sm">
           Tell Us You&apos;re Coming
           <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />

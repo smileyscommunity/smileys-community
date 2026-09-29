@@ -80,7 +80,7 @@ export default function ClubAboutEditor({ slug, initialDescription, canEdit }: P
                 Cancel
               </button>
               <button onClick={save} disabled={saving || !draft.trim()}
-                className="px-4 py-2 text-sm font-semibold bg-amber-700 hover:bg-amber-800 text-white rounded-xl transition-colors disabled:opacity-50">
+                className="px-4 py-2 text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-white rounded-xl transition-colors disabled:opacity-50">
                 {saving ? 'Saving…' : 'Save'}
               </button>
             </div>

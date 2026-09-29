@@ -408,7 +408,7 @@ function BusinessRow({ b, onAction, neighborhoods, neighborhoodsFailed = false, 
 
           <div className="flex gap-2 flex-wrap pt-1">
             <button onClick={startEdit} disabled={loading}
-              className="text-xs font-semibold bg-amber-700 hover:bg-amber-800 text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50">
+              className="text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50">
               Edit
             </button>
             {/* "Pending" bucket: isApproved=false AND isActive=true. */}
@@ -606,7 +606,7 @@ function BusinessRow({ b, onAction, neighborhoods, neighborhoodsFailed = false, 
           </div>
           <div className="flex gap-2 pt-2">
             <button onClick={saveEdit} disabled={loading}
-              className="text-xs font-semibold bg-amber-700 hover:bg-amber-800 text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50">
+              className="text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50">
               {loading ? 'Saving…' : 'Save'}
             </button>
             <button onClick={cancelEdit} disabled={loading}
@@ -810,7 +810,7 @@ function CreateForm({ onCreated, onCancel }: { onCreated: () => void; onCancel: 
           </div>
           <div className="flex gap-2 pt-2">
             <button type="submit" disabled={busy}
-              className="px-4 py-2 rounded-lg bg-amber-700 hover:bg-amber-800 text-white text-xs font-semibold transition-colors disabled:opacity-50">
+              className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition-colors disabled:opacity-50">
               {busy ? 'Saving…' : 'Add to directory'}
             </button>
           </div>
@@ -830,7 +830,7 @@ function CreateForm({ onCreated, onCancel }: { onCreated: () => void; onCancel: 
           />
           <div className="flex gap-2">
             <button onClick={submitBulk} disabled={busy || !bulk.trim()}
-              className="px-4 py-2 rounded-lg bg-amber-700 hover:bg-amber-800 text-white text-xs font-semibold transition-colors disabled:opacity-50">
+              className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition-colors disabled:opacity-50">
               {busy ? 'Importing…' : 'Import'}
             </button>
             <button onClick={() => setBulk(BULK_TEMPLATE)}
@@ -1251,7 +1251,7 @@ export default function AdminDirectoryPage() {
         {!showAdd && !isAux && (
           <button
             onClick={() => setShowAdd(true)}
-            className="px-3 py-1.5 rounded-lg bg-amber-700 hover:bg-amber-800 text-white text-xs font-semibold transition-colors"
+            className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition-colors"
           >
             + Add business
           </button>

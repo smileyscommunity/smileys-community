@@ -404,7 +404,7 @@ function PostRow({
                   className="text-xs px-2.5 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 text-gray-900 placeholder-gray-400"
                 />
                 <button onClick={submitReply} disabled={!replyText.trim() || replying}
-                  className="px-2.5 py-1.5 bg-amber-700 hover:bg-amber-800 text-white text-xs font-semibold rounded-lg disabled:opacity-40 transition-colors shrink-0">
+                  className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg disabled:opacity-40 transition-colors shrink-0">
                   {replying ? '…' : 'Send'}
                 </button>
               </div>
@@ -564,7 +564,7 @@ export default function NeighborhoodWall({ slug, myId, isStaff, name, citySlug, 
                   Cancel
                 </button>
                 <button onClick={submit} disabled={!text.trim() || posting}
-                  className="px-4 py-1.5 bg-amber-700 hover:bg-amber-800 text-white text-xs font-semibold rounded-lg disabled:opacity-40 transition-colors">
+                  className="px-4 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg disabled:opacity-40 transition-colors">
                   {posting ? 'Posting…' : 'Post'}
                 </button>
               </div>

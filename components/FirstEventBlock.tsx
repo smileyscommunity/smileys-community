@@ -72,7 +72,7 @@ export default function FirstEventBlock() {
           <p className="text-sm text-gray-600 mt-1">
             Have a look at what's on across the city, or be the one who starts something.
           </p>
-          <Link href="/events" className="inline-block mt-3 bg-amber-700 hover:bg-amber-700 text-white text-sm font-semibold px-4 py-2 rounded-xl">
+          <Link href="/events" className="inline-block mt-3 bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold px-4 py-2 rounded-xl">
             Explore all events
           </Link>
         </div>

@@ -426,7 +426,7 @@ export default function BannersPage() {
               </button>
               <button onClick={save}
                 disabled={!canWrite || !editing.headline.trim() || !clientLinkValid(editing.link)}
-                className="flex-[2] py-3 rounded-2xl bg-amber-700 hover:bg-amber-800 text-white font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-lg shadow-amber-500/10">
+                className="flex-[2] py-3 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-lg shadow-amber-500/10">
                 {busy ? 'Saving…' : editing.id ? 'Update Banner' : 'Create Banner'}
               </button>
             </div>

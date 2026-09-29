@@ -192,7 +192,7 @@ function Composer({ onPosted, prefillNeighborhood, shownCity, eventId }: { onPos
     return (
       <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm mb-6 flex items-center justify-between gap-4 flex-wrap">
         <p className="text-sm text-gray-600">Ask a question, make a plan, or share something useful.</p>
-        <Link href="/apply" className="shrink-0 px-4 py-2 bg-amber-700 hover:bg-amber-800 text-white text-sm font-bold rounded-xl transition-colors">
+        <Link href="/apply" className="shrink-0 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
           Join Smileys to post
         </Link>
       </div>
@@ -267,7 +267,7 @@ function Composer({ onPosted, prefillNeighborhood, shownCity, eventId }: { onPos
             {BOARD_POST_TYPES.map(t => (
               <button key={t.value} onClick={() => { setType(t.value); setTag('') }}
                 className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
-                  type === t.value ? 'bg-amber-700 text-white border-amber-500' : 'bg-white text-gray-600 border-gray-200 hover:border-amber-300'
+                  type === t.value ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-gray-600 border-gray-200 hover:border-amber-300'
                 }`}>
                 {t.emoji} {t.value === 'question' ? 'Ask' : t.value === 'reco' ? 'Recommend' : 'Share'}
               </button>
@@ -334,7 +334,7 @@ function Composer({ onPosted, prefillNeighborhood, shownCity, eventId }: { onPos
                 Cancel
               </button>
               <button onClick={submit} disabled={posting || !title.trim()}
-                className="px-5 py-2 bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-colors">
+                className="px-5 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-colors">
                 {posting ? 'Posting…' : type === 'question' ? 'Ask the Community →' : type === 'reco' ? 'Share Recommendation →' : 'Post →'}
               </button>
             </div>
@@ -498,7 +498,7 @@ function RepliesBlock({ postId, onCount }: { postId: string; onCount: (n: number
               placeholder="Write a reply…"
               className="flex-1 min-w-0 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
             <button onClick={send} disabled={sending || !text.trim()}
-              className="px-4 py-2 bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-colors">
+              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-colors">
               {sending ? '…' : 'Reply'}
             </button>
           </div>
@@ -687,7 +687,7 @@ function PostCard({ p, onRemoved, onChanged, defaultOpen }: {
           <div className="flex justify-end gap-2 mt-2">
             <button onClick={() => setEditing(false)} className="px-4 py-2 text-xs font-bold text-gray-500 hover:text-gray-700">Cancel</button>
             <button onClick={saveEdit} disabled={savingEdit || !draftTitle.trim()}
-              className="px-5 py-2 bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-colors">
+              className="px-5 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-colors">
               {savingEdit ? 'Saving…' : 'Save'}
             </button>
           </div>
@@ -919,7 +919,7 @@ export default function BoardFeed() {
         {[...FEED_CHIPS, ...(viewerIsMember ? [{ id: 'saved', label: '❤️ Saved' }] : [])].map(c => (
           <button key={c.id} onClick={() => pickFilter(c.id)}
             className={`px-3.5 py-1.5 rounded-full text-xs font-bold border whitespace-nowrap transition-colors ${
-              filter === c.id ? 'bg-amber-700 text-white border-amber-500' : 'bg-white text-gray-600 border-gray-200 hover:border-amber-300'
+              filter === c.id ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-gray-600 border-gray-200 hover:border-amber-300'
             }`}>
             {c.label}
           </button>
@@ -946,7 +946,7 @@ export default function BoardFeed() {
       ) : loadError && posts.length === 0 ? (
         <div className="bg-gray-50 border border-gray-200 rounded-2xl p-8 text-center mt-3">
           <p className="font-bold text-gray-900">Couldn&apos;t load the board.</p>
-          <button onClick={() => load(filter, false)} className="mt-3 px-4 py-2 bg-amber-700 hover:bg-amber-800 text-white text-sm font-bold rounded-xl transition-colors">
+          <button onClick={() => load(filter, false)} className="mt-3 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
             Try again
           </button>
         </div>

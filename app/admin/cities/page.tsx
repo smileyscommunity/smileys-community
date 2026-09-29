@@ -273,7 +273,7 @@ export default function AdminCitiesPage() {
           </div>
         </div>
         <button onClick={createCity} disabled={creating || !name.trim() || !country.trim() || !timezone.trim()}
-          className="mt-4 px-4 py-2 bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-40">
+          className="mt-4 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-40">
           {creating ? 'Creating…' : 'Create city'}
         </button>
       </div>

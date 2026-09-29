@@ -64,7 +64,7 @@ export default function AdminCampaignsPage() {
         </div>
         {/* Campaigns run in every city, so creating one is an admin's. */}
         {isAdminViewer && <button onClick={() => setShowCreate(s => !s)}
-          className="bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold rounded-xl px-4 py-2">
+          className="bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl px-4 py-2">
           + New campaign
         </button>}
       </div>
@@ -83,7 +83,7 @@ export default function AdminCampaignsPage() {
           </div>
           <div className="flex gap-2">
             <button onClick={create} disabled={saving}
-              className="bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold rounded-xl px-4 py-2 disabled:opacity-60">
+              className="bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl px-4 py-2 disabled:opacity-60">
               {saving ? 'Creating…' : 'Create'}
             </button>
             <button onClick={() => setShowCreate(false)}

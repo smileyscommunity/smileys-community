@@ -226,7 +226,7 @@ export default function EditableArticle(props: Props) {
               Cancel
             </button>
             <button onClick={save} disabled={saving || refreshing}
-              className={`px-4 py-1.5 rounded-lg disabled:opacity-50 text-white text-sm font-bold ${conflict ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-700 hover:bg-amber-800'}`}>
+              className={`px-4 py-1.5 rounded-lg disabled:opacity-50 text-white text-sm font-bold ${conflict ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-500 hover:bg-amber-600'}`}>
               {saving || refreshing ? 'Saving…' : conflict ? 'Save anyway' : 'Save changes'}
             </button>
           </div>

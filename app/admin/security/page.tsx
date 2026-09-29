@@ -296,7 +296,7 @@ export default function AdminSecurityPage() {
           {step === 'idle' && (
             totpEnabled
               ? <button onClick={() => { setStep('disable'); setCode('') }} className="shrink-0 text-sm font-medium text-red-400 hover:text-red-300">Disable</button>
-              : <button onClick={startSetup} disabled={busy} className="shrink-0 px-4 py-1.5 rounded-xl bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold transition-colors disabled:opacity-50">{busy ? 'Loading…' : 'Set up'}</button>
+              : <button onClick={startSetup} disabled={busy} className="shrink-0 px-4 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors disabled:opacity-50">{busy ? 'Loading…' : 'Set up'}</button>
           )}
         </div>
 
@@ -344,7 +344,7 @@ export default function AdminSecurityPage() {
                   Cancel
                 </button>
                 <button type="submit" disabled={busy || code.length !== 6}
-                  className="flex-1 py-2.5 rounded-xl bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold transition-colors disabled:opacity-50">
+                  className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors disabled:opacity-50">
                   {busy ? 'Verifying…' : 'Activate 2FA'}
                 </button>
               </div>
@@ -388,7 +388,7 @@ export default function AdminSecurityPage() {
                   setStep('idle')
                   if (require2fa) window.location.replace('/app/admin')
                 }}
-                className="flex-1 py-2.5 rounded-xl bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold transition-colors"
+                className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors"
               >
                 I've saved them
               </button>
@@ -475,7 +475,7 @@ export default function AdminSecurityPage() {
                   Cancel
                 </button>
                 <button type="submit" disabled={busy || code.length !== 6}
-                  className="flex-1 py-2.5 rounded-xl bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold transition-colors disabled:opacity-50">
+                  className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors disabled:opacity-50">
                   {busy ? 'Regenerating…' : 'Regenerate codes'}
                 </button>
               </div>

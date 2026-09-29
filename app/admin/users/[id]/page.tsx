@@ -662,7 +662,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                   <button key={t} onClick={() => changeMembership(t)} disabled={user.membershipType === t}
                     className={`py-2 rounded-xl border font-bold text-xs capitalize transition-colors ${
                       user.membershipType === t
-                        ? 'bg-amber-700 text-white border-amber-500 cursor-default'
+                        ? 'bg-amber-500 text-white border-amber-500 cursor-default'
                         : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-400 border-zinc-700'
                     }`}>
                     {t}

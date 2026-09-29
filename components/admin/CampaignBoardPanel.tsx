@@ -247,7 +247,7 @@ function SponsorForm({ sponsor, campaignId, onSaved, onCancel }: {
       </div>
       <div className="flex gap-2 justify-end">
         <button onClick={onCancel} disabled={busy} className="text-xs px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-400 font-semibold">Cancel</button>
-        <button onClick={save} disabled={busy} className="text-xs px-3 py-1.5 rounded-lg bg-amber-700 hover:bg-amber-800 text-white font-bold disabled:opacity-60">{busy ? 'Saving…' : 'Save'}</button>
+        <button onClick={save} disabled={busy} className="text-xs px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold disabled:opacity-60">{busy ? 'Saving…' : 'Save'}</button>
       </div>
     </div>
   )
@@ -489,7 +489,7 @@ function PrizeForm({ prize, sponsors, campaignId, onSaved, onCancel }: {
       </div>
       <div className="flex gap-2 justify-end">
         <button onClick={onCancel} disabled={busy} className="text-xs px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-400 font-semibold">Cancel</button>
-        <button onClick={save} disabled={busy} className="text-xs px-3 py-1.5 rounded-lg bg-amber-700 hover:bg-amber-800 text-white font-bold disabled:opacity-60">{busy ? 'Saving…' : 'Save'}</button>
+        <button onClick={save} disabled={busy} className="text-xs px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold disabled:opacity-60">{busy ? 'Saving…' : 'Save'}</button>
       </div>
     </div>
   )

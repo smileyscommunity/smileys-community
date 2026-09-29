@@ -130,7 +130,7 @@ export default function PendingConnectionsWidget() {
                 <button
                   onClick={() => respond(c.id, 'accept')}
                   disabled={acting === c.id}
-                  className="px-3 py-1.5 bg-amber-700 hover:bg-amber-800 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
+                  className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
                 >
                   {acting === c.id ? '…' : 'Accept'}
                 </button>

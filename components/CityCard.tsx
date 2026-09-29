@@ -16,7 +16,7 @@ import CityNotifyChip from '@/components/CityNotifyChip'
 
 const TONE: Record<string, string> = {
   live:     'bg-emerald-500 text-white',
-  founding: 'bg-amber-700 text-white',
+  founding: 'bg-amber-500 text-white',
   soon:     'bg-white/90 text-gray-700 ring-1 ring-gray-200',
   muted:    'bg-gray-200 text-gray-600',
 }

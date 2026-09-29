@@ -302,7 +302,7 @@ export default function SpotlightPage() {
         </div>
 
         <button onClick={handleSave} disabled={saving || !selected}
-          className="w-full py-3 rounded-xl bg-amber-700 hover:bg-amber-800 text-white font-bold text-sm disabled:opacity-40 transition-colors">
+          className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm disabled:opacity-40 transition-colors">
           {saving ? 'Saving…' : current ? 'Update spotlight' : 'Set spotlight'}
         </button>
       </div>

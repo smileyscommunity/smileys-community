@@ -372,7 +372,7 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
                   key={t}
                   href={t === 'We meet here' ? '/directory?meet=1' : `/directory?q=${encodeURIComponent(t)}`}
                   className={t === 'We meet here'
-                    ? 'text-xs font-bold bg-amber-700 text-white px-3 py-1 rounded-full hover:bg-amber-800 transition-colors'
+                    ? 'text-xs font-bold bg-amber-500 text-white px-3 py-1 rounded-full hover:bg-amber-600 transition-colors'
                     : 'text-xs font-semibold bg-gray-100 text-gray-600 px-3 py-1 rounded-full hover:bg-amber-100 hover:text-amber-700 transition-colors'}
                 >
                   {t === 'We meet here' ? '🤝 We meet here' : t}

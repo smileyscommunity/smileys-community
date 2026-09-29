@@ -128,7 +128,7 @@ export default function ContactsPage() {
               </p>
             </div>
             <Link href="/members"
-              className="px-4 py-2 bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold rounded-xl transition-colors">
+              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors">
               Find members
             </Link>
           </div>
@@ -166,7 +166,7 @@ export default function ContactsPage() {
                   </div>
                   <div className="flex gap-2 shrink-0">
                     <button onClick={() => accept(c.id)}
-                      className="px-3 py-1.5 bg-amber-700 hover:bg-amber-800 text-white text-xs font-semibold rounded-lg transition-colors">
+                      className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg transition-colors">
                       Accept
                     </button>
                     <button onClick={() => decline(c.id)}
@@ -259,7 +259,7 @@ export default function ContactsPage() {
             Meet other Smileys members at events and send them a connection request.
           </p>
           <Link href="/members"
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold rounded-xl transition-colors">
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors">
             Browse members
           </Link>
         </div>

@@ -208,7 +208,7 @@ export default function MovingSales({ cityName = '', city = '' }: { cityName?: s
           <div className="flex items-center gap-3">
             <Link
               href={`/board/new?category=ROOMS${roomBridge.neighborhood ? `&neighborhood=${encodeURIComponent(roomBridge.neighborhood)}` : ''}${roomBridge.leavingOn ? `&availableFrom=${encodeURIComponent(roomBridge.leavingOn)}` : ''}`}
-              className="bg-amber-700 hover:bg-amber-800 text-white text-sm font-bold px-5 py-2.5 rounded-xl transition-colors"
+              className="bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold px-5 py-2.5 rounded-xl transition-colors"
             >
               List the room
             </Link>
@@ -226,7 +226,7 @@ export default function MovingSales({ cityName = '', city = '' }: { cityName?: s
         </div>
         {isLoggedIn ? (
           <button onClick={() => setShowForm(v => !v)}
-            className="shrink-0 px-5 py-2.5 bg-amber-700 hover:bg-amber-800 text-white text-sm font-bold rounded-xl transition-colors">
+            className="shrink-0 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
             {showForm ? '× Close' : '📦 Create a Moving Sale'}
           </button>
         ) : (
@@ -304,7 +304,7 @@ export default function MovingSales({ cityName = '', city = '' }: { cityName?: s
             )}
           </div>
           <button onClick={submit} disabled={posting || uploading || !leavingOn || !items.some(i => i.name.trim())}
-            className="w-full py-3 bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-colors">
+            className="w-full py-3 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-colors">
             {posting ? 'Posting…' : 'Post Moving Sale →'}
           </button>
         </div>
@@ -376,14 +376,14 @@ export default function MovingSales({ cityName = '', city = '' }: { cityName?: s
                   <div className="flex gap-2">
                     <button onClick={() => setContactFor(null)} className="px-4 py-2 text-xs font-bold text-gray-500">Cancel</button>
                     <button onClick={() => sendContact(sale)} disabled={sending || !contactText.trim()}
-                      className="flex-1 py-2 bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-colors">
+                      className="flex-1 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-colors">
                       {sending ? 'Sending…' : 'Send message'}
                     </button>
                   </div>
                 </div>
               ) : (
                 <button onClick={() => { setContactFor(sale.id); setContactText('') }}
-                  className="mt-3 w-full py-2.5 bg-amber-700 hover:bg-amber-800 text-white text-xs font-bold rounded-xl transition-colors">
+                  className="mt-3 w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl transition-colors">
                   💬 Contact {firstNameOf(sale.user.name)}
                 </button>
               )
