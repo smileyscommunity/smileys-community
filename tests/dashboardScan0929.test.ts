@@ -46,7 +46,8 @@ describe('privacy', () => {
     expect(read('app/api/connections/route.ts')).toContain(': { ...rest, neighborhood: neighborhoodVisible ? rest.neighborhood : null }')
   })
   it('7: hangout rows check the hangout, its host and blocks', () => {
-    expect(page).toContain("hangout:    { cityId, status: 'active', userId: { notIn: blockedIds }, user: LIVE },")
+    // expired too: references are written after a hangout ends.
+    expect(page).toContain("hangout:    { cityId, status: { in: ['active', 'expired'] }, userId: { notIn: blockedIds }, user: LIVE },")
     expect(page).toContain("hangout: { status: 'active', cityId, userId: { notIn: blockedIds }, user: LIVE } },")
   })
   it('8: a moderator is exempt only in their own city; hosts unchanged', () => {
@@ -77,7 +78,9 @@ describe('right content, right city', () => {
     expect(lib).toContain('soldOut: false,')
     expect(lib).toContain('.filter(ev => eventEndsAt(ev, tz).getTime() > now)')
     expect(read('app/api/first-event/route.ts')).toContain('getFirstEventRecommendations(session.id, limit, { cityId, excludeIds })')
-    expect(page).toContain('<FirstEventBlock excludeIds={[...claimedEventIds]} />')
+    // Only what the shelves RENDER — trending claims 20 and shows ≤ 4.
+    expect(page).toContain('<FirstEventBlock excludeIds={shelfShownIds} />')
+    expect(page).toContain('const shelfShownIds = [...pickedFeatured, ...pickedRecommended, ...pickedRunningLow, ...pickedNewThisWeek, ...trendingEvents].map(e => e.id)')
   })
   it('13: a no-clubs member sees this city\'s members\' club activity', () => {
     expect(page.split('user: clubIds.length ? LIVE : { ...LIVE, cityId },').length - 1).toBe(2)
@@ -122,5 +125,26 @@ describe('copy, speed, accessibility', () => {
     expect(timeline).toContain('<span className="sr-only">{rating} out of 5 stars</span>')
     expect(read('components/PendingConnectionsWidget.tsx')).toContain("aria-label={`Accept ${c.requester.name}'s connection request`}")
     expect(read('components/GetStartedChecklist.tsx')).toContain('tabIndex={step.done ? -1 : undefined}')
+  })
+})
+
+describe('regression review of e2442018', () => {
+  it('the event\'s staff see every review as written; you always see your own', () => {
+    const api = read('app/api/events/[id]/reviews/route.ts')
+    expect(api).toContain('if (await canManageEventOps(session.id, session.role, eventId)) {')
+    expect(api).toContain('{ userId: session.id },')
+  })
+  it('one "this week" number', () => {
+    expect(page).toContain('<span className="text-sm font-extrabold text-amber-600">{thisWeekTotal}</span>')
+  })
+  it('moderators are scoped to their city in search and member routes too', () => {
+    expect(read('lib/memberPrivacy.ts')).toContain('...(modCity ? [{ cityId: modCity, name: match }] : []),')
+    expect(read('app/api/members/[id]/route.ts')).toContain('const privileged = canActInCity(session, user.cityId) || await isClubHost(session.id)')
+    expect(read('app/api/members/route.ts')).toContain('session.cityId === await resolveCityId(session))')
+  })
+  it('an unknown banner city is dropped, not a blocked save', () => {
+    const api = read('app/api/admin/banners/route.ts')
+    expect(api).toContain("const citySlug = knownCities.has(rawCity) ? rawCity : ''")
+    expect(api).not.toContain('unknown city')
   })
 })

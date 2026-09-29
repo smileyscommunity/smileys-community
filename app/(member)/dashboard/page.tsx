@@ -516,8 +516,10 @@ export default async function DashboardPage() {
     // Requests still waiting on an event that hasn't happened: a request on
     // last month's event sat here forever.
     prisma.eventAttendee.findMany({
-      where: { userId: session.id, status: 'pending', event: { ...NOT_OVER, status: 'published', cancelledAt: null } },
-      include: { event: { select: { id: true, title: true, date: true, emoji: true } } },
+      // Fetched from today on; the shelves' end-time rule (notEnded, below)
+      // decides what's still pending, so both agree on "over".
+      where: { userId: session.id, status: 'pending', event: { date: { gte: today }, status: 'published', cancelledAt: null } },
+      include: { event: { select: { id: true, title: true, date: true, time: true, endTime: true, emoji: true } } },
       // Not capped at 10: the heading counts these, and the discovery
       // shelves leave every one of them out (see joinable).
       orderBy: { joinedAt: 'desc' }, take: 100,
@@ -931,7 +933,10 @@ export default async function DashboardPage() {
         // The hangout itself: still up, and not a blocked or unlisted host's
         // (its permalink is closed to a blocked pair) — and not the other
         // side of the reference either.
-        hangout:    { cityId, status: 'active', userId: { notIn: blockedIds }, user: LIVE },
+        // 'expired' too: a reference can only be written after a hangout
+        // ends, and the sweep marks it expired within minutes — 'active'
+        // alone emptied this item. A cancelled one is still out.
+        hangout:    { cityId, status: { in: ['active', 'expired'] }, userId: { notIn: blockedIds }, user: LIVE },
         toUserId:   { notIn: blockedIds },
         toUser:     LIVE,
       },
@@ -1241,6 +1246,8 @@ export default async function DashboardPage() {
   const nowMs      = Date.now()
   const notEnded   = (e: { date: string; time?: string | null; endTime?: string | null }) => eventEndsAt(e, tz).getTime() > nowMs
   const pendingIds = new Set(waitlisted.map(w => w.event.id))
+  // The pending list shows what hasn't ended, by the same rule as the shelves.
+  const waitlistedShown = waitlisted.filter(w => notEnded(w.event))
   const joinable   = <E extends { id: string; date: string; time?: string | null; endTime?: string | null; soldOut: boolean; limitedSpots: boolean; spotsLeft: number }>(e: E) =>
     notEnded(e) && !e.soldOut && !(e.limitedSpots && e.spotsLeft <= 0) && !pendingIds.has(e.id)
 
@@ -1265,6 +1272,11 @@ export default async function DashboardPage() {
   const trendingEvents = pickedTrendingRanked.length >= TRENDING_MIN_FIELD && (pickedTrendingRanked[0]?._count.attendees ?? 0) > 0
     ? pickedTrendingRanked.slice(0, 4)
     : []
+  // What the discovery shelves actually render — the first-event block
+  // leaves these out. claimedEventIds is wider (trending claims its whole
+  // pool of 20 but shows at most 4, often none), and excluding that emptied
+  // the block for every newcomer in a city with 20 or fewer events.
+  const shelfShownIds = [...pickedFeatured, ...pickedRecommended, ...pickedRunningLow, ...pickedNewThisWeek, ...trendingEvents].map(e => e.id)
 
   // Plain counts of real things. The streak and the profile-view counter
   // went: a streak reset every 1st (and counted no-shows), and a view
@@ -1767,7 +1779,7 @@ export default async function DashboardPage() {
                 than one RSVP). */}
             {(myAttendances.length === 0 ||
               (userProfile?.socialStyles?.includes('new_in_town') &&
-                userProfile.joinedAt > new Date(Date.now() - 60 * 86_400_000))) && <FirstEventBlock excludeIds={[...claimedEventIds]} />}
+                userProfile.joinedAt > new Date(Date.now() - 60 * 86_400_000))) && <FirstEventBlock excludeIds={shelfShownIds} />}
 
             {lineupClubs.length > 0 && <RecommendedClubs clubs={lineupClubs} />}
 
@@ -1958,16 +1970,16 @@ export default async function DashboardPage() {
             )}
 
             {/* Waitlisted events */}
-            {waitlisted.length > 0 && (
+            {waitlistedShown.length > 0 && (
               <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-bold text-amber-800"><span aria-hidden="true">⏳ </span>Pending approval ({waitlisted.length})</h3>
-                  {waitlisted.length > 3 && (
+                  <h3 className="text-sm font-bold text-amber-800"><span aria-hidden="true">⏳ </span>Pending approval ({waitlistedShown.length})</h3>
+                  {waitlistedShown.length > 3 && (
                     <Link href="/my-events" className="text-xs font-semibold text-amber-800 hover:underline">See all →</Link>
                   )}
                 </div>
                 <div className="space-y-2">
-                  {waitlisted.slice(0, 3).map(({ event }) => (
+                  {waitlistedShown.slice(0, 3).map(({ event }) => (
                     <Link key={event.id} href={`/events/${event.id}`}
                       className="flex items-center gap-3 hover:opacity-80 transition-opacity">
                       <span aria-hidden="true" className="text-lg">{event.emoji}</span>
@@ -2630,7 +2642,8 @@ export default async function DashboardPage() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-gray-600">Events this week</span>
-                  <span className="text-sm font-extrabold text-amber-600">{eventsThisWeek}</span>
+                  {/* The heading's number (thisWeekTotal), so the page says one thing. */}
+                  <span className="text-sm font-extrabold text-amber-600">{thisWeekTotal}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   {/* Forward-looking (today … +30d), unlike the member's own

@@ -7,6 +7,7 @@ import { rateLimit } from '@/lib/rateLimit'
 import { getEventById, canSeeEvent } from '@/lib/db'
 import { Attendance } from '@/lib/constants'
 import { restrictedSetFor } from '@/lib/memberPrivacy'
+import { canManageEventOps } from '@/lib/access'
 import { firstNameOf } from '@/lib/data'
 
 // Bodies are untyped JSON: rating "3" or 4.5 reached Prisma's Int column and
@@ -33,6 +34,19 @@ export async function GET(_: NextRequest, { params }: Params) {
     // roster rules (2026-09-29): hidden, suspended and blocked members are
     // left out; a connections-only member is a first name; and someone who
     // attended in stealth is "A guest" to everyone but themselves.
+    //
+    // The event's own staff — admins, its host and co-hosts, its club's
+    // hosts (canManageEventOps) — see every review as written: the host
+    // panel's Reviews tab sits beside a roster that already names stealth
+    // attendees, and dropping reviews changed the count and average they see.
+    if (await canManageEventOps(session.id, session.role, eventId)) {
+      const all = await prisma.review.findMany({
+        where: { eventId, user: { status: 'approved' } },
+        orderBy: { createdAt: 'desc' },
+        include: { user: { select: { id: true, name: true, color: true } } },
+      })
+      return NextResponse.json(all)
+    }
     const blocks = await prisma.memberBlock.findMany({
       where:  { OR: [{ blockerId: session.id }, { blockedId: session.id }] },
       select: { blockerId: true, blockedId: true },
@@ -42,8 +56,12 @@ export async function GET(_: NextRequest, { params }: Params) {
       prisma.review.findMany({
         where: {
           eventId,
-          userId: { notIn: blockedIds },
-          user: { status: 'approved', hiddenFromMembers: false, OR: [{ suspendedUntil: null }, { suspendedUntil: { lte: new Date() } }] },
+          // Your own review always comes back — a hidden member keeps full
+          // access, and without it the form reappeared and refused a resubmit.
+          OR: [
+            { userId: session.id },
+            { userId: { notIn: blockedIds }, user: { status: 'approved', hiddenFromMembers: false, OR: [{ suspendedUntil: null }, { suspendedUntil: { lte: new Date() } }] } },
+          ],
         },
         orderBy: { createdAt: 'desc' },
         include: {

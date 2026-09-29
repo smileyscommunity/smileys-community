@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { loadViewerFacts, sharedContextFor } from '@/lib/sharedContext'
 import { rateLimit } from '@/lib/rateLimit'
-import { isAdminOrModerator, isClubHost } from '@/lib/access'
+import { isAdminOrModerator, isClubHost, canActInCity } from '@/lib/access'
 import { isBlockedEitherWay } from '@/lib/memberPrivacy'
 import { todayInCity, resolveCityId } from '@/lib/city'
 import { firstNameOf } from '@/lib/data'
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       where: { id, status: 'approved', role: { in: ['member', 'moderator', 'admin'] } },
       select: {
         id: true, name: true, color: true, bio: true,
-        neighborhood: true, neighborhoodVisible: true, hiddenFromMembers: true, suspendedUntil: true,
+        neighborhood: true, neighborhoodVisible: true, hiddenFromMembers: true, suspendedUntil: true, cityId: true,
         nationality: true, interests: true,
         languages: true, profilePhoto: true, joinedAt: true, role: true,
         instagram: true, linkedin: true, socialStyles: true, lookingFor: true, lastActive: true, profileVisibility: true, membershipType: true,
@@ -122,7 +122,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   //            first name and the connection state only. It used to be a
   //            404, which left the receiver of a request from a private
   //            member with nothing to accept it from.
-  const privileged = staff || await isClubHost(session.id)
+  // A moderator sees a profile in full in their own city only (canActInCity,
+  // lib/memberPrivacy); elsewhere they get what a member gets.
+  const privileged = canActInCity(session, user.cityId) || await isClubHost(session.id)
   const connected = connection?.status === 'accepted'
   const viewLevel: 'full' | 'member' | 'locked' =
     self || connected || privileged ? 'full'

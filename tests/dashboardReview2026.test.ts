@@ -58,8 +58,9 @@ describe('what the page says', () => {
   })
 
   it('pending requests are for events still to come', () => {
-    // NOT_OVER: the public lists' window, so an event that ended today is out.
-    expect(page).toContain("where: { userId: session.id, status: 'pending', event: { ...NOT_OVER, status: 'published', cancelledAt: null } }")
+    // Fetched from today, then shown by the shelves' own end rule (notEnded).
+    expect(page).toContain("where: { userId: session.id, status: 'pending', event: { date: { gte: today }, status: 'published', cancelledAt: null } }")
+    expect(page).toContain('const waitlistedShown = waitlisted.filter(w => notEnded(w.event))')
   })
 
   it('no streak or profile-view tiles; counts are events actually gone to', () => {

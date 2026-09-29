@@ -159,10 +159,11 @@ export async function POST(req: NextRequest) {
     // The city a banner is for (a slug; empty = the default city). The
     // dashboard filters on it, but this allowlist dropped it, so any save
     // turned every city's banner into the default city's.
-    const citySlug = String(b.city ?? '').trim().toLowerCase()
-    if (citySlug && !knownCities.has(citySlug)) {
-      return NextResponse.json({ error: `Banner ${index + 1}: unknown city "${citySlug.slice(0, 40)}"` }, { status: 400 })
-    }
+    // An unknown slug (a hand-edit, a retired city) is dropped rather than
+    // refused: refusing it blocked every save on the page, the other
+    // banners' toggles included. Without a city it's the default city's.
+    const rawCity  = String(b.city ?? '').trim().toLowerCase()
+    const citySlug = knownCities.has(rawCity) ? rawCity : ''
 
     sanitized.push({
       id: b.id || `${page}_${Date.now()}_${index}`,

@@ -124,7 +124,10 @@ export async function GET(req: NextRequest) {
     select: { requesterId: true, receiverId: true },
   })
   const connectionIds = new Set(conns.map(c => c.requesterId === session.id ? c.receiverId : c.requesterId))
-  const privileged = isAdminOrModerator(session) || await isClubHost(session.id)
+  // A moderator is privileged in their own city only (lib/memberPrivacy);
+  // this list is the viewed city's, so it's their city or nothing.
+  const privileged = session.role === 'admin' || await isClubHost(session.id)
+    || (isAdminOrModerator(session) && !!session.cityId && session.cityId === await resolveCityId(session))
 
   // The filters below read fields a locked card hides — languages, what
   // they're open to, what they're looking for, a live pulse. A connections-

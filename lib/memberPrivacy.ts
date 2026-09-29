@@ -106,7 +106,11 @@ export async function nameSearchWhere(
   mode: 'contains' | 'startsWith',
 ): Promise<Prisma.UserWhereInput> {
   const match = { [mode]: q, mode: 'insensitive' as const }
-  if (isAdminOrModerator(session) || (await isClubHost(session.id))) return { name: match }
+  if (session.role === 'admin' || (await isClubHost(session.id))) return { name: match }
+  // A moderator matches full names only in their own city (the same scope as
+  // restrictedSetFor): exempt everywhere, a surname search confirmed what the
+  // redacted card in another city hides.
+  const modCity = isAdminOrModerator(session) && session.cityId ? session.cityId : null
   const conns = await prisma.memberConnection.findMany({
     where:  { status: 'accepted', OR: [{ requesterId: session.id }, { receiverId: session.id }] },
     select: { requesterId: true, receiverId: true },
@@ -116,6 +120,7 @@ export async function nameSearchWhere(
     OR: [
       { profileVisibility: { not: 'connections' }, name: match },
       { id: { in: [session.id, ...connected] }, name: match },
+      ...(modCity ? [{ cityId: modCity, name: match }] : []),
       ...(/\s/.test(q) ? [] : [{ profileVisibility: 'connections', name: { startsWith: q, mode: 'insensitive' as const } }]),
     ],
   }
