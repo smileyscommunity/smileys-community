@@ -15,6 +15,8 @@ interface FooterProps {
   /** Whether the viewed city has any neighbourhoods. A city grows into them —
       linking to an empty page under a heading naming the city reads as broken. */
   hasNeighborhoods?: boolean
+  /** A partner is live in the member's city — gates "Member Perks". */
+  hasPerks?: boolean
 }
 
 // Only reached if the layout passes nothing (it passes measured numbers when
@@ -22,7 +24,7 @@ interface FooterProps {
 // than a second set of figures to drift out of date.
 const DEFAULT_STATS: { value: string; label: string }[] = []
 
-export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods = true }: FooterProps) {
+export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods = true, hasPerks = false }: FooterProps) {
   const { isLoggedIn } = useAuth()
   const pathname = usePathname()
   const footerStats = stats?.slice(0, 3) ?? DEFAULT_STATS
@@ -257,7 +259,7 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
                   ? [
                       { href: '/dashboard',    label: 'My dashboard 🏡'    },
                       { href: '/invite',       label: 'Invite a friend 💌' },
-                      { href: '/perks',        label: 'Member Perks 🎁'    },
+                      ...(hasPerks ? [{ href: '/perks', label: 'Member Perks 🎁' }] : []),
                       { href: '/get-involved', label: 'Get involved 🙌'    },
                     ]
                   : [

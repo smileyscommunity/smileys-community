@@ -18,6 +18,37 @@ interface CardProfile {
   neighborhood?: string | null
 }
 
+// The partner pass: what a business checks before giving a member perk.
+// A screenshot of a profile proves nothing, so this shows the member's name
+// with a clock that ticks every second — a live screen is easy to tell from
+// a picture of one. It needs no network, like the rest of this page.
+function LivePass({ name }: { name: string }) {
+  const [now, setNow] = useState<Date | null>(null)
+  useEffect(() => {
+    setNow(new Date())
+    const t = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(t)
+  }, [])
+  const day  = now?.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })
+  // hourCycle 'h23', never hour12:false (renders midnight as 24:MM).
+  const time = now?.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' })
+  return (
+    <section aria-labelledby="pass-title" className="w-full max-w-xs bg-white rounded-2xl shadow-card p-4 text-center">
+      <h2 id="pass-title" className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Partner perks pass</h2>
+      <p className="text-lg font-extrabold text-gray-900">{name}</p>
+      <p className="text-sm text-gray-600">Smileys member · valid today</p>
+      <p className="mt-2 text-sm font-semibold text-gray-900">{day ?? ' '}</p>
+      <p className="flex items-center justify-center gap-2 font-mono text-2xl font-bold text-amber-800 tabular-nums" aria-live="off">
+        <span aria-hidden="true" className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+        {time ?? '--:--:--'}
+      </p>
+      <p className="text-xs text-gray-500 mt-2 leading-relaxed">
+        Show this at a partner. The clock is live — a screenshot won&apos;t tick.
+      </p>
+    </section>
+  )
+}
+
 // The card opens at a door, and a door is where the signal is worst. So
 // nothing here waits on the network: the page draws from the session the app
 // already holds, the code is whatever this device last minted, and both
@@ -116,10 +147,12 @@ export default function MemberCardPage() {
       <div className="flex-1 flex flex-col items-center justify-start px-6 pt-4 pb-6 gap-3">
         <DigitalCard user={data} qrValue={card?.token?.token ?? null} qrNote={qrNote} />
 
-        <p className="text-xs text-gray-400 text-center max-w-xs leading-relaxed">
-          Hosts scan this at the door to check you in. It only works for events
-          you&apos;ve joined — it isn&apos;t a pass or a membership check.
+        <p className="text-xs text-gray-500 text-center max-w-xs leading-relaxed">
+          Hosts scan this code at the door to check you in. It only works for
+          events you&apos;ve joined. For partner perks, show the live pass below.
         </p>
+
+        <LivePass name={data.name} />
 
         {stale && (
           <p className="text-xs text-amber-600 text-center max-w-xs leading-relaxed">

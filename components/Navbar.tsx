@@ -125,10 +125,13 @@ export default function Navbar({
   cities = [],
   homeSlug,
   viewingSlug,
+  hasPerks = false,
 }: {
   cities?: NavCity[]
   homeSlug?: string
   viewingSlug?: string
+  /** A partner is live in the member's city — gates the Perks link. */
+  hasPerks?: boolean
 }) {
   const pathname  = usePathname()
   const { user, logout, isLoggedIn, isLoading } = useAuth()
@@ -344,7 +347,7 @@ export default function Navbar({
                       dropdownOpen ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none'
                     }`}
                   >
-                    <AccountMenu onItemClick={() => setDropdownOpen(false)} />
+                    <AccountMenu onItemClick={() => setDropdownOpen(false)} hasPerks={hasPerks} />
                   </div>
                 </div>
               </div>

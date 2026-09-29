@@ -98,12 +98,14 @@ export default function BottomNav({
   cities = [],
   homeSlug,
   viewingSlug,
+  hasPerks = false,
 }: {
   // Same server-rendered list the Navbar gets, so the sheet needs no fetch of
   // its own and the two can't disagree about which cities exist.
   cities?: NavCity[]
   homeSlug?: string
   viewingSlug?: string
+  hasPerks?: boolean
 } = {}) {
   const pathname  = usePathname()
   const { isLoggedIn, user } = useAuth()
@@ -282,7 +284,7 @@ export default function BottomNav({
           <div className="w-10 h-1 rounded-full bg-gray-300" />
         </div>
 
-        <AccountMenu onItemClick={() => setSheetOpen(false)} />
+        <AccountMenu onItemClick={() => setSheetOpen(false)} hasPerks={hasPerks} />
 
         {/* City switcher BELOW the account links: the sheet is the Me sheet,
             so it opens on "Signed in as" — identity first, then tools. The
