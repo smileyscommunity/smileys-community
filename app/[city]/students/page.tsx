@@ -146,7 +146,7 @@ export default async function CityStudentsPage({ params }: Params) {
             {[
               {
                 key: 'before', emoji: '🧳', title: 'Before arrival',
-                body: 'Check how long you can stay, and ask your university’s international office what your programme needs for a residence permit. Applying to Smileys now means you’re in before you land — reviews take 24–48 hours.',
+                body: 'Check how long you can stay, and ask your university’s international office what your programme needs for a residence permit.',
                 links: [
                   ...(entry ? [{ href: `/handbook/${entry.slug}`, label: 'Entry rules and stay limits' }] : []),
                   ...(residence ? [{ href: `/handbook/${residence.slug}`, label: 'How residence permits work' }] : []),
