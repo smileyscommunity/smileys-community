@@ -134,10 +134,10 @@ export default async function AdvertisePage() {
             ✦ Partner with Smileys
           </span>
           <h1 className="text-5xl sm:text-6xl font-extrabold text-gray-900 tracking-tight leading-tight mb-6">
-            {adv.headline ?? "Reach Istanbul's most engaged internationals"}
+            {adv.headline?.trim() || "Reach Istanbul's most engaged internationals"}
           </h1>
           <p className="text-base text-gray-600 max-w-2xl leading-relaxed">
-            {adv.subtitle ?? "Smileys is a curated community of expats and global professionals actively building their life in Istanbul. Advertise where trust is already built in."}
+            {adv.subtitle?.trim() || "Smileys is a curated community of expats and global professionals actively building their life in Istanbul. Advertise where trust is already built in."}
           </p>
           <div className="mt-10 flex items-center gap-4 flex-wrap">
             <a href="#formats"

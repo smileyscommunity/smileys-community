@@ -227,6 +227,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE}/why`,           priority: 0.7, changeFrequency: 'monthly', lastModified: fileMtime('why-content.json') },
     { url: `${BASE}/faq`,           priority: 0.6, changeFrequency: 'monthly', lastModified: fileMtime('content.json') },
     { url: `${BASE}/contact`,       priority: 0.5, changeFrequency: 'monthly' },
+    // The hosting and club pitch — linked from every city's Meet your hosts.
+    { url: `${BASE}/get-involved`,  priority: 0.5, changeFrequency: 'monthly' },
     { url: `${BASE}/neighborhoods`, priority: 0.6, changeFrequency: 'monthly', lastModified: newest([...neighborhoodMtimes.values()]) },
     { url: `${BASE}/directory`,     priority: 0.8, changeFrequency: 'weekly',  lastModified: newestBusiness },
     { url: `${BASE}/handbook/quick-reference`, priority: 0.5, changeFrequency: 'monthly' },

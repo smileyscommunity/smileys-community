@@ -118,13 +118,13 @@ export default async function WhyPage() {
             😊 Smileys Community
           </div>
           <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 tracking-tight leading-tight mb-4">
-            {why.headline ?? 'A new city can feel crowded — and still lonely.'}
+            {why.headline?.trim() || 'A new city can feel crowded — and still lonely.'}
           </h1>
           <p className="text-base font-semibold text-amber-600 mb-6">
             {why.tagline ?? 'A curated real-life social ecosystem for globally minded people.'}
           </p>
           <p className="text-base text-gray-600 max-w-2xl leading-relaxed mb-5">
-            {why.subtitle ?? 'Thousands of people arrive here every month looking for connection, friendship, and a circle they actually belong to. But most platforms feel random, transactional, or exhausting.'}
+            {why.subtitle?.trim() || 'Thousands of people arrive here every month looking for connection, friendship, and a circle they actually belong to. But most platforms feel random, transactional, or exhausting.'}
           </p>
           <p className="text-base text-gray-900 font-semibold max-w-2xl leading-relaxed mb-10">
             {why.closing ?? 'Smileys was built to change that.'}

@@ -22,6 +22,9 @@ const TOPICS = [
   // The landing page's "Somewhere you'd like to see Smileys? Tell us where."
   // Arrived as a General Inquiry, so city demand was uncounted.
   { value: 'city',        label: 'Suggest a city',              icon: '📍', hidden: true },
+  // /get-involved's host and club offers (2026-09-29).
+  { value: 'host',        label: 'Offer to host',               icon: '🎤', hidden: true },
+  { value: 'club-proposal', label: 'Propose a club',            icon: '⬡',  hidden: true },
 ]
 
 const inputCls = 'input'
@@ -50,7 +53,9 @@ function ContactForm() {
   useEffect(() => {
     const topic   = params.get('topic')
     const article = params.get('article')
-    const city    = params.get('city')
+    // The link carries a slug ("new-york-city"); the starter text wants a name.
+    const citySlug = params.get('city')
+    const city     = citySlug ? citySlug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : null
     if (!topic && !article) return
     // The nomination arrives as the three things the hosts need to follow
     // it up; the slug names the city because the form itself has none.
@@ -62,7 +67,11 @@ function ContactForm() {
       topic:   TOPICS.some(t => t.value === topic) ? topic! : prev.topic,
       message: prev.message ? prev.message
         : article    ? `About the Handbook article "${article}":\n\n`
-        : nomination ?? (topic === 'city' ? 'I would love to see Smileys in: \n\n' : prev.message),
+        : nomination ?? (
+          topic === 'city' ? 'I would love to see Smileys in: \n\n'
+          : topic === 'host' ? `I'd like to host${city ? ` in ${city}` : ''}.\n\nWhat I'd run (and roughly how often):\n\nWhere it could happen:\n\nAnything I've hosted before:\n\n`
+          : topic === 'club-proposal' ? `Club idea${city ? ` for ${city}` : ''}:\n\nWhat it's about and who it's for:\n\nHow often it would meet:\n\nWould you host it yourself?\n\n`
+          : prev.message),
     }))
     // Once, on arrival: after that the form is the member's.
   }, [params])
@@ -80,7 +89,8 @@ function ContactForm() {
       const res = await fetch('/app/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, _hp: honeypot, _t: loadedAt.current, _cf: turnstileToken }),
+        // The city the link named, so the team knows where an offer is for.
+        body: JSON.stringify({ ...form, city: params.get('city') ?? undefined, _hp: honeypot, _t: loadedAt.current, _cf: turnstileToken }),
       })
       const data = await res.json()
       if (!res.ok) {

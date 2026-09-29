@@ -87,10 +87,10 @@ export default async function AboutPage() {
                 About us
               </div>
               <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 tracking-tight leading-tight mb-5">
-                {about.headline ?? "Curated city communities, born in Istanbul"}
+                {about.headline?.trim() || "Curated city communities, born in Istanbul"}
               </h1>
               <p className="text-base text-gray-600 max-w-xl leading-relaxed">
-                {about.subtitle ?? 'We bring together curious, open-minded people through handpicked events, interest-based clubs, and a community that actually feels like one.'}
+                {about.subtitle?.trim() || 'We bring together curious, open-minded people through handpicked events, interest-based clubs, and a community that actually feels like one.'}
               </p>
               {/* flex-col + default stretch makes both buttons the same
                   (full) width on mobile — matches the homepage hero CTA

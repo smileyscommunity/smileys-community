@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { APP_URL } from '@/lib/env'
+import { getPublicCity } from '@/lib/cities'
+import { getSession } from '@/lib/session'
 import { Resend } from 'resend'
 import { rateLimit, getIp } from '@/lib/rateLimit'
 import { verifyTurnstile } from '@/lib/turnstile'
@@ -29,6 +32,10 @@ const TOPIC_LABELS: Record<string, string> = {
   // A member nominating the next "Working from" interviewee — the remote-work
   // hub's link lands here with the city in the message (lib/remoteWork).
   nominate:    'Working from — nomination',
+  // /get-involved's "Offer to host" and "Propose a club" (2026-09-29): an
+  // offer to run something arrived as a General Inquiry with no city.
+  host:        'Offer to host',
+  'club-proposal': 'Club proposal',
   city:        'City suggestion',
   other:       'Other',
 }
@@ -76,14 +83,16 @@ function isSpam(text: string, email = ''): boolean {
 }
 
 
-export async function POST(req: NextRequest) {
-  // Rate limit: 1 per hour per IP
-  if (!await rateLimit(`contact:${getIp(req)}`, 1, 60 * 60_000)) {
-    return NextResponse.json({ error: 'Too many messages. Try again later.' }, { status: 429 })
-  }
+// Topics that are someone offering to do something for the community. The
+// spam words ("adult", "followers", "work from home", "crypto", a link in a
+// short message) are ordinary in a club pitch — "a board-games night for
+// young adults" — so on these topics a match flags the email instead of
+// silently dropping it behind a "Message sent!".
+const OFFER_TOPICS = new Set(['host', 'club-proposal', 'city', 'nominate'])
 
+export async function POST(req: NextRequest) {
   try {
-    const { name, email, topic, message, _hp, _t, _cf } = await req.json()
+    const { name, email, topic, message, city: cityRaw, _hp, _t, _cf } = await req.json()
 
     // Honeypot check — bots fill this hidden field
     if (_hp) return NextResponse.json({ ok: true })
@@ -115,10 +124,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Message is too long' }, { status: 400 })
     }
 
-    // Spam content check
-    if (isSpam(message, email) || isSpam(name, email)) {
+    // 3 an hour per address, counted only for a message that would actually
+    // be sent — it was 1 an hour counted before any check, so a typo in the
+    // email locked the sender out for an hour, and one person on a café or
+    // campus network used it up for everyone there.
+    if (!await rateLimit(`contact:${getIp(req)}`, 3, 60 * 60_000)) {
+      return NextResponse.json({ error: 'Too many messages from this network in the last hour. Try again later, or email info@smileyscommunity.com.' }, { status: 429 })
+    }
+
+    // Spam content check — dropped silently for general topics, flagged for
+    // offers (see OFFER_TOPICS).
+    const spammy = isSpam(message, email) || isSpam(name, email)
+    if (spammy && !OFFER_TOPICS.has(topic)) {
       return NextResponse.json({ ok: true })
     }
+
+    // Which city this is about (a public slug from ?city=) and, when signed
+    // in, which member sent it — a host offer from Bodrum used to reach the
+    // one inbox with neither.
+    const citySlug = typeof cityRaw === 'string' ? cityRaw.trim().toLowerCase().slice(0, 60) : ''
+    const cityRow  = citySlug ? await getPublicCity(citySlug) : null
+    const session  = await getSession()
 
     const topicLabel = TOPIC_LABELS[topic] ?? 'General Inquiry'
     const safeName    = esc(name)
@@ -129,7 +155,7 @@ export async function POST(req: NextRequest) {
       from:    `Smileys Contact Form <${CONTACT_EMAIL}>`,
       to:      CONTACT_EMAIL,
       replyTo: email,
-      subject: `[Contact] ${topicLabel} — ${safeName}`,
+      subject: `[Contact]${spammy ? ' ⚠ check: spam words' : ''} ${topicLabel}${cityRow ? ` · ${esc(cityRow.name)}` : ''} — ${safeName}`,
       html: `
         <div style="font-family:system-ui,sans-serif;max-width:600px;margin:0 auto;background:#fff;border-radius:12px;padding:32px;border:1px solid #e5e7eb">
           <div style="margin-bottom:24px">
@@ -151,6 +177,14 @@ export async function POST(req: NextRequest) {
               <td style="padding:10px 14px;font-size:13px;font-weight:600;color:#6b7280">Topic</td>
               <td style="padding:10px 14px;font-size:14px;color:#111827">${topicLabel}</td>
             </tr>
+            ${cityRow ? `<tr>
+              <td style="padding:10px 14px;font-size:13px;font-weight:600;color:#6b7280">City</td>
+              <td style="padding:10px 14px;font-size:14px;color:#111827">${esc(cityRow.name)}</td>
+            </tr>` : ''}
+            ${session ? `<tr style="background:#f9fafb">
+              <td style="padding:10px 14px;font-size:13px;font-weight:600;color:#6b7280">Member</td>
+              <td style="padding:10px 14px;font-size:14px;color:#111827"><a href="${APP_URL}/admin/users/${esc(session.id)}" style="color:#f59e0b">${esc(session.name)}</a></td>
+            </tr>` : ''}
           </table>
 
           <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:16px 20px">

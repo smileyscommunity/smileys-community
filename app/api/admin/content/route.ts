@@ -141,15 +141,15 @@ function normalizeSection(key: string, raw: unknown):
   // moved into app/about/page.tsx as owner-authored JSX (2026-08-30).
   if (key === 'about') {
     return { ok: true, value: {
-      headline: str(r.headline, HEADLINE_MAX),
-      subtitle: str(r.subtitle, SUBTITLE_MAX),
+      headline: str(r.headline, HEADLINE_MAX).trim(),
+      subtitle: str(r.subtitle, SUBTITLE_MAX).trim(),
     } }
   }
   if (key === 'why') {
     return { ok: true, value: {
-      headline: str(r.headline, HEADLINE_MAX),
+      headline: str(r.headline, HEADLINE_MAX).trim(),
       tagline:  str(r.tagline,  TAGLINE_MAX),
-      subtitle: str(r.subtitle, SUBTITLE_MAX),
+      subtitle: str(r.subtitle, SUBTITLE_MAX).trim(),
       closing:  str(r.closing,  CLOSING_MAX),
     } }
   }
@@ -179,8 +179,8 @@ function normalizeSection(key: string, raw: unknown):
 
   // get_involved, advertise, events, clubs, members, neighborhoods
   return { ok: true, value: {
-    headline: str(r.headline, HEADLINE_MAX),
-    subtitle: str(r.subtitle, SUBTITLE_MAX),
+    headline: str(r.headline, HEADLINE_MAX).trim(),
+    subtitle: str(r.subtitle, SUBTITLE_MAX).trim(),
     badge:    str(r.badge,    BADGE_MAX),
   } }
 }

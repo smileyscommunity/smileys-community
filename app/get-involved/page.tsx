@@ -1,77 +1,94 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
+import { APP_URL } from '@/lib/env'
+import { DEFAULT_CITY_SLUG } from '@/lib/city'
+import { getSession } from '@/lib/session'
+import { isClubHost, hostCityIds } from '@/lib/access'
 import HostPath from '@/components/HostPath'
 import { resolveStats } from '@/lib/communityStats'
 import { resolveCityForPage, cityQs, type CitySearch } from '@/lib/cityPageParam'
 
-export const metadata = {
-  title: 'Get Involved — Smileys Community',
-  description: 'Host events, start clubs, and help build the most vibrant social community in your city.',
+// Per city like the other hubs: the metadata was title + description only,
+// so a shared link previewed (and credited) the homepage, the page had no
+// canonical (every ?city= variant indexable), and it promised "the most
+// vibrant social community in your city" to cities with no members yet.
+export async function generateMetadata({ searchParams }: { searchParams?: Promise<CitySearch> }): Promise<Metadata> {
+  const { city } = await resolveCityForPage(searchParams)
+  const title       = 'Get Involved — Smileys Community'
+  const description = `Host events, start a club, invite friends or share your story — how members shape Smileys${city.slug === DEFAULT_CITY_SLUG ? '' : ` in ${city.name}`}.`
+  const image = `${APP_URL}/api/og?${new URLSearchParams({ title: 'Get involved', eyebrow: 'Smileys Community', cta: 'Host · Start a club · Invite' }).toString()}`
+  return {
+    title, description,
+    alternates: { canonical: `${APP_URL}/get-involved` },
+    openGraph: { title, description, url: `${APP_URL}/get-involved`, images: [{ url: image, width: 1200, height: 630, alt: 'Get involved with Smileys' }] },
+    twitter:   { card: 'summary_large_image', title, description, images: [image] },
+  }
 }
 
-const WAYS = [
+// What each way really gives you — every line here is something the product
+// does. The perks promised a supplier network, a directory listing for clubs
+// (the directory is businesses), a WhatsApp group the platform creates (it
+// stores a link), and "a warm introduction to your clubs" for invited friends
+// (nothing does that).
+type Way = { key: 'host' | 'club' | 'invite' | 'story'; emoji: string; title: string; subtitle: string; body: string; perks: string[]; accent: boolean }
+const WAYS: Way[] = [
   {
+    key: 'host',
     emoji: '🎉',
     title: 'Host an event',
     subtitle: 'Share your passion with the community',
     body: 'Have an idea for a dinner, a hike, a cultural visit, a language exchange? Hosts are the heartbeat of Smileys. You bring the concept — we handle the platform, RSVPs, and member matching.',
     perks: [
-      'Full event management tools — RSVPs, guest lists, check-in',
-      'Access to our network of vetted venues and suppliers',
-      'A dedicated community of people who actually show up',
+      'Event tools — RSVPs, guest lists, waitlists and check-in at the door',
+      'Link your event to a venue from the Smileys directory',
+      'Your event in front of the members of your city',
       'The Host title on your profile and your city\'s Meet the Hosts page',
     ],
-    cta: 'Apply to become a host',
-    href: '/contact',
     accent: true,
   },
   {
+    key: 'club',
     emoji: '⬡',
     title: 'Start a club',
     subtitle: 'Build your own community within the community',
-    body: 'Got a niche interest that doesn\'t have a home yet? Sailing, chess, French cinema, cold plunges — if it\'s your thing, chances are it\'s someone else\'s too. Start a club and we\'ll help you grow it.',
+    body: 'Got a niche interest that doesn\'t have a home yet? Sailing, chess, French cinema, cold plunges — if it\'s your thing, chances are it\'s someone else\'s too. Propose a club and our team will help you set it up.',
     perks: [
       'Your own club page with member management',
-      'Dedicated WhatsApp group for your members',
+      'Your club\'s group-chat link on its page, set up with our team',
       'Tools to organise recurring events and activities',
-      'Club featured in the Smileys directory',
+      'Listed on your city\'s Clubs page',
     ],
-    cta: 'Propose a club',
-    href: '/contact',
     accent: false,
   },
   {
+    key: 'invite',
     emoji: '✉️',
     title: 'Invite a friend',
     subtitle: 'The community grows one great person at a time',
     body: 'Smileys is curated by design — every new member is reviewed personally. The best way to bring great people in is through the people already here. Your invite carries your reputation.',
     perks: [
       'Your referral is noted during the application review',
-      'Invited friends get a warm introduction to your clubs',
       'Help shape what kind of community Smileys becomes',
     ],
-    cta: 'Invite someone',
-    href: '/invite',
     accent: false,
   },
   {
+    key: 'story',
     emoji: '📰',
     title: 'Share your story',
     subtitle: 'Your words on the Stories wall',
     body: 'The pages that convince someone to join aren\'t written by us — they\'re written by members. How you found your people, a club that changed your week, a night that turned strangers into friends. We review every story and publish the best under your name.',
     perks: [
-      'Published with your real byline in Stories',
-      'Featured on your city\'s page and the homepage',
+      'Published under your name in Stories (visitors who aren\'t members see your first name)',
+      'New stories appear on your city\'s page and the homepage',
       'We polish the formatting — the voice stays yours',
     ],
-    cta: 'Write your story',
-    href: '/share-story',
     accent: false,
   },
 ]
 
 import { loadContent } from '@/lib/content'
 
-export const revalidate = 3600
 
 // (No local stat fallback — see app/about/page.tsx: resolveStats measures
 // defaults from the DB; typed arrays drift.)
@@ -85,6 +102,22 @@ export default async function GetInvolvedPage({ searchParams }: { searchParams?:
   // city's roster and the path names the city — the round trip from
   // /izmir/hosts used to end on Istanbul's page.
   const { city } = await resolveCityForPage(searchParams)
+  const qs = cityQs(city.slug)
+  // Who is reading decides where each way leads. Everyone got the same four
+  // links: a guest was sent to two member-only pages (a blank page, then the
+  // login screen), a host was asked to "apply to become a host", and a member
+  // was told to "Apply to join".
+  const session = await getSession()
+  const hosting = !!session && (session.role === 'admin' || await isClubHost(session.id) || (await hostCityIds(session.id)).length > 0)
+  const withCity = (topic: string) => `/contact?topic=${topic}${city.slug === DEFAULT_CITY_SLUG ? '' : `&city=${city.slug}`}`
+  const cta: Record<Way['key'], { label: string; href: string }> = {
+    host:   hosting ? { label: 'Plan your next event', href: '/host/events/new' } : { label: 'Offer to host', href: withCity('host') },
+    club:   { label: 'Propose a club', href: withCity('club-proposal') },
+    invite: session ? { label: 'Invite someone', href: '/invite' } : { label: 'Join to invite friends', href: `/apply${qs}` },
+    story:  session ? { label: 'Write your story', href: '/share-story' } : { label: 'Join to share your story', href: `/apply${qs}` },
+  }
+  const headline = gi.headline?.trim() || 'Help build the community you want to be part of'
+  const subtitle = gi.subtitle?.trim() || 'Smileys is shaped by its members. The best events, the most active clubs, the warmest atmosphere — they all start with someone deciding to show up and contribute.'
   return (
     <main>
 
@@ -95,10 +128,10 @@ export default async function GetInvolvedPage({ searchParams }: { searchParams?:
             ✦ Get involved
           </span>
           <h1 className="text-5xl sm:text-6xl font-extrabold text-gray-900 tracking-tight leading-tight mb-6">
-            {gi.headline ?? 'Help build the community you want to be part of'}
+            {headline}
           </h1>
           <p className="text-base text-gray-600 max-w-2xl leading-relaxed">
-            {gi.subtitle ?? "Smileys is shaped by its members. The best events, the most active clubs, the warmest atmosphere — they all start with someone deciding to show up and contribute."}
+            {subtitle}
           </p>
         </div>
       </section>
@@ -137,14 +170,14 @@ export default async function GetInvolvedPage({ searchParams }: { searchParams?:
                   <p className={`leading-relaxed mb-6 ${w.accent ? 'text-amber-50' : 'text-gray-600'}`}>
                     {w.body}
                   </p>
-                  <Link href={w.href}
+                  <Link href={cta[w.key].href}
                     className={`inline-flex items-center gap-2 px-6 py-3 rounded-2xl font-bold text-sm transition-colors ${
                       w.accent
                         ? 'bg-white text-amber-600 hover:bg-amber-50'
                         : 'bg-amber-500 text-white hover:bg-amber-600'
                     }`}>
-                    {w.cta}
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    {cta[w.key].label}
+                    <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                     </svg>
                   </Link>
@@ -195,8 +228,11 @@ export default async function GetInvolvedPage({ searchParams }: { searchParams?:
             You're building one.
           </p>
           <div className="flex items-center gap-3 flex-wrap">
-            <Link href="/apply" className="btn-primary--lg">Apply to join</Link>
-            <Link href="/contact" className="btn-secondary">Get in touch</Link>
+            {/* A member is already in: they get the next thing to do. */}
+            {session
+              ? <Link href="/invite" className="btn-primary--lg">Invite a friend</Link>
+              : <Link href={`/apply${qs}`} className="btn-primary--lg">Apply to join</Link>}
+            <Link href={`/contact${city.slug === DEFAULT_CITY_SLUG ? '' : `?city=${city.slug}`}`} className="btn-secondary">Get in touch</Link>
           </div>
         </div>
       </section>

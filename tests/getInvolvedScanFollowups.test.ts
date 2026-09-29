@@ -1,0 +1,79 @@
+import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'fs'
+import { join } from 'path'
+
+// Get-involved scan 2026-09-29, items 1–7.
+
+const read = (f: string) => readFileSync(join(process.cwd(), f), 'utf8')
+const page    = read('app/get-involved/page.tsx')
+const contact = read('app/api/contact/route.ts')
+const form    = read('app/contact/page.tsx')
+
+describe('1: offers reach the team', () => {
+  it('host and club-proposal topics with starter text', () => {
+    expect(form).toContain("{ value: 'host',        label: 'Offer to host',")
+    expect(form).toContain("{ value: 'club-proposal', label: 'Propose a club',")
+    expect(form).toContain("topic === 'host' ? `I'd like to host")
+    expect(contact).toContain("host:        'Offer to host',")
+    expect(contact).toContain("'club-proposal': 'Club proposal',")
+  })
+  it('spam words flag an offer instead of dropping it; the limit counts only sendable messages', () => {
+    expect(contact).toContain("const OFFER_TOPICS = new Set(['host', 'club-proposal', 'city', 'nominate'])")
+    expect(contact).toContain('if (spammy && !OFFER_TOPICS.has(topic)) {')
+    expect(contact).toContain("${spammy ? ' ⚠ check: spam words' : ''}")
+    expect(contact.indexOf("rateLimit(`contact:${getIp(req)}`, 3, 60 * 60_000)")).toBeGreaterThan(contact.indexOf("if (message.trim().length > 3000)"))
+    expect(contact).not.toContain("rateLimit(`contact:${getIp(req)}`, 1, 60 * 60_000)")
+  })
+})
+
+describe('2: the city travels', () => {
+  it('get-involved links carry it; the form sends it; the email names it and the member', () => {
+    expect(page).toContain("const withCity = (topic: string) => `/contact?topic=${topic}${city.slug === DEFAULT_CITY_SLUG ? '' : `&city=${city.slug}`}`")
+    expect(page).toContain(': <Link href={`/apply${qs}`} className="btn-primary--lg">Apply to join</Link>}')
+    expect(form).toContain("city: params.get('city') ?? undefined,")
+    expect(contact).toContain('const cityRow  = citySlug ? await getPublicCity(citySlug) : null')
+    expect(contact).toContain('${session ? `<tr style="background:#f9fafb">')
+  })
+})
+
+describe('3–4: each viewer gets a way that works for them', () => {
+  it('guests are sent to apply for the member-only ways; hosts to their tools; members to invite', () => {
+    expect(page).toContain("invite: session ? { label: 'Invite someone', href: '/invite' } : { label: 'Join to invite friends', href: `/apply${qs}` },")
+    expect(page).toContain("story:  session ? { label: 'Write your story', href: '/share-story' } : { label: 'Join to share your story', href: `/apply${qs}` },")
+    expect(page).toContain("host:   hosting ? { label: 'Plan your next event', href: '/host/events/new' } : { label: 'Offer to host', href: withCity('host') },")
+    expect(page).toContain('? <Link href="/invite" className="btn-primary--lg">Invite a friend</Link>')
+    expect(page).not.toContain("href: '/contact',")
+  })
+})
+
+describe('5: perks the product delivers', () => {
+  it('no supplier network, no directory listing for clubs, no warm introductions, no created group', () => {
+    expect(page).not.toContain("'Access to our network of vetted venues and suppliers',")
+    expect(page).not.toContain("'Club featured in the Smileys directory',")
+    expect(page).not.toContain("'Invited friends get a warm introduction to your clubs',")
+    expect(page).not.toContain("'Dedicated WhatsApp group for your members',")
+    expect(page).toContain("'Listed on your city\\'s Clubs page',")
+  })
+})
+
+describe('6: metadata and sitemap', () => {
+  it('canonical, share card, no superlative, no dead revalidate; listed in the sitemap', () => {
+    expect(page).toContain("alternates: { canonical: `${APP_URL}/get-involved` },")
+    expect(page).toContain('openGraph: { title, description, url: `${APP_URL}/get-involved`')
+    expect(page).not.toContain('most vibrant')
+    expect(page).not.toContain('export const revalidate')
+    expect(read('app/sitemap.ts')).toContain("{ url: `${BASE}/get-involved`,  priority: 0.5, changeFrequency: 'monthly' },")
+  })
+})
+
+describe('7: a cleared admin headline falls back to the default', () => {
+  it('trimmed on the page (get-involved, about, why, advertise) and on save', () => {
+    expect(page).toContain("const headline = gi.headline?.trim() ||")
+    expect(read('app/about/page.tsx')).toContain('{about.headline?.trim() ||')
+    expect(read('app/why/page.tsx')).toContain('{why.headline?.trim() ||')
+    expect(read('app/advertise/page.tsx')).toContain('{adv.headline?.trim() ||')
+    const admin = read('app/api/admin/content/route.ts')
+    expect(admin).not.toMatch(/headline: str\(r\.headline, HEADLINE_MAX\),/)
+    expect(admin).not.toMatch(/subtitle: str\(r\.subtitle, SUBTITLE_MAX\),/)
+  })
+})
