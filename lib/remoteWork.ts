@@ -131,6 +131,7 @@ export interface HubEventLike {
   id:                   string
   date:                 string
   title:                string
+  time?:                string | null
   clubId?:              string | null
   seriesId?:            string | null
   isFirstTimerFriendly?: boolean
@@ -149,7 +150,7 @@ export const HUB_WORK_EVENT_CAP = 3
  * of a work club) take at most HUB_WORK_EVENT_CAP places and first-timer-
  * friendly events the rest, each backfilling the other when it runs short,
  * so neither kind can crowd the other out. Cancelled events never appear.
- * The result is back in date order.
+ * The result is back in date-and-time order.
  */
 export function pickHubEvents<E extends HubEventLike>(events: E[], workClubIds: Set<string>, limit: number): E[] {
   const seen = new Set<string>()
@@ -166,7 +167,9 @@ export function pickHubEvents<E extends HubEventLike>(events: E[], workClubIds: 
   const newbies = once.filter(e => !isWork(e) && e.isFirstTimerFriendly)
   const workTake = Math.min(work.length, Math.max(HUB_WORK_EVENT_CAP, limit - newbies.length))
   const picked = [...work.slice(0, workTake), ...newbies.slice(0, limit - workTake)]
-  return picked.sort((a, b) => a.date.localeCompare(b.date))
+  // Date, then start time ('HH:MM', so it sorts as text): an 11:00 meetup
+  // comes before a 12:00 session on the same day, whichever kind it is.
+  return picked.sort((a, b) => a.date.localeCompare(b.date) || (a.time ?? '').localeCompare(b.time ?? ''))
 }
 
 /** Where a remote worker's employer most often is. A 9-to-5 in each is shown

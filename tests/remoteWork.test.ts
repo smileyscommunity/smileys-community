@@ -88,6 +88,17 @@ describe('groupHubArticles', () => {
   })
 })
 
+describe('pickHubEvents — order within a day', () => {
+  it('puts an 11:00 first-timer event before a 12:00 coworking session on the same day', () => {
+    const picked = pickHubEvents([
+      { id: 'cowork', date: '2026-09-30', time: '12:00', title: 'Coworking', clubId: 'w' },
+      { id: 'meetup', date: '2026-09-30', time: '11:00', title: 'Meetup', isFirstTimerFriendly: true },
+      { id: 'social', date: '2026-09-30', time: '19:00', title: 'Social', isFirstTimerFriendly: true },
+    ], new Set(['w']), 6)
+    expect(picked.map(e => e.id)).toEqual(['meetup', 'cowork', 'social'])
+  })
+})
+
 describe('Health and insurance topic', () => {
   it('files the health-insurance guide under its own topic, last', () => {
     const topics = groupHubArticles([
