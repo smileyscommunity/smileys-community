@@ -536,18 +536,11 @@ function AppClubsPageInner() {
               </button>
             </div>
             {myUpcoming.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                {myUpcoming.slice(0, 4).map(c => (
-                  <Link key={c.id} href={`/clubs/${c.slug}`}
-                    className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:border-amber-200 hover:shadow-md transition-all group">
-                    <div className="flex items-center gap-2.5 mb-2">
-                      <span aria-hidden="true" className="text-2xl shrink-0">{c.emoji}</span>
-                      <p className="font-bold text-gray-900 leading-snug truncate group-hover:text-amber-700 transition-colors">{c.name}</p>
-                    </div>
-                    <p className="text-xs font-semibold text-green-800">{formatDay(c.nextEvent!.date)}</p>
-                    <p className="text-xs text-gray-700 truncate">{c.nextEvent!.title}</p>
-                  </Link>
-                ))}
+              // Every one of your clubs with something coming up (Nate: "all
+              // clubs with events not just 4"), on the full card so it carries
+              // the cover hero too.
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                {myUpcoming.map(club => renderCard(club))}
               </div>
             ) : (
               <p className="text-sm text-gray-600">None of your clubs has anything planned right now.</p>

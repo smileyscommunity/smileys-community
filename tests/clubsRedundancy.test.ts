@@ -16,7 +16,9 @@ describe('clubs explore tab', () => {
   // every joined club; half said "Nothing planned yet".
   it('the top row is only your clubs with something coming up; the rest are one tap away', () => {
     expect(src).toContain('() => joinedClubs.filter(c => c.nextEvent).sort((a, b) => a.nextEvent!.date.localeCompare(b.nextEvent!.date)),')
-    expect(src).toContain('{myUpcoming.slice(0, 4).map(c => (')
+    // Every one with an event (Nate: "not just 4"), on the hero card.
+    expect(src).toContain('{myUpcoming.map(club => renderCard(club))}')
+    expect(src).not.toContain('myUpcoming.slice(0, 4)')
     expect(src).not.toContain('Nothing planned yet</p>')
     expect(src).toContain('All your clubs ({joinedClubs.length + pendingClubs.length}) →')
   })
