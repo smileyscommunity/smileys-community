@@ -3,7 +3,7 @@ import { APP_URL } from '@/lib/env'
 import { getPublicCity } from '@/lib/cities'
 import { getSession } from '@/lib/session'
 import { Resend } from 'resend'
-import { rateLimit, getIp } from '@/lib/rateLimit'
+import { rateLimit, rateLimitRemaining, getIp } from '@/lib/rateLimit'
 import { verifyTurnstile } from '@/lib/turnstile'
 
 function getResend() {
@@ -29,6 +29,9 @@ const TOPIC_LABELS: Record<string, string> = {
   // A correction or an addition to a Handbook article — the article page's
   // "Send a tip" lands here, with the slug in the message.
   handbook:    'Handbook article',
+  // The city guide's "Have a tip to share?" (app/guide/GuideCTA) sent
+  // ?topic=guide, which wasn't a topic, so tips arrived as General Inquiry.
+  guide:       'City guide tip',
   // A member nominating the next "Working from" interviewee — the remote-work
   // hub's link lands here with the city in the message (lib/remoteWork).
   nominate:    'Working from — nomination',
@@ -62,45 +65,46 @@ function countUrls(text: string): number {
   return (text.match(/https?:\/\/\S+/gi) ?? []).length
 }
 
-function isSpam(text: string, email = ''): boolean {
+// Why a message looks like spam, or null. It only ever FLAGS the email's
+// subject — never drops it. These words are ordinary for this community:
+// "work from home" is the remote-work hub's reader, "pharmacy" and
+// "prescription" are three Handbook articles' subjects, and a guide tip is a
+// Maps link in one line. Each was silently dropped behind "Message sent!"
+// while Turnstile, which runs first, already keeps bots out.
+function spamReason(text: string, email = ''): string | null {
   const lower = text.toLowerCase()
-  // More than 1 URL
-  if (countUrls(text) > 1) return true
-  // Any URL in a short message is suspicious
-  if (countUrls(text) > 0 && text.length < 200) return true
-  // Keyword match
-  if (SPAM_KEYWORDS.some(kw => lower.includes(kw))) return true
-  // Disposable email domain
+  if (countUrls(text) > 1) return 'several links'
+  if (countUrls(text) > 0 && text.length < 200) return 'a link in a short message'
+  const kw = SPAM_KEYWORDS.find(k => lower.includes(k))
+  if (kw) return `"${kw}"`
   const domain = email.split('@')[1]?.toLowerCase()
-  if (domain && SPAM_DOMAINS.includes(domain)) return true
+  if (domain && SPAM_DOMAINS.includes(domain)) return 'a disposable email address'
   // Excessive caps (>60% uppercase in messages longer than 30 chars)
   if (text.length > 30) {
     const letters = text.replace(/[^a-zA-Z]/g, '')
     const caps    = text.replace(/[^A-Z]/g, '')
-    if (letters.length > 0 && caps.length / letters.length > 0.6) return true
+    if (letters.length > 0 && caps.length / letters.length > 0.6) return 'mostly capitals'
   }
-  return false
+  return null
 }
 
-
-// Topics that are someone offering to do something for the community. The
-// spam words ("adult", "followers", "work from home", "crypto", a link in a
-// short message) are ordinary in a club pitch — "a board-games night for
-// young adults" — so on these topics a match flags the email instead of
-// silently dropping it behind a "Message sent!".
-const OFFER_TOPICS = new Set(['host', 'club-proposal', 'city', 'nominate'])
+const RATE_LIMIT = 3
+const RATE_WINDOW_MS = 60 * 60_000
 
 export async function POST(req: NextRequest) {
   try {
     const { name, email, topic, message, city: cityRaw, _hp, _t, _cf } = await req.json()
 
-    // Honeypot check — bots fill this hidden field
-    if (_hp) return NextResponse.json({ ok: true })
-
-    // Timing check — must take at least 5 seconds; reject if _t is missing (direct API hit)
-    if (!_t || Date.now() - Number(_t) < 5000) {
+    // Honeypot — only a bot fills a field no person can see or reach. The one
+    // silent drop left, and it is logged so a drop is never invisible.
+    if (_hp) {
+      console.warn(`[contact] dropped: honeypot filled (topic ${String(topic).slice(0, 30)})`)
       return NextResponse.json({ ok: true })
     }
+
+    // Faster than 5 seconds, or no timestamp (a direct API hit), is a flag,
+    // not a drop: a starter text plus autofill can be sent that fast by a person.
+    const fast = !_t || Date.now() - Number(_t) < 5000
 
     // Turnstile verification
     const ip = getIp(req)
@@ -117,6 +121,12 @@ export async function POST(req: NextRequest) {
     if (/[\r\n]/.test(name)) {
       return NextResponse.json({ error: 'Invalid name' }, { status: 400 })
     }
+    if (name.trim().length > 100) {
+      return NextResponse.json({ error: 'Name is too long' }, { status: 400 })
+    }
+    if (email.trim().length > 254) {
+      return NextResponse.json({ error: 'Invalid email address' }, { status: 400 })
+    }
     if (message.trim().length < 10) {
       return NextResponse.json({ error: 'Message is too short' }, { status: 400 })
     }
@@ -124,20 +134,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Message is too long' }, { status: 400 })
     }
 
-    // 3 an hour per address, counted only for a message that would actually
-    // be sent — it was 1 an hour counted before any check, so a typo in the
-    // email locked the sender out for an hour, and one person on a café or
-    // campus network used it up for everyone there.
-    if (!await rateLimit(`contact:${getIp(req)}`, 3, 60 * 60_000)) {
+    // 3 an hour per network, checked here and SPENT only once the email has
+    // gone (below): a send that failed on our side used to cost one of the three.
+    const rateKey = `contact:${getIp(req)}`
+    if (await rateLimitRemaining(rateKey, RATE_LIMIT) <= 0) {
       return NextResponse.json({ error: 'Too many messages from this network in the last hour. Try again later, or email info@smileyscommunity.com.' }, { status: 429 })
     }
 
-    // Spam content check — dropped silently for general topics, flagged for
-    // offers (see OFFER_TOPICS).
-    const spammy = isSpam(message, email) || isSpam(name, email)
-    if (spammy && !OFFER_TOPICS.has(topic)) {
-      return NextResponse.json({ ok: true })
-    }
+    const reason = spamReason(message, email) ?? spamReason(name, email) ?? (fast ? 'sent within 5 seconds' : null)
+    if (reason) console.warn(`[contact] flagged: ${reason} (topic ${String(topic).slice(0, 30)})`)
 
     // Which city this is about (a public slug from ?city=) and, when signed
     // in, which member sent it — a host offer from Bodrum used to reach the
@@ -147,6 +152,8 @@ export async function POST(req: NextRequest) {
     const session  = await getSession()
 
     const topicLabel = TOPIC_LABELS[topic] ?? 'General Inquiry'
+    // The subject is a plain-text header, not HTML: escaping it showed "&amp;".
+    const plainName  = name.trim()
     const safeName    = esc(name)
     const safeEmail   = esc(email)
     const safeMessage = esc(message.trim())
@@ -155,7 +162,7 @@ export async function POST(req: NextRequest) {
       from:    `Smileys Contact Form <${CONTACT_EMAIL}>`,
       to:      CONTACT_EMAIL,
       replyTo: email,
-      subject: `[Contact]${spammy ? ' ⚠ check: spam words' : ''} ${topicLabel}${cityRow ? ` · ${esc(cityRow.name)}` : ''} — ${safeName}`,
+      subject: `[Contact]${reason ? ` ⚠ check: ${reason}` : ''} ${topicLabel}${cityRow ? ` · ${cityRow.name}` : ''} — ${plainName}`,
       html: `
         <div style="font-family:system-ui,sans-serif;max-width:600px;margin:0 auto;background:#fff;border-radius:12px;padding:32px;border:1px solid #e5e7eb">
           <div style="margin-bottom:24px">
@@ -199,10 +206,12 @@ export async function POST(req: NextRequest) {
       `,
     })
 
+    await rateLimit(rateKey, RATE_LIMIT, RATE_WINDOW_MS)
+
     // No auto-reply. Sending one to whatever `email` was supplied turns this
     // endpoint into a reflective email tool: an attacker could DOS or phish
     // a victim by submitting `victim@example.com` and a crafted "Your message"
-    // that we'd then dutifully forward from our own domain (1/h/IP limit
+    // that we'd then dutifully forward from our own domain (3/h/IP limit
     // doesn't stop a distributed sender). The form's UI shows
     // "Message received — we'll get back to you" so the sender doesn't need
     // an email to feel acknowledged.

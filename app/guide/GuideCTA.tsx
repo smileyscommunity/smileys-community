@@ -9,7 +9,7 @@ import { useAuth } from '@/contexts/AuthContext'
 // either way, and the heavy reads are cached by unstable_cache independently.)
 // `applyHref` carries the city: /apply?city=izmir from İzmir's guide, not the
 // default city's form.
-export default function GuideCTA({ cityName, applyHref }: { cityName: string; applyHref: string }) {
+export default function GuideCTA({ cityName, citySlug, applyHref }: { cityName: string; citySlug: string; applyHref: string }) {
   const { isLoggedIn, isLoading } = useAuth()
 
   // Reserve the vertical space during auth init so the page doesn't
@@ -21,7 +21,8 @@ export default function GuideCTA({ cityName, applyHref }: { cityName: string; ap
 
   if (isLoggedIn) {
     return (
-      <Link href="/contact?topic=guide"
+      // The city rides along so the tip reaches the team tagged with it.
+      <Link href={`/contact?topic=guide&city=${encodeURIComponent(citySlug)}`}
         className="mt-10 block bg-gray-50 hover:bg-amber-50 border border-gray-100 hover:border-amber-200 rounded-2xl p-6 text-center transition-colors">
         <div className="text-2xl mb-2">💬</div>
         <p className="text-base font-bold text-gray-900 mb-1">Have a tip to share?</p>

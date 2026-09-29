@@ -807,7 +807,7 @@ export default async function GuidePage({ searchParams }: { searchParams?: Promi
         </div>
 
         {/* CTA — client island, branches on useAuth().isLoggedIn. */}
-        <GuideCTA cityName={city.name} applyHref={`/apply${cityQs}`} />
+        <GuideCTA cityName={city.name} citySlug={city.slug} applyHref={`/apply${cityQs}`} />
 
         </div>
       </div>

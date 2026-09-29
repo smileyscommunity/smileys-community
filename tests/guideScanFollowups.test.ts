@@ -83,7 +83,7 @@ describe('honest copy (items 11–12, 14)', () => {
 
 describe('index apply link (item 13)', () => {
   it('the community CTA applies to the city being read', () => {
-    expect(read('app/guide/page.tsx')).toContain('<GuideCTA cityName={city.name} applyHref={`/apply${cityQs}`} />')
+    expect(read('app/guide/page.tsx')).toContain('<GuideCTA cityName={city.name} citySlug={city.slug} applyHref={`/apply${cityQs}`} />')
     expect(read('app/guide/GuideCTA.tsx')).not.toContain('href="/apply"')
   })
 })

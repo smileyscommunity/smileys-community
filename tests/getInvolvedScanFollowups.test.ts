@@ -18,11 +18,10 @@ describe('1: offers reach the team', () => {
     expect(contact).toContain("'club-proposal': 'Club proposal',")
   })
   it('spam words flag an offer instead of dropping it; the limit counts only sendable messages', () => {
-    expect(contact).toContain("const OFFER_TOPICS = new Set(['host', 'club-proposal', 'city', 'nominate'])")
-    expect(contact).toContain('if (spammy && !OFFER_TOPICS.has(topic)) {')
-    expect(contact).toContain("${spammy ? ' ⚠ check: spam words' : ''}")
-    expect(contact.indexOf("rateLimit(`contact:${getIp(req)}`, 3, 60 * 60_000)")).toBeGreaterThan(contact.indexOf("if (message.trim().length > 3000)"))
-    expect(contact).not.toContain("rateLimit(`contact:${getIp(req)}`, 1, 60 * 60_000)")
+    // Contact scan 2026-09-29 widened this to every topic: spam words flag,
+    // never drop (tests/contactScanFollowups).
+    expect(contact).toContain("${reason ? ` ⚠ check: ${reason}` : ''}")
+    expect(contact.indexOf('if (await rateLimitRemaining(rateKey, RATE_LIMIT) <= 0) {')).toBeGreaterThan(contact.indexOf("if (message.trim().length > 3000)"))
   })
 })
 
@@ -30,7 +29,7 @@ describe('2: the city travels', () => {
   it('get-involved links carry it; the form sends it; the email names it and the member', () => {
     expect(page).toContain("const withCity = (topic: string) => `/contact?topic=${topic}${city.slug === DEFAULT_CITY_SLUG ? '' : `&city=${city.slug}`}`")
     expect(page).toContain(': <Link href={`/apply${qs}`} className="btn-primary--lg">Apply to join</Link>}')
-    expect(form).toContain("city: params.get('city') ?? undefined,")
+    expect(form).toContain("city: citySlug ?? undefined,")
     expect(contact).toContain('const cityRow  = citySlug ? await getPublicCity(citySlug) : null')
     expect(contact).toContain('${session ? `<tr style="background:#f9fafb">')
   })
