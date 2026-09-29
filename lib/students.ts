@@ -340,7 +340,8 @@ export function studentFaqs(i: { cityName: string; mostlyEnglish: boolean }): { 
       a: 'Yes. Erasmus, exchange and full-degree students are all welcome. You apply like anyone else, and no university details are asked.' },
     { q: 'Is it free?',
       a: 'Joining is free. You only pay for events you choose, and the price is on every event before you RSVP.' },
-    { q: 'Do I need to speak Turkish?',
+    // Not "Turkish": the hub runs in every city (tests/countryHardcoding).
+    { q: 'Do I need to speak the local language?',
       a: i.mostlyEnglish
         ? `No. Every event shows the language it runs in, and most events in ${i.cityName} are in English.`
         : 'No, but check the event: every event shows the language it runs in.' },

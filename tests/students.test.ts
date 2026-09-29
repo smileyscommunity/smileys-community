@@ -310,7 +310,7 @@ describe('student hub add-ons', () => {
     expect(mostlyEnglish([{ language: 'English' }, { language: 'Turkish' }])).toBe(false)
     expect(mostlyEnglish([{ language: 'English', status: 'cancelled' }, { language: 'Turkish' }])).toBe(false)
     expect(mostlyEnglish([])).toBe(false)
-    const turkish = studentFaqs({ cityName: 'Bursa', mostlyEnglish: false }).find(f => /Turkish/.test(f.q))!
+    const turkish = studentFaqs({ cityName: 'Bursa', mostlyEnglish: false }).find(f => /local language/.test(f.q))!
     expect(turkish.a).not.toMatch(/most events/)
   })
 
