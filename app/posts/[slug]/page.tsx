@@ -15,6 +15,7 @@ import { canManagePosts, canActOnCityContent } from '@/lib/access'
 import { storyBylines } from '@/lib/storyByline'
 import { normalizeCommunityCategory } from '@/app/admin/posts/constants'
 import ArticleInlineEditor from '@/components/ArticleInlineEditor'
+import SocialShare from '@/components/SocialShare'
 import ArticleViewBeacon from '@/components/ArticleViewBeacon'
 
 // The author's privacy columns ride along so the byline can be projected for
@@ -346,6 +347,20 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
           ? <div className={BODY_PROSE} dangerouslySetInnerHTML={{ __html: sanitizeArticle(post.body) }} />
           : <div>{renderBody(post.body)}</div>}
        </ArticleInlineEditor>
+
+        {/* Share — stories are public, like the handbook, so a reader can send
+            one to a friend who isn't in the community yet. cacheKey busts
+            stale WhatsApp/Facebook previews after an edit; the canonical
+            above drops the ?v=. Drafts in staff preview have nothing to share. */}
+        {!preview && (
+          <div className="mt-10 pt-8 border-t border-gray-100">
+            <SocialShare
+              title={`${post.title} — Smileys Community`}
+              url={`${APP_URL}/posts/${post.slug}`}
+              cacheKey={new Date(post.updatedAt ?? post.publishedAt ?? Date.now()).getTime().toString(36)}
+            />
+          </div>
+        )}
 
         {/* Next in the series — only where the category actually runs in order. */}
         {nextUp && (
