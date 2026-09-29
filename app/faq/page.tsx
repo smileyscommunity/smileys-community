@@ -8,14 +8,12 @@ import { splitSiteAddresses } from '@/lib/siteAddresses'
 
 export const revalidate = 3600
 
-// See app/about/page.tsx — a page-level `openGraph` block loses the root
-// layout's default og:image, so this shared with no preview at all on
-// WhatsApp/iMessage/Twitter until this was added.
-const ogImage = `${APP_URL}/api/og?${new URLSearchParams({
-  title:   'Frequently Asked Questions',
-  eyebrow: 'Smileys Community Help Centre',
-  cta:     'Get answers',
-}).toString()}`
+// The share card: Nate's FAQ banner (2026-09-29), cropped to 1200×630 at
+// ~170KB — under WhatsApp's ~300KB silent-drop threshold — the same way as
+// public/images/about-hero-og.jpg. A page-level openGraph block loses the
+// root layout's og:image, so it is set here. Re-crop if the banner changes.
+const ogImage = `${APP_URL}/images/faq-og.jpg`
+const ogAlt   = 'Smileys Community FAQ: got questions? We’ve got answers.'
 
 export const metadata = {
   alternates: { canonical: `${APP_URL}/faq` },
@@ -25,13 +23,13 @@ export const metadata = {
     title: 'Smileys Community FAQ',
     description: 'Everything you need to know about joining and using Smileys Community.',
     url: `${APP_URL}/faq`,
-    images: [{ url: ogImage, width: 1200, height: 630, alt: 'Smileys Community FAQ' }],
+    images: [{ url: ogImage, width: 1200, height: 630, alt: ogAlt }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Smileys Community FAQ',
     description: 'Everything you need to know about joining and using Smileys Community.',
-    images: [ogImage],
+    images: [{ url: ogImage, alt: ogAlt }],
   },
 }
 

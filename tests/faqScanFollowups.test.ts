@@ -117,3 +117,12 @@ describe('7–9: CTA text, structure, promises', () => {
     expect(answer('My account was suspended. How do I appeal?')).toContain("If we restore your account, you'll get an email.")
   })
 })
+
+describe('share card', () => {
+  it('uses the FAQ banner crop, 1200×630 and under WhatsApp\'s ~300KB limit', async () => {
+    const { statSync } = await import('fs')
+    expect(page).toContain('const ogImage = `${APP_URL}/images/faq-og.jpg`')
+    expect(page).toContain('images: [{ url: ogImage, width: 1200, height: 630, alt: ogAlt }],')
+    expect(statSync(join(process.cwd(), 'public/images/faq-og.jpg')).size).toBeLessThan(300_000)
+  })
+})
