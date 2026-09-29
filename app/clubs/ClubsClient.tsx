@@ -405,13 +405,21 @@ function AppClubsPageInner() {
 
   // Health-ranked discovery (brief §36): Active first, New second, Quiet
   // last; ties broken by this-week activity, then size.
-  const exploreClubs = useMemo(
-    () => clubs.filter(matches).sort((a, b) =>
+  // Explore is for clubs you're NOT in: your own are in "Your clubs" at the
+  // top and on the My Clubs tab, and the grid showed them a third time.
+  const mineIds = useMemo(
+    () => new Set([...joinedClubs, ...pendingClubs].map(c => c.id)),
+    [joinedClubs, pendingClubs]
+  )
+  const notMine = useMemo(() => clubs.filter(c => !mineIds.has(c.id)), [clubs, mineIds])
+
+  const exploreBase = useMemo(
+    () => notMine.filter(matches).sort((a, b) =>
       (HEALTH_RANK[a.health ?? 'quiet'] - HEALTH_RANK[b.health ?? 'quiet'])
       || ((b.activityThisWeek ?? 0) - (a.activityThisWeek ?? 0))
       || (b.memberCount - a.memberCount)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [clubs, activeCategory, q]
+    [notMine, activeCategory, q]
   )
 
   const myClubs = useMemo(
@@ -423,23 +431,25 @@ function AppClubsPageInner() {
   // "Active this week" strip (brief §11) — real activity only, never
   // membership size. Silent when nothing qualifies.
   const activeThisWeek = useMemo(
-    () => clubs.filter(c => (c.activityThisWeek ?? 0) > 0)
+    () => notMine.filter(c => (c.activityThisWeek ?? 0) > 0)
       .sort((a, b) => (b.activityThisWeek ?? 0) - (a.activityThisWeek ?? 0))
       .slice(0, 4),
-    [clubs]
+    [notMine]
   )
 
-  // "Coming up in your clubs" (brief §43) — next events across the
-  // viewer's joined clubs, soonest first.
-  const comingUp = useMemo(
-    () => joinedClubs
-      .filter(c => c.nextEvent)
-      .sort((a, b) => (a.nextEvent!.date).localeCompare(b.nextEvent!.date))
-      .slice(0, 3),
-    [joinedClubs]
-  )
+  // The strip shows only on the unfiltered Explore view; there, the grid
+  // below leaves its clubs out so the same four don't appear twice in a row.
+  // ("Coming up in your clubs" went too: each "Your clubs" card already
+  // names its club's next event.)
+  const showActive   = tab === 'explore' && activeCategory === 'All' && !q && activeThisWeek.length > 0
+  const exploreClubs = showActive
+    ? exploreBase.filter(c => !activeThisWeek.some(a => a.id === c.id))
+    : exploreBase
 
   const displayClubs = tab === 'mine' ? myClubs : exploreClubs
+  // The count says how many clubs match — the strip's four included — not
+  // how many cards happen to sit in the grid under it.
+  const shownCount   = tab === 'mine' ? myClubs.length : exploreBase.length
 
   return (
     <div className="min-h-screen bg-warm pb-20 md:pb-0">
@@ -495,7 +505,7 @@ function AppClubsPageInner() {
               grid for the SR semantics. */}
           <div role="tablist" aria-label="Filter clubs by membership" className="flex flex-wrap gap-2 mb-4">
             {(isLoggedIn
-              ? [['explore', 'Explore', clubs.length], ['mine', 'My Clubs', joinedClubs.length + pendingClubs.length]] as [Tab, string, number][]
+              ? [['explore', 'Explore', notMine.length], ['mine', 'My Clubs', joinedClubs.length + pendingClubs.length]] as [Tab, string, number][]
               : [['explore', 'Explore', clubs.length]] as [Tab, string, number][]
             ).map(([key, label, count]) => (
               <button
@@ -580,26 +590,6 @@ function AppClubsPageInner() {
           </div>
         )}
 
-        {/* Coming up in your clubs (brief §43). */}
-        {!loading && tab === 'explore' && comingUp.length > 0 && (
-          <div className="mb-8 bg-amber-50 border border-amber-100 rounded-2xl p-5">
-            <h2 className="text-sm font-extrabold text-amber-800 uppercase tracking-widest mb-3">Coming up in your clubs</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {comingUp.map(c => (
-                <Link key={c.id} href={`/clubs/${c.slug}`} className="flex items-start gap-3 bg-white rounded-xl border border-amber-100 px-4 py-3 hover:border-amber-300 transition-colors">
-                  <span aria-hidden="true" className="text-xl shrink-0">{c.emoji}</span>
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold text-gray-900 truncate">{c.nextEvent!.title}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      {formatDay(c.nextEvent!.date)} · {c.name}
-                    </p>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* What are you into? (brief §6) — members without clubs get
             interest chips instead of a wall of cards. */}
         {!loading && isLoggedIn && joinedClubs.length === 0 && pendingClubs.length === 0 && tab === 'explore' && activeCategory === 'All' && !q && (
@@ -618,7 +608,7 @@ function AppClubsPageInner() {
         )}
 
         {/* Active this week (brief §11) — real activity, not size. */}
-        {!loading && tab === 'explore' && activeCategory === 'All' && !q && activeThisWeek.length > 0 && (
+        {!loading && showActive && (
           <div className="mb-8">
             <h2 className="text-sm font-extrabold text-gray-600 uppercase tracking-widest mb-3"><span aria-hidden="true">🔥</span> Active this week</h2>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -649,7 +639,7 @@ function AppClubsPageInner() {
               Try again
             </button>
           </div>
-        ) : displayClubs.length === 0 ? (
+        ) : shownCount === 0 ? (
           <div className="text-center py-20 max-w-xs mx-auto">
             <div className="text-6xl mb-4">🏛️</div>
             <h2 className="text-lg font-bold text-gray-900 mb-2">
@@ -679,8 +669,8 @@ function AppClubsPageInner() {
           <>
             {!loading && (
               <p className="text-sm text-gray-600 mb-5">
-                <strong className="text-gray-900 font-bold">{displayClubs.length}</strong>{' '}
-                club{displayClubs.length !== 1 ? 's' : ''}
+                <strong className="text-gray-900 font-bold">{shownCount}</strong>{' '}
+                club{shownCount !== 1 ? 's' : ''}
                 {activeCategory !== 'All' && ` in ${categoryLabel(activeCategory)}`}
               </p>
             )}
