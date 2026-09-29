@@ -16,13 +16,17 @@ import { safeTz } from './cityTime'
 
 /** The Handbook topics a remote worker needs in the first days, in the order
  *  they come up. `category` is a canonical Handbook category key. `keywords`
- *  ranks articles inside a broad category ('Home & Housing' also holds the
- *  daily-life piece), so the most on-topic one leads. */
+ *  says which articles in a broad category are on-topic ('Mobile & Digital'
+ *  also holds e-Devlet, 'Home & Housing' the daily-life piece): the lead slot
+ *  falls back to the category's best, but the second slot only takes an
+ *  on-topic article. `lead` picks which on-topic article opens the topic —
+ *  the one the checklist links — when several match (a bank account before
+ *  the tax number it needs). */
 export const REMOTE_WORK_TOPICS = [
   { key: 'connect',   title: 'SIM, eSIM and home internet', category: 'Mobile & Digital',  keywords: /sim|internet|mobile|esim|phone/i },
-  { key: 'housing',   title: 'Housing and neighbourhoods',  category: 'Home & Housing',    keywords: /apartment|rent|hous|home|flat/i },
-  { key: 'money',     title: 'Banking and money',           category: 'Money & Banking',   keywords: /bank|money|card|tax/i },
-  { key: 'transport', title: 'Getting around',              category: 'Getting Around',    keywords: /card|metro|bus|ferr|transport|kart/i },
+  { key: 'housing',   title: 'Housing and neighbourhoods',  category: 'Home & Housing',    keywords: /apartment|rent|hous|home|flat/i, lead: /rent/i },
+  { key: 'money',     title: 'Banking and money',           category: 'Money & Banking',   keywords: /bank|money|card|tax/i, lead: /bank/i },
+  { key: 'transport', title: 'Getting around',              category: 'Getting Around',    keywords: /card|metro|bus|ferr|transport|kart|airport|arriv|havaliman/i },
   { key: 'legal',     title: 'Visas and residence',         category: 'Residence & Legal', keywords: /residence|permit|visa|ikamet|i̇kamet/i },
 ] as const
 
@@ -62,14 +66,20 @@ export function groupHubArticles<A extends HubArticle>(articles: A[], cityId: st
   return REMOTE_WORK_TOPICS.flatMap(topic => {
     const inCategory = articles.filter(a => canonicalCategory(a.category) === topic.category)
     if (inCategory.length === 0) return []
+    const text    = (a: A) => `${a.title} ${a.slug}`
+    const onTopic = (a: A) => topic.keywords.test(text(a))
+    const lead    = 'lead' in topic ? topic.lead : null
     const score = (a: A) =>
-      (topic.keywords.test(`${a.title} ${a.slug}`) ? 2 : 0) + (a.cityId === cityId ? 1 : 0)
+      (onTopic(a) ? 2 : 0) + (onTopic(a) && lead?.test(text(a)) ? 4 : 0) + (a.cityId === cityId ? 1 : 0)
     const ranked = inCategory
       .map((a, i) => ({ a, i, s: score(a) }))
       .sort((x, y) => y.s - x.s || x.i - y.i)
       .map(x => x.a)
-      .slice(0, ARTICLES_PER_TOPIC)
-    return [{ key: topic.key, title: topic.title, articles: ranked }]
+    // The lead is the category's best even when nothing matches; the rest
+    // must be on-topic — e-Devlet is not a SIM guide.
+    const [first, ...rest] = ranked
+    const picked = [first, ...rest.filter(onTopic)].slice(0, ARTICLES_PER_TOPIC)
+    return [{ key: topic.key, title: topic.title, articles: picked }]
   })
 }
 
@@ -123,6 +133,18 @@ export interface HubEventLike {
   seriesId?:            string | null
   isFirstTimerFriendly?: boolean
   status?:              string
+  maleQuota?:           number | null
+  femaleQuota?:         number | null
+}
+
+/** An event for one gender only — a zero quota for the other, or a title that
+ *  says so ("Girls Meet up"; nothing in the schema marks it otherwise). The
+ *  hub is a door for every newcomer, so these stay on the calendar and off
+ *  the hub. */
+export const SINGLE_GENDER_TITLE = /\b(girls?|women'?s?|ladies|female|males?|men|gentlemen|kad[ıi]nlar?|erkekler?)\b/i
+
+export function isSingleGenderEvent(e: Pick<HubEventLike, 'title' | 'maleQuota' | 'femaleQuota'>): boolean {
+  return e.maleQuota === 0 || e.femaleQuota === 0 || SINGLE_GENDER_TITLE.test(e.title)
 }
 
 /** Most coworking sessions the "work and meet people" row shows, so that
@@ -136,13 +158,15 @@ export const HUB_WORK_EVENT_CAP = 3
  * three sessions repeated said less than three. Coworking sessions (events
  * of a work club) take at most HUB_WORK_EVENT_CAP places and first-timer-
  * friendly events the rest, each backfilling the other when it runs short,
- * so neither kind can crowd the other out. Cancelled events never appear.
+ * so neither kind can crowd the other out. Cancelled and single-gender
+ * events never appear.
  * The result is back in date order.
  */
 export function pickHubEvents<E extends HubEventLike>(events: E[], workClubIds: Set<string>, limit: number): E[] {
   const seen = new Set<string>()
   const once = events.filter(e => {
     if (e.status === 'cancelled') return false
+    if (isSingleGenderEvent(e)) return false
     // A series is one session; an event with no series is its own.
     const key = e.seriesId ? `s:${e.seriesId}` : `e:${e.id}`
     if (seen.has(key)) return false

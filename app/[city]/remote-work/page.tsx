@@ -37,7 +37,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   if (!city || city.status !== CITY_STATUS.Live) return {}
   const title = `Remote work in ${city.name} — Smileys Community`
   const description = `Working remotely from ${city.name}? Your first 72 hours: getting connected, choosing a neighbourhood, coworking sessions, money and transport — and people to spend time with.`
-  const image = shareCover('events', city, title)
+  const image = shareCover('remote-work', city, title)
   const url = `${APP_URL}/${city.slug}/remote-work`
   return {
     title, description,
@@ -203,9 +203,9 @@ export default async function CityRemoteWorkPage({ params }: Params) {
                   {c.memberCount > 0 && (
                     <p className="text-xs font-semibold text-amber-700 mt-0.5">{c.memberCount} club member{c.memberCount === 1 ? '' : 's'}</p>
                   )}
-                  <p className="text-xs text-gray-500 mt-2">
-                    {c.nextEvent ? `Next: ${c.nextEvent.title}` : 'No sessions scheduled yet'}
-                  </p>
+                  {/* Only a real next session earns a line: three cards
+                      saying "none scheduled" made a busy community read as idle. */}
+                  {c.nextEvent && <p className="text-xs text-gray-500 mt-2">Next: {c.nextEvent.title}</p>}
                   {!session && <p className="text-xs font-semibold text-amber-700 mt-2">Join Smileys to join this club →</p>}
                 </Link>
               ))}

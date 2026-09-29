@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import {
-  groupHubArticles, buildChecklist, isWorkClub, utcOffsetLabel, pickHubEvents,
+  groupHubArticles, buildChecklist, isWorkClub, utcOffsetLabel, pickHubEvents, isSingleGenderEvent,
   ARTICLES_PER_TOPIC, HUB_WORK_EVENT_CAP, INTERVIEW_CATEGORY, NOMINATE_TOPIC, nominateHref,
   type HubArticle,
 } from '@/lib/remoteWork'
@@ -38,7 +38,39 @@ describe('groupHubArticles', () => {
       article({ slug: 'daily-life', title: 'Daily life: the little things', category: 'Daily Life' }),
       article({ slug: 'apartment-hunting', title: 'Renting an apartment', category: 'Living in Istanbul' }),
     ], 'c1')
-    expect(topics[0].articles.map(a => a.slug)).toEqual(['apartment-hunting', 'daily-life'])
+    // …and the off-topic neighbour doesn't take the second slot.
+    expect(topics[0].articles.map(a => a.slug)).toEqual(['apartment-hunting'])
+  })
+
+  it('never fills the second slot with an off-topic article (e-Devlet is not a SIM guide)', () => {
+    const topics = groupHubArticles([
+      article({ slug: 'sim', title: 'Getting a SIM card and home internet', category: 'Mobile & Digital' }),
+      article({ slug: 'e-devlet', title: 'e-Devlet for foreigners', category: 'Mobile & Digital' }),
+    ], 'c1')
+    expect(topics[0].articles.map(a => a.slug)).toEqual(['sim'])
+  })
+
+  it('still leads with the best article when none is on-topic', () => {
+    const topics = groupHubArticles([article({ slug: 'e-devlet', title: 'e-Devlet for foreigners', category: 'Mobile & Digital' })], 'c1')
+    expect(topics[0].articles.map(a => a.slug)).toEqual(['e-devlet'])
+  })
+
+  it('leads money with the bank account, not the tax number listed first', () => {
+    const topics = groupHubArticles([
+      article({ slug: 'tax-number', title: 'Getting a Turkish tax number', cityId: null }),
+      article({ slug: 'bank', title: 'Opening a Turkish bank account', cityId: null }),
+    ], 'c1')
+    expect(topics[0].articles.map(a => a.slug)).toEqual(['bank', 'tax-number'])
+    expect(buildChecklist({ citySlug: 'istanbul', topics, hasNeighborhoods: true, hasWorkClubs: false, hasWorkEvents: false, hasEvents: false })
+      .find(s => s.key === 'money')?.href).toBe('/handbook/bank')
+  })
+
+  it('keeps the airport guide in Getting around', () => {
+    const topics = groupHubArticles([
+      article({ slug: 'istanbulkart', title: 'Istanbulkart Mastery', category: 'Getting Around', cityId: 'c1' }),
+      article({ slug: 'arriving-in-istanbul', title: 'Arriving in Istanbul: IST and Sabiha Gökçen', category: 'Getting Around', cityId: 'c1' }),
+    ], 'c1')
+    expect(topics[0].articles.map(a => a.slug)).toEqual(['istanbulkart', 'arriving-in-istanbul'])
   })
 
   it("puts the city's own article ahead of the national one, and caps the topic", () => {
@@ -53,6 +85,27 @@ describe('groupHubArticles', () => {
 
   it('ignores articles in an unknown category rather than inventing a topic', () => {
     expect(groupHubArticles([article({ category: 'Nonsense' })], 'c1')).toEqual([])
+  })
+})
+
+describe('isSingleGenderEvent', () => {
+  it.each(['Girls Meet up 💬', "Women's Brunch", 'Ladies Night', 'Kadınlar Buluşması', 'Men only football'])('keeps %s off the hub', title => {
+    expect(isSingleGenderEvent({ title })).toBe(true)
+  })
+  it.each(['Let’s Get Social Istanbul', 'Mental Health Walk', 'Coworking in Kadıköy', 'Gender-balanced dinner'])('keeps %s', title => {
+    expect(isSingleGenderEvent({ title })).toBe(false)
+  })
+  it('reads a zero quota for either gender as single-gender', () => {
+    expect(isSingleGenderEvent({ title: 'Brunch', maleQuota: 0 })).toBe(true)
+    expect(isSingleGenderEvent({ title: 'Brunch', femaleQuota: 0 })).toBe(true)
+    expect(isSingleGenderEvent({ title: 'Brunch', maleQuota: 5, femaleQuota: 5 })).toBe(false)
+  })
+  it('drops it from the events row', () => {
+    const picked = pickHubEvents([
+      { id: 'a', date: '2026-10-01', title: 'Girls Meet up', isFirstTimerFriendly: true },
+      { id: 'b', date: '2026-10-02', title: 'Language exchange', isFirstTimerFriendly: true },
+    ], new Set(), 6)
+    expect(picked.map(e => e.id)).toEqual(['b'])
   })
 })
 
