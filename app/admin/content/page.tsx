@@ -226,7 +226,7 @@ export default function ContentPage() {
       {/* ── Stats ── */}
       {tab === 'stats' && (
         <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5 space-y-4">
-          <p className="text-xs text-zinc-500">These numbers appear on the footer and the About, Why Smileys, Advertise and Get Involved pages. They override what the site would otherwise measure for itself.</p>
+          <p className="text-xs text-zinc-500">These numbers appear on the footer and the Advertise and Get Involved pages. They override what the site would otherwise measure for itself. The About and Why Smileys pages always show measured numbers.</p>
           {live && (
             <div className="rounded-xl bg-zinc-950 border border-zinc-800 p-4">
               <p className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider mb-2">Live, from the database</p>

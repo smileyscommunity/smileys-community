@@ -1,5 +1,7 @@
 import Link from 'next/link'
-import { resolveStats } from '@/lib/communityStats'
+import { getCommunityStats, approx } from '@/lib/communityStats'
+import { prisma } from '@/lib/prisma'
+import { jsonLdHtml } from '@/lib/jsonLd'
 import Image from 'next/image'
 import { APP_URL } from '@/lib/env'
 import { loadContent } from '@/lib/content'
@@ -37,23 +39,22 @@ export const metadata = {
   },
 }
 
-// (No local stat fallback: resolveStats measures its own defaults from the
-// DB when the CMS supplies none — a typed array here is exactly the kind of
-// number that drifts from every other page's, which is how this site once
-// published three different club counts.)
+// Measured numbers only, like /why. The shared editorial rows showed
+// whichever three the admin listed first — "1,000+ events since 2023" against
+// 318 on the platform, and one reorder away from "4,000+ WhatsApp reach".
 
 const HOW_IT_WORKS = [
   {
     step: '01',
     icon: '📝',
     title: 'Apply',
-    body: 'Tell us about yourself, what draws you to your city, and what you\'re looking for in a community. Applications take about 5 minutes.',
+    body: 'Tell us about yourself, what draws you to your city, and what you\'re looking for in a community. Applications take about 5 minutes. Then confirm your email with the link we send you.',
   },
   {
     step: '02',
     icon: '✅',
     title: 'Get vetted',
-    body: 'Our team reviews every application personally — looking for vibe alignment, not credentials. Expect a response within 24–48 hours.',
+    body: 'Our team reviews every application personally — looking for vibe alignment, not credentials. Expect a response within 24–48 hours of confirming your email.',
   },
   {
     step: '03',
@@ -66,17 +67,32 @@ const HOW_IT_WORKS = [
 export default async function AboutPage() {
   const c     = loadContent()
   const about = c.about ?? {}
-  // `??` only triggers on null/undefined — an empty `c.stats = []`
-  // would otherwise render zero stat tiles. Guard on .length so the
-  // defaults are used whenever content didn't supply any.
-  const rawStats = await resolveStats(c.stats)
-  if (process.env.NODE_ENV !== 'production' && rawStats.length > 3) {
-    console.warn(`[about] content has ${rawStats.length} stats but the layout only shows 3 — extras silently dropped. Trim content.json or widen the grid.`)
+  const [s, countryRows] = await Promise.all([
+    getCommunityStats(),
+    // Approved members' nationalities are country names from the form's list
+    // (108 distinct on 2026-09-29); "dozens of countries" undersold it.
+    prisma.$queryRaw<{ n: number }[]>`SELECT count(DISTINCT lower(trim(nationality)))::int AS n FROM users WHERE status = 'approved' AND coalesce(trim(nationality), '') <> ''`,
+  ])
+  const stats = [
+    { value: approx(s.members), label: 'Members across Smileys' },
+    { value: approx(s.events),  label: 'Events on Smileys' },
+    { value: approx(s.clubs),   label: 'Active clubs' },
+  ]
+  const countries = countryRows[0]?.n ?? 0
+  const fromCountries = countries >= 100 ? 'more than 100 countries' : countries >= 24 ? 'dozens of countries' : 'many countries'
+
+  const aboutJsonLd = {
+    '@context':  'https://schema.org',
+    '@type':     'AboutPage',
+    name:        'About Smileys Community',
+    url:         `${APP_URL}/about`,
+    description: metadata.description,
+    about:       { '@type': 'Organization', name: 'Smileys Community', url: APP_URL },
   }
-  const stats = rawStats.slice(0, 3)
 
   return (
     <main>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdHtml(aboutJsonLd) }} />
 
       {/* ── Hero ── */}
       <section className="bg-white border-b border-gray-100">
@@ -106,7 +122,9 @@ export default async function AboutPage() {
             <div className="relative aspect-[4/3] rounded-2xl overflow-hidden shadow-xl">
               <Image
                 src="/app/images/about-hero.jpg"
-                alt="Smileys members gathered on an Istanbul rooftop at sunset, Galata Tower and the Bosphorus in the background"
+                // Describes what is shown without claiming these are members:
+                // it isn't a photo of a Smileys event.
+                alt="Friends talking on a rooftop at sunset over Istanbul, with Galata Tower and the Bosphorus behind them"
                 fill
                 priority
                 fetchPriority="high"
@@ -123,14 +141,15 @@ export default async function AboutPage() {
       <section className="bg-amber-500">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-10">
           {/* dl/dt/dd so SRs read this as a definition list ("term:
-              Community members, value: 4,000+"). Visual order is
+              Active clubs, value: 160+"). Visual order is
               value-then-label, so each pair sits in a flex-col-reverse
               that flips the render while keeping the dt-before-dd
               source order the spec requires. */}
-          <dl className="grid grid-cols-1 md:grid-cols-3 gap-10 md:gap-8 text-center text-white">
-            {stats.map((s: { value: string; label: string }) => (
+          {/* Dark text on the amber band: white and amber-100 read at about 2:1. */}
+          <dl className="grid grid-cols-1 md:grid-cols-3 gap-10 md:gap-8 text-center text-amber-950">
+            {stats.map(s => (
               <div key={s.label} className="flex flex-col-reverse gap-1">
-                <dt className="text-amber-100 text-sm font-medium uppercase tracking-wider">{s.label}</dt>
+                <dt className="text-amber-950 text-sm font-medium uppercase tracking-wider">{s.label}</dt>
                 <dd className="text-4xl md:text-5xl font-extrabold">{s.value}</dd>
               </div>
             ))}
@@ -164,7 +183,7 @@ export default async function AboutPage() {
             <h3 className="text-lg font-bold text-gray-900 pt-4">A new city, the same question</h3>
             <p>We started in Istanbul with a simple question: how do you make a new city feel like home?</p>
             <p>Istanbul is vibrant, international, and full of people from everywhere. Yet real friendship is still hard to find. Big meetup groups feel impersonal. Dating apps aren&rsquo;t built for friendship. Networking events are about business cards, not people.</p>
-            <p>So we built Smileys: a real-life social community designed around genuine connection. Not an app where you swipe through strangers, but a place where people actually meet. Our events are hosted, the venues are chosen with care, the groups are balanced, and it always feels natural to walk in alone.</p>
+            <p>So we built Smileys: a real-life social community designed around genuine connection. Not an app where you swipe through strangers, but a place where people actually meet. Our events are hosted, the venues are chosen with care, and it always feels natural to walk in alone.</p>
             <p>The goal was never one great night. The people you meet become familiar faces. Familiar faces become friends. Friends become your community. And a city that felt unfamiliar starts to feel like home.</p>
 
             <h3 className="text-lg font-bold text-gray-900 pt-4">Why &ldquo;Smileys&rdquo;?</h3>
@@ -207,8 +226,8 @@ export default async function AboutPage() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
           <h2 className="section-title mb-3">Our community</h2>
           <p className="text-gray-600 max-w-xl mb-6">
-            Locals, expats, students, founders, people three weeks in and people born here — from
-            dozens of countries, curious about each other. Events are where you meet them; our clubs,
+            Locals, expats, students, founders, people three weeks in and people born in the city — from
+            {' '}{fromCountries}, curious about each other. Events are where you meet them; our clubs,
             hangouts and recurring tables are where the friendships grow.
           </p>
           <div className="flex flex-col sm:flex-row gap-4">
@@ -279,11 +298,12 @@ export default async function AboutPage() {
       {/* ── Final CTA ── */}
       <section className="bg-amber-500">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-white mb-4">
-            😊 Ready to find your people?
+          {/* Text is dark on the amber; the two buttons keep their own colours. */}
+          <h2 className="text-3xl sm:text-4xl font-extrabold text-amber-950 mb-4">
+            <span aria-hidden="true">😊 </span>Ready to find your people?
           </h2>
-          <p className="text-amber-100 mb-10 text-lg">
-            Join a community of people who came from all over the world and found their people here.
+          <p className="text-amber-950 mb-10 text-lg">
+            Join a community of people who came from all over the world and found their people in a new city.
           </p>
           {/* flex-col + default stretch matches the hero CTA pair's mobile
               stacking fix — this footer CTA had the same two-different-widths
