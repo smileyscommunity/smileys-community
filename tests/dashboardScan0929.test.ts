@@ -9,9 +9,17 @@ const page     = read('app/(member)/dashboard/page.tsx')
 const timeline = read('components/ClubActivityTimeline.tsx')
 
 describe('privacy', () => {
-  it('1: photos only from galleries the viewer can open', () => {
-    expect(page).not.toContain('isPrivate: false } } },')
-    expect(page).toContain('OR: [{ clubId: { in: clubIds } }, { userId: session.id }],')
+  // Nate 2026-09-29: open public clubs' galleries, then widen the strip.
+  it('1: public clubs\' galleries are open to the city, and the strip links to them', () => {
+    const api = read('app/api/clubs/[slug]/photos/route.ts')
+    expect(api).toContain('const openToCity = !club.isPrivate && club.isActive &&')
+    expect(api).toContain("where: { event: { clubId: club.id }, userId: { notIn: blockedIds } },")
+    expect(api).toContain("author:    { id: '', name: p.event.title, color: '#d1d5db', photo: null },")
+    expect(read('app/(member)/clubs/[slug]/ClubTabs.tsx')).toContain('canView={!isPrivate || isMember || isAdmin}')
+    expect(page).toContain('{ event: { club: { isActive: true, isPrivate: false } } },')
+    expect(page).toContain('title: p.event.title, user: null }')
+    // Uploading stays members-only.
+    expect(api).toContain("return NextResponse.json({ error: 'Join this club to upload photos' }, { status: 403 })")
   })
   it('2: a review follows the RSVP feed: listable reviewer, no stealth attendee, live event', () => {
     expect(page).toContain("user: LISTABLE, event: { cityId, status: { in: ['published', 'archived'] } } },")

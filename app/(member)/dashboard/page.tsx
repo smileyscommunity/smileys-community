@@ -771,14 +771,17 @@ export default async function DashboardPage() {
     // photo uploaded directly to a club (no event) still surfaces here.
     // Over-fetch from each pool, then trim to 9 after a unified sort.
     //
-    // Only photos this member may open where they lead: events they were at,
-    // ran or co-hosted, their clubs' galleries, and their own uploads. The
-    // strip widened on 2026-09-24 to every public club in the city on the
-    // belief that those galleries were open to any member — they aren't: the
-    // club photos API answers "Members only" to non-members and event photos
-    // are for attendees, so 137 photos in 30 days (attendees' faces, captions
-    // in the alt text) reached people both galleries refuse, and each one
-    // linked to a lock (2026-09-29).
+    // Two sources, two ways of crediting them:
+    //   · events the viewer was at, ran or co-hosted, their clubs' galleries
+    //     and their own uploads — credited to the uploader;
+    //   · everything else from a PUBLIC, active club in this city — the
+    //     window onto clubs they haven't joined. Credited to the event or
+    //     club, never the person (an event photo's uploader is an attendee,
+    //     possibly a stealth one), and linked to the club's Photos tab.
+    // The second source is only honest because that tab is now open to any
+    // member in the city (Nate, 2026-09-29; app/api/clubs/[slug]/photos).
+    // It was widened once before while the gallery still said "Members
+    // only", which showed people photos their click then refused.
     Promise.all([
       prisma.eventPhoto.findMany({
         where: {
@@ -786,37 +789,41 @@ export default async function DashboardPage() {
           OR: [
             { event: { OR: [{ id: { in: joinedEventIds } }, { hostId: session.id }, { cohosts: { some: { userId: session.id } } }] } },
             { userId: session.id },
+            { event: { club: { isActive: true, isPrivate: false } } },
           ],
           userId: { notIn: blockedIds }, user: LIVE,
         },
         orderBy: { createdAt: 'desc' },
         take: 9,
         select: {
-          id: true, url: true, caption: true, createdAt: true, eventId: true,
-          event: { select: { title: true } },
+          id: true, url: true, caption: true, createdAt: true, eventId: true, userId: true,
+          event: { select: { title: true, hostId: true, club: { select: { slug: true } }, cohosts: { where: { userId: session.id }, select: { id: true } } } },
           user: { select: { name: true, color: true } },
         },
       }),
-      clubIds.length
-        ? prisma.clubPhoto.findMany({
-            where: {
-              OR: [{ clubId: { in: clubIds } }, { userId: session.id }],
-              club: { isActive: true, OR: [{ cityId }, { cityId: null }] },
-              userId: { notIn: blockedIds }, user: LIVE,
-            },
-            orderBy: { createdAt: 'desc' },
-            take: 9,
-            select: { id: true, url: true, caption: true, createdAt: true, club: { select: { slug: true, name: true } }, user: { select: { name: true, color: true } } },
-          })
-        : prisma.clubPhoto.findMany({
-            where: { userId: session.id, club: { isActive: true, OR: [{ cityId }, { cityId: null }] } },
-            orderBy: { createdAt: 'desc' },
-            take: 9,
-            select: { id: true, url: true, caption: true, createdAt: true, club: { select: { slug: true, name: true } }, user: { select: { name: true, color: true } } },
-          }),
+      prisma.clubPhoto.findMany({
+        where: {
+          OR: [{ clubId: { in: clubIds } }, { userId: session.id }, { club: { isPrivate: false } }],
+          club: { isActive: true, OR: [{ cityId }, { cityId: null }] },
+          userId: { notIn: blockedIds }, user: LIVE,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 9,
+        select: { id: true, url: true, caption: true, createdAt: true, clubId: true, userId: true, club: { select: { slug: true, name: true } }, user: { select: { name: true, color: true } } },
+      }),
     ]).then(([eventPhotos, clubPhotos]) => [
-      ...eventPhotos.map(p => ({ id: p.id, url: p.url, caption: p.caption, createdAt: p.createdAt, href: `/events/${p.eventId}`, title: p.event.title, user: p.user })),
-      ...clubPhotos.map(p => ({ id: p.id, url: p.url, caption: p.caption, createdAt: p.createdAt, href: `/clubs/${p.club.slug}?tab=photos`, title: p.club.name, user: p.user })),
+      ...eventPhotos.map(p => {
+        const inside = p.userId === session.id || joinedEventIds.includes(p.eventId) || p.event.hostId === session.id || p.event.cohosts.length > 0
+        return inside
+          ? { id: p.id, url: p.url, caption: p.caption, createdAt: p.createdAt, href: `/events/${p.eventId}`, title: p.event.title, user: p.user }
+          // The event page shows photos to attendees only, so an outsider is
+          // sent to the club's gallery, where these same photos are open.
+          : { id: p.id, url: p.url, caption: p.caption, createdAt: p.createdAt, href: p.event.club ? `/clubs/${p.event.club.slug}?tab=photos` : `/events/${p.eventId}`, title: p.event.title, user: null }
+      }),
+      ...clubPhotos.map(p => ({
+        id: p.id, url: p.url, caption: p.caption, createdAt: p.createdAt, href: `/clubs/${p.club.slug}?tab=photos`, title: p.club.name,
+        user: p.userId === session.id || clubIds.includes(p.clubId) ? p.user : null,
+      })),
     ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, 9)),
     // Trending: upcoming events with the most attendees. The featured-
     // event exclusion that used to live in the WHERE clause is now a

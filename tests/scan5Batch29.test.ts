@@ -164,8 +164,18 @@ describe('93b. club delete controls work without hover', () => {
 })
 
 describe('93c. club fetches surface failure', () => {
+  // ClubPhotos: a 403 is the members-only lock (public clubs' galleries are
+  // open to their city since 2026-09-29, another city's aren't); any other
+  // non-OK load is still the error state with retry.
+  it('components/ClubPhotos.tsx: 403 is the lock, other failures the error state with retry', () => {
+    const src = read('components/ClubPhotos.tsx')
+    expect(src).toContain('if (r.status === 403) { setForbidden(true); return [] }')
+    expect(src).toContain('return r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))')
+    expect(src).toMatch(/\.catch\(\(\) => setLoadError\(true\)\)/)
+    expect(src).toMatch(/setReloadKey\(k => k \+ 1\)/)
+    expect(src).toContain('Couldn&apos;t load photos')
+  })
   it.each([
-    ['components/ClubPhotos.tsx', 'photos'],
     ['components/ClubMembers.tsx', 'members'],
     ['components/ClubPastEvents.tsx', 'past events'],
     ['components/ClubReviews.tsx', 'reviews'],

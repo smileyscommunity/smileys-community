@@ -10,15 +10,19 @@ import { join } from 'path'
 const page = readFileSync(join(__dirname, '..', 'app/(member)/dashboard/page.tsx'), 'utf8')
 
 describe('privacy', () => {
-  // Widened 2026-09-24 to public clubs' photos; narrowed back 2026-09-29
-  // (dashboard scan): the club photos API is members-only and event photos
-  // are for attendees, so the widened strip showed non-members what both
-  // galleries refuse them. Only galleries the viewer can open.
-  it('photos come only from galleries the viewer can open', () => {
-    expect(page).not.toContain("{ event: { club: { isActive: true, isPrivate: false } } },")
-    expect(page).not.toContain("{ club: { isPrivate: false } }],")
-    expect(page).toContain("{ event: { OR: [{ id: { in: joinedEventIds } }, { hostId: session.id }, { cohosts: { some: { userId: session.id } } }] } },")
-    expect(page).toContain("OR: [{ clubId: { in: clubIds } }, { userId: session.id }],")
+  // Widened 2026-09-24 to public clubs' photos. On 2026-09-29 Nate opened
+  // public clubs' galleries to the city, which is what makes this honest:
+  // private clubs stay out, and a photo from somewhere the viewer wasn't is
+  // credited to the event, not the uploader.
+  it('photos come from galleries the viewer can open, and public clubs', () => {
+    expect(page).toContain("{ event: { club: { isActive: true, isPrivate: false } } },")
+    expect(page).toContain("OR: [{ clubId: { in: clubIds } }, { userId: session.id }, { club: { isPrivate: false } }],")
+  })
+
+  it('an outsider sees the event credited, not who uploaded', () => {
+    expect(page).toContain("const inside = p.userId === session.id || joinedEventIds.includes(p.eventId) || p.event.hostId === session.id || p.event.cohosts.length > 0")
+    expect(page).toContain("title: p.event.title, user: null }")
+    expect(page).toContain("user: p.userId === session.id || clubIds.includes(p.clubId) ? p.user : null,")
   })
 
   it('the club lineup sends only the tile\'s fields to the browser', () => {

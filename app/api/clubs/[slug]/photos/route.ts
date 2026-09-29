@@ -4,6 +4,7 @@ import { getSession } from '@/lib/session'
 import { isAdmin, canActInCity } from '@/lib/access'
 import { authorProjector } from '@/lib/authorProjection'
 import { rateLimit } from '@/lib/rateLimit'
+import { resolveCityId } from '@/lib/city'
 
 type Params = { params: Promise<{ slug: string }> }
 
@@ -14,27 +15,40 @@ export async function GET(_: NextRequest, { params }: Params) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { slug } = await params
-  const club = await prisma.club.findUnique({ where: { slug }, select: { id: true, cityId: true } })
+  const club = await prisma.club.findUnique({ where: { slug }, select: { id: true, cityId: true, isPrivate: true, isActive: true } })
   if (!club) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  // The gallery is for the club's approved members and the city's staff —
-  // the page hides it from everyone else, and this route didn't.
+  // Who sees the gallery (Nate, 2026-09-29): a PUBLIC, active club's photos
+  // are open to any member in its city — the window onto clubs they haven't
+  // joined, and what the dashboard's photo strip links to. A private club's
+  // stay with its approved members and the city's staff. Event photos are
+  // credited to the event, never the uploader (below), so the gallery is not
+  // an attendance list; uploading stays members-only (POST).
   if (!canActInCity(session, club.cityId)) {
-    const membership = await prisma.clubMembership.findUnique({
-      where: { userId_clubId: { userId: session.id, clubId: club.id } },
-      select: { status: true },
-    })
-    if (membership?.status !== 'approved') return NextResponse.json({ error: 'Members only' }, { status: 403 })
+    const openToCity = !club.isPrivate && club.isActive &&
+      (club.cityId === null || club.cityId === session.cityId || club.cityId === await resolveCityId(session))
+    if (!openToCity) {
+      const membership = await prisma.clubMembership.findUnique({
+        where: { userId_clubId: { userId: session.id, clubId: club.id } },
+        select: { status: true },
+      })
+      if (membership?.status !== 'approved') return NextResponse.json({ error: 'Members only' }, { status: 403 })
+    }
   }
+  // A blocked pair sees nothing of each other's uploads.
+  const blockedIds = (await prisma.memberBlock.findMany({
+    where:  { OR: [{ blockerId: session.id }, { blockedId: session.id }] },
+    select: { blockerId: true, blockedId: true },
+  })).map(b => (b.blockerId === session.id ? b.blockedId : b.blockerId))
 
   const AUTHOR = { select: { id: true, name: true, color: true, profilePhoto: true, profileVisibility: true, hiddenFromMembers: true, status: true } }
   const [clubPhotos, eventPhotos] = await Promise.all([
     prisma.clubPhoto.findMany({
-      where: { clubId: club.id },
+      where: { clubId: club.id, userId: { notIn: blockedIds } },
       orderBy: { createdAt: 'desc' },
       include: { user: AUTHOR },
     }),
     prisma.eventPhoto.findMany({
-      where: { event: { clubId: club.id } },
+      where: { event: { clubId: club.id }, userId: { notIn: blockedIds } },
       orderBy: { createdAt: 'desc' },
       include: {
         user:  AUTHOR,

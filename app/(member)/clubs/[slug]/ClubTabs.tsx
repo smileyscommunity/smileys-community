@@ -212,6 +212,9 @@ export default function ClubTabs({
           slug={slug}
           canUpload={canUpload}
           isMember={isMember}
+          // A public club's gallery is open to any member in its city; a
+          // private club's stays with its members (the API enforces both).
+          canView={!isPrivate || isMember || isAdmin}
           currentUserId={currentUserId}
           isAdmin={isAdmin}
           canPin={canPin}
