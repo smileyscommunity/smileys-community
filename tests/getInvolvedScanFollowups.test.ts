@@ -39,7 +39,11 @@ describe('3–4: each viewer gets a way that works for them', () => {
   it('guests are sent to apply for the member-only ways; hosts to their tools; members to invite', () => {
     expect(page).toContain("invite: session ? { label: 'Invite someone', href: '/invite' } : { label: 'Join to invite friends', href: `/apply${qs}` },")
     expect(page).toContain("story:  session ? { label: 'Write your story', href: '/share-story' } : { label: 'Join to share your story', href: `/apply${qs}` },")
-    expect(page).toContain("host:   hosting ? { label: 'Plan your next event', href: '/host/events/new' } : { label: 'Offer to host', href: withCity('host') },")
+    // Re-scan 2026-09-29: guests apply first; members offer; hosts plan.
+    expect(page).toContain("host:   hosting ? { label: 'Plan your next event', href: '/host/events/new' }")
+    expect(page).toContain(": session ? { label: 'Offer to host', href: withCity('host') }")
+    expect(page).toContain(":           { label: 'Apply to host', href: `/apply${qs}` },")
+    expect(page).toContain("club:   session ? { label: 'Propose a club', href: withCity('club-proposal') } : { label: 'Apply to start a club', href: `/apply${qs}` },")
     expect(page).toContain('? <Link href="/invite" className="btn-primary--lg">Invite a friend</Link>')
     expect(page).not.toContain("href: '/contact',")
   })
@@ -102,7 +106,10 @@ describe('11–13: glyphs, the statement, the stats band', () => {
     expect(page).toContain('<span aria-hidden="true">✦</span> Get involved')
     expect(page).toContain('<div aria-hidden="true" className="text-4xl mb-4">{w.emoji}</div>')
     expect(page).not.toContain('<blockquote')
-    expect(page).toContain('.filter(s => s.value?.trim() && s.label?.trim()).slice(0, 3)')
-    expect(page).toContain('key={`${i}-${s.label}`}')
+    // Re-scan 2026-09-29: measured numbers, no admin rows (so no blank ones).
+    expect(page).not.toContain('resolveStats')
+    expect(page).toContain("{ value: approx(s.events),  label: 'Events on Smileys' },")
+    expect(page).toContain('<dl className="grid grid-cols-1 md:grid-cols-3 gap-10 md:gap-8 text-center text-amber-950">')
+    expect(page).not.toContain('member matching')
   })
 })

@@ -5,7 +5,7 @@ import { DEFAULT_CITY_SLUG } from '@/lib/city'
 import { getSession } from '@/lib/session'
 import { isClubHost, hostCityIds } from '@/lib/access'
 import HostPath from '@/components/HostPath'
-import { resolveStats } from '@/lib/communityStats'
+import { getCommunityStats, approx } from '@/lib/communityStats'
 import { resolveCityForPage, cityQs, type CitySearch } from '@/lib/cityPageParam'
 
 // Per city like the other hubs: the metadata was title + description only,
@@ -37,7 +37,8 @@ const WAYS: Way[] = [
     emoji: '🎉',
     title: 'Host an event',
     subtitle: 'Share your passion with the community',
-    body: 'Have an idea for a dinner, a hike, a cultural visit, a language exchange? Hosts are the heartbeat of Smileys. You bring the concept — we handle the platform, RSVPs, and member matching.',
+    // It promised matching members to events, a feature that doesn't exist.
+    body: 'Have an idea for a dinner, a hike, a cultural visit, a language exchange? Hosts are the heartbeat of Smileys. You bring the concept — we handle the platform, the RSVPs and the door.',
     perks: [
       'Event tools — RSVPs, guest lists, waitlists and check-in at the door',
       'Link your event to a venue from the Smileys directory',
@@ -90,14 +91,19 @@ const WAYS: Way[] = [
 import { loadContent } from '@/lib/content'
 
 
-// (No local stat fallback — see app/about/page.tsx: resolveStats measures
-// defaults from the DB; typed arrays drift.)
+// Measured numbers only, like /about and /why (2026-09-29): the shared
+// editorial rows showed "1,000+ events since 2023" against 318 on the
+// platform, and a reorder would have put "4,000+ WhatsApp reach" here.
 
 export default async function GetInvolvedPage({ searchParams }: { searchParams?: Promise<CitySearch> }) {
   const c          = loadContent()
   const gi         = c.get_involved ?? {}
-  // Rows an admin left blank are skipped rather than rendered empty.
-  const STATS      = (await resolveStats(c.stats)).filter(s => s.value?.trim() && s.label?.trim()).slice(0, 3)
+  const s          = await getCommunityStats()
+  const STATS      = [
+    { value: approx(s.members), label: 'Members across Smileys' },
+    { value: approx(s.events),  label: 'Events on Smileys' },
+    { value: approx(s.clubs),   label: 'Active clubs' },
+  ]
   // The city the reader came from (a city's hosts page or Meet your hosts
   // section links here with ?city=), so "Meet the Hosts" leads back to that
   // city's roster and the path names the city — the round trip from
@@ -112,8 +118,12 @@ export default async function GetInvolvedPage({ searchParams }: { searchParams?:
   const hosting = !!session && (session.role === 'admin' || await isClubHost(session.id) || (await hostCityIds(session.id)).length > 0)
   const withCity = (topic: string) => `/contact?topic=${topic}${city.slug === DEFAULT_CITY_SLUG ? '' : `&city=${city.slug}`}`
   const cta: Record<Way['key'], { label: string; href: string }> = {
-    host:   hosting ? { label: 'Plan your next event', href: '/host/events/new' } : { label: 'Offer to host', href: withCity('host') },
-    club:   { label: 'Propose a club', href: withCity('club-proposal') },
+    // Hosting and running a club are for members: a guest's offer reached
+    // the team only to be told to apply first. Guests go to the application.
+    host:   hosting ? { label: 'Plan your next event', href: '/host/events/new' }
+          : session ? { label: 'Offer to host', href: withCity('host') }
+          :           { label: 'Apply to host', href: `/apply${qs}` },
+    club:   session ? { label: 'Propose a club', href: withCity('club-proposal') } : { label: 'Apply to start a club', href: `/apply${qs}` },
     invite: session ? { label: 'Invite someone', href: '/invite' } : { label: 'Join to invite friends', href: `/apply${qs}` },
     story:  session ? { label: 'Write your story', href: '/share-story' } : { label: 'Join to share your story', href: `/apply${qs}` },
   }
@@ -137,17 +147,19 @@ export default async function GetInvolvedPage({ searchParams }: { searchParams?:
         </div>
       </section>
 
-      {/* Stats */}
+      {/* Stats — dark text on the amber (white and amber-100 read at about
+          2:1), and a dl so screen readers pair each label with its number,
+          as on /about and /why. */}
       <section className="bg-amber-500">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-10">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-10 md:gap-8 text-center text-white">
-            {STATS.map((s: { value: string; label: string }, i: number) => (
-              <div key={`${i}-${s.label}`}>
-                <div className="text-5xl md:text-4xl font-extrabold mb-1">{s.value}</div>
-                <div className="text-amber-100 text-sm font-medium uppercase tracking-wider">{s.label}</div>
+          <dl className="grid grid-cols-1 md:grid-cols-3 gap-10 md:gap-8 text-center text-amber-950">
+            {STATS.map(st => (
+              <div key={st.label} className="flex flex-col-reverse gap-1">
+                <dt className="text-amber-950 text-sm font-medium uppercase tracking-wider">{st.label}</dt>
+                <dd className="text-5xl md:text-4xl font-extrabold">{st.value}</dd>
               </div>
             ))}
-          </div>
+          </dl>
         </div>
       </section>
 
@@ -182,6 +194,11 @@ export default async function GetInvolvedPage({ searchParams }: { searchParams?:
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                     </svg>
                   </Link>
+                  {!session && (w.key === 'host' || w.key === 'club') && (
+                    <p className={`text-xs mt-3 ${w.accent ? 'text-amber-950' : 'text-gray-500'}`}>
+                      Hosts and club founders are members first — apply, and once you&apos;re in, tell us what you&apos;d run.
+                    </p>
+                  )}
                 </div>
 
                 {/* Right — perks */}
