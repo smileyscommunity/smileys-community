@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import {
-  groupHubArticles, buildChecklist, isWorkClub, utcOffsetLabel, pickHubEvents, isSingleGenderEvent,
+  groupHubArticles, buildChecklist, isWorkClub, utcOffsetLabel, pickHubEvents,
   ARTICLES_PER_TOPIC, HUB_WORK_EVENT_CAP, INTERVIEW_CATEGORY, NOMINATE_TOPIC, nominateHref,
   type HubArticle,
 } from '@/lib/remoteWork'
@@ -85,27 +85,6 @@ describe('groupHubArticles', () => {
 
   it('ignores articles in an unknown category rather than inventing a topic', () => {
     expect(groupHubArticles([article({ category: 'Nonsense' })], 'c1')).toEqual([])
-  })
-})
-
-describe('isSingleGenderEvent', () => {
-  it.each(['Girls Meet up 💬', "Women's Brunch", 'Ladies Night', 'Kadınlar Buluşması', 'Men only football'])('keeps %s off the hub', title => {
-    expect(isSingleGenderEvent({ title })).toBe(true)
-  })
-  it.each(['Let’s Get Social Istanbul', 'Mental Health Walk', 'Coworking in Kadıköy', 'Gender-balanced dinner'])('keeps %s', title => {
-    expect(isSingleGenderEvent({ title })).toBe(false)
-  })
-  it('reads a zero quota for either gender as single-gender', () => {
-    expect(isSingleGenderEvent({ title: 'Brunch', maleQuota: 0 })).toBe(true)
-    expect(isSingleGenderEvent({ title: 'Brunch', femaleQuota: 0 })).toBe(true)
-    expect(isSingleGenderEvent({ title: 'Brunch', maleQuota: 5, femaleQuota: 5 })).toBe(false)
-  })
-  it('drops it from the events row', () => {
-    const picked = pickHubEvents([
-      { id: 'a', date: '2026-10-01', title: 'Girls Meet up', isFirstTimerFriendly: true },
-      { id: 'b', date: '2026-10-02', title: 'Language exchange', isFirstTimerFriendly: true },
-    ], new Set(), 6)
-    expect(picked.map(e => e.id)).toEqual(['b'])
   })
 })
 

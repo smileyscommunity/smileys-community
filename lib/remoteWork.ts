@@ -133,18 +133,6 @@ export interface HubEventLike {
   seriesId?:            string | null
   isFirstTimerFriendly?: boolean
   status?:              string
-  maleQuota?:           number | null
-  femaleQuota?:         number | null
-}
-
-/** An event for one gender only — a zero quota for the other, or a title that
- *  says so ("Girls Meet up"; nothing in the schema marks it otherwise). The
- *  hub is a door for every newcomer, so these stay on the calendar and off
- *  the hub. */
-export const SINGLE_GENDER_TITLE = /\b(girls?|women'?s?|ladies|female|males?|men|gentlemen|kad[ıi]nlar?|erkekler?)\b/i
-
-export function isSingleGenderEvent(e: Pick<HubEventLike, 'title' | 'maleQuota' | 'femaleQuota'>): boolean {
-  return e.maleQuota === 0 || e.femaleQuota === 0 || SINGLE_GENDER_TITLE.test(e.title)
 }
 
 /** Most coworking sessions the "work and meet people" row shows, so that
@@ -158,15 +146,13 @@ export const HUB_WORK_EVENT_CAP = 3
  * three sessions repeated said less than three. Coworking sessions (events
  * of a work club) take at most HUB_WORK_EVENT_CAP places and first-timer-
  * friendly events the rest, each backfilling the other when it runs short,
- * so neither kind can crowd the other out. Cancelled and single-gender
- * events never appear.
+ * so neither kind can crowd the other out. Cancelled events never appear.
  * The result is back in date order.
  */
 export function pickHubEvents<E extends HubEventLike>(events: E[], workClubIds: Set<string>, limit: number): E[] {
   const seen = new Set<string>()
   const once = events.filter(e => {
     if (e.status === 'cancelled') return false
-    if (isSingleGenderEvent(e)) return false
     // A series is one session; an event with no series is its own.
     const key = e.seriesId ? `s:${e.seriesId}` : `e:${e.id}`
     if (seen.has(key)) return false

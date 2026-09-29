@@ -37,7 +37,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   if (!city || city.status !== CITY_STATUS.Live) return {}
   const title = `Remote work in ${city.name} — Smileys Community`
   const description = `Working remotely from ${city.name}? Your first 72 hours: getting connected, choosing a neighbourhood, coworking sessions, money and transport — and people to spend time with.`
-  const image = shareCover('remote-work', city, title)
+  const image = shareCover('events', city, title)
   const url = `${APP_URL}/${city.slug}/remote-work`
   return {
     title, description,
