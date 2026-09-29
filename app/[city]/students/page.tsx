@@ -210,8 +210,11 @@ export default async function CityStudentsPage({ params }: Params) {
                   <Link href={`/posts/${story.slug}`}
                     className="group h-full flex flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm hover:border-amber-200 hover:shadow-md transition-all">
                     {story.cover && (
-                      <div className="aspect-[16/9] bg-gray-100">
-                        <img src={story.cover} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
+                      // Absolute image: an aspect-ratio box grows to fit its content, so a
+                      // portrait cover (the first Erasmus story's is 1000×1200) made its
+                      // card's picture nearly twice as tall as its neighbour's.
+                      <div className="relative aspect-[16/9] overflow-hidden bg-gray-100">
+                        <img src={story.cover} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
                       </div>
                     )}
                     <div className="p-5 flex flex-col flex-1">
