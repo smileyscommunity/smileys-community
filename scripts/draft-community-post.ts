@@ -8,11 +8,14 @@
 //   DRY_RUN=1 npx tsx --env-file=.env --env-file=.env.local \
 //     scripts/draft-community-post.ts scripts/data/<story>.json
 //
-// The JSON file: { title, slug, excerpt, bodyHtml, citySlug (null = every city) }
+// The JSON file: { title, slug, excerpt, bodyHtml, citySlug (null = every city),
+//   category? (a community category from app/admin/posts/constants; default
+//   'Community' — 'Students' puts it on the city's student hub) }
 // Idempotent: skips if the slug already exists.
 import { readFileSync } from 'fs'
 import { prisma } from '@/lib/prisma'
 import { writeAudit } from '@/lib/audit'
+import { isCategory, normalizeCommunityCategory } from '@/app/admin/posts/constants'
 
 const DRY_RUN = process.env.DRY_RUN === '1'
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
@@ -40,6 +43,10 @@ async function main() {
   // Explicit, as in publish-handbook-article: a forgotten field must not
   // quietly make a one-city story everyone's.
   if (!('citySlug' in b)) fail('"citySlug" is required — a city slug, or null for every city')
+  // Checked, not defaulted silently: a typo'd "Student" would otherwise land
+  // as 'Community' and never reach the hub it was written for.
+  if ('category' in b && !isCategory(b.category)) fail(`"category" is not a community category: ${b.category}`)
+  const category = 'category' in b ? normalizeCommunityCategory(b.category) : 'Community'
 
   const existing = await prisma.post.findUnique({ where: { slug }, select: { id: true, status: true } })
   if (existing) { console.log(`✓ already exists (${existing.status}) — nothing to do`); return }
@@ -56,7 +63,7 @@ async function main() {
     scope  = `${city.name} only`
   }
 
-  console.log(`→ draft "${title}" [Community] as ${author.name}, scope: ${scope}, /posts/${slug}, body ${bodyHtml.length} chars`)
+  console.log(`→ draft "${title}" [${category}] as ${author.name}, scope: ${scope}, /posts/${slug}, body ${bodyHtml.length} chars`)
   if (DRY_RUN) { console.log('  DRY RUN — nothing written'); return }
 
   const post = await prisma.post.create({
@@ -65,7 +72,7 @@ async function main() {
       body:     bodyHtml,
       status:   'draft',
       kind:     'community',
-      category: 'Community',
+      category,
       authorId: author.id,
       cityId,
     },
