@@ -226,7 +226,7 @@ describe('6. eventEndsAt with an unknown start', () => {
 // ── 7 ────────────────────────────────────────────────────────────────────────
 
 describe('7. /api/invite respects the referred members’ privacy', () => {
-  it('drops neighbourhood, and blanks the photo for connections-only strangers and hidden members', async () => {
+  it('drops neighbourhood, blanks the photo for connections-only strangers, and leaves hidden/banned/suspended members out of the query', async () => {
     p.user.findUnique.mockResolvedValue({ referralCode: 'CODE', referralCount: 4, name: 'Me' })
     p.memberApplication.count.mockResolvedValue(0)
     p.memberApplication.findMany.mockResolvedValue([{ email: 'a' }, { email: 'b' }, { email: 'c' }, { email: 'd' }])
@@ -236,7 +236,6 @@ describe('7. /api/invite respects the referred members’ privacy', () => {
       u('open'),
       u('private', { profileVisibility: 'connections' }),
       u('friend',  { profileVisibility: 'connections' }),
-      u('hidden',  { hiddenFromMembers: true }),
     ])
     p.memberConnection.findMany.mockResolvedValue([{ requesterId: 'me', receiverId: 'friend' }])
 
@@ -245,9 +244,15 @@ describe('7. /api/invite respects the referred members’ privacy', () => {
     expect(byId.open.profilePhoto).toBe('/p/open.jpg')
     expect(byId.friend.profilePhoto).toBe('/p/friend.jpg')
     expect(byId.private.profilePhoto).toBeNull()
-    expect(byId.hidden.profilePhoto).toBeNull()
+    // Invite scan 2026-09-29: hidden, banned and suspended members are
+    // filtered in the query itself, and a locked profile isn't linked.
+    const where = p.user.findMany.mock.calls[0][0].where
+    expect(where.hiddenFromMembers).toBe(false)
+    expect(where.status).toBe('approved')
+    expect(byId.private.open).toBe(false)
+    expect(byId.open.open).toBe(true)
     for (const j of body.joined) {
-      expect(Object.keys(j).sort()).toEqual(['color', 'id', 'joinedAt', 'name', 'profilePhoto'])
+      expect(Object.keys(j).sort()).toEqual(['color', 'id', 'joinedAt', 'name', 'open', 'profilePhoto'])
     }
     expect(p.user.findMany.mock.calls[0][0].select.neighborhood).toBeUndefined()
   })

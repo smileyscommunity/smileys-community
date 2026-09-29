@@ -43,7 +43,6 @@ const BASELINE: Record<string, number> = {
   'app/(member)/directory/submit/page.tsx': 1,
   'app/(member)/hangouts/[id]/page.tsx': 1,
   'app/(member)/hangouts/page.tsx': 3,
-  'app/(member)/invite/page.tsx': 3,
   'app/(member)/members/MemberDiscovery.tsx': 2,
   'app/(member)/members/[id]/page.tsx': 2,
   'app/(member)/visiting/new/page.tsx': 2,
