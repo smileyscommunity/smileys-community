@@ -17,7 +17,7 @@ describe('clubs explore tab', () => {
   it('the top row is only your clubs with something coming up; the rest are one tap away', () => {
     expect(src).toContain('() => joinedClubs.filter(c => c.nextEvent).sort((a, b) => a.nextEvent!.date.localeCompare(b.nextEvent!.date)),')
     // Every one with an event (Nate: "not just 4"), on the hero card.
-    expect(src).toContain('{myUpcoming.map(club => renderCard(club))}')
+    expect(src).toContain("renderSwipe(myUpcoming, 'Your clubs with events coming up')")
     expect(src).not.toContain('myUpcoming.slice(0, 4)')
     expect(src).not.toContain('Nothing planned yet</p>')
     expect(src).toContain('All your clubs ({joinedClubs.length + pendingClubs.length}) →')
@@ -56,5 +56,12 @@ describe('clubs explore tab', () => {
     expect(src).toContain('const heroSrc = club.nextEvent && club.coverImage ? resolveImageUrl(club.coverImage) : null')
     expect(src).toContain("heroSrc.startsWith('/app/api/files/') ? `${heroSrc}?w=800` : heroSrc")
     expect(src).toContain('<img src={hero} alt="" loading="lazy"')
+  })
+  // Nate 2026-09-29: the phone page was 10,400px.
+  it('hero sections swipe on phones; Active lately previews 6', () => {
+    expect(src).toContain("const SWIPE_ROW  = 'flex overflow-x-auto snap-x snap-mandatory")
+    expect(src).toContain("{renderSwipe(sections.soon, 'Clubs with events coming up')}")
+    expect(src).toContain('const LATELY_PREVIEW = 6')
+    expect(src).toContain('Show all {sections.lately.length} active clubs')
   })
 })
