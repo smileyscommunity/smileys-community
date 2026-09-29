@@ -26,10 +26,11 @@ describe('member perks', () => {
     expect(card).toContain("hourCycle: 'h23'")
     expect(card).not.toContain("it isn&apos;t a pass or a membership check")
   })
-  it('3: a failed load is an error with a retry', () => {
-    expect(page).toContain('.then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))')
-    expect(page).toContain("We couldn&apos;t load the perks")
-    expect(page).toContain('onClick={load}')
+  // Nate 2026-09-29: no error card — a failed load keeps the original
+  // behaviour (it falls through to the empty state).
+  it('3: no error card on a failed load (Nate\'s call)', () => {
+    expect(page).not.toContain("We couldn&apos;t load the perks")
+    expect(page).toContain(".then(d => setPartners(Array.isArray(d) ? d : []))")
   })
   it('4: the city is named', () => {
     expect(page).toContain("Local Perks{city?.name ? ` in ${city.name}` : ''}")

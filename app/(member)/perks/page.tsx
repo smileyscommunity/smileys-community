@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { resolveImageUrl } from '@/lib/data'
 import { isSafeHref } from '@/lib/safeUrl'
@@ -103,21 +103,15 @@ export default function PerksPage() {
   const city = useCurrentCity()
   const [partners,  setPartners]  = useState<Partner[]>([])
   const [loading,   setLoading]   = useState(true)
-  const [failed,    setFailed]    = useState(false)
   const [search,    setSearch]    = useState('')
   const [category,  setCategory]  = useState('All')
 
-  // A failed load (401, 500, offline) read as "No partners yet". It's an
-  // error with a retry now.
-  const load = useCallback(() => {
-    setLoading(true); setFailed(false)
+  useEffect(() => {
     fetch('/app/api/partners', { credentials: 'include' })
-      .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then(r => r.json())
       .then(d => setPartners(Array.isArray(d) ? d : []))
-      .catch(() => setFailed(true))
       .finally(() => setLoading(false))
   }, [])
-  useEffect(() => { load() }, [load])
 
   const categories = ['All', ...Array.from(new Set(partners.map(p => p.category))).sort()]
 
@@ -188,12 +182,6 @@ export default function PerksPage() {
               <SkeletonCard key={i} />
             ))}
           </div>
-        ) : failed ? (
-          <div role="alert" className="bg-white rounded-2xl shadow-card p-8 text-center max-w-md mx-auto">
-            <p className="font-bold text-gray-900 mb-1">We couldn&apos;t load the perks</p>
-            <p className="text-sm text-gray-600 mb-4">Check your connection and try again.</p>
-            <button onClick={load} className="btn-primary text-sm">Try again</button>
-          </div>
         ) : visible.length === 0 ? (
           <EmptyState
             icon="🏪"
@@ -208,7 +196,7 @@ export default function PerksPage() {
           </div>
         )}
 
-        {!loading && !failed && (
+        {!loading && (
           <p className="text-sm text-gray-600 text-center mt-8">
             Know a place that would offer members a perk?{' '}
             <Link href={suggestHref} className="font-semibold text-amber-700 hover:underline">Tell us about it</Link>
