@@ -14,6 +14,7 @@ import EventCard from '@/components/EventCard'
 import JoinCityButton from '@/components/JoinCityButton'
 import PhotoHero, { HERO_SECONDARY } from '@/components/PhotoHero'
 import HandbookPicks from '@/components/HandbookPicks'
+import { cityQs as handbookQs } from '@/lib/cityPageParam'
 import { getCityHandbookPicks } from '@/lib/cityHandbookPicks'
 import { getCityMovingHub, isDefaultCitySlug } from '../data'
 
@@ -124,7 +125,7 @@ export default async function CityMovingPage({ params }: Params) {
                     <ul className="space-y-1.5 text-sm flex-1">
                       {articles.slice(0, ARTICLES_PER_STAGE).map(a => (
                         <li key={a.slug}>
-                          <Link href={`/handbook/${a.slug}`} className="font-semibold text-gray-900 hover:text-amber-700">{a.title}</Link>
+                          <Link href={`/handbook/${a.slug}${handbookQs(city.slug)}`} className="font-semibold text-gray-900 hover:text-amber-700">{a.title}</Link>
                         </li>
                       ))}
                     </ul>
@@ -158,7 +159,7 @@ export default async function CityMovingPage({ params }: Params) {
                   {urgent.slice(0, 2).map((a, i) => (
                     <span key={a.slug}>
                       {i > 0 && ' · '}
-                      <Link href={`/handbook/${a.slug}`} className="font-semibold text-red-800 hover:underline">{a.title}</Link>
+                      <Link href={`/handbook/${a.slug}${handbookQs(city.slug)}`} className="font-semibold text-red-800 hover:underline">{a.title}</Link>
                     </span>
                   ))}
                 </p>

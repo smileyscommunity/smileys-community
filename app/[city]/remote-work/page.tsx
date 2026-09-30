@@ -19,6 +19,7 @@ import { clubHref } from '@/lib/clubLink'
 import { pickArticle, REMOTE_WORK_LEGAL, ENTRY_RULES } from '@/lib/relocation'
 import PhotoHero, { HERO_SECONDARY } from '@/components/PhotoHero'
 import HandbookPicks from '@/components/HandbookPicks'
+import { cityQs as handbookQs } from '@/lib/cityPageParam'
 import { getCityHandbookPicks } from '@/lib/cityHandbookPicks'
 import { getCityRemoteWorkHub } from '../data'
 
@@ -352,7 +353,7 @@ export default async function CityRemoteWorkPage({ params }: Params) {
                       const reviewed = reviewLabel(a)
                       return (
                         <li key={a.slug}>
-                          <Link href={`/handbook/${a.slug}`} className="font-semibold text-gray-900 hover:text-amber-700 leading-snug">
+                          <Link href={`/handbook/${a.slug}${handbookQs(city.slug)}`} className="font-semibold text-gray-900 hover:text-amber-700 leading-snug">
                             {a.title}
                           </Link>
                           {(reviewed || a.hasOfficialSources) && (
@@ -391,14 +392,14 @@ export default async function CityRemoteWorkPage({ params }: Params) {
               <ul className="mt-3 space-y-1 text-sm">
                 {workLegalGuide && (
                   <li>
-                    <Link href={`/handbook/${workLegalGuide.slug}`} className="font-semibold text-amber-700 hover:text-amber-800">
+                    <Link href={`/handbook/${workLegalGuide.slug}${handbookQs(city.slug)}`} className="font-semibold text-amber-700 hover:text-amber-800">
                       Can I work remotely here? {workLegalGuide.title} <span aria-hidden="true">→</span>
                     </Link>
                   </li>
                 )}
                 {entryGuide && (
                   <li>
-                    <Link href={`/handbook/${entryGuide.slug}`} className="font-semibold text-amber-700 hover:text-amber-800">
+                    <Link href={`/handbook/${entryGuide.slug}${handbookQs(city.slug)}`} className="font-semibold text-amber-700 hover:text-amber-800">
                       How long can I stay? {entryGuide.title} <span aria-hidden="true">→</span>
                     </Link>
                   </li>

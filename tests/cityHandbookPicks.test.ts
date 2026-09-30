@@ -54,4 +54,13 @@ describe('city page Handbook shelf', () => {
     expect(src).toMatch(/getCityHandbookPicks\((city\.id|cityId)\),/)
     expect(src.match(/<HandbookPicks citySlug=\{city\.slug\} picks=\{handbookPicks\}/g)).toHaveLength(1)
   })
+
+  it.each(HUBS)('%s: every article link keeps the city', hub => {
+    // An article opened from /antalya/moving without ?city= showed Istanbul's
+    // breadcrumbs and related articles. cityQs is '' for the default city.
+    const src = read(hub)
+    const links = src.match(/`\/handbook\/\$\{[^`]*?\.slug\}[^`]*`/g) ?? []
+    expect(links.length).toBeGreaterThan(0)
+    for (const l of links) expect(l).toContain('${handbookQs(city.slug)}')
+  })
 })

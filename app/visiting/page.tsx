@@ -11,7 +11,7 @@ import type { Metadata } from 'next'
 import { getSession } from '@/lib/session'
 import { redirect } from 'next/navigation'
 import { DEFAULT_CITY_SLUG } from '@/lib/city'
-import { resolveCityForPage, type CitySearch } from '@/lib/cityPageParam'
+import { resolveCityForPage, cityQs as handbookQs, type CitySearch } from '@/lib/cityPageParam'
 import { shareCover } from '@/lib/shareCover'
 import { firstNameOf, formatPrice, resolveImageUrl } from '@/lib/data'
 import { getPublicCities } from '@/lib/cities'
@@ -725,13 +725,13 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
               {
                 title: 'Arrive and get connected',
                 body:  'A local SIM or eSIM, so maps, messages and ride apps work from the start.',
-                href:  essentials.find(x => x.key === 'connect')?.article ? `/handbook/${essentials.find(x => x.key === 'connect')!.article!.slug}` : null,
+                href:  essentials.find(x => x.key === 'connect')?.article ? `/handbook/${essentials.find(x => x.key === 'connect')!.article!.slug}${handbookQs(city.slug)}` : null,
                 cta:   'SIM and internet guide',
               },
               {
                 title: 'Learn the transport basics',
                 body:  'How to pay for buses, metro and ferries, and what to buy on day one.',
-                href:  essentials.find(x => x.key === 'transport')?.article ? `/handbook/${essentials.find(x => x.key === 'transport')!.article!.slug}` : null,
+                href:  essentials.find(x => x.key === 'transport')?.article ? `/handbook/${essentials.find(x => x.key === 'transport')!.article!.slug}${handbookQs(city.slug)}` : null,
                 cta:   'Transport guide',
               },
               {
@@ -774,7 +774,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
                   {essentials.map(x => (
                     <li key={x.key}>
                       <span className="text-gray-500">{x.label}: </span>
-                      <Link href={`/handbook/${x.article!.slug}`} className="font-semibold text-gray-900 hover:text-amber-700">{x.article!.title}</Link>
+                      <Link href={`/handbook/${x.article!.slug}${handbookQs(city.slug)}`} className="font-semibold text-gray-900 hover:text-amber-700">{x.article!.title}</Link>
                     </li>
                   ))}
                 </ul>

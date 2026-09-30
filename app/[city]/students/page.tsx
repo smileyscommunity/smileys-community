@@ -15,6 +15,7 @@ import JoinCityButton from '@/components/JoinCityButton'
 import PhotoHero, { HERO_SECONDARY } from '@/components/PhotoHero'
 import HostRosterCard from '@/components/HostRosterCard'
 import HandbookPicks from '@/components/HandbookPicks'
+import { cityQs as handbookQs } from '@/lib/cityPageParam'
 import { getCityHandbookPicks } from '@/lib/cityHandbookPicks'
 import { getCityStudentHub, getCityStudentCount, getCityHosts, hubPath } from '../data'
 
@@ -170,8 +171,8 @@ export default async function CityStudentsPage({ params }: Params) {
                 key: 'before', emoji: '🧳', title: 'Before arrival',
                 body: 'Check how long you can stay, and ask your university’s international office what your programme needs for a residence permit — and whether it has an ESN (Erasmus Student Network) section.',
                 links: [
-                  ...(entry ? [{ href: `/handbook/${entry.slug}`, label: 'Entry rules and stay limits' }] : []),
-                  ...(residence ? [{ href: `/handbook/${residence.slug}`, label: 'How residence permits work' }] : []),
+                  ...(entry ? [{ href: `/handbook/${entry.slug}${handbookQs(city.slug)}`, label: 'Entry rules and stay limits' }] : []),
+                  ...(residence ? [{ href: `/handbook/${residence.slug}${handbookQs(city.slug)}`, label: 'How residence permits work' }] : []),
                   ...(hub.stories.length > 0 ? [{ href: '#stories', label: 'Read: stories for students' }] : []),
                 ],
               },
@@ -179,7 +180,7 @@ export default async function CityStudentsPage({ params }: Params) {
                 key: 'welcome', emoji: '👋', title: 'Welcome week',
                 body: 'Get in from the airport, get a SIM and a transport card, and go to one event on your own.',
                 links: [
-                  ...(airport ? [{ href: `/handbook/${airport.slug}`, label: 'From the airport' }] : []),
+                  ...(airport ? [{ href: `/handbook/${airport.slug}${handbookQs(city.slug)}`, label: 'From the airport' }] : []),
                   { href: '#first-week', label: 'Your first week, step by step' },
                 ],
               },
@@ -373,7 +374,7 @@ export default async function CityStudentsPage({ params }: Params) {
             <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {guides.map(g => (
                 <li key={g.key}>
-                  <Link href={`/handbook/${g.article.slug}`}
+                  <Link href={`/handbook/${g.article.slug}${handbookQs(city.slug)}`}
                     className="block h-full bg-white border border-gray-100 rounded-2xl p-4 hover:border-amber-200 hover:shadow-md transition-all group">
                     <p className="text-xs font-bold uppercase tracking-widest text-gray-500">{g.label}</p>
                     <p className="font-semibold text-gray-900 group-hover:text-amber-700 transition-colors leading-snug mt-1">{g.article.title}</p>
