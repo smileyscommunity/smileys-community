@@ -15,6 +15,7 @@ import Shelves from '@/app/experiences/Shelves'
 import NothingYet from '@/app/experiences/NothingYet'
 import Crosslinks from '@/app/experiences/Crosslinks'
 import { hubCanonical, isDefaultCitySlug } from '../data'
+import { isOffCalendar } from '@/lib/eventJoinState'
 
 // /[city]/experiences — the crawlable shelves of a fixed city. The global
 // /experiences follows the viewer (cookie or ?city=); this is the page a
@@ -62,7 +63,7 @@ export default async function CityExperiencesPage({ params }: Params) {
     shelfViewer(session, events.map(e => e.id)),
     shelves.length === 0 ? fallbackEvents(city.id, session) : Promise.resolve([]),
   ])
-  const jsonLd = eventListJsonLd(events.filter(e => e.status !== 'cancelled'), city, { appUrl: APP_URL, siteUrl: SITE_URL })
+  const jsonLd = eventListJsonLd(events.filter(e => !isOffCalendar(e)), city, { appUrl: APP_URL, siteUrl: SITE_URL })
   const isDefault  = isDefaultCitySlug(city.slug)
   const eventsHref = isDefault ? '/events' : `/${city.slug}/events`
   const guideHref  = isDefault ? '/guide'  : `/guide?city=${city.slug}`

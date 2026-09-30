@@ -80,6 +80,7 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
 
   const { status, loading, join, ackRequest, confirmAck, cancelAck } = useRSVP(event.id, initialStatus)
   const isCancelled = event.status === 'cancelled'
+  const isPostponed = event.status === 'postponed'
   // Counter-full or said-so-by-a-human — the card treats both the same, and
   // lib/soldOut is the one place that decides which.
   const soldOut     = isSoldOut(event)
@@ -156,10 +157,24 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
             </>
           )}
 
+          {/* Postponed: the event is still coming, just not on this date, so
+              amber rather than red and no grayscale. It sat off the feed and
+              club pages entirely, so people who'd seen it thought it was gone. */}
+          {isPostponed && (
+            <>
+              <div className="absolute inset-0 bg-gray-950/40 pointer-events-none" />
+              <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center pointer-events-none">
+                <span className="bg-amber-500 text-white text-sm font-extrabold tracking-widest uppercase px-4 py-1.5 rounded-md shadow-lg -rotate-6">
+                  Postponed
+                </span>
+              </div>
+            </>
+          )}
+
           {/* Same stamp language as Cancelled, deliberately softer: sold out
               is disappointing, not void, and the waitlist below is still a
               real thing to do. No grayscale for that reason. */}
-          {soldOut && !isCancelled && (
+          {soldOut && !isCancelled && !isPostponed && (
             <>
               <div className="absolute inset-0 bg-gray-950/35 pointer-events-none" />
               <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center pointer-events-none">
@@ -320,6 +335,7 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
                 soldOut && status === 'idle' && !blockedLabel ? 'px-2' : 'px-3'
               } ${
                 isCancelled         ? 'bg-red-100 text-red-700'      :
+                isPostponed && blockedLabel ? 'bg-amber-100 text-amber-700' :
                 blockedLabel         ? 'bg-gray-100 text-gray-500'   :
                 status === 'joined'  ? 'bg-green-100 text-green-700' :
                 status === 'pending' ? 'bg-amber-100 text-amber-700' :

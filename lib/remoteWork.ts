@@ -1,5 +1,6 @@
 import { canonicalCategory } from './handbook-categories'
 import { safeTz, shiftDay } from './cityTime'
+import { isOffCalendar } from '@/lib/eventJoinState'
 
 // The remote-work hub (/[city]/remote-work) assembles pages that already
 // exist — Handbook articles, clubs, events — into one arrival path. It adds no
@@ -155,7 +156,7 @@ export const HUB_WORK_EVENT_CAP = 3
 export function pickHubEvents<E extends HubEventLike>(events: E[], workClubIds: Set<string>, limit: number): E[] {
   const seen = new Set<string>()
   const once = events.filter(e => {
-    if (e.status === 'cancelled') return false
+    if (isOffCalendar(e)) return false
     // A series is one session; an event with no series is its own.
     const key = e.seriesId ? `s:${e.seriesId}` : `e:${e.id}`
     if (seen.has(key)) return false

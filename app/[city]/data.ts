@@ -25,6 +25,7 @@ import { pickFirstEvents, pickRegularEvents, eventFilterLinks, mostlyEnglish, ST
 import { getCityHandbookIndex } from '@/lib/handbookIndex'
 import { articleCover } from '@/lib/articleCover'
 import { eventEndsAt } from '@/lib/eventTime'
+import { isOffCalendar } from '@/lib/eventJoinState'
 
 // Everything the city shopfront reads, in one place, with the one boundary
 // that matters drawn explicitly:
@@ -220,7 +221,7 @@ export async function getTopNeighborhoods(cityId: string, neighborhoodCounts: Ci
 // Prospect-facing surface: cancelled events break trust in a showcase slot,
 // and sold-out ones sink below the joinable ones.
 export function arrangeEvents(events: Event[]): Event[] {
-  const liveEvents = events.filter(e => e.status !== 'cancelled')
+  const liveEvents = events.filter(e => !isOffCalendar(e))
   return [
     ...liveEvents.filter(e => !isSoldOut(e)),
     ...liveEvents.filter(isSoldOut),
@@ -437,7 +438,7 @@ export const getCityRemoteWorkHub = unstable_cache(
 
     // Coworking sessions and first-timer-friendly events, each weekly session
     // once, neither kind crowding out the other (lib/remoteWork pickHubEvents).
-    const workEvents = events.filter(e => e.status !== 'cancelled' && e.clubId && workClubIds.has(e.clubId))
+    const workEvents = events.filter(e => !isOffCalendar(e) && e.clubId && workClubIds.has(e.clubId))
 
     return {
       articles,
@@ -500,7 +501,7 @@ export const getCityMovingHub = unstable_cache(
       memberCounts: memberRows.flatMap(r => r.neighborhood ? [{ neighborhood: r.neighborhood, count: r._count._all }] : []),
       eventCounts:  eventRows.map(r => ({ neighborhood: r.neighborhood, count: r._count._all })),
       events: events
-        .filter(e => e.status !== 'cancelled' && e.isFirstTimerFriendly)
+        .filter(e => !isOffCalendar(e) && e.isFirstTimerFriendly)
         .slice(0, MOVING_EVENT_LIMIT),
       // From the published-only count above: getEvents' total also counts
       // cancelled events, which it keeps for the cancelled banner.

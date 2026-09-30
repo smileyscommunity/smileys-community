@@ -363,6 +363,8 @@ export async function getEvents(options?: {
   // who heard about an event before it was killed need to see WHY it
   // disappeared from their feed, not silently lose it. The card itself
   // grays out, stamps "Cancelled" across the cover, and disables Join.
+  // 'postponed' likewise, stamped "Postponed": it used to vanish from the
+  // feed and club pages. Showcases drop both (lib/eventJoinState isOffCalendar).
   const baseWhere = upcoming === true
     ? {
         // Date.gt today catches future days. Same-day events show
@@ -372,7 +374,7 @@ export async function getEvents(options?: {
           { date: { gt: today } },
           { AND: [{ date: today }, { time: { gte: cutoffTime } }] },
         ],
-        status: { in: ['published', 'cancelled'] },
+        status: { in: ['published', 'cancelled', 'postponed'] },
       }
     : upcoming === false
     ? {
@@ -386,12 +388,12 @@ export async function getEvents(options?: {
           { date: { lt: today } },
           { AND: [{ date: today }, { time: { lt: cutoffTime } }] },
         ],
-        status: { in: ['published', 'archived', 'cancelled'] },
+        status: { in: ['published', 'archived', 'cancelled', 'postponed'] },
       }
     // No `upcoming` param → all time, but STILL restrict to publicly-visible
     // statuses. Previously this fell through to `{}` (no status/date filter),
     // so a hand-crafted GET /api/events leaked draft/pending/flagged events.
-    : { status: { in: ['published', 'archived', 'cancelled'] } }
+    : { status: { in: ['published', 'archived', 'cancelled', 'postponed'] } }
   const where = {
     ...baseWhere,
     ...(cityId ? { cityId } : cityIds ? { cityId: { in: cityIds } } : {}),
@@ -460,7 +462,7 @@ export async function getEventsByClub(clubId: string): Promise<Event[]> {
   const rows = await prisma.event.findMany({
     where: {
       clubId,
-      status: { in: ['published', 'cancelled'] },
+      status: { in: ['published', 'cancelled', 'postponed'] },
       date: { gte: today },
     },
     include: eventInclude,

@@ -1020,6 +1020,36 @@ export async function sendEventCancelledEmail(email: string, name: string, event
   })
 }
 
+// Postponing keeps every seat, request and waitlist place (only cancelling
+// releases them), so the email says which one this person still has.
+export type PostponedRole = 'going' | 'pending' | 'waitlist'
+const POSTPONED_KEEP: Record<PostponedRole, string> = {
+  going:    "Your spot is kept for the new date. If that date doesn't work for you, you can give it up from the event page.",
+  pending:  'Your request stays with the host for the new date.',
+  waitlist: "You stay on the waitlist for the new date, and we'll tell you if a spot opens.",
+}
+
+export async function sendEventPostponedEmail(email: string, name: string, eventTitle: string, eventDate: string, eventId: string, role: PostponedRole) {
+  const firstName = firstNameOf(name)
+  await send('sendEventPostponedEmail', {
+    from: FROM, to: email,
+    subject: safeSubject(`"${eventTitle}" has been postponed`),
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <div style="text-align:center;margin-bottom:28px">
+          <span style="font-size:40px">⏸️</span>
+          <h1 style="font-size:24px;font-weight:800;color:#111;margin:8px 0 4px">Hi ${esc(firstName)},</h1>
+          <p style="color:#6b7280;font-size:14px;margin:0"><strong>${esc(eventTitle)}</strong> (${esc(prettyEventDate(eventDate))}) has been postponed. It won't happen on that date.</p>
+        </div>
+        <p style="color:#374151;font-size:14px;text-align:center;margin-bottom:24px">${esc(POSTPONED_KEEP[role])} We'll let you know when there's a new date.</p>
+        <a href="${APP_URL}/events/${encodeURIComponent(eventId)}" style="display:block;text-align:center;background:#111;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none">
+          See the event →
+        </a>
+      </div>
+    `,
+  })
+}
+
 export async function sendRefundEmail(email: string, name: string, eventTitle: string, amount: number, currency: string, note?: string) {
   const firstName = firstNameOf(name)
   const noteHtml = note

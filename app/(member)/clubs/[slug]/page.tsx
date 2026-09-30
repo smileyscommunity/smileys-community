@@ -22,6 +22,7 @@ import ClubSpotlight from '@/components/ClubSpotlight'
 import ClubRulesEditor from '@/components/ClubRulesEditor'
 import ClubAboutEditor from '@/components/ClubAboutEditor'
 import ClubResources from '@/components/ClubResources'
+import { isOffCalendar } from '@/lib/eventJoinState'
 
 export const dynamic = 'force-dynamic'
 
@@ -109,7 +110,7 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
 
   // getEventsByClub keeps cancelled rows for the tab's banner; "next event" and the counts are the live ones.
 
-  const upcomingEvents = clubEvents.filter(e => e.status !== 'cancelled')
+  const upcomingEvents = clubEvents.filter(e => !isOffCalendar(e))
 
   // The club's city day — UTC put "Last event" and the next-event label on
   // the server's clock.

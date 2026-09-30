@@ -1,5 +1,6 @@
 import { pickArticle, ENTRY_RULES, type StageArticle } from './relocation'
 import { DEFAULT_CITY_SLUG } from './city'
+import { isOffCalendar } from '@/lib/eventJoinState'
 
 // The student hub (/[city]/students) — for Erasmus, exchange and international
 // students arriving for a semester or a year. Like the remote-work and moving
@@ -113,7 +114,7 @@ export const STUDENT_STORY_LIMIT = 6
 export const LANGUAGE_EXCHANGE_TAG = 'Language exchange'
 const NIGHTLIFE_TAG = 'Nightlife'
 
-const live = <E extends StudentEventLike>(events: E[]) => events.filter(e => e.status !== 'cancelled')
+const live = <E extends StudentEventLike>(events: E[]) => events.filter(e => !isOffCalendar(e))
 
 /** One per series: a weekly session appears once, as its next date. Input is
  *  soonest-first, so the first seen is the next one. */
@@ -325,7 +326,7 @@ export function studentCountLabel(n: number): string | null {
 /** Whether "most events are in English" is true of these events (upcoming,
  *  not cancelled). Language is free text, so it is trimmed and case-folded. */
 export function mostlyEnglish(events: { language?: string | null; status?: string }[]): boolean {
-  const live = events.filter(e => e.status !== 'cancelled')
+  const live = events.filter(e => !isOffCalendar(e))
   if (live.length === 0) return false
   const english = live.filter(e => (e.language ?? '').trim().toLowerCase() === 'english').length
   return english / live.length > 0.5

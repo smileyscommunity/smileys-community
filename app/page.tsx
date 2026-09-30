@@ -22,6 +22,7 @@ import { isSoldOut } from '@/lib/soldOut'
 import { arrivalAccent } from '@/lib/arrival-accents'
 import { toEventCard } from '@/lib/eventCard'
 import { testimonialAuthorOk, TESTIMONIAL_SELECT, publicTestimonial } from '@/lib/testimonialQuery'
+import { isOffCalendar } from '@/lib/eventJoinState'
 
 // ── The global landing page ─────────────────────────────────────────────────
 // Smileys is not a website about Istanbul; Istanbul is the first Smileys city.
@@ -209,7 +210,7 @@ export default async function HomePage() {
   // Cancelled events break trust in a showcase slot; sold-out ones sink to the
   // bottom so joinable ones get the space. Order is preserved within each group,
   // and the tabs filter over the result.
-  const liveEvents = events.filter(e => e.status !== 'cancelled')
+  const liveEvents = events.filter(e => !isOffCalendar(e))
   const tabEvents = [
     ...liveEvents.filter(e => !isSoldOut(e)),
     ...liveEvents.filter(isSoldOut),

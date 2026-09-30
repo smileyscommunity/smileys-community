@@ -8,6 +8,7 @@ import { notifyCityStaff } from '@/lib/staffNotify'
 import { venueIdInput } from '@/lib/eventVenue'
 import { ensurePendingVenueBusiness } from '@/lib/venueDirectory'
 import { activeAttendeeWhere } from '@/lib/attendance'
+import { AttendeeStatus } from '@/lib/constants'
 import { restoreSeatsReleasedByCancel, type PaidOnWaitlist } from '@/lib/eventRestore'
 import { backfillSeatPayments, collectsSeatPayment } from '@/lib/rsvpConfirmed'
 import { getSession } from '@/lib/session'
@@ -16,7 +17,7 @@ import { createNotification, notifyNewEvent } from '@/lib/notify'
 import { writeAudit, getDiff } from '@/lib/audit'
 import { normalizePaymentContact } from '@/lib/safeUrl'
 import { splitLeadingEmoji, stripDupTrailingEmoji } from '@/lib/data'
-import { sendEventCancelledEmail, recordEmailFailure } from '@/lib/email'
+import { sendEventCancelledEmail, sendEventPostponedEmail, recordEmailFailure, type PostponedRole } from '@/lib/email'
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 import { todayInCity, getCityTz } from '@/lib/city'
 import { checkSeriesId, seriesScopeFor } from '@/lib/seriesOwnership'
@@ -777,14 +778,43 @@ export async function PUT(req: NextRequest, { params }: Params) {
     }
 
     // Postponing a live event pulls it off the feed; the people going were
-    // never told, so they'd find out at the door. One bell entry each.
+    // never told, so they'd find out at the door. It was a bell entry for the
+    // approved seats only: nothing for anyone without push, and nothing at all
+    // for pending requests or the waitlist, who are waiting on the same date.
+    // Now each of them gets the bell and an email, as a cancellation does.
+    // Nothing is released: seats, requests and waitlist places carry over.
     if (before.status === 'published' && event.status === 'postponed') {
       ;(async () => {
-        const attendees = await prisma.eventAttendee.findMany({ where: { eventId: id, status: 'approved' }, select: { userId: true } })
-        await Promise.all(attendees.map(a =>
-          createNotification(a.userId, 'event_updated', 'Event postponed ⏸️', `"${before.title}" has been postponed — keep an eye out for the new date.`, `/events/${id}`)
-        ))
-      })().catch(() => {})
+        const [rsvps, waitlist] = await Promise.all([
+          prisma.eventAttendee.findMany({
+            where:  { eventId: id, ...activeAttendeeWhere },
+            select: { userId: true, status: true, user: { select: { email: true, name: true } } },
+          }),
+          // WaitlistEntry has no user relation; the people are read below.
+          prisma.waitlistEntry.findMany({ where: { eventId: id }, select: { userId: true } }).then(rows =>
+            rows.length === 0 ? [] : prisma.user.findMany({
+              where:  { id: { in: rows.map(r => r.userId) } },
+              select: { id: true, email: true, name: true },
+            })),
+        ])
+        // One message per person: a seat outranks a waitlist place.
+        const recipients = new Map<string, { email: string; name: string | null; role: PostponedRole }>()
+        for (const w of waitlist) recipients.set(w.id, { email: w.email, name: w.name, role: 'waitlist' })
+        for (const r of rsvps) recipients.set(r.userId, { ...r.user, role: r.status === AttendeeStatus.Approved ? 'going' : 'pending' })
+
+        const results = await Promise.all([...recipients].map(async ([userId, r]) => {
+          await createNotification(userId, 'event_updated', 'Event postponed ⏸️',
+            `"${before.title}" has been postponed — keep an eye out for the new date.`, `/events/${id}`).catch(() => {})
+          return sendEventPostponedEmail(r.email, r.name ?? 'Member', before.title, before.date, id, r.role)
+            .then(() => true)
+            .catch(async err => {
+              await recordEmailFailure({ helper: 'sendEventPostponedEmail', recipient: r.email, error: err, context: { eventId: id, userId } })
+              return false
+            })
+        }))
+        const failed = results.filter(ok => !ok).length
+        if (failed > 0) console.error('[event PUT postpone] sendEventPostponedEmail failures', { eventId: id, total: results.length, failed })
+      })().catch(err => console.error('[event PUT postpone] fan-out failed', { eventId: id, err: String(err) }))
     }
 
     // Email all approved attendees if event was just cancelled

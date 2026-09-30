@@ -13,6 +13,13 @@ import { DEFAULT_TZ, dayInTz } from '@/lib/cityTime'
 
 export type JoinBlock = 'cancelled' | 'postponed' | 'closed' | 'deadline' | 'ended' | 'started' | null
 
+/** Listed with its stamp but not happening on its date: cancelled, or
+ *  postponed. The feed and club pages keep both so people who saw the event
+ *  learn what became of it; showcases, counts, digests and JSON-LD drop them. */
+export function isOffCalendar(event: { status?: string | null }): boolean {
+  return event.status === 'cancelled' || event.status === 'postponed'
+}
+
 export interface JoinableEvent extends EventClock {
   status?: string | null
   /** Optional 'YYYY-MM-DD'. Anything else is ignored, exactly as the route does. */
