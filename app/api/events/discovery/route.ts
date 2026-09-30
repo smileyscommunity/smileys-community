@@ -16,7 +16,7 @@ import { groupBySeries, seriesCadenceLabel } from '@/lib/eventSeries'
 
 const CARD_SELECT = {
   id: true, title: true, emoji: true, date: true, time: true,
-  location: true, neighborhood: true, coverImage: true,
+  location: true, neighborhood: true, coverImage: true, language: true,
   price: true, memberPrice: true, currency: true,
   spotsLeft: true, totalSpots: true, limitedSpots: true, soldOut: true,
   seriesId: true, isRecurring: true, status: true,
@@ -124,6 +124,7 @@ function shapeOne(e: any) {
   return {
     id: e.id, title: e.title, emoji: e.emoji, date: e.date, time: e.time,
     location: e.location, neighborhood: e.neighborhood, coverImage: e.coverImage,
+    language: e.language ?? null,
     price: e.price, memberPrice: e.memberPrice, currency: e.currency,
     spotsLeft: e.spotsLeft, totalSpots: e.totalSpots, limitedSpots: e.limitedSpots, soldOut: e.soldOut,
     club: e.club ?? null,

@@ -12,6 +12,7 @@ import { useCurrentCity } from '@/hooks/useCurrentCity'
 interface DiscoveryEvent {
   id: string; title: string; emoji: string; date: string; time: string
   location: string; neighborhood: string | null; coverImage: string | null
+  language?: string | null
   price: number; memberPrice: number | null; currency: string | null
   spotsLeft: number; totalSpots: number; limitedSpots: boolean; soldOut?: boolean
   club: { id: string; name: string; emoji: string; slug: string } | null
@@ -80,6 +81,15 @@ function EventTile({ e, from, tz }: { e: DiscoveryEvent; from: string; tz: strin
         </p>
         <p className="text-xs text-gray-500 mt-1.5 truncate">
           <span aria-hidden="true">📍</span> {e.neighborhood || e.location}
+          {/* As on the feed's cards (components/EventCard): only when the host
+              set one — an unlabelled event is not "English by default". */}
+          {e.language?.trim() && (
+            <span title="Event language">
+              <span aria-hidden="true"> · 🗣️ </span>
+              <span className="sr-only">, language: </span>
+              {e.language.trim()}
+            </span>
+          )}
         </p>
         {/* §38 — series collapse: one card, the rest of the dates named. */}
         {e.series?.cadence && (
