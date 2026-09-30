@@ -8,8 +8,12 @@ import { join } from 'path'
 const lib   = readFileSync(join(__dirname, '../lib/cityHandbookPicks.ts'), 'utf8')
 // Code only — the comments explain what the shelf deliberately doesn't do.
 const code  = lib.replace(/^\s*\/\/.*$/gm, '')
+const shelf = readFileSync(join(__dirname, '../components/HandbookPicks.tsx'), 'utf8')
 const guide = readFileSync(join(__dirname, '../app/[city]/sections/Guide.tsx'), 'utf8')
 const page  = readFileSync(join(__dirname, '../app/[city]/page.tsx'), 'utf8')
+const read  = (p: string) => readFileSync(join(__dirname, '..', p), 'utf8')
+// The four arrival hubs show the same shelf in their Handbook section.
+const HUBS = ['app/[city]/moving/page.tsx', 'app/[city]/remote-work/page.tsx', 'app/[city]/students/page.tsx', 'app/visiting/page.tsx']
 
 describe('city page Handbook shelf', () => {
   it("reads only this city's own published Handbook articles, most read first, three at most", () => {
@@ -37,11 +41,17 @@ describe('city page Handbook shelf', () => {
   })
 
   it('links keep the city and the shelf hides when a city has none', () => {
-    expect(guide).toContain('href={`/handbook/${p.slug}${cityQs(city.slug)}`}')
-    expect(guide).toContain('if (picks.length === 0) return null')
-    // Both branches (with and without a guide) render it.
-    expect(guide.match(/<HandbookPicks city=\{city\} picks=\{handbookPicks\} \/>/g)).toHaveLength(2)
+    expect(shelf).toContain('href={`/handbook/${p.slug}${cityQs(citySlug)}`}')
+    expect(shelf).toContain('if (picks.length === 0) return null')
+    // Both branches of the city page's Guide section (with and without a guide) render it.
+    expect(guide.match(/<HandbookPicks citySlug=\{city\.slug\} picks=\{handbookPicks\}/g)).toHaveLength(2)
     expect(page).toContain('getCityHandbookPicks(city.id),')
     expect(page).toContain('handbookPicks={handbookPicks}')
+  })
+
+  it.each(HUBS)('%s shows the same shelf, read for its own city', hub => {
+    const src = read(hub)
+    expect(src).toMatch(/getCityHandbookPicks\((city\.id|cityId)\),/)
+    expect(src.match(/<HandbookPicks citySlug=\{city\.slug\} picks=\{handbookPicks\}/g)).toHaveLength(1)
   })
 })

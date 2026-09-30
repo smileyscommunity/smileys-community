@@ -14,6 +14,8 @@ import EventCard from '@/components/EventCard'
 import JoinCityButton from '@/components/JoinCityButton'
 import PhotoHero, { HERO_SECONDARY } from '@/components/PhotoHero'
 import HostRosterCard from '@/components/HostRosterCard'
+import HandbookPicks from '@/components/HandbookPicks'
+import { getCityHandbookPicks } from '@/lib/cityHandbookPicks'
 import { getCityStudentHub, getCityStudentCount, getCityHosts, hubPath } from '../data'
 
 // /[city]/students — for Erasmus, exchange and international students here
@@ -52,11 +54,12 @@ export default async function CityStudentsPage({ params }: Params) {
   // A pre-launch city has no events or members to meet yet; its page says so.
   if (city.status !== CITY_STATUS.Live) redirect(`/${city.slug}`)
 
-  const [hub, experiences, session, studentCount] = await Promise.all([
+  const [hub, experiences, session, studentCount, handbookPicks] = await Promise.all([
     getCityStudentHub(city.id, city.slug, city.country ?? null, city.timezone),
     loadExperiences(city.id),
     getSession(),
     getCityStudentCount(city.id),
+    getCityHandbookPicks(city.id),
   ])
   // Hosts are projected per viewer (a guest gets first names, no links), so
   // they are read after the session, outside the hub's shared cache.
@@ -366,6 +369,7 @@ export default async function CityStudentsPage({ params }: Params) {
               <h2 id="practical-title" className="section-title">The practical side</h2>
               <p className="section-subtitle max-w-2xl">From the {city.name} Handbook.</p>
             </div>
+            <HandbookPicks citySlug={city.slug} picks={handbookPicks} className="mb-8" />
             <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {guides.map(g => (
                 <li key={g.key}>

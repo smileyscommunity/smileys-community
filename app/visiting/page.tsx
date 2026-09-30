@@ -30,6 +30,8 @@ import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
 import { loadExperiences } from '@/lib/guideContent'
 import VisitingClient from './VisitingClient'
 import StickyVisitCta from './StickyVisitCta'
+import HandbookPicks from '@/components/HandbookPicks'
+import { getCityHandbookPicks } from '@/lib/cityHandbookPicks'
 
 // Cached 2-min — visitor announcements don't churn second-by-second.
 // `today` is passed in so day-boundary rollover invalidates the
@@ -483,10 +485,11 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
   // All existing content: the city's Handbook (lib/handbookIndex), its Guide
   // audiences and day routes (lib/guide, lib/guideContent), and the city list
   // with the same maturity signal the city cards use (lib/tripPlan).
-  const [handbook, routes, publicCities] = await Promise.all([
+  const [handbook, routes, publicCities, handbookPicks] = await Promise.all([
     getCityHandbookIndex(cityId, city.country ?? null),
     loadRoutes(cityId),
     getPublicCities(),
+    getCityHandbookPicks(cityId),
   ])
   // The city's own article first (its transport card beats a national note).
   const essential = (category: string) => handbook
@@ -760,6 +763,8 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
               </li>
             ))}
           </ol>
+
+          <HandbookPicks citySlug={city.slug} picks={handbookPicks} className="mt-8" />
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
             {essentials.length > 0 && (

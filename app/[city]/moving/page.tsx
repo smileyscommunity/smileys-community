@@ -13,6 +13,8 @@ import { LIFE_STAGES, articlesForStage, movingTopics, pickNeighborhoods, include
 import EventCard from '@/components/EventCard'
 import JoinCityButton from '@/components/JoinCityButton'
 import PhotoHero, { HERO_SECONDARY } from '@/components/PhotoHero'
+import HandbookPicks from '@/components/HandbookPicks'
+import { getCityHandbookPicks } from '@/lib/cityHandbookPicks'
 import { getCityMovingHub, isDefaultCitySlug } from '../data'
 
 // /[city]/moving — "Moving to <city>": the relocation path for someone
@@ -54,10 +56,11 @@ export default async function CityMovingPage({ params }: Params) {
   // A pre-launch city has no community or Handbook of its own yet.
   if (city.status !== CITY_STATUS.Live) redirect(`/${city.slug}`)
 
-  const [hub, registry, session] = await Promise.all([
+  const [hub, registry, session, handbookPicks] = await Promise.all([
     getCityMovingHub(city.id, city.country ?? null, city.timezone),
     getNeighborhoodViews(city.id),
     getSession(),
+    getCityHandbookPicks(city.id),
   ])
   // Guest redaction per request, outside the shared cache (the hub rule).
   const events = session ? await projectEventsForMember(hub.events, session) : hub.events.map(redactEventForGuest)
@@ -178,6 +181,7 @@ export default async function CityMovingPage({ params }: Params) {
                 Guides from the {city.name} Handbook, written by the Smileys team. Where a guide links official sources, those are the requirements; the rest is lived experience.
               </p>
             </div>
+            <HandbookPicks citySlug={city.slug} picks={handbookPicks} className="mb-8" />
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {topics.map(t => {
                 const lead = t.articles[0]

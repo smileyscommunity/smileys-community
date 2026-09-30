@@ -18,6 +18,8 @@ import JoinCityButton from '@/components/JoinCityButton'
 import { clubHref } from '@/lib/clubLink'
 import { pickArticle, REMOTE_WORK_LEGAL, ENTRY_RULES } from '@/lib/relocation'
 import PhotoHero, { HERO_SECONDARY } from '@/components/PhotoHero'
+import HandbookPicks from '@/components/HandbookPicks'
+import { getCityHandbookPicks } from '@/lib/cityHandbookPicks'
 import { getCityRemoteWorkHub } from '../data'
 
 // /[city]/remote-work — the arrival path for someone who works remotely:
@@ -71,7 +73,10 @@ export default async function CityRemoteWorkPage({ params }: Params) {
   // A pre-launch city has no community to meet yet; its own page says so.
   if (city.status !== CITY_STATUS.Live) redirect(`/${city.slug}`)
 
-  const hub = await getCityRemoteWorkHub(city.id, city.country ?? null)
+  const [hub, handbookPicks] = await Promise.all([
+    getCityRemoteWorkHub(city.id, city.country ?? null),
+    getCityHandbookPicks(city.id),
+  ])
   // Guest redaction is per-request, outside the shared cache — the rule every
   // city hub follows (see ../events/page.tsx).
   const session = await getSession()
@@ -335,6 +340,7 @@ export default async function CityRemoteWorkPage({ params }: Params) {
               <h2 className="section-title">The practical side</h2>
               <p className="section-subtitle max-w-2xl">From the Smileys Handbook.</p>
             </div>
+            <HandbookPicks citySlug={city.slug} picks={handbookPicks} className="mb-8" />
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {topics.map(topic => (
                 <div key={topic.key} className="bg-gray-50 border border-gray-100 rounded-2xl p-5">
