@@ -9,6 +9,7 @@ import { getPublicCity, DEFAULT_CITY_SLUG } from '@/lib/cities'
 import { CITY_STATUS } from '@/lib/cityStatus'
 import { APP_URL } from '@/lib/env'
 import { jsonLdHtml } from '@/lib/jsonLd'
+import { getCityHandbookPicks } from '@/lib/cityHandbookPicks'
 import { cityMetadata, getCityPageData, getVisitors, getCityHosts, getTopNeighborhoods, arrangeEvents, featureClubs, enterLinkFor, publicLinkFor } from './data'
 import PreLaunch from './sections/PreLaunch'
 import Hero from './sections/Hero'
@@ -91,10 +92,11 @@ export default async function CityPage({ params }: Params) {
   // projection as GET /api/events.
   const events  = session ? await projectEventsForMember(cachedEvents, session) : cachedEvents.map(redactEventForGuest)
 
-  const [{ visitors, visitorTotal }, { hosts, hostTotal }, { topNeighborhoods, neighborhoodsHaveEvents }] = await Promise.all([
+  const [{ visitors, visitorTotal }, { hosts, hostTotal }, { topNeighborhoods, neighborhoodsHaveEvents }, handbookPicks] = await Promise.all([
     getVisitors(city, !!session),
     getCityHosts(city, session),
     getTopNeighborhoods(city.id, neighborhoodCounts),
+    getCityHandbookPicks(city.id),
   ])
 
   // Cut to what a card renders (lib/eventCard): EventTabs is a client list.
@@ -118,7 +120,7 @@ export default async function CityPage({ params }: Params) {
       <Hosts city={city} hosts={hosts} hostTotal={hostTotal} signedIn={!!session} />
       <Neighborhoods city={city} topNeighborhoods={topNeighborhoods} neighborhoodsHaveEvents={neighborhoodsHaveEvents} enter={enter} />
       <Visitors city={city} visitors={visitors} visitorTotal={visitorTotal} isDefaultCity={isDefaultCity} signedIn={!!session} />
-      <Guide city={city} hasGuide={guideEntries > 0} enter={enter} />
+      <Guide city={city} hasGuide={guideEntries > 0} enter={enter} handbookPicks={handbookPicks} />
       <Stories city={city} latestStories={latestStories} />
       <Testimonials city={city} testimonials={testimonials} />
       <FinalCta city={city} signedIn={!!session} newMembersThisWeek={newMembersThisWeek} enter={enter} hasEvents={tabEvents.length > 0} />

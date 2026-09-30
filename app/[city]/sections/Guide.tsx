@@ -1,5 +1,36 @@
+import Image from 'next/image'
 import Link from 'next/link'
+import { cityQs } from '@/lib/cityPageParam'
+import type { CityHandbookPick } from '@/lib/cityHandbookPicks'
 import type { PublicCity, EnterLink } from '../data'
+
+// The city's own Handbook articles (lib/cityHandbookPicks), as small cards
+// under the buttons. The section used to offer only "The <city> Handbook", so
+// the one guide written for this city — its transport card — was two clicks
+// away and unnamed. Hidden when the city has none yet.
+function HandbookPicks({ city, picks }: { city: PublicCity; picks: CityHandbookPick[] }) {
+  if (picks.length === 0) return null
+  return (
+    <div className="mt-8">
+      <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">Start here</p>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {picks.map(p => (
+          <Link key={p.slug} href={`/handbook/${p.slug}${cityQs(city.slug)}`} className="group card overflow-hidden bg-white hover:-translate-y-0.5 transition-transform duration-300">
+            {p.cover && (
+              <div className="relative aspect-[16/9]">
+                <Image src={p.cover} alt="" fill sizes="(max-width: 640px) 100vw, 33vw" className="object-cover" />
+              </div>
+            )}
+            <div className="p-4">
+              <h3 className="font-bold text-gray-900 text-sm leading-snug group-hover:text-amber-600 transition-colors line-clamp-2">{p.title}</h3>
+              {p.excerpt && <p className="mt-1 text-xs text-gray-600 leading-relaxed line-clamp-2">{p.excerpt}</p>}
+            </div>
+          </Link>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 // The moving, remote-work and student hubs gather this section's practical links into
 // arrival paths; text links rather than more buttons. Only live cities render this
@@ -30,7 +61,7 @@ function RemoteWorkLink({ city }: { city: PublicCity }) {
 //
 // Counting entries rather than naming a city also keeps it honest for city
 // #3, which has none on day one and shouldn't be offered an empty guide.
-export default function Guide({ city, hasGuide, enter }: { city: PublicCity; hasGuide: boolean; enter: EnterLink }) {
+export default function Guide({ city, hasGuide, enter, handbookPicks }: { city: PublicCity; hasGuide: boolean; enter: EnterLink; handbookPicks: CityHandbookPick[] }) {
   if (hasGuide) {
     return (
       <section className="py-12 sm:py-16 bg-white border-t border-gray-100">
@@ -53,6 +84,7 @@ export default function Guide({ city, hasGuide, enter }: { city: PublicCity; has
               <a href={enter('handbook')} className="btn-secondary">The {city.name} Handbook</a>
               <a href={enter('directory')} className="btn-secondary">Browse places</a>
             </div>
+            <HandbookPicks city={city} picks={handbookPicks} />
             <RemoteWorkLink city={city} />
           </div>
         </div>
@@ -76,6 +108,7 @@ export default function Guide({ city, hasGuide, enter }: { city: PublicCity; has
             <a href={enter('handbook')} className="btn-primary">The {city.name} Handbook</a>
             <a href={enter('directory')} className="btn-secondary">Browse places</a>
           </div>
+          <HandbookPicks city={city} picks={handbookPicks} />
           <RemoteWorkLink city={city} />
         </div>
       </div>
