@@ -175,9 +175,12 @@ describe('buildChecklist', () => {
   it('gives five steps, each linked to the page that answers it', () => {
     const steps = buildChecklist(base)
     expect(steps.map(s => s.key)).toEqual(['connect', 'neighbourhood', 'workspace', 'money', 'first-event'])
-    expect(steps.find(s => s.key === 'connect')?.href).toBe('/handbook/sim')
+    // Article links keep the city (İzmir isn't the default city).
+    expect(steps.find(s => s.key === 'connect')?.href).toBe('/handbook/sim?city=izmir')
     expect(steps.find(s => s.key === 'neighbourhood')?.href).toBe('/neighborhoods?city=izmir')
-    expect(steps.find(s => s.key === 'money')?.href).toBe('/handbook/bank')
+    expect(steps.find(s => s.key === 'money')?.href).toBe('/handbook/bank?city=izmir')
+    // …and the default city's stay clean.
+    expect(buildChecklist({ ...base, citySlug: 'istanbul' }).find(s => s.key === 'connect')?.href).toBe('/handbook/sim')
   })
 
   it('does not claim coworking sessions a city does not have', () => {

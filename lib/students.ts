@@ -236,9 +236,12 @@ export interface FirstWeekInput {
   hasClubs:         boolean
 }
 
-const guideLink = (guides: StudentGuide<StageArticle>[], key: StudentGuideKey, label: string) => {
+// Article links keep the city (an article opened from /antalya/students without
+// ?city= showed Istanbul's breadcrumbs and related guides).
+const guideLink = (guides: StudentGuide<StageArticle>[], key: StudentGuideKey, label: string, citySlug: string) => {
   const g = guides.find(x => x.key === key)
-  return g ? [{ href: `/handbook/${g.article.slug}`, label }] : []
+  const qs = citySlug === DEFAULT_CITY_SLUG ? '' : `?city=${citySlug}`
+  return g ? [{ href: `/handbook/${g.article.slug}${qs}`, label }] : []
 }
 
 /**
@@ -258,16 +261,16 @@ export function buildFirstWeek(i: FirstWeekInput): FirstWeekStep[] {
       key: 'connect',
       title: 'Get connected',
       body: 'A working phone number first: maps, banking codes and every group chat depend on it.',
-      links: guideLink(i.guides, 'connect', 'SIM and mobile internet'),
+      links: guideLink(i.guides, 'connect', 'SIM and mobile internet', i.citySlug),
     },
     {
       key: 'city',
       title: 'Learn the city',
       body: 'Get a transport card, work out your commute, and save the emergency number before you need it.',
       links: [
-        ...guideLink(i.guides, 'transport', 'Transport card and getting around'),
-        ...guideLink(i.guides, 'emergency', 'Emergency numbers'),
-        ...guideLink(i.guides, 'safety', 'Scams and staying safe'),
+        ...guideLink(i.guides, 'transport', 'Transport card and getting around', i.citySlug),
+        ...guideLink(i.guides, 'emergency', 'Emergency numbers', i.citySlug),
+        ...guideLink(i.guides, 'safety', 'Scams and staying safe', i.citySlug),
       ],
     },
     {

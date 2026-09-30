@@ -149,6 +149,14 @@ describe('buildFirstWeek', () => {
     expect(hrefs).toContain('/guide?city=bursa')
   })
 
+  it("keeps a non-default city on its guide links (no Istanbul breadcrumbs from /bursa/students)", () => {
+    const steps = buildFirstWeek({
+      ...base, guides: studentGuides([art('sim-card', 'Getting a SIM Card', 'Mobile & Digital')], 'c1'),
+    })
+    const hrefs = steps.flatMap(s => s.links.map(l => l.href))
+    expect(hrefs).toContain('/handbook/sim-card?city=bursa')
+  })
+
   it('points at the hub sections and guides when the city has them', () => {
     const steps = buildFirstWeek({
       ...base, citySlug: 'istanbul', cityName: 'Istanbul',

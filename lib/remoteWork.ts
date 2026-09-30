@@ -1,6 +1,7 @@
 import { canonicalCategory } from './handbook-categories'
 import { safeTz, shiftDay } from './cityTime'
 import { isOffCalendar } from '@/lib/eventJoinState'
+import { DEFAULT_CITY_SLUG } from './city'
 
 // The remote-work hub (/[city]/remote-work) assembles pages that already
 // exist — Handbook articles, clubs, events — into one arrival path. It adds no
@@ -266,9 +267,15 @@ export interface ChecklistInput {
   hasEvents:        boolean
 }
 
-const topicHref = (topics: HubTopic[], key: RemoteWorkTopicKey) => {
+// Article links keep the city (lib/cityPageParam's rule, inlined — that module
+// reads the session): without ?city= an article opened from /antalya/remote-work
+// showed Istanbul's breadcrumbs and related guides.
+const articleHref = (slug: string, citySlug: string) =>
+  `/handbook/${slug}${citySlug === DEFAULT_CITY_SLUG ? '' : `?city=${citySlug}`}`
+
+const topicHref = (topics: HubTopic[], key: RemoteWorkTopicKey, citySlug: string) => {
   const first = topics.find(t => t.key === key)?.articles[0]
-  return first ? `/handbook/${first.slug}` : null
+  return first ? articleHref(first.slug, citySlug) : null
 }
 
 /**
@@ -276,28 +283,28 @@ const topicHref = (topics: HubTopic[], key: RemoteWorkTopicKey) => {
  * it in this city. Paths are basePath-relative (for next/link).
  */
 export function buildChecklist({ citySlug, topics, hasNeighborhoods, hasWorkClubs, hasWorkEvents, workMembersOnly, hasEvents }: ChecklistInput): ChecklistStep[] {
-  const moneyHref     = topicHref(topics, 'money')
-  const transportHref = topicHref(topics, 'transport')
+  const moneyHref     = topicHref(topics, 'money', citySlug)
+  const transportHref = topicHref(topics, 'transport', citySlug)
   // The city's airport-arrival guide, when its Handbook has one: getting in
   // from the airport is the first transport problem of the 72 hours.
   const airport = topics.find(t => t.key === 'transport')?.articles.find(a => /airport|arriv|havaliman/i.test(`${a.title} ${a.slug}`))
-  const airportHref = airport ? `/handbook/${airport.slug}` : null
+  const airportHref = airport ? articleHref(airport.slug, citySlug) : null
   // The transport card guide — the transport topic's lead that isn't the airport one.
   const cardArticle = topics.find(t => t.key === 'transport')?.articles.find(a => a !== airport)
-  const cardHref = cardArticle ? `/handbook/${cardArticle.slug}` : null
+  const cardHref = cardArticle ? articleHref(cardArticle.slug, citySlug) : null
   return [
     {
       key: 'connect',
       title: 'Get connected',
       body: 'Sort out a SIM or eSIM on day one, and home internet if you are staying a while.',
-      href: topicHref(topics, 'connect'),
+      href: topicHref(topics, 'connect', citySlug),
       cta:  'Read the SIM and internet guide',
     },
     {
       key: 'neighbourhood',
       title: 'Choose a neighbourhood',
       body: 'Where you stay decides your commute, your cafés and who is around in the evening.',
-      href: hasNeighborhoods ? `/neighborhoods?city=${citySlug}` : topicHref(topics, 'housing'),
+      href: hasNeighborhoods ? `/neighborhoods?city=${citySlug}` : topicHref(topics, 'housing', citySlug),
       cta:  'Compare neighbourhoods',
     },
     {
