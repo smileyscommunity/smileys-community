@@ -500,11 +500,20 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
     // and for how long — the entry-rules guide, found by topic (it shares
     // Residence & Legal with the residence-permit guides a visitor doesn't need).
     { key: 'entry',     label: 'Entry rules and visas',  article: pickArticle(handbook, 'Residence & Legal', ENTRY_RULES, cityId) },
-    { key: 'connect',   label: 'SIM and internet',       article: essential('Mobile & Digital') },
-    { key: 'transport', label: 'Getting around',         article: essential('Getting Around') },
-    { key: 'money',     label: 'Money',                  article: essential('Money & Banking') },
-    { key: 'safety',    label: 'Safety and emergencies', article: essential('Safety & Emergencies') },
+    // Each row asks for the article ABOUT its topic, not just the newest in its
+    // category: that rule had "SIM and internet" on the e-Devlet guide, "Money"
+    // on the tax-number guide and Istanbul's "Getting around" on the airport
+    // guide. The category's own-city-first pick stays as the fallback.
+    { key: 'connect',   label: 'SIM and internet',       article: pickArticle(handbook, 'Mobile & Digital', /\bsim\b|esim|internet/i, cityId) ?? essential('Mobile & Digital') },
+    { key: 'transport', label: 'Getting around',         article: pickArticle(handbook, 'Getting Around', /kart|card|getting.around|dolmu/i, cityId) ?? essential('Getting Around') },
+    { key: 'money',     label: 'Money',                  article: pickArticle(handbook, 'Money & Banking', /bank/i, cityId) ?? essential('Money & Banking') },
+    { key: 'safety',    label: 'Safety and emergencies', article: pickArticle(handbook, 'Safety & Emergencies', /emergenc|\b112\b/i, cityId) ?? essential('Safety & Emergencies') },
   ].filter(x => x.article)
+  // The list under the Start-here cards skips what the cards already show
+  // (the city's transport-card guide sat in both). The 48-hour steps still
+  // link every essential — they are a sequence, not a list.
+  const pickedSlugs      = new Set(handbookPicks.map(p => p.slug))
+  const listedEssentials = essentials.filter(x => !pickedSlugs.has(x.article!.slug))
   const firstTimerSoon = timedEvents.filter(e => e.isFirstTimerFriendly)
   // Guide intents this city's vocabulary can answer, with how many
   // experiences each one opens — an intent with none is not offered.
@@ -767,11 +776,11 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
           <HandbookPicks citySlug={city.slug} picks={handbookPicks} className="mt-8" />
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
-            {essentials.length > 0 && (
+            {listedEssentials.length > 0 && (
               <div className="rounded-2xl border border-gray-100 bg-white shadow-sm p-5">
                 <h3 className="font-bold text-gray-900 mb-2">Handbook essentials</h3>
                 <ul className="space-y-1.5 text-sm">
-                  {essentials.map(x => (
+                  {listedEssentials.map(x => (
                     <li key={x.key}>
                       <span className="text-gray-500">{x.label}: </span>
                       <Link href={`/handbook/${x.article!.slug}${handbookQs(city.slug)}`} className="font-semibold text-gray-900 hover:text-amber-700">{x.article!.title}</Link>

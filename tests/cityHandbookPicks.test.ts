@@ -64,3 +64,32 @@ describe('city page Handbook shelf', () => {
     for (const l of links) expect(l).toContain('${handbookQs(city.slug)}')
   })
 })
+
+describe('/visiting Handbook essentials', () => {
+  const visiting = read('app/visiting/page.tsx')
+
+  it('each row picks the article about its topic, with the category pick as fallback', () => {
+    // The newest-in-category rule put SIM on the e-Devlet guide, Money on the
+    // tax-number guide and Istanbul's transport on the airport guide.
+    expect(visiting).toContain("pickArticle(handbook, 'Mobile & Digital', /\\bsim\\b|esim|internet/i, cityId) ?? essential('Mobile & Digital')")
+    expect(visiting).toContain("pickArticle(handbook, 'Getting Around', /kart|card|getting.around|dolmu/i, cityId) ?? essential('Getting Around')")
+    expect(visiting).toContain("pickArticle(handbook, 'Money & Banking', /bank/i, cityId) ?? essential('Money & Banking')")
+    expect(visiting).toContain("pickArticle(handbook, 'Safety & Emergencies', /emergenc|\\b112\\b/i, cityId) ?? essential('Safety & Emergencies')")
+  })
+
+  it('the patterns land on the right real articles and skip the wrong ones', () => {
+    const transport = /kart|card|getting.around|dolmu/i
+    for (const t of ['Istanbulkart Mastery: The only ticket that matters', 'Antalyakart: One Card for the Bus and the Tram',
+                     'Getting Around Bodrum: Dolmuş, Ferries, Taxis & the Airport', 'İzmirim Kart: The Only Ticket That Matters'])
+      expect(transport.test(t)).toBe(true)
+    expect(transport.test('Arriving in Istanbul: Getting from IST and Sabiha Gökçen into the City arriving-in-istanbul')).toBe(false)
+    expect(/\bsim\b|esim|internet/i.test('e-Devlet for Foreigners: Getting Your Password e-devlet-for-foreigners')).toBe(false)
+    expect(/\bsim\b|esim|internet/i.test('Getting a SIM Card and Home Internet in Türkiye')).toBe(true)
+    expect(/bank/i.test('Getting a Turkish Tax Number as a Foreigner')).toBe(false)
+  })
+
+  it('the essentials list skips articles the Start-here cards already show', () => {
+    expect(visiting).toContain('const listedEssentials = essentials.filter(x => !pickedSlugs.has(x.article!.slug))')
+    expect(visiting).toContain('{listedEssentials.map(x => (')
+  })
+})
