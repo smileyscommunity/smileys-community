@@ -11,6 +11,7 @@ import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import CitySelect, { CityBadge, useAdminCities } from '@/components/admin/CitySelect'
 import { confirmToast } from '@/lib/confirmToast'
 import { clubStaffQueueReason } from '@/lib/clubRequestRouting'
+import { fold } from '@/lib/turkishFold'
 
 const EMOJI_GROUPS = [
   { label: 'Water & Sailing', emojis: ['⛵','🚢','🛥️','⚓','🏄','🤿','🎣','🌊','🐬','🐳','🚤','🛶','🐠','🐟','🦈','🐙','🪸','🏝️','🏖️','🐚','🦀','🦞','🦐','🌅'] },
@@ -451,9 +452,15 @@ export default function AdminClubsPage() {
   const staffQueueReason = (c: Club) => clubStaffQueueReason(c)
   const staffQueueCount = clubList.filter(c => staffQueueReason(c) !== null).length
 
-  // Filtered list — search hits name + description + slug; category
-  // dropdown filters exactly; status pills filter active/inactive/
-  // with-pending. All three composable.
+  // Filtered list — search hits name + description + slug + category +
+  // city; category dropdown filters exactly; status pills filter
+  // active/inactive/with-pending. All three composable.
+  //
+  // The search folds Turkish letters (lib/turkishFold) and matches each word
+  // on its own: a plain toLowerCase() turns "İstanbul" into "i̇stanbul", so a
+  // Turkish keyboard found nothing, and "spanish club" missed "Spanish
+  // Language Club".
+  const searchWords = fold(search).split(/\s+/).filter(Boolean)
   const filtered = clubList.filter(c => {
     // 'global' keeps only city-less clubs; a slug keeps exactly that city's
     // own (globals excluded — same semantics as the API's ?city=).
@@ -464,10 +471,9 @@ export default function AdminClubsPage() {
     if (statusFilter === 'inactive'     &&  c.isActive)              return false
     if (statusFilter === 'with-pending' && (c.pendingCount ?? 0) === 0) return false
     if (statusFilter === 'no-host'      && !staffQueueReason(c))     return false
-    if (search.trim()) {
-      const q = search.trim().toLowerCase()
-      const hay = `${c.name} ${c.description} ${c.slug}`.toLowerCase()
-      if (!hay.includes(q)) return false
+    if (searchWords.length > 0) {
+      const hay = fold(`${c.name} ${c.description} ${c.slug} ${c.category} ${c.city?.name ?? 'global'}`)
+      if (!searchWords.every(w => hay.includes(w))) return false
     }
     return true
   })

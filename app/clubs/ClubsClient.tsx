@@ -11,6 +11,7 @@ import { resolveImageUrl } from '@/lib/data'
 import { clubHref } from '@/lib/clubLink'
 import ClubCardSkeleton from '@/components/ClubCardSkeleton'
 import AdBannerStrip from '@/components/AdBannerStrip'
+import { fold } from '@/lib/turkishFold'
 
 interface Club {
   id: string
@@ -334,10 +335,13 @@ function AppClubsPageInner() {
     [clubs, membershipByClubId]
   )
 
-  const q = search.trim().toLowerCase()
+  // Folded (lib/turkishFold) and word by word: "İstanbul" typed on a Turkish
+  // keyboard lowercases to "i̇stanbul" and matched nothing.
+  const q = fold(search)
+  const qWords = q.split(/\s+/).filter(Boolean)
   const matches = (c: Club) =>
     (activeCategory === 'All' || groupOf(c) === activeCategory) &&
-    (!q || `${c.name} ${c.description} ${c.category}`.toLowerCase().includes(q))
+    (qWords.length === 0 || qWords.every(w => fold(`${c.name} ${c.description} ${c.category}`).includes(w)))
 
   // Health-ranked discovery (brief §36): Active first, New second, Quiet
   // last; ties broken by this-week activity, then size.
