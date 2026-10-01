@@ -4,7 +4,7 @@ import { isTier } from '@/lib/standingPolicy'
 import { prisma } from '@/lib/prisma'
 import { claimOnce, releaseClaim, rateLimit } from '@/lib/rateLimit'
 import { hostIdError } from '@/lib/eventHostCheck'
-import { scopeCityId } from '@/lib/eventTrip'
+import { scopeCityId, eventCityIds } from '@/lib/eventTrip'
 import { notifyCityStaff } from '@/lib/staffNotify'
 import { venueIdInput } from '@/lib/eventVenue'
 import { ensurePendingVenueBusiness } from '@/lib/venueDirectory'
@@ -13,7 +13,7 @@ import { AttendeeStatus } from '@/lib/constants'
 import { restoreSeatsReleasedByCancel, type PaidOnWaitlist } from '@/lib/eventRestore'
 import { backfillSeatPayments, collectsSeatPayment } from '@/lib/rsvpConfirmed'
 import { getSession } from '@/lib/session'
-import { isAdmin, isAdminOrModerator, isClubHost, isClubHostFor, hostCityIds } from '@/lib/access'
+import { isAdmin, isAdminOrModerator, isClubHost, isClubHostFor, hostCityIds, canActInCity } from '@/lib/access'
 import { createNotification, notifyNewEvent } from '@/lib/notify'
 import { writeAudit, getDiff } from '@/lib/audit'
 import { normalizePaymentContact } from '@/lib/safeUrl'
@@ -66,12 +66,12 @@ export async function DELETE(_: NextRequest, { params }: Params) {
     if (!isAdmin(session) && !clubHost) {
       // A moderator's own event in a city they host (not their home city)
       // is theirs to run as its host.
-      // A trip is checked against its departure city (lib/eventTrip).
-      const scope  = scopeCityId(eventScope)
+      // A trip can be moderated from either of its cities (lib/eventTrip).
+      const cities = eventCityIds(eventScope)
       const cityOk = cityHostOf.length > 0
-        ? cityHostOf.includes(scope)
-        : session.cityId === scope ||
-          (eventScope.hostId === session.id && (await hostCityIds(session.id)).includes(scope))
+        ? cities.some(c => cityHostOf.includes(c))
+        : cities.includes(session.cityId ?? '') ||
+          (eventScope.hostId === session.id && (await hostCityIds(session.id)).some(c => cities.includes(c)))
       if (!cityOk) return NextResponse.json({ error: 'Cross-city moderation is admin-only' }, { status: 403 })
     }
 
@@ -184,12 +184,13 @@ export async function PUT(req: NextRequest, { params }: Params) {
     if (!isAdmin(session) && !clubHost) {
       // A moderator's own event in a city they host (not their home city)
       // is theirs to run as its host.
-      // A trip is checked against its departure city (lib/eventTrip).
-      const scope  = scopeCityId(before)
+      // A trip can be moderated from either of its cities (lib/eventTrip);
+      // publishing it is the destination's call (below).
+      const cities = eventCityIds(before)
       const cityOk = cityHostOf.length > 0
-        ? cityHostOf.includes(scope)
-        : session.cityId === scope ||
-          (before.hostId === session.id && (await hostCityIds(session.id)).includes(scope))
+        ? cities.some(c => cityHostOf.includes(c))
+        : cities.includes(session.cityId ?? '') ||
+          (before.hostId === session.id && (await hostCityIds(session.id)).some(c => cities.includes(c)))
       if (!cityOk) return NextResponse.json({ error: 'Cross-city moderation is admin-only' }, { status: 403 })
     }
 
@@ -365,6 +366,20 @@ export async function PUT(req: NextRequest, { params }: Params) {
     // a moderator can hand it to someone else but not to themselves — making
     // yourself host was a way round the contact masking every moderator list
     // applies.
+    // Publishing a trip is the decision of the city it VISITS: it goes on
+    // that city's page. Departure-side staff can park or cancel it, and its
+    // host can bring back an event they parked themselves, but nobody else
+    // but an admin or destination staff can publish it — or undo a
+    // destination takedown (flagged/unpublished) or skip its review (pending).
+    if (before.originCityId && 'status' in rest && rest.status !== before.status &&
+        !isAdmin(session) && !canActInCity(session, before.cityId)) {
+      const parking    = ['cancelled', 'draft', 'postponed'].includes(rest.status as string)
+      const hostResume = host && rest.status === 'published' && ['draft', 'postponed'].includes(before.status)
+      if (!parking && !hostResume) {
+        return NextResponse.json({ error: 'Publishing a trip is up to the staff of the city it visits' }, { status: 403 })
+      }
+    }
+
     if ('hostId' in rest) {
       const hostErr = await hostIdError(rest.hostId, scopeCityId(before), session, (rest.clubId as string | undefined) ?? before.clubId)
       if (hostErr) return NextResponse.json({ error: hostErr }, { status: 400 })

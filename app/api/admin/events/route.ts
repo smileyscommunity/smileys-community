@@ -423,7 +423,10 @@ export async function POST(req: NextRequest) {
     }
     const weekOut       = await todayInCity(eventCityId, 7)
     const tooFarOut     = isFree && date > weekOut && !admin
-    const needsReview   = !admin && (!isModerator(session) || modViaCityGrant)
+    // A trip from anyone but an admin goes to review — the DESTINATION's
+    // queue (it's filed there) — so a departure-city moderator can't publish
+    // straight onto another city's page.
+    const needsReview   = !admin && (!isModerator(session) || modViaCityGrant || !!originCityId)
     const eventStatus   = needsReview ? 'pending' : (tooFarOut ? 'pending' : (status ?? 'published'))
 
     // The directory listing the organiser picked, in this event's city.

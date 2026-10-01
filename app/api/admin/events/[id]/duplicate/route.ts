@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { bustCityPages } from '@/lib/cityPageCache'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator, canActInCity } from '@/lib/access'
+import { isAdminOrModerator, canActInCity, isAdmin } from '@/lib/access'
 import { scopeCityId } from '@/lib/eventTrip'
 import { writeAudit } from '@/lib/audit'
 import { todayInCity } from '@/lib/city'
@@ -36,7 +36,12 @@ export async function POST(_: NextRequest, { params }: Params) {
     if (!source) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     // The copy lands in the source's city, so duplicating another city's
     // event IS creating an event there — same gate as any cross-city create.
-    // A trip is its departure city's to copy (lib/eventTrip); the copy stays a trip.
+    // A copied trip would skip the trip rules (lib/eventTrip tripError: the
+    // club's host, a live same-timezone destination) — admins only; anyone
+    // else creates a new trip from the form.
+    if (source.originCityId && !isAdmin(session)) {
+      return NextResponse.json({ error: 'Only admins can duplicate a trip — create a new one from the event form' }, { status: 403 })
+    }
     if (!canActInCity(session, scopeCityId(source))) {
       return NextResponse.json({ error: 'Cross-city duplicate is admin-only' }, { status: 403 })
     }

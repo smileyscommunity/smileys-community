@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'fs'
 import { join } from 'path'
-import { scopeCityId, tripError, tripLabel, type TripRequest } from '../lib/eventTrip'
+import { scopeCityId, tripError, tripLabel, eventCityIds, type TripRequest } from '../lib/eventTrip'
 
 // Cross-city trips (2026-10-01): an Istanbul club's day out to Eskişehir is
 // filed in Eskişehir (cityId) and departs from Istanbul (originCityId).
@@ -21,7 +21,8 @@ describe('trip rules (lib/eventTrip)', () => {
   it('refuses everyone else, global clubs, the same city, a non-live city, another timezone', () => {
     expect(tripError({ ...ok, isClubHost: false })).toMatch(/admins and the club/)
     expect(tripError({ ...ok, clubCityId: null })).toMatch(/global club/)
-    expect(tripError({ ...ok, destination: null })).toMatch(/Unknown destination/)
+    // Unknown and not-live read the same: no oracle for paused cities.
+    expect(tripError({ ...ok, destination: null })).toBe(tripError({ ...ok, destination: { ...ok.destination!, status: 'paused' } }))
     expect(tripError({ ...ok, destination: { ...ok.destination!, id: 'ist' } })).toMatch(/another city/)
     expect(tripError({ ...ok, destination: { ...ok.destination!, status: 'coming_soon' } })).toMatch(/live Smileys city/)
     expect(tripError({ ...ok, destination: { ...ok.destination!, timezone: 'Asia/Tbilisi' } })).toMatch(/timezones/)
@@ -30,6 +31,10 @@ describe('trip rules (lib/eventTrip)', () => {
     expect(scopeCityId({ cityId: 'esk', originCityId: 'ist' })).toBe('ist')
     expect(scopeCityId({ cityId: 'ist', originCityId: null })).toBe('ist')
     expect(scopeCityId({ cityId: 'ist' })).toBe('ist')
+  })
+  it('either city may moderate a trip; an ordinary event has one city', () => {
+    expect(eventCityIds({ cityId: 'esk', originCityId: 'ist' })).toEqual(['esk', 'ist'])
+    expect(eventCityIds({ cityId: 'ist', originCityId: null })).toEqual(['ist'])
   })
   it('one label for both feeds', () => {
     expect(tripLabel('Istanbul', 'Eskişehir')).toBe('🚆 Istanbul → Eskişehir')
@@ -67,7 +72,17 @@ describe('trips are wired end to end', () => {
 
   it('edit/delete/duplicate: permissions follow the departure city', () => {
     const edit = read('app/api/admin/events/[id]/route.ts')
-    expect(edit.match(/const scope {2}= scopeCityId\((eventScope|before)\)/g)).toHaveLength(2)
+    // Security review 2026-10-01: both cities' staff may edit/cancel…
+    expect(edit.match(/const cities = eventCityIds\((eventScope|before)\)/g)).toHaveLength(2)
+    // …but publishing a trip (or undoing a destination takedown) is the
+    // destination's call: admins, destination staff, or the host resuming
+    // an event they parked.
+    expect(edit).toContain("if (before.originCityId && 'status' in rest && rest.status !== before.status &&")
+    expect(edit).toContain('!isAdmin(session) && !canActInCity(session, before.cityId)) {')
+    expect(edit).toContain("const parking    = ['cancelled', 'draft', 'postponed'].includes(rest.status as string)")
+    expect(edit).toContain("const hostResume = host && rest.status === 'published' && ['draft', 'postponed'].includes(before.status)")
+    // Trips from non-admins always go to (destination) review.
+    expect(read('app/api/admin/events/route.ts')).toContain('const needsReview   = !admin && (!isModerator(session) || modViaCityGrant || !!originCityId)')
     expect(edit).toContain('hostIdError(rest.hostId, scopeCityId(before), session,')
     expect(edit).toContain('if (targetClub.cityId && targetClub.cityId !== scopeCityId(before)) {')
     expect(edit).toContain("notifyCityStaff(scopeCityId(before), 'system_alert'")
@@ -75,6 +90,8 @@ describe('trips are wired end to end', () => {
     expect(edit).toContain('venueIdInput(body.businessId, before.cityId)')
     const dup = read('app/api/admin/events/[id]/duplicate/route.ts')
     expect(dup).toContain('canActInCity(session, scopeCityId(source))')
+    // A copied trip would skip tripError — admins only.
+    expect(dup).toContain('if (source.originCityId && !isAdmin(session)) {')
     expect(read('lib/eventDuplicate.ts')).toContain("'clubId', 'hostId', 'cityId', 'originCityId',")
   })
 

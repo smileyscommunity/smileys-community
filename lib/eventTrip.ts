@@ -43,11 +43,22 @@ export interface TripRequest {
 export function tripError(r: TripRequest): string | null {
   if (!r.admin && !r.isClubHost) return 'Only admins and the club\'s hosts can make an event a trip to another city'
   if (!r.clubCityId) return 'A trip departs from its club\'s city — a global club has none, so pick a city club'
-  if (!r.destination) return 'Unknown destination city'
+  // Unknown and not-live answer the same, so the check can't be used to
+  // learn whether a paused (non-public) city exists.
+  if (!r.destination || r.destination.status !== CITY_STATUS.Live) return 'Trips can only go to a live Smileys city'
   if (r.destination.id === r.clubCityId) return 'A trip goes to another city — this is the club\'s own city'
-  if (r.destination.status !== CITY_STATUS.Live) return 'Trips can only go to a live Smileys city'
   if (r.clubCityTz && r.destination.timezone !== r.clubCityTz) return 'Trips between cities in different timezones aren\'t supported yet'
   return null
+}
+
+/**
+ * Both cities whose staff may moderate an event: the one it's filed in and,
+ * for a trip, the one it departs from. Destination staff can edit or cancel
+ * a trip on their own city's page; departure staff run the trip they own.
+ * Publishing a trip stays the destination's call (see the events PUT).
+ */
+export function eventCityIds(e: { cityId: string; originCityId?: string | null }): string[] {
+  return e.originCityId && e.originCityId !== e.cityId ? [e.cityId, e.originCityId] : [e.cityId]
 }
 
 /** "🚆 Istanbul → Eskişehir": one label for both cities' feeds. */
