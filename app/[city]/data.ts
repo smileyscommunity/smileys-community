@@ -209,13 +209,20 @@ export async function getTopNeighborhoods(cityId: string, neighborhoodCounts: Ci
   // A young city has neighborhoods before it has events, and deriving this
   // section purely from event counts hid it entirely: Bodrum launched with 8
   // neighborhoods, 0 upcoming events, and therefore no way to browse them from
-  // its own page. Fall back to the city's registry so the areas are still
-  // discoverable — the cards drop the count rather than advertise "0 events".
-  const topNeighborhoods: NeighborhoodTile[] = byEvents.length > 0
-    ? byEvents
-    : registry.slice(0, 6).map(n => ({ name: n.name, slug: n.slug, emoji: n.emoji, eventCount: 0, vibe: n.vibe }))
-  return { topNeighborhoods, neighborhoodsHaveEvents: byEvents.length > 0 }
+  // its own page. The registry tops the grid up to a full row instead — the
+  // filler cards drop the count rather than advertise "0 events". Topping up
+  // rather than falling back only when there are NO events: one event in one
+  // district had Eskişehir's section showing a single card out of 16.
+  const filler = registry
+    .filter(n => !byEvents.some(b => b.slug === n.slug))
+    .slice(0, Math.max(0, NEIGHBORHOOD_GRID_MIN - byEvents.length))
+    .map(n => ({ name: n.name, slug: n.slug, emoji: n.emoji, eventCount: 0, vibe: n.vibe }))
+  const topNeighborhoods: NeighborhoodTile[] = [...byEvents, ...filler]
+  return { topNeighborhoods, neighborhoodsHaveEvents: byEvents.length > 0, neighborhoodTotal: registry.length }
 }
+
+// One full row on desktop (lg:grid-cols-6), three on a phone.
+const NEIGHBORHOOD_GRID_MIN = 6
 
 // ── Pure arrangement ────────────────────────────────────────────────────────
 

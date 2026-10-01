@@ -92,7 +92,7 @@ export default async function CityPage({ params }: Params) {
   // projection as GET /api/events.
   const events  = session ? await projectEventsForMember(cachedEvents, session) : cachedEvents.map(redactEventForGuest)
 
-  const [{ visitors, visitorTotal }, { hosts, hostTotal }, { topNeighborhoods, neighborhoodsHaveEvents }, handbookPicks, guidePicks] = await Promise.all([
+  const [{ visitors, visitorTotal }, { hosts, hostTotal }, { topNeighborhoods, neighborhoodsHaveEvents, neighborhoodTotal }, handbookPicks, guidePicks] = await Promise.all([
     getVisitors(city, !!session),
     getCityHosts(city, session),
     getTopNeighborhoods(city.id, neighborhoodCounts),
@@ -126,7 +126,7 @@ export default async function CityPage({ params }: Params) {
       {tabEvents.length > 0 && guide}
       <Clubs city={city} featuredClubs={featuredClubs} enter={enter} signedIn={!!session} />
       <Hosts city={city} hosts={hosts} hostTotal={hostTotal} signedIn={!!session} />
-      <Neighborhoods city={city} topNeighborhoods={topNeighborhoods} neighborhoodsHaveEvents={neighborhoodsHaveEvents} enter={enter} />
+      <Neighborhoods city={city} topNeighborhoods={topNeighborhoods} neighborhoodsHaveEvents={neighborhoodsHaveEvents} neighborhoodTotal={neighborhoodTotal} enter={enter} />
       <Visitors city={city} visitors={visitors} visitorTotal={visitorTotal} isDefaultCity={isDefaultCity} signedIn={!!session} />
       <Stories city={city} latestStories={latestStories} />
       <Testimonials city={city} testimonials={testimonials} />
