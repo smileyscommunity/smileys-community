@@ -57,7 +57,7 @@ vi.mock('@/lib/access', () => ({
   isClubHostFor:      vi.fn(async () => true),
   hostCityIds:        h.hostCityIds,
 }))
-vi.mock('@/lib/notify',               () => ({ createNotification: h.createNotification, notifyNewEvent: h.notifyNewEvent }))
+vi.mock('@/lib/notify',               () => ({ createNotification: h.createNotification, notifyNewEvent: h.notifyNewEvent , notifyTripArrival: vi.fn(async () => {})}))
 vi.mock('@/lib/audit',                () => ({ writeAudit: h.writeAudit, getDiff: vi.fn(() => null) }))
 vi.mock('@/lib/email',                () => h.email)
 vi.mock('@/lib/spotsLeft',            () => ({ recomputeSpotsLeft: h.recompute }))

@@ -14,7 +14,7 @@ import { restoreSeatsReleasedByCancel, type PaidOnWaitlist } from '@/lib/eventRe
 import { backfillSeatPayments, collectsSeatPayment } from '@/lib/rsvpConfirmed'
 import { getSession } from '@/lib/session'
 import { isAdmin, isAdminOrModerator, isClubHost, isClubHostFor, hostCityIds, canActInCity } from '@/lib/access'
-import { createNotification, notifyNewEvent } from '@/lib/notify'
+import { createNotification, notifyNewEvent, notifyTripArrival } from '@/lib/notify'
 import { writeAudit, getDiff } from '@/lib/audit'
 import { normalizePaymentContact } from '@/lib/safeUrl'
 import { splitLeadingEmoji, stripDupTrailingEmoji } from '@/lib/data'
@@ -757,6 +757,8 @@ export async function PUT(req: NextRequest, { params }: Params) {
     // path already announced, this is a no-op.
     if (before.status !== 'published' && event.status === 'published') {
       notifyNewEvent({ id, title: event.title, clubId: before.clubId, hostId: before.hostId }).catch(() => {})
+      // A trip also tells the city it visits (lib/notify notifyTripArrival).
+      notifyTripArrival({ id, title: event.title, date: event.date, cityId: before.cityId, originCityId: before.originCityId, clubId: before.clubId, hostId: before.hostId }).catch(() => {})
     }
 
     // Notify new host if host assignment changed
@@ -921,7 +923,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     const before = await prisma.event.findUnique({
       where: { id },
-      select: { title: true, hostId: true, clubId: true, status: true, cityId: true, cancelledAt: true, approvalRequired: true, totalSpots: true, limitedSpots: true },
+      select: { title: true, hostId: true, clubId: true, status: true, cityId: true, originCityId: true, date: true, cancelledAt: true, approvalRequired: true, totalSpots: true, limitedSpots: true },
     })
     if (!before) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
@@ -986,6 +988,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           ).catch(() => {})
         }
         await notifyNewEvent({ id, title: before.title, clubId: before.clubId, hostId: before.hostId })
+        // A trip also tells the city it visits (lib/notify notifyTripArrival).
+        await notifyTripArrival({ id, title: before.title, date: before.date, cityId: before.cityId, originCityId: before.originCityId, clubId: before.clubId, hostId: before.hostId })
       })().catch(() => {})
     }
 

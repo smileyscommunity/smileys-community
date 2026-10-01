@@ -47,7 +47,7 @@ const h = vi.hoisted(() => {
 vi.mock('@/lib/prisma',             () => ({ prisma: h.prisma }))
 vi.mock('@/lib/session',            () => ({ getSession: h.getSession }))
 vi.mock('@/lib/rateLimit',          () => ({ rateLimit: vi.fn(async () => true), claimOnce: h.claimOnce, releaseClaim: h.releaseClaim }))
-vi.mock('@/lib/notify',             () => ({ createNotification: h.createNotification, notifyNewEvent: vi.fn(async () => {}), notifyNewArticle: vi.fn(async () => {}) }))
+vi.mock('@/lib/notify',             () => ({ createNotification: h.createNotification, notifyNewEvent: vi.fn(async () => {}), notifyTripArrival: vi.fn(async () => {}), notifyNewArticle: vi.fn(async () => {}) }))
 vi.mock('@/lib/email',              () => h.email)
 vi.mock('@/lib/city',               () => ({
   citiesByToday: h.citiesByToday, todayInCity: vi.fn(async () => '2026-09-14'), resolveCityId: vi.fn(async () => 'c-ist'),
