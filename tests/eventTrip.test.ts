@@ -63,7 +63,8 @@ describe('trips are wired end to end', () => {
   it('create: checks run on the departure city, the row is filed in the destination', () => {
     const route = read('app/api/admin/events/route.ts')
     expect(route).toContain('const tripErr = tripError({ admin, isClubHost: hostsThisClub, clubCityId: parentClub.cityId')
-    expect(route).toContain('const venue = await venueIdInput(businessId, placeCityId)')
+    // The venue may be in either city (the departure station): tripVenueEitherCity.test.
+    expect(route).toContain('const venue = await venueIdInput(businessId, originCityId ? [placeCityId, originCityId] : placeCityId)')
     expect(route).toMatch(/cityId:\s+placeCityId,\s+originCityId,/)
     expect(route).toContain('currency ?? (await getCityConfig(placeCityId)).currency')
     // The host check still reads the departure city (eventCityId).
@@ -86,8 +87,8 @@ describe('trips are wired end to end', () => {
     expect(edit).toContain('hostIdError(rest.hostId, scopeCityId(before), session,')
     expect(edit).toContain('if (targetClub.cityId && targetClub.cityId !== scopeCityId(before)) {')
     expect(edit).toContain("notifyCityStaff(scopeCityId(before), 'system_alert'")
-    // The venue is the place: the event's own city.
-    expect(edit).toContain('venueIdInput(body.businessId, before.cityId)')
+    // The venue may be in either of the trip's cities.
+    expect(edit).toContain('venueIdInput(body.businessId, eventCityIds(before))')
     const dup = read('app/api/admin/events/[id]/duplicate/route.ts')
     expect(dup).toContain('canActInCity(session, scopeCityId(source))')
     // A copied trip would skip tripError — admins only.

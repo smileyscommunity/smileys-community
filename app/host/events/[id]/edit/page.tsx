@@ -106,6 +106,7 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
   // null until the event and its city load (the browsed list never flashes);
   // an event with no city, or a city lookup that fails, uses the browsed city.
   const [eventCityId,     setEventCityId]     = useState('')
+  const [eventOriginCityId, setEventOriginCityId] = useState('')
   const [eventCity,       setEventCity]       = useState<{ name: string; slug: string; country: string | null; currency: string; timezone: string | null } | null>(null)
   const [eventCityFailed, setEventCityFailed] = useState(false)
   const formCity = eventCity ?? (!loading && (!eventCityId || eventCityFailed) ? city : null)
@@ -242,6 +243,7 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
       if (event.venue?.id) setVenue(event.venue)
       if (typeof event.cityId === 'string' && event.cityId) {
         setEventCityId(event.cityId)
+        if (typeof event.originCityId === 'string') setEventOriginCityId(event.originCityId)
         // The event API carries only the city's id; name, slug, country and
         // currency come from the same place useCurrentCity reads them.
         fetch(`/app/api/city/current?cityId=${encodeURIComponent(event.cityId)}`, { credentials: 'include' })
@@ -714,7 +716,8 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
               <VenuePicker
                 value={form.location} onText={v => set('location', v)}
                 venue={venue} onVenue={pickVenue}
-                cityParam={eventCityId ? `cityId=${encodeURIComponent(eventCityId)}` : ''}
+                // A trip may meet in either of its cities.
+                cityParam={(eventCityId ? `cityId=${encodeURIComponent(eventCityId)}` : '') + (eventOriginCityId ? `&cityId=${encodeURIComponent(eventOriginCityId)}` : '')}
                 className={inputCls}
               />
             </div>

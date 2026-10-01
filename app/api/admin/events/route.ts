@@ -430,7 +430,8 @@ export async function POST(req: NextRequest) {
     const eventStatus   = needsReview ? 'pending' : (tooFarOut ? 'pending' : (status ?? 'published'))
 
     // The directory listing the organiser picked, in this event's city.
-    const venue = await venueIdInput(businessId, placeCityId)
+    // A trip may meet in either city — the departure station is the usual spot.
+    const venue = await venueIdInput(businessId, originCityId ? [placeCityId, originCityId] : placeCityId)
     if ('error' in venue) return NextResponse.json({ error: venue.error }, { status: 400 })
 
     const event = await prisma.event.create({

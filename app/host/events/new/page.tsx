@@ -577,7 +577,8 @@ function HostNewEventForm() {
           <VenuePicker
             value={form.location} onText={v => setForm(f => ({ ...f, location: v }))}
             venue={venue} onVenue={pickVenue}
-            cityParam={eventCity?.slug ? `city=${encodeURIComponent(eventCity.slug)}` : ''}
+            // A trip may meet in either city — the departure station included.
+            cityParam={(eventCity?.slug ? `city=${encodeURIComponent(eventCity.slug)}` : '') + (tripDestination && clubCity ? `&city=${encodeURIComponent(clubCity.slug)}` : '')}
             placeholder="e.g. Salon İKSV" required className={inputCls}
           />
         </div>

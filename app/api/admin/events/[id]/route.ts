@@ -413,7 +413,8 @@ export async function PUT(req: NextRequest, { params }: Params) {
     // renamed without a pick links the listing that name has in the city, or
     // a pending stub (as on create) — the old link named the old venue.
     if ('businessId' in body) {
-      const venue = await venueIdInput(body.businessId, before.cityId)
+      // A trip may meet in either of its cities (lib/eventTrip).
+      const venue = await venueIdInput(body.businessId, eventCityIds(before))
       if ('error' in venue) return NextResponse.json({ error: venue.error }, { status: 400 })
       rest.businessId = venue.value
     }

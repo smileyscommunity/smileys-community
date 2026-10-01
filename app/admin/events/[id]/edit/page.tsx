@@ -58,6 +58,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
   // clubs and global ones: the PUT route refuses a move under another city's
   // club (it would re-file the event under people who already joined).
   const [eventCityId,   setEventCityId]   = useState('')
+  const [eventOriginCityId, setEventOriginCityId] = useState('')
   // The directory listing the venue is linked to (components/VenuePicker).
   const [venue,         setVenue]         = useState<LinkedVenue | null>(null)
   const [hostSearch,    setHostSearch]    = useState('')
@@ -178,6 +179,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
         })
         setLoadedStatus(event.status ?? 'published')
         if (typeof event.cityId === 'string') setEventCityId(event.cityId)
+        if (typeof event.originCityId === 'string') setEventOriginCityId(event.originCityId)
         if (event.venue?.id) setVenue(event.venue)
         if (Array.isArray(event.tags) && event.tags.length) setSelectedTagIds(event.tags)
         if (event.seriesId) setSeriesId(event.seriesId)
@@ -727,7 +729,8 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
             <VenuePicker
               value={form.location} onText={v => set('location', v)}
               venue={venue} onVenue={pickVenue}
-              cityParam={eventCityId ? `cityId=${encodeURIComponent(eventCityId)}` : ''}
+              // A trip may meet in either of its cities.
+              cityParam={(eventCityId ? `cityId=${encodeURIComponent(eventCityId)}` : '') + (eventOriginCityId ? `&cityId=${encodeURIComponent(eventOriginCityId)}` : '')}
               className={inputCls}
             />
           </div>
