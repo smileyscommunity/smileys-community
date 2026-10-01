@@ -47,6 +47,8 @@ export const NAV_GROUPS: { label: string; items: AdminNavItem[] }[] = [
       // so in practice it means "a moderator who also hosts a club" — four of
       // them today — and the three APIs admit a club host. Not a leftover.
       { label: 'Events',       href: '/admin/events',       exact: false, roles: ['admin', 'host'],            icon: 'events'       },
+      // Cross-city trips: per-trip results (lib/tripReport). Admin-only.
+      { label: 'Trips',        href: '/admin/trips',        exact: false, roles: ['admin'],                    icon: 'events'       },
       { label: 'Participants', href: '/admin/participants',  exact: false, roles: ['admin', 'host'],            icon: 'participants' },
       { label: 'Check-In',     href: '/admin/checkin',       exact: false, roles: ['admin', 'host'],            icon: 'checkin'      },
       // The pre-settlement view: rooms still in their review day, the ratio
