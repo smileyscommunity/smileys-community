@@ -1,6 +1,7 @@
 import Link from 'next/link'
 
 export const metadata = {
+  alternates: { canonical: 'https://smileyscommunity.com/app/terms' },
   title: 'Terms of Service — Smileys Community',
   description: 'The rules and expectations for using Smileys Community.',
 }

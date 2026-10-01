@@ -243,9 +243,22 @@ const ADMISSION_HIDDEN = {
   maleQuota: null, femaleQuota: null, turkishMaleQuota: null, tierOverride: null, cancelCutoffHours: null,
 } as const
 
+/**
+ * What a logged-out visitor (and every crawler, link preview and calendar file
+ * built from the same text) reads as an event's description. The body is free
+ * text a host writes for the people coming: on a members-only event it is where
+ * a phone number, a building or a WhatsApp link goes, and it was printed into
+ * the page, the JSON-LD, the og:description and the calendar button.
+ */
+export function guestEventDescription(event: Pick<Event, 'description' | 'membersOnly' | 'title' | 'neighborhood'>): string {
+  if (!event.membersOnly) return event.description ?? ''
+  return `${event.title} is a members-only Smileys event${event.neighborhood ? ` in ${event.neighborhood}` : ''}. Apply to join the community to see the details.`
+}
+
 export function redactEventForGuest(event: Event): Event {
   return {
     ...event,
+    description:      guestEventDescription(event),
     // The host, like a listing's poster, is not public data: a first name to
     // say who's hosting, no photo file to fetch, no id to follow. The list
     // and the page both showed the full name (and a scraper had every host's

@@ -6,7 +6,7 @@ import { stripEmoji, priceLabel, offerAvailability, eventSeoTitle, eventSeoDescr
 import Link from 'next/link'
 import Image from 'next/image'
 import type { Metadata } from 'next'
-import { getEventById, redactEventForGuest, canSeeEvent, PUBLIC_EVENT_STATUSES } from '@/lib/db'
+import { getEventById, redactEventForGuest, guestEventDescription, canSeeEvent, PUBLIC_EVENT_STATUSES } from '@/lib/db'
 import { getCityConfig } from '@/lib/city'
 import { DEFAULT_TZ, todayInTz, fromWallClockInTz } from '@/lib/cityTime'
 import { eventPhase, eventEndsAt } from '@/lib/eventTime'
@@ -138,8 +138,10 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const price       = priceLabel(event.price, p => formatPrice(p, event.currency))
   const title       = eventSeoTitle({ title: event.title, shareDate, neighborhood: event.neighborhood, price })
   const when        = `${formatDate(event.date)} at ${formatTime(event.time)}`
-  const plainDesc   = event.description
-    ? event.description.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+  // Metadata is the same for everyone, so it always carries the guest text.
+  const guestDesc   = guestEventDescription(event)
+  const plainDesc   = guestDesc
+    ? guestDesc.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
     // City-fetch only on the fallback path — described events (the vast
     // majority) never pay for it.
     : `Join us at Smileys Community ${event.cityId ? (await getCityConfig(event.cityId)).name : 'Istanbul'}`
@@ -217,6 +219,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
     })
 
     const vibes = event.vibes ?? []
+    const publicDescription = guestEventDescription(event)
 
     return (
       <div className="min-h-screen bg-warm pb-32">
@@ -244,7 +247,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                 timeZone={eventTz}
                 endTime={event.endTime}
                 location={event.neighborhood ?? ''}
-                description={event.description ? event.description.replace(/<[^>]+>/g, '') : ''}
+                description={publicDescription.replace(/<[^>]+>/g, '')}
                 url={eventUrl}
                 compact
               />
@@ -313,10 +316,10 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
             <EventGoodToKnow event={event} />
 
             {/* Description */}
-            {event.description && (
+            {publicDescription && (
               <div
                 className="prose prose-sm max-w-none text-gray-700 leading-relaxed"
-                dangerouslySetInnerHTML={{ __html: sanitize(event.description) }}
+                dangerouslySetInnerHTML={{ __html: sanitize(publicDescription) }}
               />
             )}
 

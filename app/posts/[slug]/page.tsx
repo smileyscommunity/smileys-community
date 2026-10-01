@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma'
 import { resolveImageUrl, avatarUrl } from '@/lib/data'
 import { firstBodyImage } from '@/lib/articleCover'
 import { APP_URL, SITE_URL } from '@/lib/env'
+import { jsonLdHtml } from '@/lib/jsonLd'
 import { sanitize, sanitizeArticle, isArticleImageSrc } from '@/lib/sanitize'
 import { getSession } from '@/lib/session'
 import { resolveCityId, getCityConfig } from '@/lib/city'
@@ -256,8 +257,29 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
   // ("Istanbul Guide"), which left the other cities without one.
   const cityLabel = category === 'City Guide' && post.cityId ? (await getCityConfig(post.cityId)).name : null
 
+  // BlogPosting for the live story only (a preview is staff-only and noindex).
+  // The author is the privacy-projected byline — what this viewer is allowed to
+  // see — and the image is the story's own upload, or omitted rather than a
+  // brand card standing in for a photo.
+  const ldCover = post.coverImage ?? firstBodyImage(post.body)
+  const blogPostingJsonLd = preview ? null : {
+    '@context':       'https://schema.org',
+    '@type':          'BlogPosting',
+    headline:         post.title,
+    description:      post.excerpt ?? plainSummary(post.body),
+    ...(isArticleImageSrc(ldCover) ? { image: `${SITE_URL}${resolveImageUrl(ldCover)}?w=1200` } : {}),
+    datePublished:    post.publishedAt ? new Date(post.publishedAt).toISOString() : undefined,
+    dateModified:     post.updatedAt ? new Date(post.updatedAt).toISOString() : undefined,
+    author:           { '@type': 'Person', name: byline.name },
+    publisher:        { '@type': 'Organization', name: 'Smileys Community', url: SITE_URL },
+    mainEntityOfPage: `${APP_URL}/posts/${slug}`,
+  }
+
   return (
     <div className="min-h-screen bg-warm">
+      {blogPostingJsonLd && (
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdHtml(blogPostingJsonLd) }} />
+      )}
       {/* Back */}
       <div className="bg-white border-b border-gray-100">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center gap-3">

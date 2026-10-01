@@ -3,6 +3,7 @@ import { readFileSync } from 'fs'
 import { join } from 'path'
 
 export const metadata = {
+  alternates: { canonical: 'https://smileyscommunity.com/app/guidelines' },
   title: 'Community Rules — Smileys Community',
   description: 'The behavioral rules that keep Smileys safe, kind, and worth showing up for. Read these before joining a club or RSVP\'ing to an event.',
 }

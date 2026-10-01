@@ -8,6 +8,8 @@ import { LIVE_BOARD_AUTHOR } from '@/lib/boardAccess'
 import { loadExperiences, loadRoutes } from '@/lib/guideContent'
 import { getDefaultCityId, getPublicCities, CITY_STATUS, DEFAULT_CITY_SLUG } from '@/lib/cities'
 import { NEIGHBORHOOD_META, neighborhoodToSlug } from '@/lib/neighborhoods'
+import { EVENT_WINDOWS, inWindow } from '@/lib/eventWindows'
+import { todayInTz, shiftDay } from '@/lib/cityTime'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,12 +38,27 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // never silently produces a sitemap with no content in it.
   const cityIds  = liveIds.length ? liveIds : [await getDefaultCityId()]
 
+  // Event pages in the index: every upcoming event, plus past ones for six
+  // months that are worth landing on (a cover and a written description) — a
+  // recap people search for, not a thousand bare "ended" rows. Older or thin
+  // past events stay reachable but out of the sitemap. Members-only events are
+  // never listed: their page is a teaser with the venue and details withheld.
+  // `date` is text 'YYYY-MM-DD', so these are string comparisons.
+  const sitemapToday  = todayInTz()
+  const pastCutoff    = shiftDay(sitemapToday, -183)
+
   const [events, clubs, posts, listings, businesses, movingSales, hoods, guideEntries] = await Promise.all([
     prisma.event.findMany({
-      where: { status: 'published', cityId: { in: cityIds } },
-      select: { id: true, updatedAt: true, cityId: true },
+      where: {
+        status: 'published', cityId: { in: cityIds }, membersOnly: false,
+        OR: [
+          { date: { gte: sitemapToday } },
+          { date: { gte: pastCutoff }, coverImage: { not: '' }, description: { not: '' } },
+        ],
+      },
+      select: { id: true, updatedAt: true, cityId: true, date: true },
       orderBy: { date: 'desc' },
-      take: 200,
+      take: 2000,
     }),
     prisma.club.findMany({
       where: { isActive: true, cityId: { in: cityIds } },
@@ -167,6 +184,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       { url: `${BASE}/${c.slug}/hosts`,     priority: 0.6,  changeFrequency: 'weekly' as const, lastModified: newestEvent },
       { url: `${BASE}/${c.slug}/experiences`, priority: 0.7, changeFrequency: 'daily'  as const, lastModified: newestEvent },
     ])
+  // /[city]/events/today | this-week | this-weekend: always canonical to
+  // themselves, and noindex while empty — so only a window that has events
+  // today is listed.
+  const eventWindowRoutes: MetadataRoute.Sitemap = cities
+    .filter(c => c.status === CITY_STATUS.Live)
+    .flatMap(c => {
+      const mine = events.filter(e => e.cityId === c.id)
+      const today = todayInTz(c.timezone)
+      return EVENT_WINDOWS
+        .filter(w => inWindow(mine, w, today).length > 0)
+        .map(w => ({
+          url: `${BASE}/${c.slug}/events/${w}`, priority: 0.8, changeFrequency: 'daily' as const,
+          lastModified: newest(inWindow(mine, w, today).map(e => e.updatedAt)),
+        }))
+    })
   // The remote-work, moving and student hubs have no global twin, so — unlike the listing hubs
   // above — every live city's is canonical to itself, the default included.
   // lastModified is its newest input: the events and Handbook it gathers.
@@ -355,6 +387,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...neighborhoodRoutes,
     ...guideRoutes,
     ...eventRoutes,
+    ...eventWindowRoutes,
     ...postRoutes,
     ...handbookSectionRoutes,
     ...listingRoutes,

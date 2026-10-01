@@ -16,7 +16,7 @@ import { groupBySeries, seriesCadenceLabel } from '@/lib/eventSeries'
 
 const CARD_SELECT = {
   id: true, title: true, emoji: true, date: true, time: true,
-  location: true, neighborhood: true, coverImage: true, language: true,
+  location: true, neighborhood: true, membersOnly: true, coverImage: true, language: true,
   price: true, memberPrice: true, currency: true,
   spotsLeft: true, totalSpots: true, limitedSpots: true, soldOut: true,
   seriesId: true, isRecurring: true, status: true,
@@ -61,8 +61,8 @@ export async function GET() {
     ])
     return NextResponse.json({
       going: [], comingUp: [], fromClubs: [], nearYou: [], trySomethingNew: [],
-      soon: shapeGroups(soon),
-      weekend: shapeGroups(weekend),
+      soon: shapeGroups(soon, true),
+      weekend: shapeGroups(weekend, true),
       viewer: { isMember: false, neighborhood: null },
     })
   }
@@ -108,8 +108,8 @@ export async function GET() {
   ])
 
   return NextResponse.json({
-    going:     rsvpEvents.slice(0, 1).map(shapeOne),
-    comingUp:  rsvpEvents.slice(1, 4).map(shapeOne),
+    going:     rsvpEvents.slice(0, 1).map(e => shapeOne(e)),
+    comingUp:  rsvpEvents.slice(1, 4).map(e => shapeOne(e)),
     soon:      shapeGroups(soon),
     weekend:   shapeGroups(weekend),
     fromClubs: shapeGroups(fromClubs),
@@ -120,10 +120,13 @@ export async function GET() {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function shapeOne(e: any) {
+function shapeOne(e: any, guest = false) {
   return {
     id: e.id, title: e.title, emoji: e.emoji, date: e.date, time: e.time,
-    location: e.location, neighborhood: e.neighborhood, coverImage: e.coverImage,
+    // A members-only event's venue is the payoff of joining (redactEventForGuest
+    // withholds it the same way): guests get the neighbourhood.
+    location: guest && e.membersOnly ? (e.neighborhood || 'Shared with members') : e.location,
+    neighborhood: e.neighborhood, coverImage: e.coverImage,
     language: e.language ?? null,
     price: e.price, memberPrice: e.memberPrice, currency: e.currency,
     spotsLeft: e.spotsLeft, totalSpots: e.totalSpots, limitedSpots: e.limitedSpots, soldOut: e.soldOut,
@@ -133,9 +136,9 @@ function shapeOne(e: any) {
 
 // Collapses series (§38) and annotates the cadence line.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function shapeGroups(events: any[]) {
+function shapeGroups(events: any[], guest = false) {
   return groupBySeries(events).map(g => ({
-    ...shapeOne(g.next),
+    ...shapeOne(g.next, guest),
     series: g.isSeries
       ? { count: g.seriesCount, cadence: seriesCadenceLabel(g), moreDates: g.upcoming.slice(0, 3).map(e => e.date) }
       : null,

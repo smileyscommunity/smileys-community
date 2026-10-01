@@ -1,6 +1,7 @@
 import Link from 'next/link'
 
 export const metadata = {
+  alternates: { canonical: 'https://smileyscommunity.com/app/privacy' },
   title: 'Privacy Policy — Smileys Community',
   description: 'How Smileys Community collects, uses, and protects your personal data.',
 }

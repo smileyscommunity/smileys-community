@@ -1,4 +1,5 @@
 export const metadata = {
+  alternates: { canonical: 'https://smileyscommunity.com/app/cookies' },
   title: 'Cookie Policy — Smileys Community',
   description: 'How Smileys Community uses cookies and similar technologies.',
 }

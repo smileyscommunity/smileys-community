@@ -1,6 +1,18 @@
 const { withPostHogConfig } = require('@posthog/nextjs-config')
 
 /** @type {import('next').NextConfig} */
+// Utility, account and member-only paths that must never be indexed. robots.txt
+// Disallow only stops crawling — a linked URL can still be indexed from its
+// anchor text — so these also carry a noindex header, which a crawler can read
+// on any path robots.txt leaves fetchable. (/members, /clubs/[slug], /invite
+// and /perks already set their own robots meta.)
+const NOINDEX_PATHS = [
+  'dashboard', 'messages', 'settings', 'profile', 'profile-visitors', 'my-events', 'card',
+  'notifications', 'pending', 'standing', 'contacts', 'reviews', 'no-show', 'share-story',
+  'survey', 'admin', 'host', 'login', 'forgot-password', 'reset-password', 'verify-email',
+  'activate', 'unsubscribe', 'appeal', 'partner',
+]
+
 const nextConfig = {
   basePath: '/app',
   // No `X-Powered-By: Next.js` on every response. It tells a scanner which
@@ -130,6 +142,10 @@ const nextConfig = {
   },
   async headers() {
     return [
+      ...NOINDEX_PATHS.map(path => ({
+        source: `/${path}/:rest*`,
+        headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }],
+      })),
       {
         source: '/(.*)',
         headers: [
