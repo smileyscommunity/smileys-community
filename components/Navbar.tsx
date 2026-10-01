@@ -125,11 +125,15 @@ export default function Navbar({
   cities = [],
   homeSlug,
   viewingSlug,
+  cityQs = '',
   hasPerks = false,
 }: {
   cities?: NavCity[]
   homeSlug?: string
   viewingSlug?: string
+  /** '?city=<slug>' when the page is about a city other than the one a bare
+      link would open (layout.tsx, same value as the footer's). */
+  cityQs?: string
   /** A partner is live in the member's city — gates the Perks link. */
   hasPerks?: boolean
 }) {
@@ -165,6 +169,11 @@ export default function Navbar({
   // panel is the same kind of full-height shell, with its own way back.
   if (pathname?.startsWith('/admin') || isHostPanelRoute(pathname)) return null
 
+  // A guest on /eskisehir has no city cookie, so a bare "Events" opened the
+  // default city's. Their links carry the page's city; members keep bare
+  // links, which follow their own city and its "back to" switch. Members is
+  // a guest teaser with no city of its own.
+  const cityLink = (href: string) => (!isLoggedIn && href !== '/members' ? `${href}${cityQs}` : href)
   const isActive = (href: string) =>
     href === '/' ? pathname === '/' : pathname.startsWith(href)
 
@@ -202,7 +211,7 @@ export default function Navbar({
             {(isLoggedIn ? memberPrimary : guestPrimary).map((link) => (
               <Link
                 key={link.href}
-                href={link.href}
+                href={cityLink(link.href)}
                 className={`relative px-4 py-2 rounded-lg text-sm transition-colors ${
                   isActive(link.href) ? activeClass : inactiveClass
                 }`}
@@ -244,7 +253,7 @@ export default function Navbar({
                         {visible.map(link => (
                           <Link
                             key={link.href}
-                            href={link.href}
+                            href={cityLink(link.href)}
                             onClick={() => setDiscoverOpen(false)}
                             className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
                               isActive(link.href)
@@ -424,7 +433,7 @@ export default function Navbar({
               {guestPrimary.map(link => (
                 <Link
                   key={link.href}
-                  href={link.href}
+                  href={cityLink(link.href)}
                   onClick={() => setMobileOpen(false)}
                   className={`block px-3 py-3 rounded-xl text-base font-semibold transition-colors ${
                     isActive(link.href) ? 'bg-amber-50 text-amber-700' : 'text-gray-800 hover:bg-gray-50'
@@ -439,7 +448,7 @@ export default function Navbar({
               {discoverLinks.filter(l => l.public).map(link => (
                 <Link
                   key={link.href}
-                  href={link.href}
+                  href={cityLink(link.href)}
                   onClick={() => setMobileOpen(false)}
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors ${
                     isActive(link.href) ? 'bg-amber-50 text-amber-700 font-semibold' : 'text-gray-700 hover:bg-gray-50'
