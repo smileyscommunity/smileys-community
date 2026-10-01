@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { eventStartDate } from '@/lib/eventJsonLd'
 import { FEMALE_VARIANTS } from '@/lib/eventQuota'
 import { jsonLdHtml } from '@/lib/jsonLd'
+import { stripEmoji, priceLabel, offerAvailability, eventSeoTitle, eventSeoDescription } from '@/lib/eventSeo'
 import Link from 'next/link'
 import Image from 'next/image'
 import type { Metadata } from 'next'
@@ -72,9 +73,9 @@ function buildEventJsonLd(event: Event, eventUrl: string, tz: string, cityName: 
   return {
     '@context': 'https://schema.org',
     '@type':    'Event',
-    name:        event.title,
+    name:        stripEmoji(event.title) || event.title,
     description: event.description
-      ? event.description.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 500)
+      ? stripEmoji(event.description.replace(/<[^>]+>/g, ' ')).slice(0, 500)
       : `${event.emoji} ${event.title} in ${event.neighborhood}, ${cityName}`,
     // A "TBA" or legacy "19.30" start has no instant: date only, as
     // lib/eventJsonLd does for the list. toISOString() on NaN threw and took
@@ -100,7 +101,8 @@ function buildEventJsonLd(event: Event, eventUrl: string, tz: string, cityName: 
           name:    event.address ? (event.location || event.neighborhood || cityName) : (event.neighborhood || cityName),
           address: {
             '@type':         'PostalAddress',
-            streetAddress:   event.address ?? '',
+            // Omitted for a guest (member-only): an empty string is a present-but-blank field.
+            ...(event.address ? { streetAddress: event.address } : {}),
             addressLocality: cityName,
             addressCountry:  countryCode,
           },
@@ -111,9 +113,7 @@ function buildEventJsonLd(event: Event, eventUrl: string, tz: string, cityName: 
       '@type':       'Offer',
       price:         String(event.price ?? 0),
       priceCurrency: event.currency ?? DEFAULT_CURRENCY,
-      availability:  isSoldOut(event)
-        ? 'https://schema.org/SoldOut'
-        : 'https://schema.org/InStock',
+      availability:  offerAvailability(event),
       url: eventUrl,
     },
     organizer: { '@type': 'Organization', name: 'Smileys Community', url: SITE_URL },
@@ -135,14 +135,15 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   // no date at all.
   const shareDate   = new Date(event.date + 'T00:00:00')
     .toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
-  const title       = `${event.title} · ${shareDate} — Smileys Community`
-  const when        = `📅 ${formatDate(event.date)} · ${formatTime(event.time)}${event.neighborhood ? ` · ${event.neighborhood}` : ''}`
+  const price       = priceLabel(event.price, p => formatPrice(p, event.currency))
+  const title       = eventSeoTitle({ title: event.title, shareDate, neighborhood: event.neighborhood, price })
+  const when        = `${formatDate(event.date)} at ${formatTime(event.time)}`
   const plainDesc   = event.description
     ? event.description.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
     // City-fetch only on the fallback path — described events (the vast
     // majority) never pay for it.
     : `Join us at Smileys Community ${event.cityId ? (await getCityConfig(event.cityId)).name : 'Istanbul'}`
-  const description = `${when} — ${plainDesc}`.slice(0, 155)
+  const description = eventSeoDescription({ when, price, neighborhood: event.neighborhood, body: plainDesc })
   const imageUrl    = absoluteImageUrl(event.coverImage, event.title)
   const pageUrl     = `${APP_URL}/events/${id}`
 
