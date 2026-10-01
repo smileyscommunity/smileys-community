@@ -11,6 +11,7 @@ import { todayInTz } from '@/lib/cityTime'
 import { getEvents, getClubs } from '@/lib/db'
 import { queryDirectory } from '@/lib/directory'
 import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
+import { loadExperiences } from '@/lib/guideContent'
 import { getPublicCity, DEFAULT_CITY_SLUG } from '@/lib/cities'
 import { CITY_STATUS } from '@/lib/cityStatus'
 import { CITY_MATURITY } from '@/lib/cityMaturity'
@@ -235,6 +236,25 @@ export function featureClubs(clubs: CityPageData['clubs']) {
     ...clubs.filter(c => c.nextEvent).sort((a, b) => a.nextEvent!.date.localeCompare(b.nextEvent!.date)),
     ...clubs.filter(c => !c.nextEvent).sort((a, b) => b.memberCount - a.memberCount),
   ].slice(0, 4)
+}
+
+// ── Guide shelf ─────────────────────────────────────────────────────────────
+
+export interface GuidePick { slug: string; title: string; emoji: string; tagline: string; cost: string; time: string; photo: string | null }
+
+export const CITY_PAGE_GUIDE_LIMIT = 6
+
+// The city's guide entries are the most city-specific writing on the site,
+// and the shopfront offered them only as a "Read the guide" button. The
+// entries a newcomer should do first lead (firstTime), then the admin's own
+// order — loadExperiences already sorts by sortOrder, and the sort below is
+// stable. Cut to what a card renders: the body sections stay on /guide.
+export async function getGuidePicks(cityId: string): Promise<GuidePick[]> {
+  const experiences = await loadExperiences(cityId)
+  return [...experiences]
+    .sort((a, b) => Number(!!b.firstTime) - Number(!!a.firstTime))
+    .slice(0, CITY_PAGE_GUIDE_LIMIT)
+    .map(e => ({ slug: e.slug, title: e.title, emoji: e.emoji, tagline: e.tagline, cost: e.cost, time: e.time, photo: e.photo ?? null }))
 }
 
 export type EnterTarget = 'events' | 'clubs' | 'directory' | 'board' | 'hosts' | 'neighborhoods' | 'guide' | 'handbook' | 'visiting'
