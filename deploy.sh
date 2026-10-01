@@ -539,7 +539,10 @@ chmod +x $REMOTE/scripts/sweep-newsletters.sh
 echo '  ✓ newsletters'
 
 chmod +x $REMOTE/scripts/sweep-first-rsvp-nudge.sh
+chmod +x $REMOTE/scripts/sweep-handbook-sources.sh
 (crontab -l 2>/dev/null | grep -v 'sweep-first-rsvp-nudge' ; echo '0 9 * * 3 $REMOTE/scripts/sweep-first-rsvp-nudge.sh >> /var/log/sweep-first-rsvp-nudge.log 2>&1') | crontab -
+# Handbook source watch (lib/handbookSources): weekly, Monday 04:15 UTC.
+(crontab -l 2>/dev/null | grep -v 'sweep-handbook-sources' ; echo '15 4 * * 1 $REMOTE/scripts/sweep-handbook-sources.sh >> /var/log/sweep-handbook-sources.log 2>&1') | crontab -
 echo '  ✓ first-rsvp-nudge'
 
 chmod +x $REMOTE/scripts/sweep-availability-pulses.sh

@@ -74,6 +74,7 @@ export const SWEEPER_INTERVAL_MIN: Record<string, number> = {
   'sweep-recommendation-dupes': 24 * 60,
   'sweep-review-nudges':    7 * 24 * 60,
   'sweep-first-rsvp-nudge': 7 * 24 * 60,
+  'sweep-handbook-sources': 7 * 24 * 60,
 }
 
 // Returns names of sweepers whose lastSuccessAt is missing OR
