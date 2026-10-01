@@ -19,11 +19,14 @@ export const LIVE_BUSINESS = { isApproved: true, isActive: true } as const
  * own city. `undefined` = the body didn't say (leave it / match by name);
  * `null` = no listing.
  */
-export async function venueIdInput(v: unknown, cityId: string): Promise<{ value: string | null | undefined } | { error: string }> {
+// A cross-city trip (lib/eventTrip) passes both its cities: a day trip meets
+// at the departure station as often as at a place in the city it visits.
+export async function venueIdInput(v: unknown, cityId: string | string[]): Promise<{ value: string | null | undefined } | { error: string }> {
   if (v === undefined) return { value: undefined }
   if (v === null || v === '') return { value: null }
   if (typeof v !== 'string' || v.length > 64) return { error: 'Invalid directory venue' }
-  const biz = await prisma.business.findFirst({ where: { id: v, cityId, isActive: true }, select: { id: true } })
+  const cities = Array.isArray(cityId) ? cityId : [cityId]
+  const biz = await prisma.business.findFirst({ where: { id: v, cityId: { in: cities }, isActive: true }, select: { id: true } })
   // A listing from another city would put this event on that city's page.
   if (!biz) return { error: 'That directory venue isn\'t listed in this event\'s city' }
   return { value: biz.id }

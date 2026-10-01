@@ -128,7 +128,10 @@ export default function NewEventPage() {
   const geocodeCityParam = selectedClubCity ? `&city=${encodeURIComponent(selectedClubCity)}` : ''
 
   // A global club's event is filed under the city picked for it.
-  const venueCityParam = selectedClubCity ? `city=${encodeURIComponent(selectedClubCity)}` : form.cityId ? `cityId=${encodeURIComponent(form.cityId)}` : ''
+  // A trip may meet in either city (the departure station is the usual spot),
+  // so its venue search covers both.
+  const venueCityParam = (selectedClubCity ? `city=${encodeURIComponent(selectedClubCity)}` : form.cityId ? `cityId=${encodeURIComponent(form.cityId)}` : '')
+    + (tripDestination && clubCityOption ? `&city=${encodeURIComponent(clubCityOption.slug)}` : '')
 
   // Picking a listing names the venue and fills what the form doesn't have yet.
   function pickVenue(v: PickedVenue | null) {

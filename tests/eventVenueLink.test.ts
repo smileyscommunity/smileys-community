@@ -74,7 +74,9 @@ describe('venueIdInput', () => {
   it('only accepts an active listing in the event\'s own city', async () => {
     ;(prisma.business.findFirst as any).mockResolvedValueOnce(null)
     expect(await venueIdInput('biz_izmir', 'city_istanbul')).toHaveProperty('error')
-    expect((prisma.business.findFirst as any).mock.calls[0][0].where).toMatchObject({ id: 'biz_izmir', cityId: 'city_istanbul', isActive: true })
+    // Still exactly the event's own city — as a one-city list since trips
+    // (lib/eventTrip) may pass both of theirs.
+    expect((prisma.business.findFirst as any).mock.calls[0][0].where).toMatchObject({ id: 'biz_izmir', cityId: { in: ['city_istanbul'] }, isActive: true })
     ;(prisma.business.findFirst as any).mockResolvedValueOnce({ id: 'biz_dozze' })
     expect(await venueIdInput('biz_dozze', 'city_istanbul')).toEqual({ value: 'biz_dozze' })
     expect(await venueIdInput(42, 'city_istanbul')).toHaveProperty('error')

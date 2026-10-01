@@ -172,6 +172,7 @@ function mapEvent(e: any, spotsLeft?: number): Event {
     hostNationality:  null,
     clubId:           e.clubId,
     cityId:           e.cityId,
+    originCityId:     e.originCityId ?? null,
     clubName:         e.club?.name ?? '',
     trip:             e.originCity && e.city ? tripLabel(e.originCity.name, e.city.name) : null,
     attendeePreviews: e.attendees?.map((a: any) => a.user) ?? [],

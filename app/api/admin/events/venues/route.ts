@@ -24,17 +24,19 @@ export async function GET(req: NextRequest) {
   }
 
   const q    = (req.nextUrl.searchParams.get('q') ?? '').replace(/\s+/g, ' ').trim().slice(0, 80)
-  const slug = req.nextUrl.searchParams.get('city')?.trim()
-  const id   = req.nextUrl.searchParams.get('cityId')?.trim()
-  const cityId = slug
-    ? /^[a-z0-9-]{1,40}$/.test(slug) ? (await prisma.city.findFirst({ where: { slug }, select: { id: true } }))?.id : undefined
-    : id
-      ? id.length <= 64 ? (await prisma.city.findFirst({ where: { id }, select: { id: true } }))?.id : undefined
-      : await resolveCityId(session)
-  if (!cityId || q.length < 2) return NextResponse.json({ venues: [] })
+  // A cross-city trip searches both its cities (?city=a&city=b or the same
+  // with cityId): it can meet at the departure station. Capped at two.
+  const slugs = req.nextUrl.searchParams.getAll('city').map(s => s.trim()).filter(s => /^[a-z0-9-]{1,40}$/.test(s)).slice(0, 2)
+  const ids   = req.nextUrl.searchParams.getAll('cityId').map(s => s.trim()).filter(s => s && s.length <= 64).slice(0, 2)
+  const cityIds = slugs.length
+    ? (await prisma.city.findMany({ where: { slug: { in: slugs } }, select: { id: true } })).map(c => c.id)
+    : ids.length
+      ? (await prisma.city.findMany({ where: { id: { in: ids } }, select: { id: true } })).map(c => c.id)
+      : [await resolveCityId(session)].filter((c): c is string => !!c)
+  if (cityIds.length === 0 || q.length < 2) return NextResponse.json({ venues: [] })
 
   const venues = await prisma.business.findMany({
-    where:   { cityId, ...LIVE_BUSINESS, name: { contains: q, mode: 'insensitive' } },
+    where:   { cityId: { in: cityIds }, ...LIVE_BUSINESS, name: { contains: q, mode: 'insensitive' } },
     select:  { id: true, name: true, neighborhood: true, address: true, latitude: true, longitude: true },
     orderBy: { name: 'asc' },
     take:    8,

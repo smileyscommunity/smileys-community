@@ -133,6 +133,10 @@ export interface Event {
   // all need it). Surfaces that need the city's timezone resolve it from
   // this via getCityTz.
   cityId?: string
+  // The city a cross-city trip departs from (lib/eventTrip); null otherwise.
+  // Not sensitive — the trip label names it — and the edit forms need it to
+  // search venues in both cities.
+  originCityId?: string | null
   clubName: string
   description: string
   limitedSpots: boolean
