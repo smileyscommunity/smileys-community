@@ -51,7 +51,7 @@ export const PAGE_ROUTES = [
   '/admin/neighborhoods', '/admin/neighborhoods/[slug]', '/admin/newsletter', '/admin/notifications',
   '/admin/nps', '/admin/participants', '/admin/partners', '/admin/partners/new', '/admin/payments', '/admin/polls',
   '/admin/posts', '/admin/posts/[id]/edit', '/admin/posts/new', '/admin/pro-waitlist', '/admin/retention',
-  '/admin/security', '/admin/settings', '/admin/sponsors', '/admin/spotlight', '/admin/standing', '/admin/stories', '/admin/tags',
+  '/admin/security', '/admin/settings', '/admin/sponsors', '/admin/spotlight', '/admin/standing', '/admin/stories', '/admin/tags', '/admin/trips',
   '/admin/users', '/admin/users/[id]', '/advertise', '/appeal', '/apply', '/apply/confirmed', '/board', '/board/[id]', '/board/new',
   '/board/renew/[id]', '/card', '/cities', '/clubs', '/clubs/[slug]', '/clubs/feed', '/contact', '/contacts', '/cookies',
   '/cup', '/dashboard', '/directory', '/directory/[id]', '/directory/saved', '/directory/submit', '/events',
