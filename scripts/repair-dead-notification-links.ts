@@ -40,7 +40,7 @@
 
 /** Every page under app/, route groups removed. tests/scan5Batch37 fails when this drifts from the filesystem. */
 export const PAGE_ROUTES = [
-  '/', '/[city]', '/[city]/board', '/[city]/clubs', '/[city]/directory', '/[city]/events', '/[city]/experiences', '/[city]/hosts', '/[city]/moving', '/[city]/remote-work', '/[city]/students',
+  '/', '/[city]', '/[city]/board', '/[city]/clubs', '/[city]/directory', '/[city]/events', '/[city]/events/[when]', '/[city]/experiences', '/[city]/hosts', '/[city]/moving', '/[city]/remote-work', '/[city]/students',
   '/about', '/activate', '/admin', '/admin/analytics', '/admin/announcements', '/admin/applications',
   '/admin/abuse', '/admin/attendance-review', '/admin/audit',
   '/admin/banners', '/admin/campaigns', '/admin/campaigns/[id]', '/admin/checkin', '/admin/cities', '/admin/club-requests', '/admin/clubs',
@@ -78,6 +78,7 @@ export const ROUTE_TARGETS: Record<string, { param: string; target: TargetKey }>
   '/[city]/clubs':                   { param: 'city',   target: 'city.slug' },
   '/[city]/directory':               { param: 'city',   target: 'city.slug' },
   '/[city]/events':                  { param: 'city',   target: 'city.slug' },
+  '/[city]/events/[when]':           { param: 'city',   target: 'city.slug' },
   '/[city]/hosts':                   { param: 'city',   target: 'city.slug' },
   '/[city]/experiences':             { param: 'city',   target: 'city.slug' },
   '/[city]/moving':                  { param: 'city',   target: 'city.slug' },
