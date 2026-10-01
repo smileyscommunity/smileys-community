@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { goodToKnowRows, type GoodToKnowFacts } from '@/lib/eventGoodToKnow'
+import { goodToKnowRows, cancelLine, type GoodToKnowFacts } from '@/lib/eventGoodToKnow'
 
 // "Good to know" — the answers a solo newcomer looks for before committing to
 // an event: will I be welcome, will I understand anyone, is my place certain,
@@ -37,7 +37,7 @@ export default function EventGoodToKnow({ event, className = '' }: { event: Good
           <div className="min-w-0">
             <dt className="font-semibold text-gray-900 inline">If plans change: </dt>
             <dd className="text-gray-600 inline">
-              cancel on this page as early as you can, so someone on the waitlist gets your spot.{' '}
+              {cancelLine(event)}{' '}
               <Link href="/faq#events" className="font-semibold text-amber-700 hover:underline">How RSVPs work</Link>
             </dd>
           </div>

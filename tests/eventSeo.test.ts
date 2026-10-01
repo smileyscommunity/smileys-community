@@ -42,3 +42,19 @@ describe('offerAvailability', () => {
     expect(offerAvailability({ limitedSpots: false, spotsLeft: 2 })).toContain('InStock')
   })
 })
+
+import { cancelLine } from '@/lib/eventGoodToKnow'
+import { CANCEL_CUTOFF_HOURS } from '@/lib/standingPolicy'
+
+describe('cancelLine — the event page says the number the sweep uses', () => {
+  const base = { status: 'published' } as Parameters<typeof cancelLine>[0]
+  it('limited events quote the real cutoff', () => {
+    expect(cancelLine({ ...base, limitedSpots: true })).toContain(`more than ${CANCEL_CUTOFF_HOURS.scarce} hours`)
+  })
+  it('a host-set cutoff wins', () => {
+    expect(cancelLine({ ...base, limitedSpots: true, cancelCutoffHours: 12 })).toContain('more than 12 hours')
+  })
+  it('uncapped events say cancelling never counts', () => {
+    expect(cancelLine({ ...base, limitedSpots: false })).toContain('never counts against you')
+  })
+})
