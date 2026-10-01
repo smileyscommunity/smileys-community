@@ -63,7 +63,7 @@ vi.mock('@/lib/autoJoinClub',   () => ({ autoJoinClub: vi.fn(async () => {}) }))
 vi.mock('@/lib/spotsLeft',      () => ({ recomputeSpotsLeft: vi.fn(async () => {}) }))
 vi.mock('@/lib/spotOpened',     () => ({ announceSpotOpened: vi.fn(async () => 0) }))
 vi.mock('@/lib/firstEvent',     () => ({ stampFirstEventRsvp: vi.fn(async () => {}) }))
-vi.mock('@/lib/posthog-server', () => ({ trackServer: vi.fn() }))
+vi.mock('@/lib/posthog-server', () => ({ trackServer: vi.fn(), trackServerForUser: vi.fn() }))
 vi.mock('@/lib/eventQuota', () => ({
   findPromotableFromWaitlist: vi.fn(), hasQuotaRoomFor: vi.fn(async () => ({ ok: true })), quotaEventSelect: {},
 }))

@@ -8,6 +8,7 @@ import { loadCommunitySettings } from '@/lib/communitySettings'
 import { sendActivationEmail, sendApplicationRejectedEmail, sendRequestMoreInfoEmail, recordEmailFailure } from '@/lib/email'
 import { createNotification } from '@/lib/notify'
 import { writeAudit } from '@/lib/audit'
+import { trackServerForUser } from '@/lib/posthog-server'
 import { randomBytes, createHash } from 'crypto'
 import { maskEmail, maskPhone } from '@/lib/admin/maskContact'
 import { hashToken } from '@/lib/tokenHash'
@@ -206,6 +207,15 @@ export async function PATCH(req: NextRequest) {
     })
 
     if (status === 'approved') {
+      // hours_to_decision is what the public "24–48 hours" copy should be held
+      // to; only ids and counts ride along, never the applicant's answers.
+      const trackApproved = (userId: string, founding: boolean) => {
+        void trackServerForUser(userId, 'application_approved', {
+          city_id: application.targetCityId,
+          hours_to_decision: Math.round((Date.now() - new Date(application.createdAt).getTime()) / 3_600_000),
+          founding_member: founding,
+        })
+      }
       // Auto-create account if not already exists. Awaited: this used to run
       // detached with console.error as its only handler, so a Resend outage
       // or a photo-promotion throw left the applicant with no activation link
@@ -318,6 +328,9 @@ export async function PATCH(req: NextRequest) {
               throw e
             }
             await enrolAndActivate(user)
+            // Funnel: approval, once per account (a re-sent approval takes the
+            // existing-user branch below, so a retry never double-counts).
+            trackApproved(user.id, isFoundingCity)
           } else {
             // User already exists — fill in any missing profile fields from the application
             const updates: Record<string, unknown> = {}
@@ -340,6 +353,7 @@ export async function PATCH(req: NextRequest) {
                 where: { id: existing.id },
                 data: { status: 'approved', ...(isFoundingCity ? { foundingMember: true } : {}) },
               })
+              trackApproved(existing.id, isFoundingCity)
             }
             // Never activated: most often the account a first approval created
             // before its activation email failed. "Approve again to retry"

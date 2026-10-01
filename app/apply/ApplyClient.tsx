@@ -277,6 +277,35 @@ function ApplyForm({ initialCity }: { initialCity: InitialCity | null }) {
     } catch {}
   }, [draftHydrated, form, interests, socialStyles, languages, lookingFor, step, targetCitySlug])
 
+  // Funnel: started = the first edit after the form (or a restored draft) has
+  // loaded — not the page view, which join_cta_click and the pageview already
+  // count. Abandoned = the page is left mid-application. A tab switch is not
+  // leaving, so only `pagehide` counts; analysis should still drop anyone with
+  // a later application_submitted (they came back from another tab or device).
+  // Step and city only — no answers. Consent-gated like every capture.
+  const startedRef  = useRef(false)
+  const baselineRef = useRef<string | null>(null)
+  const leaveRef    = useRef({ step: 0, submitted: false, city: '' })
+  leaveRef.current = { step, submitted, city: targetCitySlug }
+  useEffect(() => {
+    if (!draftHydrated || startedRef.current) return
+    const snap = JSON.stringify([form, interests, socialStyles, languages, lookingFor])
+    if (baselineRef.current === null) { baselineRef.current = snap; return }
+    if (snap === baselineRef.current) return
+    startedRef.current = true
+    posthog.capture('application_started', { target_city: targetCitySlug, step_index: step })
+  }, [draftHydrated, form, interests, socialStyles, languages, lookingFor, targetCitySlug, step])
+  useEffect(() => {
+    function onLeave() {
+      const { step: st, submitted: done, city } = leaveRef.current
+      if (!startedRef.current || done) return
+      startedRef.current = false  // at most once per leave
+      posthog.capture('application_abandoned', { step_index: st, step_name: STEPS[st], target_city: city })
+    }
+    window.addEventListener('pagehide', onLeave)
+    return () => window.removeEventListener('pagehide', onLeave)
+  }, [])
+
   // Switching the target city invalidates a neighborhood picked from the
   // previous city's list. Clear it only once the new list has actually loaded
   // and the pick is genuinely absent from it — checking membership rather than

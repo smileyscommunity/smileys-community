@@ -27,6 +27,7 @@ import EventPhotos from '@/components/EventPhotos'
 import SimilarEvents from '@/components/SimilarEvents'
 import ReportButton from '@/components/ReportButton'
 import ShareButton from '@/components/ShareButton'
+import EventPageTracker from '@/components/EventPageTracker'
 import SocialShare from '@/components/SocialShare'
 import EventSaveButton from '@/components/EventSaveButton'
 import EventInviteButton from '@/components/EventInviteButton'
@@ -222,7 +223,8 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
     const publicDescription = guestEventDescription(event)
 
     return (
-      <div className="min-h-screen bg-warm pb-32">
+      <div className="min-h-screen bg-warm pb-32" data-cta="event-teaser">
+        <EventPageTracker eventId={id} citySlug={eventCity?.slug ?? null} audience="guest" membersOnly={!!event.membersOnly} />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
@@ -252,6 +254,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                 compact
               />
               <ShareButton
+                eventId={id}
                 title={`${event.title} · ${formatDate(event.date)}`}
                 url={eventUrl}
                 cacheKey={event.coverImage ? event.coverImage.match(/\/(\d+)-/)?.[1]?.slice(-8) : undefined}
@@ -553,6 +556,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
 
   return (
     <div className="min-h-screen bg-warm pb-36 md:pb-28 lg:pb-10">
+      <EventPageTracker eventId={id} citySlug={eventCity?.slug ?? null} audience="member" membersOnly={!!event.membersOnly} />
       {/* Called off or moved: said at the top with the host's reason, not
           only in the button's label (lib/db keeps cancelled events in the
           feed so members see WHY — and the why was never rendered). */}
@@ -602,6 +606,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
               compact
             />
             <ShareButton
+                eventId={id}
               title={`${event.title} · ${formatDate(event.date)}`}
               url={`${APP_URL}/events/${event.id}`}
               cacheKey={event.coverImage ? event.coverImage.match(/\/(\d+)-/)?.[1]?.slice(-8) : undefined}

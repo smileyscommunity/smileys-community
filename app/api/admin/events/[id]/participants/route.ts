@@ -10,6 +10,7 @@ import { createSeatPayment } from '@/lib/rsvpConfirmed'
 
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 import { writeAudit } from '@/lib/audit'
+import { trackServerForUser } from '@/lib/posthog-server'
 import { changePaymentStatus } from '@/lib/paymentStatus'
 import { activateAttendee, activeAttendeeWhere, cancelAttendeeOp, isActiveAttendee, type CancelActor } from '@/lib/attendance'
 import { standingLevelsFor, redCardBlocksSeat } from '@/lib/standingRead'
@@ -314,6 +315,9 @@ export async function DELETE(req: NextRequest, { params }: Params) {
           return room
         })
         if (next && promoted) {
+          // Funnel: a waitlister seated by the host's removal (the member-claimed
+          // route reports event_rsvp via 'waitlist_claim').
+          void trackServerForUser(next.userId, 'waitlist_promoted', { event_id: eventId, city_id: eventRow?.cityId ?? null })
           createNotification(next.userId, 'waitlist_promoted', 'Spot available! 🎉',
             `A spot opened up for "${eventRow?.title}" — you're in!`, `/events/${eventId}`)
         }
