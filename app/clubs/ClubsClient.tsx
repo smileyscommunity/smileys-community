@@ -349,13 +349,17 @@ function AppClubsPageInner() {
   )
   const notMine = useMemo(() => clubs.filter(c => !mineIds.has(c.id)), [clubs, mineIds])
 
+  // A search or a category pill is a request to see everything that matches —
+  // your own clubs included. Leaving them out meant searching for a club you
+  // were in answered "No clubs found".
+  const filtering = !!q || activeCategory !== 'All'
   const exploreBase = useMemo(
-    () => notMine.filter(matches).sort((a, b) =>
+    () => (filtering ? clubs : notMine).filter(matches).sort((a, b) =>
       (HEALTH_RANK[a.health ?? 'quiet'] - HEALTH_RANK[b.health ?? 'quiet'])
       || ((b.activityThisWeek ?? 0) - (a.activityThisWeek ?? 0))
       || (b.memberCount - a.memberCount)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [notMine, activeCategory, q]
+    [clubs, notMine, filtering, activeCategory, q]
   )
 
   // Your clubs with an event coming up, soonest first — the top row.
@@ -392,8 +396,6 @@ function AppClubsPageInner() {
   const [showAllQuiet,  setShowAllQuiet]  = useState(false)
   const GLOBAL_PREVIEW = 6
   const QUIET_PREVIEW  = 10
-  // A search or a category filter is a request to see everything that matches.
-  const filtering = !!q || activeCategory !== 'All'
   const renderCard = (club: Club) => (
     <ClubCard
       key={club.id}
@@ -527,7 +529,9 @@ function AppClubsPageInner() {
             first. It listed every club a member had joined as a large card,
             and half of a typical 14 said "Nothing planned yet" above
             everything else (2026-09-29). The rest are one tap away. */}
-        {!loading && tab === 'explore' && joinedClubs.length > 0 && (
+        {/* Hidden while filtering: it ignores the filter, so it sat above the
+            results unchanged and a click on "Travel" looked like it did nothing. */}
+        {!loading && tab === 'explore' && joinedClubs.length > 0 && !filtering && (
           <div className="mb-8">
             <div className="flex items-baseline justify-between gap-3 mb-3">
               <h2 className="text-xl font-extrabold tracking-tight text-gray-900">Coming up in your clubs</h2>
@@ -697,7 +701,7 @@ function AppClubsPageInner() {
                             <span aria-hidden="true" className="text-xl shrink-0">{club.emoji}</span>
                             <Link href={clubLinkFor(club.slug)} className="min-w-0 flex-1 group">
                               <p className="text-sm font-semibold text-gray-900 truncate group-hover:text-amber-700">{club.name}</p>
-                              <p className="text-xs text-gray-500 truncate">{club.category}{memberLine(club) ? ` · ${memberLine(club)}` : ''}</p>
+                              <p className="text-xs text-gray-500 truncate">{club.category}{memberLine(club) ? ` · ${memberLine(club)}` : ''}{m?.status === 'pending' ? ' · Request pending' : m ? " · You're in" : ''}</p>
                             </Link>
                             {!m && (
                               <button onClick={() => toggleMembership(club)} disabled={toggling === club.id} aria-busy={toggling === club.id}

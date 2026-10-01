@@ -26,9 +26,17 @@ describe('clubs explore tab', () => {
     expect(src).toContain('{myClubs.filter(c => c.nextEvent).map(club => renderCard(club))}')
     expect(src).toContain('>Nothing planned right now</h2>')
   })
-  it('your own clubs (joined or pending) are not in Explore', () => {
+  it('your own clubs (joined or pending) are not in Explore while browsing', () => {
     expect(src).toContain('const notMine = useMemo(() => clubs.filter(c => !mineIds.has(c.id)), [clubs, mineIds])')
-    expect(src).toContain('() => notMine.filter(matches).sort((a, b) =>')
+    expect(src).toContain('() => (filtering ? clubs : notMine).filter(matches).sort((a, b) =>')
+  })
+  it('a search or category pill finds every match, yours included, and nothing unfiltered sits above it', () => {
+    // 2026-10-01: clicking "Travel" looked like it did nothing — the
+    // unfiltered "Coming up in your clubs" stayed on top, and a search for a
+    // club you were in said "No clubs found".
+    expect(src).toContain("const filtering = !!q || activeCategory !== 'All'")
+    expect(src).toContain("{!loading && tab === 'explore' && joinedClubs.length > 0 && !filtering && (")
+    expect(src).toContain(`{m?.status === 'pending' ? ' · Request pending' : m ? " · You're in" : ''}`)
   })
   it('four sections, each club in the first it qualifies for', () => {
     expect(src).toContain('const soon = exploreBase.filter(c => c.nextEvent)')
