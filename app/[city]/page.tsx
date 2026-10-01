@@ -110,16 +110,20 @@ export default async function CityPage({ params }: Params) {
   // get the crawlable per-city hubs for events and clubs — see publicLinkFor.
   const enter         = session ? enterLinkFor(city.slug) : publicLinkFor(city.slug, enterLinkFor(city.slug))
   const isDefaultCity = city.slug === DEFAULT_CITY_SLUG
+  const guide         = <Guide city={city} hasGuide={guideEntries > 0} enter={enter} handbookPicks={handbookPicks} guidePicks={guidePicks} />
 
   return (
     <>
       <CityJsonLd city={city} />
       <CityPageTracker slug={city.slug} status={city.status} />
       <Hero city={city} enter={enter} signedIn={!!session} />
+      {/* The guide is the one section a visitor can use before joining
+          anything, so it sits right after the events — and ahead of them
+          while the calendar is empty, rather than opening the page on
+          "Events are coming soon". */}
+      {tabEvents.length === 0 && guide}
       <Events city={city} tabEvents={tabEvents} eventWindow={eventWindow} enter={enter} signedIn={!!session} />
-      {/* The guide sits right after the events: it is the one section a
-          visitor can use before joining anything. */}
-      <Guide city={city} hasGuide={guideEntries > 0} enter={enter} handbookPicks={handbookPicks} guidePicks={guidePicks} />
+      {tabEvents.length > 0 && guide}
       <Clubs city={city} featuredClubs={featuredClubs} enter={enter} signedIn={!!session} />
       <Hosts city={city} hosts={hosts} hostTotal={hostTotal} signedIn={!!session} />
       <Neighborhoods city={city} topNeighborhoods={topNeighborhoods} neighborhoodsHaveEvents={neighborhoodsHaveEvents} enter={enter} />

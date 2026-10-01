@@ -15,6 +15,9 @@ interface FooterProps {
   /** Whether the viewed city has any neighbourhoods. A city grows into them —
       linking to an empty page under a heading naming the city reads as broken. */
   hasNeighborhoods?: boolean
+  /** The city whose URL this is, if any. Its shopfront (/<slug>) closes with
+      its own city-aware join section, so the band would ask a second time. */
+  urlCitySlug?: string
 }
 
 // Only reached if the layout passes nothing (it passes measured numbers when
@@ -22,13 +25,15 @@ interface FooterProps {
 // than a second set of figures to drift out of date.
 const DEFAULT_STATS: { value: string; label: string }[] = []
 
-export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods = true }: FooterProps) {
+export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods = true, urlCitySlug }: FooterProps) {
   const { isLoggedIn } = useAuth()
   const pathname = usePathname()
   const footerStats = stats?.slice(0, 3) ?? DEFAULT_STATS
   // The member pitch has no business closing the advertiser page — /advertise
   // ends with its own partner CTA band instead.
-  const showMemberCta = !isLoggedIn && !pathname?.startsWith('/advertise')
+  // Nor a city shopfront: it ends with "Ready to find your people?", whose
+  // apply link carries the city — this band's /apply does not.
+  const showMemberCta = !isLoggedIn && !pathname?.startsWith('/advertise') && !(urlCitySlug && pathname === `/${urlCitySlug}`)
   // Not under the admin or host panel, each of which fills the screen with
   // its own shell.
   if (pathname?.startsWith('/admin') || isHostPanelRoute(pathname)) return null
