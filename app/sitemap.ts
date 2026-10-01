@@ -246,12 +246,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     changeFrequency: 'weekly',
   }))
 
-  const clubRoutes: MetadataRoute.Sitemap = clubs.map(c => ({
-    url:          `${BASE}/clubs/${c.slug}`,
-    lastModified: c.createdAt,
-    priority:     0.7,
-    changeFrequency: 'weekly',
-  }))
+  // No per-club URLs: /clubs/[slug] is members-only, so a crawler gets an empty
+  // shell (and the page is noindex for guests). Clubs are discoverable through
+  // the crawlable /[city]/clubs listings instead.
 
   // Handbook articles live at /handbook/[slug]; other posts at /posts/[slug].
   // Mapping every post to /posts/... (the old behaviour) pointed the handbook
@@ -358,7 +355,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...neighborhoodRoutes,
     ...guideRoutes,
     ...eventRoutes,
-    ...clubRoutes,
     ...postRoutes,
     ...handbookSectionRoutes,
     ...listingRoutes,

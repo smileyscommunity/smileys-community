@@ -71,9 +71,9 @@ export async function generateMetadata(): Promise<Metadata> {
   const image = adminHero
     ? { url: adminHero, alt }
     : { url: HERO_FALLBACK_OG, width: 1200, height: 800, alt }
-  const title   = 'Smileys — your people, in every city you land in'
+  const title   = 'Smileys — Expat & International Community, City by City'
   const description =
-    'Meet people, join clubs and discover experiences wherever your international life takes you. Smileys is a network of local communities, growing city by city.'
+    'Free-to-join community for expats, nomads, travelers, students and locals: real events, clubs and friends, city by city. Applications reviewed by hand in 24–48 hours.'
 
   return {
     title,

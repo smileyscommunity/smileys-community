@@ -50,9 +50,15 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const imageUrl    = absoluteImageUrl(club.coverImage)
   const pageUrl     = `${APP_URL}/clubs/${slug}`
 
+  // A logged-out request gets the layout shell (the page itself is members-only),
+  // so a crawler sees no content — keep it out of the index rather than serve
+  // 135 near-identical empty pages. Link previews still read the tags below.
+  const session = await getSession()
+
   return {
     title,
     description,
+    ...(session ? {} : { robots: { index: false, follow: true } }),
     openGraph: {
       title,
       description,
