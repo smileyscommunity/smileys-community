@@ -11,8 +11,8 @@ import type { Prisma } from '@prisma/client'
  * approved members who had never activated — people who never saw the site
  * inflating every "N members" figure and the city maturity thresholds.
  *
- * Club.memberCount is enrolment and deliberately NOT this rule
- * (lib/clubMemberCount). Admin surfaces show both halves of the funnel via
+ * Club.memberCount follows this rule too (lib/clubMemberCount, applied by the
+ * nightly recount). Admin surfaces show both halves of the funnel via
  * NOT_ACTIVATED_MEMBER_WHERE.
  *
  * Spread it and add filters after, never before — a later `status` key would

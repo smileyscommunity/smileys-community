@@ -12,10 +12,10 @@ describe('about page', () => {
     expect(page).not.toContain('alt="Smileys members gathered')
     expect(page).toContain('alt="Friends talking on a rooftop at sunset over Istanbul, with Galata Tower and the Bosphorus behind them"')
   })
-  it('2 + 6: measured stats, never the admin rows (no "1,000+ events", no WhatsApp reach)', () => {
+  it('2 + 6: measured stats, never the admin rows (one shared events figure via eventsStat, no WhatsApp reach)', () => {
     expect(page).not.toContain('resolveStats')
     expect(page).not.toContain('.slice(0, 3)')
-    expect(page).toContain("{ value: approx(s.events),  label: 'Events on Smileys' },")
+    expect(page).toContain('eventsStat(s.events),')
     expect(read('app/admin/content/page.tsx')).toContain('The About and Why Smileys pages always show measured numbers.')
   })
   it('3: no "the groups are balanced" (27 of 192 recent events)', () => {
@@ -41,7 +41,7 @@ describe('about page', () => {
   })
   it('9: the country count is measured', () => {
     expect(page).toContain("SELECT count(DISTINCT lower(trim(nationality)))::int AS n FROM users WHERE status = 'approved'")
-    expect(page).toContain("countries >= 100 ? 'more than 100 countries'")
+    expect(page).toContain("countries >= 100 ? 'more than 100 nationalities'")
   })
   it('10: AboutPage structured data', () => {
     expect(page).toContain("'@type':     'AboutPage',")

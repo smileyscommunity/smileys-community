@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import ClubLink from '@/components/ClubLink'
-import { getCommunityStats, approx } from '@/lib/communityStats'
+import { getCommunityStats, approx, eventsStat } from '@/lib/communityStats'
 import { APP_URL } from '@/lib/env'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
@@ -135,7 +135,7 @@ export default async function WhyPage({ searchParams }: { searchParams?: Promise
   ])
   const stats = [
     { value: approx(s.members), label: 'Members across Smileys' },
-    { value: approx(s.events),  label: 'Events on Smileys' },
+    eventsStat(s.events),
     { value: approx(s.clubs),   label: 'Active clubs' },
     { value: String(liveCities), label: liveCities === 1 ? 'City live' : 'Cities live' },
   ]

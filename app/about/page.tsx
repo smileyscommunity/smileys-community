@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { getCommunityStats, approx } from '@/lib/communityStats'
+import { getCommunityStats, approx, eventsStat } from '@/lib/communityStats'
 import { prisma } from '@/lib/prisma'
 import { jsonLdHtml } from '@/lib/jsonLd'
 import Image from 'next/image'
@@ -75,11 +75,11 @@ export default async function AboutPage() {
   ])
   const stats = [
     { value: approx(s.members), label: 'Members across Smileys' },
-    { value: approx(s.events),  label: 'Events on Smileys' },
+    eventsStat(s.events),
     { value: approx(s.clubs),   label: 'Active clubs' },
   ]
   const countries = countryRows[0]?.n ?? 0
-  const fromCountries = countries >= 100 ? 'more than 100 countries' : countries >= 24 ? 'dozens of countries' : 'many countries'
+  const fromCountries = countries >= 100 ? 'more than 100 nationalities' : countries >= 24 ? 'dozens of nationalities' : 'many nationalities'
 
   const aboutJsonLd = {
     '@context':  'https://schema.org',

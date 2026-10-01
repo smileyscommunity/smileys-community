@@ -81,7 +81,7 @@ afterEach(() => { vi.useRealTimers() })
 
 describe('25. club member counts exclude banned members', () => {
   it('the shared rule is approved rows whose user is not banned', () => {
-    expect(COUNTED_CLUB_MEMBERSHIP_WHERE).toEqual({ status: 'approved', user: { status: { not: 'banned' } } })
+    expect(COUNTED_CLUB_MEMBERSHIP_WHERE).toEqual({ status: 'approved', user: { status: { not: 'banned' }, password: { not: null } } })
   })
 
   it("a city's club list counts both totals by the rule", async () => {
@@ -91,7 +91,7 @@ describe('25. club member counts exclude banned members', () => {
     expect(include._count.select.memberships.where).toEqual(COUNTED_CLUB_MEMBERSHIP_WHERE)
     // The city-scoped count merges the city into the rule's user filter —
     // a plain `user: { cityId }` would silently drop the ban exclusion.
-    expect(include.memberships.where).toEqual({ status: 'approved', user: { status: { not: 'banned' }, cityId: 'c-tbs' } })
+    expect(include.memberships.where).toEqual({ status: 'approved', user: { status: { not: 'banned' }, password: { not: null }, cityId: 'c-tbs' } })
     expect(club.memberCount).toBe(3)
   })
 

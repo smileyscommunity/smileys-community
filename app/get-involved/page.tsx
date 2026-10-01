@@ -5,7 +5,7 @@ import { DEFAULT_CITY_SLUG } from '@/lib/city'
 import { getSession } from '@/lib/session'
 import { isClubHost, hostCityIds } from '@/lib/access'
 import HostPath from '@/components/HostPath'
-import { getCommunityStats, approx } from '@/lib/communityStats'
+import { getCommunityStats, approx, eventsStat } from '@/lib/communityStats'
 import { resolveCityForPage, cityQs, type CitySearch } from '@/lib/cityPageParam'
 
 // Per city like the other hubs: the metadata was title + description only,
@@ -101,7 +101,7 @@ export default async function GetInvolvedPage({ searchParams }: { searchParams?:
   const s          = await getCommunityStats()
   const STATS      = [
     { value: approx(s.members), label: 'Members across Smileys' },
-    { value: approx(s.events),  label: 'Events on Smileys' },
+    eventsStat(s.events),
     { value: approx(s.clubs),   label: 'Active clubs' },
   ]
   // The city the reader came from (a city's hosts page or Meet your hosts

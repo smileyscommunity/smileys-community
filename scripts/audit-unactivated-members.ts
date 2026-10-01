@@ -18,7 +18,7 @@
 
 import { prisma } from '@/lib/prisma'
 import { NOT_ACTIVATED_MEMBER_WHERE } from '@/lib/memberCount'
-import { COUNTED_CLUB_MEMBERSHIP_WHERE } from '@/lib/clubMemberCount'
+import { ENROLLED_CLUB_MEMBERSHIP_WHERE } from '@/lib/clubMemberCount'
 
 const DAY = 24 * 60 * 60 * 1000
 
@@ -123,7 +123,7 @@ async function load() {
     select: {
       id: true, joinedAt: true,
       city:   { select: { slug: true } },
-      _count: { select: { clubMemberships: { where: COUNTED_CLUB_MEMBERSHIP_WHERE } } },
+      _count: { select: { clubMemberships: { where: ENROLLED_CLUB_MEMBERSHIP_WHERE } } },
     },
   })
   const ids = users.map(u => u.id)
@@ -146,7 +146,7 @@ async function load() {
   // user filter narrows to NOT_ACTIVATED_MEMBER_WHERE without widening.
   const gapGroups = await prisma.clubMembership.groupBy({
     by:     ['clubId'],
-    where:  { ...COUNTED_CLUB_MEMBERSHIP_WHERE, user: NOT_ACTIVATED_MEMBER_WHERE },
+    where:  { ...ENROLLED_CLUB_MEMBERSHIP_WHERE, user: NOT_ACTIVATED_MEMBER_WHERE },
     _count: { _all: true },
   })
   const clubs = gapGroups.length === 0 ? [] : await prisma.club.findMany({

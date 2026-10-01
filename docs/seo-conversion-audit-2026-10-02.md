@@ -45,10 +45,13 @@
 - **Change:** a standard, system-rendered "Attendance" block on every limited event (generated from the policy constants), and ask hosts to stop writing their own cancel rules; sweep existing event descriptions for "hours" patterns. Also confirm with Nate that the "cards" language in both articles matches live behaviour (project memory says v1 cards were reversed and v2 is planned) — I did not verify prod behaviour.
 - **Benefit:** trust + fewer disputes. **Difficulty:** Low–Medium.
 
-### C5. Member/event/club counters disagree across pages
-- **Evidence (all live today):** homepage Istanbul card **1,528 members**, **116 clubs**, **42 upcoming**; the "Happening" filter says **43** events; footer/Why/Apply/About: **1,500+ members**, **170+ clubs ("across all cities")**, **"1,000+ events since our first in 2023"**; `/advertise`: **"Events on Smileys 300+"**; club list shows **"Social Istanbul 1851 members"** — more than the whole community; `/about`: "more than 100 countries" vs `/advertise`: "100+ nationalities". The footer strip is hand-typed CMS text (not in the repo — server `content.json`); the Istanbul card is measured.
-- **Change:** one `getPublicStats()` (members, events-ever, clubs, nationalities) computed server-side, cached an hour, rounded down to a display value ("1,500+" only when ≥1,500), used by footer, About, Why, Apply, Advertise and the city card. Pick one definition for events (hosted-ever vs upcoming) and label them differently. Investigate the 1,851 club figure (likely counts pending/ex-members or double-counts) before it's visible to advertisers.
-- **Benefit:** credibility; advertisers will notice 300 vs 1,000. **Difficulty:** Medium.
+### C5. Member/event/club counters disagree across pages (corrected 2026-10-02 after reading the code and prod)
+- **What I first claimed was wrong in part.** Members and clubs in the footer/About/Why/Advertise are already *measured* (`lib/communityStats`, `metric` rows in the server `content.json`, rounded down). "1,500+ members" (global, activated accounts) and the Istanbul card's "1,528" are not in conflict.
+- **Real mismatches:**
+  1. **Events:** footer/Apply/About say "1,000+ events since our first in 2023" (typed, editorial row), while Advertise shows the measured DB count, "300+ Events on Smileys". Two definitions, two labels that read as one number. The 1,000+ cannot be verified from the database.
+  2. **Club member counts vs community size:** "Social Istanbul 1,851 members" is the stored club counter, which counts every approved membership including accounts that never activated (prod: 1,901 approved users vs ~1,5xx activated). So a club can show more members than the community has ("members" in the footer = activated only).
+  3. "100+ countries" (About) vs "100+ nationalities" (Advertise): same claim, two words.
+- **Change:** decide the events claim (keep "1,000+ since 2023" only if it can be backed; label the measured one "Events on the platform"), count only activated members in public club counts (or label them "approved"), and use one word for countries/nationalities. **Difficulty:** Low (copy) / Medium (club counter).
 
 ---
 

@@ -16,6 +16,7 @@
 
 import { prisma } from './prisma'
 import { ACTIVATED_MEMBER_WHERE } from './memberCount'
+import { loadContent } from './content'
 
 export interface CommunityStats {
   members: number   // activated approved accounts (lib/memberCount)
@@ -91,4 +92,17 @@ export async function resolveStats(rows: StatRow[] | undefined): Promise<{ value
     value: r.metric ? approx(s[r.metric]) : (r.value ?? ''),
     label: r.label,
   }))
+}
+
+/**
+ * The events stat every public page shows. "1,000+ events since 2023" is the
+ * editorial figure (Nate, 2026-10-02: it is true — most of those ran before
+ * the platform, so the database holds far fewer), and it lives in the admin's
+ * stats rows; pages used to show the database count instead, so the footer said
+ * 1,000+ while About/Why/Advertise said 300+. One figure now, with the measured
+ * count as the fallback if the admin row is ever removed.
+ */
+export function eventsStat(measured: number): { value: string; label: string } {
+  const row = loadContent().stats?.find((r: StatRow) => !r.metric && r.value && /event/i.test(r.label))
+  return row?.value ? { value: row.value, label: 'Events since 2023' } : { value: approx(measured), label: 'Events hosted' }
 }

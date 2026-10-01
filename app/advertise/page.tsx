@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { getCommunityStats, approx } from '@/lib/communityStats'
+import { getCommunityStats, approx, eventsStat } from '@/lib/communityStats'
 import { prisma } from '@/lib/prisma'
 import { ACTIVATED_MEMBER_WHERE } from '@/lib/memberCount'
 import { DEFAULT_CITY_SLUG } from '@/lib/city'
@@ -144,7 +144,7 @@ export default async function AdvertisePage() {
   const hosts          = approx(hostRows.length)
   const STATS = [
     { value: approx(s.members), label: 'Members' },
-    { value: approx(s.events),  label: 'Events on Smileys' },
+    eventsStat(s.events),
     { value: approx(s.clubs),   label: 'Active clubs' },
     { value: nationalities,     label: 'Nationalities' },
   ]

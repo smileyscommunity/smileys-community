@@ -145,8 +145,8 @@ describe('97. spot-opened alerts are throttled per member', () => {
 // ── 98 ───────────────────────────────────────────────────────────────────────
 
 describe('98. the club recount counts what the live paths count', () => {
-  it('the shared definition is approved rows of members who are not banned', () => {
-    expect(COUNTED_CLUB_MEMBERSHIP_WHERE).toEqual({ status: 'approved', user: { status: { not: 'banned' } } })
+  it('the shared definition is approved rows of activated members who are not banned', () => {
+    expect(COUNTED_CLUB_MEMBERSHIP_WHERE).toEqual({ status: 'approved', user: { status: { not: 'banned' }, password: { not: null } } })
   })
 
   it('the nightly sweep groups by that definition, so a ban decrement stays', async () => {
@@ -166,7 +166,7 @@ describe('98. the club recount counts what the live paths count', () => {
     p.clubMembership.count.mockResolvedValue(4)
     const res = await recount({} as any, { params: Promise.resolve({ id: 'k1' }) })
     expect(await res.json()).toEqual({ memberCount: 4, drift: 0 })
-    expect(p.clubMembership.count).toHaveBeenCalledWith({ where: { clubId: 'k1', status: 'approved', user: { status: { not: 'banned' } } } })
+    expect(p.clubMembership.count).toHaveBeenCalledWith({ where: { clubId: 'k1', status: 'approved', user: { status: { not: 'banned' }, password: { not: null } } } })
   })
 })
 

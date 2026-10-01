@@ -108,7 +108,7 @@ describe('11–13: glyphs, the statement, the stats band', () => {
     expect(page).not.toContain('<blockquote')
     // Re-scan 2026-09-29: measured numbers, no admin rows (so no blank ones).
     expect(page).not.toContain('resolveStats')
-    expect(page).toContain("{ value: approx(s.events),  label: 'Events on Smileys' },")
+    expect(page).toContain('eventsStat(s.events),')
     expect(page).toContain('<dl className="grid grid-cols-1 md:grid-cols-3 gap-10 md:gap-8 text-center text-amber-950">')
     expect(page).not.toContain('member matching')
   })

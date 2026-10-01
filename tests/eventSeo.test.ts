@@ -58,3 +58,19 @@ describe('cancelLine — the event page says the number the sweep uses', () => {
     expect(cancelLine({ ...base, limitedSpots: false })).toContain('never counts against you')
   })
 })
+
+import { readFileSync } from 'fs'
+describe('one events figure on every public page', () => {
+  it.each(['app/about/page.tsx', 'app/why/page.tsx', 'app/advertise/page.tsx', 'app/get-involved/page.tsx'])('%s uses eventsStat, not its own count', f => {
+    const src = readFileSync(f, 'utf8')
+    expect(src).toContain('eventsStat(s.events)')
+    expect(src).not.toContain("label: 'Events on Smileys'")
+  })
+})
+
+import { COUNTED_CLUB_MEMBERSHIP_WHERE, ENROLLED_CLUB_MEMBERSHIP_WHERE } from '@/lib/clubMemberCount'
+describe('club member counts count activated members only', () => {
+  it('the counted rule adds activation to the enrolment rule', () => {
+    expect(COUNTED_CLUB_MEMBERSHIP_WHERE.user).toEqual({ ...ENROLLED_CLUB_MEMBERSHIP_WHERE.user, password: { not: null } })
+  })
+})
