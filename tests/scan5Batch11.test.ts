@@ -53,9 +53,13 @@ const clubHost  = { id: 'h1', name: 'Host', role: 'member',    cityId: 'c1' }
 const moderator = { id: 'm1', name: 'Mod',  role: 'moderator', cityId: 'c1' }
 const admin     = { id: 'a1', name: 'A',    role: 'admin',     cityId: 'c1' }
 
+// Thirty days out, always: a hard-coded date became "already started" on
+// the evening of 2026-10-01 and these edits began answering 409.
+const FUTURE_DATE = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10)
+
 function existing(over: Record<string, unknown> = {}) {
   return {
-    hostId: 'h1', clubId: 'club1', cityId: 'c2', date: '2026-10-01', time: '19:00',
+    hostId: 'h1', clubId: 'club1', cityId: 'c2', date: FUTURE_DATE, time: '19:00',
     location: 'x', title: 'T', neighborhood: 'x', price: 0, memberPrice: null,
     totalSpots: 10, emoji: '🎉', isPremium: false, membersOnly: false,
     limitedSpots: false, isFirstTimerFriendly: false, status: 'published', seriesId: null,
