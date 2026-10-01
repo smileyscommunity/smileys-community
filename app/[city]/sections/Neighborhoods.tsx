@@ -47,7 +47,7 @@ export default function Neighborhoods({ city, topNeighborhoods, neighborhoodsHav
         </div>
         {/* The header link is desktop-only (it would crowd the title on a
             phone), and nothing else on the page led to the full list — a
-            phone showed six of Istanbul's 94 and stopped there. */}
+            phone showed six of the founding city's 94 and stopped there. */}
         <a href={enter('neighborhoods')} className="md:hidden mt-6 btn-secondary w-full justify-center text-sm">
           See all {neighborhoodTotal} neighborhoods →
         </a>
