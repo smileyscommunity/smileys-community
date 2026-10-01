@@ -35,6 +35,7 @@ export default function CityCard({
   featured = false,
   viewing = false,
   home = false,
+  switches = false,
   priority = false,
   headingLevel = 3,
 }: {
@@ -51,6 +52,11 @@ export default function CityCard({
   // answer to "which one am I in?" existed nowhere on mobile.
   viewing?: boolean
   home?: boolean
+  // Signed-in viewer: tapping a live city also makes it the viewing city.
+  // On a phone this card IS the city switcher (the bottom nav's Cities tab
+  // opens /cities), and a plain link landed on /bursa while the feeds, the
+  // nav and this page's own "Viewing" badge stayed on the previous city.
+  switches?: boolean
 }) {
   const isLive = city.status === CITY_STATUS.Live
   const meta   = CITY_STATUS_META[city.status]
@@ -183,6 +189,12 @@ export default function CityCard({
   // guest's one click set a year-long view cookie that re-routed the landing
   // page's own links. The city page's onward links set the view city for
   // members when it matters.
+  // A signed-in member's tap is a city switch, so it goes through the
+  // cookie-setting entry route after all — as a plain <a> (see above).
+  // Guests and crawlers never get it: switches is false for them.
+  if (city.status === 'live' && switches) {
+    return <a href={`/app/api/city/enter?city=${city.slug}&to=city`} className="group block h-full">{body}</a>
+  }
   return city.status === 'live'
     ? <Link href={`/${city.slug}`} className="group block h-full">{body}</Link>
     : (

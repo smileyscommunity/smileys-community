@@ -121,7 +121,12 @@ describe('item 7: crawlable links', () => {
   const card = read('components/CityCard.tsx')
   it('live city cards link straight to the city page; coming-soon links have text', () => {
     expect(card).toContain('? <Link href={`/${city.slug}`} className="group block h-full">{body}</Link>')
-    expect(card).not.toContain('/app/api/city/enter?city=${city.slug}&to=city')
+    // The cookie-setting entry route only for a signed-in viewer (/cities is a
+    // member's city switcher on a phone); guests and crawlers keep the plain
+    // link, and the landing page never opts in.
+    expect(card).toContain("if (city.status === 'live' && switches)")
+    expect(read('app/cities/page.tsx')).toContain('switches={!!session}')
+    expect(landing).not.toContain('switches')
     expect(card).toContain('<span className="sr-only">About {city.name}</span>')
   })
   it('arrival cards go straight to the city hub, no redirect hop', () => {
