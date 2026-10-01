@@ -18,6 +18,9 @@ interface FooterProps {
   /** The city whose URL this is, if any. Its shopfront (/<slug>) closes with
       its own city-aware join section, so the band would ask a second time. */
   urlCitySlug?: string
+  /** '?city=<slug>' when the column's city isn't the one a bare link would
+      open (layout.tsx); appended to every city-column link. */
+  cityQs?: string
 }
 
 // Only reached if the layout passes nothing (it passes measured numbers when
@@ -25,7 +28,7 @@ interface FooterProps {
 // than a second set of figures to drift out of date.
 const DEFAULT_STATS: { value: string; label: string }[] = []
 
-export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods = true, urlCitySlug }: FooterProps) {
+export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods = true, urlCitySlug, cityQs = '' }: FooterProps) {
   const { isLoggedIn } = useAuth()
   const pathname = usePathname()
   const footerStats = stats?.slice(0, 3) ?? DEFAULT_STATS
@@ -208,12 +211,13 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
                 { href: '/posts',         label: 'Stories 📰'         },
                 { href: '/directory',     label: 'Directory 🏢'       },
                 { href: '/hosts',         label: 'Hosts 🎤'           },
-                { href: '/hangouts',      label: 'Hangouts ☕'        },
+                // Members-only and city-less in the URL: it follows the member.
+                { href: '/hangouts',      label: 'Hangouts ☕',       anyCity: true },
                 { href: '/board',         label: 'Community Board 💬' },
                 { href: '/marketplace',   label: 'Marketplace 🛍️'     },
               ].map(l => (
                 <li key={l.href}>
-                  <Link href={l.href} className="text-sm leading-snug text-gray-600 hover:text-amber-600 transition-colors">
+                  <Link href={'anyCity' in l ? l.href : `${l.href}${cityQs}`} className="text-sm leading-snug text-gray-600 hover:text-amber-600 transition-colors">
                     {l.label}
                   </Link>
                 </li>

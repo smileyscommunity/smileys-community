@@ -132,6 +132,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const homeSlug       = cityRows.find(c => c.id === session?.cityId)?.slug
   const viewingSlug    = cityRows.find(c => c.id === viewCityId)?.slug
   const footerCityName = cityRows.find(c => c.id === footerCityId)?.name ?? 'Istanbul'
+  // The column's links are bare paths, and a bare path resolves to the
+  // reader's city (sessionCityId: cookie, then account). When the column is
+  // about some OTHER city — a guest on /eskisehir — they must carry it, or
+  // "Handbook" under "In Eskişehir" opens Istanbul's.
+  const footerCitySlug = cityRows.find(c => c.id === footerCityId)?.slug
+  const footerCityQs   = footerCityId !== sessionCityId && footerCitySlug ? `?city=${footerCitySlug}` : ''
   // Only Istanbul has neighbourhoods today. Rather than link every city to a
   // page that would be empty, the entry appears when the city has rows.
   // Perks, likewise: the Perks links appear only where a partner is live.
@@ -231,7 +237,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <PendingApprovalBanner />
           <main className="flex-1">{children}</main>
           <BottomNav cities={navCities} homeSlug={homeSlug} viewingSlug={viewingSlug} hasPerks={hasPerks} />
-          <Footer stats={footerStats} cityName={footerCityName} hasNeighborhoods={hasNeighborhoods} urlCitySlug={urlCity?.slug} />
+          <Footer stats={footerStats} cityName={footerCityName} hasNeighborhoods={hasNeighborhoods} urlCitySlug={urlCity?.slug} cityQs={footerCityQs} />
           <ClientOnlyComponents />
           <Toaster position="top-right" richColors closeButton />
         </AuthProvider>
