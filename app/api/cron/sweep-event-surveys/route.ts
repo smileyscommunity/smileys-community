@@ -5,6 +5,7 @@ import { recordCronRun } from '@/lib/cronHealth'
 import { claimOnce, releaseClaim } from '@/lib/rateLimit'
 import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
 import { eventEndsAt } from '@/lib/eventTime'
+import { sendTripCityInvites } from '@/lib/tripFollowUp'
 
 // Post-event survey dispatch sweeper. Picks up events that ended
 // between 24h and 7 days ago and haven't been surveyed yet, then
@@ -81,7 +82,7 @@ async function runSweep() {
       cityId:             c.id,
       date:               { lt: todayInTz(c.timezone), gte: todayInTz(c.timezone, -7) },
     },
-    select: { id: true, title: true, emoji: true, date: true, time: true, endTime: true, hostId: true, cityId: true },
+    select: { id: true, title: true, emoji: true, date: true, time: true, endTime: true, hostId: true, cityId: true, originCityId: true },
   })))).flat()
 
   for (const event of firstPass) {
@@ -102,6 +103,11 @@ async function runSweep() {
         if (outcome === 'sent') dispatchedNotices++
         if (outcome === 'failed') failed = true
       }
+
+      // A cross-city trip (lib/eventTrip) also invites the people who went
+      // to add the city it visited (lib/tripFollowUp) — once each, never
+      // failing the survey run.
+      await sendTripCityInvites({ id: event.id, cityId: event.cityId, originCityId: event.originCityId, hostId: event.hostId, attendeeIds: targets })
 
       // Unstamped on a failure so the next run retries it (the date filter
       // above drops it after 7 days either way).
