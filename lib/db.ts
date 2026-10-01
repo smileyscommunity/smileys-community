@@ -1,4 +1,5 @@
 import { prisma } from './prisma'
+import { tripLabel } from './eventTrip'
 import React from 'react'
 // React 18's runtime (vitest) has no cache(); Next's server runtime does.
 // Identity fallback keeps tests running — memoization is an optimization.
@@ -98,6 +99,10 @@ async function getClubBySlugUncached(slug: string): Promise<Club | undefined> {
 
 const eventInclude = {
   club: true,
+  // Names only, for the trip label (lib/eventTrip) — a trip departs from
+  // originCity and visits city.
+  city:       { select: { name: true } },
+  originCity: { select: { name: true } },
   _count: { select: { attendees: { where: { status: 'approved' as const } } } },
   tags: { include: { tag: { include: { group: true } } } },
   attendees: {
@@ -168,6 +173,7 @@ function mapEvent(e: any, spotsLeft?: number): Event {
     clubId:           e.clubId,
     cityId:           e.cityId,
     clubName:         e.club?.name ?? '',
+    trip:             e.originCity && e.city ? tripLabel(e.originCity.name, e.city.name) : null,
     attendeePreviews: e.attendees?.map((a: any) => a.user) ?? [],
     address:          e.address          ?? undefined,
     lat:              e.lat              ?? undefined,
@@ -394,9 +400,16 @@ export async function getEvents(options?: {
     // statuses. Previously this fell through to `{}` (no status/date filter),
     // so a hand-crafted GET /api/events leaked draft/pending/flagged events.
     : { status: { in: ['published', 'archived', 'cancelled', 'postponed'] } }
+  // A city's feed is its own events plus the trips that depart from it
+  // (lib/eventTrip): an Istanbul club's day out to Eskişehir is Eskişehir's
+  // event and still Istanbul's to join. AND-wrapped because baseWhere can
+  // carry its own OR (the past-events window).
+  const cityClause = cityId
+    ? { OR: [{ cityId }, { originCityId: cityId }] }
+    : cityIds ? { OR: [{ cityId: { in: cityIds } }, { originCityId: { in: cityIds } }] } : null
   const where = {
     ...baseWhere,
-    ...(cityId ? { cityId } : cityIds ? { cityId: { in: cityIds } } : {}),
+    ...(cityClause ? { AND: [cityClause] } : {}),
     ...(unlistableIds.length ? { hostId: { notIn: unlistableIds } } : {}),
   }
 

@@ -65,9 +65,13 @@ function req(body: unknown, bad = false) {
   return { json: async () => { if (bad) throw new SyntaxError('Unexpected token'); return body } } as never
 }
 
+// Thirty days out, always: a hard-coded date became "already started" on
+// the evening of 2026-10-01 and these edits began answering 409.
+const FUTURE_DATE = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10)
+
 function existing(status: string) {
   return {
-    hostId: 'h1', clubId: 'club1', cityId: 'c1', date: '2026-10-01', time: '19:00',
+    hostId: 'h1', clubId: 'club1', cityId: 'c1', date: FUTURE_DATE, time: '19:00',
     location: 'x', title: 'Picnic', neighborhood: 'x', price: 0, memberPrice: null,
     totalSpots: 10, emoji: '🎉', isPremium: false, membersOnly: false,
     limitedSpots: false, isFirstTimerFriendly: false, status, seriesId: null,

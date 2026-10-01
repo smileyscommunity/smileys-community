@@ -113,6 +113,9 @@ export interface Club {
 
 export interface Event {
   id: string
+  // "🚆 Istanbul → Eskişehir" on a cross-city trip (lib/eventTrip), null on
+  // every ordinary event. Set by lib/db mapEvent from the two city names.
+  trip?: string | null
   title: string
   date: string
   time: string

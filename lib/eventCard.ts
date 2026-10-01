@@ -28,6 +28,7 @@ export function toEventCard<T extends CardEvent>(e: T): CardEvent {
     soldOut: e.soldOut, waitlistCount: e.waitlistCount,
     attendeePreviews: e.attendeePreviews ?? [],
     cityName: e.cityName, timeZone: e.timeZone,
+    trip: e.trip ?? null,
     // Required by the Event type, never read by a card: blank, not the value.
     location: '', description: '', hostId: '', clubId: '', clubName: '', tags: [],
   }

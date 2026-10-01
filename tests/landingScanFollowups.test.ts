@@ -60,7 +60,9 @@ describe('item 2: only live cities, every live city represented; listable quote 
   it('the landing asks for live cities and each city\'s next three', () => {
     expect(landing).toContain('getEvents({ limit: 60, upcoming: true, cityIds: liveIds })')
     expect(landing).toContain('Promise.all(liveIds.map(cityId => getEvents({ limit: 3, upcoming: true, cityId }).then(r => r.events)))')
-    expect(read('lib/db.ts')).toContain('...(cityId ? { cityId } : cityIds ? { cityId: { in: cityIds } } : {}),')
+    // cityIds still scopes the query — now also to trips departing from
+    // those cities (lib/eventTrip, 2026-10-01).
+    expect(read('lib/db.ts')).toContain(': cityIds ? { OR: [{ cityId: { in: cityIds } }, { originCityId: { in: cityIds } }] } : null')
   })
   it('quotes from banned, suspended or hidden authors are dropped; a connections-only author keeps the quote, not the face', () => {
     const w = testimonialAuthorOk() as unknown as { OR: [unknown, { user: Record<string, unknown> }] }
