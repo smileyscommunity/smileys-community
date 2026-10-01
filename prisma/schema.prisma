@@ -2650,3 +2650,30 @@ model EventSave {
   @@index([userId, createdAt(sort: Desc)])
   @@map("event_saves")
 }
+
+// ── Handbook source watch (2026-10-01) ──────────────────────────────────────
+// One row per official source URL cited by a published Handbook article
+// (Post.officialSources). A weekly sweep (lib/handbookSources) fetches each,
+// normalises the page to its visible text and compares it with the last
+// check; a change stamps changedAt, which puts every article citing that URL
+// back in the /admin/posts review queue until someone reviews it. Keyed by
+// URL, not by article: one government page often backs several articles.
+model HandbookSource {
+  url         String    @id
+  // sha256 of the normalised text (HTML) or of the bytes (PDF and the like).
+  contentHash String?
+  // Normalised visible text from the last good fetch, capped — kept so the
+  // next change can say WHAT changed, not just that something did.
+  text        String?
+  lastStatus  Int?
+  lastError   String?
+  checkedAt   DateTime?
+  // When the content last differed from the previous good check. Null until
+  // a second check finds a difference (the first fetch is the baseline).
+  changedAt   DateTime?
+  // A few added/removed lines from that change, for the reviewer.
+  lastDiff    String?
+
+  @@index([changedAt])
+  @@map("handbook_sources")
+}

@@ -5,6 +5,13 @@ import Link from 'next/link'
 import { toast } from 'sonner'
 import { reviewQueue } from '@/lib/handbook-review'
 
+interface SourceWatch {
+  changes:     { postId: string; slug: string; title: string; url: string; label: string; changedAt: string; diff: string | null }[]
+  unreachable: { url: string; error: string | null; checkedAt: string | null; articles: { slug: string; title: string }[] }[]
+  watched:     number
+  lastChecked: string | null
+}
+
 interface Post {
   id:           string
   title:        string
@@ -51,6 +58,15 @@ export default function AdminPostsPage() {
   const [posts,   setPosts]   = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
   const [filter,  setFilter]  = useState<'all' | 'published' | 'draft' | 'submitted' | 'declined'>('all')
+  // The weekly source watch (lib/handbookSources): articles whose official
+  // source changed since their last review, and sources that stopped loading.
+  const [sourceWatch, setSourceWatch] = useState<SourceWatch | null>(null)
+  useEffect(() => {
+    fetch('/app/api/admin/handbook-sources', { credentials: 'include' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (d && Array.isArray(d.changes)) setSourceWatch(d) })
+      .catch(() => {})
+  }, [])
   const [deleting, setDeleting] = useState<string | null>(null)
   // Inline-confirm replaces window.confirm — misclick doesn't nuke
   // the post immediately.
@@ -160,6 +176,52 @@ export default function AdminPostsPage() {
           New article
         </Link>
       </div>
+
+      {sourceWatch && (sourceWatch.changes.length > 0 || sourceWatch.unreachable.length > 0) && (
+        <section className="mb-6 bg-zinc-800 border border-amber-800/60 rounded-xl p-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+            <h2 className="text-sm font-bold text-zinc-100">Sources changed</h2>
+            <p className="text-xs text-zinc-400">
+              {sourceWatch.watched} official pages watched weekly
+              {sourceWatch.lastChecked && <> · last checked {timeAgo(sourceWatch.lastChecked)}</>}
+            </p>
+          </div>
+          {sourceWatch.changes.length > 0 ? (
+            <ul className="space-y-3">
+              {sourceWatch.changes.slice(0, 20).map(c => (
+                <li key={`${c.postId}-${c.url}`} className="text-sm">
+                  <div className="flex items-center gap-3">
+                    <span className="shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-900/50 text-amber-300">source changed</span>
+                    {/* The article page holds the "Reviewed today" button, which clears this. */}
+                    <a href={`/app/handbook/${c.slug}`} target="_blank" rel="noopener noreferrer" className="min-w-0 truncate text-zinc-200 hover:text-amber-400">{c.title}</a>
+                    <span className="ml-auto shrink-0 text-xs text-zinc-500">{timeAgo(c.changedAt)}</span>
+                  </div>
+                  <a href={c.url} target="_blank" rel="noopener noreferrer" className="block mt-1 ml-1 text-xs text-zinc-400 hover:text-amber-400 truncate">{c.label}</a>
+                  {c.diff && <pre className="mt-1 ml-1 text-[11px] leading-relaxed text-zinc-400 whitespace-pre-wrap break-words bg-zinc-900/60 rounded-lg px-3 py-2">{c.diff}</pre>}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs text-zinc-500">No article's sources have changed since its last review.</p>
+          )}
+          {sourceWatch.changes.length > 20 && <p className="text-xs text-zinc-500 mt-2">+ {sourceWatch.changes.length - 20} more</p>}
+          {sourceWatch.unreachable.length > 0 && (
+            <details className="mt-4">
+              <summary className="text-xs font-semibold text-zinc-300 cursor-pointer">
+                {sourceWatch.unreachable.length} cited source{sourceWatch.unreachable.length === 1 ? '' : 's'} couldn&apos;t be loaded last check
+              </summary>
+              <ul className="mt-2 space-y-1.5">
+                {sourceWatch.unreachable.map(u => (
+                  <li key={u.url} className="text-xs text-zinc-400">
+                    <a href={u.url} target="_blank" rel="noopener noreferrer" className="hover:text-amber-400 break-all">{u.url}</a>
+                    <span className="text-zinc-500"> — {u.error}{u.articles.length > 0 && <> · in {u.articles.map(a => a.title).join(', ')}</>}</span>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </section>
+      )}
 
       {queued.length > 0 && (
         <section className="mb-6 bg-zinc-800 border border-zinc-700 rounded-xl p-4">
