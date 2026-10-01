@@ -232,7 +232,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           totpEnabled:   session.totpEnabled,
           joinedEvents:  [],
         } : null}>
-          <Navbar cities={navCities} homeSlug={homeSlug} viewingSlug={viewingSlug} hasPerks={hasPerks} />
+          <Navbar cities={navCities} homeSlug={homeSlug} viewingSlug={viewingSlug} hasPerks={hasPerks} cityQs={footerCityQs} />
           <VerifyEmailBanner />
           <PendingApprovalBanner />
           <main className="flex-1">{children}</main>
