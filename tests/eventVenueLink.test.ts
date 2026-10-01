@@ -13,7 +13,7 @@ import { join } from 'path'
 vi.mock('@/lib/session', () => ({ getSession: vi.fn() }))
 vi.mock('@/lib/notify', () => ({
   createNotification: vi.fn(async () => {}),
-  notifyNewEvent:     vi.fn(async () => {}),
+  notifyNewEvent:     vi.fn(async () => {}), notifyTripArrival: vi.fn(async () => {}),
 }))
 vi.mock('@/lib/venueDirectory', () => ({ ensurePendingVenueBusiness: vi.fn(async () => 'biz_stub') }))
 vi.mock('@/lib/survey', () => ({ computeEventSurveyRollup: vi.fn(async () => new Map()) }))

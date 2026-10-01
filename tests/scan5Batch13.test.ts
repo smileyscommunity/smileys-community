@@ -17,7 +17,7 @@ vi.mock('@/lib/access', () => ({
   hostCityIds:        vi.fn(),
 }))
 vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn(), claimOnce: vi.fn(async () => true), releaseClaim: vi.fn(async () => {}) }))
-vi.mock('@/lib/notify', () => ({ createNotification: vi.fn(), notifyNewEvent: vi.fn() }))
+vi.mock('@/lib/notify', () => ({ createNotification: vi.fn(), notifyNewEvent: vi.fn() , notifyTripArrival: vi.fn(async () => {})}))
 vi.mock('@/lib/audit', () => ({ writeAudit: vi.fn(), getDiff: vi.fn(() => null) }))
 vi.mock('@/lib/email', () => ({ sendEventCancelledEmail: vi.fn(), sendEventPostponedEmail: vi.fn(async () => {}), recordEmailFailure: vi.fn() }))
 vi.mock('@/lib/spotsLeft', () => ({ recomputeSpotsLeft: vi.fn(async () => {}) }))

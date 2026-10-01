@@ -7,7 +7,7 @@ import { hostIdError } from '@/lib/eventHostCheck'
 import { tripError } from '@/lib/eventTrip'
 import { getSession } from '@/lib/session'
 import { isAdmin, isModerator, isClubHost, isClubHostFor, failClosedCityId, hostCityIds } from '@/lib/access'
-import { createNotification, notifyNewEvent } from '@/lib/notify'
+import { createNotification, notifyNewEvent, notifyTripArrival } from '@/lib/notify'
 import {splitLeadingEmoji, stripDupTrailingEmoji} from '@/lib/data'
 import { normalizePaymentContact } from '@/lib/safeUrl'
 import { computeEventSurveyRollup } from '@/lib/survey'
@@ -558,6 +558,8 @@ export async function POST(req: NextRequest) {
     // (fire-and-forget; batched + idempotency-guarded inside notifyNewEvent).
     if (eventStatus === 'published') {
       notifyNewEvent({ id: event.id, title: cleanTitle, clubId, hostId }).catch(() => {})
+      // A trip also tells the city it visits (lib/notify notifyTripArrival).
+      notifyTripArrival({ id: event.id, title: cleanTitle, date, cityId: placeCityId, originCityId, clubId, hostId }).catch(() => {})
     }
 
     bustCityPages()

@@ -29,7 +29,7 @@ vi.mock('@/lib/session', () => ({ getSession: vi.fn(async () => session.current)
 vi.mock('@/lib/audit', () => ({ writeAudit: vi.fn(async () => {}) }))
 vi.mock('@/lib/analyticsCache', () => cache)
 vi.mock('@/lib/neighborhoodsDb', () => hoods)
-vi.mock('@/lib/notify', () => ({ createNotification: vi.fn(async () => {}), notifyNewEvent: vi.fn(async () => {}) }))
+vi.mock('@/lib/notify', () => ({ createNotification: vi.fn(async () => {}), notifyNewEvent: vi.fn(async () => {}) , notifyTripArrival: vi.fn(async () => {})}))
 vi.mock('@/lib/venueDirectory', () => ({ ensurePendingVenueBusiness: vi.fn(async () => {}) }))
 vi.mock('@/lib/survey', () => ({ computeEventSurveyRollup: vi.fn(async () => new Map()) }))
 vi.mock('@/lib/safeUrl', async (orig) => ({
