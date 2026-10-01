@@ -375,7 +375,8 @@ model City {
   consulUserId String?
   cityHosts    CityHost[]
   clubs        Club[]
-  events       Event[]
+  events       Event[] @relation("EventCity")
+  tripsFrom    Event[] @relation("EventOriginCity")
   applications MemberApplication[]
   users        User[]
   // City-scoping sweep (multi-city phase 1): every model with a location
@@ -710,7 +711,14 @@ model Event {
   surveys              EventSurvey[]
   tags                 EventTag[]
   recommendations      EventRecommendation[]
-  city                 City            @relation(fields: [cityId], references: [id])
+  city                 City            @relation("EventCity", fields: [cityId], references: [id])
+  // A cross-city trip (2026-10-01): the event belongs to the city it VISITS
+  // (cityId — its page, feed, timezone, currency, first-event count) and
+  // departs from this one, whose feed also lists it with a trip badge.
+  // Permissions (who may edit, host checks, the club rule) follow the
+  // departure city: lib/eventTrip scopeCityId. Null for every ordinary event.
+  originCityId         String?
+  originCity           City?           @relation("EventOriginCity", fields: [originCityId], references: [id], onDelete: SetNull)
   club                 Club?           @relation(fields: [clubId], references: [id])
   payments             Payment[]
   reviews              Review[]
@@ -720,6 +728,7 @@ model Event {
   @@index([status])
   @@index([hostId])
   @@index([cityId])
+  @@index([originCityId])
   @@index([cityId, status, date])
   @@index([seriesId])
   @@index([businessId])

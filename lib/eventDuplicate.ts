@@ -25,7 +25,7 @@ export const DUPLICATE_COPIED_FIELDS = [
   'totalSpots', 'limitedSpots', 'approvalRequired', 'isPremium', 'membersOnly', 'isFirstTimerFriendly',
   'minAge', 'maxAge', 'genderBalance', 'maleQuota', 'femaleQuota', 'turkishMaleQuota',
   'meetingUrl', 'whatsappUrl',
-  'clubId', 'hostId', 'cityId',
+  'clubId', 'hostId', 'cityId', 'originCityId',
   // Standing: the organiser's call on the tier and the cutoff.
   'tierOverride', 'cancelCutoffHours',
 ] as const satisfies readonly (keyof Event)[]

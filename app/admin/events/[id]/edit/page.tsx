@@ -22,6 +22,7 @@ import { clampOccurrences, seriesOutcomeMessage, MIN_SERIES_COPIES, MAX_SERIES_C
 import { clubOptionLabel } from '@/lib/clubLabel'
 import VenuePicker, { type LinkedVenue, type PickedVenue } from '@/components/VenuePicker'
 import { seriesDates } from '@/lib/seriesDates'
+import { useAdminCities } from '@/components/admin/CitySelect'
 const inputCls = 'bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none px-3 py-2.5 w-full text-sm'
 
 const emptyForm = {
@@ -186,10 +187,13 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
     })
   }, [id])
 
-  // Neighborhoods follow the event's city (its parent club's), not the
-  // viewer's — so a Bodrum event offers Bodrum areas. Falls back to the
-  // viewer's own city until a club is chosen.
-  const selectedClubCity = clubs.find(c => c.id === form.clubId)?.city?.slug
+  // Neighborhoods follow the event's city, not the viewer's — so a Bodrum
+  // event offers Bodrum areas. That is the city the event is FILED in, which
+  // for a cross-city trip (lib/eventTrip) is the destination, not the club's
+  // city; until the event loads, the club's city; then the viewer's own.
+  const adminCities = useAdminCities()
+  const selectedClubCity = adminCities.find(c => c.id === eventCityId)?.slug
+    ?? clubs.find(c => c.id === form.clubId)?.city?.slug
   const neighborhoods = useCityNeighborhoods(selectedClubCity)
   // Location lookup searches the same city's country (it used to search one
   // country for every city); the route falls back to the viewer's city.

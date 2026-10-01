@@ -79,7 +79,10 @@ describe('host new-event form follows the selected club\'s city', () => {
   it('derives the event city from the selected club, falling back to the browsed city', () => {
     // Global club (city null) or no club yet → browsed city, which is what
     // the POST route's resolveTargetCityId → resolveCityId files it under.
-    expect(src).toMatch(/const eventCity = clubs\.find\(c => c\.id === form\.clubId\)\?\.city \?\? city/)
+    // Still the selected club's city, browsed city as fallback — unless the
+    // event is a trip, which happens in its destination (lib/eventTrip).
+    expect(src).toContain('const clubCity        = clubs.find(c => c.id === form.clubId)?.city ?? null')
+    expect(src).toContain(': clubCity ?? city')
   })
 
   it('geocodes with the event city slug, never the browsed city directly', () => {

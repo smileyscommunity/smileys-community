@@ -264,6 +264,14 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
             )}
           </div>
 
+          {/* A cross-city trip (lib/eventTrip): the same badge in both the
+              departure city's feed and the destination's. */}
+          {event.trip && (
+            <p className="mb-2">
+              <span className="badge bg-sky-50 text-sky-700">{event.trip}</span>
+            </p>
+          )}
+
           {event.vibes.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-3">
               {event.vibes.slice(0, 3).map((vibe) => {

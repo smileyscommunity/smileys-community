@@ -4,6 +4,7 @@ import { isTier } from '@/lib/standingPolicy'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { hostIdError } from '@/lib/eventHostCheck'
+import { tripError } from '@/lib/eventTrip'
 import { getSession } from '@/lib/session'
 import { isAdmin, isModerator, isClubHost, isClubHostFor, failClosedCityId, hostCityIds } from '@/lib/access'
 import { createNotification, notifyNewEvent } from '@/lib/notify'
@@ -132,6 +133,9 @@ export async function POST(req: NextRequest) {
             // cityId is only read when the parent club is global (cityId
             // null) and so has no city to give the event — see below.
             cityId,
+            // A cross-city trip: the live city this event VISITS. The club's
+            // own city becomes its departure city (lib/eventTrip).
+            tripToCityId,
             isRecurring, seriesId, lat, lng, tierOverride, cancelCutoffHours, businessId } = body
 
     if (!title || !date || !time || !location || !clubId || !hostId) {
@@ -348,6 +352,27 @@ export async function POST(req: NextRequest) {
       eventCityId = resolved.cityId
     }
 
+    // A trip files into the city it visits; the departure city is the club's.
+    // Every check from here to the venue lookup keeps reading eventCityId —
+    // the DEPARTURE city for a trip — because that is whose club, host and
+    // staff are running it (lib/eventTrip scopeCityId). placeCityId is where
+    // the event happens: its venue, currency and the row's cityId.
+    let originCityId: string | null = null
+    let placeCityId = eventCityId
+    if (tripToCityId) {
+      const [destination, clubCity, hostsThisClub] = await Promise.all([
+        // An id from the admin form, a slug from the host form (/api/cities
+        // is public and carries no ids).
+        prisma.city.findFirst({ where: { OR: [{ id: String(tripToCityId) }, { slug: String(tripToCityId) }] }, select: { id: true, status: true, timezone: true } }),
+        parentClub.cityId ? prisma.city.findUnique({ where: { id: parentClub.cityId }, select: { timezone: true } }) : null,
+        admin ? false : isClubHostFor(session.id, clubId),
+      ])
+      const tripErr = tripError({ admin, isClubHost: hostsThisClub, clubCityId: parentClub.cityId, clubCityTz: clubCity?.timezone ?? null, destination })
+      if (tripErr) return NextResponse.json({ error: tripErr }, { status: 400 })
+      originCityId = parentClub.cityId
+      placeCityId  = destination!.id
+    }
+
     // The host sees the guest list with contact details: an approved,
     // unsuspended member of the event's city (lib/eventHostCheck).
     const hostErr = await hostIdError(hostId, eventCityId, session, clubId)
@@ -402,7 +427,7 @@ export async function POST(req: NextRequest) {
     const eventStatus   = needsReview ? 'pending' : (tooFarOut ? 'pending' : (status ?? 'published'))
 
     // The directory listing the organiser picked, in this event's city.
-    const venue = await venueIdInput(businessId, eventCityId)
+    const venue = await venueIdInput(businessId, placeCityId)
     if ('error' in venue) return NextResponse.json({ error: venue.error }, { status: 400 })
 
     const event = await prisma.event.create({
@@ -415,7 +440,8 @@ export async function POST(req: NextRequest) {
         neighborhood:         neighborhood?.trim() ?? '',
         address:              address?.trim() ?? '',
         clubId, hostId,
-        cityId:               eventCityId,
+        cityId:               placeCityId,
+        originCityId,
         description:          description?.trim() ?? '',
         totalSpots:           spots,
         spotsLeft:            spots,
@@ -462,7 +488,7 @@ export async function POST(req: NextRequest) {
         // Athens event is priced in euros by default, not lira. Reads the
         // resolved city rather than the club's, so a global club's event
         // is priced in the city it was filed under.
-        currency:             currency ?? (await getCityConfig(eventCityId)).currency,
+        currency:             currency ?? (await getCityConfig(placeCityId)).currency,
         approvalRequired:     approvalRequired ?? false,
         // Gender balance + quotas — null defaults so explicit-off doesn't
         // get coerced to 0. Cast numbers explicitly since the form ships
