@@ -117,10 +117,10 @@ export default async function CityPage({ params }: Params) {
       <CityPageTracker slug={city.slug} status={city.status} />
       <Hero city={city} enter={enter} signedIn={!!session} />
       <Events city={city} tabEvents={tabEvents} eventWindow={eventWindow} enter={enter} signedIn={!!session} />
-      <Clubs city={city} featuredClubs={featuredClubs} enter={enter} signedIn={!!session} />
-      {/* The guide sits right after the community's own listings: it is the
-          one section a visitor can use before joining anything. */}
+      {/* The guide sits right after the events: it is the one section a
+          visitor can use before joining anything. */}
       <Guide city={city} hasGuide={guideEntries > 0} enter={enter} handbookPicks={handbookPicks} guidePicks={guidePicks} />
+      <Clubs city={city} featuredClubs={featuredClubs} enter={enter} signedIn={!!session} />
       <Hosts city={city} hosts={hosts} hostTotal={hostTotal} signedIn={!!session} />
       <Neighborhoods city={city} topNeighborhoods={topNeighborhoods} neighborhoodsHaveEvents={neighborhoodsHaveEvents} enter={enter} />
       <Visitors city={city} visitors={visitors} visitorTotal={visitorTotal} isDefaultCity={isDefaultCity} signedIn={!!session} />
