@@ -4,7 +4,7 @@ import type { Metadata } from 'next'
 import { unstable_cache } from 'next/cache'
 import { getNextInSeries } from '@/lib/postSeries'
 import { prisma } from '@/lib/prisma'
-import { resolveImageUrl, avatarUrl } from '@/lib/data'
+import { resolveImageUrl, avatarUrl, previewUrl } from '@/lib/data'
 import { firstBodyImage } from '@/lib/articleCover'
 import { APP_URL, SITE_URL } from '@/lib/env'
 import { jsonLdHtml } from '@/lib/jsonLd'
@@ -310,7 +310,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
       {post.coverImage && (
         <div className="relative w-full h-64 sm:h-96 overflow-hidden">
           <img
-            src={resolveImageUrl(post.coverImage)}
+            src={previewUrl(post.coverImage, 1200)}
             alt=""
             className="w-full h-full object-cover"
           />

@@ -6,7 +6,7 @@ import { getSession } from '@/lib/session'
 import { getCityConfig } from '@/lib/city'
 import { resolveCityForPage, type CitySearch } from '@/lib/cityPageParam'
 import { postCityScope } from '@/lib/postScope'
-import { avatarUrl } from '@/lib/data'
+import { avatarUrl, previewUrl } from '@/lib/data'
 import { articleCover } from '@/lib/articleCover'
 import { readingTime } from '@/lib/handbook-review'
 import { storyBylines } from '@/lib/storyByline'
@@ -188,7 +188,7 @@ export default async function PostsPage({ searchParams }: { searchParams?: Promi
                   {featuredCover ? (
                     <div className="relative h-64 sm:h-80 overflow-hidden bg-gray-100">
                       <img
-                        src={featuredCover}
+                        src={previewUrl(featuredCover, 1200)}
                         alt=""
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         decoding="async"
@@ -237,7 +237,7 @@ export default async function PostsPage({ searchParams }: { searchParams?: Promi
                         {cover ? (
                           <div className="relative h-40 overflow-hidden shrink-0 bg-gray-100">
                             <img
-                              src={cover}
+                              src={previewUrl(cover)}
                               alt=""
                               loading="lazy"
                               decoding="async"

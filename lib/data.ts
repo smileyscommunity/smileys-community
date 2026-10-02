@@ -72,6 +72,17 @@ export function avatarUrl(url: string | null | undefined, size: 64 | 96 | 128 | 
   return `${resolved}?w=${size}`
 }
 
+// Resized variant for cover photos shown as cards or banners. The file route
+// serves our own uploads at `?w=800|1200` (fit inside, aspect kept, JPEG q75);
+// without it a card fetched the 100–300 KB original — about 1.7 MB of the
+// handbook index. Same fall-through as avatarUrl: external images, and URLs
+// that already carry a query, are returned untouched.
+export function previewUrl(url: string | null | undefined, width: 800 | 1200 = 800): string {
+  const resolved = resolveImageUrl(url)
+  if (!resolved || !SIZED_PATH.test(resolved) || resolved.includes('?')) return resolved
+  return `${resolved}?w=${width}`
+}
+
 export interface Club {
   id: string
   slug: string

@@ -22,7 +22,7 @@ import type { HandbookSearchItem } from '@/lib/handbook-search'
 import { APP_URL } from '@/lib/env'
 import { populatedStages } from '@/lib/relocation'
 import { hasQuickReference } from '@/lib/quickReference'
-import { resolveImageUrl } from '@/lib/data'
+import { resolveImageUrl, previewUrl } from '@/lib/data'
 
 // Card covers come from lib/articleCover: explicit cover, else the first
 // inline body image — OWN UPLOADS ONLY — else the category banner. A private
@@ -290,7 +290,7 @@ export default async function HandbookPage({ searchParams }: { searchParams?: Pr
                       fallback for an article with neither. */}
                   {c.cover ? (
                     <div className="aspect-[16/9] bg-gray-100 overflow-hidden">
-                      <img src={c.cover} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                      <img src={previewUrl(c.cover)} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                     </div>
                   ) : (
                     <div aria-hidden="true" className="aspect-[16/9] bg-amber-50 flex items-center justify-center text-3xl">{c.emoji}</div>
@@ -348,7 +348,7 @@ export default async function HandbookPage({ searchParams }: { searchParams?: Pr
                         Housing) and repeated the title printed under it. */}
                     {photo && (
                       <div className="aspect-[5/2] bg-gray-100 overflow-hidden">
-                        <img src={photo} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                        <img src={previewUrl(photo)} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                       </div>
                     )}
                     <div className="p-6">
@@ -393,7 +393,7 @@ export default async function HandbookPage({ searchParams }: { searchParams?: Pr
                     <div className={cover ? 'sm:flex sm:items-stretch' : ''}>
                       {cover && (
                         <div className="w-full sm:w-56 shrink-0 bg-gray-100 overflow-hidden aspect-[3/2] sm:aspect-auto">
-                          <img src={cover} alt=""
+                          <img src={previewUrl(cover)} alt=""
                             className="w-full h-full object-cover" loading="lazy" decoding="async" />
                         </div>
                       )}

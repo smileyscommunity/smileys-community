@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import dynamic from 'next/dynamic'
 import { confirmToast } from '@/lib/confirmToast'
 import ReviewChip from '@/components/ReviewChip'
+import { previewUrl } from '@/lib/data'
 
 // TipTap is heavy — lazy-load it so anonymous handbook readers never pay
 // for the editor bundle; it only downloads when a staff member edits.
@@ -288,7 +289,7 @@ export default function EditableArticle(props: Props) {
           below names the article, so the image carries no alt text of its own. */}
       {props.coverImage && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={props.coverImage} alt="" className="w-full h-56 sm:h-72 object-cover rounded-2xl mb-8" />
+        <img src={previewUrl(props.coverImage, 1200)} alt="" className="w-full h-56 sm:h-72 object-cover rounded-2xl mb-8" />
       )}
 
       <span className={`inline-block px-2 py-1 rounded-full text-[11px] font-bold ${props.catCls}`}>{props.categoryLabel}</span>
