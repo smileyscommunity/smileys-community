@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 
 // Scan-5 item 86 (+ the CSV half of 88): admin participants, check-in and the
 // moderation queues. Pure rules live in lib/admin/participantsView and are
-// tested as behaviour; the two participants GETs are exercised with a mocked
+// tested as behavior; the two participants GETs are exercised with a mocked
 // prisma; the .tsx wiring is pinned by source.
 
 vi.mock('@/lib/session', () => ({ getSession: vi.fn() }))

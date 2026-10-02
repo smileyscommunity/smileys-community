@@ -93,7 +93,7 @@ export default function CityCard({
           />
         ) : (
           // No photo yet — a flat wash with the city initial, not a broken
-          // image or an empty grey box.
+          // image or an empty gray box.
           <div aria-hidden="true" className="absolute inset-0 flex items-center justify-center">
             <span className="text-6xl font-extrabold text-amber-700/30">{city.name.charAt(0)}</span>
           </div>

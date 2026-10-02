@@ -73,7 +73,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   // Category allowlist + cover URL validation match POST. PUT does NOT
   // touch the slug — keeping URLs stable across edits is a deliberate
   // SEO + bookmark preservation choice.
-  // See POST: both vocabularies normalise (handbook → canonical IA key,
+  // See POST: both vocabularies normalize (handbook → canonical IA key,
   // retired per-city guide names → 'City Guide').
   // An unchanged category is kept verbatim: the article page deliberately
   // renders a row whose stored key matches nothing (an old typo) under its
@@ -92,7 +92,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   // A member story sits in the queue as 'submitted' (or 'declined' once
   // answered). Saving an edit used to coerce either to 'draft', which took
   // it off the Submitted tab and relabelled it as staff's own draft. The
-  // client sends the status back unchanged; it is honoured only when it IS
+  // client sends the status back unchanged; it is honored only when it IS
   // the current one — nothing can be put into the queue from here.
   const keepQueued = (status === 'submitted' || status === 'declined') && existing.status === status
   const nextStatus = nowPublished ? 'published' : keepQueued ? existing.status : 'draft'

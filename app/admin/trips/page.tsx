@@ -14,8 +14,8 @@ const COLUMNS: { key: keyof TripRow; label: string; title: string }[] = [
   { key: 'went',    label: 'Went',    title: 'Checked in or marked attended' },
   { key: 'locals',  label: 'Locals',  title: 'Attendees who already belonged to the destination before the trip' },
   { key: 'alerted', label: 'Alerted', title: 'Destination members sent the "coming to <city>" alert' },
-  { key: 'invited', label: 'Invited', title: 'Travellers sent the "add <city> to your cities" invite' },
-  { key: 'joined',  label: 'Joined',  title: 'Travellers who added the destination on or after the trip day' },
+  { key: 'invited', label: 'Invited', title: 'Travelers sent the "add <city> to your cities" invite' },
+  { key: 'joined',  label: 'Joined',  title: 'Travelers who added the destination on or after the trip day' },
 ]
 
 export default function AdminTripsPage() {
@@ -30,7 +30,7 @@ export default function AdminTripsPage() {
       <div>
         <h1 className="text-white text-2xl font-extrabold">Trips</h1>
         <p className="text-sm text-zinc-500 mt-1">
-          Cross-city trips and what they did for the city they visited: locals who came, and travellers who joined it afterwards.
+          Cross-city trips and what they did for the city they visited: locals who came, and travelers who joined it afterwards.
         </p>
       </div>
 

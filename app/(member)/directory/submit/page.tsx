@@ -32,7 +32,7 @@ function MembersOnlyPitch() {
       <p className="text-sm text-gray-600 mb-6 leading-relaxed">
         Adding a business to the Smileys directory is a member benefit — it
         helps us keep the listings curated and spam-free. Apply to join
-        the community and you'll be able to add your favourite expat-owned
+        the community and you'll be able to add your favorite expat-owned
         and expat-friendly spots in your city.
       </p>
       <div className="flex flex-col sm:flex-row gap-2 justify-center">

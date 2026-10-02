@@ -68,12 +68,12 @@ interface PaymentsResponse {
 // One source of truth per status — `color` for pills + log entries,
 // `next` for the cycle (null = terminal — refunded + cancelled),
 // `action` for the button label. The previous three parallel maps
-// drifted: e.g. `failed` was in the colour map but missing from the
+// drifted: e.g. `failed` was in the color map but missing from the
 // filter chip list. Single object stops that.
 //
 // `cancelled` came in via the member-side RSVP cancel flow — it's a
 // real DB value but used to fall through to the neutral fallback
-// because the admin UI didn't know about it. Coloured neutral
+// because the admin UI didn't know about it. Colored neutral
 // zinc (distinct from failed's red — cancelled = no money flow,
 // no problem; failed = money flow attempted and broke).
 type StatusKey = 'paid' | 'pending' | 'refunded' | 'failed' | 'cancelled'

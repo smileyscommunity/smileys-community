@@ -107,7 +107,7 @@ export function includesHighStakes(articles: { category: string }[]): boolean {
  *  a topic the city has no article for. */
 export const MOVING_TOPICS = [
   { category: 'Residence & Legal',    title: 'Residence permits and legal status' },
-  { category: 'Home & Housing',       title: 'Housing and neighbourhoods' },
+  { category: 'Home & Housing',       title: 'Housing and neighborhoods' },
   { category: 'Money & Banking',      title: 'Banking and money' },
   { category: 'Mobile & Digital',     title: 'SIM, home internet and essential apps' },
   { category: 'Healthcare',           title: 'Healthcare' },
@@ -127,7 +127,7 @@ export interface NeighborhoodPick {
 }
 
 /**
- * "Find your neighbourhood": where members actually live, then where things
+ * "Find your neighborhood": where members actually live, then where things
  * actually happen. Counts are the real figures the caller passed (activated
  * members, upcoming published events) and a pick with neither is still shown
  * when the city has no activity yet — a young city's registry is still worth

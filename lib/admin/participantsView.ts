@@ -12,7 +12,7 @@ export interface CapacityLike {
  * "Full" is a statement about a cap, and only a limited event has one. An
  * unlimited event still carries totalSpots/spotsLeft (the card derives
  * "X going" from them, and spotsLeft runs negative past the nominal total —
- * see lib/spotsLeft), so reading spotsLeft <= 0 as full labelled every
+ * see lib/spotsLeft), so reading spotsLeft <= 0 as full labeled every
  * well-attended open event "Full" and blocked its waitlist promotions.
  */
 export function isEventFull(e: CapacityLike): boolean {

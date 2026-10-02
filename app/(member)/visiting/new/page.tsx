@@ -41,7 +41,7 @@ function NewVisitingPageInner() {
   const viewerCity    = useCurrentCity()?.slug
   const [neighborhoods, setNeighborhoods] = useState<string[]>([])
   const [loadError,    setLoadError]    = useState('')
-  // The edited visit's neighbourhood, applied once that city's options have loaded.
+  // The edited visit's neighborhood, applied once that city's options have loaded.
   const pendingNeighborhood = useRef<string | null>(null)
   const [existingId,   setExistingId]   = useState<string | null>(null)
 
@@ -133,7 +133,7 @@ function NewVisitingPageInner() {
         setName(v.name ?? ''); setFromCity(v.fromCity ?? ''); setStartsOn(v.startsOn ?? ''); setEndsOn(v.endsOn ?? '')
         setIntro(v.intro ?? ''); setContact(v.contact ?? ''); setTravelerType(v.travelerType ?? '')
         setLanguages((v.languages ?? []).join(', ')); setLookingFor(v.lookingFor ?? []); setVisibility(v.visibility ?? 'members')
-        // Neighbourhood options load per destination; applied once they have.
+        // Neighborhood options load per destination; applied once they have.
         pendingNeighborhood.current = v.neighborhood ?? ''
       })
       .catch(() => setLoadError("That visit isn't yours to edit, or it's already gone."))
@@ -350,7 +350,7 @@ function NewVisitingPageInner() {
             <div className="flex justify-between gap-3 mt-1">
               {/* Said at the field, not in a footer: this is where someone
                   types "staying at the X hotel in room 4". */}
-              <p className="text-xs text-gray-500">Don&apos;t include where you&apos;re staying — a neighbourhood is plenty.</p>
+              <p className="text-xs text-gray-500">Don&apos;t include where you&apos;re staying — a neighborhood is plenty.</p>
               <p className="text-xs text-gray-400 shrink-0">{intro.length}/1000</p>
             </div>
           </div>

@@ -56,7 +56,7 @@ export async function listGuideTips(slug: string, cityId: string, session: Sessi
     // §48 (Members brief): deactivated/banned authors drop out of discovery
     // surfaces — their tips hide rather than showing a ghost.
     // hiddenFromMembers is the admin's "not listed anywhere" switch; every
-    // sibling surface (board, hangouts, rosters) honours it.
+    // sibling surface (board, hangouts, rosters) honors it.
     where: {
       slug, cityId,
       user: { status: 'approved', hiddenFromMembers: false },

@@ -43,7 +43,7 @@ describe('fixNameCasing', () => {
     expect(fixNameCasing(once, 'Turkey')).toBe(once)
   })
 
-  it('never regresses plain formatName behaviour when nationality is missing', () => {
+  it('never regresses plain formatName behavior when nationality is missing', () => {
     expect(fixNameCasing('hagar atef', null)).toBe(formatName('hagar atef'))
   })
 })

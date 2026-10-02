@@ -349,7 +349,7 @@ export async function POST(req: NextRequest) {
   // 'approved', so it has to be read here: the in-app fan-out already skips
   // an announcement to a suspended member (lib/notify SUSPENDED_SKIPPED_TYPES)
   // and the email did not — the louder, un-recallable channel ignored the
-  // suspension the quieter one honours.
+  // suspension the quieter one honors.
   // cityId is here for quiet hours: createNotification resolves the quiet
   // window in the member's own city's timezone, and a recipient row without
   // it reads as "no city" — Istanbul time for a member in Tbilisi.

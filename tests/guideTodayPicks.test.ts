@@ -5,7 +5,7 @@ import { computeTodayPicks } from '@/lib/guideToday'
 // Istanbul keeps a hand-curated table of which experiences suit which part of
 // the day. A second city can't have one without someone inventing it, so any
 // other city derives picks from its OWN mood/collection vocabulary. These pin
-// the two behaviours and the rule that a pick must exist.
+// the two behaviors and the rule that a pick must exist.
 
 const bodrum = [
   { slug: 'sunset-gumusluk',  moods: ['sunset'],          collection: 'sunset'   },

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { sharedSignals, MAX_SHARED_INTERESTS, MAX_SHARED_LANGUAGES } from '@/lib/visitorMatch'
 
-// The /visiting card showed a visitor's languages and neighbourhood as plain
+// The /visiting card showed a visitor's languages and neighborhood as plain
 // facts and only ever compared interests, so an Arabic speaker was never told
 // the visitor also speaks Arabic. These are the rules the card now applies.
 
@@ -38,7 +38,7 @@ describe('sharedSignals', () => {
     expect(s).toEqual({ interests: [], languages: [], sameNeighborhood: false })
   })
 
-  it('never calls two unknown neighbourhoods a match', () => {
+  it('never calls two unknown neighborhoods a match', () => {
     expect(sharedSignals(p(), p()).sameNeighborhood).toBe(false)
     expect(sharedSignals(p({ neighborhood: 'Şişli' }), p()).sameNeighborhood).toBe(false)
     expect(sharedSignals(p(), p({ neighborhood: 'Şişli' })).sameNeighborhood).toBe(false)

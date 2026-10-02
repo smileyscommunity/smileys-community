@@ -29,14 +29,14 @@ const FORMAT_LABELS: Record<string, string> = {
 
 // B2B lead intake for /advertise. Unlike /api/contact (fire-and-forget
 // email), every accepted submission is persisted as a SponsorLead so the
-// pipeline at /admin/sponsors can track it from enquiry to closed deal.
+// pipeline at /admin/sponsors can track it from inquiry to closed deal.
 // The email notification is best-effort on top — losing it no longer
 // loses the lead.
 export async function POST(req: NextRequest) {
   // Slightly looser than /api/contact's 1/hour — legitimate agencies
   // sometimes submit for two clients back to back.
   if (!await rateLimit(`advertise:${getIp(req)}`, 3, 60 * 60_000)) {
-    return NextResponse.json({ error: 'Too many enquiries. Try again later.' }, { status: 429 })
+    return NextResponse.json({ error: 'Too many inquiries. Try again later.' }, { status: 429 })
   }
 
   try {
@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
             <div style="margin-bottom:24px">
               <span style="font-size:24px">😊</span>
               <strong style="margin-left:8px;color:#111827">Smileys Community</strong>
-              <p style="color:#6b7280;font-size:13px;margin:4px 0 0">New advertising enquiry</p>
+              <p style="color:#6b7280;font-size:13px;margin:4px 0 0">New advertising inquiry</p>
             </div>
             <table style="width:100%;border-collapse:collapse;margin-bottom:24px">
               <tr style="background:#f9fafb">

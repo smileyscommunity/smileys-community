@@ -14,7 +14,7 @@ interface LiveHangout { id: string; title: string; neighborhood: string | null; 
 //
 // `citySlug` and `timezone` are the CONTENT's city, passed down by the page.
 // The fetch used to carry no city, so the API answered with the reader's
-// cookie city and the neighbourhood-name filter did the rest: an Istanbul
+// cookie city and the neighborhood-name filter did the rest: an Istanbul
 // member on İzmir's Göztepe page was offered Istanbul's Göztepe plans, with
 // times in whatever zone the reader's cookie said.
 export default function LiveHangouts({ neighborhoods, citySlug, timezone: tz }: { neighborhoods: string[]; citySlug: string; timezone: string }) {

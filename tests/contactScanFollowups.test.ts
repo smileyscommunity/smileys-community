@@ -65,7 +65,7 @@ describe('5–7: members, the join card, the city', () => {
 })
 
 describe('8: accessible form', () => {
-  it('pressed chips in a labelled group, hidden decoration, announced errors, unreachable honeypot', () => {
+  it('pressed chips in a labeled group, hidden decoration, announced errors, unreachable honeypot', () => {
     expect(form).toContain('<div role="group" aria-labelledby="ct-topic-label"')
     expect(form).toContain('aria-pressed={form.topic === t.value}')
     expect(form).toContain('<span aria-hidden="true" className="text-lg">{t.icon}</span>')

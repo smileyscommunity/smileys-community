@@ -83,7 +83,7 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
   const [spawning,      setSpawning]      = useState(false)
   const [hostId,        setHostId]        = useState('')
   const [aiNotes,       setAiNotes]       = useState('')
-  // Separate flags: one shared between the two AI buttons labelled both busy.
+  // Separate flags: one shared between the two AI buttons labeled both busy.
   const [descLoading,   setDescLoading]   = useState(false)
   const [tagsLoading,   setTagsLoading]   = useState(false)
   const [geocoding,     setGeocoding]     = useState(false)

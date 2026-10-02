@@ -161,7 +161,7 @@ describe('handbook category IA', () => {
     // 'Living in Istanbul' was canonical until the Handbook went per-city — a
     // category label must not name a city. Rows still store the old value and
     // /handbook/category/Living%20in%20Istanbul is indexed, so both the
-    // resolver and the query set have to keep honouring it.
+    // resolver and the query set have to keep honoring it.
     expect(canonicalCategory('Living in Istanbul')).toBe('Home & Housing')
     expect(categoryMeta('Living in Istanbul')?.label).toBe('Home & Housing')
     expect(storedKeysFor('Home & Housing').sort())

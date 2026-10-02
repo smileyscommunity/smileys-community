@@ -9,8 +9,8 @@
 //   locals        — attendees who already belonged to the destination BEFORE
 //                   the trip (home city, or joined it as a second city)
 //   alerted       — destination members sent the "coming to <city>" alert
-//   invited       — travellers sent the "add <city> to your cities" invite
-//   joined        — travellers who added the destination ON OR AFTER the trip day
+//   invited       — travelers sent the "add <city> to your cities" invite
+//   joined        — travelers who added the destination ON OR AFTER the trip day
 //
 // The two notification counts match on what the senders write (link + title),
 // because a notification row has no event column.

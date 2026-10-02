@@ -69,7 +69,7 @@ export default function AdvertiseFormClient() {
         <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-5 text-2xl">✓</div>
         <h3 className="text-xl font-extrabold text-gray-900 mb-2">Thanks for reaching out!</h3>
         <p className="text-gray-600 text-sm">
-          We&apos;ll read your enquiry and reply to <strong className="text-gray-700">{form.email}</strong>.
+          We&apos;ll read your inquiry and reply to <strong className="text-gray-700">{form.email}</strong>.
         </p>
       </div>
     )
@@ -142,7 +142,7 @@ export default function AdvertiseFormClient() {
           type="submit"
           disabled={loading || !form.name.trim() || !form.email.trim() || !form.company.trim() || !form.message.trim()}
           className="w-full py-3.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm transition-colors disabled:opacity-50">
-          {loading ? 'Sending…' : 'Send enquiry'}
+          {loading ? 'Sending…' : 'Send inquiry'}
         </button>
 
         <p className="text-center text-xs text-gray-500">

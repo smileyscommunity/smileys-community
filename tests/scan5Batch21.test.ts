@@ -72,7 +72,7 @@ describe('76. the neighborhood list is not shared-cached when it depends on the 
     expect((await res.json()).neighborhoods).toEqual([{ name: 'hood-of-cookie-city' }])
   })
 
-  it('?city=<slug> is honoured over the cookie and keeps its public cache (the URL names the city)', async () => {
+  it('?city=<slug> is honored over the cookie and keeps its public cache (the URL names the city)', async () => {
     const res = await neighborhoodsGET(req('http://x/app/api/neighborhoods?city=izmir'))
     expect(resolveCityId).not.toHaveBeenCalled()
     expect((await res.json()).neighborhoods).toEqual([{ name: 'hood-of-izmir-id' }])

@@ -301,7 +301,7 @@ export async function GET(req: NextRequest) {
 
     if (restricted) {
       // Minimal locked card, the same one the profile page shows: first
-      // name and colour. The full name and photo went out here while the
+      // name and color. The full name and photo went out here while the
       // profile itself withheld them.
       return {
         id: m.id, name: firstNameOf(m.name), color: m.color, bio: null,
@@ -325,7 +325,7 @@ export async function GET(req: NextRequest) {
     const full = fullFor(m.id)
     return {
       id: m.id, name: m.name, color: m.color, bio: m.bio,
-      // Only for members who chose to be listed by neighbourhood.
+      // Only for members who chose to be listed by neighborhood.
       neighborhood: full || m.neighborhoodVisible ? m.neighborhood : null, nationality: m.nationality,
       interests: m.interests, languages: m.languages,
       socialStyles: m.socialStyles,

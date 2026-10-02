@@ -6,7 +6,7 @@ import { join } from 'path'
 //   - the nightly prune never ran on its own (it was the last step of
 //     sweep-event-spots) and only removed unstamped repeats older than a week
 //   - concurrent first-event loads raced read-then-insert (~71 dupes a day)
-// Behaviour runs against a simulated table with a real per-key advisory lock,
+// Behavior runs against a simulated table with a real per-key advisory lock,
 // so the concurrency tests fail when the lock is switched off.
 // scan6Batch20: the UNIQUE (userId, eventId) index now exists, so the cron
 // asks hasDuplicateRecommendations first. The simulated table has no index

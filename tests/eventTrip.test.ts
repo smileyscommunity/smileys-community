@@ -96,7 +96,7 @@ describe('trips are wired end to end', () => {
     expect(read('lib/eventDuplicate.ts')).toContain("'clubId', 'hostId', 'cityId', 'originCityId',")
   })
 
-  it('both forms offer the trip and follow the destination for neighbourhoods; the card shows the badge', () => {
+  it('both forms offer the trip and follow the destination for neighborhoods; the card shows the badge', () => {
     const admin = read('app/admin/events/new/page.tsx')
     expect(admin).toContain('tripToCityId: tripDestination?.id ?? null,')
     expect(admin).toContain('const selectedClubCity = tripDestination?.slug')

@@ -16,12 +16,12 @@ export interface MapPoint {
 const FALLBACK_CENTER: [number, number] = [41.02, 28.98]
 
 // Neighborhood-level markers ONLY. Every coordinate here comes from
-// NEIGHBORHOOD_META — a fixed centre point per neighborhood — never from a
+// NEIGHBORHOOD_META — a fixed center point per neighborhood — never from a
 // member record. No member position is plotted, derived or approximated,
 // which is the whole reason this takes MapPoint rather than a user list:
 // there is no shape of data reaching this component that could leak one.
 //
-// `center` (the viewed city's centre) decides where a pointless map opens;
+// `center` (the viewed city's center) decides where a pointless map opens;
 // without it — or for a city missing coordinates — the Istanbul default
 // below stands. Pins always win: fitBounds overrides the initial view.
 export default function NeighborhoodsMapView({ points, center, cityQuery = '' }: { points: MapPoint[]; center?: [number, number] | null; cityQuery?: string }) {

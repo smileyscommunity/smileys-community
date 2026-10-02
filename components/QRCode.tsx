@@ -15,7 +15,7 @@ interface Props {
 // A QR code is only as good as its smallest module. The canvas used to be
 // drawn at exactly its CSS size, so on a phone at 3× every module was blurred
 // across a third of a device pixel — at the 84px the member card used, each
-// module was about a third of a millimetre of smeared grey, which is why a
+// module was about a third of a millimetre of smeared gray, which is why a
 // card sometimes took three tries at the door. Drawing at size × dpr and
 // letting CSS scale it back down gives the scanner crisp edges.
 const MAX_DPR = 3

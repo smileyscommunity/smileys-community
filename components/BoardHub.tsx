@@ -1152,7 +1152,7 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
   // Which narrowings are in force, in words. The empty state used to know
   // about the category and the search box only, so a marketplace with two
   // hundred listings in it read "No listings yet — be the first to post
-  // something" the moment someone picked a quiet neighbourhood.
+  // something" the moment someone picked a quiet neighborhood.
   const activeFilters: string[] = []
   if (debouncedSearch) activeFilters.push(`“${debouncedSearch}”`)
   if (neighborhood)    activeFilters.push(neighborhood)

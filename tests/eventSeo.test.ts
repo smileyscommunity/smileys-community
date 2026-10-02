@@ -70,7 +70,7 @@ describe('one events figure on every public page', () => {
 
 import { COUNTED_CLUB_MEMBERSHIP_WHERE, ENROLLED_CLUB_MEMBERSHIP_WHERE } from '@/lib/clubMemberCount'
 describe('club member counts count activated members only', () => {
-  it('the counted rule adds activation to the enrolment rule', () => {
+  it('the counted rule adds activation to the enrollment rule', () => {
     expect(COUNTED_CLUB_MEMBERSHIP_WHERE.user).toEqual({ ...ENROLLED_CLUB_MEMBERSHIP_WHERE.user, password: { not: null } })
   })
 })

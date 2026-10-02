@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
 
     // ?city=<id> scopes every metric to one city; omitted = network-wide
     // (the historical view). Validated so a bad id can't render a page of
-    // zeros labelled as a real city.
+    // zeros labeled as a real city.
     const cityParam = req.nextUrl.searchParams.get('city')
     const city = cityParam
       ? await prisma.city.findUnique({ where: { id: cityParam }, select: { id: true, name: true, slug: true } })
@@ -514,7 +514,7 @@ export async function GET(req: NextRequest) {
       JOIN users u ON u.id = r."userId"
       WHERE true ${sqlUserCity}`
 
-    // Fair conversion + a time-normalised cut. Members shown the block last week
+    // Fair conversion + a time-normalized cut. Members shown the block last week
     // haven't had the same chance to convert as ones shown in July, so `matured`
     // restricts to members whose first rec is ≥14 days old and asks whether they
     // RSVP'd inside their own 14-day window — the only rate comparable over time.

@@ -262,7 +262,7 @@ describe('c. a host cannot republish a cancelled-then-parked event', () => {
 
 // ── d ──────────────────────────────────────────────────────────────────────
 describe('d. sweeps skip an archived cancelled event', () => {
-  // Stands in for the DB filter: honours `cancelledAt: null` when the query sets it.
+  // Stands in for the DB filter: honors `cancelledAt: null` when the query sets it.
   const matches = (where: any, e: { cancelledAt: Date | null }) => !('cancelledAt' in where) || (where.cancelledAt === null ? !e.cancelledAt : true)
 
   it('the survey sweep asks only the event that happened', async () => {

@@ -146,7 +146,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   const venueComment = typeof body.venueComment === 'string' ? body.venueComment.trim().slice(0, 1000) : null
 
   // Re-run the eligibility checks server-side — clients can't be
-  // trusted to honour the GET response.
+  // trusted to honor the GET response.
   const attendance = await prisma.eventAttendee.findUnique({
     where:  { userId_eventId: { userId: session.id, eventId: id } },
     select: { status: true },

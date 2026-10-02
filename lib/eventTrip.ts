@@ -12,7 +12,7 @@
 // Who may run it follows the departure city: the trip belongs to an Istanbul
 // club and is hosted by an Istanbul member, so the edit, host and moderator
 // checks that used to read event.cityId read scopeCityId() instead. Reading
-// the destination there would lock the organiser out of their own event.
+// the destination there would lock the organizer out of their own event.
 
 import { CITY_STATUS } from './cityStatus'
 
@@ -38,7 +38,7 @@ export interface TripRequest {
  *   - the same timezone, because an event's date and time are stored as the
  *     destination's wall clock and the departure feed reads them as-is —
  *     every live city is Europe/Istanbul today, a future Tbilisi trip is not;
- *   - an admin, or a host of the club organising it.
+ *   - an admin, or a host of the club organizing it.
  */
 export function tripError(r: TripRequest): string | null {
   if (!r.admin && !r.isClubHost) return 'Only admins and the club\'s hosts can make an event a trip to another city'

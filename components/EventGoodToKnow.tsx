@@ -12,7 +12,7 @@ import { goodToKnowRows, cancelLine, type GoodToKnowFacts } from '@/lib/eventGoo
 // because that is a community rule (FAQ → "How do I cancel my RSVP?"), not a
 // per-event fact.
 //
-// Price, date, neighbourhood, host and the going count already sit in the
+// Price, date, neighborhood, host and the going count already sit in the
 // page's header rows; they are deliberately not repeated here.
 
 export default function EventGoodToKnow({ event, className = '' }: { event: GoodToKnowFacts; className?: string }) {

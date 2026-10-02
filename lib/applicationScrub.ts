@@ -14,7 +14,7 @@ export const DELETED_APPLICANT_NAME = 'Deleted member'
 
 // Self-deletion rewrites the user's email to `deleted_<hex>@deleted.smileys`;
 // the application takes the SAME address so the row stays linked to the
-// tombstone user (and can be recognised as scrubbed) without routing anywhere.
+// tombstone user (and can be recognized as scrubbed) without routing anywhere.
 export const TOMBSTONE_EMAIL_SUFFIX = '@deleted.smileys'
 
 export function isTombstoneEmail(email: string | null | undefined): boolean {

@@ -41,7 +41,7 @@ describe('publicLinkFor', () => {
   // entry link, which a cookie-less visitor (every crawler) followed to the
   // default city's pages. Every one of them reads ?city=, so the guest link
   // carries it; members keep the entry link (it sets their view city).
-  it('sends a guest to guide, handbook, neighbourhoods and visiting with the city in the URL', () => {
+  it('sends a guest to guide, handbook, neighborhoods and visiting with the city in the URL', () => {
     expect(guest('guide')).toBe('/app/guide?city=izmir')
     expect(guest('handbook')).toBe('/app/handbook?city=izmir')
     expect(guest('neighborhoods')).toBe('/app/neighborhoods?city=izmir')

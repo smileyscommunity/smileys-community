@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { foldPlaceName } from '@/lib/neighborhoods'
 
-// When an event is created with a venue the organiser didn't pick from the
+// When an event is created with a venue the organizer didn't pick from the
 // directory, find the listing that venue name already has in the event's city
 // (any status), or mirror it in as a PENDING listing (isApproved:false,
 // isActive:true) — exactly the state the admin → Directory "pending" tab

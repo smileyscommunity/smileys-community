@@ -329,7 +329,7 @@ export function publicLinkFor(slug: string, enter: EnterLink): EnterLink {
   }
 }
 
-// A hub is a crawlable page, not the whole catalogue: the founding city has
+// A hub is a crawlable page, not the whole catalog: the founding city has
 // 140+ clubs, and rendering every card put 1.3 MB of HTML on one page. The
 // first HUB_LIMIT (scheduled/soonest first) plus an honest "and N more" link
 // into the interactive list covers both the crawler and the reader.
@@ -482,7 +482,7 @@ export const getCityRemoteWorkHub = unstable_cache(
       events:        pickHubEvents(events, workClubIds, REMOTE_WORK_EVENT_LIMIT),
       hasWorkEvents: workEvents.length > 0,
       // Every coworking occurrence (series not collapsed) for the "this week"
-      // line — date and neighbourhood only, both already public on the cards.
+      // line — date and neighborhood only, both already public on the cards.
       workSessions:  workEvents.map(e => ({ date: e.date, neighborhood: e.neighborhood ?? null })),
       // Every upcoming session members-only → the page says so up front.
       workMembersOnly: workEvents.length > 0 && workEvents.every(e => e.membersOnly),
@@ -507,7 +507,7 @@ export const getCityRemoteWorkHub = unstable_cache(
 //
 // The relocation path (lib/relocation arranges it). Handbook articles, where
 // members live, where events are, the city's first-timer-friendly events and
-// its club count — all existing data, all public-safe: the neighbourhood
+// its club count — all existing data, all public-safe: the neighborhood
 // figures are counts, never names, and events are redacted per request by
 // the page like every other hub.
 
@@ -573,7 +573,7 @@ export const getCityMovingHub = unstable_cache(
 //
 // Erasmus, exchange and international students (lib/students holds the rules).
 // Existing data only: the Handbook index, the city's upcoming events, its
-// clubs and neighbourhoods, and the city's own Erasmus story when it has one.
+// clubs and neighborhoods, and the city's own Erasmus story when it has one.
 // Events are cached raw and redacted per request by the page, like every
 // other hub; the filter links carry counts and paths, never event fields.
 

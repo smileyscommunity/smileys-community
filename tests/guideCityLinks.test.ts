@@ -98,7 +98,7 @@ describe('guideCityQs (items 3–4)', () => {
     expect(src).not.toContain("'/guide#experiences'")
     expect(src).not.toContain('`/guide?for=${a.value}#experiences`')
   })
-  it('the experience page carries the city on back, neighbourhoods, events and apply', () => {
+  it('the experience page carries the city on back, neighborhoods, events and apply', () => {
     const src = read('app/guide/[slug]/page.tsx')
     expect(src).toContain('href={`/guide${qs}`}')
     expect(src).toContain('href={`/neighborhoods/${r.slug}${qs}`}')

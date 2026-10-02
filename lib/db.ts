@@ -57,7 +57,7 @@ export async function getClubs(cityId: string): Promise<Club[]> {
       //     Bodrum's grid. Same reasoning as the two member counts above.
       //   - status: 'published' — without it a draft was shown publicly as
       //     "Next: …" (Istanbul's Book Club had three). Matches how every
-      //     other public event read filters; see the neighbourhood counts
+      //     other public event read filters; see the neighborhood counts
       //     on app/[city]/page.tsx.
       // For a city-scoped club the cityId filter is a no-op: events inherit
       // their city from the parent club at creation.
@@ -216,7 +216,7 @@ async function enrichHosts(events: Event[]): Promise<Event[]> {
  * who's attending are the payoff of joining — withhold them until login.
  * Mirrors redactListingForGuest in lib/listingsPublic.ts.
  *
- * Keeps: title, date/time, neighbourhood, cover, price, and the "X going"
+ * Keeps: title, date/time, neighborhood, cover, price, and the "X going"
  * count (which EventCard derives from totalSpots − spotsLeft, not from the
  * previews). Strips: exact street address + GPS, chat/meeting links, and
  * attendee names/photos.
@@ -268,7 +268,7 @@ export function redactEventForGuest(event: Event): Event {
     hostNationality:  null,
     hostId:           '',
     // `location` is free text: on a members-only event it is where a home
-    // dinner's host writes their building. The neighbourhood says enough to
+    // dinner's host writes their building. The neighborhood says enough to
     // decide; the venue is the payoff of joining, like the address.
     location:         event.membersOnly ? (event.neighborhood || 'Shared with members') : event.location,
     // The admission rules (gender and nationality quotas, the seat tier, the
@@ -354,7 +354,7 @@ export async function getEvents(options?: {
   upcoming?: boolean
   // Filter to events in this city. Caller passes the viewer's cityId
   // for the default "show me my city's events" feed; pass undefined
-  // for the cross-city "show all" view a traveller would want.
+  // for the cross-city "show all" view a traveler would want.
   cityId?: string
   // Several cities at once — the landing page's live cities. Without it the
   // unscoped query listed every city's events, a coming-soon city's included.
@@ -363,7 +363,7 @@ export async function getEvents(options?: {
   const { limit = 24, offset = 0, upcoming, cityId, cityIds } = options ?? {}
   // "Today" and the started-cutoff are computed in the CITY's timezone:
   // when the feed is scoped to a city we use that city's zone, and the
-  // unscoped traveller view falls back to the default city's. Both live
+  // unscoped traveler view falls back to the default city's. Both live
   // cities share Europe/Istanbul today, so this is behavior-neutral —
   // but Athens's evening events must not be cut off on Istanbul's clock.
   // Banned or currently suspended members are not shown: their events drop

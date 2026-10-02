@@ -178,7 +178,7 @@ export default function RichTextEditor({ value, onChange, placeholder, className
                 else editor.chain().focus().unsetColor().run()
               }}
               title={c.label}
-              aria-label={c.value ? `Text colour: ${c.label}` : 'Default text colour'}
+              aria-label={c.value ? `Text color: ${c.label}` : 'Default text color'}
               aria-pressed={c.value ? editor.isActive('textStyle', { color: c.value }) : undefined}
               className="w-4 h-4 rounded-full border border-zinc-600 transition-transform hover:scale-125 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
               style={{ backgroundColor: c.value || '#e4e4e7' }}

@@ -92,7 +92,7 @@ const categoryColors: Record<string, string> = {
   'Students':     'bg-indigo-100 text-indigo-700',
   'Expats':       'bg-teal-100 text-teal-700',
   'Digital nomads': 'bg-cyan-100 text-cyan-700',
-  'Travellers':   'bg-orange-100 text-orange-700',
+  'Travelers':   'bg-orange-100 text-orange-700',
 }
 
 // In the city's own day — the server is UTC.
@@ -101,7 +101,7 @@ function formatDate(d: Date | string | null, timeZone: string) {
   return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone })
 }
 
-// The small colour-dot avatar from the article page's byline, listing-sized.
+// The small color-dot avatar from the article page's byline, listing-sized.
 function AuthorDot({ author, size = 'w-6 h-6' }: {
   author: { name: string; color: string; profilePhoto: string | null }
   size?: string

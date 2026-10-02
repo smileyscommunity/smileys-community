@@ -57,7 +57,7 @@ describe('isCityHost', () => {
   })
 
   // Revoking a grant stamps revokedAt and leaves status='approved' (the row is
-  // kept as a record), so a status-only check would keep honouring it.
+  // kept as a record), so a status-only check would keep honoring it.
   it('rejects a revoked grant even though its status is still approved', async () => {
     ;(prisma.cityHost.findUnique as any).mockResolvedValue({
       status: 'approved', revokedAt: new Date('2026-08-01'),

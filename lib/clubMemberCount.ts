@@ -8,7 +8,7 @@ import type { Prisma } from '@prisma/client'
  * counting them put "Social Istanbul" at 1,851 while the whole community had
  * ~1,560 activated members (prod, 2026-10-02: 342 approved, never activated).
  *
- * Live paths still move the counter by enrolment (join/approve +1, leave/
+ * Live paths still move the counter by enrollment (join/approve +1, leave/
  * remove −1, ban −1, unban +1); activation does not touch it. The nightly
  * recount (api/cron/sweep-event-spots) applies THIS rule and reconciles the
  * difference, so a count can lag an activation by up to a day.
@@ -25,7 +25,7 @@ export const COUNTED_CLUB_MEMBERSHIP_WHERE = {
   user:   { status: { not: 'banned' }, password: { not: null } },
 } satisfies Prisma.ClubMembershipWhereInput
 
-/** Enrolment: approved and not banned, activated or not (admin funnel audits). */
+/** Enrollment: approved and not banned, activated or not (admin funnel audits). */
 export const ENROLLED_CLUB_MEMBERSHIP_WHERE = {
   status: 'approved',
   user:   { status: { not: 'banned' } },

@@ -175,7 +175,7 @@ function Composer({ onPosted, prefillNeighborhood, shownCity, eventId }: { onPos
     setOpen(true)
     if (prefillNeighborhood) setNeighborhood(prefillNeighborhood)
   }, [prefillNeighborhood])
-  // A neighbourhood link from another city ("Ask about Alsancak" while your
+  // A neighborhood link from another city ("Ask about Alsancak" while your
   // posting city is Istanbul) names a place this post can't carry: say so
   // instead of dropping it on save.
   const foreignHood = !!neighborhood && neighborhoods.length > 0 && !neighborhoods.includes(neighborhood)
@@ -762,7 +762,7 @@ export default function BoardFeed() {
 
   // The city on screen, for module headings, plan times and "where did my
   // post go". The cookie city unless ?city= pins another; /api/city/current
-  // honours the same pin (and falls back the same way on an unknown slug).
+  // honors the same pin (and falls back the same way on an unknown slug).
   const currentCity = useCurrentCity()
   const [pinnedInfo, setPinnedInfo] = useState<ShownCity | null>(null)
   useEffect(() => {

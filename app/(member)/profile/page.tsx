@@ -31,7 +31,7 @@ const COMMON_INTERESTS = [
   'Art', 'Film', 'Reading', 'Fitness', 'Dancing', 'Tech',
   'Entrepreneurship', 'Design', 'Food & Drink', 'Sailing', 'Cycling',
   'Coffee', 'Fashion', 'Gaming', 'Meditation', 'Language Learning',
-  'Volunteering', 'Startups', 'Writing', 'Theatre', 'Architecture',
+  'Volunteering', 'Startups', 'Writing', 'Theater', 'Architecture',
 ]
 
 const LOOKING_FOR_OPTIONS = SHARED_LOOKING_FOR
@@ -139,7 +139,7 @@ function isDirty(form: ProfileForm, base: ProfileForm): boolean {
 }
 
 // Only what changed goes to the server. Sending the whole form re-validated
-// values the member never touched — a legacy neighbourhood or gender from an
+// values the member never touched — a legacy neighborhood or gender from an
 // older vocabulary would fail save for an unrelated edit to their bio.
 function buildPatch(form: ProfileForm, base: ProfileForm): Record<string, unknown> {
   const patch: Record<string, unknown> = {}
@@ -227,7 +227,7 @@ function TagPicker({ options, selected, onChange, max, label }: {
 export default function ProfilePage() {
   const { user, setUser, logout } = useAuth()
   // The member's own city, not the browsed one: the server checks a saved
-  // neighbourhood against the home city, and the phone hint is that
+  // neighborhood against the home city, and the phone hint is that
   // country's. Passing null until it resolves keeps the picker from flashing
   // the browsed city's list first.
   const { home } = useHomeCity()
@@ -399,7 +399,7 @@ export default function ProfilePage() {
     : GENDER_OPTIONS
   // A stored value the list doesn't carry is still the member's answer.
   // Without its own option the browser selects the first entry instead —
-  // "Afghanistan" for nationality, "Select…" for a neighbourhood — and the
+  // "Afghanistan" for nationality, "Select…" for a neighborhood — and the
   // next save would quietly change it.
   const nationalityIsListed = COUNTRY_NAMES.has(form.nationality)
   const neighborhoodOptions = form.neighborhood && !neighborhoods.includes(form.neighborhood)
@@ -539,7 +539,7 @@ export default function ProfilePage() {
                     )}
                     {COUNTRIES.map(c => <option key={c.code} value={c.name}>{c.name}</option>)}
                   </select>
-                  {/* Same hint as the apply form: the answer used to be labelled
+                  {/* Same hint as the apply form: the answer used to be labeled
                       "Country" there, so members who picked where they live can
                       correct themselves here. */}
                   <p id="pf-nationality-hint" className="text-xs text-gray-500 mt-1">Where you&apos;re from — not where you live now.</p>
@@ -561,12 +561,12 @@ export default function ProfilePage() {
 
               {/* Avatar color */}
               {!form.profilePhoto && (
-                <div role="group" aria-labelledby="pf-colour-label">
-                  <p id="pf-colour-label" className="block text-xs font-semibold text-gray-600 mb-2">Avatar colour</p>
+                <div role="group" aria-labelledby="pf-color-label">
+                  <p id="pf-color-label" className="block text-xs font-semibold text-gray-600 mb-2">Avatar color</p>
                   <div className="flex gap-2 flex-wrap">
                     {AVATAR_COLORS.map((c, i) => (
                       <button key={c} type="button" onClick={() => set('color', c)}
-                        aria-label={`Colour ${i + 1} (${c})`} aria-pressed={form.color === c}
+                        aria-label={`Color ${i + 1} (${c})`} aria-pressed={form.color === c}
                         className={`w-8 h-8 rounded-full border-2 transition-transform ${form.color === c ? 'border-gray-900 scale-110' : 'border-transparent'}`}
                         style={{ backgroundColor: c }} />
                     ))}
@@ -798,7 +798,7 @@ export default function ProfilePage() {
               {/* Neighborhood discovery is a separate axis from directory
                   visibility: someone can be happy to appear in the directory
                   and still not want to be listed as "near you" on a page
-                  organised by where they live. Only narrows — a
+                  organized by where they live. Only narrows — a
                   'connections only' profile stays restricted either way. */}
               <div className="pt-4 border-t border-gray-100">
                 <label className="flex items-start gap-3 cursor-pointer">

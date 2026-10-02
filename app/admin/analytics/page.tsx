@@ -639,7 +639,7 @@ function AnalyticsInner() {
 
           {/* ── "Your First Event" matcher ──────────────────────────────────
               Attribution funnel for the newcomer recommendation block. Headline
-              is the time-normalised rate: of members whose first rec is ≥14 days
+              is the time-normalized rate: of members whose first rec is ≥14 days
               old, how many RSVP'd within their own 14 days. Deliberately NO
               green/red verdict — there is no control group (every zero-RSVP
               member sees the block), so the honest comparison is the monthly
@@ -661,7 +661,7 @@ function AnalyticsInner() {
                   const top = stages[0].value || 1
                   return (
                     <>
-                      {/* Headline: time-normalised conversion, no verdict */}
+                      {/* Headline: time-normalized conversion, no verdict */}
                       <div className="flex items-baseline justify-between">
                         <span className="text-xs font-semibold text-zinc-300">RSVP’d within 14 days of first rec</span>
                         <div className="flex items-baseline gap-2">

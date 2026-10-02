@@ -20,7 +20,7 @@ export function newSinceWhere(userId: string, seenAt: Date | null) {
     userId,
     isRead: false,
     // Null is "never opened the bell", which counts all unread — exactly the
-    // behaviour this replaces. That is deliberate and is why the migration
+    // behavior this replaces. That is deliberate and is why the migration
     // backfills nothing: every member keeps the badge they have today until
     // the first time they look, and nobody's unread pile is silently blanked.
     ...(seenAt ? { createdAt: { gt: seenAt } } : {}),

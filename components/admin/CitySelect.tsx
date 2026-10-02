@@ -38,7 +38,7 @@ export function CityBadge({ city, cities }: { city?: { name: string; slug: strin
 
 // Two jobs, two defaults for the empty option:
 //  - create forms: '' = "don't send a cityId", the server resolves the
-//    creator's own context. That is the pre-multi-city behaviour, kept as
+//    creator's own context. That is the pre-multi-city behavior, kept as
 //    the default on purpose — picking a city is the exception. The client
 //    can't preselect the admin's actual city (AppUser doesn't carry cityId);
 //    labeling the default honestly beats guessing.

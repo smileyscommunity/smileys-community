@@ -22,7 +22,7 @@ const ENTRIES: {
   {
     name: 'Mangerie',
     description:
-      'Long-running Bebek favourite known for weekend brunch, pasta, and Bosphorus views. Reservations recommended at peak hours; English-speaking staff and a strong vegetarian section.',
+      'Long-running Bebek favorite known for weekend brunch, pasta, and Bosphorus views. Reservations recommended at peak hours; English-speaking staff and a strong vegetarian section.',
     neighborhood: 'Bebek',
     languages: 'English, Turkish, Italian',
     isExpatFriendly: true,
@@ -46,7 +46,7 @@ const ENTRIES: {
   {
     name: 'Da Mario',
     description:
-      'Cosy trattoria in Etiler with a regular crowd and a chalkboard menu that rotates with the season. Strong on regional pastas and homemade desserts; check for daily specials.',
+      'Cozy trattoria in Etiler with a regular crowd and a chalkboard menu that rotates with the season. Strong on regional pastas and homemade desserts; check for daily specials.',
     neighborhood: 'Etiler',
     languages: 'English, Turkish, Italian',
     isExpatFriendly: true,

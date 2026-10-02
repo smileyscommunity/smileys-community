@@ -162,10 +162,10 @@ function EventCard({ row: r }: { row: Row }) {
 }
 
 function Stat({ label, value, tone }: { label: string; value: string; tone?: 'good' | 'warn' }) {
-  const colour = tone === 'good' ? 'text-emerald-400' : tone === 'warn' ? 'text-amber-400' : 'text-white'
+  const color = tone === 'good' ? 'text-emerald-400' : tone === 'warn' ? 'text-amber-400' : 'text-white'
   return (
     <div className="bg-zinc-800/60 rounded-lg px-2.5 py-2">
-      <p className={`text-base font-bold ${colour}`}>{value}</p>
+      <p className={`text-base font-bold ${color}`}>{value}</p>
       <p className="text-[11px] text-zinc-500 mt-0.5">{label}</p>
     </div>
   )

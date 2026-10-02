@@ -6,7 +6,7 @@ import { guestEventDescription } from '@/lib/db'
 // rules are pinned against the source (the publicPageGuestPrivacy approach).
 
 describe('members-only events withhold the venue and description from guests', () => {
-  it('discovery feed: the guest branch maps location to the neighbourhood', () => {
+  it('discovery feed: the guest branch maps location to the neighborhood', () => {
     const src = readFileSync('app/api/events/discovery/route.ts', 'utf-8')
     expect(src).toMatch(/membersOnly: true/)
     expect(src).toMatch(/soon: shapeGroups\(soon, true\)/)

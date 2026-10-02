@@ -494,7 +494,7 @@ describe('108 — notification link templates at call sites', () => {
     expect(scanner.templates.length).toBeGreaterThan(90)
     // Wrappers and helpers are followed: the club wall's createMany, mentions, the broadcast helper.
     const texts = scanner.templates.map(t => t.text)
-    // Both wall routes build the neighbourhood link with the city on it now (2026-09-28).
+    // Both wall routes build the neighborhood link with the city on it now (2026-09-28).
     expect(texts.filter(t => t.startsWith('/neighborhoods/')).length).toBeGreaterThanOrEqual(2)
     expect(texts).toContain(`/reviews?event=${HOLE}`)
     expect(scanner.templates.filter(t => t.site.startsWith('app/api/admin/notifications/broadcast')).map(t => [t.text, t.subs])).toEqual([

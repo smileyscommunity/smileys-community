@@ -40,7 +40,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const city = await getPublicCity(slug)
   if (!city || city.status !== CITY_STATUS.Live) return {}
   const title = `Remote work in ${city.name} — Smileys Community`
-  const description = `Working remotely from ${city.name}? Your first 72 hours: getting connected, choosing a neighbourhood, coworking sessions, money and transport — and people to spend time with.`
+  const description = `Working remotely from ${city.name}? Your first 72 hours: getting connected, choosing a neighborhood, coworking sessions, money and transport — and people to spend time with.`
   const image = shareCover('events', city, title)
   const url = `${APP_URL}/${city.slug}/remote-work`
   return {
@@ -86,8 +86,8 @@ export default async function CityRemoteWorkPage({ params }: Params) {
   // the same projection every story surface uses. A guest gets the first
   // name and no photo; a connections-only author is shown as a member.
   const interview = hub.interview ? await interviewByline(hub.interview, session) : null
-  // Backgrounds alternate from "Work and meet people" (grey); the interview
-  // and the shelf only render when the city has them, so each colour is
+  // Backgrounds alternate from "Work and meet people" (gray); the interview
+  // and the shelf only render when the city has them, so each color is
   // worked out from what is actually above it.
   const storiesBg   = interview ? 'bg-gray-50' : 'bg-white'
   const practicalBg = hub.stories.length > 0 ? (storiesBg === 'bg-white' ? 'bg-gray-50' : 'bg-white') : (interview ? 'bg-gray-50' : 'bg-white')

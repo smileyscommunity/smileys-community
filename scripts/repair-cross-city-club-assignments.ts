@@ -9,7 +9,7 @@
 // its memberships in the same request). Anything that can't be pinned to the
 // approval is listed as UNSURE or SELF_JOINED and never touched:
 //   · assigned, but the row was written with a later registration (the
-//     register route enrols assigned clubs AND onboarding picks together)
+//     register route enrolls assigned clubs AND onboarding picks together)
 //   · assigned, but the row is much later than the approval
 //   · the club isn't in the application's assigned list at all
 //   · the member also applied to, or has since joined, the club's city

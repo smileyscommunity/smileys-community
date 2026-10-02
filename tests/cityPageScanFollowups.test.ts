@@ -4,7 +4,7 @@ import { join } from 'path'
 
 // City page scan 2026-09-29, items 1–5: the guest join link is in the server
 // HTML; a guest's "announce your visit" goes to the application; the
-// pre-launch button says it is an application; member event cards honour
+// pre-launch button says it is an application; member event cards honor
 // blocks and connections-only profiles; banned and suspended members leave
 // event lists and visit cards; a members-only venue is not told to guests.
 
@@ -42,7 +42,7 @@ beforeEach(() => {
   p.user.findMany.mockResolvedValue([])
 })
 
-describe('member event cards honour blocks and connections-only profiles (item 4)', () => {
+describe('member event cards honor blocks and connections-only profiles (item 4)', () => {
   it('a connections-only attendee outside my connections is a first name with no photo', async () => {
     p.user.findMany.mockResolvedValue([{ id: 'a2', profileVisibility: 'connections' }])
     priv.restricted = new Set(['a2'])
@@ -72,7 +72,7 @@ describe('member event cards honour blocks and connections-only profiles (item 4
 })
 
 describe('a members-only venue is not told to guests (item 5)', () => {
-  it('guests get the neighbourhood instead of the free-text location', () => {
+  it('guests get the neighborhood instead of the free-text location', () => {
     expect(redactEventForGuest(ev({ membersOnly: true, location: "Ayşe's flat, Cihangir Sk. 12/3" })).location).toBe('Kadıköy')
     expect(redactEventForGuest(ev({ membersOnly: true, neighborhood: '' as never })).location).toBe('Shared with members')
     expect(redactEventForGuest(ev()).location).toBe('Moda Seaside')
@@ -246,7 +246,7 @@ describe('item 14: each city page carries its own freshness', () => {
 })
 
 describe('item 15: decorative emoji', () => {
-  it('the neighbourhood tiles hide their emoji from screen readers', () => {
+  it('the neighborhood tiles hide their emoji from screen readers', () => {
     expect(read('app/[city]/sections/Neighborhoods.tsx')).toContain('<span aria-hidden="true" className="text-3xl">{n.emoji}</span>')
   })
 })

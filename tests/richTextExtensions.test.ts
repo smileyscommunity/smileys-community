@@ -27,9 +27,9 @@ describe('rich text editor schema', () => {
     }
   })
 
-  it('has the marks the toolbar exposes, including the colour pair', () => {
+  it('has the marks the toolbar exposes, including the color pair', () => {
     // Color writes through TextStyle — if either stopped registering, the
-    // colour buttons would silently no-op.
+    // color buttons would silently no-op.
     for (const mark of ['bold', 'italic', 'underline', 'strike', 'link', 'textStyle', 'code']) {
       expect(schema.marks[mark], `missing mark: ${mark}`).toBeDefined()
     }

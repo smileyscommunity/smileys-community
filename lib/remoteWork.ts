@@ -26,7 +26,7 @@ import { DEFAULT_CITY_SLUG } from './city'
  *  the tax number it needs). */
 export const REMOTE_WORK_TOPICS = [
   { key: 'connect',   title: 'SIM, eSIM and home internet', category: 'Mobile & Digital',  keywords: /sim|internet|mobile|esim|phone/i },
-  { key: 'housing',   title: 'Housing and neighbourhoods',  category: 'Home & Housing',    keywords: /apartment|rent|hous|home|flat/i, lead: /rent/i },
+  { key: 'housing',   title: 'Housing and neighborhoods',  category: 'Home & Housing',    keywords: /apartment|rent|hous|home|flat/i, lead: /rent/i },
   { key: 'money',     title: 'Banking and money',           category: 'Money & Banking',   keywords: /bank|money|card|tax/i, lead: /bank/i },
   { key: 'transport', title: 'Getting around',              category: 'Getting Around',    keywords: /card|metro|bus|ferr|transport|kart|airport|arriv|havaliman/i },
   { key: 'legal',     title: 'Visas and residence',         category: 'Residence & Legal', keywords: /residence|permit|visa|ikamet|i̇kamet/i },
@@ -252,7 +252,7 @@ export function utcOffsetLabel(tz: string, now: Date = new Date()): string {
  *  nothing to link for that step — the step still renders (it is still a
  *  thing to do) but says so instead of linking to an empty page. */
 export interface ChecklistStep {
-  key:    'connect' | 'neighbourhood' | 'workspace' | 'money' | 'first-event'
+  key:    'connect' | 'neighborhood' | 'workspace' | 'money' | 'first-event'
   title:  string
   body:   string
   href:   string | null
@@ -309,11 +309,11 @@ export function buildChecklist({ citySlug, topics, hasNeighborhoods, hasWorkClub
       cta:  'Read the SIM and internet guide',
     },
     {
-      key: 'neighbourhood',
-      title: 'Choose a neighbourhood',
+      key: 'neighborhood',
+      title: 'Choose a neighborhood',
       body: 'Where you stay decides your commute, your cafés and who is around in the evening.',
       href: hasNeighborhoods ? `/neighborhoods?city=${citySlug}` : topicHref(topics, 'housing', citySlug),
-      cta:  'Compare neighbourhoods',
+      cta:  'Compare neighborhoods',
     },
     {
       key: 'workspace',

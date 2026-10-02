@@ -3,7 +3,7 @@ import { seedCityClubs } from '@/lib/seedCityClubs'
 import { CLUB_TEMPLATES } from '@/lib/clubTemplates'
 
 // Every seeded club must record which template stamped it. Without the link,
-// "update every club seeded from 'foodies'" or "which cities customised the
+// "update every club seeded from 'foodies'" or "which cities customized the
 // lineup?" becomes slug archaeology — reconstructable at 2 cities, not at 10.
 // NULL stays meaningful: hand-made or pre-catalog.
 

@@ -48,8 +48,8 @@ const STEPS = ['Basic Info', 'About You', 'Verification']
 // Rough time-left estimate shown next to the step label.
 const STEP_MINUTES_LEFT = [3, 2, 1]
 
-// The neighbourhood choice for a visitor or someone still moving — sent as
-// notResident, never stored as a neighbourhood.
+// The neighborhood choice for a visitor or someone still moving — sent as
+// notResident, never stored as a neighborhood.
 const NOT_RESIDENT = '__not_resident__'
 
 // Chips, not free text: these feed matching and filters, which a typed
@@ -126,7 +126,7 @@ function ApplyForm({ initialCity }: { initialCity: InitialCity | null }) {
   // whatever city the browser is resolved into — someone applying to İzmir
   // from an Istanbul-pinned session must pick from İzmir's list.
   const { list: neighborhoods, loaded: hoodsLoaded } = useCityNeighborhoodList(targetCitySlug, { forApply: true })
-  // A city with no neighbourhoods on file (Athens, Sofia) can't require a
+  // A city with no neighborhoods on file (Athens, Sofia) can't require a
   // pick: the empty select used to stop every applicant on step 1.
   const hoodOptional = hoodsLoaded && neighborhoods.length === 0
   // The city being applied TO — drives the visible copy so a Bodrum applicant
@@ -394,7 +394,7 @@ function ApplyForm({ initialCity }: { initialCity: InitialCity | null }) {
 
   // Step 1's rules, used by Continue and again at Submit: a restored draft
   // can land past step 1 with a field that no longer holds (its city's
-  // neighbourhood cleared), and the server then answered with a raw schema
+  // neighborhood cleared), and the server then answered with a raw schema
   // message naming no field.
   function step0Errors(): FieldErrors {
     const result = step0Schema.safeParse(hoodOptional ? { ...form, neighborhood: form.neighborhood || '—' } : form)
@@ -477,7 +477,7 @@ function ApplyForm({ initialCity }: { initialCity: InitialCity | null }) {
         setTurnstileReset(n => n + 1)
         return
       }
-      // No nationality or neighbourhood: personal details don't belong in an
+      // No nationality or neighborhood: personal details don't belong in an
       // analytics event (and it only fires at all with consent).
       posthog.capture('application_submitted', {
         source:      form.source,
@@ -604,7 +604,7 @@ function ApplyForm({ initialCity }: { initialCity: InitialCity | null }) {
         )}
 
         {/* Referral chip — only when ?ref=XYZ resolved to a real
-            approved member. Personalised "Sarah invited you" with a
+            approved member. Personalized "Sarah invited you" with a
             face beats any aggregate stat for conversion, so it sits
             above the generic social-proof block on step 0. */}
         {step === 0 && referralCtx?.inviter && (
@@ -685,7 +685,7 @@ function ApplyForm({ initialCity }: { initialCity: InitialCity | null }) {
                   Why we ask for these details
                 </summary>
                 <ul className="mt-2 space-y-1.5">
-                  <li><span className="font-semibold text-gray-800">Neighbourhood</span> — so we can suggest people, clubs and plans near where you live, in the right city.</li>
+                  <li><span className="font-semibold text-gray-800">Neighborhood</span> — so we can suggest people, clubs and plans near where you live, in the right city.</li>
                   <li><span className="font-semibold text-gray-800">Date of birth</span> (optional) — Smileys is for adults, and it helps us review your application.</li>
                   <li><span className="font-semibold text-gray-800">Gender</span> — many events are gender-balanced so the mix feels comfortable. &ldquo;Prefer not to say&rdquo; is always an option.</li>
                   <li><span className="font-semibold text-gray-800">WhatsApp number</span> — so our team can reach you; event and club chats often run on WhatsApp. It is never shown publicly.</li>
@@ -726,7 +726,7 @@ function ApplyForm({ initialCity }: { initialCity: InitialCity | null }) {
               </div>
               <div>
                 {/* This answer becomes the member's NATIONALITY on approval
-                    (app/api/admin/applications). Labelled "Country" with no
+                    (app/api/admin/applications). Labeled "Country" with no
                     hint, applicants already living in the city read it as
                     where they live and picked the host country — 132 of one
                     month's approvals, UK and UAE phone numbers among them
@@ -769,7 +769,7 @@ function ApplyForm({ initialCity }: { initialCity: InitialCity | null }) {
               <div>
                 <p className="block text-xs font-semibold text-gray-600 mb-2">Neighborhood / Area</p>
                 <p className="text-sm text-gray-600 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5">
-                  No neighbourhoods are listed for {targetCityName} yet — you can add yours once you&apos;re in.
+                  No neighborhoods are listed for {targetCityName} yet — you can add yours once you&apos;re in.
                 </p>
               </div>
             ) : (
@@ -1120,7 +1120,7 @@ function ApplyForm({ initialCity }: { initialCity: InitialCity | null }) {
               { icon: '👋', title: 'A warm welcome', body: 'Every event has a host whose job is to make introductions. You will never have to walk into a room and figure it out alone.' },
               { icon: '👥', title: 'Small groups', body: 'Guest lists stay small — typically 20 to 60 people. It feels more like a dinner party than a conference.' },
               { icon: '🌍', title: 'Instant common ground', body: 'Everyone in the room chose to be here. That shared curiosity about the city is the icebreaker. The conversations start easily.' },
-              { icon: '🔁', title: 'Familiar faces, fast', body: 'Members attend regularly. Within two or three events, you start recognising people. That\'s when it starts feeling like a community.' },
+              { icon: '🔁', title: 'Familiar faces, fast', body: 'Members attend regularly. Within two or three events, you start recognizing people. That\'s when it starts feeling like a community.' },
             ].map(item => (
               <li key={item.title} className="flex gap-4">
                 <span aria-hidden="true" className="text-2xl mt-0.5 shrink-0">{item.icon}</span>

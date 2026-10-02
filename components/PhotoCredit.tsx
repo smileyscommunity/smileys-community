@@ -2,13 +2,13 @@ import { isSafeHref } from '@/lib/safeUrl'
 
 // The credit a licensed cover must carry wherever it is shown. A Wikimedia
 // Commons photo under CC BY / BY-SA may be used only with its author and
-// licence named alongside it, so every surface that renders a listing's cover
+// license named alongside it, so every surface that renders a listing's cover
 // renders this next to it (Business.coverCredit, "Asibala · CC BY-SA 4.0").
 // Surfaces that can't show a caption — share cards, JSON-LD — skip a credited
 // cover instead (see creditedCoverOk).
 //
 //   overlay — a small tag on the photo itself
-//   line    — a grey line in the card text, for cards whose photo corners are
+//   line    — a gray line in the card text, for cards whose photo corners are
 //             all taken
 //
 // `link` is off inside cards that are one big <Link> (no nested anchors); the

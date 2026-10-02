@@ -6,7 +6,7 @@
 // has no /guide entries. A `revalidate` export here did nothing and was
 // removed; the comments that justified client islands "so the page can be
 // cached" were wrong for the same reason. The islands that remain exist for
-// per-viewer BEHAVIOUR (buttons, the composer, the CTA branch), and their
+// per-viewer BEHAVIOR (buttons, the composer, the CTA branch), and their
 // data arrives from the server render.
 //
 // The saving is taken where the rendering mode can't cancel it:
@@ -81,7 +81,7 @@ const getNeighborhoodCounts = unstable_cache(
     prisma.user.groupBy({
       by:    ['neighborhood'],
       // Same two filters as /neighborhoods: a member who opted out of the
-      // neighbourhood map, or whom an admin hid, must not be counted here
+      // neighborhood map, or whom an admin hid, must not be counted here
       // either — in a thin area the difference between the two pages'
       // numbers said that somebody hidden lives there.
       where: { ...ACTIVATED_MEMBER_WHERE, neighborhood: { not: null }, cityId, neighborhoodVisible: true, hiddenFromMembers: false },
@@ -394,7 +394,7 @@ export default async function GuidePage({ searchParams }: { searchParams?: Promi
 
           {/* §12 — Popular Right Now, from real save/recommend counts.
               Below the engagement floor it falls back to an editorial
-              list HONESTLY labelled as curated — never faked numbers. */}
+              list HONESTLY labeled as curated — never faked numbers. */}
           {await (async () => {
             const counts = await getPopularSaves(cityId)
             const bySlug = new Map(experiences.map(e => [e.slug, e]))
@@ -412,7 +412,7 @@ export default async function GuidePage({ searchParams }: { searchParams?: Promi
                 {/* The fallback used to be headed "Popular with Smileys — the
                     experiences members keep coming back to", which on Bodrum's
                     guide described entries published that morning with zero
-                    saves. The comment above promises an honestly-labelled
+                    saves. The comment above promises an honestly-labeled
                     editorial list; this is that promise kept in the words too. */}
                 <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900 mb-1">
                   {enough ? 'Popular right now' : 'Where to start'}
@@ -624,7 +624,7 @@ export default async function GuidePage({ searchParams }: { searchParams?: Promi
             now 3. The sponsored variant's group-hover:text-amber-300
             on the headline only fires when the parent <a> carries
             the 'group' class — inert otherwise, which is the no-link
-            behaviour. */}
+            behavior. */}
         {banner && (() => {
           const inner =
             banner.type === 'strip' ? (

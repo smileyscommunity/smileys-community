@@ -21,7 +21,7 @@ export interface ShownAuthor {
  * How the author of a board post, reply, guide tip, directory review or moving
  * sale is shown to this viewer — one rule for the public APIs that list them.
  *
- *   - A guest sees a first name and a colour, no photo and no member id: the
+ *   - A guest sees a first name and a color, no photo and no member id: the
  *     content is public, who wrote it is for members. (Listings already go
  *     further and show "Smileys member"; lib/listingsPublic.)
  *   - A member sees the author in full, except a connections-only author they

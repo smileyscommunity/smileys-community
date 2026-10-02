@@ -534,7 +534,7 @@ export default async function WhyPage({ searchParams }: { searchParams?: Promise
           style={{ backgroundImage: 'radial-gradient(circle at 30% 50%, #ffffff 0%, transparent 50%), radial-gradient(circle at 70% 50%, #92400e 0%, transparent 50%)' }} />
         <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           {/* Text is dark on the amber: white, amber-100 and amber-200 read at
-              about 2:1. The two buttons keep their own colours. */}
+              about 2:1. The two buttons keep their own colors. */}
           <p className="text-amber-950 text-sm font-bold tracking-widest uppercase mb-4">The feeling you're looking for</p>
           <h2 className="text-4xl sm:text-5xl font-extrabold text-amber-950 tracking-tight mb-5">
             <span aria-hidden="true">😊 </span>Ready to feel at home?

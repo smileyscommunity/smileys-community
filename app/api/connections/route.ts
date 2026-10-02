@@ -39,14 +39,14 @@ export async function GET(req: NextRequest) {
 
   // A pending row is not a connection: a connections-only member on the
   // other side is the same locked card here as everywhere else — first name,
-  // no photo, no neighbourhood — until it is accepted. Only the neighbourhood
+  // no photo, no neighborhood — until it is accepted. Only the neighborhood
   // was withheld, so sending someone a request (and withdrawing it) was a way
   // to read the full name and photo their card hides: ten members a day, per
   // account, with the strip on /members rendering it straight back.
   const restricted = await restrictedSetFor(session, [...sent.map(c => c.receiver), ...received.map(c => c.requester)])
-  // The neighbourhood also follows the member's own switch (neighborhoodVisible):
+  // The neighborhood also follows the member's own switch (neighborhoodVisible):
   // sending a request and reading ?direction=sent returned an opted-out
-  // member's neighbourhood, which every other surface withholds.
+  // member's neighborhood, which every other surface withholds.
   const redact = <T extends { id: string; name: string; profilePhoto: string | null; neighborhood: string | null; neighborhoodVisible?: boolean; profileVisibility?: string }>(p: T) => {
     const { profileVisibility: _pv, neighborhoodVisible, ...rest } = p
     return restricted.has(p.id)

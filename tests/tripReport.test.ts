@@ -10,9 +10,9 @@ const a = (over: Partial<TripAttendee>): TripAttendee =>
   ({ userId: 'u', homeCityId: 'ist', checkedIn: false, attendance: 'unknown', joinedDestinationAt: null, ...over })
 
 describe('trip report', () => {
-  it('counts going, went, locals and the travellers who joined afterwards', () => {
+  it('counts going, went, locals and the travelers who joined afterwards', () => {
     const s = tripAttendeeStats('esk', day, [
-      a({ userId: 'traveller' }),
+      a({ userId: 'traveler' }),
       a({ userId: 'checked', checkedIn: true }),
       a({ userId: 'attended', attendance: 'attended' }),
       a({ userId: 'local-home', homeCityId: 'esk', checkedIn: true }),

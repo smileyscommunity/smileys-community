@@ -5,7 +5,7 @@ import { join } from 'path'
 // The notifications review (2026-09-20). A report told the member it was
 // about who had reported them; an application pushed an applicant's name to
 // moderators of cities that can't open it; a connections-only member's full
-// name went out to every neighbour; a block didn't reach chat fan-outs; and a
+// name went out to every neighbor; a block didn't reach chat fan-outs; and a
 // failed request read as "you're all caught up". These pin the fixes.
 
 const src = (p: string) => readFileSync(join(__dirname, '..', p), 'utf8')
@@ -54,7 +54,7 @@ describe('being free to meet', () => {
     expect(route).toContain('const restricted = await restrictedSetFor(session, pulses.map(p => p.user))')
     expect(route).toContain('profilePhoto: restricted.has(p.user.id) ? null : p.user.profilePhoto,')
     expect(route).toContain('nationality:  restricted.has(p.user.id) ? null : p.user.nationality,')
-    // A wave comes from any neighbour, not necessarily a connection.
+    // A wave comes from any neighbor, not necessarily a connection.
     expect(src('app/api/availability/[id]/wave/route.ts'))
       .toContain('`✋ ${connected ? session.name : firstNameOf(session.name)} is free too`')
   })

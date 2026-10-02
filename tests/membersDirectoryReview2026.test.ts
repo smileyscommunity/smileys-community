@@ -226,7 +226,7 @@ describe('the page uses the shared rules', () => {
 })
 
 describe('discovery rails', () => {
-  it('a member who hid their neighbourhood gets no stray pin', () => {
+  it('a member who hid their neighborhood gets no stray pin', () => {
     expect(discovery).toContain('{m.neighborhood && <p className="text-xs text-gray-500 mt-0.5 truncate"><span aria-hidden="true">📍</span> {m.neighborhood}</p>}')
   })
 })

@@ -156,7 +156,7 @@ describe('93b. club delete controls work without hover', () => {
     // Enter on the button must not bubble into the tile's open-lightbox handler
     expect(src).toMatch(/onKeyDown=\{e => e\.stopPropagation\(\)\}\s*aria-label="Delete photo"/)
   })
-  it('club resource remove is labelled and finger-sized', () => {
+  it('club resource remove is labeled and finger-sized', () => {
     const src = read('components/ClubResources.tsx')
     expect(src).toMatch(/aria-label=\{`Remove \$\{r\.title\}`\}/)
     expect(src).toMatch(/w-8 h-8 sm:w-6 sm:h-6/)
@@ -232,7 +232,7 @@ describe('93d. rich-text toolbar is keyboard operable', () => {
   })
   it('one-shot actions are not announced as toggles', () => {
     expect(src).not.toMatch(/<ToolbarBtn active=\{false\}/)
-    expect(src).toMatch(/aria-label=\{c\.value \? `Text colour: \$\{c\.label\}` : 'Default text colour'\}/)
+    expect(src).toMatch(/aria-label=\{c\.value \? `Text color: \$\{c\.label\}` : 'Default text color'\}/)
     expect(src).toMatch(/aria-label="Close link editor"/)
   })
 })

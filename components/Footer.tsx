@@ -12,7 +12,7 @@ interface FooterProps {
       default city for guests. Defaults defensively so the footer never renders
       a blank heading if a caller forgets it. */
   cityName?: string
-  /** Whether the viewed city has any neighbourhoods. A city grows into them —
+  /** Whether the viewed city has any neighborhoods. A city grows into them —
       linking to an empty page under a heading naming the city reads as broken. */
   hasNeighborhoods?: boolean
   /** The city whose URL this is, if any. Its shopfront (/<slug>) closes with
@@ -175,7 +175,7 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
             </div>
           </div>
 
-          {/* Split by SCOPE, not by flavour. Everything in the first column
+          {/* Split by SCOPE, not by flavor. Everything in the first column
               shows ONE city's content; everything in the second is the same
               wherever you are. Naming the column after the city is what lets
               "Guide" drop its qualifier — the heading already says which city,
@@ -190,7 +190,7 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
                 stack became a full screen of scrolling. At 375px each column
                 gets ~160px, so "Community Board" wraps to two snug lines — a
                 far smaller cost than twelve full-width rows. On desktop the
-                section is one ordinary column like its neighbours, so it
+                section is one ordinary column like its neighbors, so it
                 collapses back to a single stack. */}
             <ul className="grid grid-cols-2 gap-x-6 gap-y-2.5 lg:grid-cols-1 lg:gap-y-3">
               {[

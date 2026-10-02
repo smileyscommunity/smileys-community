@@ -13,7 +13,7 @@ describe('city-host grant', () => {
 
 describe('pro waitlist', () => {
   const src = read('app/api/pro/waitlist/route.ts')
-  it('a signed-in member can only enrol their own email', () => {
+  it('a signed-in member can only enroll their own email', () => {
     expect(src).toMatch(/const cleanEmail = String\(session\?\.email \?\? email \?\? ''\)/)
   })
   it('a resubmission cannot rename the entry', () => {
@@ -24,9 +24,9 @@ describe('pro waitlist', () => {
 describe('member profile live signals', () => {
   const src = read('app/api/members/[id]/route.ts')
   it('gate the pulse note and both neighborhoods like the profile neighborhood', () => {
-    // Profile review 2026-09-19: a public profile's neighbourhood shows when
+    // Profile review 2026-09-19: a public profile's neighborhood shows when
     // its owner chose to be listed by it; the note stays for connections. A
-    // hangout's neighbourhood is where the hangout is, as on the hangouts feed.
+    // hangout's neighborhood is where the hangout is, as on the hangouts feed.
     expect(src).toMatch(/neighborhood: fullAccess \|\| user\.neighborhoodVisible \? activePulse\.neighborhood : null, note: fullAccess \? activePulse\.note : null/)
     expect(src).toMatch(/neighborhood: activeHangout\.neighborhood/)
   })

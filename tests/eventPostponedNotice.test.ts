@@ -52,7 +52,7 @@ describe('postponed events stay visible, stamped', () => {
     expect((db.match(/'cancelled', 'postponed'\]/g) ?? []).length).toBe(4)
   })
 
-  it('the card stamps it and colours its closed button', () => {
+  it('the card stamps it and colors its closed button', () => {
     const card = read('components/EventCard.tsx')
     expect(card).toMatch(/const isPostponed = event\.status === 'postponed'/)
     expect(card).toMatch(/\{isPostponed && \(/)

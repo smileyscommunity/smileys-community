@@ -14,7 +14,7 @@ const index    = read('app/neighborhoods/page.tsx')
 const detail   = read('app/neighborhoods/[slug]/page.tsx')
 const sections = read('app/neighborhoods/[slug]/NeighborhoodSections.tsx')
 
-describe('the two "set your neighbourhood" buttons go to the page with the picker (item 7)', () => {
+describe('the two "set your neighborhood" buttons go to the page with the picker (item 7)', () => {
   it('index CTAs never send a member to /settings', () => {
     expect(index).not.toContain("'/settings'")
     // 2026-09-28 item 18: the guest path carries the city.
@@ -23,7 +23,7 @@ describe('the two "set your neighbourhood" buttons go to the page with the picke
   })
 })
 
-describe('nearest neighbourhoods by distance (item 8)', () => {
+describe('nearest neighborhoods by distance (item 8)', () => {
   const meta = (name: string) => ({ name, lat: NEIGHBORHOOD_META[name].lat, lon: NEIGHBORHOOD_META[name].lon })
   const istanbul = Object.keys(NEIGHBORHOOD_META).map(meta)
   it('Florya is close to Yeşilköy and Ataköy, not Beykoz across the Bosphorus', () => {
@@ -35,7 +35,7 @@ describe('nearest neighbourhoods by distance (item 8)', () => {
     expect(distanceKm(meta('Florya'), meta('Beykoz'))).toBeGreaterThan(25)
     expect(distanceKm(meta('Florya'), meta('Yeşilköy'))).toBeLessThan(5)
   })
-  it('a neighbourhood without coordinates ranks nothing and never appears', () => {
+  it('a neighborhood without coordinates ranks nothing and never appears', () => {
     const rows = [meta('Moda'), { name: 'Nowhere', lat: null, lon: null }, meta('Kadıköy')]
     expect(nearestByDistance(meta('Kadıköy'), rows, 3).map(n => n.name)).toEqual(['Moda'])
     expect(nearestByDistance({ name: 'X', lat: null, lon: null }, rows, 3)).toEqual([])

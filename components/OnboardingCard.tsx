@@ -30,7 +30,7 @@ const ITEMS: Item[] = [
   {
     emoji:       '🏢',
     title:       'Business Directory',
-    description: 'Expat-owned & expat-friendly spots across the city. Add your favourites.',
+    description: 'Expat-owned & expat-friendly spots across the city. Add your favorites.',
     href:        '/directory',
   },
   // Cup 2026 entry removed 2026-08-28 — the tournament ended Jul 19 and
@@ -58,7 +58,7 @@ const ITEMS: Item[] = [
     emoji:       '🗺️',
     title:       'City Guide',
     // The Guide is places and experiences; visas and banking are the Handbook.
-    description: 'Places, neighbourhoods and experiences picked by members.',
+    description: 'Places, neighborhoods and experiences picked by members.',
     href:        '/guide',
   },
 ]

@@ -4,7 +4,7 @@ import { join } from 'path'
 import { isStaleChunkError, reloadOnceForStaleChunk, recoverFromStaleChunk } from '@/lib/staleChunk'
 
 // 2026-09-23. The two error boundaries both show "Something went wrong" and
-// both auto-reload once on a stale chunk — but they recognised DIFFERENT sets
+// both auto-reload once on a stale chunk — but they recognized DIFFERENT sets
 // of patterns, because the rule was written twice. app/error.tsx matched four;
 // app/global-error.tsx duplicated it inline and matched three, missing
 // "Cannot read properties of undefined (reading 'call')" out of

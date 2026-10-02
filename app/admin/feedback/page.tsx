@@ -60,7 +60,7 @@ function InnerPage() {
   const router       = useRouter()
   const pathname     = usePathname()
 
-  // Filter state — initialised from URL so reload + deep links land
+  // Filter state — initialized from URL so reload + deep links land
   // on the same view.
   const [view,        setView]        = useState<ViewKey>(searchParams.get('view') === 'events' ? 'events' : 'responses')
   const [anomalyOnly, setAnomalyOnly] = useState(searchParams.get('anomalyOnly') === '1')

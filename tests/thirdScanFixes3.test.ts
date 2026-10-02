@@ -32,7 +32,7 @@ describe('18 stale-chunk reload', () => {
   // two different shapes — which is how they drifted: error.tsx matched four
   // patterns and global-error.tsx three. It now lives once in lib/staleChunk,
   // so this pins that both boundaries defer to it and the cooldown is still
-  // there. The patterns and the cooldown behaviour are covered directly in
+  // there. The patterns and the cooldown behavior are covered directly in
   // tests/staleChunkBoundaries2026.test.ts.
   it('is guarded to once per minute, from one shared rule', () => {
     expect(read('lib/staleChunk.ts')).toMatch(/RELOAD_COOLDOWN_MS = 60_000/)

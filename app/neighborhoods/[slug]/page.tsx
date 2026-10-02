@@ -178,12 +178,12 @@ function buildAboutCopy(meta: NeighborhoodView, cityName: string, nearbyNames: s
   return `${opener}${near} Smileys members based in ${name} connect through neighborhood events, meetups, and each other — this page tracks who's around, what's on, and what's nearby.`
 }
 
-// The nearest neighbourhoods by real distance (lib/neighborhoods
+// The nearest neighborhoods by real distance (lib/neighborhoods
 // nearestByDistance) — this text is indexed on every page and repeated in the
 // Place structured data, and it used to be the first two same-area rows by
 // registry sort order, which put Florya "close to Beykoz and Sarıyer" and
 // Pendik next to Kağıthane. Every active row has coordinates today; a
-// neighbourhood without them falls back to the old same-area order rather
+// neighborhood without them falls back to the old same-area order rather
 // than claiming nothing.
 function nearestNeighborhoods(meta: NeighborhoodView, siblings: NeighborhoodView[], take: number): Array<{ name: string; slug: string }> {
   const byDistance = nearestByDistance(meta, siblings, take)
@@ -273,8 +273,8 @@ export default async function NeighborhoodPage(
   // an Istanbul member "the first local Smileys member here" on Ankara's Ulus.
   const isYourNeighborhood = session?.neighborhood === name && session?.cityId === cityId
   // Only on the reader's own city: the picker on /profile lists the home
-  // city's neighbourhoods, so an Istanbul member on Ankara's Ulus was told
-  // to set a neighbourhood they could not pick.
+  // city's neighborhoods, so an Istanbul member on Ankara's Ulus was told
+  // to set a neighborhood they could not pick.
   const hasNoNeighborhood  = !!session && !session.neighborhood && session.cityId === cityId
   const isStaff = session?.role === 'admin' || session?.role === 'moderator'
 
@@ -283,7 +283,7 @@ export default async function NeighborhoodPage(
   // `sideLabel[area] ?? area`, never assume a hit.
   //
   // Gated on the city, not just the key: `area` is per-city free text, so any
-  // city that reasonably calls its centre "Central" or its shore "Coastal"
+  // city that reasonably calls its center "Central" or its shore "Coastal"
   // would otherwise inherit Istanbul's label and be described as "Central
   // Istanbul" on its own page. An empty map falls through to the raw area name,
   // which is the correct rendering for every other city.
@@ -358,7 +358,7 @@ export default async function NeighborhoodPage(
             long time only the cards read from it: every guide file lacked an
             `image`, so Kadıköy's page showed a gradient while its photo sat
             one click earlier on the card. Falling back to that map means the
-            two surfaces cannot disagree about a neighbourhood we do have a
+            two surfaces cannot disagree about a neighborhood we do have a
             photo of. */}
         {heroImage ? (
           <div className="absolute inset-0">
@@ -477,9 +477,9 @@ export default async function NeighborhoodPage(
           </div>
         )}
 
-        {/* Map — immediate, no DB. Hidden outright when the neighbourhood has
+        {/* Map — immediate, no DB. Hidden outright when the neighborhood has
             no coordinates: they used to fall back to 0,0, which put a marker
-            labelled with the district in the Gulf of Guinea. The Google
+            labeled with the district in the Gulf of Guinea. The Google
             Maps search link below still works from the name. */}
         <div className="rounded-2xl overflow-hidden border border-gray-100 shadow-sm">
           {meta.lat != null && meta.lon != null && (

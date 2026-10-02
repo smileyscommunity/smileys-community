@@ -112,7 +112,7 @@ export default function NewEventPage() {
   // viewer's — so a Bodrum event offers Bodrum areas. For a global club
   // that's whichever city was picked above. Falls back to the viewer's own
   // city until a club is chosen.
-  // A trip happens in the city it visits, so its neighbourhoods, venue
+  // A trip happens in the city it visits, so its neighborhoods, venue
   // search and map lookup follow the destination, not the club.
   const clubCityOption = selectedClub?.city ? cities.find(c => c.slug === selectedClub.city!.slug) : undefined
   const tripOptions = clubCityOption
@@ -274,7 +274,7 @@ export default function NewEventPage() {
       // when you CLICK it — and it starts already selected, so an admin who
       // fills the form without touching payment posts price:'' and the server
       // answers 400 "price required" for an event that is free by default.
-      // Clearing a typed price returns to "Free" the same way. Normalise here
+      // Clearing a typed price returns to "Free" the same way. Normalize here
       // so the payload matches the choice however the form reached it.
       price:          form.payTo === 'free' ? '0' : form.price,
       ticketUrl:      form.payTo === 'buyonline' ? form.ticketUrl : '',
@@ -416,7 +416,7 @@ export default function NewEventPage() {
                 </select>
                 {tripDestination && (
                   <p className="text-[11px] text-zinc-500 mt-1.5">
-                    Filed in {tripDestination.name} (its page, feed and first-event count) and shown in {clubCityOption.name}&apos;s feed too. Venue and neighbourhood are in {tripDestination.name}.
+                    Filed in {tripDestination.name} (its page, feed and first-event count) and shown in {clubCityOption.name}&apos;s feed too. Venue and neighborhood are in {tripDestination.name}.
                   </p>
                 )}
               </div>
@@ -774,7 +774,7 @@ export default function NewEventPage() {
               />
               <span className="text-xs text-zinc-500 basis-full sm:basis-auto">max males allowed</span>
             </div>
-            {/* Female cap — null/empty = uncapped (preserves old behaviour).
+            {/* Female cap — null/empty = uncapped (preserves old behavior).
                 Set this to also cap the female side so the event balances
                 instead of just protecting against male-dominance. */}
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">

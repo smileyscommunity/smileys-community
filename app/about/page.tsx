@@ -298,7 +298,7 @@ export default async function AboutPage() {
       {/* ── Final CTA ── */}
       <section className="bg-amber-500">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
-          {/* Text is dark on the amber; the two buttons keep their own colours. */}
+          {/* Text is dark on the amber; the two buttons keep their own colors. */}
           <h2 className="text-3xl sm:text-4xl font-extrabold text-amber-950 mb-4">
             <span aria-hidden="true">😊 </span>Ready to find your people?
           </h2>

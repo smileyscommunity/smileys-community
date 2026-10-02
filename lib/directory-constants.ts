@@ -100,7 +100,7 @@ export function attributionDisplay(fullName: string | null | undefined): string 
 
 // The profile URLs people actually paste: with or without the scheme, www./m.,
 // and the instagr.am short domain. Only a schemed www/bare instagram.com was
-// recognised, so "instagram.com/foo" was refused as an invalid handle.
+// recognized, so "instagram.com/foo" was refused as an invalid handle.
 const INSTAGRAM_URL_RE = /^(?:https?:\/\/)?(?:(?:www|m)\.)?(?:instagram\.com|instagr\.am)\//i
 // First path segments that are Instagram pages (a post, a reel), not a profile.
 const INSTAGRAM_NON_PROFILE = new Set(['p', 'reel', 'reels', 'tv', 'stories', 'explore', 'accounts', 'direct'])

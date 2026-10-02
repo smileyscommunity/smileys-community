@@ -116,7 +116,7 @@ function ActivateForm() {
         {resent && (
           <p className="text-sm text-gray-700">Sent to <strong>{resent}</strong>. Open the newest email from Smileys — the link in it works for 7 days.</p>
         )}
-        {/* A link we no longer recognise (replaced by a newer one, or long
+        {/* A link we no longer recognize (replaced by a newer one, or long
             gone) still has a way back: forgot-password mails a fresh
             activation link to an approved account that never set a password. */}
         {!expired && (

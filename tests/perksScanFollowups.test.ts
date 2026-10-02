@@ -29,7 +29,7 @@ describe('member perks', () => {
     expect(card).not.toContain("it isn&apos;t a pass or a membership check")
   })
   // Nate 2026-09-29: no error card — a failed load keeps the original
-  // behaviour (it falls through to the empty state).
+  // behavior (it falls through to the empty state).
   it('3: no error card on a failed load (Nate\'s call)', () => {
     expect(page).not.toContain("We couldn&apos;t load the perks")
     expect(page).toContain(".then(d => setPartners(Array.isArray(d) ? d : []))")

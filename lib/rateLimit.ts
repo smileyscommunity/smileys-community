@@ -47,7 +47,7 @@ export function claimOnce(key: string, windowMs: number): Promise<boolean> {
  * whose send failed AFTER it claimed: claim-first is what stops two runs
  * double-sending, but a claim kept for a send that never happened silences
  * that send for the whole window. Never throws — a failed release leaves the
- * claim in place, which is the pre-release behaviour (logged, not retried).
+ * claim in place, which is the pre-release behavior (logged, not retried).
  */
 export async function releaseClaim(key: string): Promise<void> {
   try {

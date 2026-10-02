@@ -45,7 +45,7 @@ export interface RosterHost {
   name: string
   color: string
   profilePhoto: string | null
-  /** Selected so a member's view can honour a connections-only profile; never rendered. */
+  /** Selected so a member's view can honor a connections-only profile; never rendered. */
   profileVisibility?: string | null
   title: HostTitle
   clubs: RosterClub[]

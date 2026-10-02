@@ -61,7 +61,7 @@ const categoryColors: Record<string, string> = {
   'Students':     'bg-indigo-100 text-indigo-700',
   'Expats':       'bg-teal-100 text-teal-700',
   'Digital nomads': 'bg-cyan-100 text-cyan-700',
-  'Travellers':   'bg-orange-100 text-orange-700',
+  'Travelers':   'bg-orange-100 text-orange-700',
 }
 
 // In the city's own day: the server is UTC, so a story published at 01:00 in
@@ -102,10 +102,10 @@ const BODY_PROSE = [
   'prose-ul:my-5 prose-ol:my-5 prose-li:text-[17px] prose-li:text-gray-700 prose-li:my-1',
   '[&_li::marker]:text-amber-500',
   'prose-strong:font-bold prose-strong:text-gray-900',
-  // A colour picked in the editor lands as `<span style="color: …">`, and a
-  // child's own class beats a colour inherited from its parent — so bold text
-  // inside a coloured span would render prose-strong's gray-900 and lose the
-  // colour. Make anything nested in a styled span inherit it instead.
+  // A color picked in the editor lands as `<span style="color: …">`, and a
+  // child's own class beats a color inherited from its parent — so bold text
+  // inside a colored span would render prose-strong's gray-900 and lose the
+  // color. Make anything nested in a styled span inherit it instead.
   '[&_span[style]_*]:text-[color:inherit]',
   'prose-a:text-amber-600 prose-a:font-medium',
   'prose-blockquote:border-l-4 prose-blockquote:border-amber-400 prose-blockquote:not-italic prose-blockquote:text-gray-600',

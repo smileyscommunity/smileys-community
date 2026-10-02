@@ -142,7 +142,7 @@ describe('11. club faces never expose hidden or private members, and guests get 
   it('the cached faces query filters hidden and connections-only members', () => {
     expect(src).toContain(`AND u."hiddenFromMembers" = false AND u."profileVisibility" <> 'connections'`)
   })
-  it('guests get a coloured initial, no name and no photo', () => {
+  it('guests get a colored initial, no name and no photo', () => {
     expect(src).toContain('faces: c.faces.map(f => ({ name: f.name.trim().charAt(0), color: f.color, profilePhoto: null })),')
   })
 })

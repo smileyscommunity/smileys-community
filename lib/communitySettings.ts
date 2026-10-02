@@ -90,7 +90,7 @@ export function communityInstagramUrl(handle: string | undefined | null): string
 }
 
 /**
- * Validate + normalise a stored WhatsApp channel URL. Accepts the
+ * Validate + normalize a stored WhatsApp channel URL. Accepts the
  * canonical `https://whatsapp.com/channel/...` shape (with or without
  * the `www.` prefix), trims whitespace, and rejects anything else —
  * we deliberately don't fall back to wa.me click-to-chat, since the
@@ -129,7 +129,7 @@ export function sameSocialUrl(a: string | null | undefined, b: string | null | u
       const host = url.hostname.toLowerCase().replace(/^www\./, '')
       // Host is case-insensitive, but the PATH is not: WhatsApp invite/
       // channel codes (chat.whatsapp.com/AbCd…) are case-sensitive, so two
-      // distinct groups must not normalise equal and hide a real CTA.
+      // distinct groups must not normalize equal and hide a real CTA.
       const path = url.pathname.replace(/\/+$/, '')
       return `${host}${path}`
     } catch { return null }

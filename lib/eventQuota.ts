@@ -62,7 +62,7 @@ export type QuotaBlock = 'male_quota' | 'female_quota' | 'turkish_male_quota'
  *
  * A null quota on either side falls back to half the spots. That is what
  * "gender balance" is understood to mean when it's ticked, and only the male
- * side used to honour it.
+ * side used to honor it.
  *
  * A gender outside male/female counts toward NEITHER side, and that is a
  * decision, not an oversight. 14 approved members are prefer_not_to_say (11),

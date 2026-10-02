@@ -1,4 +1,4 @@
-// ── Shared nav link catalogue ───────────────────────────────────────────────
+// ── Shared nav link catalog ───────────────────────────────────────────────
 // One source for the desktop "Discover" dropdown and the mobile bottom-nav
 // sheet. They previously had nothing in common: the mobile sheet carried only
 // account links, so a member on a phone couldn't reach Experiences, Cities,

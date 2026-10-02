@@ -218,7 +218,7 @@ describe("e. a legacy '19.30' time reads as 19:30", () => {
 })
 
 // ── f ──────────────────────────────────────────────────────────────────────
-describe('f. rsvp route on the shared helper: behaviour unchanged', () => {
+describe('f. rsvp route on the shared helper: behavior unchanged', () => {
   const STARTED_ERROR = 'This event has already started — RSVPs and the waitlist are closed'
 
   it('POST after the start is refused with the started error', async () => {

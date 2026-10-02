@@ -10,7 +10,7 @@ const client = read('app/apply/ApplyClient.tsx')
 const route  = read('app/api/apply/route.ts')
 
 describe('1: coming-soon cities can be applied to', () => {
-  it('the neighbourhoods API serves coming-soon lists to the application form', () => {
+  it('the neighborhoods API serves coming-soon lists to the application form', () => {
     const api = read('app/api/neighborhoods/route.ts')
     expect(api).toContain("const forApply = req.nextUrl.searchParams.get('for') === 'apply'")
     expect(api).toContain('[CITY_STATUS.Live, CITY_STATUS.Preparing, CITY_STATUS.ComingSoon]')
@@ -37,7 +37,7 @@ describe('2: the cookie choice gates analytics and fingerprinting', () => {
     expect(banner).toContain('posthog.opt_in_capturing()')
     expect(banner).toContain('posthog.opt_out_capturing()')
   })
-  it('the form fingerprints only with consent, masks the email line, and sends no nationality or neighbourhood', () => {
+  it('the form fingerprints only with consent, masks the email line, and sends no nationality or neighborhood', () => {
     expect(client).toContain('if (hasAnalyticsConsent()) FingerprintJS.load()')
     expect(client).toContain('ph-no-capture')
     const capture = client.slice(client.indexOf("posthog.capture('application_submitted'"), client.indexOf("posthog.capture('application_submitted'") + 300)

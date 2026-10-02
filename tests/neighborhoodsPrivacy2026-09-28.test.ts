@@ -24,7 +24,7 @@ describe('event photos follow the event page rule (item 1)', () => {
 })
 
 describe('index strips respect connections-only profiles (items 2–3)', () => {
-  it('"Your neighborhood" projects restricted neighbours to a first name and no photo', () => {
+  it('"Your neighborhood" projects restricted neighbors to a first name and no photo', () => {
     expect(index).toContain('const restrictedYours = await restrictedSetFor(session, rows)')
     expect(index).toContain("? { id: m.id, name: firstNameOf(m.name) || 'Smileys member', color: m.color, profilePhoto: null }")
     // The privacy column has to be selected for restrictedSetFor to see it.
@@ -37,7 +37,7 @@ describe('index strips respect connections-only profiles (items 2–3)', () => {
   })
 })
 
-describe('guests see no visitor sections on neighbourhood pages (item 4)', () => {
+describe('guests see no visitor sections on neighborhood pages (item 4)', () => {
   it('both pages gate the visitor query on a session', () => {
     expect(index).toContain('const visitorsNearby = session && focusNeighborhood')
     expect(index).not.toContain("visibility: 'public'")

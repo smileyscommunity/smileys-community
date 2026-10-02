@@ -14,7 +14,7 @@ async function main() {
   console.log(`\n=== First-RSVP nudge (dry run: ${dryRun}) ===`)
   console.log(`Segment (approved, signed in, never RSVP'd, not nudged in 30d, subscribed): ${r.segment}`)
   console.log(`Candidate events (room + ≥1 going): ${r.candidates}`)
-  console.log(`Matched: ${r.matched}  ·  same neighbourhood: ${r.sameHood}  ·  first-timer-friendly: ${r.firstTimerFriendly}`)
+  console.log(`Matched: ${r.matched}  ·  same neighborhood: ${r.sameHood}  ·  first-timer-friendly: ${r.firstTimerFriendly}`)
   if (!dryRun) console.log(`Emailed: ${r.emailed}  ·  failed: ${r.failed}`)
   else console.log(`(dry run — no emails; set SEND=1 to send)`)
   console.log('')

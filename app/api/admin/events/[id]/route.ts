@@ -775,7 +775,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
     // Notify attendees if date, time, or location changed
     const whenChanged = (body.date && body.date !== before.date) ||
-                        // The normalised value: '19.30' resent for a stored '19:30' is no change.
+                        // The normalized value: '19.30' resent for a stored '19:30' is no change.
                         (data.time && data.time !== before.time)
     const whereChanged = body.location && body.location !== before.location
     if (whenChanged || whereChanged) {

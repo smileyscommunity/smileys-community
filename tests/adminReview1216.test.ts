@@ -32,7 +32,7 @@ describe('13. marketplace settings are enforced', () => {
     expect(src).toContain('listingSettings.defaultExpiryDays ?? LISTING_SETTING_DEFAULTS.defaultExpiryDays')
     expect(src).toContain('if (activeNow >= maxActive) {')
   })
-  it('the approval switch nothing honoured is gone', () => {
+  it('the approval switch nothing honored is gone', () => {
     expect(read('app/admin/listings/page.tsx')).not.toContain('Require approval before publishing')
   })
 })

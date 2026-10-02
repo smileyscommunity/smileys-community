@@ -70,7 +70,7 @@ export default function LocalFavorites({ picks, directoryHref = '/directory' }: 
               <div className="relative">
                 {/* Directory covers are member uploads served through the files
                     route, so next/image isn't in play here — plain img keeps the
-                    existing resolveImageUrl behaviour. */}
+                    existing resolveImageUrl behavior. */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={resolveImageUrl(p.coverImage)} alt={p.name}
                   className="w-full h-36 object-cover" loading="lazy" />

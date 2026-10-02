@@ -43,7 +43,7 @@ export default function PrivacyPage() {
         </div>
 
         <Section title="1. Who we are">
-          <p>Smileys Community ("Smileys", "we", "us", "our") is a company incorporated in New Jersey, United States. We operate a curated social platform that organises events, interest-based clubs, and community experiences for expats and global professionals in cities around the world. We currently operate in Türkiye (Istanbul, Bodrum and İzmir), with plans to expand to additional cities.</p>
+          <p>Smileys Community ("Smileys", "we", "us", "our") is a company incorporated in New Jersey, United States. We operate a curated social platform that organizes events, interest-based clubs, and community experiences for expats and global professionals in cities around the world. We currently operate in Türkiye (Istanbul, Bodrum and İzmir), with plans to expand to additional cities.</p>
           <p>Our members come from over 45 countries, including European Union member states. Because we actively serve EU residents, we are subject to the EU General Data Protection Regulation (GDPR) in addition to applicable US law.</p>
           <p>You can reach us through our <Link href="/contact" className="text-amber-600 hover:underline">contact page</Link>.</p>
         </Section>
@@ -91,7 +91,7 @@ export default function PrivacyPage() {
             <li><strong>Consent:</strong> Marketing communications and optional features — you may withdraw consent at any time</li>
             <li><strong>Legal obligation:</strong> Where required by applicable law</li>
           </ul>
-          <p>If you are a resident of California, you may have additional rights under the California Consumer Privacy Act (CCPA). At our current scale we fall below the thresholds that trigger full CCPA obligations, but we honour those rights — including the right to know what data we hold and to request its deletion — for all members regardless of location.</p>
+          <p>If you are a resident of California, you may have additional rights under the California Consumer Privacy Act (CCPA). At our current scale we fall below the thresholds that trigger full CCPA obligations, but we honor those rights — including the right to know what data we hold and to request its deletion — for all members regardless of location.</p>
         </Section>
 
         <Section title="5. International data transfers">
@@ -135,7 +135,7 @@ export default function PrivacyPage() {
         </Section>
 
         <Section title="10. Security">
-          <p>We take reasonable technical and organisational measures to protect your data, including:</p>
+          <p>We take reasonable technical and organizational measures to protect your data, including:</p>
           <ul className="list-disc list-inside space-y-1.5 ml-2">
             <li>Passwords stored as salted bcrypt hashes — we cannot see your password</li>
             <li>Session tokens signed with HS256 JWT and stored in httpOnly cookies</li>

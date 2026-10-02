@@ -118,7 +118,7 @@ export default function NpsPage() {
     )
   }
 
-  // The eligible form. Colour-graded 0–10 picker, optional comment
+  // The eligible form. Color-graded 0–10 picker, optional comment
   // box. Comment placeholder swaps by score band so the prompt
   // matches what we want to hear back ("why did you score that?").
   return (
@@ -128,7 +128,7 @@ export default function NpsPage() {
       <p className="text-xs text-zinc-500 mt-2">One question. Anonymous — admins see your score and comment but never who wrote it.</p>
 
       {/* 0–10 picker — 11 squares laid out 6+5 on phones so the row
-          doesn't squeeze sub-32px tap targets at 360px. The colour
+          doesn't squeeze sub-32px tap targets at 360px. The color
           band hints at which way the scale runs without giving the
           impression of a "right" answer. */}
       <div className="mt-6">

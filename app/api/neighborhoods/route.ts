@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
   const citySlug = req.nextUrl.searchParams.get('city')?.trim()
   // ?for=apply: the application form, which also serves coming-soon cities
   // (a guest on /tbilisi is sent to "Apply to join Smileys Tbilisi"). The
-  // default excludes them, so Tbilisi's 17 neighbourhoods came back empty and
+  // default excludes them, so Tbilisi's 17 neighborhoods came back empty and
   // the required field stopped every applicant on step 1.
   const forApply = req.nextUrl.searchParams.get('for') === 'apply'
   if (citySlug) {

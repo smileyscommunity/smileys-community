@@ -123,7 +123,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
   let mime = MIME[ext] ?? 'application/octet-stream'
   if (wantSized) {
     try {
-      // .rotate() before .resize(): honours an EXIF Orientation tag if one
+      // .rotate() before .resize(): honors an EXIF Orientation tag if one
       // ever reaches disk. Uploads bake orientation in and strip the tag, so
       // this is normally a no-op — and exactly what you want the day it isn't.
       body = await sharp(raw).rotate().resize(width, width, { fit: 'cover' }).jpeg({ quality: 80 }).toBuffer()

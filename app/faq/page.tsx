@@ -17,7 +17,7 @@ const ogAlt   = 'Smileys Community FAQ: got questions? We’ve got answers.'
 
 export const metadata = {
   alternates: { canonical: `${APP_URL}/faq` },
-  title: 'FAQ — Smileys Community Help Centre',
+  title: 'FAQ — Smileys Community Help Center',
   description: 'Everything you need to know about Smileys — membership, events, clubs, applications, and more.',
   openGraph: {
     title: 'Smileys Community FAQ',
@@ -106,7 +106,7 @@ export default async function FAQPage() {
       <div className="bg-white border-b border-gray-100">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase mb-6">
-            <span aria-hidden="true">❓</span> Help Centre
+            <span aria-hidden="true">❓</span> Help Center
           </div>
           <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 tracking-tight mb-4">
             Frequently asked questions
@@ -157,7 +157,7 @@ export default async function FAQPage() {
         {/* CTA */}
         <div className="bg-amber-500 rounded-2xl p-10 text-center">
           {/* Text on the amber card is dark: white and amber-100 on amber-500
-              read at about 2:1. The button keeps its own colours. */}
+              read at about 2:1. The button keeps its own colors. */}
           <div aria-hidden="true" className="text-3xl mb-3">💬</div>
           <h2 className="text-2xl font-extrabold text-amber-950 mb-2">Still have questions?</h2>
           <p className="text-amber-950 text-sm mb-6 max-w-sm mx-auto">

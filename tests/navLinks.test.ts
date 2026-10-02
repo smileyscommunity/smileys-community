@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { DISCOVER_LINKS } from '@/lib/navLinks'
 
-// Guests and members get different navigation, and the link catalogue encodes
+// Guests and members get different navigation, and the link catalog encodes
 // that with two flags rather than two lists:
 //
 //   public: false   → members only (a guest reaches it another way, or can't)

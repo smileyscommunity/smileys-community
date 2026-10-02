@@ -159,7 +159,7 @@ export const TAG_LEN_MAX  = 40
 export const REVIEW_INTERVAL_MIN = 1
 export const REVIEW_INTERVAL_MAX = 730
 
-/** Normalise a tags payload from the admin form; null = invalid. */
+/** Normalize a tags payload from the admin form; null = invalid. */
 export function normalizeTags(raw: unknown): string[] | null {
   if (raw === undefined || raw === null) return []
   if (!Array.isArray(raw)) return null

@@ -23,11 +23,11 @@ export async function GET(req: NextRequest) {
   //
   //   - `?city=<slug>` — explicit override (used by event discovery
   //     pages that show a specific city's calendar).
-  //   - `?all=1` — show events across every city (traveller view).
+  //   - `?all=1` — show events across every city (traveler view).
   //   - Default: scope to the viewer's own cityId so a Berlin member
   //     doesn't see Istanbul events cluttering their feed.
   //   - Logged-out viewers see Istanbul-or-no-filter via no session;
-  //     keep the behaviour simple by not filtering when no city is
+  //     keep the behavior simple by not filtering when no city is
   //     resolved.
   // Resolved once: used both for default city-scoping and to decide
   // whether the viewer gets full events or the redacted guest projection.
@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
       cityId = await resolvePublicCityIdFromSlug(slug)
     } else {
       // Guests land on the default city, same as every other feed —
-      // only the explicit `?all=1` traveller view crosses cities.
+      // only the explicit `?all=1` traveler view crosses cities.
       cityId = await resolveCityId(session)
     }
   }

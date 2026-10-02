@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
   }
   const comment = typeof body.comment === 'string' ? body.comment.trim().slice(0, 2000) : null
 
-  // Re-run eligibility — clients can't be trusted to honour GET. The
+  // Re-run eligibility — clients can't be trusted to honor GET. The
   // joinedAt floor matters: a brand-new account spinning up to skew
   // scores has to wait the same 30 days as everyone else.
   const user = await prisma.user.findUnique({

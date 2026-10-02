@@ -33,7 +33,7 @@ const applySchema = z.object({
   email:       z.string().trim().email().max(320),
   phone:       z.string().trim().min(1).max(30),
   country:     z.string().trim().min(1).max(100),
-  // Required only where the city has neighbourhoods on file (checked below):
+  // Required only where the city has neighborhoods on file (checked below):
   // Athens and Sofia have none, and the form can't offer an empty list.
   neighborhood:z.string().trim().max(200).optional().nullable(),
   gender:      z.string().trim().min(1).max(50),
@@ -58,7 +58,7 @@ const applySchema = z.object({
   lookingFor:      z.array(z.string().max(50)).max(10).optional().default([]),
   referrerName:    z.string().trim().max(100).optional().nullable(),
   // "I don't live here (yet)" — a visitor, or someone still moving, has no
-  // neighbourhood to pick and used to have to invent one.
+  // neighborhood to pick and used to have to invent one.
   notResident:     z.boolean().optional().default(false),
   // The one box that matters legally: Terms + Privacy + 18 or older.
   termsAccepted:   z.boolean().refine(v => v === true, 'Please accept the Terms of Service and Privacy Policy'),
@@ -112,7 +112,7 @@ const CONTRIBUTIONS = new Set(['attend', 'organize', 'host'])
 // expected string to have >=1 characters") said nothing an applicant could fix.
 const FIELD_LABEL: Record<string, string> = {
   firstName: 'first name', lastName: 'last name', email: 'email address', phone: 'phone number',
-  country: 'nationality', neighborhood: 'neighbourhood', gender: 'gender', profilePhoto: 'photo',
+  country: 'nationality', neighborhood: 'neighborhood', gender: 'gender', profilePhoto: 'photo',
   birthdate: 'date of birth', termsAccepted: 'terms',
 }
 
@@ -190,16 +190,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Applications to "${wantedSlug}" aren't open right now.` }, { status: 400 })
     }
     const targetCityId = targetCity.id
-    // The neighbourhood must be one of the city's own (a draft for another
+    // The neighborhood must be one of the city's own (a draft for another
     // city sent an Istanbul name to İzmir); required where the city has any,
     // unless the applicant doesn't live there yet.
     const cityHoods = await prisma.neighborhood.findMany({ where: { cityId: targetCityId, active: true }, select: { name: true } })
     const cleanNeighborhood = notResident ? null : (neighborhood?.trim() || null)
     if (cleanNeighborhood && !cityHoods.some(h => h.name === cleanNeighborhood)) {
-      return NextResponse.json({ error: 'Please check your neighbourhood.' }, { status: 400 })
+      return NextResponse.json({ error: 'Please check your neighborhood.' }, { status: 400 })
     }
     if (!cleanNeighborhood && !notResident && cityHoods.length > 0) {
-      return NextResponse.json({ error: 'Please check your neighbourhood.' }, { status: 400 })
+      return NextResponse.json({ error: 'Please check your neighborhood.' }, { status: 400 })
     }
     // The form's closed lists, checked here too — approval copies them onto
     // the member's profile, so a hand-made request could set anything.
@@ -211,7 +211,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Smileys is for adults — you need to be 18 or older to apply.' }, { status: 400 })
     }
 
-    // Normalise on the way in, like every other write path does
+    // Normalize on the way in, like every other write path does
     // (auth/register, auth/me, admin/users/[id]). This one didn't, and it is
     // the route nearly every member actually joins through — so a name typed
     // "h.kubra yilmaz" was stored exactly that way and shown that way until
@@ -237,7 +237,7 @@ export async function POST(req: NextRequest) {
     // Blacklist check — email, phone, fingerprint, IP
     // Filter out null/empty values — an empty {} in Prisma OR matches ALL records,
     // which would block every applicant whenever any blacklist entry exists.
-    // Trusted IP only (Nginx x-real-ip / last XFF hop, normalised) — the raw
+    // Trusted IP only (Nginx x-real-ip / last XFF hop, normalized) — the raw
     // first XFF entry is client-spoofable, which would let a blacklisted or
     // rate-limited applicant forge a fresh IP to evade the velocity/blacklist/
     // cooldown checks below (all keyed on this value). Also validated, so it's

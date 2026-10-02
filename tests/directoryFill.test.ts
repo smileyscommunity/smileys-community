@@ -51,7 +51,7 @@ describe('placeholder descriptions', () => {
   })
   it('keeps a real description that ends with the since-fact the fill appends', () => {
     // Polo Pastanesi, as the 2026-09-28 run wrote it.
-    const polo = 'A long-running patisserie and café on Cumhuriyet Caddesi, Polo Pastanesi serves a wide range of cakes, pastries and savoury dishes and has indoor and terrace seating. Hosting Smileys events since May 2026.'
+    const polo = 'A long-running patisserie and café on Cumhuriyet Caddesi, Polo Pastanesi serves a wide range of cakes, pastries and savory dishes and has indoor and terrace seating. Hosting Smileys events since May 2026.'
     expect(isPlaceholderDescription(polo)).toBe(false)
     expect(isPlaceholderDescription('Sunset sailing cruises from Kalamış Marina, hosting Smileys events since May 2026.')).toBe(true)
   })
@@ -172,7 +172,7 @@ describe('buildFillPatch', () => {
   })
 
   it('drops tags that only repeat the place or say nothing', () => {
-    const r = research({ tags: ['Kadıköy', 'kadikoy', 'Istanbul', 'neighbourhood', 'biryani'] })
+    const r = research({ tags: ['Kadıköy', 'kadikoy', 'Istanbul', 'neighborhood', 'biryani'] })
     const { patch } = buildFillPatch(row(), r, { websiteOk: true, placeNames: ['Kadıköy', 'Istanbul'] })
     expect(patch.tags).toEqual(['We meet here', 'biryani'])
   })
@@ -219,7 +219,7 @@ describe('phone numbers', () => {
 
 describe('tags that are places or opinions', () => {
   // Every one of these came back from the first full dry run (2026-09-28).
-  it('drops place names from the address, neighbourhood and "near X"', () => {
+  it('drops place names from the address, neighborhood and "near X"', () => {
     const where = ['Kadıköy', 'Istanbul', 'Rasimpaşa, Karakolhane Cd. No:55/A, Yeldeğirmeni', 'Kılıçali Paşa, Galataport L5 Blok, Beyoğlu', 'Asmalı Mescit, Tütüncü Çk. 4']
     for (const t of ['yeldegirmeni', 'Yeldeğirmeni', 'galataport', 'asmali mescit', 'near taksim', 'near istiklal', 'kadıköy']) {
       expect(isPlaceTag(t, where), t).toBe(true)

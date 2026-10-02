@@ -5,7 +5,7 @@ import { join } from 'path'
 // 2026-09-23. script-src carried both `'unsafe-inline'` and `'unsafe-eval'`.
 // The first is inert — `'strict-dynamic'` makes modern browsers ignore it,
 // and it only exists so ancient ones still run our scripts. The second is
-// NOT inert: browsers honour it, and it re-opens the exact class of attack
+// NOT inert: browsers honor it, and it re-opens the exact class of attack
 // the nonce is there to close. It had been kept for a reason that had since
 // stopped being true ("PostHog session replay uses Function()/eval").
 //

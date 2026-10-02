@@ -72,7 +72,7 @@ describe('the card owes the network nothing', () => {
     expect(card).not.toContain('getFullYear()')
   })
 
-  it('prints the member id as it really is, selectable, and honestly labelled', () => {
+  it('prints the member id as it really is, selectable, and honestly labeled', () => {
     expect(card).toContain('Member ID (for support)')
     expect(card).toContain('select-text')
     expect(card).toContain('{user.id}')
@@ -390,7 +390,7 @@ describe('the camera stays on', () => {
     expect(host).toContain('await send(userId, next, cardToken)')
     expect(host).toContain('await seatedWalkIn(userId, cardToken)')
     // A host's own tap on the list still carries none — they are already
-    // authorised and can see who is in front of them.
+    // authorized and can see who is in front of them.
     expect(host).toContain('async function toggleCheckin(userId: string, current: boolean, cardToken?: string)')
   })
 

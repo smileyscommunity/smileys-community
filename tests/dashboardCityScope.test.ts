@@ -27,7 +27,7 @@ const LINES = SRC.split('\n')
  *
  * Brace-matched, not a fixed window of following lines: a window bleeds into
  * the next query, so a one-line `count({ where: { … } })` that had lost its
- * cityId still "passed" because a neighbouring query further down had one.
+ * cityId still "passed" because a neighboring query further down had one.
  * That version of this guard failed to catch a deliberately reintroduced bug,
  * which is the only test result that matters when writing a guard.
  */
@@ -94,7 +94,7 @@ describe('dashboard is scoped to the city being viewed', () => {
   })
 
   it('counts events in the viewer\'s neighborhood within the city, since names repeat across cities', () => {
-    // myHood is the home neighbourhood, used only on the home city's page.
+    // myHood is the home neighborhood, used only on the home city's page.
     expect(SRC).toContain('prisma.event.count({ where: { cityId, neighborhood: myHood, ...NOT_OVER, status: \'published\' } })')
     expect(SRC).toContain("const myHood = cityId === session.cityId ? (userProfile?.neighborhood ?? null) : null")
   })

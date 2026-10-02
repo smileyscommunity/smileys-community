@@ -127,7 +127,7 @@ export default function BottomNav({
   const [sheetOpen, setSheetOpen] = useState(false)
   useEffect(() => { setSheetOpen(false) }, [pathname])  // close on nav
 
-  // City slugs let the rule recognise `/<city>` and `/<city>/events` etc. —
+  // City slugs let the rule recognize `/<city>` and `/<city>/events` etc. —
   // where a city switch lands. Without them the nav vanished right after
   // switching, taking the Me sheet (and Sign out) with it.
   if (!isLoggedIn || !isBottomNavRoute(pathname, cities.map(c => c.slug))) return null

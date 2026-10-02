@@ -33,7 +33,7 @@ export default function JoinCityButton({
   from?: 'students'
   // Set by a dynamic server page that has already read the session and found
   // none. Auth resolves client-side and starts as "loading" for every guest,
-  // so without this the server HTML held a grey placeholder where the page's
+  // so without this the server HTML held a gray placeholder where the page's
   // main call to action belongs — on every city page, and on a pre-launch
   // page it was the only one. A guest the server saw is a guest.
   guest?: boolean

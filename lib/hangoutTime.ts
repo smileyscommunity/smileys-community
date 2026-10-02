@@ -34,7 +34,7 @@ export function matchesTimeFilter(h: { startsAt: string; endsAt: string }, f: Ti
 }
 
 // Card status chip (plan §10). Live cards already carry the pulsing green
-// treatment, so this only colours the future: starting-soon amber, tonight
+// treatment, so this only colors the future: starting-soon amber, tonight
 // blue, tomorrow neutral. Anything further out gets no chip — the time
 // label says it better.
 export function statusBadge(startsAt: string, endsAt: string, now = new Date(), tz: string = DEFAULT_TZ): { label: string; cls: string } | null {

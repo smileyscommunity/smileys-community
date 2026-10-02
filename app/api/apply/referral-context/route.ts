@@ -10,7 +10,7 @@ import { REFERRAL_COUNTED_STATUSES } from '@/lib/referrals'
 //
 //   1. `inviter` — when `?ref=XYZ` matches a real member's referralCode,
 //      we return their first name + avatar so the form can say "Sarah
-//      invited you to apply" with a face next to it. Personalised +
+//      invited you to apply" with a face next to it. Personalized +
 //      from a known member is much stronger conversion than aggregate
 //      stats.
 //
@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
   // the form doesn't accidentally welcome someone with a stale code.
   // Suspended or admin-hidden members don't recruit (their referral isn't
   // credited either — app/api/apply). A connections-only member's face is not
-  // public: a guest gets the first name and the colour, no photo — the rule
+  // public: a guest gets the first name and the color, no photo — the rule
   // the members-only invite route already applies.
   const listable = inviter && inviter.status === 'approved' && !inviter.hiddenFromMembers
     && !(inviter.suspendedUntil && inviter.suspendedUntil > new Date())

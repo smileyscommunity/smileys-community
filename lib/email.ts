@@ -63,7 +63,7 @@ type RecipientPolicy = 'member' | 'account'
 const BLOCKED_USER_STATUSES = ['banned', 'deleted']
 const normEmail = (a: string) => a.trim().toLowerCase()
 
-/** The addresses (normalised) among these that belong to a banned account. Fails open — empty — on a lookup error. */
+/** The addresses (normalized) among these that belong to a banned account. Fails open — empty — on a lookup error. */
 export async function blockedRecipients(addresses: string[]): Promise<Set<string>> {
   const wanted  = [...new Set(addresses.filter(Boolean))]
   const blocked = new Set(wanted.map(normEmail).filter(a => a.endsWith('@deleted.smileys')))
@@ -1239,7 +1239,7 @@ export async function sendBroadcastEmail(
   }, { throwOnError: true })
 }
 
-// A single low-pressure "your first Smileys event?" invite, personalised to the
+// A single low-pressure "your first Smileys event?" invite, personalized to the
 // event the matcher picked. Sent by the weekly first-RSVP nudge cron to members
 // who've joined but never RSVP'd. Email (not push) so it reaches dormant members
 // without adding notification load; unsubscribe respects emailMarketing.
@@ -1305,7 +1305,7 @@ export async function sendNudgeReportEmail(
         <h2 style="font-size:18px;margin:0 0 12px;color:#111827">First-RSVP nudge — weekly run</h2>
         <p style="color:#374151;font-size:14px;line-height:1.7;margin:0">
           <strong>${r.emailed}</strong> members emailed this week (of ${r.matched} matched / ${r.segment} in segment)${r.heldOut ? `, <strong>${r.heldOut}</strong> held back as controls` : ''}.<br>
-          ${r.interestMatched} matched on a stated interest · ${r.sameHood} in their own neighbourhood.
+          ${r.interestMatched} matched on a stated interest · ${r.sameHood} in their own neighborhood.
         </p>
         <p style="color:#374151;font-size:14px;line-height:1.7;margin:14px 0 0">
           <strong>Conversion so far:</strong> ${r.priorConverted} of ${r.priorNudged} members nudged 3+ days ago have since RSVP'd (<strong>${rate}%</strong>).

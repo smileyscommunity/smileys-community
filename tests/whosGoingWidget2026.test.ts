@@ -3,7 +3,7 @@ import { readFileSync } from 'fs'
 import { join } from 'path'
 
 // 2026-09-23. "Who's going 👀" on the dashboard had no test of any kind, and
-// two reviews found the same shape of problem the neighbourhoods pass had just
+// two reviews found the same shape of problem the neighborhoods pass had just
 // closed: a first name on the screen and a full name on the wire, and a
 // visibility rule the widget never applied because it never selected the
 // column it would need.

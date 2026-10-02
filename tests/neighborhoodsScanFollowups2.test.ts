@@ -47,7 +47,7 @@ describe('"Loved by locals" is a visible, positive recommendation (item 15)', ()
 })
 
 describe('"most active" is about events (item 16)', () => {
-  it('the focus neighbourhood is picked by activity and the heading is honest with none', () => {
+  it('the focus neighborhood is picked by activity and the heading is honest with none', () => {
     expect(index).toContain('.sort((a, b) => b.activityScore - a.activityScore || b.memberCount - a.memberCount)[0]?.name ?? null')
     expect(index).not.toContain('.sort((a, b) => b._count._all - a._count._all)[0]?.neighborhood')
     expect(index).toContain('`Where the most Smileys members in ${city.name} live right now.`')
@@ -111,7 +111,7 @@ describe('the small fixes (item 20)', () => {
     expect(detail).not.toContain('vibe.toLowerCase()')
     expect(detail).toContain("const vibeLine = vibe ? `${name}: ${vibe}${/[.!?]$/.test(vibe) ? '' : '.'} ` : ''")
   })
-  it('"set your neighbourhood" only on the reader\'s own city', () => {
+  it('"set your neighborhood" only on the reader\'s own city', () => {
     expect(detail).toContain('const hasNoNeighborhood  = !!session && !session.neighborhood && session.cityId === cityId')
   })
   it('member strips count activated members, the same set totalLocals counts', () => {

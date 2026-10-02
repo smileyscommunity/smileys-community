@@ -253,7 +253,7 @@ describe('f. scripts/audit-unactivated-members planning', () => {
     expect(plan.cities.map(c => [c.city, c.total, c.withClubs, c.clubMemberships])).toEqual([['ist', 3, 1, 3], ['izm', 1, 1, 1]])
   })
 
-  it('the club gap lists clubs holding never-activated enrolments, biggest first', () => {
+  it('the club gap lists clubs holding never-activated enrollments, biggest first', () => {
     const gap = planClubGap([
       { clubId: 'k1', name: 'Hiking',  city: 'ist', memberCount: 50, unactivated: 5 },
       { clubId: 'k2', name: 'Books',   city: 'ist', memberCount: 20, unactivated: 0 },

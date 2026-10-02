@@ -16,7 +16,7 @@ export interface LightboxPhoto {
  * Full-size view for a posted photo, shared by every surface that shows one.
  *
  * It was written once for event photos and nowhere else, so a photo on a
- * neighbourhood wall post or in a club gallery was a dead `<img>` — and on the
+ * neighborhood wall post or in a club gallery was a dead `<img>` — and on the
  * wall `object-cover` crops it, meaning part of the picture had no way of
  * being seen at all.
  *

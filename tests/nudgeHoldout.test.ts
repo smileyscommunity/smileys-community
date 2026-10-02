@@ -31,7 +31,7 @@ describe('first-RSVP nudge holdout', () => {
     // The comment there tells analysts to reproduce the arm with:
     //   (('x' || substr(md5('first-rsvp-nudge-v1' || id), 1, 6))::bit(24)::int) % 2 = 1
     // Postgres reads those 6 hex chars as a 24-bit integer; parity therefore
-    // rests on the final hex digit. If this drifts, saved analyses silently
+    // rests on the final hex digit. If this drifts, saved analyzes silently
     // start comparing the wrong groups.
     for (const id of ids.slice(0, 200)) {
       const hex = createHash('md5').update('first-rsvp-nudge-v1' + id).digest('hex')

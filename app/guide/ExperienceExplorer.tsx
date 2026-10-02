@@ -102,7 +102,7 @@ export default function ExperienceExplorer({ experiences, moods }: { experiences
                       source files (230-400KB each) rendering into a 128px-tall
                       card, so the raw tag shipped ~1.8MB of photo to draw six
                       thumbnails. The hero on this same page was already
-                      optimised — only the grid was still sending originals.
+                      optimized — only the grid was still sending originals.
                       `sizes` mirrors the grid below (1 / 2 / 3 columns) so the
                       optimiser picks a variant per breakpoint instead of the
                       widest one. e.photo already carries the /app basePath,

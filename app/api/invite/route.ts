@@ -79,7 +79,7 @@ export async function GET() {
   // Inviting someone doesn't make you their connection. A 'connections
   // only' member (restrictedSetFor) or one hidden from members gets no
   // photo here, same as anywhere else a non-connection sees them; the name
-  // stays, since the referrer is the one who sent it. Neighbourhood is not
+  // stays, since the referrer is the one who sent it. Neighborhood is not
   // sent at all — where someone lives is not part of "your invite worked".
   const restricted = await restrictedSetFor(session, joinedUsers)
   // `open`: whether their profile opens for this viewer. A connections-only

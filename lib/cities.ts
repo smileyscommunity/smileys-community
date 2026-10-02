@@ -8,7 +8,7 @@
 //   lib/cityStatus.ts  pure vocabulary + types. Safe in CLIENT components;
 //                      importing prisma there breaks the browser bundle.
 //   lib/city.ts        request scoping (which city is THIS request about).
-//   lib/cities.ts      this file — the public catalogue and its statistics.
+//   lib/cities.ts      this file — the public catalog and its statistics.
 // The first two are re-exported here so server callers need one import.
 
 import { unstable_cache } from 'next/cache'

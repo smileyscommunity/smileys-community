@@ -39,7 +39,7 @@ export default function TermsPage() {
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-14">
 
         <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5 mb-10 text-sm text-amber-800 leading-relaxed">
-          <strong>Plain-language summary:</strong> Smileys is a private, application-based social community. By joining, you agree to treat other members with respect, honour your RSVPs, and follow our community standards. We reserve the right to remove anyone who doesn't uphold these values — no refunds on paid events in that case.
+          <strong>Plain-language summary:</strong> Smileys is a private, application-based social community. By joining, you agree to treat other members with respect, honor your RSVPs, and follow our community standards. We reserve the right to remove anyone who doesn't uphold these values — no refunds on paid events in that case.
         </div>
 
         <Section title="1. Acceptance of terms">
@@ -61,19 +61,19 @@ export default function TermsPage() {
         <Section title="3. Your account">
           <p>You are responsible for maintaining the confidentiality of your login credentials. You must not share your account with anyone else or allow others to access the platform on your behalf.</p>
           <p>You agree to provide accurate, current, and complete information about yourself and to keep your profile up to date. Profiles found to contain false information — including fake photos, false nationality, or misrepresented identity — are grounds for immediate removal.</p>
-          <p>You must notify us promptly if you become aware of any unauthorised use of your account.</p>
+          <p>You must notify us promptly if you become aware of any unauthorized use of your account.</p>
         </Section>
 
         <Section title="4. Community standards">
           <p>Smileys is a curated community built on trust and mutual respect. All members are expected to:</p>
           <ul className="list-disc list-inside space-y-1.5 ml-2">
             <li>Treat every member with respect — at events, in messages, and on the platform</li>
-            <li>Honour the inclusive nature of the community regardless of nationality, gender, religion, or background</li>
+            <li>Honor the inclusive nature of the community regardless of nationality, gender, religion, or background</li>
             <li>Represent themselves honestly in their profile and interactions</li>
             <li>Respect the privacy of other members — do not share, publish, or distribute information about other members without their consent</li>
             <li>Respect event formats — including gender-balance policies, capacity limits, and host decisions</li>
           </ul>
-          <p>We do not tolerate harassment, discrimination, threatening behaviour, unsolicited romantic or sexual contact, or any conduct that makes other members feel unsafe or unwelcome.</p>
+          <p>We do not tolerate harassment, discrimination, threatening behavior, unsolicited romantic or sexual contact, or any conduct that makes other members feel unsafe or unwelcome.</p>
         </Section>
 
         <Section title="5. Events and RSVPs">
@@ -85,7 +85,7 @@ export default function TermsPage() {
           </ul>
           <p><strong>Repeated no-shows</strong> without cancellation may result in loss of RSVP privileges or membership review.</p>
           <p><strong>Paid events:</strong> Fees for paid events are charged to secure your spot. Refunds are provided at the host's discretion for cancellations made with reasonable notice (typically 48 hours or more). No refunds are issued for no-shows or same-day cancellations. Events cancelled by Smileys are fully refunded.</p>
-          <p><strong>Behaviour at events:</strong> Hosts have the authority to ask any member to leave an event. Members asked to leave forfeit any fees paid and may be subject to membership review.</p>
+          <p><strong>Behavior at events:</strong> Hosts have the authority to ask any member to leave an event. Members asked to leave forfeit any fees paid and may be subject to membership review.</p>
         </Section>
 
         <Section title="6. Clubs">
@@ -94,7 +94,7 @@ export default function TermsPage() {
         </Section>
 
         <Section title="7. Content you post">
-          <p>You retain ownership of any content you upload to the platform, including your profile photo and bio. By uploading content, you grant Smileys a non-exclusive, royalty-free licence to display that content within the platform for the purpose of providing the service.</p>
+          <p>You retain ownership of any content you upload to the platform, including your profile photo and bio. By uploading content, you grant Smileys a non-exclusive, royalty-free license to display that content within the platform for the purpose of providing the service.</p>
           <p>You must not post content that is:</p>
           <ul className="list-disc list-inside space-y-1.5 ml-2">
             <li>False, misleading, or impersonating another person</li>
@@ -114,13 +114,13 @@ export default function TermsPage() {
             <li>Using the platform to solicit, recruit, or commercially promote without permission</li>
             <li>Sharing another member's personal information without their consent</li>
             <li>Attempting to circumvent our application or vetting process</li>
-            <li>Abusing the platform's technical infrastructure or attempting to gain unauthorised access</li>
+            <li>Abusing the platform's technical infrastructure or attempting to gain unauthorized access</li>
             <li>Any conduct that damages the reputation or safety of the Smileys community</li>
           </ul>
         </Section>
 
         <Section title="9. Enforcement and removal">
-          <p>Smileys operates a curated community and reserves the right to suspend or permanently remove any member at any time, for any reason that violates the spirit or letter of these Terms — including conduct at events, behaviour toward other members, or activity outside the platform that we become aware of.</p>
+          <p>Smileys operates a curated community and reserves the right to suspend or permanently remove any member at any time, for any reason that violates the spirit or letter of these Terms — including conduct at events, behavior toward other members, or activity outside the platform that we become aware of.</p>
           <p>Members who are removed for misconduct are not entitled to refunds on paid events or membership fees.</p>
           <p>We may, but are not obligated to, issue warnings before taking action. Decisions on membership are made by our moderation team and are final.</p>
           <p>If you believe a removal decision was made in error, you may submit a written appeal through our <Link href="/contact" className="text-amber-600 hover:underline">contact form</Link>. We will review it within 7 days.</p>
@@ -135,7 +135,7 @@ export default function TermsPage() {
         </Section>
 
         <Section title="12. Disclaimers">
-          <p>Smileys provides the platform and organises events on a best-efforts basis. We do not guarantee that:</p>
+          <p>Smileys provides the platform and organizes events on a best-efforts basis. We do not guarantee that:</p>
           <ul className="list-disc list-inside space-y-1.5 ml-2">
             <li>The platform will be available at all times or free of errors</li>
             <li>Any particular event will take place (events may be cancelled due to low attendance, host unavailability, or circumstances beyond our control)</li>

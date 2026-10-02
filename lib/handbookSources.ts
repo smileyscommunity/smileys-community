@@ -6,7 +6,7 @@
 // Instead of re-reading every article on a calendar, this sweep re-reads the
 // SOURCES each week and flags the articles whose sources actually changed:
 //
-//   fetch → normalise to visible text → hash → compare with last week
+//   fetch → normalize to visible text → hash → compare with last week
 //
 // A change stamps HandbookSource.changedAt; sourceChangesForQueue() then lists
 // every article citing that URL that hasn't been reviewed since, at the top of

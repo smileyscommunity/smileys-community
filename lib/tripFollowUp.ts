@@ -8,7 +8,7 @@
 //
 // Sent from the post-event survey sweep (app/api/cron/sweep-event-surveys), to
 // the same people who get the survey: approved attendees who weren't marked
-// no-show or excused — plus the host and co-hosts, who travelled too. Anyone
+// no-show or excused — plus the host and co-hosts, who traveled too. Anyone
 // whose home is already that city, or who has already joined it, is skipped.
 // One message per person per trip (claimOnce).
 
@@ -29,7 +29,7 @@ export function tripCityInviteMessage(cityName: string): { title: string; body: 
 }
 
 /**
- * Invite a finished trip's travellers to join its city. Returns how many were
+ * Invite a finished trip's travelers to join its city. Returns how many were
  * sent. Never throws into the caller — the survey sweep must not fail on it.
  */
 export async function sendTripCityInvites(event: {
@@ -48,16 +48,16 @@ export async function sendTripCityInvites(event: {
     // A paused or closed city can't be joined — an invite would dead-end.
     if (!city || city.status !== 'live') return 0
 
-    const travellers = [...event.attendeeIds, event.hostId, ...cohosts.map(c => c.userId)]
+    const travelers = [...event.attendeeIds, event.hostId, ...cohosts.map(c => c.userId)]
     const [homes, joined] = await Promise.all([
-      prisma.user.findMany({ where: { id: { in: travellers }, cityId: event.cityId }, select: { id: true } }),
-      prisma.cityRelationship.findMany({ where: { userId: { in: travellers }, cityId: event.cityId, type: 'member' }, select: { userId: true } }),
+      prisma.user.findMany({ where: { id: { in: travelers }, cityId: event.cityId }, select: { id: true } }),
+      prisma.cityRelationship.findMany({ where: { userId: { in: travelers }, cityId: event.cityId, type: 'member' }, select: { userId: true } }),
     ])
     const already = new Set([...homes.map(u => u.id), ...joined.map(r => r.userId)])
     const { title, body } = tripCityInviteMessage(city.name)
 
     let sent = 0
-    for (const userId of tripCityInvitees(travellers, already)) {
+    for (const userId of tripCityInvitees(travelers, already)) {
       if (!await claimOnce(`trip-city-invite:${event.id}:${userId}`, 30 * 24 * 60 * 60_000)) continue
       if (await createNotification(userId, 'city_launch', title, body, `/${city.slug}`)) sent++
     }

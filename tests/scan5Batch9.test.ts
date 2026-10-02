@@ -19,7 +19,7 @@ import { GET as guideEntriesGET } from '@/app/api/admin/guide-entries/route'
 
 beforeEach(() => { vi.clearAllMocks(); h.session = null })
 
-describe('36. non-attendees see coloured blanks, not blurred photos', () => {
+describe('36. non-attendees see colored blanks, not blurred photos', () => {
   it('the avatar strip renders no photo for them', () => {
     const src = read('app/events/[id]/page.tsx')
     expect(src).toContain("const hideWho = !isAdmin && !isHost && myAttendance?.status !== 'approved'")

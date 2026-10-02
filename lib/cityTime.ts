@@ -186,7 +186,7 @@ export function weekRangeOf(today: string): { start: string; end: string } {
  * The calendar month containing `today`: its first day, and the first day of
  * the NEXT month as an exclusive upper bound (`date >= start && date <
  * nextStart`). String maths only — a local-zone `new Date(y, m + 1, 1)` reads
- * back a day early west of UTC. The neighbourhood "events this month" stat
+ * back a day early west of UTC. The neighborhood "events this month" stat
  * had only the lower bound and counted every later month too.
  */
 export function monthRangeFor(today: string): { start: string; nextStart: string } {

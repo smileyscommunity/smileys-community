@@ -60,7 +60,7 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
   }
 
-  // Moving rewrites city rows and clears the neighbourhood; a few a day is a
+  // Moving rewrites city rows and clears the neighborhood; a few a day is a
   // member who moved, a hundred is something else. Checked BEFORE the move
   // (a 429 afterwards would refuse a change that already happened) but only
   // for a request that would really move them, so refusals cost nothing.
@@ -87,7 +87,7 @@ export async function PUT(req: NextRequest) {
   const res = NextResponse.json({
     ok: true,
     city: result.city,
-    // The neighbourhood is cleared on a real move (it belongs to the old
+    // The neighborhood is cleared on a real move (it belongs to the old
     // city's registry) — the page says so and points at the profile.
     neighborhoodCleared: !result.alreadyHome,
     cities: await getMemberCities(session.id),

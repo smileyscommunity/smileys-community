@@ -25,7 +25,7 @@ export default function NothingYet({ city, events, eventsHref, guest = false }: 
         <p className="font-bold text-gray-900 text-lg mb-2">No experiences on the {city.name} calendar yet</p>
         <p className="text-sm text-gray-600 max-w-xl mx-auto">
           An experience is an event a host tags as one — a hike, a sailing trip, a workshop,
-          a night at the theatre. The first one in {city.name} appears here the day it is scheduled.
+          a night at the theater. The first one in {city.name} appears here the day it is scheduled.
         </p>
         {events.length === 0 && (
           <div className="flex justify-center mt-6">

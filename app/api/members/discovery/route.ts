@@ -139,10 +139,10 @@ export async function GET() {
     // §13 — around your neighborhood
     viewer.neighborhood
       ? prisma.user.findMany({
-          // Only members who chose to be listed by their neighbourhood: this
+          // Only members who chose to be listed by their neighborhood: this
           // pool doesn't just show the name, it gathers people BY it, which
-          // turned "don't list my neighbourhood" into "here are your
-          // neighbours, including the ones who asked not to be".
+          // turned "don't list my neighborhood" into "here are your
+          // neighbors, including the ones who asked not to be".
           where:  { ...visibleWhere, neighborhood: viewer.neighborhood, neighborhoodVisible: true },
           select: { id: true },
           take:   POOL,
@@ -247,7 +247,7 @@ export async function GET() {
   return NextResponse.json({
     mightMeet,
     clubMates:  section(clubSample),
-    neighbours: section(hoodSample),
+    neighbors: section(hoodSample),
     eventMates: section(eventSample),
     newcomers:  section(newSample),
     hosts:      section(hostSample),

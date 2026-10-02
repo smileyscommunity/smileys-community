@@ -158,7 +158,7 @@ const feed      = read('components/BoardFeed.tsx')
 const hangoutsApi = read('app/api/hangouts/route.ts')
 
 describe('67 the board reads, names and posts one city', () => {
-  it('GET /api/hangouts honours ?city= like GET /api/board, falling back to the viewer\'s city', () => {
+  it('GET /api/hangouts honors ?city= like GET /api/board, falling back to the viewer\'s city', () => {
     expect(hangoutsApi).toMatch(/const cityId\s+= \(citySlug \? \(await getPublicCity\(citySlug\)\)\?\.id : undefined\) \?\? await resolveCityId\(session\)/)
     expect(hangoutsApi).toMatch(/status: 'active',\s*cityId,/)
     expect(hangoutsApi).toMatch(/todayInTz\(await getCityTz\(cityId\)\)/)

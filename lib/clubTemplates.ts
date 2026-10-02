@@ -19,9 +19,9 @@ export interface ClubTemplate {
   name: string
   category: string
   emoji: string
-  /** Tailwind text colour, e.g. 'text-blue-600' (matches existing clubs). */
+  /** Tailwind text color, e.g. 'text-blue-600' (matches existing clubs). */
   color: string
-  /** Tailwind bg colour, e.g. 'bg-blue-50'. */
+  /** Tailwind bg color, e.g. 'bg-blue-50'. */
   bgColor: string
   description: string
 }
@@ -29,7 +29,7 @@ export interface ClubTemplate {
 export const CLUB_TEMPLATES: ClubTemplate[] = [
   // The flagship. Istanbul's equivalent (Social Istanbul) holds 1,446 members
   // — roughly every approved member, and four times the next biggest club — yet
-  // it predates this catalogue, so cities seeded from templates were launching
+  // it predates this catalog, so cities seeded from templates were launching
   // without their single most important club. It leads the list because it's
   // the one every member joins and the natural home for a new city's first
   // gathering.

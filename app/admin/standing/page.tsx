@@ -308,10 +308,10 @@ function Stat({ label, value, sub, tone, active, onClick }: {
   label: string; value: number; sub?: string; tone?: 'warn' | 'bad'
   active?: boolean; onClick?: () => void
 }) {
-  const colour = tone === 'bad' ? 'text-red-400' : tone === 'warn' ? 'text-amber-400' : 'text-white'
+  const color = tone === 'bad' ? 'text-red-400' : tone === 'warn' ? 'text-amber-400' : 'text-white'
   const body = (
     <>
-      <p className={`text-xl font-bold ${colour}`}>{value}</p>
+      <p className={`text-xl font-bold ${color}`}>{value}</p>
       <p className="text-[11px] text-zinc-400 mt-0.5">{label}</p>
       {sub && <p className="text-[10px] text-zinc-600 mt-0.5">{sub}</p>}
     </>
@@ -319,7 +319,7 @@ function Stat({ label, value, sub, tone, active, onClick }: {
   const base = 'rounded-lg px-3 py-2.5 border text-left w-full transition-colors'
   if (!onClick) return <div className={`${base} bg-zinc-900 border-zinc-800`}>{body}</div>
   // A real button: keyboard-reachable, and aria-pressed says which queue is
-  // open, since the only other cue is a border colour.
+  // open, since the only other cue is a border color.
   return (
     <button type="button" onClick={onClick} aria-pressed={!!active}
       className={`${base} ${active

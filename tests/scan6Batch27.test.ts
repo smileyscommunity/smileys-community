@@ -3,8 +3,8 @@ import { readFileSync } from 'fs'
 import { join } from 'path'
 import { monthRangeFor } from '@/lib/cityTime'
 
-// Sixth scan, batch 27 — neighbourhood event stats.
-//   Neighbourhood HeroStats' "events this month" had only a lower bound
+// Sixth scan, batch 27 — neighborhood event stats.
+//   Neighborhood HeroStats' "events this month" had only a lower bound
 //   (date >= the 1st), so it counted every later month too, and neither it
 //   nor "past events" filtered on status: drafts, pending, flagged and
 //   cancelled events were counted on a public page. Rule now: public and
@@ -48,7 +48,7 @@ describe('monthRangeFor', () => {
 })
 
 // HeroStats is a .tsx server component (no JSX transform in vitest) — source pins.
-describe('neighbourhood HeroStats event counts', () => {
+describe('neighborhood HeroStats event counts', () => {
   const src = read('app/neighborhoods/[slug]/HeroStats.tsx')
 
   it('counts only public, held events — no drafts/pending/flagged, no cancelled or postponed', () => {
@@ -72,7 +72,7 @@ describe('neighbourhood HeroStats event counts', () => {
   })
 })
 
-describe('neighbourhood page siblings', () => {
+describe('neighborhood page siblings', () => {
   const sections = read('app/neighborhoods/[slug]/NeighborhoodSections.tsx')
   const index    = read('app/neighborhoods/page.tsx')
 

@@ -955,7 +955,7 @@ export default function HangoutsPage() {
             return true
           })
 
-          // "Near you" — float the viewer's own-neighbourhood hangouts to the
+          // "Near you" — float the viewer's own-neighborhood hangouts to the
           // top of whatever grouping renders below (stable sort keeps the
           // existing soonest-first order for everything else).
           if (user.neighborhood) {
@@ -1399,7 +1399,7 @@ function HangoutCard({ h, currentUser, onCancel, onMutated, neighborhoods }: {
       posthog.capture(data.joined ? 'hangout_joined' : 'hangout_left', { activity: h.activity ?? null })
       // Update locally — count + avatar strip + my-join flip
       // Optimistic add uses the real user — name + color + photo —
-      // so the avatar strip shows the right initials + brand colour
+      // so the avatar strip shows the right initials + brand color
       // immediately instead of an empty circle until the next reload.
       const me: JoinerSummary = {
         id:           currentUser.id,

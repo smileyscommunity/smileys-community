@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
     const fromValid    = fromParam && /^\d{4}-\d{2}-\d{2}$/.test(fromParam) ? fromParam : undefined
     // Optional city filter, so the dashboard's upcoming-events panel can
     // follow the same city as the numbers above it. Unset means every city,
-    // which is the long-standing behaviour of this endpoint.
+    // which is the long-standing behavior of this endpoint.
     const cityParam    = req.nextUrl.searchParams.get('city')
     // Moderators fail closed to their own city, like every sibling admin
     // list (this route treated them as admins and let a Bodrum moderator
@@ -142,7 +142,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
     // Free-text times were stored verbatim ('22.00', '18', '24:00') and then
-    // read as ending 23:59. Normalise or 400 (lib/eventTime eventTimeInput).
+    // read as ending 23:59. Normalize or 400 (lib/eventTime eventTimeInput).
     const startTime = eventTimeInput(time, 'start')
     if ('error' in startTime) return NextResponse.json({ error: startTime.error }, { status: 400 })
     const finishTime = eventTimeInput(endTime, 'end')
@@ -334,7 +334,7 @@ export async function POST(req: NextRequest) {
       //     quietly put an Antalya event in Istanbul. Ask instead.
       //   - club hosts and city hosts come through /host/events/new, which
       //     has no city control by design ("hosts always create in their
-      //     own city"). Defaulting to theirs is the documented behaviour,
+      //     own city"). Defaulting to theirs is the documented behavior,
       //     and the cityHost grant check below still has the last word.
       const staff = admin || isModerator(session)
       if (!cityId && staff) {
@@ -429,7 +429,7 @@ export async function POST(req: NextRequest) {
     const needsReview   = !admin && (!isModerator(session) || modViaCityGrant || !!originCityId)
     const eventStatus   = needsReview ? 'pending' : (tooFarOut ? 'pending' : (status ?? 'published'))
 
-    // The directory listing the organiser picked, in this event's city.
+    // The directory listing the organizer picked, in this event's city.
     // A trip may meet in either city — the departure station is the usual spot.
     const venue = await venueIdInput(businessId, originCityId ? [placeCityId, originCityId] : placeCityId)
     if ('error' in venue) return NextResponse.json({ error: venue.error }, { status: 400 })

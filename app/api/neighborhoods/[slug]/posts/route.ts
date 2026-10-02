@@ -37,7 +37,7 @@ export async function GET(req: NextRequest, { params }: Params) {
 
   // A read is 30 rows with their replies, likes and authors. Every write on
   // this wall is limited; the read was not, so one member could walk every
-  // neighbourhood of every public city at full speed.
+  // neighborhood of every public city at full speed.
   if (!await rateLimit(`nh-wall-read:${session.id}`, 60, 60_000)) {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
   }
@@ -104,7 +104,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (!wall) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   // READING another city's wall is deliberate — a slug resolves across public
-  // cities so every neighbourhood page is shareable and indexable. WRITING to
+  // cities so every neighborhood page is shareable and indexable. WRITING to
   // one is not: the same rule hangouts, pulses and listings follow
   // (resolvePostingCityId) says a write lands in your own city unless you have
   // actually joined the one you are browsing. Without it a single Istanbul

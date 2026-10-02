@@ -38,7 +38,7 @@ export function isStalled(s: { upcomingEvents: number }): boolean {
   return s.upcomingEvents === 0
 }
 
-/** Pill severity: a founding city gets a month before the colour changes. */
+/** Pill severity: a founding city gets a month before the color changes. */
 export function stalledSeverity(daysLive: number): 'amber' | 'red' {
   return daysLive >= STALLED_RED_AFTER_DAYS ? 'red' : 'amber'
 }

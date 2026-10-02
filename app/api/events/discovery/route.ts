@@ -124,7 +124,7 @@ function shapeOne(e: any, guest = false) {
   return {
     id: e.id, title: e.title, emoji: e.emoji, date: e.date, time: e.time,
     // A members-only event's venue is the payoff of joining (redactEventForGuest
-    // withholds it the same way): guests get the neighbourhood.
+    // withholds it the same way): guests get the neighborhood.
     location: guest && e.membersOnly ? (e.neighborhood || 'Shared with members') : e.location,
     neighborhood: e.neighborhood, coverImage: e.coverImage,
     language: e.language ?? null,

@@ -1,4 +1,4 @@
-// Did the first-RSVP nudge change behaviour?
+// Did the first-RSVP nudge change behavior?
 //
 // This one is a randomised experiment, which makes it a better question than
 // the no-show policy's before/after: everybody got that policy at once, so a
@@ -51,9 +51,9 @@ function wilson(successes: number, n: number, z = 1.96): [number, number] {
   if (n === 0) return [0, 0]
   const p = successes / n
   const d = 1 + z * z / n
-  const centre = (p + z * z / (2 * n)) / d
+  const center = (p + z * z / (2 * n)) / d
   const half   = (z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n))) / d
-  return [Math.max(0, centre - half), Math.min(1, centre + half)]
+  return [Math.max(0, center - half), Math.min(1, center + half)]
 }
 
 /**

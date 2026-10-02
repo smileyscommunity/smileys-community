@@ -166,7 +166,7 @@ function AdminApplicationsPageInner() {
   const [selected,      setSelected]      = useState<Application | null>(null)
   // 'hold' status (API-side) folds INTO the Pending tab as a badge rather
   // than getting its own tab. The Request More Info workflow is preserved
-  // (modal button + API behaviour unchanged) — admins just see held apps
+  // (modal button + API behavior unchanged) — admins just see held apps
   // alongside genuinely-pending ones, marked "✉ Info requested Xd ago",
   // so they don't disappear into a side tab nobody clicks.
   const [tab,           setTab]           = useState<TabKey>(
@@ -1396,7 +1396,7 @@ function AdminApplicationsPageInner() {
                             value={welcomeMsg}
                             onChange={e => setWelcomeMsg(e.target.value)}
                             rows={3}
-                            placeholder="AI will draft a personalised welcome — or write your own…"
+                            placeholder="AI will draft a personalized welcome — or write your own…"
                             className="w-full px-3 py-2 text-xs bg-zinc-900 border border-zinc-700 rounded-lg text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-violet-500/50 resize-none"
                           />
                           {welcomeMsg && <p className="text-xs text-zinc-600">Sent to the member on approval. Edit before approving.</p>}

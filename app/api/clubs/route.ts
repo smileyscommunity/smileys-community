@@ -137,7 +137,7 @@ export async function GET(req: NextRequest) {
   // projection is applied after retrieval: the club's WhatsApp invite
   // link is the payoff of joining — withheld from logged-out viewers,
   // matching /api/clubs/[slug].
-  // Guests get the faces as coloured initials: that a club has people in it
+  // Guests get the faces as colored initials: that a club has people in it
   // is public, who they are is for members.
   // Nothing member-only leaves the list, for anyone: the grid never reads
   // the WhatsApp link, the spotlight, the rules or the membership rows, and

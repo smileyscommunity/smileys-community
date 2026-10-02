@@ -150,9 +150,9 @@ const getLandingData = unstable_cache(
 )
 
 const WHY = [
-  { emoji: '👋', title: 'Meet people',      body: 'Discover people who share your interests, your stage of life and your sense of humour.' },
-  { emoji: '🎭', title: 'Join clubs',       body: 'Communities built around activities and passions — sailing, theatre, hiking, food, film, language.' },
-  { emoji: '📅', title: 'Discover events',  body: 'From dinners and nightlife to sailing, theatre, sports and workshops, set up by members who host.' },
+  { emoji: '👋', title: 'Meet people',      body: 'Discover people who share your interests, your stage of life and your sense of humor.' },
+  { emoji: '🎭', title: 'Join clubs',       body: 'Communities built around activities and passions — sailing, theater, hiking, food, film, language.' },
+  { emoji: '📅', title: 'Discover events',  body: 'From dinners and nightlife to sailing, theater, sports and workshops, set up by members who host.' },
   { emoji: '📍', title: 'Explore your neighborhood', body: 'Find people and plans near where you actually live, not across town.' },
   { emoji: '✨', title: 'Discover experiences', body: 'Go beyond group chats and see the city together — the whole point is offline.' },
   { emoji: '🌍', title: 'Stay connected across cities', body: 'Your Smileys profile travels with you when you visit another Smileys city.' },
@@ -351,13 +351,13 @@ export default async function HomePage() {
 
       {/* ── How are you coming? ─────────────────────────────────────────── */}
       {/* The arrival hubs side by side, so a visitor picks the page written
-          for them in one glance: the traveller's (/visiting), the remote
+          for them in one glance: the traveler's (/visiting), the remote
           worker's, the relocating expat's and the student's (per-city hubs). With one
           live city the links pin it and the heading names it; otherwise each
           resolves to the reader's city. Only paths — no counts — so nothing
           here can drift from what the hubs themselves show. Each card carries
           its hub's tint (lib/arrival-accents) so the four read as four
-          different doors, not one grey row. */}
+          different doors, not one gray row. */}
       <section aria-labelledby="arrival-title" className="py-14 sm:py-20 bg-white border-t border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="mb-8">
@@ -383,14 +383,14 @@ export default async function HomePage() {
                 hub:   'remote-work' as const,
                 href:  singleCity ? `/${flagship.slug}/remote-work` : '/remote-work',
                 emoji: '💻', title: 'Working remotely',
-                body:  'Here for a while with a laptop. Your first 72 hours: SIM and internet, a neighbourhood, coworking sessions, and people.',
+                body:  'Here for a while with a laptop. Your first 72 hours: SIM and internet, a neighborhood, coworking sessions, and people.',
                 cta:   'Your first 72 hours',
               },
               {
                 hub:   'moving' as const,
                 href:  singleCity ? `/${flagship.slug}/moving` : '/moving',
                 emoji: '🏡', title: 'Moving here',
-                body:  'Building a life here. Residence permits, housing, banking, healthcare, neighbourhoods — and people who have already figured it out.',
+                body:  'Building a life here. Residence permits, housing, banking, healthcare, neighborhoods — and people who have already figured it out.',
                 cta:   'Start your move',
               },
               {
@@ -662,7 +662,7 @@ export default async function HomePage() {
           </p>
 
           {/* The network as it actually is — live cities marked, everything
-              else honestly labelled. */}
+              else honestly labeled. */}
           <div className="flex flex-wrap justify-center gap-x-8 gap-y-3 text-sm">
             {/* Same three groups as the pill and the grid above. */}
             {[...liveCities, ...founding, ...comingSoon].map(c => {

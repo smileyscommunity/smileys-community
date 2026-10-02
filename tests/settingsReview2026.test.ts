@@ -48,7 +48,7 @@ describe('moving home city', () => {
     const admin = src('app/api/admin/users/[id]/route.ts')
     expect(admin).toContain("const moveTo = 'homeCitySlug' in body ? String(body.homeCitySlug ?? '').trim() : null")
     // The move runs after every other field is accepted, or a rejected
-    // neighbourhood would leave the member moved and the save failed.
+    // neighborhood would leave the member moved and the save failed.
     expect(admin.indexOf('await setHomeCity(id, moveTo')).toBeGreaterThan(admin.indexOf('normalizeNeighborhoodInput(cityForNeighborhood'))
     expect(admin).toContain("if (!adminPrivilege) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })")
     // And there's a control for it, not just an endpoint.
@@ -61,7 +61,7 @@ describe('moving home city', () => {
     // Set empty with the same attributes — a bare delete no-ops on iOS.
     expect(route).toContain("res.cookies.set(VIEW_CITY_COOKIE, '', {")
     expect(route).toContain('rateLimit(`home-city:${session.id}`')
-    // The page tells the member their neighbourhood is gone.
+    // The page tells the member their neighborhood is gone.
     expect(route).toContain('neighborhoodCleared: !result.alreadyHome,')
   })
 })
@@ -155,7 +155,7 @@ describe('quiet hours', () => {
     expect(s).toContain('if (prefKey !== undefined && prefKey !== null && !prefs[prefKey]) return true')
   })
 
-  it('the one fan-out that pushes without a notification row honours them too', () => {
+  it('the one fan-out that pushes without a notification row honors them too', () => {
     expect(src('lib/notify.ts')).toContain('export async function pushablePushIds(')
     expect(src('app/api/cron/sweep-cup-reminders/route.ts'))
       .toContain("await pushablePushIds(candidates.map(u => u.id), 'cup_reminder')")

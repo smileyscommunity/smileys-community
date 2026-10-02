@@ -195,7 +195,7 @@ export const SUSPENDED_SKIPPED_TYPES: ReadonlySet<string> = new Set([
 // email goes regardless.) Quiet hours never suppressed these before —
 // they had no preference key at all — and silencing them would be a
 // regression dressed as a fix.
-// Wide fan-outs: sent to a city, a neighbourhood or a whole club, not to one
+// Wide fan-outs: sent to a city, a neighborhood or a whole club, not to one
 // member about their own business. Used when the recipient's account can't be
 // read — see createNotification.
 export const BROADCAST_TYPES: ReadonlySet<string> = new Set([

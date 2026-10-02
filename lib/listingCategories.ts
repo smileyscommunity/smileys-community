@@ -1,6 +1,6 @@
 // Board listing categories — label and emoji per Listing.category. The
 // interactive board (components/BoardHub, a client component) carries its
-// own richer table with badge and header colours; this is the server-safe
+// own richer table with badge and header colors; this is the server-safe
 // subset the crawlable per-city board hub renders. Keep the two in step.
 export const LISTING_CATEGORY: Record<string, { label: string; emoji: string }> = {
   ROOMS:       { label: 'Room',           emoji: '🏠' },

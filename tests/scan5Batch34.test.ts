@@ -387,7 +387,7 @@ describe('h. lib/admin/overCapacity', () => {
   const other   = () => new Response(JSON.stringify({ error: 'paused', code: 'red_card_blocked' }), { status: 409 })
   const ok      = () => new Response('{}', { status: 200 })
 
-  it('recognises only a capacity refusal, and leaves the body readable', async () => {
+  it('recognizes only a capacity refusal, and leaves the body readable', async () => {
     const res = refused()
     expect(await capacityRefusal(res)).toMatchObject({ code: 'over_capacity', approved: 10, totalSpots: 10 })
     expect((await res.json()).error).toBe('full')

@@ -25,7 +25,7 @@ describe('eventPhase', () => {
     expect(eventPhase(ev, TZ, at('23:58'))).toBe('live')
     expect(eventPhase(ev, TZ, at('00:10', '2026-09-10'))).toBeNull()
   })
-  it('honours an explicit end, including one past midnight', () => {
+  it('honors an explicit end, including one past midnight', () => {
     expect(eventPhase({ ...ev, endTime: '21:00' }, TZ, at('21:00'))).toBeNull()
     expect(eventPhase({ date: '2026-09-09', time: '22:00', endTime: '02:00' }, TZ, at('01:00', '2026-09-10'))).toBe('live')
   })

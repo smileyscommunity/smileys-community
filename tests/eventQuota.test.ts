@@ -55,7 +55,7 @@ describe('hasQuotaRoomFor', () => {
     expect(await hasQuotaRoomFor('e1', EVENT, MAN)).toEqual({ ok: false, reason: 'male_quota' })
   })
 
-  it('honours an explicit male quota over the inferred one', async () => {
+  it('honors an explicit male quota over the inferred one', async () => {
     counts({ males: 12 })
     expect(await hasQuotaRoomFor('e1', { ...EVENT, maleQuota: 12 }, MAN)).toEqual({ ok: false, reason: 'male_quota' })
   })
@@ -71,7 +71,7 @@ describe('hasQuotaRoomFor', () => {
     expect(await hasQuotaRoomFor('e1', EVENT, WOMAN)).toEqual({ ok: false, reason: 'female_quota' })
   })
 
-  it('honours an explicit female quota over the inferred one', async () => {
+  it('honors an explicit female quota over the inferred one', async () => {
     counts({ females: 20 })
     expect(await hasQuotaRoomFor('e1', { ...EVENT, femaleQuota: 20 }, WOMAN)).toEqual({ ok: false, reason: 'female_quota' })
     expect(await hasQuotaRoomFor('e1', { ...EVENT, femaleQuota: 30 }, WOMAN)).toEqual({ ok: true })

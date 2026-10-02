@@ -18,7 +18,7 @@ type Params = { params: Promise<{ id: string }> }
 // endpoint persists the copy server-side so the action behaves the way
 // the UI implied all along.
 //
-// Behaviour: the copy is built from an explicit allow-list in
+// Behavior: the copy is built from an explicit allow-list in
 // lib/eventDuplicate — content is copied; title gets " (Copy)", date is today
 // in the event's city, status is 'draft', seats/series/cancel state and every
 // sweep stamp start fresh. It used to spread the source row, which carried

@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // A signed-in member enrols their own account. Taking the body's email
+    // A signed-in member enrolls their own account. Taking the body's email
     // let any member (Turnstile-free) target someone else's entry.
     const cleanName  = String(name  ?? session?.name  ?? '').trim()
     const cleanEmail = String(session?.email ?? email ?? '').trim().toLowerCase()

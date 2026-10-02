@@ -139,7 +139,7 @@ function ModerationPageInner() {
   // triaged differently from member-filed reports (the reporter is
   // anonymous to the host; the host is the responsible party but
   // not necessarily the offender).
-  // URL-initialised so /admin/feedback's "⚠ N flags →" pill can deep-
+  // URL-initialized so /admin/feedback's "⚠ N flags →" pill can deep-
   // link straight into the filtered Reports view via `?surveyOnly=1`.
   const [surveyOnly, setSurveyOnly] = useState(searchParams.get('surveyOnly') === '1')
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)

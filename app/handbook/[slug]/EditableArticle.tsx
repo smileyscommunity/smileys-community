@@ -299,7 +299,7 @@ export default function EditableArticle(props: Props) {
 
       {/* Byline + freshness share one block above the rule. The review status
           is the Handbook's trust signal, so it sits on its own line at full
-          weight rather than being buried in the grey meta text — but it stays
+          weight rather than being buried in the gray meta text — but it stays
           inside the header group, because "who wrote this and when was it last
           checked" is one question, not two. */}
       <div className="mb-8 pb-8 border-b border-gray-100">
@@ -350,8 +350,8 @@ export default function EditableArticle(props: Props) {
       )}
 
       {/* `[&_span[style]_*]:text-[color:inherit]`: a child's own class beats a
-          colour inherited from a styled span, so bold inside a coloured
-          passage would lose the colour without it. (This note used to live
+          color inherited from a styled span, so bold inside a colored
+          passage would lose the color without it. (This note used to live
           inside the className string and shipped in every article's HTML.) */}
       <div
         className="prose prose-sm sm:prose-base max-w-none

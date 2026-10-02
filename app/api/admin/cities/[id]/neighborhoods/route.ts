@@ -273,6 +273,6 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   if (updated.count === 0) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   invalidateNeighborhoodCache(cityId) // see POST — a hidden row must leave the list now, not in 60s
   writeAudit(session.id, session.name, 'neighborhood.hide', neighborhoodId, 'neighborhood',
-    { cityId }, `Hid a neighbourhood from city ${cityId}`)
+    { cityId }, `Hid a neighborhood from city ${cityId}`)
   return NextResponse.json({ ok: true })
 }

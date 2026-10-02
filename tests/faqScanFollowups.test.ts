@@ -108,7 +108,7 @@ describe('7–9: CTA text, structure, promises', () => {
   it('questions are headings; emoji hidden from screen readers', () => {
     expect(page).toContain('<h3 className="text-sm font-bold text-gray-900 mb-2.5 leading-snug">{faq.q}</h3>')
     expect(page).toContain('<span aria-hidden="true">{s.icon}</span>')
-    expect(page).toContain('<span aria-hidden="true">❓</span> Help Centre')
+    expect(page).toContain('<span aria-hidden="true">❓</span> Help Center')
     expect(page).toContain('<div aria-hidden="true" className="text-3xl mb-3">💬</div>')
   })
   it('no response times nobody tracks', () => {

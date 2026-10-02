@@ -14,7 +14,7 @@ import { loadFailure } from '@/lib/admin/useAdminLoad'
 // Map an audit entry's targetType to the admin detail route for that
 // resource. Returning null means the target has no admin landing page
 // (payments, messages, reports, attendees) and the id stays as plain
-// text. Centralised here so a new targetType only edits one place.
+// text. Centralized here so a new targetType only edits one place.
 // By viewer: the member and club admin pages are admin-only (the layout
 // bounces moderators to Mod Home), so a moderator's links went nowhere. A
 // moderator gets the member profile, and a club stays plain text — the row

@@ -22,7 +22,7 @@ describe('what a member sees of another', () => {
     expect(route).toContain('name: firstNameOf(user.name),')
   })
 
-  it('contact details and work are for connections; neighbourhood only if listed', () => {
+  it('contact details and work are for connections; neighborhood only if listed', () => {
     expect(route).toContain('instagram:    fullAccess ? user.instagram : null,')
     expect(route).toContain('neighborhood: fullAccess || user.neighborhoodVisible ? user.neighborhood : null,')
     expect(route).toContain('.filter(c => fullAccess || !c.isPrivate)')
@@ -78,7 +78,7 @@ describe('what a member sees of another', () => {
     expect(list).toContain('{ OR: [{ suspendedUntil: null }, { suspendedUntil: { lte: new Date() } }] }')
   })
 
-  it('shared context skips invisible RSVPs, dead clubs and unlisted neighbourhoods', () => {
+  it('shared context skips invisible RSVPs, dead clubs and unlisted neighborhoods', () => {
     const lib = src('lib/sharedContext.ts')
     expect(lib).toContain("status: 'approved', stealth: false,")
     expect(lib).toContain('club: { isActive: true }')
@@ -96,7 +96,7 @@ describe('what a member sees of another', () => {
 describe('saving your own profile', () => {
   const v = (k: string, x: unknown) => validateProfileField(k, x)
 
-  it('colour is a hex colour', () => {
+  it('color is a hex color', () => {
     expect(v('color', '#A1b2C3')).toEqual({ ok: true, value: '#a1b2c3' })
     expect(v('color', 'red;background:url(x)').ok).toBe(false)
   })

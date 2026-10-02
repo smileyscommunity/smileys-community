@@ -209,7 +209,7 @@ function NeighborhoodCard({ n, cardBg, cardBorder, cityQuery = '' }: { n: Neighb
 }
 
 // ── Main grid ─────────────────────────────────────────────────────────────────
-// Four neighbourhood slugs are shared between cities (Istanbul and Ankara
+// Four neighborhood slugs are shared between cities (Istanbul and Ankara
 // both have a Ulus), so a bare /neighborhoods/<slug> always resolved to the
 // default city's page: Ankara's grid linked to Istanbul's Ulus. Every card
 // carries the city it came from when that isn't the default one.
@@ -268,7 +268,7 @@ export default function NeighborhoodGrid({ groups, userNeighborhood, mapCenter, 
     return items
   })()
 
-  // A neighbourhood with no coordinates is left off the map rather than
+  // A neighborhood with no coordinates is left off the map rather than
   // plotted at 0,0 — one of those dragged fitBounds across the Atlantic.
   const mapPoints: MapPoint[] = allItems
     .filter(n => (n.memberCount > 0 || n.eventCount > 0) && n.meta.lat != null && n.meta.lon != null)
@@ -350,7 +350,7 @@ export default function NeighborhoodGrid({ groups, userNeighborhood, mapCenter, 
             </button>
           ))}
 
-          {/* Cards | Map. Map plots neighborhood centres only — see
+          {/* Cards | Map. Map plots neighborhood centers only — see
               NeighborhoodsMapView for why no member data reaches it. */}
           <div className="ml-auto inline-flex rounded-full border border-gray-200 bg-white p-0.5">
             {([
@@ -376,7 +376,7 @@ export default function NeighborhoodGrid({ groups, userNeighborhood, mapCenter, 
           <NeighborhoodsMapView points={mapPoints} center={mapCenter} cityQuery={cityQuery} />
           <p className="text-xs text-gray-400 mt-3">
             Showing {mapPoints.length} neighborhoods with members or upcoming events.
-            Markers are neighborhood centres — never a member&apos;s location.
+            Markers are neighborhood centers — never a member&apos;s location.
           </p>
         </div>
       ) : filtered !== null ? (

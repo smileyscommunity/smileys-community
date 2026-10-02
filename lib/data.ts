@@ -436,13 +436,13 @@ export function firstNameOf(name: string | null | undefined): string {
   // worse than an initial. "Y. E." stays "Y." for the same reason.
   let first = 0
   while (first < rest.length - 2 && isInitial(rest[first])) first++
-  // Normalised, not raw. The stored name is only as tidy as whoever typed
+  // Normalized, not raw. The stored name is only as tidy as whoever typed
   // it, and the apply form — how nearly everyone joins — wrote it through
   // verbatim for a long time, so lowercase first names reached the DB. This
   // is the single choke point every greeting and notification passes
   // through, which makes it the one place that fixes them all at once
   // without rewriting a single row. formatName is conservative by design
-  // (see its comment), so this can only ever capitalise a leading letter.
+  // (see its comment), so this can only ever capitalize a leading letter.
   return [...kept, rest[first] ?? ''].filter(Boolean).map(n => formatName(n)).join(' ')
 }
 
@@ -521,8 +521,8 @@ export function whatsappUrl(phone: string | null | undefined, nationality?: stri
 }
 
 /**
- * Normalise a human name for consistent display: trim, collapse internal
- * whitespace, and capitalise the first letter of each word (sub-tokens
+ * Normalize a human name for consistent display: trim, collapse internal
+ * whitespace, and capitalize the first letter of each word (sub-tokens
  * split on hyphen / apostrophe handled too, so "al khazraji" →
  * "Al Khazraji" and "o'brien" → "O'Brien").
  *

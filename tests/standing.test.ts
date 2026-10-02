@@ -352,7 +352,7 @@ describe('the host review', () => {
 
   it('warns a guest the host already marked absent, before it counts', async () => {
     // The Galata walk, 2026-09-19: the host closed the door out promptly, so
-    // unmarkedGuests was empty and nobody heard anything. Good behaviour by
+    // unmarkedGuests was empty and nobody heard anything. Good behavior by
     // the host left their members with LESS warning than an inattentive
     // host's — straight to a recorded absence with no chance to answer first.
     p.eventAttendee.findMany.mockResolvedValue([

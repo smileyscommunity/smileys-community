@@ -8,7 +8,7 @@ import {
 
 // The moving hub and the Handbook's life-stage pages only arrange articles a
 // city already has. These pin the rules that stop them linking an empty
-// stage, inventing a topic, or ranking a neighbourhood on made-up numbers.
+// stage, inventing a topic, or ranking a neighborhood on made-up numbers.
 
 const a = (slug: string, category: string, over: Partial<StageArticle> = {}): StageArticle =>
   ({ slug, title: slug.replace(/-/g, ' '), category, cityId: null, ...over })
@@ -170,7 +170,7 @@ describe('expat stories on the moving hub', () => {
     expect(loader).toMatch(/cover:\s*articleCover/)
   })
 
-  it('every badge map has a colour for it', () => {
+  it('every badge map has a color for it', () => {
     for (const f of ['app/posts/page.tsx', 'app/posts/[slug]/page.tsx', 'app/admin/posts/page.tsx']) {
       expect(readFileSync(join(process.cwd(), f), 'utf8'), f).toMatch(/'Expats':\s*'bg-/)
     }

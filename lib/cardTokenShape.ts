@@ -16,7 +16,7 @@ export const CARD_TOKEN_PREFIX = 'smileys:card:'
 /**
  * The member id inside a scanned code, without checking the signature — for
  * the scanner's own roster lookup, which decides nothing. Never use it to
- * authorise a write: lib/cardToken's verifyCardToken is what the server
+ * authorize a write: lib/cardToken's verifyCardToken is what the server
  * trusts, and the door sends the raw string along for it to check.
  */
 export function readCardTokenUserId(raw: string): string | null {

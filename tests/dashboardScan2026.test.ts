@@ -38,8 +38,8 @@ describe('nobody is shown who did not agree to be shown', () => {
     expect(read('components/ClubActivityTimeline.tsx')).toContain('{getInitials(firstNameOf(name))}')
   })
 
-  it('a neighbourhood opt-out is honoured wherever the neighbourhood prints', () => {
-    // The suggestion match has two branches and only the neighbourhood one
+  it('a neighborhood opt-out is honored wherever the neighborhood prints', () => {
+    // The suggestion match has two branches and only the neighborhood one
     // required the opt-in, so a member found through a shared club had their
     // district shown regardless.
     expect(src).toContain('neighborhood: m.neighborhoodVisible ? m.neighborhood : null')
@@ -103,7 +103,7 @@ describe('the numbers say what the page underneath them says', () => {
 })
 
 describe('headings do not promise what the query cannot deliver', () => {
-  it('"from your clubs, interests and neighbourhood" needs a match, not just signals', () => {
+  it('"from your clubs, interests and neighborhood" needs a match, not just signals', () => {
     // Every card, not just the top one: the list is score-sorted, so keying
     // on [0] let one match label four cards, three of which the widened pool
     // now often fills with score-zero events.
@@ -134,7 +134,7 @@ describe('headings do not promise what the query cannot deliver', () => {
     expect(block).not.toContain('New events pop up across the city every week')
   })
 
-  it('a randomly rotated listing is not labelled "new"', () => {
+  it('a randomly rotated listing is not labeled "new"', () => {
     expect(src).not.toContain('New on Board')
     expect(src).toContain('From the Marketplace')
   })
@@ -183,7 +183,7 @@ describe('the same thing is not rendered twice on one page', () => {
 
   it('and the handbook card list belongs to the strip with room for it', () => {
     // Two articles were rendering as cards in both the left rail and the
-    // centre column at every breakpoint. One card list; the timeline's
+    // center column at every breakpoint. One card list; the timeline's
     // one-line mention maps the same rows but is not a second list.
     expect(src.match(/latestHandbook\.map\(post =>/g) ?? []).toHaveLength(1)
   })

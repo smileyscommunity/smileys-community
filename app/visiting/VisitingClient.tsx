@@ -482,7 +482,7 @@ function AnnouncementCard({ a, viewerId, viewerInterests, viewerLanguages, viewe
           ))}
           {sameNeighborhood && (
             <span className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-100 px-2 py-0.5 rounded-full font-medium">
-              <span aria-hidden="true">📍 </span>Staying in your neighbourhood
+              <span aria-hidden="true">📍 </span>Staying in your neighborhood
             </span>
           )}
           {eventsInWindow.length > 0 && (
@@ -559,7 +559,7 @@ function AnnouncementCard({ a, viewerId, viewerInterests, viewerLanguages, viewe
 
 export default function VisitingClient({ announcements: all, events, cityCount, featuredLocals, cityName, today, viewerIsLocal, totalCount, newVisitHref }: Props) {
   const { user, isLoggedIn } = useAuth()
-  // ?neighborhood= — the neighbourhood page's "See all" lands here with it.
+  // ?neighborhood= — the neighborhood page's "See all" lands here with it.
   const searchParams  = useSearchParams()
   const neighborhood  = searchParams.get('neighborhood')
   const announcements = neighborhood ? all.filter(a => a.neighborhood === neighborhood) : all

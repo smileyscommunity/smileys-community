@@ -713,7 +713,7 @@ export default function AdminClubsPage() {
                           Surfaces only when there's enough signal
                           (≥1 survey response). Green ≥80%, amber
                           60–79%, red <60% wouldReturn. Tracks
-                          /admin/feedback colour bands. */}
+                          /admin/feedback color bands. */}
                       {club.quality && club.quality.totalResponses > 0 && club.quality.wouldReturnRate !== null && (
                         <Link href={`/admin/clubs/${club.id}`}
                           className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border transition-colors ${

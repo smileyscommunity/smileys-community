@@ -30,7 +30,7 @@ const INTEREST_TO_CATEGORIES: Record<string, string[]> = {
 // simply scores nothing, which is the right failure — no recommendation
 // beats a wrong one.
 //
-// These groupings are judgement, not fact, and reasonable people place some
+// These groupings are judgment, not fact, and reasonable people place some
 // of these differently. The calls worth knowing about:
 //   · Turkey is deliberately absent. It is 756 of ~1,760 members, it has no
 //     club of its own, and every regional club it could go in (Middle
@@ -44,7 +44,7 @@ const INTEREST_TO_CATEGORIES: Record<string, string[]> = {
 //     Azerbaijan is Central Asian on Turkic grounds, Mongolia is East Asian.
 //   · Georgia, Cameroon, Gabon, Congo (Kinshasa) and Trinidad and Tobago are
 //     left out: the Caucasus, Central Africa and the Caribbean have no club,
-//     and forcing them into a neighbouring one would be worse than silence.
+//     and forcing them into a neighboring one would be worse than silence.
 // Edit freely — it is data, and nothing else depends on its shape.
 const NATIONALITY_TO_CLUB: Record<string, string> = {
   // Americas

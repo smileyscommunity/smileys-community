@@ -101,7 +101,7 @@ export async function askEvent(event: {
     await prisma.eventAttendee.update({ where: { id: a.id }, data: { reconfirmAskedAt: now } })
     const emoji = event.emoji ?? '📅'
     const body  = `Tap to confirm your spot. Unanswered spots may go to the waitlist from ${fmtTime(deadline, tz)}.`
-    // createNotification sends the push itself (and honours quiet hours).
+    // createNotification sends the push itself (and honors quiet hours).
     await createNotification(a.userId, 'reconfirm_ask', `${emoji} Still coming to ${event.title} ${day}?`, body, `/events/${event.id}`)
     sendReconfirmEmail(a.user.email, a.user.name ?? 'Member', event.title, emoji,
       fmtWhen(startsAt, tz), fmtTime(deadline, tz), reconfirmUrl(a.user.id, event.id), event.id, day)

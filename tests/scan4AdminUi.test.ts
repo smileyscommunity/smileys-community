@@ -77,7 +77,7 @@ describe('analytics (5)', () => {
     expect(src).not.toContain('new Date(e.date).toLocaleDateString()')
     expect(src).toContain("formatDay(e.date, { day: 'numeric', month: 'short', year: 'numeric' })")
   })
-  it('revenue is labelled with the scoped cities currency, never blindly the current city', () => {
+  it('revenue is labeled with the scoped cities currency, never blindly the current city', () => {
     expect(src).not.toMatch(/formatMoney\(data\.revenue\.\w+, cur\)/)
     expect(src).not.toContain('formatMoney(c.revenue, cur)')
     expect(src).not.toContain('({currencySymbol(cur).trim()})')
@@ -126,7 +126,7 @@ describe('participants: confirmed sequential batches, city-day past check (8)', 
     expect(src).toContain('onClick={() => approveAll(pending)} disabled={busy !== null}')
     expect(src).toContain('onClick={() => promoteBatch(waitlist.slice(0, promotable))} disabled={busy !== null}')
   })
-  it('batches confirm, run one at a time, summarise once and reload', () => {
+  it('batches confirm, run one at a time, summarize once and reload', () => {
     expect(src).toMatch(/async function approveAll[\s\S]*?confirmToast\(/)
     expect(src).toMatch(/async function promoteBatch[\s\S]*?confirmToast\(/)
     expect(src).toMatch(/for \(const userId of userIds\) \{[\s\S]*?await fetch\(/)

@@ -37,7 +37,7 @@ export async function generateMetadata({ searchParams }: { searchParams?: Promis
   const desc  = isDefault
     ? 'Find Smileys events happening near you. From Kadıköy to Beşiktaş, Cihangir to Ataşehir — discover social events across Istanbul by neighborhood.'
     : `Find Smileys events happening near you — discover social events across ${city.name} by neighborhood.`
-  const ogDesc = `Discover curated social events happening across ${city.name}, organised by neighborhood.`
+  const ogDesc = `Discover curated social events happening across ${city.name}, organized by neighborhood.`
   // Share Bodrum's page and the preview once showed Istanbul: the cover was
   // an Istanbul collage hardcoded for every city. Now the shared rule
   // (lib/shareCover): the city's own cover file — the collage is Istanbul's —
@@ -92,7 +92,7 @@ const getNeighborhoodStats = unstable_cache(
     // opt-outs every other count of the same people already applies (see
     // NeighborhoodSections and HeroStats). A card that said "3 locals" over a
     // neighborhood page reading "Local members (1)" wasn't just inconsistent:
-    // in a thin neighbourhood the delta is a disclosure that somebody hidden
+    // in a thin neighborhood the delta is a disclosure that somebody hidden
     // lives there.
     prisma.user.groupBy({
       by: ['neighborhood'],
@@ -142,9 +142,9 @@ function fmtEventDate(d: string) {
 
 // "Hot right now" and "Active" are claims about things happening, so they now
 // need something on the calendar to say them. Headcount alone crossed both
-// thresholds: four neighbourhoods with zero upcoming events were advertising
+// thresholds: four neighborhoods with zero upcoming events were advertising
 // themselves as hot off 54 members apiece, which is exactly the vanity-metric
-// promise this community doesn't make. A populated neighbourhood with nothing
+// promise this community doesn't make. A populated neighborhood with nothing
 // booked is "Growing". The bottom label used to say "this month" while the
 // count behind it is every future event — it says what it measures now.
 function getActivitySignal(eventCount: number, memberCount: number) {
@@ -163,7 +163,7 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
   // session and the city id are both cheap (JWT decode + module-memory cache).
   const session = await getSession()
   const { city, cityId, pinned } = await resolveCityForPage(searchParams)
-  // The city's day, like the hero and the sections of every neighbourhood
+  // The city's day, like the hero and the sections of every neighborhood
   // page (house rule: never server UTC). This was the UTC date, so between
   // midnight and 03:00 Istanbul yesterday's events were still "upcoming" in
   // every card, the header total and the "Happening in" cards — and cached
@@ -188,12 +188,12 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
   // Only "yours" when this is your own city's page. A member whose home city
   // is Istanbul, browsing Ankara with ?city=ankara, was shown Ankara's Ulus
   // as "your neighborhood" — with Ankara residents presented as their
-  // neighbours — because the match was on the name alone, and the four shared
+  // neighbors — because the match was on the name alone, and the four shared
   // names are exactly where it bites.
   const userNeighborhood = session?.cityId === cityId ? session?.neighborhood ?? null : null
 
   // The admin saves an ARRAY of banners per page (app/api/admin/banners); this
-  // read the value as one object, so no neighbourhoods banner could ever
+  // read the value as one object, so no neighborhoods banner could ever
   // render. Same shape and the same city rule as the dashboard: a banner
   // belongs to the city it names, else the default city.
   type NbBanner = { active: boolean; type: string; headline: string; subtitle: string; emoji: string; link: string; cta: string; city?: string }
@@ -245,7 +245,7 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
       return scoreB - scoreA
     })
 
-  // Istanbul's six areas have curated labels, icons and colours, and this is
+  // Istanbul's six areas have curated labels, icons and colors, and this is
   // the order they read in. Any OTHER area a city defines still gets a section
   // — named after itself, in a neutral palette, after the curated ones. That
   // fallback is the whole point: these six used to be the only sections, so a
@@ -318,7 +318,7 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
       take:    5,
       orderBy: { joinedAt: 'desc' },
     })
-    // A connections-only neighbour this member is not connected to reads as
+    // A connections-only neighbor this member is not connected to reads as
     // a first name with no photo — the rule every other strip applies. The
     // full name went into the avatar's alt text and the photo file into the
     // payload regardless.
@@ -332,7 +332,7 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
   // logged-out visitor, and members who haven't picked one — these sections
   // would otherwise be blank, so they fall back to the busiest neighborhood
   // and say so in the heading rather than implying it's the viewer's own.
-  // The busiest neighbourhood by ACTIVITY (events first, then members) — it
+  // The busiest neighborhood by ACTIVITY (events first, then members) — it
   // was the largest headcount, and the heading called it the most active.
   const busiest = [...neighborhoods]
     .sort((a, b) => b.activityScore - a.activityScore || b.memberCount - a.memberCount)[0]?.name ?? null
@@ -403,7 +403,7 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
     peopleNearby = candidates.slice(0, 8).map((m, i) => {
       // Locked = a guest (everyone), or a connections-only member this viewer
       // isn't connected to. Restricted members are shown as a first name
-      // rather than dropped, so the neighbourhood doesn't read as emptier
+      // rather than dropped, so the neighborhood doesn't read as emptier
       // than it is — the same trade the board and guide authors make.
       const locked = !session || restricted.has(m.id)
       return {
@@ -422,7 +422,7 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
   // §13 — visitors heading for the focus neighborhood. Renders only when
   // there are real ones; an empty "coming to your neighborhood" block is
   // worse than no block. Contact details are never selected here.
-  // Members only: the section names the neighbourhood, the origin city and
+  // Members only: the section names the neighborhood, the origin city and
   // the dates, which lib/visitorPolicy withholds from guests on /visiting.
   // A connections-only author this viewer is not connected to is a first
   // name with no photo — the name reached the say-hi button's props in full.
@@ -540,7 +540,7 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
         {/* The city's own photo where it has one. This was hardcoded to
             Istanbul's Galata waterfront, so Bodrum's neighborhoods page opened
             on another city's skyline — and the alt text described it. Cities
-            without a hero keep the shared shot rather than a grey box, matching
+            without a hero keep the shared shot rather than a gray box, matching
             CityHeroImage on /[city]. */}
         <Image
           src={city.heroImage ? resolveImageUrl(city.heroImage) : '/app/images/neighborhoods-hero.jpg'}
@@ -571,7 +571,7 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
                     do next: jump to their own neighborhood, go set one, or
                     join first. A single fixed target would be a dead end for
                     two of the three. */}
-                {/* The neighbourhood picker is on /profile (the settings page
+                {/* The neighborhood picker is on /profile (the settings page
                     only has the visibility toggle) — both buttons sent the
                     one audience they target, a member with none set, to a
                     page that could not set it. */}
@@ -686,7 +686,7 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
         )}
         {/* ── Where's your Istanbul? ──
             Signed-in members with no neighborhood set see the fallback
-            sections below labelled with Kadıköy's name — which reads as
+            sections below labeled with Kadıköy's name — which reads as
             "this page isn't about me". This prompt names the fix. Guests
             don't get it: their path is /apply, already all over the page. */}
         {session && !userNeighborhood && (

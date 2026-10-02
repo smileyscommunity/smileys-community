@@ -141,8 +141,8 @@ export default function GuidelinesPage() {
         <Section title="Posting in the Business Directory">
           <div className="space-y-3">
             <Rule icon="📍" title="Submit places you've actually been">
-              Add businesses you know — your favourite café, your physio, the friend's gallery.
-              Don't pad the directory with rumours or competitor listings you've never visited.
+              Add businesses you know — your favorite café, your physio, the friend's gallery.
+              Don't pad the directory with rumors or competitor listings you've never visited.
             </Rule>
             <Rule icon="⭐" title="Reviews are honest first-hand experience">
               One member, one review, with the rating that matches what you'd tell a friend.
@@ -173,7 +173,7 @@ export default function GuidelinesPage() {
           </p>
           <ul className="list-disc list-inside space-y-2 ml-2 mt-2">
             <li>
-              <strong className="text-gray-800">Bad behaviour in an event or chat</strong> —
+              <strong className="text-gray-800">Bad behavior in an event or chat</strong> —
               message a host or use the report link on the offending post / member.
             </li>
             <li>

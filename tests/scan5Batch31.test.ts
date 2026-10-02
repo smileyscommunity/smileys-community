@@ -221,7 +221,7 @@ describe('create route validates times', () => {
     expect((await res.json()).error).toMatch(/Start time/)
   })
 
-  it('stores the normalised values', async () => {
+  it('stores the normalized values', async () => {
     const res = await post(payload({ time: '19.30', endTime: '24:00' }))
     expect(res.status).toBe(200)
     const data = (prisma.event.create as any).mock.calls[0][0].data
@@ -312,7 +312,7 @@ describe('planStampRepair', () => {
 describe('planTimeRepair', () => {
   const r = (time: string, endTime: string | null) => ({ id: 'e1', title: 'T', date: '2026-09-01', time, endTime })
 
-  it('proposes the normalised value for each malformed field, and UNFIXABLE otherwise', () => {
+  it('proposes the normalized value for each malformed field, and UNFIXABLE otherwise', () => {
     const fixes = planTimeRepair([r('19:00', '22.00'), r('18', '24:00'), r('24:00', 'late'), r('19:00', '')])
     expect(fixes.map(f => [f.field, f.old, f.proposed])).toEqual([
       ['endTime', '22.00', '22:00'],

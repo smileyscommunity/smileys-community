@@ -77,7 +77,7 @@ export async function GET(req: NextRequest) {
     u && !restricted.has(u.id) ? { id: u.id, name: u.name, color: u.color, profilePhoto: u.profilePhoto } : null
 
   // An allow-list, not the row: a guest gets a first name, the months and no
-  // neighbourhood (lib/visitorPolicy guestView) and no author to follow to a
+  // neighborhood (lib/visitorPolicy guestView) and no author to follow to a
   // profile; a member gets the card as posted. Nothing else on the row —
   // not its ids, status or visibility — leaves this route.
   const isMember = !!session

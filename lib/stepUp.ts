@@ -8,7 +8,7 @@ import type { SessionUser } from './session'
  *
  * CURRENTLY DISABLED via ADMIN_2FA_REQUIRED (lib/totpPolicy.ts) — this
  * returns null for everyone until that flag goes back to true. The rest of
- * this comment describes the behaviour you get when it does.
+ * this comment describes the behavior you get when it does.
  *
  * Returns a NextResponse to return immediately when the session hasn't proved
  * possession of the admin's TOTP device, or null when it has. Same shape as

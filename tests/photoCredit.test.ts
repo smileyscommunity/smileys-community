@@ -4,7 +4,7 @@ import { validateFieldUpdate, validateBusinessCreate, parseCoverCredit } from '@
 import { creditedCoverOk } from '@/lib/photoCredit'
 
 // A cover can be someone else's photo (Wikimedia Commons, CC BY / BY-SA),
-// usable only with its author and licence shown wherever it appears. These pin
+// usable only with its author and license shown wherever it appears. These pin
 // the two ways that goes wrong: a credit outliving its photo (a new cover
 // shown under the old photographer's name), and a credited photo appearing
 // somewhere its credit can't (share cards, JSON-LD).
@@ -79,7 +79,7 @@ describe('creditedCoverOk — where no credit can be shown', () => {
 
 describe('every surface that renders a listing cover renders its credit', () => {
   // Source pins: a new surface that shows a directory cover must show the
-  // credit too, or the licence is broken there.
+  // credit too, or the license is broken there.
   const SURFACES = [
     'app/directory/[id]/page.tsx',
     'app/directory/DirectoryClient.tsx',

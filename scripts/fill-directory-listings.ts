@@ -108,7 +108,7 @@ const RESEARCH_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   properties: {
-    found:              { type: 'boolean', description: 'true when this exact venue (same name, same neighbourhood/address) was identified online' },
+    found:              { type: 'boolean', description: 'true when this exact venue (same name, same neighborhood/address) was identified online' },
     is_business:        { type: 'boolean', description: 'false for parks, piers, stations, public buildings, walking routes' },
     permanently_closed: { type: 'boolean' },
     description:        { type: ['string', 'null'], description: 'The listing text, 180-320 characters, per the writing rules' },
@@ -127,17 +127,17 @@ const RESEARCH_SCHEMA = {
              'address', 'hours', 'hours_confident', 'languages', 'tags', 'sources', 'notes'],
 }
 
-const SYSTEM = `You research venues for the directory of Smileys Community, a members-only community that helps expats and newcomers make real-life friends. The directory makes a factual promise — this place exists, here, is open — so you never invent. Search the web for the exact venue (name + neighbourhood + city), confirm it is the same place, and report only what sources support. If unsure about a fact, return null for it. If the venue cannot be identified, set found=false.
+const SYSTEM = `You research venues for the directory of Smileys Community, a members-only community that helps expats and newcomers make real-life friends. The directory makes a factual promise — this place exists, here, is open — so you never invent. Search the web for the exact venue (name + neighborhood + city), confirm it is the same place, and report only what sources support. If unsure about a fact, return null for it. If the venue cannot be identified, set found=false.
 
 Never use smileyscommunity.com as a source: that is the directory you are filling, so citing it is circular.
 
-Writing the description: sound like a well-connected friend who has lived in the city a while — warm, specific, practical, never corporate, never hype. Two or three sentences, 180–320 characters, English, plain text, no emoji, no exclamation marks, no ratings or review counts, no "must-visit"/"hidden gem"/"perfect for". Say what the place is and what it is actually good for (a dish, the coffee, the space, who goes there) only when sources support it. Mention the neighbourhood once, naturally, inside a sentence — never as a trailing "Located in X." Do not mention Smileys.
+Writing the description: sound like a well-connected friend who has lived in the city a while — warm, specific, practical, never corporate, never hype. Two or three sentences, 180–320 characters, English, plain text, no emoji, no exclamation marks, no ratings or review counts, no "must-visit"/"hidden gem"/"perfect for". Say what the place is and what it is actually good for (a dish, the coffee, the space, who goes there) only when sources support it. Mention the neighborhood once, naturally, inside a sentence — never as a trailing "Located in X." Do not mention Smileys.
 These are venues the community uses and likes. Be generous and truthful: state facts plainly, as your own knowledge — never "reviews say", "locals describe", "listings show", "according to". Leave out anything unflattering or incidental: smoke, noise complaints, being a chain, "budget"/"cheap"/"mid-range", service complaints. If the only things you can find are unflattering, keep the description to what the place is and offers.
 Every sentence is about the place itself. Never write about the listing, the research or the sources: no "the address on file", "listed on the company site", "the store listing is maintained by", "no website was found".
 
 Website and Instagram: only this venue's own, or its chain's when the chain runs this branch. A same-named business in another city or country is a different venue — never return its site or handle.
 
-Tags: up to 5, lowercase, each a thing a member could filter on — what the place is or offers ("specialty coffee", "rooftop", "live music", "vegan options", "board games"). Never a place name, neighbourhood, street, landmark or "near X"; never an opinion ("cozy", "authentic", "casual", "trendy").
+Tags: up to 5, lowercase, each a thing a member could filter on — what the place is or offers ("specialty coffee", "rooftop", "live music", "vegan options", "board games"). Never a place name, neighborhood, street, landmark or "near X"; never an opinion ("cozy", "authentic", "casual", "trendy").
 
 Hours: use the venue's own site or Google listing; give "HH:MM-HH:MM" per day, "closed" for closed days, null when unknown; set hours_confident=true only when the source is current and consistent.`
 
@@ -147,7 +147,7 @@ async function research(row: RowWithCity): Promise<VenueResearch> {
   const known = [
     `Name: ${row.name}`,
     `Category: ${row.category}`,
-    `Neighbourhood: ${row.neighborhood ?? 'unknown'}`,
+    `Neighborhood: ${row.neighborhood ?? 'unknown'}`,
     `City: ${row.city.name}, ${row.city.country}`,
     row.address   ? `Address on file: ${row.address}`     : null,
     row.website   ? `Website on file: ${row.website}`     : null,

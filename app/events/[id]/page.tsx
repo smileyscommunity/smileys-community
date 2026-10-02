@@ -97,7 +97,7 @@ function buildEventJsonLd(event: Event, eventUrl: string, tz: string, cityName: 
       ? { '@type': 'VirtualLocation', url: event.meetingUrl ?? eventUrl }
       : {
           '@type': 'Place',
-          // Without the address (a guest's copy) the place is the neighbourhood:
+          // Without the address (a guest's copy) the place is the neighborhood:
           // the venue name was "locked" on the page and printed here as a street.
           name:    event.address ? (event.location || event.neighborhood || cityName) : (event.neighborhood || cityName),
           address: {
@@ -1047,7 +1047,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
               {!isAdmin && !isHost && myAttendance?.status !== 'approved' ? (
                 <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-2xl">
                   <div className="flex -space-x-2">
-                    {/* Coloured blanks, never the photo file under a CSS blur: the
+                    {/* Colored blanks, never the photo file under a CSS blur: the
                         image URL was in the page for anyone who couldn't "see who". */}
                     {attendees.slice(0, 5).map(a => (
                       <div key={a.user.id} className="w-9 h-9 rounded-full border-2 border-white blur-sm" style={{ backgroundColor: a.user.color }} />
@@ -1228,7 +1228,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                 <div className="flex items-center gap-2.5 mb-3">
                   <div className="flex -space-x-2 shrink-0">
                     {attendees.slice(0, 4).map(a => {
-                      // Non-attendees get coloured blanks. The photos used to be
+                      // Non-attendees get colored blanks. The photos used to be
                       // real images blurred with CSS: the image URL and the alt
                       // text (the member's name) were in the page for anyone to read.
                       const hideWho = !isAdmin && !isHost && myAttendance?.status !== 'approved'

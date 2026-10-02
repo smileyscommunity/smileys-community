@@ -1,6 +1,6 @@
 // Approved members who never activated — the 2026-09 production audit found
 // 268. Public and member-facing member totals no longer count them
-// (lib/memberCount), but Club.memberCount is enrolment and still does, which
+// (lib/memberCount), but Club.memberCount is enrollment and still does, which
 // is a product decision this report exists to inform.
 //
 // READ-ONLY. Nothing is written and nobody is emailed. Prints:
@@ -181,7 +181,7 @@ async function main() {
 
   // Every row, never truncated.
   const { rows, totals } = planClubGap(gap)
-  console.log('\nclub gap — Club.memberCount is enrolment and still counts these:')
+  console.log('\nclub gap — Club.memberCount is enrollment and still counts these:')
   for (const r of rows) {
     console.log(`  [${r.city}] ${r.clubId} "${r.name}" memberCount=${r.memberCount} neverActivated=${r.unactivated} (${Math.round(r.share * 100)}%) activated≈${r.activatedEnrolment}`)
   }

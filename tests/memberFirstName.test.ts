@@ -130,7 +130,7 @@ describe('getInitials', () => {
 })
 
 describe('formatName', () => {
-  // Guarding the neighbouring util: it must stay conservative, because no
+  // Guarding the neighboring util: it must stay conservative, because no
   // single locale can lower-case an ALL-CAPS name safely for both Turkish
   // and Latin members.
   it('upper-cases a leading lowercase letter only', () => {

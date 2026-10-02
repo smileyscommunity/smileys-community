@@ -2,7 +2,7 @@
 //
 // Migration 20260918000002_event_business backfilled Event.businessId by exact
 // venue name. What it can't catch is below: spellings checked by hand against
-// the listing's name, city and neighbourhood (2026-09-18). Some of these
+// the listing's name, city and neighborhood (2026-09-18). Some of these
 // events matched a PENDING duplicate stub exactly ("DOZZE KADIKÖY", "Spice
 // Corner" — stubs the event form filed next to a live listing); they are
 // re-pointed at the live one.

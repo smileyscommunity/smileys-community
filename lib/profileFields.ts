@@ -1,7 +1,7 @@
 // What a member may save on their own profile (PATCH /api/auth/me). Every
 // value here ends up rendered on someone else's screen or matched by a
 // filter, and the route used to copy most of them through unchecked: a
-// colour string went into inline styles on every avatar, a 10,000-item
+// color string went into inline styles on every avatar, a 10,000-item
 // interest list into the directory, a free-text gender into the
 // connection-abuse scan that keys on it.
 import { SOCIAL_STYLES } from '@/lib/socialStyles'
@@ -49,7 +49,7 @@ function closedList(v: unknown, label: string, allowed: Set<string>, max: number
 export function validateProfileField(key: string, v: unknown): Result {
   switch (key) {
     case 'color':
-      return typeof v === 'string' && HEX_COLOR.test(v) ? ok(v.toLowerCase()) : bad('Pick one of the colours')
+      return typeof v === 'string' && HEX_COLOR.test(v) ? ok(v.toLowerCase()) : bad('Pick one of the colors')
     case 'profileVisibility':
       return (PROFILE_VISIBILITIES as readonly unknown[]).includes(v) ? ok(v) : bad('profileVisibility invalid')
     case 'gender':

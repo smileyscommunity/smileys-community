@@ -192,7 +192,7 @@ export function pickRegularEvents<E extends StudentEventLike>(events: E[], exclu
 
 /** A link into the city's event calendar with one of its existing filters
  *  (app/events/EventsClient: ?first=1, ?free=1, ?tags=). Offered only when at
- *  least one upcoming event matches, and labelled with how many. */
+ *  least one upcoming event matches, and labeled with how many. */
 export interface EventFilterLink { key: 'first' | 'free' | 'language' | 'regular'; label: string; emoji: string; href: string; count: number }
 
 export function eventsHref(citySlug: string, query = ''): string {
@@ -298,7 +298,7 @@ export function buildFirstWeek(i: FirstWeekInput): FirstWeekStep[] {
       body: 'Something every week is how acquaintances become friends. Find a regular activity, and the part of the city that suits you.',
       links: [
         ...(i.hasRegular ? [{ href: '#regular', label: 'Regular activities' }] : []),
-        ...(i.hasNeighborhoods ? [{ href: `/neighborhoods${guideQs}`, label: 'Neighbourhoods' }] : []),
+        ...(i.hasNeighborhoods ? [{ href: `/neighborhoods${guideQs}`, label: 'Neighborhoods' }] : []),
         ...(!i.hasRegular && i.hasClubs ? [{ href: `/${i.citySlug}/clubs`, label: 'Clubs' }] : []),
       ],
     },

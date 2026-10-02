@@ -11,8 +11,8 @@
   {
     "name": "Arifiye",
     "emoji": "♨️",
-    "vibe": "Hamamyolu's long park strip with the old thermal baths, the centre's evening walk",
-    "area": "Centre",
+    "vibe": "Hamamyolu's long park strip with the old thermal baths, the center's evening walk",
+    "area": "Center",
     "cost": 2,
     "lat": 39.7727,
     "lng": 30.5186
@@ -21,7 +21,7 @@
     "name": "İstiklal",
     "emoji": "🛶",
     "vibe": "The south bank of the Porsuk in the middle of town — riverside cafés, footbridges, the tourist boats",
-    "area": "Centre",
+    "area": "Center",
     "cost": 2,
     "lat": 39.7746,
     "lng": 30.5161
@@ -29,8 +29,8 @@
   {
     "name": "Hoşnudiye",
     "emoji": "🍻",
-    "vibe": "Across the river on the Tepebaşı side — Barlar Sokağı and the centre's late nights",
-    "area": "Centre",
+    "vibe": "Across the river on the Tepebaşı side — Barlar Sokağı and the center's late nights",
+    "area": "Center",
     "cost": 2,
     "lat": 39.7788,
     "lng": 30.5146
@@ -38,7 +38,7 @@
   {
     "name": "Yenibağlar",
     "emoji": "🚋",
-    "vibe": "Bağlar — the tram stop, Espark mall, student flats between the centre and Anadolu University",
+    "vibe": "Bağlar — the tram stop, Espark mall, student flats between the center and Anadolu University",
     "area": "University",
     "cost": 1,
     "lat": 39.7869,

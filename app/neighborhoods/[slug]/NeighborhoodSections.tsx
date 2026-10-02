@@ -41,10 +41,10 @@ function absoluteImageUrl(path: string | null | undefined): string | undefined {
 // doesn't escape `<`, so a literal `</script>` in interpolated text would
 // break out of the tag.
 
-// Istanbul's areas read naturally as "the centre" / "the European side";
+// Istanbul's areas read naturally as "the center" / "the European side";
 // another city's area is just a name, so it falls through to "Also in <area>".
 const SIDE_HEADINGS: Record<string, string> = {
-  Central:  'Also in the centre',
+  Central:  'Also in the center',
   Islands:  'Also on the islands',
   European: 'Also on the European side',
   Asian:    'Also on the Asian side',
@@ -220,9 +220,9 @@ export default async function NeighborhoodSections({
     // public web"); a banned or hidden author's card goes with them; a
     // blocked pair sees nothing of each other.
     // Members only. lib/visitorPolicy promises a guest "a first name and the
-    // month, never the neighbourhood" — and this section IS the neighbourhood,
+    // month, never the neighborhood" — and this section IS the neighborhood,
     // with the origin city and the intro beside it. /visiting withholds all
-    // three from guests; a public neighbourhood page cannot hand them out.
+    // three from guests; a public neighborhood page cannot hand them out.
     !myId ? Promise.resolve([]) : (async () => {
       const rows = await prisma.visitorAnnouncement.findMany({
         where:   {
@@ -306,7 +306,7 @@ export default async function NeighborhoodSections({
     // carry a neighborhood at all.
     // The board's own read gate (lib/boardAccess), with private clubs out
     // for everyone: this page is public and indexed. It had only
-    // neighbourhood and city, so a private club's post, a banned member's
+    // neighborhood and city, so a private club's post, a banned member's
     // and a blocked member's all showed here.
     prisma.boardPost.findMany({
       where: {
@@ -329,7 +329,7 @@ export default async function NeighborhoodSections({
   // first name, no photo, to a stranger — lib/authorProjection).
   const showBoardAuthor = await authorProjector(viewer, boardPosts.map(bp => bp.user))
   const restrictedLocals = viewer ? await restrictedSetFor(viewer, localCandidates) : new Set<string>()
-  // The strip has always labelled everyone by first name — but the avatar was
+  // The strip has always labeled everyone by first name — but the avatar was
   // handed the full one, and AvatarImg renders it as the img `alt`, so it went
   // out in the HTML and the RSC payload whatever the label said. The photo and
   // the /members/<id> link went with it, to anyone at all. Guests now get the
@@ -364,7 +364,7 @@ export default async function NeighborhoodSections({
     orderBy: { _count: { clubId: 'desc' } },
     take: 3,
   })
-  // The clubs are already this neighbourhood's: the activity above is scoped
+  // The clubs are already this neighborhood's: the activity above is scoped
   // to this city's events here. Filtering the clubs by cityId again dropped
   // the global ones (cityId null — the Culture and Language clubs), which
   // could be the most active club on the page and vanish from its section.
@@ -384,7 +384,7 @@ export default async function NeighborhoodSections({
   // outright, a blocked pair never sees each other, and how much of the host
   // is shown is the one shared rule (lib/authorProjection): full to a member,
   // first name and initials to a guest. "N events hosted in X" is a fact about
-  // the neighbourhood rather than the person, so it stays on every card.
+  // the neighborhood rather than the person, so it stays on every card.
   const hosts = hostCounts.length > 0
     ? await prisma.user.findMany({
         where:  {
@@ -798,7 +798,7 @@ export default async function NeighborhoodSections({
         <div className="pt-6 border-t border-gray-100">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">Visitors heading to {name}</h2>
-            {/* Members only: a guest's cards carry no neighbourhood to filter on. */}
+            {/* Members only: a guest's cards carry no neighborhood to filter on. */}
             {myId && (
               <Link href={`/visiting?neighborhood=${encodeURIComponent(name)}&city=${encodeURIComponent(city.slug)}`}
                 className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">

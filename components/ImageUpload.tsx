@@ -139,7 +139,7 @@ export default function ImageUpload({ value, onChange, label = 'Cover image', fo
             {/* Actions (only when not dragging or uploading). Hover-reveal on
                 pointer devices; always visible on touch, where an invisible
                 overlay was still tappable. Tucked into the corner so a tap
-                on the image centre can't hit Remove. */}
+                on the image center can't hit Remove. */}
             {!dragOver && !uploading && (
               <div className="absolute inset-0 rounded-xl opacity-100 [@media(hover:hover)]:bg-black/50 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 transition-opacity flex items-end justify-end gap-3 p-2">
                 <button

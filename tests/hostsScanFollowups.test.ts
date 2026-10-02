@@ -5,7 +5,7 @@ import { rosterSummary, hostActivityLine } from '@/lib/hostTitles'
 
 // Hosts scan 2026-09-28, items 1–6: the lead is one of the hosts; the card
 // line never repeats the chip; hosts of global clubs join their home city;
-// the cookie page carries per-city metadata and honours ?city=; the links
+// the cookie page carries per-city metadata and honors ?city=; the links
 // into it keep the city; the default city's page is in the sitemap and its
 // twin's og:url is the canonical.
 

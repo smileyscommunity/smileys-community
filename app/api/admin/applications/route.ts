@@ -179,7 +179,7 @@ export async function PATCH(req: NextRequest) {
     // global ones (cityId null). Nine members approved into Antalya and İzmir
     // were enrolled in a default-city club by a hand-picked assignment the
     // backstop above let through. Skipped clubs are logged, kept out of the
-    // stored list (registration enrols from it too) and named in the response
+    // stored list (registration enrolls from it too) and named in the response
     // and the approval audit row.
     let skippedClubs: SkippedClub[] = []
     if (clubsToAssign?.length) {
@@ -239,11 +239,11 @@ export async function PATCH(req: NextRequest) {
             console.error('Founding-stage check failed (approving anyway):', e)
           }
           // Clubs, then an activation link — for a fresh account, and for a
-          // retry on one that never got its link. Enrolment is checked per
+          // retry on one that never got its link. Enrollment is checked per
           // club so a retry can't count a member into a club twice.
           const enrolAndActivate = async (user: { id: string; joinedAt: Date }) => {
             // Re-filtered by city: an approval that sends no assignedClubs
-            // enrols from the list stored earlier, which may predate the city
+            // enrolls from the list stored earlier, which may predate the city
             // filter above.
             const enrolClubs = application.assignedClubs?.length
               ? (await clubsForApprovedCity(application.assignedClubs, application.targetCityId)).keep

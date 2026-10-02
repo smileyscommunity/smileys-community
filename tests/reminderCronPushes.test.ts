@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'fs'
 
 // The hourly reminders cron. createNotification sends the push itself and
-// honours the "reminders" mute, so the explicit sendPushToUser that
+// honors the "reminders" mute, so the explicit sendPushToUser that
 // followed doubled every reminder — and, for a muted member (no row
 // written, so never deduped), fired again on every tick in the window.
 // Review requests were keyed per member for life and emailed muted

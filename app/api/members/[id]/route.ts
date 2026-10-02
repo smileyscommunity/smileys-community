@@ -138,7 +138,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const fromChat = req.nextUrl.searchParams.get('context') === 'dm'
   recordView(session, id, self || fromChat)
 
-  // A chat header needs a name, a colour, a photo and when they were last
+  // A chat header needs a name, a color, a photo and when they were last
   // here. The full answer below is eight queries plus shared context and a
   // referral count — run every minute, per open conversation, for four
   // fields.

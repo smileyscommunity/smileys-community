@@ -138,7 +138,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // "Handbook" under "In Eskişehir" opens Istanbul's.
   const footerCitySlug = cityRows.find(c => c.id === footerCityId)?.slug
   const footerCityQs   = footerCityId !== sessionCityId && footerCitySlug ? `?city=${footerCitySlug}` : ''
-  // Only Istanbul has neighbourhoods today. Rather than link every city to a
+  // Only Istanbul has neighborhoods today. Rather than link every city to a
   // page that would be empty, the entry appears when the city has rows.
   // Perks, likewise: the Perks links appear only where a partner is live.
   // Every city had none on 2026-09-29, and three menus sent members to

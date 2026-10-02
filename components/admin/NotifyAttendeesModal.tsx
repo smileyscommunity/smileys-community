@@ -24,7 +24,7 @@ const PRESETS: Preset[] = [
   {
     key:    'cancelled',
     label:  'Cancelled',
-    hint:   'Event is off — apologise and refund-promise',
+    hint:   'Event is off — apologize and refund-promise',
     accent: 'text-red-400 ring-red-500/30 bg-red-500/10',
     body: t =>
       `Hi everyone — sadly we have to cancel "${t}". We're really sorry for the late notice. If you paid, your refund is being processed and you don't need to do anything. We'll see you at the next one. 💛`,

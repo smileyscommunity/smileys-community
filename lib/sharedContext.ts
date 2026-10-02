@@ -115,7 +115,7 @@ export async function sharedContextFor(
   for (const m of members) {
     const ctx = out.get(m.id)
     if (!ctx) continue
-    // Only for members who chose to be listed by neighbourhood.
+    // Only for members who chose to be listed by neighborhood.
     if (viewer.neighborhood && m.neighborhoodVisible && m.neighborhood === viewer.neighborhood) ctx.neighborhood = m.neighborhood
     ctx.interests = m.interests.filter(i => viewerInterests.has(i)).slice(0, 3)
     ctx.weight =

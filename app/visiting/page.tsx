@@ -57,7 +57,7 @@ const VISIT_WHERE = (today: string, cityId: string, forMembers: boolean) => ({
   ...visitAuthorOk(),
 })
 
-// The "Read before your trip" shelf: this city's Travellers and City Guide
+// The "Read before your trip" shelf: this city's Travelers and City Guide
 // posts, newest first (lib/tripPlan TRAVELLER_SHELF_CATEGORIES). Cached per city; only the
 // fields the cards render leave the cache (the body is read for the cover).
 // Tagged 'posts' so a publish from the panel shows here at once.
@@ -71,7 +71,7 @@ const getTravellerStories = unstable_cache(
     })
     return rows.map(r => ({ slug: r.slug, title: r.title, excerpt: r.excerpt, cover: articleCover({ coverImage: r.coverImage, body: r.body }) }))
   },
-  ['visiting-traveller-stories'],
+  ['visiting-traveler-stories'],
   { revalidate: 60, tags: ['posts'] },
 )
 
@@ -82,7 +82,7 @@ const getAnnouncements = unstable_cache(
   //
   // The guest entry is made safe INSIDE the cache: unstable_cache values
   // stream to the browser in the RSC payload, so a guest's entry must never
-  // hold exact dates, a full name, a neighbourhood or an author — it holds
+  // hold exact dates, a full name, a neighborhood or an author — it holds
   // what a guest is shown (lib/visitorPolicy guestView) and nothing else.
   async (today: string, forMembers: boolean, cityId: string): Promise<CachedVisit[]> => {
     if (!forMembers) {
@@ -574,7 +574,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
       {/* Hero — the shared PhotoHero the other arrival hubs use (Moving,
           Remote work, Students): this city's own visiting-hero-<city>.jpg,
           else its hero photo, under the same legibility gradient. */}
-      <PhotoHero kind="visiting" city={city} alt={`A traveller on a ferry in ${city.name} at sunset, looking out across the water at the city`}>
+      <PhotoHero kind="visiting" city={city} alt={`A traveler on a ferry in ${city.name} at sunset, looking out across the water at the city`}>
         <Link href={`/${city.slug}`} className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-white/80 hover:text-white mb-6">
           <span aria-hidden="true">←</span> Smileys {city.name}
         </Link>
@@ -638,7 +638,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
         </section>
       )}
 
-      {/* ── Read before your trip ── this city's Travellers and City Guide
+      {/* ── Read before your trip ── this city's Travelers and City Guide
           posts (lib/tripPlan TRAVELLER_SHELF_CATEGORIES), newest first. Hidden until
           the city has one. */}
       {travellerStories.length > 0 && (
@@ -681,7 +681,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
           {act1Lead === 'stay' && actLabel('Before you go')}
           <div className="mb-8">
             <h2 className="section-title">Know where you&apos;re staying?</h2>
-            <p className="section-subtitle max-w-2xl">Discover your neighbourhood before you arrive.</p>
+            <p className="section-subtitle max-w-2xl">Discover your neighborhood before you arrive.</p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {neighborhoodPicks.map(n => (
@@ -700,7 +700,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
             ))}
           </div>
           <Link href={`/neighborhoods${cityQs}`} className="inline-block mt-8 text-sm font-bold text-amber-700 hover:text-amber-800">
-            Explore all {city.name} neighbourhoods <span aria-hidden="true">→</span>
+            Explore all {city.name} neighborhoods <span aria-hidden="true">→</span>
           </Link>
         </div>
       </section>
@@ -880,9 +880,9 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
               <dl className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {[
                   { icon: '🪪', term: 'You need a Smileys account', desc: 'Posting your dates, messaging members and joining events are for approved members. Applying is free and every application is reviewed by a person.' },
-                  { icon: '👀', term: 'Who sees your visit', desc: 'Only signed-in members, unless you choose to list it publicly. Even then, people who aren’t signed in see only your first name and the month — never your exact dates, neighbourhood or contact details.' },
+                  { icon: '👀', term: 'Who sees your visit', desc: 'Only signed-in members, unless you choose to list it publicly. Even then, people who aren’t signed in see only your first name and the month — never your exact dates, neighborhood or contact details.' },
                   { icon: '🤝', term: 'What to expect', desc: 'A member who’d like to meet sends you a connection request with a note — a coffee, a tip, an event they’re going to — and can only message you once you accept. (Smileys staff and club hosts can message members directly.) Some visitors hear from several people and some from nobody; it depends on your dates and who’s around, so events are the surest way to meet people.' },
-                  { icon: '🛡️', term: 'Staying safe', desc: 'Never post where you’re staying or anything you wouldn’t tell a stranger — a neighbourhood is plenty. Meet in public places. If anyone makes you uncomfortable, block or report them from their profile or your message thread, and our team will review it.' },
+                  { icon: '🛡️', term: 'Staying safe', desc: 'Never post where you’re staying or anything you wouldn’t tell a stranger — a neighborhood is plenty. Meet in public places. If anyone makes you uncomfortable, block or report them from their profile or your message thread, and our team will review it.' },
                 ].map(x => (
                   <div key={x.term} className="bg-white border border-amber-100 rounded-2xl p-5">
                     <dt className="font-bold text-gray-900"><span aria-hidden="true">{x.icon} </span>{x.term}</dt>
@@ -907,7 +907,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
         {/* Cross-link to /handbook — visitors landing here are the exact
             audience for the long-form survival reads. Closes the loop
             with /handbook (and /guide) which both link back here as
-            "Visiting first?". Soft grey card so it doesn't compete
+            "Visiting first?". Soft gray card so it doesn't compete
             with the post-CTA. */}
         <Link href={`/handbook${cityQs}`}
           className="block mt-8 max-w-3xl bg-white hover:bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 transition-colors group">
@@ -926,7 +926,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
 
       {/* ── Plan your visit ── dates → events during your stay. Below the
           sightseeing sections (Nate, 2026-10-02: events don't lead). A plain GET
-          form: works without JavaScript, every control is a native labelled
+          form: works without JavaScript, every control is a native labeled
           input, and the result is a shareable URL. Filters appear only when
           they would narrow the list (lib/tripPlan tripFilterOptions). */}
       <section id="plan" aria-labelledby="plan-title" className="bg-white border-t border-gray-100 scroll-mt-20">
@@ -955,7 +955,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
                 <div className="flex flex-wrap items-end gap-4">
                   {filterOptions.hoods.length > 0 && (
                     <div>
-                      <label htmlFor="trip-hood" className="block text-xs font-semibold text-gray-600 mb-1">Neighbourhood</label>
+                      <label htmlFor="trip-hood" className="block text-xs font-semibold text-gray-600 mb-1">Neighborhood</label>
                       <select id="trip-hood" name="hood" defaultValue={filters.hood ?? ''} className="input bg-white py-2">
                         <option value="">Anywhere</option>
                         {filterOptions.hoods.map(h => <option key={h} value={h}>{h}</option>)}
@@ -1218,7 +1218,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
           fabrication, so the section stays out until real ones exist. */}
 
       {/* ── Final CTA ── the arrival hubs' closing block (Moving, Remote
-          work, Students): light, centred, one primary and one secondary. */}
+          work, Students): light, centered, one primary and one secondary. */}
       <section className="py-14 sm:py-20 bg-gradient-to-b from-white to-amber-50 border-t border-gray-100">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
           <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight text-gray-900 mb-4">

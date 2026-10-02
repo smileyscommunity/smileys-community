@@ -152,7 +152,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     })
     if (!prior) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-    // Rejection deletes the row outright — the prior behaviour was
+    // Rejection deletes the row outright — the prior behavior was
     // to keep a status='rejected' row in DB, which silently jammed
     // re-adds (P2002 on the unique constraint) and stranded the row
     // in a state the admin UI couldn't reach. The audit log

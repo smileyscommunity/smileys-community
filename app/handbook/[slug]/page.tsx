@@ -326,7 +326,7 @@ export default async function HandbookArticlePage({ params }: Params) {
             — it is not shipped to every reader. */}
         {/* sanitizeArticle, not sanitize: handbook bodies come from the same
             RichTextEditor as community articles, so the strict sanitizer
-            silently dropped every colour the toolbar offers. */}
+            silently dropped every color the toolbar offers. */}
         <EditableArticle
           id={post.id}
           slug={post.slug}

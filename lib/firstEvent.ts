@@ -137,7 +137,7 @@ export async function getFirstEventRecommendations(
   })
   if (!found) return []
   const cityId = opts.cityId ?? found.cityId
-  // The home neighbourhood only means something in the home city.
+  // The home neighborhood only means something in the home city.
   const user = { ...found, cityId, neighborhood: cityId === found.cityId ? found.neighborhood : null }
 
   const wanted = user.interests.length

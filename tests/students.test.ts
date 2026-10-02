@@ -213,7 +213,7 @@ describe('student stories', () => {
     expect(loader).not.toMatch(/stories:\s*stories,/)
   })
 
-  it('every public badge map has a colour for it', () => {
+  it('every public badge map has a color for it', () => {
     for (const f of ['app/posts/page.tsx', 'app/posts/[slug]/page.tsx', 'app/admin/posts/page.tsx']) {
       expect(readFileSync(join(process.cwd(), f), 'utf8'), f).toMatch(/'Students':\s*'bg-/)
     }

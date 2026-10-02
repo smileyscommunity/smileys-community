@@ -41,7 +41,7 @@ export async function GET() {
   })
 
   // A connections-only viewer the profile owner isn't connected to shows as
-  // on their profile: first name, no photo, no neighbourhood.
+  // on their profile: first name, no photo, no neighborhood.
   const restricted = await restrictedSetFor(session, views.map(v => v.viewer))
   return NextResponse.json(views.map(v => ({
     id: v.id,

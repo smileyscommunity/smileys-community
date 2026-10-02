@@ -87,7 +87,7 @@ function HostNewEventForm() {
   // club (city null) has none, and the server then uses resolveCityId — the
   // browsed city — so the fallback is the same. No club yet: browsed city.
   // A club host can take the club to another live city (lib/eventTrip). The
-  // event then happens there, so neighbourhoods, venue and map lookup follow
+  // event then happens there, so neighborhoods, venue and map lookup follow
   // the destination. Same-timezone only (the server enforces it), so the
   // club city's clock and currency still apply.
   const clubCity        = clubs.find(c => c.id === form.clubId)?.city ?? null
@@ -452,7 +452,7 @@ function HostNewEventForm() {
             </select>
             {tripDestination && (
               <p className="text-[11px] text-zinc-500 mt-1.5">
-                It shows on {tripDestination.name}&apos;s page and in {clubCity.name}&apos;s feed. Pick a venue and neighbourhood in {tripDestination.name}.
+                It shows on {tripDestination.name}&apos;s page and in {clubCity.name}&apos;s feed. Pick a venue and neighborhood in {tripDestination.name}.
               </p>
             )}
           </div>

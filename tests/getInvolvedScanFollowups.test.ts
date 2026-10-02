@@ -85,7 +85,7 @@ describe('7: a cleared admin headline falls back to the default', () => {
 // Items 8–13 (2026-09-29).
 
 describe('8: readable text on the amber card (buttons untouched)', () => {
-  it('dark text on the accent card; grey labels darker; the card and button colours unchanged', () => {
+  it('dark text on the accent card; gray labels darker; the card and button colors unchanged', () => {
     expect(page).toContain("${w.accent ? 'text-amber-950' : 'text-amber-600'}")
     expect(page).toContain("${w.accent ? 'text-amber-950' : 'text-gray-500'}")
     expect(page).toContain("w.accent ? 'bg-amber-500 border-amber-500'")

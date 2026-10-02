@@ -151,8 +151,8 @@ describe('password and delete account ask for a code on 2FA accounts', () => {
 })
 
 describe('home city', () => {
-  it('the confirmation says the neighbourhood goes, and the move is a full page load', () => {
-    expect(homeCity).toContain('The neighbourhood on your profile is cleared')
+  it('the confirmation says the neighborhood goes, and the move is a full page load', () => {
+    expect(homeCity).toContain('The neighborhood on your profile is cleared')
     expect(homeCity).toContain("window.location.assign('/app/settings')")
     // The notice afterwards points at /profile — it has to outlive the reload.
     expect(homeCity).toContain("const MOVED_KEY = 'smileys_home_city_moved'")
@@ -215,7 +215,7 @@ describe('accessibility', () => {
     expect(page).toMatch(/role="switch"\s*aria-checked=\{checked\}\s*aria-labelledby=\{labelId\}/)
   })
 
-  it('password inputs are labelled', () => {
+  it('password inputs are labeled', () => {
     expect(page).toContain('htmlFor="current-password"')
     expect(page).toContain('id="current-password"')
     expect(page).toContain('htmlFor="new-password"')

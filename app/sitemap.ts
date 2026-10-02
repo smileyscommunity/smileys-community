@@ -283,7 +283,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // the crawlable /[city]/clubs listings instead.
 
   // Handbook articles live at /handbook/[slug]; other posts at /posts/[slug].
-  // Mapping every post to /posts/... (the old behaviour) pointed the handbook
+  // Mapping every post to /posts/... (the old behavior) pointed the handbook
   // URLs at a 404. Handbook is public, evergreen, and a top-of-funnel SEO
   // asset, so it gets a higher priority and weekly recrawl.
   const postRoutes: MetadataRoute.Sitemap = posts.map(p => {
@@ -338,7 +338,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       // belong to the default city alone — Ankara's Ulus was claiming the
       // mtime of Istanbul's ulus.json.
       lastModified:    (citySlug === DEFAULT_CITY_SLUG ? neighborhoodMtimes.get(n.slug) : undefined) ?? n.updatedAt,
-      // A neighbourhood with a hand-written guide is a real page; one running
+      // A neighborhood with a hand-written guide is a real page; one running
       // on the generated paragraph alone is not worth the same crawl budget.
       priority:        (citySlug === DEFAULT_CITY_SLUG
         ? neighborhoodMtimes.get(n.slug) !== undefined

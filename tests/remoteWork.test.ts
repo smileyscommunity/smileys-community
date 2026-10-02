@@ -33,13 +33,13 @@ describe('groupHubArticles', () => {
     expect(topics).toEqual([expect.objectContaining({ key: 'legal', articles: [expect.objectContaining({ slug: 'permit' })] })])
   })
 
-  it('ranks the on-topic article over a broad-category neighbour', () => {
+  it('ranks the on-topic article over a broad-category neighbor', () => {
     // 'Daily Life' is filed under Home & Housing; the apartment guide is the housing answer.
     const topics = groupHubArticles([
       article({ slug: 'daily-life', title: 'Daily life: the little things', category: 'Daily Life' }),
       article({ slug: 'apartment-hunting', title: 'Renting an apartment', category: 'Living in Istanbul' }),
     ], 'c1')
-    // …and the off-topic neighbour doesn't take the second slot.
+    // …and the off-topic neighbor doesn't take the second slot.
     expect(topics[0].articles.map(a => a.slug)).toEqual(['apartment-hunting'])
   })
 
@@ -175,10 +175,10 @@ describe('buildChecklist', () => {
 
   it('gives five steps, each linked to the page that answers it', () => {
     const steps = buildChecklist(base)
-    expect(steps.map(s => s.key)).toEqual(['connect', 'neighbourhood', 'workspace', 'money', 'first-event'])
+    expect(steps.map(s => s.key)).toEqual(['connect', 'neighborhood', 'workspace', 'money', 'first-event'])
     // Article links keep the city (İzmir isn't the default city).
     expect(steps.find(s => s.key === 'connect')?.href).toBe('/handbook/sim?city=izmir')
-    expect(steps.find(s => s.key === 'neighbourhood')?.href).toBe('/neighborhoods?city=izmir')
+    expect(steps.find(s => s.key === 'neighborhood')?.href).toBe('/neighborhoods?city=izmir')
     expect(steps.find(s => s.key === 'money')?.href).toBe('/handbook/bank?city=izmir')
     // …and the default city's stay clean.
     expect(buildChecklist({ ...base, citySlug: 'istanbul' }).find(s => s.key === 'connect')?.href).toBe('/handbook/sim')
@@ -239,7 +239,7 @@ describe('pickHubEvents', () => {
     { id: 'm2', date: '2026-10-06', title: 'Coworking in Bomonti', clubId: 'cowork', seriesId: 'bomonti' },
     { id: 'k2', date: '2026-10-07', title: 'Coworking Kadıköy', clubId: 'cowork', seriesId: 'kadikoy' },
     { id: 'm3', date: '2026-10-13', title: 'Coworking in Bomonti', clubId: 'cowork', seriesId: 'bomonti' },
-    { id: 'x1', date: '2026-10-01', title: 'Theatre', clubId: 'theatre', seriesId: null },
+    { id: 'x1', date: '2026-10-01', title: 'Theater', clubId: 'theater', seriesId: null },
   ]
 
   it('shows each weekly session once, and never crowds out first-timer events', () => {
@@ -360,7 +360,7 @@ describe('Digital nomads shelf', () => {
     expect(loader).toMatch(/cover:\s*articleCover\(\{ coverImage: s\.coverImage/)
   })
 
-  it('every badge map has a colour for it', () => {
+  it('every badge map has a color for it', () => {
     for (const f of ['app/posts/page.tsx', 'app/posts/[slug]/page.tsx', 'app/admin/posts/page.tsx']) {
       expect(readFileSync(join(process.cwd(), f), 'utf8'), f).toMatch(/'Digital nomads':\s*'bg-/)
     }

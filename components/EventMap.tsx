@@ -14,7 +14,7 @@ interface Props {
   onSelect: (id: string) => void
   attendance: Record<string, 'joined' | 'pending' | 'waitlisted'>
   // Where the map opens when there are no pins to frame — the viewed city's
-  // centre. Optional: without it (or with a city missing coordinates) the
+  // center. Optional: without it (or with a city missing coordinates) the
   // map falls back to Istanbul, the pre-multi-city behavior.
   defaultCenter?: { lat: number; lng: number } | null
 }
@@ -81,8 +81,8 @@ export default function EventMap({ events, selectedId, onSelect, attendance, def
   // eslint-disable-next-line react-hooks/exhaustive-deps -- init once; later effects follow defaultCenter and the pins
   }, [])
 
-  // The city (and its centre) arrives from an async fetch, usually after the
-  // map has initialised — recenter a pinless map when it lands. A map with
+  // The city (and its center) arrives from an async fetch, usually after the
+  // map has initialized — recenter a pinless map when it lands. A map with
   // pins keeps its fitBounds frame.
   useEffect(() => {
     if (!ready || !mapRef.current || !defaultCenter || mappable.length > 0) return

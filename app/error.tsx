@@ -14,7 +14,7 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
     // Stale chunk after a deploy — reload once and pull fresh bundles rather
     // than leaving someone on "Something went wrong". The rule and the
     // one-per-minute guard live in lib/staleChunk so this boundary and the
-    // global one cannot recognise different sets of patterns, which is
+    // global one cannot recognize different sets of patterns, which is
     // exactly what had happened.
     recoverFromStaleChunk(error)
   }, [error])

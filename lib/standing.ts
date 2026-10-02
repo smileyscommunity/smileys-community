@@ -99,7 +99,7 @@ export async function standingEvents(now: Date, cityId?: string): Promise<SweepE
   return events.filter(e => {
     // Prepaid seats are out, exactly as the reconfirm sweep already treats
     // them (needsReconfirmation reads the same rule). Standing had no money
-    // check at all, so a ₺1200 cruise paid to Smileys and a ticketed theatre
+    // check at all, so a ₺1200 cruise paid to Smileys and a ticketed theater
     // night were being warned and carded while the day-before "still coming?"
     // skipped them — two halves of one policy disagreeing, and what both
     // articles promise members is excluded.
@@ -241,7 +241,7 @@ export async function sendAttendanceReviews(event: SweepEvent): Promise<number> 
   const room = await roomOf(event)
   const missing = unmarkedGuests(room)
   // Everyone heading for an absence, whether by the host's mark or by
-  // default. A host who closes the door out promptly — the good behaviour —
+  // default. A host who closes the door out promptly — the good behavior —
   // emptied `missing`, and their guests then got no warning at all while an
   // inattentive host's guests got a full day and a tap to answer. The
   // attentive host's members should not be the ones told less.

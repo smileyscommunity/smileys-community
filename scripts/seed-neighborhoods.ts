@@ -234,7 +234,7 @@ async function main() {
   }
 
   // Rows the city has that the file doesn't mention. Reported, never touched:
-  // deactivating them is a judgement call (a retired district vs a name simply
+  // deactivating them is a judgment call (a retired district vs a name simply
   // left out of this file), and doing it silently would empty pickers members
   // are already using.
   const fileSlugs = new Set(entries.map(e => neighborhoodToSlug(e.name.trim())))

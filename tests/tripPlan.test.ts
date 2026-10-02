@@ -55,7 +55,7 @@ describe('filters', () => {
     expect(tripFilterOptions(events)).toEqual({
       hoods: ['Beyoğlu', 'Kadıköy', 'Moda'], free: true, first: true, langs: ['English', 'Turkish'],
     })
-    // Everything free, one neighbourhood, nothing first-timer, no language: nothing to offer.
+    // Everything free, one neighborhood, nothing first-timer, no language: nothing to offer.
     expect(tripFilterOptions([ev(), ev()])).toEqual({ hoods: [], free: false, first: false, langs: [] })
   })
 
@@ -101,7 +101,7 @@ describe('cityAvailability', () => {
 
 // /visiting's "Read before your trip" shelf (2026-10-02) — the visiting twin
 // of the Students, Expats and Digital nomads shelves.
-describe('Travellers shelf on /visiting', () => {
+describe('Travelers shelf on /visiting', () => {
   it('is a category the admin form accepts', async () => {
     const { TRAVELLER_STORY_CATEGORY } = await import('@/lib/tripPlan')
     const { CATEGORIES, isCategory, normalizeCommunityCategory } = await import('@/app/admin/posts/constants')
@@ -109,7 +109,9 @@ describe('Travellers shelf on /visiting', () => {
     expect(isCategory(TRAVELLER_STORY_CATEGORY)).toBe(true)
     // City Guide rides along (Nate, 2026-10-02) — and must stay a real category.
     const { TRAVELLER_SHELF_CATEGORIES } = await import('@/lib/tripPlan')
-    expect(TRAVELLER_SHELF_CATEGORIES).toEqual(['Travellers', 'City Guide'])
+    expect(TRAVELLER_SHELF_CATEGORIES).toEqual(['Travelers', 'City Guide', 'Travellers'])
+    // The launch spelling is an alias: accepted, and saved back as 'Travelers'.
+    expect(normalizeCommunityCategory('Travellers')).toBe('Travelers')
     for (const c of TRAVELLER_SHELF_CATEGORIES) expect(isCategory(c), c).toBe(true)
     expect(normalizeCommunityCategory(TRAVELLER_STORY_CATEGORY)).toBe(TRAVELLER_STORY_CATEGORY)
   })
@@ -118,14 +120,14 @@ describe('Travellers shelf on /visiting', () => {
     const { readFileSync } = await import('node:fs')
     const { join } = await import('node:path')
     const page = readFileSync(join(process.cwd(), 'app/visiting/page.tsx'), 'utf8')
-    const fn = page.slice(page.indexOf('const getTravellerStories'), page.indexOf("['visiting-traveller-stories']"))
+    const fn = page.slice(page.indexOf('const getTravellerStories'), page.indexOf("['visiting-traveler-stories']"))
     expect(fn).toMatch(/category:\s*\{ in: TRAVELLER_SHELF_CATEGORIES \},\s*cityId\s*}/)
     expect(fn).toMatch(/cover:\s*articleCover/)
     // Only rendered fields leave the cache; the body goes into articleCover only.
     expect(fn).toMatch(/rows\.map\(r => \(\{ slug: r\.slug, title: r\.title, excerpt: r\.excerpt, cover: articleCover/)
-    expect(page).toMatch(/\['visiting-traveller-stories'\],\s*\{[^}]*tags:\s*\['posts'\]/)
+    expect(page).toMatch(/\['visiting-traveler-stories'\],\s*\{[^}]*tags:\s*\['posts'\]/)
     for (const f of ['app/posts/page.tsx', 'app/posts/[slug]/page.tsx', 'app/admin/posts/page.tsx']) {
-      expect(readFileSync(join(process.cwd(), f), 'utf8'), f).toMatch(/'Travellers':\s*'bg-/)
+      expect(readFileSync(join(process.cwd(), f), 'utf8'), f).toMatch(/'Travelers':\s*'bg-/)
     }
   })
 
@@ -173,7 +175,7 @@ describe('/visiting section order', () => {
     expect([...order].sort((a, b) => a - b)).toEqual(order)
   })
 
-  it('each act is labelled, and Plan my visit lands on Before you go', async () => {
+  it('each act is labeled, and Plan my visit lands on Before you go', async () => {
     const { readFileSync } = await import('node:fs')
     const { join } = await import('node:path')
     const page = readFileSync(join(process.cwd(), 'app/visiting/page.tsx'), 'utf8')

@@ -55,8 +55,8 @@ export interface GuestVisit {
 
 /**
  * What a logged-out reader is shown of a public card: a first name and the
- * month(s), never the exact dates or the neighbourhood. Paired with the
- * member's home neighbourhood from /neighborhoods, exact dates would say
+ * month(s), never the exact dates or the neighborhood. Paired with the
+ * member's home neighborhood from /neighborhoods, exact dates would say
  * whose home is empty when — the one thing this page must not publish.
  */
 export function guestView(a: { name: string; startsOn: string; endsOn: string }): GuestVisit {

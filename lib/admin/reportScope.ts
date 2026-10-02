@@ -7,7 +7,7 @@ import type { SessionUser } from '@/lib/session'
  * Which reports belong to a city.
  *
  * A report about a piece of content — a board post (or a reply on one), a
- * marketplace listing, a neighbourhood-wall post — belongs to the city the
+ * marketplace listing, a neighborhood-wall post — belongs to the city the
  * content was posted in, because that is where a moderator can act on it: the
  * delete routes check the content's city, not the author's. A member from one
  * city posting in another's board put the report in the queue of the

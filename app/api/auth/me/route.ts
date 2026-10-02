@@ -172,7 +172,7 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
-    // Normalise professional fields. Empty strings → null so members
+    // Normalize professional fields. Empty strings → null so members
     // can clear them cleanly; status validated against the closed set
     // so an attacker can't poison the value used downstream by the
     // Pro directory filter.

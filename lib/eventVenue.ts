@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma'
 
 // ── An event's directory listing ────────────────────────────────────────────
 //
-// Event.businessId is the link; the organiser picks the listing in the event
+// Event.businessId is the link; the organizer picks the listing in the event
 // form (components/VenuePicker). It used to be the venue NAME, re-matched on
 // every read by the event page, the listing page, the survey, the dashboard
 // prompt and the review-nudge sweep — each with its own normaliser, one of

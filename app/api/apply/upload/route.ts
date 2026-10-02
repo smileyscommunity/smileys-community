@@ -8,7 +8,7 @@ import { rateLimit, getIp } from '@/lib/rateLimit'
 import { detectImageFormat } from '@/lib/imageMagic'
 import { uploadRoot } from '@/lib/uploadRoot'
 
-// A solid-colour 16000×16000 PNG is well under the byte cap yet decodes to
+// A solid-color 16000×16000 PNG is well under the byte cap yet decodes to
 // ~1 GB RGBA (PNG/WebP have no shrink-on-load); sharp's default ceiling is
 // 268 megapixels. 50 MP is ~7000×7000 — above any phone camera, and the
 // client already downsizes before upload.

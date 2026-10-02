@@ -9,7 +9,7 @@ import { writeAudit, SCRIPT_ACTOR } from '@/lib/audit'
 // Deliberately not the founding-member template. She is an audience of one,
 // and a templated "founding member #1" mail to one person reads as automation
 // pretending to be a letter. The question in the middle is the point: her
-// profile neighbourhood (Maltepe) exists in both Istanbul and Ankara, so we
+// profile neighborhood (Maltepe) exists in both Istanbul and Ankara, so we
 // genuinely do not know whether she lives there, is moving, or has ties — and
 // the answer decides what is worth building next.
 //
@@ -34,7 +34,7 @@ const esc = (s: string) => s.replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;'
 const LINES = (first: string) => [
   `Hi ${first},`,
   'Ankara went live this week, and you’re the only person who asked for it before it existed. That earns you a real email rather than an announcement.',
-  'There are eighteen neighbourhoods mapped, fifteen places worth going written up, and a guide to the Başkentkart that took an embarrassing amount of research. What there isn’t yet is a single event, because a city becomes real the first time two people who met here have coffee.',
+  'There are eighteen neighborhoods mapped, fifteen places worth going written up, and a guide to the Başkentkart that took an embarrassing amount of research. What there isn’t yet is a single event, because a city becomes real the first time two people who met here have coffee.',
   'Can I ask what your Ankara actually is? Do you live there, are you moving, or is it family and old friends? It changes what would be useful to build.',
   'And if you’d ever want to start the first thing — a coffee in Kızılay, a walk somewhere in Hamamönü, whatever you’d actually turn up to — say the word and I’ll set it up around you.',
   'Nate',

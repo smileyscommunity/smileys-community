@@ -29,7 +29,7 @@ export {
 import { EMPTY_ANNOUNCEMENT as EMPTY, type AnnouncementRecord } from '@/lib/announcementShared'
 
 /**
- * Normalise whatever is on disk into the stored shape. Every field is checked
+ * Normalize whatever is on disk into the stored shape. Every field is checked
  * for its own type: a hand-edited file is not a hypothetical here, and a
  * missing file, invalid JSON or a number where a string belongs all come back
  * as the empty announcement rather than reaching a consumer.

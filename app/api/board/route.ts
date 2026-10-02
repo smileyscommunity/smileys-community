@@ -244,8 +244,8 @@ export async function POST(req: NextRequest) {
   // Validated against the city the post actually files to — neighborhood
   // names are per city, and checking the browsed city's registry dropped a
   // real home neighborhood (or kept a name the post's city doesn't have).
-  // A private club's post names no neighbourhood: it must never be what a
-  // public neighbourhood page lists.
+  // A private club's post names no neighborhood: it must never be what a
+  // public neighborhood page lists.
   const neighborhood = privateClub ? null : await safeNeighborhoodFor(cityId, body.neighborhood)
 
   const created = await prisma.boardPost.create({

@@ -22,7 +22,7 @@ import { getCityMovingHub, isDefaultCitySlug } from '../data'
 // building a life here. Like the remote-work hub beside it, it writes no
 // advice of its own. The timeline and topic shelf are the city's published
 // Handbook articles arranged by lib/relocation (the same stage rules the
-// Handbook's /handbook/stage pages use); neighbourhoods, events and clubs are
+// Handbook's /handbook/stage pages use); neighborhoods, events and clubs are
 // the city's live data. Anything the city lacks is left out, not promised.
 //
 // Canonical to itself in every city — there is no global duplicate.
@@ -39,7 +39,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const city = await getPublicCity(slug)
   if (!city || city.status !== CITY_STATUS.Live) return {}
   const title = `Moving to ${city.name} — Smileys Community`
-  const description = `Relocating to ${city.name}? Residence permits, housing and neighbourhoods, banking, healthcare and transport from the Smileys Handbook — and a real community to meet once you arrive.`
+  const description = `Relocating to ${city.name}? Residence permits, housing and neighborhoods, banking, healthcare and transport from the Smileys Handbook — and a real community to meet once you arrive.`
   const image = shareCover('events', city, title)
   const url = `${APP_URL}/${city.slug}/moving`
   return {
@@ -146,7 +146,7 @@ export default async function CityMovingPage({ params }: Params) {
               <p className="text-sm text-gray-600 leading-relaxed mb-3">Paperwork done — now the part that makes a city home: people.</p>
               <ul className="space-y-1.5 text-sm flex-1">
                 <li><Link href="#build-your-life" className="font-semibold text-gray-900 hover:text-amber-700">Events, clubs and hosts</Link></li>
-                <li><Link href={`/neighborhoods${cityQs}`} className="font-semibold text-gray-900 hover:text-amber-700">Your neighbourhood&apos;s people</Link></li>
+                <li><Link href={`/neighborhoods${cityQs}`} className="font-semibold text-gray-900 hover:text-amber-700">Your neighborhood&apos;s people</Link></li>
                 <li><Link href={boardHref} className="font-semibold text-gray-900 hover:text-amber-700">The community board</Link></li>
               </ul>
             </li>
@@ -251,16 +251,16 @@ export default async function CityMovingPage({ params }: Params) {
         </section>
       )}
 
-      {/* ── Find your neighbourhood ──────────────────────────────────── */}
+      {/* ── Find your neighborhood ──────────────────────────────────── */}
       {neighborhoods.length > 0 && (
         <section aria-labelledby="hoods-title" className="py-12 sm:py-16 bg-gray-50 border-t border-gray-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="mb-8">
-              <h2 id="hoods-title" className="section-title">Find your neighbourhood</h2>
+              <h2 id="hoods-title" className="section-title">Find your neighborhood</h2>
               <p className="section-subtitle max-w-2xl">
                 {hub.memberCounts.length > 0
                   ? `Where Smileys members in ${city.name} live, and where things are happening.`
-                  : `Some of ${city.name}'s neighbourhoods to start with.`}
+                  : `Some of ${city.name}'s neighborhoods to start with.`}
               </p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -284,7 +284,7 @@ export default async function CityMovingPage({ params }: Params) {
               ))}
             </div>
             <Link href={`/neighborhoods${cityQs}`} className="inline-block mt-8 text-sm font-bold text-amber-700 hover:text-amber-800">
-              Explore all {city.name} neighbourhoods <span aria-hidden="true">→</span>
+              Explore all {city.name} neighborhoods <span aria-hidden="true">→</span>
             </Link>
           </div>
         </section>
@@ -409,7 +409,7 @@ export default async function CityMovingPage({ params }: Params) {
           <div className="flex flex-col sm:flex-row gap-4 justify-center flex-wrap">
             <JoinCityButton slug={city.slug} name={city.name} guest={!session} />
             <Link href={`/handbook${cityQs}`} className="btn-secondary text-base px-6 py-4">Read the Handbook</Link>
-            <Link href={`/neighborhoods${cityQs}`} className="btn-secondary text-base px-6 py-4">Explore neighbourhoods</Link>
+            <Link href={`/neighborhoods${cityQs}`} className="btn-secondary text-base px-6 py-4">Explore neighborhoods</Link>
             <Link href={eventsHref} className="btn-secondary text-base px-6 py-4">See upcoming events</Link>
           </div>
         </div>

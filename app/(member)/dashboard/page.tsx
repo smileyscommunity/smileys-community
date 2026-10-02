@@ -128,7 +128,7 @@ export default async function DashboardPage() {
   const twoWeeksAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000)
   // Same calendar as `today`: the UTC versions spanned one day fewer late
   // in the evening (one more, west of UTC).
-  // Six days ahead plus today = seven. It was +7, so everything labelled
+  // Six days ahead plus today = seven. It was +7, so everything labeled
   // "this week" counted an eighth day.
   const weekEndStr  = shiftDay(today, 6)
   const PULSE_TAKE  = 5
@@ -164,7 +164,7 @@ export default async function DashboardPage() {
   }
   // Someone listed as a person (near you, suggestions): also either public
   // or already connected to the viewer — profileVisibility 'connections'
-  // means strangers don't get their photo, bio and neighbourhood.
+  // means strangers don't get their photo, bio and neighborhood.
   // Also an activated community member: an approved account that never set a
   // password (a fifth of each week's approvals) or an admin/partner login is
   // not a person to suggest or list — the same rule the member count uses.
@@ -361,8 +361,8 @@ export default async function DashboardPage() {
   // The venue and testimonial asks don't depend on each other: one round.
   const [venuesToReview, askTestimonial] = await Promise.all([venuesToReviewP, askTestimonialP])
 
-  // The member's neighbourhood is a place in their HOME city. Viewing another
-  // city, "Near you", "My area" and the neighbourhood match used it against
+  // The member's neighborhood is a place in their HOME city. Viewing another
+  // city, "Near you", "My area" and the neighborhood match used it against
   // that city's members and events — a Kadıköy resident browsing İzmir.
   const myHood = cityId === session.cityId ? (userProfile?.neighborhood ?? null) : null
 
@@ -433,8 +433,8 @@ export default async function DashboardPage() {
   // Pre-batch derivations needed inside the merged Promise.all below.
   const fourteenDaysOut = shiftDay(today, 14)
   // Suggestions: listable members (LISTABLE), not already connected, found
-  // through a shared club or a neighbourhood they chose to be listed in
-  // (neighborhoodVisible — the "show me to my neighbours" switch).
+  // through a shared club or a neighborhood they chose to be listed in
+  // (neighborhoodVisible — the "show me to my neighbors" switch).
   const suggestedMembersWhere = (() => {
     const conditions: any[] = []
     if (clubIds.length) conditions.push({ clubMemberships: { some: { clubId: { in: clubIds }, status: 'approved' } } })
@@ -556,7 +556,7 @@ export default async function DashboardPage() {
     // It used to be the other way round — faces at events the member had NOT
     // joined (`id: { notIn: joinedEventIds }`), which made every row a roster
     // the event page deliberately refuses that same viewer: /events/<id>
-    // answers a non-attendee with blurred colour discs and "RSVP to see who",
+    // answers a non-attendee with blurred color discs and "RSVP to see who",
     // and takes care not to emit the photo URL. The dashboard was handing over
     // name, photo and event title for exactly those events — including ones a
     // host had removed the viewer from. Two surfaces, opposite answers, same
@@ -586,7 +586,7 @@ export default async function DashboardPage() {
           },
           include: {
             // profileVisibility so restrictedSetFor can be applied at all —
-            // it wasn't selected, so the widget could not have honoured a
+            // it wasn't selected, so the widget could not have honored a
             // connections-only member even if it had tried.
             user:  { select: { id: true, name: true, color: true, profilePhoto: true, profileVisibility: true } },
             event: { select: { id: true, title: true, date: true, emoji: true } },
@@ -639,7 +639,7 @@ export default async function DashboardPage() {
     }),
     // New this week: events added in the last seven days, newest first,
     // whatever the recommendation scoring makes of them. "Recommended" shows
-    // four picks by club, interest and neighbourhood, so a fresh event with
+    // four picks by club, interest and neighborhood, so a fresh event with
     // none of those signals for the viewer never surfaced — a member had to
     // browse to learn a ride had been posted. (No publishedAt column: an
     // event drafted early and published later counts from its creation.)
@@ -741,11 +741,11 @@ export default async function DashboardPage() {
       take: 2,
       select: { id: true, title: true, slug: true, excerpt: true, coverImage: true, body: true, category: true, publishedAt: true },
     }),
-    // neighborhoodVisible, because the card prints the neighbourhood. The
-    // match has two branches and only the neighbourhood one required the
+    // neighborhoodVisible, because the card prints the neighborhood. The
+    // match has two branches and only the neighborhood one required the
     // opt-in — so a member found through a shared club had their district
     // shown however they had set the switch. Every other surface that names
-    // a neighbourhood (search, /api/members, the member page) gates on it.
+    // a neighborhood (search, /api/members, the member page) gates on it.
     prisma.user.findMany({
       where: suggestedMembersWhere,
       select: { id: true, name: true, color: true, profilePhoto: true, neighborhood: true, neighborhoodVisible: true, bio: true },
@@ -1105,7 +1105,7 @@ export default async function DashboardPage() {
     .sort((a, b) => b.score - a.score || (a.e.date < b.e.date ? -1 : a.e.date > b.e.date ? 1 : 0))
     .slice(0, 4)
     // Keep the score: the heading below claims these were picked from the
-    // member's clubs, interests and neighbourhood, and it should only say so
+    // member's clubs, interests and neighborhood, and it should only say so
     // when something actually matched.
     .map(({ e, score }) => ({ ...e, score }))
 
@@ -1133,7 +1133,7 @@ export default async function DashboardPage() {
 
   // A connections-only member, to a stranger: the visitors strip shows the
   // card without who posted it (the /visiting rule), and the spotlight
-  // shows a first name with no photo or neighbourhood (the club spotlight's).
+  // shows a first name with no photo or neighborhood (the club spotlight's).
   // connectedIds is passed, not re-fetched: this page already ran the exact
   // query restrictedSetFor would run (same where, same select, line ~103, for
   // the LISTABLE filter), so without it the same read happened twice per
@@ -1148,8 +1148,8 @@ export default async function DashboardPage() {
     // …and whoever is free right now, same reason.
     ...recentPulses.map(p => p.user),
   ], connectedIds)
-  // A restricted spotlight loses name, photo and neighbourhood; an unrestricted
-  // one still loses the neighbourhood if they opted out of showing it, which
+  // A restricted spotlight loses name, photo and neighborhood; an unrestricted
+  // one still loses the neighborhood if they opted out of showing it, which
   // the projection used to decide only for the restricted case.
   const shownSpotlight = spotlightUser && restricted.has(spotlightUser.id)
     ? { ...spotlightUser, name: firstNameOf(spotlightUser.name), profilePhoto: null, neighborhood: null }
@@ -1169,7 +1169,7 @@ export default async function DashboardPage() {
         ? { ...a.user, name: firstNameOf(a.user.name), profilePhoto: null }
         : a.user,
       // Initials are computed here, from the full name, so the disc keeps its
-      // two letters without the surname travelling to the browser to make
+      // two letters without the surname traveling to the browser to make
       // them. A redacted face gets one letter, because its surname is not
       // this viewer's to have in any form.
       initials: restricted.has(a.user.id)
@@ -1197,7 +1197,7 @@ export default async function DashboardPage() {
 
   // Each person in one people strip: "New this week" keeps its newcomers,
   // suggestions leave them out, and "Near you" leaves out both — a newcomer in
-  // your neighbourhood was in all three.
+  // your neighborhood was in all three.
   const newMemberIds       = new Set(newMembers.map((m) => m.id))
   const shownSuggested     = suggestedMembers.filter((m) => !newMemberIds.has(m.id))
   const suggestedMemberIds = new Set(shownSuggested.map((m) => m.id))
@@ -1356,7 +1356,7 @@ export default async function DashboardPage() {
   // From The Handbook — surfaces the freshest expat-survival articles
   // beside the community-articles strip (before or after it, by recency —
   // see handbookFirst). Same card layout as "From Smileys", differentiated
-  // by a 📖 fallback icon, grey category chip, and an "All" link that lands
+  // by a 📖 fallback icon, gray category chip, and an "All" link that lands
   // on /handbook rather than /posts.
   const handbookShelf = latestHandbook.length > 0 && (
     <div>
@@ -1475,7 +1475,7 @@ export default async function DashboardPage() {
             <div className="mt-4">
               {heroBanner.link ? (
                 // Internal links go through Link, which adds the /app base
-                // path; a raw <a href="/events/…"> left the app (the centre
+                // path; a raw <a href="/events/…"> left the app (the center
                 // banners were fixed this way, this one wasn't).
                 heroBanner.link.startsWith('http') ? (
                   <a href={heroBanner.link} target="_blank" rel="noopener noreferrer"
@@ -1805,7 +1805,7 @@ export default async function DashboardPage() {
             {/* Mobile-only render of Get started — the right-rail copy is
                 hidden under lg, so this keeps the onboarding nudge present
                 on phones / tablets. Same component, same null-when-done
-                behaviour. */}
+                behavior. */}
             <div className="lg:hidden">
               <GetStartedChecklist
                 hasProfilePhoto={!!userProfile?.profilePhoto}
@@ -2238,14 +2238,14 @@ export default async function DashboardPage() {
                   <div>
                     <h2 className="text-xl font-bold text-gray-900">Recommended for you</h2>
                     <p className="text-xs text-gray-500 mt-0.5">
-                      {/* Scored by clubs, interests and neighbourhood together — the
+                      {/* Scored by clubs, interests and neighborhood together — the
                           old "Based on your clubs" was shown whatever did the picking. */}
                       {/* Keyed on whether a pick actually MATCHED, not on whether the
-                          member has signals at all. Someone with a neighbourhood
+                          member has signals at all. Someone with a neighborhood
                           set and no match was told the soonest four events were
                           chosen for them. */}
                       {pickedRecommended.length > 0 && pickedRecommended.every(e => e.score > 0)
-                        ? 'From your clubs, interests and neighbourhood'
+                        ? 'From your clubs, interests and neighborhood'
                         : 'Upcoming events'}
                     </p>
                   </div>
@@ -2498,7 +2498,7 @@ export default async function DashboardPage() {
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {DISCOVER_LINKS
                   .filter(l => !l.guestOnly)
-                  // Same rule as the footer: a city grows into neighbourhoods,
+                  // Same rule as the footer: a city grows into neighborhoods,
                   // so don't offer the link until it has some.
                   .filter(l => l.href !== '/neighborhoods' || hasNeighborhoods)
                   .map(link => (
@@ -2564,9 +2564,9 @@ export default async function DashboardPage() {
             </div>
 
             {/* The rail's Featured card and "From the Marketplace" card went
-                (2026-09-26): the first was always the centre shelf's first
+                (2026-09-26): the first was always the center shelf's first
                 event, the second a random pick from the same four listings
-                the centre Marketplace block shows. */}
+                the center Marketplace block shows. */}
 
             {/* My neighborhood */}
             {myHood && (

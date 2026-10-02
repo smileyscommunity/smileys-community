@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
   if (!fixtureId || !pickedTeam) {
     return NextResponse.json({ error: 'fixtureId + pickedTeam required' }, { status: 400 })
   }
-  // Defence-in-depth: shape-check pickedTeam against the ISO-3
+  // Defense-in-depth: shape-check pickedTeam against the ISO-3
   // pattern before the dictionary lookup. isPickAllowedForFixture
   // below would catch an unknown code, but rejecting non-conforming
   // strings here means malformed input doesn't even reach the

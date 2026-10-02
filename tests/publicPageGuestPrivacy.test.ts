@@ -25,7 +25,7 @@ describe('/events/[id] guest structured data', () => {
 describe('/neighborhoods/[slug] sections', () => {
   const src = readFileSync('app/neighborhoods/[slug]/NeighborhoodSections.tsx', 'utf-8')
 
-  it('local members honour the opt-out, admin hiding and connections-only profiles', () => {
+  it('local members honor the opt-out, admin hiding and connections-only profiles', () => {
     // 2026-09-28: status:'approved' became ...ACTIVATED_MEMBER_WHERE (the set totalLocals counts).
     expect(src).toMatch(/neighborhood: name, cityId, \.\.\.ACTIVATED_MEMBER_WHERE,\s*neighborhoodVisible: true, hiddenFromMembers: false,\s*\.\.\.\(viewer \? \{\} : \{ profileVisibility: \{ not: 'connections' \} \}\)/)
     expect(src).toMatch(/restrictedSetFor\(viewer, localCandidates\)/)
@@ -39,7 +39,7 @@ describe('/neighborhoods/[slug] sections', () => {
     expect(src).toMatch(/myId \? prisma\.hangout\.findMany\(/)
   })
 
-  it("visits are members-only on the neighbourhood page (2026-09-28: guests got the neighbourhood, origin and intro /visiting withholds), and a banned author's card goes with them", () => {
+  it("visits are members-only on the neighborhood page (2026-09-28: guests got the neighborhood, origin and intro /visiting withholds), and a banned author's card goes with them", () => {
     expect(src).toMatch(/!myId \? Promise\.resolve\(\[\]\) : \(async \(\) => \{\s*const rows = await prisma\.visitorAnnouncement\.findMany/)
     expect(src).not.toContain("visibility: 'public'")
     expect(src).toMatch(/\{ OR: \[\{ userId: null \}, \{ user: \{ status: 'approved', hiddenFromMembers: false \} \}\] \}/)

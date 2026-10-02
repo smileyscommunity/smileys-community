@@ -202,7 +202,7 @@ function CheckInScanner() {
     // The roster must be a roster: a refused or failed load (403, 429, a 500,
     // no signal) used to parse the error body as an empty list — "No
     // attendees found" at the door. Now it raises Retry, and if this phone
-    // loaded the list before, that copy stays usable meanwhile, labelled.
+    // loaded the list before, that copy stays usable meanwhile, labeled.
     setLoadError(null)
     Promise.all([
       fetch(`/app/api/events/${eventId}/checkin`, { credentials: 'include' }).then(async r => {
@@ -243,7 +243,7 @@ function CheckInScanner() {
 
   // `cardToken` is set only when this check-in came from a scan — the server
   // verifies it and refuses a forged, expired or retired code. A host's own
-  // tap on the list sends none; they are already authorised for this event
+  // tap on the list sends none; they are already authorized for this event
   // and can see who is in front of them.
   async function toggleCheckin(userId: string, current: boolean, cardToken?: string) {
     setToggling(userId)

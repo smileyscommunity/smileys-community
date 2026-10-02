@@ -53,7 +53,7 @@ describe('honest copy (items 11–12, 14)', () => {
     expect(src).toContain('const hasCompany = matchedEvents.length > 0 || matchedClubs.length > 0')
     expect(src).not.toContain('does things like this every week')
   })
-  it('the neighbourhoods header counts the cards shown and claims "Live" only with events to sort by', () => {
+  it('the neighborhoods header counts the cards shown and claims "Live" only with events to sort by', () => {
     const src = read('app/guide/page.tsx')
     expect(src).toContain('const shownNeighborhoods = neighborhoods.slice(0, SHOWN)')
     expect(src).toContain('{shownNeighborhoods.length} {shownNeighborhoods.length === 1')
@@ -109,7 +109,7 @@ describe('explorer payload (item 15)', () => {
 })
 
 describe('rendering premise (item 16)', () => {
-  it('no guide route exports a revalidate window or static params it cannot honour', () => {
+  it('no guide route exports a revalidate window or static params it cannot honor', () => {
     for (const p of ['app/guide/page.tsx', 'app/guide/[slug]/page.tsx', 'app/guide/routes/[slug]/page.tsx']) {
       const src = read(p)
       expect(src, p).not.toMatch(/export const revalidate/)

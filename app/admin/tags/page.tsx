@@ -161,7 +161,7 @@ export default function TagsPage() {
     <div className="p-4 sm:p-6 space-y-6 text-white">
       <div>
         <h1 className="text-2xl font-extrabold text-white tracking-tight">Tag Management</h1>
-        <p className="text-sm text-zinc-500 mt-0.5">Organise event tags into groups for better discoverability</p>
+        <p className="text-sm text-zinc-500 mt-0.5">Organize event tags into groups for better discoverability</p>
       </div>
 
       {/* Add group */}

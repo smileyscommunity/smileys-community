@@ -30,7 +30,7 @@ beforeEach(() => {
 })
 
 describe('trip city invites', () => {
-  it('goes to the travellers — attendees, host, co-hosts — not anyone already in the city', async () => {
+  it('goes to the travelers — attendees, host, co-hosts — not anyone already in the city', async () => {
     expect(await sendTripCityInvites(trip)).toBe(4)
     const sentTo = (createNotification as any).mock.calls.map((c: any[]) => c[0]).sort()
     expect(sentTo).toEqual(['a', 'b', 'co', 'host'])

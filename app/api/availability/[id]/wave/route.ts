@@ -46,7 +46,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       await prisma.pulseWave.create({ data: { pulseId: pulse.id, userId: session.id } })
       // Deep-link the poster straight into a DM with the waver — the wave
       // is the mutual signal, the message is the plan.
-      // The waver is any neighbour, not necessarily a connection: a
+      // The waver is any neighbor, not necessarily a connection: a
       // connections-only member waving is a first name here too.
       const me = await prisma.user.findUnique({
         where: { id: session.id }, select: { profileVisibility: true },

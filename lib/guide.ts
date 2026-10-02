@@ -15,7 +15,7 @@ export interface GuideTaxon { value: string; label: string; emoji: string }
 /**
  * Does an experience match a free-text search?
  *
- * Both sides are folded with the neighbourhoods' Turkish fold, so "izmir"
+ * Both sides are folded with the neighborhoods' Turkish fold, so "izmir"
  * finds "İzmir" and "kadikoy" finds "Kadıköy" from a Latin keyboard —
  * `toLowerCase()` alone turns İ into i̇ (dotted i + combining dot) and never
  * matches plain i. Mood LABELS are searched as well as values: "Go Out
@@ -178,7 +178,7 @@ const GENERIC_COLLECTIONS: GuideTaxon[] = [
 ]
 
 // Keyed by city SLUG, not id: these are editorial vocabularies that live with
-// the code, and a slug is what a reader of this file recognises.
+// the code, and a slug is what a reader of this file recognizes.
 const CITY_MOODS:       Record<string, GuideTaxon[]> = { istanbul: ISTANBUL_MOODS, bodrum: BODRUM_MOODS, izmir: IZMIR_MOODS }
 const CITY_COLLECTIONS: Record<string, GuideTaxon[]> = { istanbul: ISTANBUL_COLLECTIONS, bodrum: BODRUM_COLLECTIONS, izmir: IZMIR_COLLECTIONS }
 
@@ -209,7 +209,7 @@ export type GuideCollection = string
 // "Families" and "Digital nomads" are in the brief and are deliberately absent:
 // nothing in the taxonomy records whether an experience suits a five-year-old or
 // has wifi, so any mapping would be a guess — and a guess here recommends a
-// beach-club night to someone travelling with kids. Add the audience when the
+// beach-club night to someone traveling with kids. Add the audience when the
 // data can answer it (a `family` mood, a coworking flag), not before.
 export interface GuideAudience {
   value: string
@@ -261,7 +261,7 @@ const CITY_AUDIENCES: Record<string, GuideAudience[]> = {
 }
 
 /**
- * The audiences a city can actually honour.
+ * The audiences a city can actually honor.
  *
  * Every mood and collection is checked against that city's live vocabulary and
  * dropped if absent, so a renamed taxon or a city on the reduced generic set

@@ -342,7 +342,7 @@ async function runSweep() {
   const [sent24Set, sent2Set, remindersMuted] = await Promise.all([
     sentKeys('reminder_24h', upcomingAttendeeIds, upcomingLinks),
     sentKeys('reminder_2h',  upcomingAttendeeIds, upcomingLinks),
-    // Who switched "reminders" off — the day-before email honours it. It
+    // Who switched "reminders" off — the day-before email honors it. It
     // can't lean on createNotification for that: a muted type returns true
     // there ("handled"), the same as a written row.
     prisma.notificationPreference.findMany({
@@ -371,7 +371,7 @@ async function runSweep() {
           const cutoff = eventTier(event) === 'scarce' ? cancelCutoffHours(event) : null
           const body = `"${event.title}" is tomorrow at ${event.time}` + (cutoff != null
             ? `. Can't make it? Cancel as soon as you can so your seat goes to someone waiting — cancelling less than ${cutoff}h before the start counts the same as not coming.` : '')
-          // createNotification sends the push itself (and honours the
+          // createNotification sends the push itself (and honors the
           // member's "reminders" mute + quiet hours). The explicit push that
           // used to follow doubled every reminder — and for a muted member,
           // whose notification is never written and so never deduped, it

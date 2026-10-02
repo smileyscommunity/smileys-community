@@ -38,7 +38,7 @@ describe('advertise page', () => {
     expect(page).not.toContain('48 hours')
     expect(form).not.toContain('48 hours')
   })
-  it('8: a fast enquiry is flagged, not dropped; only the honeypot drops, logged', () => {
+  it('8: a fast inquiry is flagged, not dropped; only the honeypot drops, logged', () => {
     expect(api).toContain("const fast = !_t || Date.now() - Number(_t) < 5000")
     expect(api).toContain("${fast ? ' ⚠ check: sent within 5 seconds' : ''}")
     // The honeypot is the only silent { ok: true }; the timing check no longer returns.
@@ -46,7 +46,7 @@ describe('advertise page', () => {
     expect(api).not.toMatch(/< 5000\) \{\s*return/)
     expect(api).toContain("console.warn('[advertise] dropped: honeypot filled')")
   })
-  it('9: readable on amber, labelled form, hidden decoration', () => {
+  it('9: readable on amber, labeled form, hidden decoration', () => {
     expect(page).toContain('<dl className="grid grid-cols-1 sm:grid-cols-4 gap-10 sm:gap-8 text-center text-amber-950">')
     expect(page).not.toContain('text-amber-100')
     expect(page).not.toContain('text-gray-400')

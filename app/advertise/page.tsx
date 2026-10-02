@@ -322,7 +322,7 @@ export default async function AdvertisePage() {
                       ? 'bg-white text-amber-600 hover:bg-amber-50'
                       : 'border border-gray-200 text-gray-700 hover:bg-gray-50'
                   }`}>
-                  Enquire
+                  Inquire
                 </a>
               </div>
             ))}
@@ -340,7 +340,7 @@ export default async function AdvertisePage() {
             <h2 className="text-3xl font-extrabold text-gray-900 mb-3">Get in touch</h2>
             <p className="text-gray-600">
               Tell us about your brand and what you're looking to achieve.
-              We read every enquiry and reply by email.
+              We read every inquiry and reply by email.
             </p>
           </div>
           <AdvertiseFormClient />
@@ -352,7 +352,7 @@ export default async function AdvertisePage() {
           page must not end by pitching membership. */}
       <section className="bg-amber-500">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
-          {/* Dark text on the amber; the button keeps its own colours. */}
+          {/* Dark text on the amber; the button keeps its own colors. */}
           <h2 className="text-3xl sm:text-4xl font-extrabold text-amber-950 mb-4">
             Let&rsquo;s build something for your brand.
           </h2>

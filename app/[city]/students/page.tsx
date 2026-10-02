@@ -169,7 +169,7 @@ export default async function CityStudentsPage({ params }: Params) {
             {[
               {
                 key: 'before', emoji: '🧳', title: 'Before arrival',
-                body: 'Check how long you can stay, and ask your university’s international office what your programme needs for a residence permit — and whether it has an ESN (Erasmus Student Network) section.',
+                body: 'Check how long you can stay, and ask your university’s international office what your program needs for a residence permit — and whether it has an ESN (Erasmus Student Network) section.',
                 links: [
                   ...(entry ? [{ href: `/handbook/${entry.slug}${handbookQs(city.slug)}`, label: 'Entry rules and stay limits' }] : []),
                   ...(residence ? [{ href: `/handbook/${residence.slug}${handbookQs(city.slug)}`, label: 'How residence permits work' }] : []),
@@ -235,7 +235,7 @@ export default async function CityStudentsPage({ params }: Params) {
                     {story.cover && (
                       // Absolute image: an aspect-ratio box grows to fit its content, so a
                       // portrait cover (the first Erasmus story's is 1000×1200) made its
-                      // card's picture nearly twice as tall as its neighbour's.
+                      // card's picture nearly twice as tall as its neighbor's.
                       <div className="relative aspect-[16/9] overflow-hidden bg-gray-100">
                         <img src={story.cover} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
                       </div>
@@ -354,7 +354,7 @@ export default async function CityStudentsPage({ params }: Params) {
               )}
               {hub.neighborhoodCount > 0 && (
                 <Link href={`/neighborhoods${isDefault ? '' : `?city=${city.slug}`}`} className="text-amber-700 hover:text-amber-800">
-                  Find your neighbourhood <span aria-hidden="true">→</span>
+                  Find your neighborhood <span aria-hidden="true">→</span>
                 </Link>
               )}
             </div>
@@ -384,7 +384,7 @@ export default async function CityStudentsPage({ params }: Params) {
             </ul>
             <p className="mt-6 max-w-3xl text-sm text-gray-600 leading-relaxed">
               Practical guidance, not legal advice. Residence permits and other paperwork depend on your nationality and
-              your programme, and the rules change — your university&apos;s international office and the official sources
+              your program, and the rules change — your university&apos;s international office and the official sources
               each guide links to are where to confirm your own case.
             </p>
           </div>

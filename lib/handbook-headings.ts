@@ -22,7 +22,7 @@ export const PSEUDO_HEADING = /<p>\s*<strong>((?:(?!<\/strong>|<p>|<strong>).)*?
 export const MAX_HEADING_CHARS = 80
 
 /** Does this bolded paragraph read like a section heading rather than an
- *  emphasised sentence? */
+ *  emphasized sentence? */
 export function looksLikeHeading(inner: string): boolean {
   // Any inner markup (a link, a nested tag, a stray <br>) means this isn't the
   // simple shape we're confident about.

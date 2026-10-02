@@ -154,7 +154,7 @@ export default function AdminSponsorsPage() {
       <div className="flex items-end justify-between flex-wrap gap-4 mb-6">
         <div>
           <h1 className="text-xl font-bold text-white">Sponsors</h1>
-          <p className="text-zinc-500 text-sm mt-1">B2B leads from the advertise page — work them from enquiry to closed deal.</p>
+          <p className="text-zinc-500 text-sm mt-1">B2B leads from the advertise page — work them from inquiry to closed deal.</p>
         </div>
         <div className="text-right">
           {/* Won deals per currency — never one sum across lira and euros. */}
@@ -250,7 +250,7 @@ export default function AdminSponsorsPage() {
                       className="px-4 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-black text-sm font-semibold transition-colors">
                       Save
                     </button>
-                    <a href={`mailto:${lead.email}?subject=${encodeURIComponent(`Smileys Community — your ${FORMAT_LABELS[lead.format] ?? 'sponsorship'} enquiry`)}`}
+                    <a href={`mailto:${lead.email}?subject=${encodeURIComponent(`Smileys Community — your ${FORMAT_LABELS[lead.format] ?? 'sponsorship'} inquiry`)}`}
                       className="px-4 py-1.5 rounded-xl border border-zinc-700 hover:bg-zinc-800 text-zinc-300 text-sm font-semibold transition-colors">
                       Reply
                     </a>

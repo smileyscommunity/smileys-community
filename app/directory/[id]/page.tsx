@@ -206,7 +206,7 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
       streetAddress:     business.address ?? undefined,
     },
   }
-  // Real coordinates only. The neighbourhood's centre is not the business:
+  // Real coordinates only. The neighborhood's center is not the business:
   // published as its exact geo and used for "Maps ↗", it put half the pins
   // in the wrong street (and, for a name the table doesn't know, in Eminönü).
   void meta

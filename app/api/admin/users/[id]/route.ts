@@ -141,7 +141,7 @@ export async function GET(_: NextRequest, { params }: Params) {
     if (hostedEventIds.length > 0) {
       // Per-event rollup + weighted aggregate via the shared helper.
       // Same shape used on /admin/events row + /admin/clubs/[id]
-      // quality card so behaviour stays in lockstep.
+      // quality card so behavior stays in lockstep.
       const rollupMap = await computeEventSurveyRollup(hostedEventIds.map(e => e.id))
       const allRows   = Array.from(rollupMap.values())
       const agg       = aggregateRollup(allRows)
@@ -293,10 +293,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // Home city. Members move themselves in /settings, but staff can't (their
     // city IS their moderation scope — lib/cityMembership), so an admin has to
     // be able to do it for them. Admins only, and through the same helper, so
-    // the old city stays on their list and the neighbourhood is cleared.
+    // the old city stays on their list and the neighborhood is cleared.
     // The move itself runs LAST (below), after every other field has been
-    // validated: moving first and then rejecting the neighbourhood left the
-    // member moved, their neighbourhood cleared, and the save reported as a
+    // validated: moving first and then rejecting the neighborhood left the
+    // member moved, their neighborhood cleared, and the save reported as a
     // failure.
     const moveTo = 'homeCitySlug' in body ? String(body.homeCitySlug ?? '').trim() : null
     if (moveTo !== null) {
@@ -328,7 +328,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
     if ('neighborhood' in allowed) {
       // Against the city they will live in when this save finishes — moving
-      // a member and giving them a neighbourhood there is one save.
+      // a member and giving them a neighborhood there is one save.
       const cityForNeighborhood = moveTo
         ? (await prisma.city.findUnique({ where: { slug: moveTo }, select: { id: true } }))?.id ?? target.cityId
         : target.cityId
@@ -420,8 +420,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
     // The move, now that every other field has been accepted — moving first
     // and then rejecting one left the member moved and the save reported as
-    // a failure. setHomeCity clears the neighbourhood (it belongs to the old
-    // city's registry); a neighbourhood in this same save is written by the
+    // a failure. setHomeCity clears the neighborhood (it belongs to the old
+    // city's registry); a neighborhood in this same save is written by the
     // update below, which runs after this and was validated against the new
     // city.
     if (moveTo) {

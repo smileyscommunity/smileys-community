@@ -111,7 +111,7 @@ export default async function ProPage() {
           <p className="text-base sm:text-lg text-zinc-400 max-w-xl leading-relaxed mb-10">
             Smileys built the most trusted social community for internationals in Istanbul.<br />
             <span className="text-white font-semibold">Smileys Pro</span> is the professional layer on top —
-            curated, member-only, and built for people who want to meet other operators, founders, and creatives without the LinkedIn theatre.
+            curated, member-only, and built for people who want to meet other operators, founders, and creatives without the LinkedIn theater.
           </p>
 
           {/* Founder counter — scarcity. Live count + remaining spots

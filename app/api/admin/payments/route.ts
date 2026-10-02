@@ -156,7 +156,7 @@ export async function GET(req: NextRequest) {
     // paid. Computed server-side so the breakdown matches reality
     // regardless of row window.
     // …and by currency: an event whose currency changed after payments came
-    // in had lira and euro rows summed and labelled with its current one.
+    // in had lira and euro rows summed and labeled with its current one.
     prisma.payment.groupBy({
       by:    ['eventId', 'status', 'currency'],
       _sum:  { amount: true },

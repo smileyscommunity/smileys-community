@@ -4,7 +4,7 @@ import { join } from 'path'
 
 // The member dashboard review (2026-09-19). The page showed galleries to
 // people who couldn't open them, sent private clubs' invite links to the
-// browser, listed connections-only and neighbourhood-hidden members to
+// browser, listed connections-only and neighborhood-hidden members to
 // strangers, and pointed "Next event" at pages that 404'd. These pin the fixes.
 
 const page = readFileSync(join(__dirname, '..', 'app/(member)/dashboard/page.tsx'), 'utf8')
@@ -29,10 +29,10 @@ describe('privacy', () => {
     expect(page).toContain("(await lineupP).map(c => ({ id: c.id, slug: c.slug, name: c.name, emoji: c.emoji, bgColor: c.bgColor, category: c.category, memberCount: c.memberCount }))")
   })
 
-  it('people listed are live, public or connected, and chose to be listed by neighbourhood', () => {
+  it('people listed are live, public or connected, and chose to be listed by neighborhood', () => {
     // Activated community members only (2026-09-26): never-activated accounts and admin/partner logins were listed.
     expect(page).toContain("const LISTABLE = { ...LIVE, ...COMMUNITY_MEMBER_WHERE, OR: [{ profileVisibility: { not: 'connections' } }, { id: { in: connectedIds } }] }")
-    // myHood: the home neighbourhood, only on the home city's dashboard.
+    // myHood: the home neighborhood, only on the home city's dashboard.
     expect(page).toContain("conditions.push({ neighborhood: myHood, neighborhoodVisible: true })")
     expect(page).toContain("where: { neighborhood: myHood, neighborhoodVisible: true, cityId, id: { notIn: notMeOrBlocked }, AND: [LISTABLE] }")
     // Suggestions skip people already connected.

@@ -83,7 +83,7 @@ export default function MemberCardPage() {
       // A refresh that didn't land changes nothing on screen except the one
       // line that says so. It used to seed a made-up profile whose tier was
       // the string 'member' — not a tier we have (lib/membership) — so a
-      // paying member's card quietly lost its badge, its neighbourhood and
+      // paying member's card quietly lost its badge, its neighborhood and
       // its join year the moment /me hiccuped.
       .catch(() => { if (live) setStale(true) })
     return () => { live = false }

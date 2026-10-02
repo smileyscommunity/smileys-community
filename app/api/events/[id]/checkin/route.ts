@@ -120,7 +120,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // worked for ever, at any event — which since standing v2 is a way to
     // clear your own no-show card without leaving the house. A host's own
     // tap on the list carries no token and is unaffected: they are already
-    // authorised for this event, and they can see who is in front of them.
+    // authorized for this event, and they can see who is in front of them.
     if (cardToken !== undefined && cardToken !== null) {
       // Judged at the moment of the tap, not of the request: a scan taken at
       // the door on a phone with no signal is replayed hours later

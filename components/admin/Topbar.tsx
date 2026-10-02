@@ -48,7 +48,7 @@ function ModPanel({ counts }: { counts: ModCounts | null }) {
     <>
       {/* Mobile: single combined alert pill that links to Mod Home.
           Avoids the 3-badge cluster squeezing the page title on
-          narrow screens. The colour leans on the highest-severity
+          narrow screens. The color leans on the highest-severity
           bucket present (reports = red, else amber). */}
       <Link href="/admin/moderator"
         className={`sm:hidden flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-semibold transition-colors ${

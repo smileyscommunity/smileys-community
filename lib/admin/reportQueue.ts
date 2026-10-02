@@ -21,7 +21,7 @@ export const isAutoReport = (r: QueuedReport) => r.reason === 'post_event_survey
  * oldest first.
  *
  * The survey split is the app's own distinction rather than a severity
- * judgement invented here: post_event_survey reports are written by the survey
+ * judgment invented here: post_event_survey reports are written by the survey
  * sweep, which is why the page already carries a "From surveys" pill to take
  * them out of the view. Beyond that nothing is ranked by reason. A moderator
  * reads the reason and the block count; guessing at severity in code would
@@ -35,7 +35,7 @@ export function reportOrder(a: QueuedReport, b: QueuedReport): number {
   return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
 }
 
-// How long an outstanding report has waited, as a colour. Not a policy and not
+// How long an outstanding report has waited, as a color. Not a policy and not
 // an SLA — nothing enforces these — just the point at which a queue item
 // should stop looking the same as one filed this morning.
 export const AGING_DAYS    = 7

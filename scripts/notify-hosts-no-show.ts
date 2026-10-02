@@ -40,7 +40,7 @@ const SUBJECT = 'How no-show cards work on your events'
 
 const APP_URL   = process.env.NEXT_PUBLIC_APP_URL ?? 'https://smileyscommunity.com/app'
 const FROM      = process.env.EMAIL_FROM ?? 'Smileys Community <info@smileyscommunity.com>'
-// The member article — what the CTA is explicitly labelled as ("what members
+// The member article — what the CTA is explicitly labeled as ("what members
 // were told"). The notification link is the HOST guide; see HOST_GUIDE below.
 const ARTICLE    = `${APP_URL}${NO_SHOW_POLICY_PATH}`
 const HOST_GUIDE = '/posts/how-no-show-cards-work-for-hosts'

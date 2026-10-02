@@ -30,7 +30,7 @@ export default function RecommendedClubs({ clubs }: { clubs: LineupClub[] }) {
           <Link key={c.id} href={`/clubs/${c.slug}`}
             onClick={() => posthog.capture('lineup_club_clicked', { club_id: c.id, club_category: c.category, position: idx })}
             className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:border-amber-200 hover:bg-amber-50/40 transition-colors">
-            {/* bgColor is a Tailwind class ('bg-amber-50'), not a colour value. */}
+            {/* bgColor is a Tailwind class ('bg-amber-50'), not a color value. */}
             <span className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0 ${c.bgColor || 'bg-amber-50'}`} aria-hidden="true">{c.emoji}</span>
             <span className="min-w-0">
               <span className="block text-sm font-semibold text-gray-900 truncate">{c.name}</span>

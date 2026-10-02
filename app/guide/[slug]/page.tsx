@@ -59,7 +59,7 @@ export default async function ExperiencePage({ params }: { params: Promise<{ slu
 
   const collection = collectionsFor(citySlug).find(c => c.value === exp.collection)
   // Every link out of this page names the owning city (lib/guideContent
-  // guideCityQs): the back link, the neighbourhoods, events and the
+  // guideCityQs): the back link, the neighborhoods, events and the
   // application. A guest who arrived on a shared İzmir link and tapped
   // "← İzmir Guide" used to land on Istanbul's, because the bare URLs read
   // the cookie they don't have.

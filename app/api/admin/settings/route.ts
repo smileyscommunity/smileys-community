@@ -166,7 +166,7 @@ function normalizeListingSettings(input: unknown): Record<string, unknown> | nul
     out.defaultExpiryDays = intInRange(src.defaultExpiryDays, 1, 365, 30)
   }
   // requireApproval is gone: listings have no pending state or approval
-  // queue, so the switch was saved and honoured by nothing.
+  // queue, so the switch was saved and honored by nothing.
   if ('maxActivePerMember' in src) {
     out.maxActivePerMember = intInRange(src.maxActivePerMember, 1, 100, 5)
   }
@@ -215,7 +215,7 @@ export async function POST(req: NextRequest) {
     // Instagram is stored as a handle ("@smileyscommunity") and rendered
     // through communityInstagramUrl, which accepts nothing else — a pasted
     // profile link was saved as-is and the site quietly showed no link at
-    // all. Normalise here; refuse what isn't a handle or a profile link
+    // all. Normalize here; refuse what isn't a handle or a profile link
     // rather than saving something that will never render.
     if (typeof patch.instagram === 'string' && patch.instagram.trim()) {
       const handle = normalizeInstagramHandle(patch.instagram)

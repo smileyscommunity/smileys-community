@@ -42,7 +42,7 @@ describe('invite page', () => {
     expect(api).toContain("status: 'approved', hiddenFromMembers: false,")
     expect(page).toContain('{m.open === false')
   })
-  it('9: announced copy, hidden decoration, labelled spinner and QR, readable text', () => {
+  it('9: announced copy, hidden decoration, labeled spinner and QR, readable text', () => {
     expect(page).toContain('aria-live="polite"')
     expect(page).toContain('role="status" aria-label="Loading your invite link"')
     expect(page).toContain('role="img" aria-label={`QR code for your invite link')

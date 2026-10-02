@@ -48,7 +48,7 @@ interface UpcomingEvent {
 //   full   — self, an accepted connection, staff or a club host.
 //   member — a public profile, not connected: no Instagram, LinkedIn or work
 //            details.
-//   locked — a connections-only profile, not connected: first name, colour
+//   locked — a connections-only profile, not connected: first name, color
 //            and the connection state, nothing else.
 type ViewLevel = 'full' | 'member' | 'locked'
 
@@ -104,7 +104,7 @@ interface MemberProfile {
 const arr = <T,>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : [])
 
 // A locked profile arrives with most fields null or empty, so every list is
-// normalised here once rather than guarded at each render site.
+// normalized here once rather than guarded at each render site.
 function normaliseProfile(d: Record<string, unknown>): MemberProfile {
   const viewLevel: ViewLevel =
     d.viewLevel === 'full' || d.viewLevel === 'member' || d.viewLevel === 'locked'
@@ -490,7 +490,7 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
 
       <div className="max-w-2xl mx-auto px-4 pt-6 space-y-5">
         {/* Locked — a connections-only member the viewer isn't connected
-            to. The API sends a first name, a colour and the connection
+            to. The API sends a first name, a color and the connection
             state and nothing else, so this card is all there is; the
             Connect / Accept row below is the reason the page exists at all
             (it used to 404, which left the receiver of their request with
@@ -710,7 +710,7 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
 
             {/* C — Message — connected, or role-based bypass. Primary
                 amber when it's the main action (connected); secondary
-                grey when it shares the row with Connect (host/staff on a
+                gray when it shares the row with Connect (host/staff on a
                 not-yet-connected profile) so the hierarchy stays clear. */}
             {(isAccepted || canMessageByRole) && (
               <Link href={`/messages/${member.id}`}

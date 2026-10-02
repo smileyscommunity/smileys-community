@@ -56,7 +56,7 @@ const WAYS: Way[] = [
     perks: [
       'Your own club page with member management',
       'Your club\'s group-chat link on its page, set up with our team',
-      'Tools to organise recurring events and activities',
+      'Tools to organize recurring events and activities',
       'Listed on your city\'s Clubs page',
     ],
     accent: false,

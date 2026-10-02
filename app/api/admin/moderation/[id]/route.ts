@@ -159,7 +159,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       // now also noted on the member's record, which a report warning never was.
       await warnMember({
         userId: report.reportedId,
-        reason: reviewNote || 'Your behaviour was reported and reviewed',
+        reason: reviewNote || 'Your behavior was reported and reviewed',
         actor:  { id: session.id, name: session.name },
         auditMeta: { reportId: id },
       })

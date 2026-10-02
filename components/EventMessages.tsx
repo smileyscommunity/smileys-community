@@ -39,7 +39,7 @@ export default function EventMessages({ eventId, eventDate, eventTz, canPost }: 
   const [messages,   setMessages]   = useState<Message[]>([])
   const [text,       setText]       = useState('')
   const [sending,    setSending]    = useState(false)
-  const [initialised, setInitialised] = useState(false)
+  const [initialized, setInitialised] = useState(false)
   const [editingId,  setEditingId]  = useState<string | null>(null)
   const [editDraft,  setEditDraft]  = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
@@ -73,21 +73,21 @@ export default function EventMessages({ eventId, eventDate, eventTz, canPost }: 
   // the initial load also changes messages.length, simply opening an event
   // with an active discussion yanked the reader down to it.
   useEffect(() => {
-    if (!initialised) return
+    if (!initialized) return
     const el = listRef.current
     if (el) el.scrollTop = el.scrollHeight
-  }, [messages.length, initialised])
+  }, [messages.length, initialized])
 
   // The page itself moves only when the URL asks for the discussion
   // (#discussion, or a ?comment= deep link) — once, after the first load.
   useEffect(() => {
-    if (!initialised || targetedRef.current) return
+    if (!initialized || targetedRef.current) return
     targetedRef.current = true
     const { hash, search } = window.location
     if (hash === '#discussion' || new URLSearchParams(search).has('comment')) {
       rootRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
-  }, [initialised])
+  }, [initialized])
 
   // The composer starts one line tall and grows with its content, to a cap.
   // Without this a pasted paragraph would sit in a one-line window with the
@@ -204,7 +204,7 @@ export default function EventMessages({ eventId, eventDate, eventTz, canPost }: 
           <p className="px-5 py-6 text-sm text-gray-500 text-center">
             Discussion is for attendees — join the event to read and post.
           </p>
-        ) : initialised && messages.length === 0 && (
+        ) : initialized && messages.length === 0 && (
           <p className="px-5 py-6 text-sm text-gray-400 text-center">No messages yet. Be the first!</p>
         )}
         {messages.map(msg => {

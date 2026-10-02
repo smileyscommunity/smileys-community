@@ -76,7 +76,7 @@ async function geocodeQuery(q: string, city: GeoCity | null): Promise<{ lat: str
   } catch {}
 
   try {
-    // Photon has no country filter: bias toward the city centre and keep the
+    // Photon has no country filter: bias toward the city center and keep the
     // first result in the right country.
     const params = new URLSearchParams({ q, limit: cc ? '5' : '1', lang: 'en' })
     if (city?.lat != null && city?.lng != null) {

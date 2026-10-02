@@ -265,7 +265,7 @@ export default function RSVPButton({ eventId, hostId, spotsLeft, soldOut = false
                 <p className="text-sm text-gray-600 mb-1">
                   This event costs <strong>{formatPrice(price, currency)}</strong>. Cancelling now may forfeit your payment depending on the refund policy.
                 </p>
-                <p className="text-xs text-gray-400 mb-5">If you paid, contact the organiser to arrange a refund.</p>
+                <p className="text-xs text-gray-400 mb-5">If you paid, contact the organizer to arrange a refund.</p>
               </>
             ) : (
               <>

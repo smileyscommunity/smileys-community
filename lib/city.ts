@@ -116,7 +116,7 @@ export interface ResolvedCityInfo {
   // then silently wrong about which day it is. Already loaded here:
   // getCityConfig is on the request either way.
   timezone: string
-  // City centre for the map surfaces' default view — nullable like the DB
+  // City center for the map surfaces' default view — nullable like the DB
   // column, and null means "fall back to your own constant".
   currency: string
   country: string
@@ -159,7 +159,7 @@ export async function describeCity(
 // `heroImage` is here for the same reason: shared surfaces (/neighborhoods and
 // friends) hardcoded Istanbul's photo, which is a leak on every other city's
 // page, and they already hold a CityConfig.
-// `lat`/`lng` (the city centre, nullable like the DB column) ride along for
+// `lat`/`lng` (the city center, nullable like the DB column) ride along for
 // the same reason as heroImage: the map surfaces fell back to Istanbul's
 // coordinates for every pinless city, and they already hold a CityConfig.
 export interface CityConfig { timezone: string; currency: string; slug: string; name: string; country: string; showGlobalClubs: boolean; heroImage: string | null; lat: number | null; lng: number | null }

@@ -12,8 +12,8 @@ import { join } from 'path'
 //       Dormant list: COMMUNITY_MEMBER_WHERE (activated). Ban-rate denominator
 //       and cohort set: approval-level with MEMBER_ROLE_FILTER.
 //   30. a) moving-sales GET hid expired sales by the UTC day while POST/PATCH
-//       use the city's day. b) neighbourhood HeroStats counted members who hid
-//       their neighbourhood / admin-hidden accounts and computed "today" and
+//       use the city's day. b) neighborhood HeroStats counted members who hid
+//       their neighborhood / admin-hidden accounts and computed "today" and
 //       "this month" in server UTC.
 
 const h = vi.hoisted(() => ({
@@ -164,10 +164,10 @@ describe("30a. moving-sales GET hides expired sales by the city's day", () => {
 })
 
 // HeroStats is a .tsx server component (no JSX transform in vitest) — source pins.
-describe('30b. neighbourhood HeroStats', () => {
+describe('30b. neighborhood HeroStats', () => {
   const src = read('app/neighborhoods/[slug]/HeroStats.tsx')
 
-  it('"local members" excludes hidden-neighbourhood and admin-hidden accounts, like NeighborhoodSections', () => {
+  it('"local members" excludes hidden-neighborhood and admin-hidden accounts, like NeighborhoodSections', () => {
     expect(src).toMatch(/prisma\.user\.count\(\{ where: \{\s*\.\.\.ACTIVATED_MEMBER_WHERE, neighborhood: name, cityId, neighborhoodVisible: true, hiddenFromMembers: false,/)
   })
 

@@ -42,7 +42,7 @@ describe('privacy', () => {
     expect(api).toContain('await restrictedSetFor(session, announcements.flatMap(a => a.user ? [a.user] : []))')
     expect(api).toContain('user: authorOf(a.user) }')
   })
-  it('6: /api/connections honours the neighbourhood switch', () => {
+  it('6: /api/connections honors the neighborhood switch', () => {
     expect(read('app/api/connections/route.ts')).toContain(': { ...rest, neighborhood: neighborhoodVisible ? rest.neighborhood : null }')
   })
   it('7: hangout rows check the hangout, its host and blocks', () => {
@@ -100,7 +100,7 @@ describe('right content, right city', () => {
     expect(page).toContain('href={`/moving-sales/${s.id}`}')
     expect(read('components/PendingConnectionsWidget.tsx')).toContain('href={`/members/${c.requester.id}`}')
   })
-  it('17: the home neighbourhood only on the home city', () => {
+  it('17: the home neighborhood only on the home city', () => {
     expect(page).toContain('const myHood = cityId === session.cityId ? (userProfile?.neighborhood ?? null) : null')
     expect(page).toContain('href={`/neighborhoods/${neighborhoodToSlug(myHood)}?city=${city.slug}`}')
   })
@@ -119,7 +119,7 @@ describe('copy, speed, accessibility', () => {
     expect(page).toContain('const wantedTagIds = new Set((await wantedTagsP).map(r => r.tagId))')
     expect(page).not.toContain('prisma.communityPollVote.findUnique')
   })
-  it('20: readable, labelled, hidden decoration', () => {
+  it('20: readable, labeled, hidden decoration', () => {
     expect(page).not.toContain('text-gray-400')
     expect(timeline).not.toContain('text-gray-400')
     expect(timeline).toContain('<span className="sr-only">{rating} out of 5 stars</span>')
