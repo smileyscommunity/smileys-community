@@ -229,11 +229,11 @@ export default async function HomePage() {
   // reading "Explore Istanbul" right under it, a visitor who leaves in three
   // seconds saw an Istanbul website. So the pill carries the rest of the
   // network and links down to it, which beats spending a third button on it.
-  const eyebrow = singleCity ? `Live in ${flagship.name}` : `Live in ${liveCities.length} cities`
-  const onTheWay = [
-    founding.length   > 0 ? `${founding.length} founding` : '',
-    comingSoon.length > 0 ? `${comingSoon.length} coming soon` : '',
-  ].filter(Boolean).map(t => ` · ${t}`).join('')
+  // Plain words, no "founding" / "coming soon" jargon: what a visitor wants to
+  // know is that this one is open and that more are on the way.
+  const eyebrow = singleCity ? `${flagship.name} is open` : `Open in ${liveCities.length} cities`
+  const more = founding.length + comingSoon.length
+  const onTheWay = more > 0 ? ` · ${more} more ${more === 1 ? 'city' : 'cities'} starting` : ''
 
   // The site's own WebSite node — the layout only declares the Organization.
   const websiteLd = { '@context': 'https://schema.org', '@type': 'WebSite', name: 'Smileys Community', url: APP_URL, inLanguage: 'en' }
@@ -267,19 +267,15 @@ export default async function HomePage() {
                 {home.headline?.trim() || 'Your people, in every city you land in.'}
               </h1>
 
-              <p className="text-lg md:text-xl text-gray-600 max-w-2xl leading-relaxed mb-10">
+              <p className="text-lg md:text-xl text-gray-600 max-w-2xl leading-relaxed mb-4">
                 {home.subtitle?.trim() || 'Meet people, join local communities, and make real plans in the cities you call home.'}
               </p>
+              {/* Who it is for and what happens there, in the hero itself: the
+                  headline names neither, and the CMS subtitle is about "people". */}
+              <p className="text-base font-semibold text-gray-800 max-w-2xl mb-8">
+                For expats, nomads, travelers, students and locals — dinners, hikes, sailing and language nights.
+              </p>
 
-              <div className="lg:hidden relative aspect-[3/2] rounded-2xl overflow-hidden shadow-xl mb-10">
-                <Image
-                  src={resolveImageUrl(heroImage)}
-                  alt={heroAlt}
-                  fill priority fetchPriority="high"
-                  sizes="(min-width: 1024px) 0px, (max-width: 639px) calc(100vw - 32px), calc(100vw - 48px)"
-                  className="object-cover"
-                />
-              </div>
 
               <div className="flex flex-col sm:flex-row gap-4 mb-3">
                 {singleCity ? (
@@ -306,6 +302,15 @@ export default async function HomePage() {
               <p className="text-sm font-medium text-gray-700">
                 Free to join · Applications reviewed by hand within 24–48 hours · Pay only for events you attend
               </p>
+              <div className="lg:hidden relative aspect-[3/2] rounded-2xl overflow-hidden shadow-xl mt-8">
+                <Image
+                  src={resolveImageUrl(heroImage)}
+                  alt={heroAlt}
+                  fill priority fetchPriority="high"
+                  sizes="(min-width: 1024px) 0px, (max-width: 639px) calc(100vw - 32px), calc(100vw - 48px)"
+                  className="object-cover"
+                />
+              </div>
             </div>
 
             <div className="hidden lg:block relative h-[500px] rounded-2xl overflow-hidden shadow-xl">

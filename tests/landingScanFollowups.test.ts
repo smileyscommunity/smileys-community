@@ -88,7 +88,10 @@ describe('item 3: the hero alt is the admin\'s', () => {
 describe('item 4: one city story', () => {
   it('live, founding and coming soon — in the pill, the grid and the network list', () => {
     expect(landing).toContain('const liveCities  = mature.length > 0 ? mature : (fallback ? [fallback] : [])')
-    expect(landing).toContain("founding.length   > 0 ? `${founding.length} founding` : ''")
+    // The pill says "N more cities starting" (2026-10-02) — plain words, no founding/coming-soon jargon;
+    // the grid below still separates Founding from Coming soon.
+    expect(landing).toContain('const more = founding.length + comingSoon.length')
+    expect(landing).toContain("` · ${more} more ${more === 1 ? 'city' : 'cities'} starting`")
     expect(landing).toContain('Founding now')
     expect(landing).toContain('Coming soon')
     expect(landing).not.toContain('more on the way')
