@@ -292,7 +292,7 @@ export default async function HomePage() {
                 ) : (
                   <Link href="#cities" className="btn-primary text-base px-8 py-4">Find your city</Link>
                 )}
-                <Link href="/apply" className="btn-secondary text-base px-8 py-4">Join Smileys</Link>
+                <Link href="/apply" data-join-hero className="btn-secondary text-base px-8 py-4">Join Smileys</Link>
               </div>
               {/* Third action, deliberately not a third button: the city grid
                   is worth reaching, not worth competing with Join. */}

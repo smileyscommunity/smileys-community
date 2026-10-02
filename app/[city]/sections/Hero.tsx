@@ -28,7 +28,7 @@ export default function Hero({ city, enter, signedIn }: { city: PublicCity; ente
               <CityHeroImage city={city} sizes="(min-width: 1024px) 0px, (max-width: 639px) calc(100vw - 32px), calc(100vw - 48px)" />
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-4 mb-3">
+            <div className="flex flex-col sm:flex-row gap-4 mb-3" data-join-hero data-join-city={city.slug}>
               {/* Signed-in members get a one-tap join (their account already
                   exists — see components/JoinCityButton); guests fall through
                   to the application flow below. */}

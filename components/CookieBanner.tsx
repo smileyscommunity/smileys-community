@@ -35,12 +35,14 @@ export default function CookieBanner() {
       posthog.startSessionRecording()
     } catch { /* analytics is optional */ }
     setVisible(false)
+    window.dispatchEvent(new Event('smileys:consent'))
   }
 
   function decline() {
     try { localStorage.setItem(STORAGE_KEY, 'essential') } catch {}
     try { posthog.opt_out_capturing() } catch { /* analytics is optional */ }
     setVisible(false)
+    window.dispatchEvent(new Event('smileys:consent'))
   }
 
   return (
