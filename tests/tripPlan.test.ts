@@ -107,6 +107,10 @@ describe('Travellers shelf on /visiting', () => {
     const { CATEGORIES, isCategory, normalizeCommunityCategory } = await import('@/app/admin/posts/constants')
     expect(CATEGORIES).toContain(TRAVELLER_STORY_CATEGORY)
     expect(isCategory(TRAVELLER_STORY_CATEGORY)).toBe(true)
+    // City Guide rides along (Nate, 2026-10-02) — and must stay a real category.
+    const { TRAVELLER_SHELF_CATEGORIES } = await import('@/lib/tripPlan')
+    expect(TRAVELLER_SHELF_CATEGORIES).toEqual(['Travellers', 'City Guide'])
+    for (const c of TRAVELLER_SHELF_CATEGORIES) expect(isCategory(c), c).toBe(true)
     expect(normalizeCommunityCategory(TRAVELLER_STORY_CATEGORY)).toBe(TRAVELLER_STORY_CATEGORY)
   })
 
@@ -115,7 +119,7 @@ describe('Travellers shelf on /visiting', () => {
     const { join } = await import('node:path')
     const page = readFileSync(join(process.cwd(), 'app/visiting/page.tsx'), 'utf8')
     const fn = page.slice(page.indexOf('const getTravellerStories'), page.indexOf("['visiting-traveller-stories']"))
-    expect(fn).toMatch(/category:\s*TRAVELLER_STORY_CATEGORY,\s*cityId\s*}/)
+    expect(fn).toMatch(/category:\s*\{ in: TRAVELLER_SHELF_CATEGORIES \},\s*cityId\s*}/)
     expect(fn).toMatch(/cover:\s*articleCover/)
     // Only rendered fields leave the cache; the body goes into articleCover only.
     expect(fn).toMatch(/rows\.map\(r => \(\{ slug: r\.slug, title: r\.title, excerpt: r\.excerpt, cover: articleCover/)

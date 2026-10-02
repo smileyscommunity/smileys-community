@@ -30,7 +30,8 @@ export function isKind(s: unknown): s is Kind {
 // NOMAD_STORY_CATEGORY), pinned to its city — separate from 'Working from',
 // which is the one-member-a-month interview the hub shows as a single card.
 // 'Travellers' is /visiting's shelf (lib/tripPlan TRAVELLER_STORY_CATEGORY),
-// pinned to the city the visitor is looking at.
+// pinned to the city the visitor is looking at; the shelf shows City Guide
+// posts too (TRAVELLER_SHELF_CATEGORIES).
 export const CATEGORIES = ['Community', 'Club Stories', 'Events', 'City Guide', 'Tips', 'Working from', 'Students', 'Expats', 'Digital nomads', 'Travellers'] as const
 export type Category = (typeof CATEGORIES)[number]
 // The two retired names, accepted on write and folded into 'City Guide' so an

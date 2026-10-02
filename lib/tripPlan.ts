@@ -146,5 +146,10 @@ export function cityAvailability(c: { status: string; stats?: { maturity?: CityM
 // expat and digital-nomad shelves. No global fallback: another city's "48
 // hours in Istanbul" is not this city's.
 export const TRAVELLER_STORY_CATEGORY = 'Travellers'
+/** What the shelf reads: Travellers, plus City Guide — neighbourhood and
+ *  sight guides ("Kadıköy: what to do…", "Hadrian's Gate: the complete
+ *  visitor's guide") are written for exactly this reader (Nate, 2026-10-02:
+ *  show them here rather than re-file them). */
+export const TRAVELLER_SHELF_CATEGORIES: string[] = [TRAVELLER_STORY_CATEGORY, 'City Guide']
 /** How many the shelf lists — two rows of three. */
 export const TRAVELLER_STORY_LIMIT = 6

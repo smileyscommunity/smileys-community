@@ -24,7 +24,7 @@ import { formatTime } from '@/lib/data'
 import {
   parseTripRange, parseTripFilters, applyTripFilters, tripFilterOptions, tripEventWhen,
   cityAvailability, isFreeEvent, type TripWhen,
-  TRAVELLER_STORY_CATEGORY, TRAVELLER_STORY_LIMIT,
+  TRAVELLER_SHELF_CATEGORIES, TRAVELLER_STORY_LIMIT,
 } from '@/lib/tripPlan'
 import { articleCover } from '@/lib/articleCover'
 import { guestView, visitorName, visitAuthorOk } from '@/lib/visitorPolicy'
@@ -59,14 +59,14 @@ const VISIT_WHERE = (today: string, cityId: string, forMembers: boolean) => ({
   ...visitAuthorOk(),
 })
 
-// The "Read before your trip" shelf: this city's Travellers posts, newest
-// first (lib/tripPlan TRAVELLER_STORY_CATEGORY). Cached per city; only the
+// The "Read before your trip" shelf: this city's Travellers and City Guide
+// posts, newest first (lib/tripPlan TRAVELLER_SHELF_CATEGORIES). Cached per city; only the
 // fields the cards render leave the cache (the body is read for the cover).
 // Tagged 'posts' so a publish from the panel shows here at once.
 const getTravellerStories = unstable_cache(
   async (cityId: string) => {
     const rows = await prisma.post.findMany({
-      where:   { kind: 'community', status: 'published', category: TRAVELLER_STORY_CATEGORY, cityId },
+      where:   { kind: 'community', status: 'published', category: { in: TRAVELLER_SHELF_CATEGORIES }, cityId },
       orderBy: { publishedAt: 'desc' },
       take:    TRAVELLER_STORY_LIMIT,
       select:  { slug: true, title: true, excerpt: true, coverImage: true, body: true },
@@ -895,8 +895,8 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
         </section>
       )}
 
-      {/* ── Read before your trip ── this city's Travellers posts
-          (lib/tripPlan TRAVELLER_STORY_CATEGORY), newest first. Hidden until
+      {/* ── Read before your trip ── this city's Travellers and City Guide
+          posts (lib/tripPlan TRAVELLER_SHELF_CATEGORIES), newest first. Hidden until
           the city has one. */}
       {travellerStories.length > 0 && (
         <section id="stories" aria-labelledby="stories-title" className="bg-white border-t border-gray-100 scroll-mt-20">
