@@ -1636,6 +1636,43 @@ export default async function DashboardPage() {
               </div>
             </div>
 
+            {/* My clubs — under the profile card (Nate, 2026-10-02): your own
+                shortcuts sit with your own things; it was at the foot of the
+                centre column under every event shelf. Clubs to explore stays
+                in the centre with the other discovery shelves. Tiles wrap
+                three to a row at rail width. */}
+            <div className="bg-white rounded-2xl shadow-card p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-bold text-gray-900">My clubs</h2>
+                <Link href="/clubs?tab=mine" className="text-xs text-amber-600 font-semibold hover:underline">All →</Link>
+              </div>
+              {clubs.length === 0 ? (
+                <div className="text-center py-4">
+                  <div aria-hidden="true" className="text-3xl mb-2">🏛️</div>
+                  <p className="text-gray-500 text-sm mb-2">Not in any clubs yet</p>
+                  <Link href="/clubs" className="inline-block text-xs font-semibold text-amber-600 bg-amber-50 px-3 py-1.5 rounded-xl hover:bg-amber-100 transition-colors">
+                    Explore clubs →
+                  </Link>
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-3 pb-1">
+                  {clubs.map((club) => (
+                    <Link key={club.id} href={`/clubs/${club.slug}`}
+                      className="shrink-0 flex flex-col items-center gap-2 group">
+                      <div className={`w-14 h-14 rounded-2xl ${club.bgColor} flex items-center justify-center text-2xl shadow-sm group-hover:scale-110 transition-transform`}>
+                        {club.emoji}
+                      </div>
+                      <p className="text-[11px] font-semibold text-gray-700 group-hover:text-amber-600 transition-colors text-center max-w-[60px] leading-tight truncate">{club.name}</p>
+                    </Link>
+                  ))}
+                  <Link href="/clubs" className="shrink-0 flex flex-col items-center gap-2">
+                    <div className="w-14 h-14 rounded-2xl border-2 border-dashed border-gray-200 flex items-center justify-center text-gray-500 hover:border-amber-300 hover:text-amber-500 transition-colors text-xl">+</div>
+                    <p className="text-[11px] text-gray-500 text-center">More</p>
+                  </Link>
+                </div>
+              )}
+            </div>
+
             {/* Who's Going — social context */}
             {whosGoing.length > 0 && (
               <div className="bg-white rounded-2xl shadow-card p-5">
@@ -2359,39 +2396,6 @@ export default async function DashboardPage() {
                 </div>
               </div>
             )}
-
-            {/* ── CLUBS ── my clubs + explore, grouped */}
-            <div className="bg-white rounded-2xl shadow-card p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-sm font-bold text-gray-900">My clubs</h2>
-                <Link href="/clubs?tab=mine" className="text-xs text-amber-600 font-semibold hover:underline">All →</Link>
-              </div>
-              {clubs.length === 0 ? (
-                <div className="text-center py-4">
-                  <div aria-hidden="true" className="text-3xl mb-2">🏛️</div>
-                  <p className="text-gray-500 text-sm mb-2">Not in any clubs yet</p>
-                  <Link href="/clubs" className="inline-block text-xs font-semibold text-amber-600 bg-amber-50 px-3 py-1.5 rounded-xl hover:bg-amber-100 transition-colors">
-                    Explore clubs →
-                  </Link>
-                </div>
-              ) : (
-                <div className="flex flex-wrap gap-3 pb-1">
-                  {clubs.map((club) => (
-                    <Link key={club.id} href={`/clubs/${club.slug}`}
-                      className="shrink-0 flex flex-col items-center gap-2 group">
-                      <div className={`w-14 h-14 rounded-2xl ${club.bgColor} flex items-center justify-center text-2xl shadow-sm group-hover:scale-110 transition-transform`}>
-                        {club.emoji}
-                      </div>
-                      <p className="text-[11px] font-semibold text-gray-700 group-hover:text-amber-600 transition-colors text-center max-w-[60px] leading-tight truncate">{club.name}</p>
-                    </Link>
-                  ))}
-                  <Link href="/clubs" className="shrink-0 flex flex-col items-center gap-2">
-                    <div className="w-14 h-14 rounded-2xl border-2 border-dashed border-gray-200 flex items-center justify-center text-gray-500 hover:border-amber-300 hover:text-amber-500 transition-colors text-xl">+</div>
-                    <p className="text-[11px] text-gray-500 text-center">More</p>
-                  </Link>
-                </div>
-              )}
-            </div>
 
             {exploreClubs.length > 0 && (
               <div className="bg-white rounded-2xl shadow-card p-5">
