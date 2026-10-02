@@ -129,14 +129,42 @@ describe('Travellers shelf on /visiting', () => {
     }
   })
 
-  // Nate, 2026-10-02: right after Plan your visit, before Your first 48 hours.
-  it('sits right after Plan your visit', async () => {
+})
+
+// /visiting order (Nate, 2026-10-02: events don't lead). Read from the parsed
+// page, not from string positions: a botched move once left three sections
+// nested INSIDE the stories cards while every indexOf still came out in order.
+describe('/visiting section order', () => {
+  async function topLevel() {
+    const ts = (await import('typescript')).default
     const { readFileSync } = await import('node:fs')
     const { join } = await import('node:path')
-    const page = readFileSync(join(process.cwd(), 'app/visiting/page.tsx'), 'utf8')
-    const at = (id: string) => page.indexOf(`aria-labelledby="${id}"`)
-    expect(at('plan-title')).toBeGreaterThan(-1)
-    expect(at('plan-title')).toBeLessThan(at('stories-title'))
-    expect(at('stories-title')).toBeLessThan(at('first-48-title'))
+    const file = join(process.cwd(), 'app/visiting/page.tsx')
+    const sf = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+    let fn: import('typescript').FunctionDeclaration | undefined
+    ;(function walk(n: import('typescript').Node) { if (ts.isFunctionDeclaration(n) && n.name?.text === 'VisitingPage') fn = n; n.forEachChild(walk) })(sf)
+    const rets: import('typescript').ReturnStatement[] = []
+    ;(function walk(n: import('typescript').Node) {
+      if (n !== fn && (ts.isFunctionDeclaration(n) || ts.isArrowFunction(n) || ts.isFunctionExpression(n))) return
+      if (ts.isReturnStatement(n)) rets.push(n)
+      n.forEachChild(walk)
+    })(fn!.body!)
+    let e = rets[rets.length - 1].expression!
+    while (ts.isParenthesizedExpression(e)) e = e.expression
+    if (!ts.isJsxElement(e)) throw new Error('VisitingPage no longer returns a single element')
+    return e.children.map(c => c.getText()).filter(t => t.trim() && !/^\{\s*\/\*[\s\S]*\*\/\s*\}$/.test(t))
+  }
+
+  it('no block holds more than one section (nothing nested inside another)', async () => {
+    for (const t of await topLevel()) expect((t.match(/<section/g) ?? []).length, t.slice(0, 80)).toBeLessThanOrEqual(1)
+  })
+
+  it('sightseeing first, then the stories, then the planner, then the community', async () => {
+    const blocks = await topLevel()
+    const at = (id: string) => blocks.findIndex(t => t.includes(`aria-labelledby="${id}"`) || t.includes(`<section id="${id}"`))
+    const order = ['first-48-title', 'interests-title', 'stories-title', 'plan-title', 'stay', 'tell-title', 'where-title'].map(at)
+    expect(order.every(i => i > -1), JSON.stringify(order)).toBe(true)
+    expect([...order].sort((a, b) => a - b)).toEqual(order)
   })
 })
+

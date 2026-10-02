@@ -550,6 +550,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
   const thisCityAvailability = publicCities.find(c => c.slug === city.slug)
   const hereAvailability = thisCityAvailability ? cityAvailability(thisCityAvailability) : 'coming_soon'
 
+
   return (
     <div className={`min-h-screen bg-white ${viewerVisit ? '' : 'pb-24 md:pb-0'}`}>
       {/* Hero — the shared PhotoHero the other arrival hubs use (Moving,
@@ -608,155 +609,6 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
           </div>
         </div>
       </section>
-
-      {/* ── Plan your visit ── the page's primary interaction. A plain GET
-          form: works without JavaScript, every control is a native labelled
-          input, and the result is a shareable URL. Filters appear only when
-          they would narrow the list (lib/tripPlan tripFilterOptions). */}
-      <section id="plan" aria-labelledby="plan-title" className="bg-white border-t border-gray-100 scroll-mt-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
-          <h2 id="plan-title" className="section-title">Plan your visit</h2>
-          <ol className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm text-gray-600">
-            {[
-              { n: 1, label: 'Your dates',           href: '#plan' },
-              { n: 2, label: 'Events during your stay', href: '#plan-events' },
-              { n: 3, label: 'Experiences you’ll like', href: '#interests' },
-              { n: 4, label: 'Where you’re staying', href: '#stay' },
-              { n: 5, label: 'Tell the community',   href: '#tell' },
-            ].map(st => (
-              <li key={st.n}>
-                <a href={st.href} className="inline-flex items-center gap-2 hover:text-amber-700">
-                  <span aria-hidden="true" className="w-6 h-6 rounded-full bg-amber-100 text-amber-800 text-xs font-extrabold flex items-center justify-center">{st.n}</span>
-                  {st.label}
-                </a>
-              </li>
-            ))}
-          </ol>
-
-          <form method="get" action="/app/visiting#plan-events" className="mt-8 rounded-2xl border border-gray-200 bg-gray-50 p-4 sm:p-6">
-            {pinned && <input type="hidden" name="city" value={city.slug} />}
-            <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-4 items-end">
-              <div>
-                <label htmlFor="trip-from" className="block text-sm font-semibold text-gray-800 mb-1.5">Arriving</label>
-                <input id="trip-from" name="from" type="date" min={today} required
-                  defaultValue={trip.range?.from ?? (planFromVisit ? planRange?.from : '') ?? ''} className="input bg-white" />
-              </div>
-              <div>
-                <label htmlFor="trip-to" className="block text-sm font-semibold text-gray-800 mb-1.5">Leaving</label>
-                <input id="trip-to" name="to" type="date" min={today} required
-                  defaultValue={trip.range?.to ?? (planFromVisit ? planRange?.to : '') ?? ''} className="input bg-white" />
-              </div>
-              <button type="submit" className="btn-primary px-6 py-3">Show my events</button>
-            </div>
-
-            {filterOptions && (filterOptions.hoods.length > 0 || filterOptions.free || filterOptions.first || filterOptions.langs.length > 0) && (
-              <fieldset className="mt-5 pt-5 border-t border-gray-200">
-                <legend className="text-sm font-semibold text-gray-800 mb-3">Narrow it down</legend>
-                <div className="flex flex-wrap items-end gap-4">
-                  {filterOptions.hoods.length > 0 && (
-                    <div>
-                      <label htmlFor="trip-hood" className="block text-xs font-semibold text-gray-600 mb-1">Neighbourhood</label>
-                      <select id="trip-hood" name="hood" defaultValue={filters.hood ?? ''} className="input bg-white py-2">
-                        <option value="">Anywhere</option>
-                        {filterOptions.hoods.map(h => <option key={h} value={h}>{h}</option>)}
-                      </select>
-                    </div>
-                  )}
-                  {filterOptions.langs.length > 0 && (
-                    <div>
-                      <label htmlFor="trip-lang" className="block text-xs font-semibold text-gray-600 mb-1">Language</label>
-                      <select id="trip-lang" name="lang" defaultValue={filters.lang ?? ''} className="input bg-white py-2">
-                        <option value="">Any</option>
-                        {filterOptions.langs.map(l => <option key={l} value={l}>{l}</option>)}
-                      </select>
-                    </div>
-                  )}
-                  {filterOptions.free && (
-                    <label className="inline-flex items-center gap-2 text-sm text-gray-700 py-2">
-                      <input type="checkbox" name="free" value="1" defaultChecked={filters.free} className="accent-amber-500 w-4 h-4" />
-                      Free only
-                    </label>
-                  )}
-                  {filterOptions.first && (
-                    <label className="inline-flex items-center gap-2 text-sm text-gray-700 py-2">
-                      <input type="checkbox" name="first" value="1" defaultChecked={filters.first} className="accent-amber-500 w-4 h-4" />
-                      First-timer friendly
-                    </label>
-                  )}
-                </div>
-                {filterOptions.langs.length > 0 && (
-                  <p className="text-xs text-gray-500 mt-2">Language only matches events whose host listed one.</p>
-                )}
-              </fieldset>
-            )}
-          </form>
-
-          <div id="plan-events" className="scroll-mt-24 mt-8" aria-live="polite">
-            {trip.error ? (
-              <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{trip.error}</p>
-            ) : planRange ? (
-              <>
-                <h3 className="text-xl font-extrabold text-gray-900">
-                  {filteredEvents.length === 0
-                    ? `Nothing ${filtersActive ? 'matching' : 'scheduled'} between ${formatDay(planRange.from)} and ${formatDay(planRange.to)} yet`
-                    : `${filteredEvents.length} event${filteredEvents.length === 1 ? '' : 's'} between ${formatDay(planRange.from)} and ${formatDay(planRange.to)}`}
-                </h3>
-                <p className="text-sm text-gray-600 mt-1">
-                  {planFromVisit ? 'Matched to the dates on your visit card. ' : ''}
-                  {trip.clamped ? 'Your stay has already started, so this shows today onwards. ' : ''}
-                  {filteredEvents.length === 0
-                    ? (filtersActive
-                        ? <>Try fewer filters — <Link href={`/visiting?${new URLSearchParams({ ...(pinned ? { city: city.slug } : {}), from: planRange.from, to: planRange.to })}#plan-events`} className="font-semibold text-amber-700 hover:underline">clear them</Link>.</>
-                        : 'New events are added every week, so check back closer to your trip.')
-                    : 'Events that have already finished are not shown.'}
-                </p>
-                {filteredEvents.length > 0 && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
-                    {filteredEvents.slice(0, PLAN_SHOWN).map(e => <VisitEventCard key={e.id} e={e} />)}
-                  </div>
-                )}
-                {filteredEvents.length > PLAN_SHOWN && (
-                  <Link href={pinned ? `/${city.slug}/events` : '/events'} className="inline-block mt-6 text-sm font-bold text-amber-700 hover:underline">
-                    {filteredEvents.length - PLAN_SHOWN} more — open the full calendar →
-                  </Link>
-                )}
-              </>
-            ) : timedEvents.length > 0 ? (
-              <>
-                <h3 className="text-xl font-extrabold text-gray-900">Coming up in {city.name}</h3>
-                <p className="text-sm text-gray-600 mt-1">Add your dates above to see only what falls during your stay.</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
-                  {timedEvents.slice(0, 6).map(e => <VisitEventCard key={e.id} e={e} />)}
-                </div>
-              </>
-            ) : (
-              <p className="text-sm text-gray-600">Nothing on the {city.name} calendar in the next two months yet — add your dates and check back closer to your trip.</p>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* ── Read before your trip ── this city's Travellers and City Guide
-          posts (lib/tripPlan TRAVELLER_SHELF_CATEGORIES), newest first. Hidden until
-          the city has one. */}
-      {travellerStories.length > 0 && (
-        <section id="stories" aria-labelledby="stories-title" className="bg-white border-t border-gray-100 scroll-mt-20">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
-            <div className="mb-8">
-              <h2 id="stories-title" className="section-title">Read before your trip</h2>
-              <p className="section-subtitle max-w-2xl">Visiting {city.name}: what to know, what to skip and what most visitors miss.</p>
-            </div>
-            <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {travellerStories.map(story => (
-                <li key={story.slug}>
-                  <Link href={`/posts/${story.slug}`}
-                    className="group h-full flex flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm hover:border-amber-200 hover:shadow-md transition-all">
-                    {story.cover && (
-                      // Absolute image: an aspect-ratio box grows to fit a portrait cover.
-                      <div className="relative aspect-[16/9] overflow-hidden bg-gray-100">
-                        <img src={story.cover} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
-                      </div>
-                    )}
 
       {/* ── Your first 48 hours ── built only from what the city has: its
           Handbook articles for connectivity and transport, its Guide's
@@ -916,6 +768,27 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
         </section>
       )}
 
+      {/* ── Read before your trip ── this city's Travellers and City Guide
+          posts (lib/tripPlan TRAVELLER_SHELF_CATEGORIES), newest first. Hidden until
+          the city has one. */}
+      {travellerStories.length > 0 && (
+        <section id="stories" aria-labelledby="stories-title" className="bg-white border-t border-gray-100 scroll-mt-20">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+            <div className="mb-8">
+              <h2 id="stories-title" className="section-title">Read before your trip</h2>
+              <p className="section-subtitle max-w-2xl">Visiting {city.name}: what to know, what to skip and what most visitors miss.</p>
+            </div>
+            <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {travellerStories.map(story => (
+                <li key={story.slug}>
+                  <Link href={`/posts/${story.slug}`}
+                    className="group h-full flex flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm hover:border-amber-200 hover:shadow-md transition-all">
+                    {story.cover && (
+                      // Absolute image: an aspect-ratio box grows to fit a portrait cover.
+                      <div className="relative aspect-[16/9] overflow-hidden bg-gray-100">
+                        <img src={story.cover} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+                      </div>
+                    )}
                     <div className="p-5 flex flex-col flex-1">
                       <h3 className="font-bold text-gray-900 leading-snug group-hover:text-amber-700 transition-colors">{story.title}</h3>
                       {story.excerpt && <p className="mt-2 text-sm text-gray-600 leading-relaxed line-clamp-3 flex-1">{story.excerpt}</p>}
@@ -931,37 +804,120 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
         </section>
       )}
 
-      <section className="bg-white border-t border-gray-100">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
-        {/* Full container width (not max-w-3xl) so the visitor cards can
-            lay out 3-up on desktop; the handbook cross-link below keeps
-            its own reading width so it doesn't stretch into a banner. */}
-        <div id="visitors" className="scroll-mt-20">
+      {/* ── Plan your visit ── dates → events during your stay. Below the
+          sightseeing sections (Nate, 2026-10-02: events don't lead). A plain GET
+          form: works without JavaScript, every control is a native labelled
+          input, and the result is a shareable URL. Filters appear only when
+          they would narrow the list (lib/tripPlan tripFilterOptions). */}
+      <section id="plan" aria-labelledby="plan-title" className="bg-gray-50 border-t border-gray-100 scroll-mt-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+          <h2 id="plan-title" className="section-title">Plan your visit</h2>
 
-        <VisitingClient announcements={serialised} events={eventsForCards} today={today} viewerIsLocal={viewerIsLocal} totalCount={totalCount} newVisitHref={isMember ? newVisitHref : '/apply'} cityCount={cityCount} featuredLocals={localsForViewer} cityName={city.name} />
-
-        {/* Cross-link to /handbook — visitors landing here are the exact
-            audience for the long-form survival reads. Closes the loop
-            with /handbook (and /guide) which both link back here as
-            "Visiting first?". Soft grey card so it doesn't compete
-            with the post-CTA. */}
-        <Link href={`/handbook${cityQs}`}
-          className="block mt-8 max-w-3xl bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-2xl px-5 py-4 transition-colors group">
-          <div className="flex items-center gap-4">
-            <div aria-hidden="true" className="text-2xl shrink-0">📖</div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-gray-900">Arriving soon? Read the Handbook.</p>
-              <p className="text-xs text-gray-600 mt-0.5">Residence permits, banking, transport — practical guides from the Smileys team.</p>
+          <form method="get" action="/app/visiting#plan-events" className="mt-8 rounded-2xl border border-gray-200 bg-white p-4 sm:p-6">
+            {pinned && <input type="hidden" name="city" value={city.slug} />}
+            <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-4 items-end">
+              <div>
+                <label htmlFor="trip-from" className="block text-sm font-semibold text-gray-800 mb-1.5">Arriving</label>
+                <input id="trip-from" name="from" type="date" min={today} required
+                  defaultValue={trip.range?.from ?? (planFromVisit ? planRange?.from : '') ?? ''} className="input bg-white" />
+              </div>
+              <div>
+                <label htmlFor="trip-to" className="block text-sm font-semibold text-gray-800 mb-1.5">Leaving</label>
+                <input id="trip-to" name="to" type="date" min={today} required
+                  defaultValue={trip.range?.to ?? (planFromVisit ? planRange?.to : '') ?? ''} className="input bg-white" />
+              </div>
+              <button type="submit" className="btn-primary px-6 py-3">Show my events</button>
             </div>
-            <span className="text-sm font-bold text-gray-700 shrink-0 group-hover:translate-x-0.5 transition-transform">→</span>
+
+            {filterOptions && (filterOptions.hoods.length > 0 || filterOptions.free || filterOptions.first || filterOptions.langs.length > 0) && (
+              <fieldset className="mt-5 pt-5 border-t border-gray-200">
+                <legend className="text-sm font-semibold text-gray-800 mb-3">Narrow it down</legend>
+                <div className="flex flex-wrap items-end gap-4">
+                  {filterOptions.hoods.length > 0 && (
+                    <div>
+                      <label htmlFor="trip-hood" className="block text-xs font-semibold text-gray-600 mb-1">Neighbourhood</label>
+                      <select id="trip-hood" name="hood" defaultValue={filters.hood ?? ''} className="input bg-white py-2">
+                        <option value="">Anywhere</option>
+                        {filterOptions.hoods.map(h => <option key={h} value={h}>{h}</option>)}
+                      </select>
+                    </div>
+                  )}
+                  {filterOptions.langs.length > 0 && (
+                    <div>
+                      <label htmlFor="trip-lang" className="block text-xs font-semibold text-gray-600 mb-1">Language</label>
+                      <select id="trip-lang" name="lang" defaultValue={filters.lang ?? ''} className="input bg-white py-2">
+                        <option value="">Any</option>
+                        {filterOptions.langs.map(l => <option key={l} value={l}>{l}</option>)}
+                      </select>
+                    </div>
+                  )}
+                  {filterOptions.free && (
+                    <label className="inline-flex items-center gap-2 text-sm text-gray-700 py-2">
+                      <input type="checkbox" name="free" value="1" defaultChecked={filters.free} className="accent-amber-500 w-4 h-4" />
+                      Free only
+                    </label>
+                  )}
+                  {filterOptions.first && (
+                    <label className="inline-flex items-center gap-2 text-sm text-gray-700 py-2">
+                      <input type="checkbox" name="first" value="1" defaultChecked={filters.first} className="accent-amber-500 w-4 h-4" />
+                      First-timer friendly
+                    </label>
+                  )}
+                </div>
+                {filterOptions.langs.length > 0 && (
+                  <p className="text-xs text-gray-500 mt-2">Language only matches events whose host listed one.</p>
+                )}
+              </fieldset>
+            )}
+          </form>
+
+          <div id="plan-events" className="scroll-mt-24 mt-8" aria-live="polite">
+            {trip.error ? (
+              <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{trip.error}</p>
+            ) : planRange ? (
+              <>
+                <h3 className="text-xl font-extrabold text-gray-900">
+                  {filteredEvents.length === 0
+                    ? `Nothing ${filtersActive ? 'matching' : 'scheduled'} between ${formatDay(planRange.from)} and ${formatDay(planRange.to)} yet`
+                    : `${filteredEvents.length} event${filteredEvents.length === 1 ? '' : 's'} between ${formatDay(planRange.from)} and ${formatDay(planRange.to)}`}
+                </h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  {planFromVisit ? 'Matched to the dates on your visit card. ' : ''}
+                  {trip.clamped ? 'Your stay has already started, so this shows today onwards. ' : ''}
+                  {filteredEvents.length === 0
+                    ? (filtersActive
+                        ? <>Try fewer filters — <Link href={`/visiting?${new URLSearchParams({ ...(pinned ? { city: city.slug } : {}), from: planRange.from, to: planRange.to })}#plan-events`} className="font-semibold text-amber-700 hover:underline">clear them</Link>.</>
+                        : 'New events are added every week, so check back closer to your trip.')
+                    : 'Events that have already finished are not shown.'}
+                </p>
+                {filteredEvents.length > 0 && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
+                    {filteredEvents.slice(0, PLAN_SHOWN).map(e => <VisitEventCard key={e.id} e={e} />)}
+                  </div>
+                )}
+                {filteredEvents.length > PLAN_SHOWN && (
+                  <Link href={pinned ? `/${city.slug}/events` : '/events'} className="inline-block mt-6 text-sm font-bold text-amber-700 hover:underline">
+                    {filteredEvents.length - PLAN_SHOWN} more — open the full calendar →
+                  </Link>
+                )}
+              </>
+            ) : timedEvents.length > 0 ? (
+              <>
+                <h3 className="text-xl font-extrabold text-gray-900">Coming up in {city.name}</h3>
+                <p className="text-sm text-gray-600 mt-1">Add your dates above to see only what falls during your stay.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
+                  {timedEvents.slice(0, 6).map(e => <VisitEventCard key={e.id} e={e} />)}
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-gray-600">Nothing on the {city.name} calendar in the next two months yet — add your dates and check back closer to your trip.</p>
+            )}
           </div>
-        </Link>
         </div>
-      </div>
       </section>
 
       {/* ── Know where you're staying? ── */}
-      <section id="stay" className="bg-gray-50 border-t border-gray-100 scroll-mt-20">
+      <section id="stay" className="bg-white border-t border-gray-100 scroll-mt-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
           <div className="mb-8">
             <h2 className="section-title">Know where you&apos;re staying?</h2>
@@ -987,6 +943,35 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
             Explore all {city.name} neighbourhoods <span aria-hidden="true">→</span>
           </Link>
         </div>
+      </section>
+
+      <section className="bg-gray-50 border-t border-gray-100">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+        {/* Full container width (not max-w-3xl) so the visitor cards can
+            lay out 3-up on desktop; the handbook cross-link below keeps
+            its own reading width so it doesn't stretch into a banner. */}
+        <div id="visitors" className="scroll-mt-20">
+
+        <VisitingClient announcements={serialised} events={eventsForCards} today={today} viewerIsLocal={viewerIsLocal} totalCount={totalCount} newVisitHref={isMember ? newVisitHref : '/apply'} cityCount={cityCount} featuredLocals={localsForViewer} cityName={city.name} />
+
+        {/* Cross-link to /handbook — visitors landing here are the exact
+            audience for the long-form survival reads. Closes the loop
+            with /handbook (and /guide) which both link back here as
+            "Visiting first?". Soft grey card so it doesn't compete
+            with the post-CTA. */}
+        <Link href={`/handbook${cityQs}`}
+          className="block mt-8 max-w-3xl bg-white hover:bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 transition-colors group">
+          <div className="flex items-center gap-4">
+            <div aria-hidden="true" className="text-2xl shrink-0">📖</div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-gray-900">Arriving soon? Read the Handbook.</p>
+              <p className="text-xs text-gray-600 mt-0.5">Residence permits, banking, transport — practical guides from the Smileys team.</p>
+            </div>
+            <span className="text-sm font-bold text-gray-700 shrink-0 group-hover:translate-x-0.5 transition-transform">→</span>
+          </div>
+        </Link>
+        </div>
+      </div>
       </section>
 
       {/* ── Tell the community you're coming ── how it actually works, said
