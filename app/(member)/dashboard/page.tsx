@@ -2482,6 +2482,23 @@ export default async function DashboardPage() {
               </div>
             )}
 
+            {/* (QuickLinks / InviteBanner / ReferralImpact used to render
+                here behind lg:hidden + again in the right column. They
+                now live exclusively in the right column, which renders on
+                every viewport via outer order-3 below.) */}
+          </div>
+
+          {/* ── RIGHT ──
+              Outer container now renders on every viewport (was
+              hidden lg:block) so QuickLinks / InviteBanner /
+              ReferralImpact can live here ONCE instead of being
+              duplicated in the center column behind lg:hidden.
+              Mobile order: center → left → right. The dense
+              desktop-only widgets stay in the nested hidden lg:block
+              below; the action-y cross-viewport widgets live below
+              that, visible everywhere. */}
+          <div className="order-3 lg:w-60 lg:shrink-0 space-y-4">
+
             {/* ── DISCOVER ──
                 On mobile this is the ONLY route to these pages. The header's
                 Discover dropdown is desktop-only, the bottom bar is full at six
@@ -2489,13 +2506,14 @@ export default async function DashboardPage() {
                 this strip a member on a phone cannot reach Experiences, the
                 Guide, the Directory, the Board, Neighborhoods, Stories or
                 Hosts at all.
-                Placed low on purpose: it's for browsing once you've dealt with
-                what you came for, and it uses space the dashboard already has
-                rather than competing for a nav slot. Reads from lib/navLinks so
-                it can't drift from the desktop menu. */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-5">
+                In the right rail (Nate, 2026-10-02 — it sat at the foot of the
+                centre column): outside the rail's desktop-only block, so it
+                still renders on phones, where it comes after the left column.
+                One column at rail width. Reads from lib/navLinks so it can't
+                drift from the desktop menu. */}
+            <div className="bg-white rounded-2xl shadow-card p-4">
               <h2 className="text-sm font-bold text-gray-900 mb-3">Discover</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-1 gap-2">
                 {DISCOVER_LINKS
                   .filter(l => !l.guestOnly)
                   // Same rule as the footer: a city grows into neighborhoods,
@@ -2521,22 +2539,6 @@ export default async function DashboardPage() {
               </div>
             </div>
 
-            {/* (QuickLinks / InviteBanner / ReferralImpact used to render
-                here behind lg:hidden + again in the right column. They
-                now live exclusively in the right column, which renders on
-                every viewport via outer order-3 below.) */}
-          </div>
-
-          {/* ── RIGHT ──
-              Outer container now renders on every viewport (was
-              hidden lg:block) so QuickLinks / InviteBanner /
-              ReferralImpact can live here ONCE instead of being
-              duplicated in the center column behind lg:hidden.
-              Mobile order: center → left → right. The dense
-              desktop-only widgets stay in the nested hidden lg:block
-              below; the action-y cross-viewport widgets live below
-              that, visible everywhere. */}
-          <div className="order-3 lg:w-60 lg:shrink-0 space-y-4">
 
             {/* Desktop-only widgets — too dense / sidebar-shaped for
                 mobile (mini calendar, weather, narrow listing card). */}
