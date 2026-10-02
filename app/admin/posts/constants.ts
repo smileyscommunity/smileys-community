@@ -23,7 +23,10 @@ export function isKind(s: unknown): s is Kind {
 // 'Students' is what the student hub shows (lib/students STUDENT_STORY_CATEGORY):
 // Erasmus and exchange-student pieces, pinned to the city they are about —
 // like 'Working from', a post in it with no cityId is on no hub.
-export const CATEGORIES = ['Community', 'Club Stories', 'Events', 'City Guide', 'Tips', 'Working from', 'Students'] as const
+// 'Expats' is the moving hub's reading series (lib/relocation
+// EXPAT_STORY_CATEGORY): living-here pieces, read in order, pinned to their
+// city. 'Tips' stays for advice that is about no one city.
+export const CATEGORIES = ['Community', 'Club Stories', 'Events', 'City Guide', 'Tips', 'Working from', 'Students', 'Expats'] as const
 export type Category = (typeof CATEGORIES)[number]
 // The two retired names, accepted on write and folded into 'City Guide' so an
 // edit of an older row migrates it instead of resetting it to the default.

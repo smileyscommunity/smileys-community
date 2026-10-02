@@ -22,6 +22,7 @@ import type { Event } from '@/lib/data'
 import { LIVE_BOARD_AUTHOR, SHOWN_REPLY } from '@/lib/boardAccess'
 import { firstNameOf } from '@/lib/data'
 import { isWorkClub, pickHubEvents, INTERVIEW_CATEGORY } from '@/lib/remoteWork'
+import { EXPAT_STORY_CATEGORY, EXPAT_STORY_LIMIT } from '@/lib/relocation'
 import { pickFirstEvents, pickRegularEvents, eventFilterLinks, mostlyEnglish, STUDENT_STORY_CATEGORY, STUDENT_STORY_LIMIT, STUDENT_REASON_SQL, STUDENT_PROFESSION_SQL } from '@/lib/students'
 import { getCityHandbookIndex } from '@/lib/handbookIndex'
 import { articleCover } from '@/lib/articleCover'
@@ -506,7 +507,7 @@ export const getCityMovingHub = unstable_cache(
   // city's calendar day.
   async (cityId: string, country: string | null, tz: string) => {
     const today = todayInTz(tz)
-    const [articles, memberRows, eventRows, { events }, clubs] = await Promise.all([
+    const [articles, memberRows, eventRows, { events }, clubs, stories] = await Promise.all([
       getCityHandbookIndex(cityId, country),
       // Activated members only (lib/memberCount) — the same figure the
       // Visiting page's "N Smileys nearby" uses.
@@ -522,9 +523,23 @@ export const getCityMovingHub = unstable_cache(
       }),
       getEvents({ limit: HUB_LIMIT, upcoming: true, cityId }),
       getClubs(cityId),
+      // The city's expat series (lib/relocation EXPAT_STORY_CATEGORY), in
+      // reading order — oldest first, "Start here" leads. Pinned to this city
+      // only. No author: the cards show none, and bylines are per request.
+      prisma.post.findMany({
+        where:   { kind: 'community', status: 'published', category: EXPAT_STORY_CATEGORY, cityId },
+        orderBy: { publishedAt: 'asc' },
+        select:  { slug: true, title: true, excerpt: true, coverImage: true, body: true },
+      }),
     ])
     return {
       articles,
+      // Cover resolved here so the body (up to 50k) never leaves the loader.
+      stories: stories.slice(0, EXPAT_STORY_LIMIT).map(s => ({
+        slug: s.slug, title: s.title, excerpt: s.excerpt,
+        cover: articleCover({ coverImage: s.coverImage, body: s.body }),
+      })),
+      storyTotal: stories.length,
       memberCounts: memberRows.flatMap(r => r.neighborhood ? [{ neighborhood: r.neighborhood, count: r._count._all }] : []),
       eventCounts:  eventRows.map(r => ({ neighborhood: r.neighborhood, count: r._count._all })),
       events: events

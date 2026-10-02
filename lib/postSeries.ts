@@ -11,7 +11,9 @@ import { prisma } from './prisma'
 // grid ("More from X") is the honest offer — a Next label promises a sequence
 // that does not exist. Add a category here only when reading it in order is
 // actually the point.
-export const SERIES_CATEGORIES: string[] = ['Tips', 'Working from']
+// 'Expats' took over the moving-to-a-city run that was filed under Tips
+// ("Start here" → "The First 30 Days" → …), so it keeps the Next link.
+export const SERIES_CATEGORIES: string[] = ['Tips', 'Working from', 'Expats']
 
 export const isSeriesCategory = (category: string) => SERIES_CATEGORIES.includes(category)
 

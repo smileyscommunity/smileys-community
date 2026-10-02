@@ -208,9 +208,52 @@ export default async function CityMovingPage({ params }: Params) {
         </section>
       )}
 
+      {/* ── Read before you move ─────────────────────────────────────── */}
+      {/* The city's Expats series (lib/relocation EXPAT_STORY_CATEGORY), in
+          reading order. Hidden until the city has one. */}
+      {hub.stories.length > 0 && (
+        <section id="stories" aria-labelledby="stories-title" className="py-12 sm:py-16 bg-white border-t border-gray-100 scroll-mt-20">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="mb-8">
+              <h2 id="stories-title" className="section-title">Read before you move</h2>
+              <p className="section-subtitle max-w-2xl">
+                What living in {city.name} is actually like, before and after you arrive. Best read in order; each one links to the next.
+              </p>
+            </div>
+            <ol className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {hub.stories.map(story => (
+                <li key={story.slug}>
+                  <Link href={`/posts/${story.slug}`}
+                    className="group h-full flex flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm hover:border-amber-200 hover:shadow-md transition-all">
+                    {story.cover && (
+                      // Absolute image: an aspect-ratio box grows to fit a portrait cover.
+                      <div className="relative aspect-[16/9] overflow-hidden bg-gray-100">
+                        <img src={story.cover} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+                      </div>
+                    )}
+                    <div className="p-5 flex flex-col flex-1">
+                      <h3 className="font-bold text-gray-900 leading-snug group-hover:text-amber-700 transition-colors">{story.title}</h3>
+                      {story.excerpt && <p className="mt-2 text-sm text-gray-600 leading-relaxed line-clamp-3 flex-1">{story.excerpt}</p>}
+                      <span className="mt-4 text-sm font-bold text-amber-700 group-hover:text-amber-800">
+                        Read <span aria-hidden="true">→</span>
+                      </span>
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ol>
+            {hub.storyTotal > hub.stories.length && (
+              <p className="mt-6 text-sm text-gray-600">
+                And {hub.storyTotal - hub.stories.length} more — the last one here links on to the next.
+              </p>
+            )}
+          </div>
+        </section>
+      )}
+
       {/* ── Find your neighbourhood ──────────────────────────────────── */}
       {neighborhoods.length > 0 && (
-        <section aria-labelledby="hoods-title" className="py-12 sm:py-16 bg-white border-t border-gray-100">
+        <section aria-labelledby="hoods-title" className="py-12 sm:py-16 bg-gray-50 border-t border-gray-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="mb-8">
               <h2 id="hoods-title" className="section-title">Find your neighbourhood</h2>
@@ -248,7 +291,7 @@ export default async function CityMovingPage({ params }: Params) {
       )}
 
       {/* ── Build your life here ─────────────────────────────────────── */}
-      <section id="build-your-life" aria-labelledby="build-title" className="py-12 sm:py-16 bg-gray-50 border-t border-gray-100 scroll-mt-20">
+      <section id="build-your-life" aria-labelledby="build-title" className="py-12 sm:py-16 bg-white border-t border-gray-100 scroll-mt-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="mb-8">
             <h2 id="build-title" className="section-title">Build your life here</h2>

@@ -90,6 +90,7 @@ const categoryColors: Record<string, string> = {
   'Tips':         'bg-pink-100 text-pink-700',
   'Working from': 'bg-sky-100 text-sky-700',
   'Students':     'bg-indigo-100 text-indigo-700',
+  'Expats':       'bg-teal-100 text-teal-700',
 }
 
 // In the city's own day — the server is UTC.

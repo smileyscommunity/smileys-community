@@ -1,3 +1,5 @@
+import { readFileSync } from 'fs'
+import { join } from 'path'
 import { describe, it, expect } from 'vitest'
 import {
   LIFE_STAGES, lifeStage, articlesForStage, populatedStages, includesHighStakes,
@@ -143,5 +145,34 @@ describe('pickArticle — finding a guide by topic, not slug', () => {
 
   it('returns null when the city has no such guide, so the link is left out', () => {
     expect(pickArticle([a('kart', 'Getting Around')], 'Residence & Legal', ENTRY_RULES, 'x')).toBeNull()
+  })
+})
+
+// The moving hub's Expats series (2026-10-02): the 14 living-in-Istanbul
+// pieces were filed under Tips and shown on no hub. Same seams as Students,
+// plus the reading order: the series is read "Start here" first.
+describe('expat stories on the moving hub', () => {
+  it('is a category the admin form accepts, and a series with a Next link', async () => {
+    const { EXPAT_STORY_CATEGORY } = await import('@/lib/relocation')
+    const { CATEGORIES, isCategory, normalizeCommunityCategory } = await import('@/app/admin/posts/constants')
+    const { isSeriesCategory } = await import('@/lib/postSeries')
+    expect(CATEGORIES).toContain(EXPAT_STORY_CATEGORY)
+    expect(isCategory(EXPAT_STORY_CATEGORY)).toBe(true)
+    expect(normalizeCommunityCategory(EXPAT_STORY_CATEGORY)).toBe(EXPAT_STORY_CATEGORY)
+    expect(isSeriesCategory(EXPAT_STORY_CATEGORY)).toBe(true)
+  })
+
+  it('the loader reads the city\'s series oldest first and ships no body', () => {
+    const src = readFileSync(join(process.cwd(), 'app/[city]/data.ts'), 'utf8')
+    const loader = src.slice(src.indexOf('export const getCityMovingHub'), src.indexOf("['city-moving-hub']"))
+    expect(loader).toMatch(/category:\s*EXPAT_STORY_CATEGORY,\s*cityId\s*}/)
+    expect(loader).toMatch(/orderBy:\s*{\s*publishedAt:\s*'asc'\s*}/)
+    expect(loader).toMatch(/cover:\s*articleCover/)
+  })
+
+  it('every badge map has a colour for it', () => {
+    for (const f of ['app/posts/page.tsx', 'app/posts/[slug]/page.tsx', 'app/admin/posts/page.tsx']) {
+      expect(readFileSync(join(process.cwd(), f), 'utf8'), f).toMatch(/'Expats':\s*'bg-/)
+    }
   })
 })

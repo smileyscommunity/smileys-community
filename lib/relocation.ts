@@ -166,3 +166,14 @@ export const REMOTE_WORK_LEGAL = /digital nomad|remote|dijital/i
 // "e-visa"/"evisa" spelled out: a bare "visa" would also match the remote-work
 // guide's "Digital Nomad Visa".
 export const ENTRY_RULES = /\bentering\b|\bentry\b|\be-visa|\bevisa|visa-free|90.?180/i
+
+// ── Expat stories ────────────────────────────────────────────────────────────
+//
+// The moving hub's "Read before you move": community posts in this category
+// pinned to the city (like the student hub's stories — another city's
+// "Living in Istanbul" is not this one's). They are a series written to be
+// read in order ("Start here" first), so the hub lists them oldest first and
+// each article's Next link (lib/postSeries) carries on from the last card.
+export const EXPAT_STORY_CATEGORY = 'Expats'
+/** How many the hub lists before "and N more" — two rows of three. */
+export const EXPAT_STORY_LIMIT = 6
