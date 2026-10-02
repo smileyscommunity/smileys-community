@@ -43,7 +43,7 @@ import FirstEventBlock from '@/components/FirstEventBlock'
 import RecommendedClubs from '@/components/RecommendedClubs'
 import { recommendedClubsFor } from '@/lib/clubRecommendations'
 import Image from 'next/image'
-import { todayInTz, shiftDay, dayInTz, startedCutoff } from '@/lib/cityTime'
+import { todayInTz, shiftDay, startedCutoff } from '@/lib/cityTime'
 import { DEFAULT_TZ } from '@/lib/cityTime'
 import { eventEndsAt } from '@/lib/eventTime'
 import { DEFAULT_CITY_SLUG } from '@/lib/cities'
@@ -665,26 +665,31 @@ export default async function DashboardPage() {
     // *discovery*, not nagging members about RSVPs they've made.
     prisma.event.findMany({
       where: {
-        ...(clubIds.length
-          ? { clubId: { in: clubIds } }
-          : { club: { isPrivate: false, isActive: true } }),
+        // Every new event in the city, not only your clubs' (Nate,
+        // 2026-10-02: "anything new should be on the dashboard") — still
+        // never a private club's you're not in, or an inactive club's.
+        OR: [
+          { clubId: null },
+          { club: { isActive: true, OR: [{ isPrivate: false }, { id: { in: clubIds } }] } },
+        ],
         // Scoped like the rest of the feed. A club you belong to can sit in
         // another city, and a global club (cityId null) runs events in every
         // city — but its EVENT always has a city, and that's what decides
         // whether this timeline entry belongs on the page you're looking at.
         // Without this, switching city kept surfacing the other city's club
-        // events under "new in your clubs".
-        cityId,
+        // events under "new in your clubs". IN_CITY: plus the trips that
+        // depart from it.
+        ...IN_CITY,
         status:    'published',
         date:      { gte: today },
         createdAt: { gte: twoWeeksAgo },
         id:        { notIn: joinedEventIds },
       },
       orderBy: { createdAt: 'desc' },
-      take: 5,
+      take: 15,
       // Only what the timeline shows: a full Event row carries the address,
       // meeting and chat links and payment contact.
-      select: { id: true, title: true, emoji: true, date: true, time: true, endTime: true, createdAt: true, club: { select: { name: true, emoji: true, slug: true } } },
+      select: { id: true, title: true, emoji: true, date: true, time: true, endTime: true, createdAt: true, originCityId: true, club: { select: { name: true, emoji: true, slug: true } } },
     }),
     // Referral stats — reuses userProfile.referralCode (already loaded in
     // batch 1) instead of a redundant prisma.user.findUnique. Self-hides
@@ -1414,6 +1419,19 @@ export default async function DashboardPage() {
   const offeredClubIds  = new Set([...lineupIds, ...exploreClubs.map(c => c.id)])
   const timelineNewClubs = recentlyCreatedClubs.filter(c => !offeredClubIds.has(c.id))
 
+  // Photos on the What's new feed: the last two weeks only (the rail strip
+  // has no window — it's "the latest nine", however old), and one row per
+  // gallery and uploader, so six photos from one picnic are one line.
+  const timelinePhotos = [...recentPhotos
+    .filter(p => new Date(p.createdAt).getTime() >= twoWeeksAgo.getTime())
+    .reduce((m, p) => {
+      const key = `${p.href}|${p.user?.name ?? ''}`
+      const prev = m.get(key)
+      m.set(key, prev ? { ...prev, count: (prev.count ?? 1) + 1 } : { ...p, count: 1 })
+      return m
+    }, new Map<string, (typeof recentPhotos)[number] & { count: number }>())
+    .values()]
+
   const ARTICLE_WINDOW_MS = 14 * 24 * 60 * 60_000
   const timelineArticles = [
     ...latestHandbook.map(p => ({ id: p.id, title: p.title, slug: p.slug, kind: 'handbook' as const,  publishedAt: p.publishedAt })),
@@ -1707,44 +1725,7 @@ export default async function DashboardPage() {
             {/* Poll of the week — engagement */}
             <CommunityPollWidget initial={pollForWidget} />
 
-            {/* New members this week */}
-            {newMembers.length > 0 && (
-              <div className="bg-white rounded-2xl shadow-card p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">New this week<span aria-hidden="true"> 🌱</span></h2>
-                  <Link href="/members" className="text-xs text-amber-600 font-semibold hover:underline">See all</Link>
-                </div>
-                <div className="space-y-2.5">
-                  {newMembers.map((m) => {
-                    const photo = m.profilePhoto ? avatarUrl(m.profilePhoto, 64) : null
-                    const initials = getInitials(m.name)
-                    // Calendar days in the city, not elapsed hours — someone
-                    // who joined at 23:00 yesterday was "Joined today" at 01:00.
-                    const joinedDay = dayInTz(new Date(m.joinedAt), tz)
-                    const daysAgo   = Math.max(0, Math.round(
-                      (Date.parse(`${today}T00:00:00Z`) - Date.parse(`${joinedDay}T00:00:00Z`)) / 86400000))
-                    return (
-                      <Link key={m.id} href={`/members/${m.id}`}
-                        className="flex items-center gap-2.5 hover:bg-gray-50 rounded-xl px-1.5 py-1 -mx-1.5 transition-colors group">
-                        {photo ? (
-                          <img src={photo} alt={m.name} loading="lazy" decoding="async" className="w-8 h-8 rounded-full object-cover shrink-0" />
-                        ) : (
-                          <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-                            style={{ backgroundColor: m.color }}>{initials}</div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-gray-900 truncate group-hover:text-amber-600 transition-colors">{m.name}</p>
-                          <p className="text-xs text-gray-500 truncate">{m.neighborhood ?? (daysAgo === 0 ? 'Joined today' : `${daysAgo}d ago`)}</p>
-                        </div>
-                        {daysAgo === 0 && (
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 shrink-0">New</span>
-                        )}
-                      </Link>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
+            {/* New members moved into "What's new" (2026-10-02). */}
 
             {/* Recent photos */}
             {recentPhotos.length > 0 && (
@@ -1935,10 +1916,18 @@ export default async function DashboardPage() {
                 mobile and desktop. Center column renders on every
                 viewport, so a single placement replaces the previous
                 two (mobile-only + right-rail) renders. */}
-            {/* Only what has no section of its own (2026-09-26): free-now
-                pulses, photos, visitors, new members and listings each have
-                a strip on this page, and fed here too they showed twice. */}
-            <ClubActivityTimeline members={recentActivity} posts={wallActivity} events={clubEventsShown} rsvps={recentRsvps} hangouts={recentHangouts} connections={recentConnections} references={recentReferences} newClubs={timelineNewClubs} businesses={recentBusinesses} eventReviews={recentEventReviews} placeReviews={recentPlaceReviews} hangoutJoins={recentHangoutJoins} hoodPosts={wallHoodPosts} resources={recentResources} testimonials={recentTestimonials} articles={timelineArticles} cityName={city.name} cap={12} />
+            {/* "What's new in <city>" — everything new in one feed (Nate,
+                2026-10-02), reversing 2026-09-26's "only what has no section
+                of its own": new members moved in here and their rail box
+                went; photos, visitors and listings appear here as well as in
+                their strips. Free-now pulses stay out — the live strip pins
+                them. */}
+            <ClubActivityTimeline members={recentActivity} posts={wallActivity}
+              events={clubEventsShown.map(({ originCityId, ...e }) => ({ ...e, isTrip: !!originCityId }))}
+              newMembers={newMembers} photos={timelinePhotos}
+              listings={recentListings.filter(l => l.createdAt >= twoWeeksAgo)}
+              visitors={upcomingVisitors.filter(v => v.createdAt >= twoWeeksAgo).map(v => ({ id: v.id, name: visitorName(v.name), fromCity: v.fromCity, createdAt: v.createdAt }))}
+              rsvps={recentRsvps} hangouts={recentHangouts} connections={recentConnections} references={recentReferences} newClubs={timelineNewClubs} businesses={recentBusinesses} eventReviews={recentEventReviews} placeReviews={recentPlaceReviews} hangoutJoins={recentHangoutJoins} hoodPosts={wallHoodPosts} resources={recentResources} testimonials={recentTestimonials} articles={timelineArticles} cityName={city.name} cap={20} />
 
             {/* Upcoming visitors — surfaces /visiting + the new wave
                 action on the dashboard. Component renders nothing when

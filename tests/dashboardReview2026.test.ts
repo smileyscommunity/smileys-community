@@ -94,13 +94,19 @@ describe('discovery shelves offer only what a member can still join', () => {
 
   it('browse surfaces keep full events but not finished ones', () => {
     expect(page).toContain('const thisWeekShown = thisWeekEvents.filter(notEnded)')
-    expect(page).toContain('events={clubEventsShown} rsvps=')
+    expect(page).toContain('events={clubEventsShown.map(')
   })
 
-  it('the timeline carries nothing that has its own section (2026-09-26)', () => {
+  // Reversed 2026-10-02 (Nate: "anything new should be on the dashboard"):
+  // one "What's new" feed carries every new thing, the members rail box went
+  // into it, and free-now pulses stay out because the live strip pins them.
+  it('the timeline carries everything new; only pulses stay out', () => {
     const tl = page.slice(page.indexOf('<ClubActivityTimeline'), page.indexOf('/>', page.indexOf('<ClubActivityTimeline')))
-    for (const prop of ['photos=', 'pulses=', 'visitors=', 'newMembers=', 'listings=']) expect(tl).not.toContain(prop)
+    for (const prop of ['photos=', 'visitors=', 'newMembers=', 'listings=']) expect(tl).toContain(prop)
+    expect(tl).not.toContain('pulses=')
     expect(tl).toContain('articles={timelineArticles}')
+    expect(tl).toContain('cap={20}')
+    expect(page).not.toContain('New this week<span aria-hidden="true"> 🌱</span>')
   })
 
   it('the rail no longer repeats the Featured shelf or the Marketplace block', () => {
