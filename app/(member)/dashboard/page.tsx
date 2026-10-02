@@ -132,6 +132,13 @@ export default async function DashboardPage() {
   // "this week" counted an eighth day.
   const weekEndStr  = shiftDay(today, 6)
   const PULSE_TAKE  = 5
+  // Per-source fetch for the "What's new" feed. Every feed source is windowed
+  // (a week or two), so this is a ceiling, not the selection: "Show more"
+  // must hold everything new (Nate, 2026-10-02). It was 2–8 per source, and
+  // on a busy day the 9th RSVP of the morning simply wasn't on the page.
+  // Sources shared with a box (photos, listings, visitors) are cut back to
+  // the box's own size where it renders.
+  const FEED_TAKE   = 50
   // 29 ahead plus today = 30, for the same reason weekEndStr is 6.
   const monthEndStr = shiftDay(today, 29)
   // "Upcoming" for every count on this page: later days, plus today's events
@@ -212,7 +219,7 @@ export default async function DashboardPage() {
     prisma.listing.findMany({
       where: { status: 'active', cityId, expiresAt: { gte: new Date() }, userId: { notIn: notMeOrBlocked }, user: LIVE },
       orderBy: { createdAt: 'desc' },
-      take: 4,
+      take: FEED_TAKE,
       select: { id: true, title: true, category: true, photo: true, photoPosition: true, price: true, createdAt: true, user: { select: { name: true, color: true, profilePhoto: true } } },
     }),
     // Moving Sales — separate table from Listing, so it needs its own
@@ -518,7 +525,7 @@ export default async function DashboardPage() {
         user: clubIds.length ? LIVE : { ...LIVE, cityId },
       },
       include: { user: { select: { name: true, color: true } }, club: { select: { name: true, emoji: true, slug: true } } },
-      orderBy: { joinedAt: 'desc' }, take: 5,
+      orderBy: { joinedAt: 'desc' }, take: FEED_TAKE,
     }),
     // Requests still waiting on an event that hasn't happened: a request on
     // last month's event sat here forever.
@@ -544,7 +551,7 @@ export default async function DashboardPage() {
         user: clubIds.length ? LIVE : { ...LIVE, cityId },
         createdAt: { gte: twoWeeksAgo },
       },
-      orderBy: { createdAt: 'desc' }, take: 4,
+      orderBy: { createdAt: 'desc' }, take: FEED_TAKE,
       include: {
         user: { select: { name: true, color: true, profilePhoto: true } },
         club: { select: { name: true, emoji: true, slug: true } },
@@ -686,7 +693,7 @@ export default async function DashboardPage() {
         id:        { notIn: joinedEventIds },
       },
       orderBy: { createdAt: 'desc' },
-      take: 15,
+      take: FEED_TAKE,
       // Only what the timeline shows: a full Event row carries the address,
       // meeting and chat links and payment contact.
       select: { id: true, title: true, emoji: true, date: true, time: true, endTime: true, createdAt: true, originCityId: true, club: { select: { name: true, emoji: true, slug: true } } },
@@ -732,7 +739,7 @@ export default async function DashboardPage() {
         ],
       },
       orderBy: { startsOn: 'asc' },
-      take: 4,
+      take: 20,
       include: { user: { select: { id: true, name: true, color: true, profilePhoto: true, profileVisibility: true } } },
     }),
     // From the Handbook — surfaces the freshest expat-survival articles
@@ -783,7 +790,7 @@ export default async function DashboardPage() {
       where: { status: 'approved', role: MEMBER_ROLE_FILTER, cityId, hiddenFromMembers: false, profileVisibility: { not: 'connections' }, joinedAt: { gte: weekAgo }, id: { notIn: notMeOrBlocked } },
       select: { id: true, name: true, color: true, profilePhoto: true, neighborhood: true, neighborhoodVisible: true, joinedAt: true },
       orderBy: { joinedAt: 'desc' },
-      take: 8,
+      take: FEED_TAKE,
     }).then(rows => rows.map(({ neighborhoodVisible, ...m }) => ({ ...m, neighborhood: neighborhoodVisible ? m.neighborhood : null }))),
     // Merge event-attached photos with standalone club photos so a
     // photo uploaded directly to a club (no event) still surfaces here.
@@ -812,7 +819,7 @@ export default async function DashboardPage() {
           userId: { notIn: blockedIds }, user: LIVE,
         },
         orderBy: { createdAt: 'desc' },
-        take: 9,
+        take: FEED_TAKE,
         select: {
           id: true, url: true, caption: true, createdAt: true, eventId: true, userId: true,
           event: { select: { title: true, hostId: true, club: { select: { slug: true } }, cohosts: { where: { userId: session.id }, select: { id: true } } } },
@@ -826,7 +833,7 @@ export default async function DashboardPage() {
           userId: { notIn: blockedIds }, user: LIVE,
         },
         orderBy: { createdAt: 'desc' },
-        take: 9,
+        take: FEED_TAKE,
         select: { id: true, url: true, caption: true, createdAt: true, clubId: true, userId: true, club: { select: { slug: true, name: true } }, user: { select: { name: true, color: true } } },
       }),
     ]).then(([eventPhotos, clubPhotos]) => [
@@ -842,7 +849,7 @@ export default async function DashboardPage() {
         id: p.id, url: p.url, caption: p.caption, createdAt: p.createdAt, href: `/clubs/${p.club.slug}?tab=photos`, title: p.club.name,
         user: p.userId === session.id || clubIds.includes(p.clubId) ? p.user : null,
       })),
-    ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, 9)),
+    ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, FEED_TAKE)),
     // Trending: upcoming events with the most attendees. The featured-
     // event exclusion that used to live in the WHERE clause is now a
     // post-fetch JS dedupe so this query no longer waits on featuredEvents.
@@ -892,7 +899,7 @@ export default async function DashboardPage() {
     prisma.hangout.findMany({
       where: { status: 'active', cityId, endsAt: { gt: new Date() }, createdAt: { gte: weekAgo }, userId: { notIn: notMeOrBlocked }, user: LIVE },
       orderBy: { createdAt: 'desc' },
-      take: 5,
+      take: FEED_TAKE,
       select: {
         id: true, title: true, neighborhood: true, createdAt: true,
         user: { select: { name: true, color: true } },
@@ -931,7 +938,7 @@ export default async function DashboardPage() {
         receiverId:  { notIn: blockedIds },
       },
       orderBy: { updatedAt: 'desc' },
-      take: 5,
+      take: FEED_TAKE,
       select: {
         updatedAt: true,
         requester: { select: { name: true, color: true } },
@@ -957,7 +964,7 @@ export default async function DashboardPage() {
         toUser:     LIVE,
       },
       orderBy: { createdAt: 'desc' },
-      take: 5,
+      take: FEED_TAKE,
       select: {
         createdAt: true,
         fromUser:  { select: { name: true, color: true } },
@@ -981,7 +988,7 @@ export default async function DashboardPage() {
         event:     { ...IN_CITY, status: 'published', date: { gte: today } },
       },
       orderBy: { joinedAt: 'desc' },
-      take: 8,
+      take: FEED_TAKE,
       select: {
         joinedAt: true,
         user:  { select: { name: true, color: true } },
@@ -993,7 +1000,7 @@ export default async function DashboardPage() {
     prisma.club.findMany({
       where:   { isActive: true, cityId, createdAt: { gte: twoWeeksAgo } },
       orderBy: { createdAt: 'desc' },
-      take: 3,
+      take: FEED_TAKE,
       select: { id: true, name: true, slug: true, emoji: true, createdAt: true },
     }),
     // Newly approved directory places — only after moderation so
@@ -1001,7 +1008,7 @@ export default async function DashboardPage() {
     prisma.business.findMany({
       where:   { isApproved: true, isActive: true, cityId, createdAt: { gte: twoWeeksAgo } },
       orderBy: { createdAt: 'desc' },
-      take: 3,
+      take: FEED_TAKE,
       select: { id: true, name: true, category: true, createdAt: true },
     }),
     // Event reviews — 3★ and up (Nate, 2026-09-26: a middling review is
@@ -1013,7 +1020,7 @@ export default async function DashboardPage() {
     prisma.review.findMany({
       where:   { rating: { gte: 3 }, createdAt: { gte: weekAgo }, userId: { notIn: notMeOrBlocked }, user: LISTABLE, event: { cityId, status: { in: ['published', 'archived'] } } },
       orderBy: { createdAt: 'desc' },
-      take: 12,
+      take: FEED_TAKE,
       select: {
         rating: true, createdAt: true, userId: true,
         user:  { select: { name: true, color: true } },
@@ -1021,7 +1028,7 @@ export default async function DashboardPage() {
       },
     }).then(rows => rows
       .filter(r => !r.event.attendees.some(a => a.userId === r.userId))
-      .slice(0, 4)
+      .slice(0, FEED_TAKE)
       .map(({ userId: _u, event: { attendees: _a, ...event }, ...r }) => ({ ...r, event }))),
     // Directory reviews — 3★ and up (same rule as event reviews), not
     // moderated away, on live places only.
@@ -1035,7 +1042,7 @@ export default async function DashboardPage() {
         business:  { isApproved: true, isActive: true, cityId },
       },
       orderBy: { createdAt: 'desc' },
-      take: 3,
+      take: FEED_TAKE,
       select: {
         rating: true, createdAt: true,
         author:   { select: { name: true, color: true } },
@@ -1046,7 +1053,7 @@ export default async function DashboardPage() {
     prisma.hangoutJoin.findMany({
       where:   { createdAt: { gte: weekAgo }, userId: { notIn: notMeOrBlocked }, user: LIVE, hangout: { status: 'active', cityId, userId: { notIn: blockedIds }, user: LIVE } },
       orderBy: { createdAt: 'desc' },
-      take: 4,
+      take: FEED_TAKE,
       select: {
         createdAt: true,
         user:    { select: { name: true, color: true } },
@@ -1057,7 +1064,7 @@ export default async function DashboardPage() {
     prisma.neighborhoodPost.findMany({
       where:   { cityId, createdAt: { gte: weekAgo }, userId: { notIn: notMeOrBlocked }, user: LIVE },
       orderBy: { createdAt: 'desc' },
-      take: 4,
+      take: FEED_TAKE,
       select: {
         id: true, content: true, neighborhood: true, createdAt: true,
         user: { select: { name: true, color: true } },
@@ -1068,7 +1075,7 @@ export default async function DashboardPage() {
       ? prisma.clubResource.findMany({
           where:   { clubId: { in: clubIds }, createdAt: { gte: twoWeeksAgo } },
           orderBy: { createdAt: 'desc' },
-          take: 3,
+          take: FEED_TAKE,
           select: { id: true, title: true, emoji: true, createdAt: true, club: { select: { name: true, emoji: true, slug: true } } },
         })
       : Promise.resolve([]),
@@ -1078,7 +1085,7 @@ export default async function DashboardPage() {
       // NOT-with-NULL-safe way: a banned or blocked author's quote stayed.
       where:   { active: true, createdAt: { gte: twoWeeksAgo }, AND: [{ OR: [{ cityId }, { cityId: null }] }, testimonialAuthorOk(), { OR: [{ userId: null }, { userId: { notIn: blockedIds } }] }] },
       orderBy: { createdAt: 'desc' },
-      take: 2,
+      take: FEED_TAKE,
       select: { id: true, memberName: true, quote: true, createdAt: true },
     }),
     // Community-wide events in the next 30 days — the "Events this month" stat.
@@ -1734,7 +1741,7 @@ export default async function DashboardPage() {
                   <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">Recent photos<span aria-hidden="true"> 📸</span></h2>
                 </div>
                 <div className="grid grid-cols-3 gap-1.5">
-                  {recentPhotos.map((p) => (
+                  {recentPhotos.slice(0, 9).map((p) => (
                     <Link key={p.id} href={p.href}
                       className="relative aspect-square rounded-xl overflow-hidden group block bg-gray-100">
                       <img
@@ -1932,7 +1939,7 @@ export default async function DashboardPage() {
             {/* Upcoming visitors — surfaces /visiting + the new wave
                 action on the dashboard. Component renders nothing when
                 empty, so it self-hides on quiet weeks. */}
-            <DashboardVisitorsStrip visitors={upcomingVisitors.map(v => ({
+            <DashboardVisitorsStrip visitors={upcomingVisitors.slice(0, 4).map(v => ({
               id:       v.id,
               name:     visitorName(v.name),
               startsOn: typeof v.startsOn === 'string' ? v.startsOn : new Date(v.startsOn).toISOString().split('T')[0],
@@ -2142,7 +2149,7 @@ export default async function DashboardPage() {
                   <Link href="/marketplace" className="text-xs text-amber-600 font-semibold hover:underline">See all →</Link>
                 </div>
                 <div className="space-y-3">
-                  {recentListings.map((l) => {
+                  {recentListings.slice(0, 4).map((l) => {
                     const EMOJI: Record<string, string> = { ROOMS: '🏠', JOBS: '💼', SERVICES: '🛠️', BUY_SELL: '🛍️', FREE: '🎁', LOST_FOUND: '🔍', RECO: '⭐', EXPERIENCES: '🎟️', PETS: '🐾' }
                     return (
                       <Link key={l.id} href={`/marketplace?l=${l.id}`}
