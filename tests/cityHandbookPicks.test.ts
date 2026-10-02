@@ -14,6 +14,9 @@ const page  = readFileSync(join(__dirname, '../app/[city]/page.tsx'), 'utf8')
 const read  = (p: string) => readFileSync(join(__dirname, '..', p), 'utf8')
 // The four arrival hubs show the same shelf in their Handbook section.
 const HUBS = ['app/[city]/moving/page.tsx', 'app/[city]/remote-work/page.tsx', 'app/[city]/students/page.tsx', 'app/visiting/page.tsx']
+// /visiting dropped the shelf (Nate, 2026-10-02): the city's most-read
+// articles are renting and family life — moving-here reading, not a trip's.
+const SHELF_HUBS = HUBS.filter(h => h !== 'app/visiting/page.tsx')
 
 describe('city page Handbook shelf', () => {
   it("reads only this city's own published Handbook articles, most read first, three at most", () => {
@@ -49,7 +52,7 @@ describe('city page Handbook shelf', () => {
     expect(page).toContain('handbookPicks={handbookPicks}')
   })
 
-  it.each(HUBS)('%s shows the same shelf, read for its own city', hub => {
+  it.each(SHELF_HUBS)('%s shows the same shelf, read for its own city', hub => {
     const src = read(hub)
     expect(src).toMatch(/getCityHandbookPicks\((city\.id|cityId)\),/)
     expect(src.match(/<HandbookPicks citySlug=\{city\.slug\} picks=\{handbookPicks\}/g)).toHaveLength(1)
@@ -65,31 +68,48 @@ describe('city page Handbook shelf', () => {
   })
 })
 
-describe('/visiting Handbook essentials', () => {
+describe('/visiting visitor essentials', () => {
   const visiting = read('app/visiting/page.tsx')
+  // The page's own patterns, read out of the source so the test checks what ships.
+  const pattern = (key: string) => {
+    const m = visiting.match(new RegExp(`key: '${key}',[^\\n]*?about: (/[^\\n]*?/[a-z]*),`))
+    if (!m) throw new Error(`no row ${key}`)
+    const body = m[1].slice(1, m[1].lastIndexOf('/')), flags = m[1].slice(m[1].lastIndexOf('/') + 1)
+    return new RegExp(body, flags)
+  }
 
-  it('each row picks the article about its topic, with the category pick as fallback', () => {
-    // The newest-in-category rule put SIM on the e-Devlet guide, Money on the
-    // tax-number guide and Istanbul's transport on the airport guide.
-    expect(visiting).toContain("pickArticle(handbook, 'Mobile & Digital', /\\bsim\\b|esim|internet/i, cityId) ?? essential('Mobile & Digital')")
-    expect(visiting).toContain("pickArticle(handbook, 'Getting Around', /kart|card|getting.around|dolmu/i, cityId) ?? essential('Getting Around')")
-    expect(visiting).toContain("pickArticle(handbook, 'Money & Banking', /bank/i, cityId) ?? essential('Money & Banking')")
-    expect(visiting).toContain("pickArticle(handbook, 'Safety & Emergencies', /emergenc|\\b112\\b/i, cityId) ?? essential('Safety & Emergencies')")
+  it('is a visitor\'s list: no Start-here shelf, no bank-account row', () => {
+    expect(visiting).not.toContain('<HandbookPicks')
+    expect(visiting).not.toContain('getCityHandbookPicks')
+    expect(visiting).not.toMatch(/key: 'money'/)
+    for (const k of ['entry', 'airport', 'connect', 'transport', 'scams', 'emergency']) expect(visiting).toContain(`key: '${k}'`)
+  })
+
+  it('each row picks the article about its topic; one article answers one row', () => {
+    expect(visiting).toContain('pickArticle(pool, r.category, r.about, cityId) ?? (r.fallback ? essentialIn(pool, r.category) : null)')
+    expect(visiting).toContain('usedSlugs.add(article.slug)')
+    // The airport row is asked before transport, so the transport pattern can't claim the airport guide.
+    expect(visiting.indexOf("key: 'airport'")).toBeLessThan(visiting.indexOf("key: 'transport'"))
   })
 
   it('the patterns land on the right real articles and skip the wrong ones', () => {
-    const transport = /kart|card|getting.around|dolmu/i
+    const transport = pattern('transport'), airport = pattern('airport'), sim = pattern('connect'), scams = pattern('scams')
     for (const t of ['Istanbulkart Mastery: The only ticket that matters', 'Antalyakart: One Card for the Bus and the Tram',
                      'Getting Around Bodrum: Dolmuş, Ferries, Taxis & the Airport', 'İzmirim Kart: The Only Ticket That Matters'])
-      expect(transport.test(t)).toBe(true)
+      expect(transport.test(t), t).toBe(true)
     expect(transport.test('Arriving in Istanbul: Getting from IST and Sabiha Gökçen into the City arriving-in-istanbul')).toBe(false)
-    expect(/\bsim\b|esim|internet/i.test('e-Devlet for Foreigners: Getting Your Password e-devlet-for-foreigners')).toBe(false)
-    expect(/\bsim\b|esim|internet/i.test('Getting a SIM Card and Home Internet in Türkiye')).toBe(true)
-    expect(/bank/i.test('Getting a Turkish Tax Number as a Foreigner')).toBe(false)
+    expect(airport.test('Arriving in Istanbul: Getting from IST and Sabiha Gökçen into the City')).toBe(true)
+    // Bodrum's transport guide mentions the airport; it must stay Bodrum's "Getting around".
+    expect(airport.test('Getting Around Bodrum: Dolmuş, Ferries, Taxis & the Airport')).toBe(false)
+    expect(sim.test('e-Devlet for Foreigners: Getting Your Password e-devlet-for-foreigners')).toBe(false)
+    expect(sim.test('Getting a SIM Card and Home Internet in Türkiye')).toBe(true)
+    expect(scams.test('Scams & Tourist Traps in Türkiye: How to stay safe without becoming paranoid')).toBe(true)
   })
 
-  it('the essentials list skips articles the Start-here cards already show', () => {
-    expect(visiting).toContain('const listedEssentials = essentials.filter(x => !pickedSlugs.has(x.article!.slug))')
-    expect(visiting).toContain('{listedEssentials.map(x => (')
+  it('what a first event is like sits with the events, not in the first 48 hours', () => {
+    const plan = visiting.indexOf('<section id="plan"'), first48 = visiting.indexOf('<section id="first-48"')
+    const explainer = visiting.indexOf('What a first Smileys event is like')
+    expect(explainer).toBeGreaterThan(plan)
+    expect(visiting.slice(first48, visiting.indexOf('</section>', first48))).not.toContain('What a first Smileys event is like')
   })
 })

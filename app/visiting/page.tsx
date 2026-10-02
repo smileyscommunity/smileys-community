@@ -32,8 +32,6 @@ import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
 import { loadExperiences } from '@/lib/guideContent'
 import VisitingClient from './VisitingClient'
 import StickyVisitCta from './StickyVisitCta'
-import HandbookPicks from '@/components/HandbookPicks'
-import { getCityHandbookPicks } from '@/lib/cityHandbookPicks'
 
 // Cached 2-min — visitor announcements don't churn second-by-second.
 // `today` is passed in so day-boundary rollover invalidates the
@@ -505,36 +503,44 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
   // All existing content: the city's Handbook (lib/handbookIndex), its Guide
   // audiences and day routes (lib/guide, lib/guideContent), and the city list
   // with the same maturity signal the city cards use (lib/tripPlan).
-  const [handbook, routes, publicCities, handbookPicks, travellerStories] = await Promise.all([
+  const [handbook, routes, publicCities, travellerStories] = await Promise.all([
     getCityHandbookIndex(cityId, city.country ?? null),
     loadRoutes(cityId),
     getPublicCities(),
-    getCityHandbookPicks(cityId),
     getTravellerStories(cityId),
   ])
   // The city's own article first (its transport card beats a national note).
-  const essential = (category: string) => handbook
+  const essentialIn = (pool: typeof handbook, category: string) => pool
     .filter(a => canonicalCategory(a.category) === category)
     .sort((a, b) => Number(b.cityId === cityId) - Number(a.cityId === cityId))[0] ?? null
-  const essentials = [
-    // Before anything else a traveller needs to know whether they can come
-    // and for how long — the entry-rules guide, found by topic (it shares
-    // Residence & Legal with the residence-permit guides a visitor doesn't need).
-    { key: 'entry',     label: 'Entry rules and visas',  article: pickArticle(handbook, 'Residence & Legal', ENTRY_RULES, cityId) },
-    // Each row asks for the article ABOUT its topic, not just the newest in its
-    // category: that rule had "SIM and internet" on the e-Devlet guide, "Money"
-    // on the tax-number guide and Istanbul's "Getting around" on the airport
-    // guide. The category's own-city-first pick stays as the fallback.
-    { key: 'connect',   label: 'SIM and internet',       article: pickArticle(handbook, 'Mobile & Digital', /\bsim\b|esim|internet/i, cityId) ?? essential('Mobile & Digital') },
-    { key: 'transport', label: 'Getting around',         article: pickArticle(handbook, 'Getting Around', /kart|card|getting.around|dolmu/i, cityId) ?? essential('Getting Around') },
-    { key: 'money',     label: 'Money',                  article: pickArticle(handbook, 'Money & Banking', /bank/i, cityId) ?? essential('Money & Banking') },
-    { key: 'safety',    label: 'Safety and emergencies', article: pickArticle(handbook, 'Safety & Emergencies', /emergenc|\b112\b/i, cityId) ?? essential('Safety & Emergencies') },
-  ].filter(x => x.article)
-  // The list under the Start-here cards skips what the cards already show
-  // (the city's transport-card guide sat in both). The 48-hour steps still
-  // link every essential — they are a sequence, not a list.
-  const pickedSlugs      = new Set(handbookPicks.map(p => p.slug))
-  const listedEssentials = essentials.filter(x => !pickedSlugs.has(x.article!.slug))
+  // A VISITOR's essentials, in the order a trip needs them (Nate, 2026-10-02):
+  // the page used to share the city page's "Start here" shelf (renting a flat,
+  // family life) and listed the bank-account guide as "Money". Each row asks
+  // for the article ABOUT its topic, not the newest in its category (that rule
+  // once put "SIM and internet" on the e-Devlet guide). Rows marked fallback
+  // take the city's own article in the category when none matches the topic
+  // (a small city's SIM or transport note); the rest show nothing rather than
+  // something wrong.
+  // One article answers one row — the airport guide is picked before the
+  // transport card so the broader transport pattern can't claim it.
+  const essentialRows = [
+    { key: 'entry',     label: 'Entry rules and visas', category: 'Residence & Legal',    about: ENTRY_RULES, fallback: false },
+    // Arrival guides only: "Getting Around Bodrum: … & the Airport" is Bodrum's
+    // transport guide and must stay its "Getting around" row.
+    { key: 'airport',   label: 'From the airport',      category: 'Getting Around',       about: /arriving in|from (the )?airport|airport transfer|havaliman|sabiha/i, fallback: false },
+    { key: 'connect',   label: 'SIM and internet',      category: 'Mobile & Digital',     about: /\bsim\b|esim|internet/i, fallback: true },
+    { key: 'transport', label: 'Getting around',        category: 'Getting Around',       about: /kart|card|getting.around|dolmu/i, fallback: true },
+    { key: 'scams',     label: 'Scams and tourist traps', category: 'Safety & Emergencies', about: /scam|trap/i, fallback: false },
+    { key: 'emergency', label: 'Emergency numbers',     category: 'Safety & Emergencies', about: /emergenc|\b112\b/i, fallback: true },
+  ] as const
+  const usedSlugs = new Set<string>()
+  const essentials = essentialRows.flatMap(r => {
+    const pool    = handbook.filter(a => !usedSlugs.has(a.slug))
+    const article = pickArticle(pool, r.category, r.about, cityId) ?? (r.fallback ? essentialIn(pool, r.category) : null)
+    if (!article) return []
+    usedSlugs.add(article.slug)
+    return [{ key: r.key, label: r.label, article }]
+  })
   const firstTimerSoon = timedEvents.filter(e => e.isFirstTimerFriendly)
   // Guide intents this city's vocabulary can answer, with how many
   // experiences each one opens — an intent with none is not offered.
@@ -667,36 +673,24 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
             ))}
           </ol>
 
-          <HandbookPicks citySlug={city.slug} picks={handbookPicks} className="mt-8" />
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
-            {listedEssentials.length > 0 && (
-              <div className="rounded-2xl border border-gray-100 bg-white shadow-sm p-5">
-                <h3 className="font-bold text-gray-900 mb-2">Handbook essentials</h3>
-                <ul className="space-y-1.5 text-sm">
-                  {listedEssentials.map(x => (
-                    <li key={x.key}>
-                      <span className="text-gray-500">{x.label}: </span>
-                      <Link href={`/handbook/${x.article!.slug}${handbookQs(city.slug)}`} className="font-semibold text-gray-900 hover:text-amber-700">{x.article!.title}</Link>
-                    </li>
-                  ))}
-                </ul>
-                <p className="text-xs text-gray-500 mt-3 leading-relaxed">
-                  Practical guidance, not legal, visa, medical or transport-operator advice. Fares,
-                  rules and requirements change — where a guide links official sources, check them before you rely on it.
-                </p>
-              </div>
-            )}
-            <div className="rounded-2xl border border-gray-100 bg-white shadow-sm p-5">
-              <h3 className="font-bold text-gray-900 mb-2">What a first Smileys event is like</h3>
-              <ul className="space-y-2 text-sm text-gray-600 leading-relaxed">
-                <li className="flex gap-2"><span aria-hidden="true">👋</span><span>Events marked <span className="font-semibold text-gray-900">First-timer friendly</span> are picked by the team as easy ones to come to on your own.</span></li>
-                <li className="flex gap-2"><span aria-hidden="true">👤</span><span>Every event names its host and shows how many people are going before you RSVP.</span></li>
-                <li className="flex gap-2"><span aria-hidden="true">💰</span><span>Many are free; when there is a price, it is shown up front.</span></li>
-                <li className="flex gap-2"><span aria-hidden="true">📅</span><span>Plans change? Cancel as early as you can, so someone on the waitlist gets your spot.</span></li>
+          {/* Visitor essentials — one compact row, the guides a trip needs. */}
+          {essentials.length > 0 && (
+            <div className="mt-8 rounded-2xl border border-gray-100 bg-white shadow-sm p-5">
+              <h3 className="font-bold text-gray-900 mb-3">Visitor essentials</h3>
+              <ul className="grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3 text-sm">
+                {essentials.map(x => (
+                  <li key={x.key}>
+                    <span className="block text-xs font-bold uppercase tracking-wide text-gray-500">{x.label}</span>
+                    <Link href={`/handbook/${x.article.slug}${handbookQs(city.slug)}`} className="font-semibold text-gray-900 hover:text-amber-700">{x.article.title}</Link>
+                  </li>
+                ))}
               </ul>
+              <p className="text-xs text-gray-500 mt-4 leading-relaxed">
+                Practical guidance, not legal, visa, medical or transport-operator advice. Fares,
+                rules and requirements change — where a guide links official sources, check them before you rely on it.
+              </p>
             </div>
-          </div>
+          )}
         </div>
       </section>
 
@@ -912,6 +906,17 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
             ) : (
               <p className="text-sm text-gray-600">Nothing on the {city.name} calendar in the next two months yet — add your dates and check back closer to your trip.</p>
             )}
+          </div>
+
+          {/* What a first event is like — beside the events it explains. */}
+          <div className="mt-8 max-w-3xl rounded-2xl border border-gray-100 bg-white shadow-sm p-5">
+            <h3 className="font-bold text-gray-900 mb-2">What a first Smileys event is like</h3>
+            <ul className="space-y-2 text-sm text-gray-600 leading-relaxed">
+              <li className="flex gap-2"><span aria-hidden="true">👋</span><span>Events marked <span className="font-semibold text-gray-900">First-timer friendly</span> are picked by the team as easy ones to come to on your own.</span></li>
+              <li className="flex gap-2"><span aria-hidden="true">👤</span><span>Every event names its host and shows how many people are going before you RSVP.</span></li>
+              <li className="flex gap-2"><span aria-hidden="true">💰</span><span>Many are free; when there is a price, it is shown up front.</span></li>
+              <li className="flex gap-2"><span aria-hidden="true">📅</span><span>Plans change? Cancel as early as you can, so someone on the waitlist gets your spot.</span></li>
+            </ul>
           </div>
         </div>
       </section>
