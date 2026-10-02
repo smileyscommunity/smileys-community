@@ -61,6 +61,23 @@ const VISIT_WHERE = (today: string, cityId: string, forMembers: boolean) => ({
 // posts, newest first (lib/tripPlan TRAVELLER_SHELF_CATEGORIES). Cached per city; only the
 // fields the cards render leave the cache (the body is read for the cover).
 // Tagged 'posts' so a publish from the panel shows here at once.
+// Covers for the first visitor essentials (Nate, 2026-10-02: "add image to
+// first 3"). The Handbook index carries no covers on purpose — every hub
+// reads it, and a cover means reading the body — so only the featured
+// slugs are looked up here. No category-banner fallback: those are text
+// graphics, not photos; a guide without a photo shows without one.
+const getEssentialCovers = unstable_cache(
+  async (slugs: string[]) => {
+    const rows = await prisma.post.findMany({
+      where:  { slug: { in: slugs }, kind: 'handbook', status: 'published' },
+      select: { slug: true, coverImage: true, body: true },
+    })
+    return Object.fromEntries(rows.map(r => [r.slug, articleCover({ coverImage: r.coverImage, body: r.body })]))
+  },
+  ['visiting-essential-covers'],
+  { revalidate: 300, tags: ['handbook'] },
+)
+
 const getTravellerStories = unstable_cache(
   async (cityId: string) => {
     const rows = await prisma.post.findMany({
@@ -545,6 +562,13 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
     usedSlugs.add(article.slug)
     return [{ key: r.key, label: r.label, article }]
   })
+  // The first three get a cover card; the rest stay a compact list.
+  const FEATURED_ESSENTIALS = 3
+  const featuredEssentials = essentials.slice(0, FEATURED_ESSENTIALS)
+  const otherEssentials    = essentials.slice(FEATURED_ESSENTIALS)
+  const essentialCovers    = featuredEssentials.length > 0
+    ? await getEssentialCovers(featuredEssentials.map(x => x.article.slug))
+    : {}
   const firstTimerSoon = timedEvents.filter(e => e.isFirstTimerFriendly)
   // Guide intents this city's vocabulary can answer, with how many
   // experiences each one opens — an intent with none is not offered.
@@ -620,16 +644,40 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
               <h2 id="essentials-title" className="section-title">Visitor essentials</h2>
               <p className="section-subtitle max-w-2xl">The guides worth reading before you fly.</p>
             </div>
-            <div className="rounded-2xl border border-gray-100 bg-white shadow-sm p-5">
-              <ul className="grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3 text-sm">
-                {essentials.map(x => (
+            <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {featuredEssentials.map(x => {
+                const cover = essentialCovers[x.article.slug]
+                return (
                   <li key={x.key}>
-                    <span className="block text-xs font-bold uppercase tracking-wide text-gray-500">{x.label}</span>
-                    <Link href={`/handbook/${x.article.slug}${handbookQs(city.slug)}`} className="font-semibold text-gray-900 hover:text-amber-700">{x.article.title}</Link>
+                    <Link href={`/handbook/${x.article.slug}${handbookQs(city.slug)}`}
+                      className="group h-full flex flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm hover:border-amber-200 hover:shadow-md transition-all">
+                      {cover && (
+                        // Absolute image: an aspect-ratio box grows to fit a portrait cover.
+                        <div className="relative aspect-[16/9] overflow-hidden bg-gray-100">
+                          <img src={cover} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+                        </div>
+                      )}
+                      <div className="p-5 flex-1">
+                        <span className="block text-xs font-bold uppercase tracking-wide text-gray-500">{x.label}</span>
+                        <span className="mt-1 block font-semibold text-gray-900 leading-snug group-hover:text-amber-700 transition-colors">{x.article.title}</span>
+                      </div>
+                    </Link>
                   </li>
-                ))}
-              </ul>
-              <p className="text-xs text-gray-500 mt-4 leading-relaxed">
+                )
+              })}
+            </ul>
+            <div className="mt-5 rounded-2xl border border-gray-100 bg-white shadow-sm p-5">
+              {otherEssentials.length > 0 && (
+                <ul className="grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3 text-sm mb-4">
+                  {otherEssentials.map(x => (
+                    <li key={x.key}>
+                      <span className="block text-xs font-bold uppercase tracking-wide text-gray-500">{x.label}</span>
+                      <Link href={`/handbook/${x.article.slug}${handbookQs(city.slug)}`} className="font-semibold text-gray-900 hover:text-amber-700">{x.article.title}</Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <p className="text-xs text-gray-500 leading-relaxed">
                 Practical guidance, not legal, visa, medical or transport-operator advice. Fares,
                 rules and requirements change — where a guide links official sources, check them before you rely on it.
               </p>

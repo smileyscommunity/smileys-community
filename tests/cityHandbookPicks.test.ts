@@ -113,3 +113,16 @@ describe('/visiting visitor essentials', () => {
     expect(visiting.slice(first48, visiting.indexOf('</section>', first48))).not.toContain('What a first Smileys event is like')
   })
 })
+
+describe('/visiting featured essentials', () => {
+  const visiting = read('app/visiting/page.tsx')
+  it('the first three get a cover card; covers are read for those slugs only, with no banner fallback', () => {
+    expect(visiting).toContain('const FEATURED_ESSENTIALS = 3')
+    expect(visiting).toContain('getEssentialCovers(featuredEssentials.map(x => x.article.slug))')
+    const fn = visiting.slice(visiting.indexOf('const getEssentialCovers'), visiting.indexOf("['visiting-essential-covers']"))
+    expect(fn).toContain('where:  { slug: { in: slugs }')
+    // articleCover falls back to the category banner only when given a category — never here.
+    expect(fn).toContain('articleCover({ coverImage: r.coverImage, body: r.body })')
+    expect(fn).not.toMatch(/category/)
+  })
+})
