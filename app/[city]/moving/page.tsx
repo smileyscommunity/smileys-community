@@ -172,47 +172,11 @@ export default async function CityMovingPage({ params }: Params) {
         </div>
       </section>
 
-      {/* ── Practical topics ─────────────────────────────────────────── */}
-      {topics.length > 0 && (
-        <section aria-labelledby="topics-title" className="py-12 sm:py-16 bg-gray-50 border-t border-gray-100">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="mb-8">
-              <h2 id="topics-title" className="section-title">The practical side</h2>
-              <p className="section-subtitle max-w-2xl">
-                Guides from the {city.name} Handbook, written by the Smileys team. Where a guide links official sources, those are the requirements; the rest is lived experience.
-              </p>
-            </div>
-            <HandbookPicks citySlug={city.slug} picks={handbookPicks} className="mb-8" />
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {topics.map(t => {
-                const lead = t.articles[0]
-                const reviewed = reviewLabel(lead)
-                return (
-                  <Link key={t.category} href={`/handbook/category/${encodeURIComponent(t.category)}${cityQs}`}
-                    className="group bg-white border border-gray-100 rounded-2xl shadow-sm p-5 hover:border-amber-200 hover:shadow-md transition-all">
-                    <div className="flex items-start justify-between gap-3 mb-2">
-                      <h3 className="font-bold text-gray-900 group-hover:text-amber-700 transition-colors">{t.title}</h3>
-                      <span className="shrink-0 text-xs font-semibold text-gray-500 tabular-nums">{t.articles.length} {t.articles.length === 1 ? 'guide' : 'guides'}</span>
-                    </div>
-                    <p className="text-sm text-gray-600 line-clamp-2">{lead.title}</p>
-                    {(reviewed || lead.hasOfficialSources) && (
-                      <p className="text-xs text-gray-500 mt-2">
-                        {[reviewed && !reviewed.stale ? reviewed.text : null, lead.hasOfficialSources ? 'Links official sources' : null].filter(Boolean).join(' · ')}
-                      </p>
-                    )}
-                  </Link>
-                )
-              })}
-            </div>
-          </div>
-        </section>
-      )}
-
       {/* ── Read before you move ─────────────────────────────────────── */}
       {/* The city's Expats series (lib/relocation EXPAT_STORY_CATEGORY), in
           reading order. Hidden until the city has one. */}
       {hub.stories.length > 0 && (
-        <section id="stories" aria-labelledby="stories-title" className="py-12 sm:py-16 bg-white border-t border-gray-100 scroll-mt-20">
+        <section id="stories" aria-labelledby="stories-title" className="py-12 sm:py-16 bg-gray-50 border-t border-gray-100 scroll-mt-20">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="mb-8">
               <h2 id="stories-title" className="section-title">Read before you move</h2>
@@ -247,6 +211,42 @@ export default async function CityMovingPage({ params }: Params) {
                 And {hub.storyTotal - hub.stories.length} more — the last one here links on to the next.
               </p>
             )}
+          </div>
+        </section>
+      )}
+
+      {/* ── Practical topics ─────────────────────────────────────────── */}
+      {topics.length > 0 && (
+        <section aria-labelledby="topics-title" className="py-12 sm:py-16 bg-white border-t border-gray-100">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="mb-8">
+              <h2 id="topics-title" className="section-title">The practical side</h2>
+              <p className="section-subtitle max-w-2xl">
+                Guides from the {city.name} Handbook, written by the Smileys team. Where a guide links official sources, those are the requirements; the rest is lived experience.
+              </p>
+            </div>
+            <HandbookPicks citySlug={city.slug} picks={handbookPicks} className="mb-8" />
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {topics.map(t => {
+                const lead = t.articles[0]
+                const reviewed = reviewLabel(lead)
+                return (
+                  <Link key={t.category} href={`/handbook/category/${encodeURIComponent(t.category)}${cityQs}`}
+                    className="group bg-white border border-gray-100 rounded-2xl shadow-sm p-5 hover:border-amber-200 hover:shadow-md transition-all">
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <h3 className="font-bold text-gray-900 group-hover:text-amber-700 transition-colors">{t.title}</h3>
+                      <span className="shrink-0 text-xs font-semibold text-gray-500 tabular-nums">{t.articles.length} {t.articles.length === 1 ? 'guide' : 'guides'}</span>
+                    </div>
+                    <p className="text-sm text-gray-600 line-clamp-2">{lead.title}</p>
+                    {(reviewed || lead.hasOfficialSources) && (
+                      <p className="text-xs text-gray-500 mt-2">
+                        {[reviewed && !reviewed.stale ? reviewed.text : null, lead.hasOfficialSources ? 'Links official sources' : null].filter(Boolean).join(' · ')}
+                      </p>
+                    )}
+                  </Link>
+                )
+              })}
+            </div>
           </div>
         </section>
       )}

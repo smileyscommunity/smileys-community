@@ -176,3 +176,17 @@ describe('expat stories on the moving hub', () => {
     }
   })
 })
+
+describe('moving hub section order', () => {
+  // Nate, 2026-10-02: step by step stays first (practical-first page), then
+  // the Expats series — the reading that comes before looking things up —
+  // then the practical reference grid.
+  it('step by step, then Read before you move, then The practical side', () => {
+    const page = readFileSync(join(process.cwd(), 'app/[city]/moving/page.tsx'), 'utf8')
+    const at = (id: string) => page.indexOf(`aria-labelledby="${id}"`)
+    expect(at('timeline-title')).toBeGreaterThan(-1)
+    expect(at('timeline-title')).toBeLessThan(at('stories-title'))
+    expect(at('stories-title')).toBeLessThan(at('topics-title'))
+    expect(at('topics-title')).toBeLessThan(at('hoods-title'))
+  })
+})
