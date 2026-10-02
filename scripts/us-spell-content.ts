@@ -7,6 +7,8 @@
 //   businesses     description               (the directory copy we wrote)
 //   neighborhoods  vibe, area                (registry labels)
 //   guide          guide_entries tagline, title
+//   sources        posts.officialSources[].label  (jsonb — the label text only; the
+//                  url and every other key are carried through unchanged)
 //
 // NOT touched, on purpose: anything a member wrote (bios, applications,
 // messages, event/club/hangout descriptions, reviews, listings), history
@@ -39,7 +41,7 @@ import { prisma } from '@/lib/prisma'
 import { writeAudit } from '@/lib/audit'
 
 const APPLY   = process.env.APPLY === '1'
-const TARGETS = (process.env.TARGETS ?? 'posts,businesses,neighborhoods,guide').split(',').map(s => s.trim()).filter(Boolean)
+const TARGETS = (process.env.TARGETS ?? 'posts,businesses,neighborhoods,guide,sources').split(',').map(s => s.trim()).filter(Boolean)
 const EXPECT  = process.env.EXPECT ? Number(process.env.EXPECT) : null
 
 // Whole-word proper nouns / official names to leave exactly as written.
@@ -83,11 +85,26 @@ function replaceHtml(html: string, hits: Hit[]): string {
   }).join('')
 }
 
-interface Change { target: string; table: string; id: string; label: string; col: string; old: string; next: string; hits: Hit[] }
+interface Change { target: string; table: string; id: string; label: string; col: string; old: string; next: string; hits: Hit[]; jsonb?: boolean }
 
 async function main() {
   const changes: Change[] = []
   for (const name of TARGETS) {
+    if (name === 'sources') {
+      // officialSources: [{ label, url, … }]. Only `label` is read as text; the
+      // whole array is written back with every other key untouched, guarded on
+      // the jsonb still being equal to what was read (jsonb equality ignores key order).
+      const rows = await prisma.$queryRawUnsafe<{ id: string; slug: string; src: unknown }[]>(
+        `SELECT "id", "slug", "officialSources" AS "src" FROM "posts" WHERE jsonb_typeof("officialSources") = 'array'`)
+      for (const r of rows) {
+        if (!Array.isArray(r.src)) continue
+        const hits: Hit[] = []
+        const next = r.src.map(e => (e && typeof e === 'object' && typeof (e as { label?: unknown }).label === 'string')
+          ? { ...(e as Record<string, unknown>), label: replaceText((e as { label: string }).label, hits) } : e)
+        if (hits.length) changes.push({ target: 'sources', table: 'posts', id: r.id, label: r.slug, col: 'officialSources', old: JSON.stringify(r.src), next: JSON.stringify(next), hits, jsonb: true })
+      }
+      continue
+    }
     const t = ALL_TARGETS[name]
     if (!t) { console.error(`✗ unknown target ${name}`); process.exit(1) }
     const rows = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(
@@ -134,8 +151,9 @@ async function main() {
   let done = 0; const skipped: string[] = []
   for (const c of changes) {
     // table/col come from the fixed ALL_TARGETS map above, never from input
+    const cast = c.jsonb ? '::jsonb' : ''
     const n = await prisma.$executeRawUnsafe(
-      `UPDATE "${c.table}" SET "${c.col}" = $1 WHERE "id" = $2 AND "${c.col}" = $3`, c.next, c.id, c.old)
+      `UPDATE "${c.table}" SET "${c.col}" = $1${cast} WHERE "id" = $2 AND "${c.col}" = $3${cast}`, c.next, c.id, c.old)
     if (n === 1) done++; else skipped.push(`${c.target}:${c.label}.${c.col}`)
   }
   console.log(`✓ updated ${done} cells; skipped ${skipped.length} (edited since the read)${skipped.length ? ': ' + skipped.join(', ') : ''}`)
