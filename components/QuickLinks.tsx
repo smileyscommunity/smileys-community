@@ -21,9 +21,9 @@ const BASE_LINKS: LinkItem[] = [
   { label: 'Profile visitors',  href: '/profile-visitors', icon: '👀' },
   { label: 'Notifications',     href: '/notifications',    icon: '🔔' },
   { label: 'Member Card',       href: '/card',             icon: '🪪' },
-  { label: 'Community Board',   href: '/board',         icon: '📋' },
-  { label: 'City Guide',        href: '/guide',            icon: '🗺️' },
-  { label: 'The Handbook',      href: '/handbook',         icon: '📖' },
+  // Board, City Guide and Handbook live in the dashboard's Discover card,
+  // directly above this one in the rail (2026-10-02) — listed here too they
+  // were the same link twice in one column.
   { label: 'Community Rules',   href: '/guidelines',       icon: '📜' },
   { label: 'Install App',       href: '#install',          icon: '📲', isAction: true },
 ]

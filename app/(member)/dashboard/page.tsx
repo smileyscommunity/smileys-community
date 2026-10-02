@@ -2499,56 +2499,22 @@ export default async function DashboardPage() {
               that, visible everywhere. */}
           <div className="order-3 lg:w-60 lg:shrink-0 space-y-4">
 
-            {/* ── DISCOVER ──
-                On mobile this is the ONLY route to these pages. The header's
-                Discover dropdown is desktop-only, the bottom bar is full at six
-                tabs, and the account sheet is for your own account — so without
-                this strip a member on a phone cannot reach Experiences, the
-                Guide, the Directory, the Board, Neighborhoods, Stories or
-                Hosts at all.
-                In the right rail (Nate, 2026-10-02 — it sat at the foot of the
-                centre column): outside the rail's desktop-only block, so it
-                still renders on phones, where it comes after the left column.
-                One column at rail width. Reads from lib/navLinks so it can't
-                drift from the desktop menu. */}
-            <div className="bg-white rounded-2xl shadow-card p-4">
-              <h2 className="text-sm font-bold text-gray-900 mb-3">Discover</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-1 gap-2">
-                {DISCOVER_LINKS
-                  .filter(l => !l.guestOnly)
-                  // Same rule as the footer: a city grows into neighborhoods,
-                  // so don't offer the link until it has some.
-                  .filter(l => l.href !== '/neighborhoods' || hasNeighborhoods)
-                  .map(link => (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-gray-50 hover:bg-amber-50 text-sm text-gray-700 hover:text-amber-700 transition-colors"
-                  >
-                    <span aria-hidden="true" className="text-base shrink-0">{link.emoji}</span>
-                    <span className="truncate">{link.label}</span>
-                  </Link>
-                ))}
-                <Link
-                  href="/cities"
-                  className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-gray-50 hover:bg-amber-50 text-sm text-gray-700 hover:text-amber-700 transition-colors"
-                >
-                  <span aria-hidden="true" className="text-base shrink-0">🌍</span>
-                  <span className="truncate">Cities</span>
-                </Link>
-              </div>
-            </div>
-
-
             {/* Desktop-only widgets — too dense / sidebar-shaped for
                 mobile (mini calendar, weather, narrow listing card). */}
             <div className="hidden lg:block space-y-4">
 
-            {/* Onboarding checklist — top of the right rail so new users see
-                the actionable thing before weather / calendar / teasers.
-                Same component as the mobile copy at the top of the center
-                column. Self-hides when all steps are done, so established
-                users see this slot collapse to nothing. */}
+            {/* Weather, then the calendar, top of the rail (Nate, 2026-10-02). */}
+            <CityWeather name={city.name} lat={city.lat} lng={city.lng} timezone={city.timezone} />
+
+            {/* Mini calendar */}
+            <div className="bg-white rounded-2xl shadow-card p-5">
+              <MiniCalendar eventDates={upcomingDates} tz={tz} />
+            </div>
+
+            {/* Onboarding checklist — right under weather and calendar, ahead
+                of the teasers. Same component as the mobile copy at the top
+                of the center column. Self-hides when all steps are done, so
+                established users see this slot collapse to nothing. */}
             <GetStartedChecklist
               hasProfilePhoto={!!userProfile?.profilePhoto}
               hasBio={!!userProfile?.bio?.trim()}
@@ -2557,13 +2523,6 @@ export default async function DashboardPage() {
               clubCount={myMemberships.length}
               attendedCount={myAttendances.length}
             />
-
-            <CityWeather name={city.name} lat={city.lat} lng={city.lng} timezone={city.timezone} />
-
-            {/* Mini calendar */}
-            <div className="bg-white rounded-2xl shadow-card p-5">
-              <MiniCalendar eventDates={upcomingDates} tz={tz} />
-            </div>
 
             {/* The rail's Featured card and "From the Marketplace" card went
                 (2026-09-26): the first was always the center shelf's first
@@ -2623,6 +2582,50 @@ export default async function DashboardPage() {
             )}
 
             </div>{/* /hidden lg:block (desktop-only widgets) */}
+
+            {/* ── DISCOVER ──
+                On mobile this is the ONLY route to these pages. The header's
+                Discover dropdown is desktop-only, the bottom bar is full at six
+                tabs, and the account sheet is for your own account — so without
+                this strip a member on a phone cannot reach Experiences, the
+                Guide, the Directory, the Board, Neighborhoods, Stories or
+                Hosts at all.
+                In the right rail (Nate, 2026-10-02 — it sat at the foot of the
+                centre column), AFTER the glanceable desktop widgets: at the
+                top it pushed the new-member checklist, weather and calendar
+                below eleven links. Outside the rail's desktop-only block, so
+                it still renders on phones, where it comes after the left column.
+                One column at rail width. Reads from lib/navLinks so it can't
+                drift from the desktop menu. */}
+            <div className="bg-white rounded-2xl shadow-card p-4">
+              <h2 className="text-sm font-bold text-gray-900 mb-3">Discover</h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-1 gap-2">
+                {DISCOVER_LINKS
+                  .filter(l => !l.guestOnly)
+                  // Same rule as the footer: a city grows into neighborhoods,
+                  // so don't offer the link until it has some.
+                  .filter(l => l.href !== '/neighborhoods' || hasNeighborhoods)
+                  .map(link => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-gray-50 hover:bg-amber-50 text-sm text-gray-700 hover:text-amber-700 transition-colors"
+                  >
+                    <span aria-hidden="true" className="text-base shrink-0">{link.emoji}</span>
+                    <span className="truncate">{link.label}</span>
+                  </Link>
+                ))}
+                <Link
+                  href="/cities"
+                  className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-gray-50 hover:bg-amber-50 text-sm text-gray-700 hover:text-amber-700 transition-colors"
+                >
+                  <span aria-hidden="true" className="text-base shrink-0">🌍</span>
+                  <span className="truncate">Cities</span>
+                </Link>
+              </div>
+            </div>
+
+
 
             {/* Cross-viewport widgets — render at all sizes. Single
                 source of truth (no center-column duplicates). */}
