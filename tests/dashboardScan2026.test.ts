@@ -212,7 +212,8 @@ describe('a visitor card carries one name everywhere', () => {
 describe('the city calendar, not the server clock', () => {
   it('"member since" and "joined today" are days in the city', () => {
     expect(src).toContain("{ month: 'long', year: 'numeric', timeZone: tz }")
-    expect(src).toContain('const joinedDay = dayInTz(new Date(m.joinedAt), tz)')
+    // "joined today" lived in the New this week rail box, which moved into
+    // the What's new feed (2026-10-02); the feed says how long ago instead.
   })
 
   it('and nothing on the page hand-rolls initials any more', () => {
