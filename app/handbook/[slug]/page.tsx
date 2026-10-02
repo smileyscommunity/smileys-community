@@ -1,6 +1,9 @@
 import { notFound } from 'next/navigation'
 import { jsonLdHtml } from '@/lib/jsonLd'
 import { breadcrumbJsonLd } from '@/lib/breadcrumbJsonLd'
+import { overviewForGuide } from '@/lib/topicPairs'
+import { getTopicCompanion } from '@/lib/topicCompanion'
+import TopicCompanion from '@/components/TopicCompanion'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { unstable_cache } from 'next/cache'
@@ -198,6 +201,8 @@ export default async function HandbookArticlePage({ params }: Params) {
   )
   const seeAlsoTarget = seeAlsoSlug(post.slug)
   const seeAlso = seeAlsoTarget && !preview ? await getSeeAlso(seeAlsoTarget) : null
+  const overviewSlug = preview ? null : overviewForGuide(post.slug)
+  const overview     = overviewSlug ? await getTopicCompanion(overviewSlug, 'community') : null
 
   // Freshness + sources are computed server-side so the client component gets
   // settled strings (see EditableArticle's props comment). The published date
@@ -416,6 +421,10 @@ export default async function HandbookArticlePage({ params }: Params) {
               {seeAlso.excerpt && <p className="text-xs text-gray-600 line-clamp-1">{seeAlso.excerpt}</p>}
             </Link>
           </section>
+        )}
+
+        {overview && (
+          <TopicCompanion href={`/posts/${overview.slug}`} kicker="The overview, as a story" title={overview.title} excerpt={overview.excerpt} />
         )}
 
         {/* Cross-link to the matching City Guide section. The handbook

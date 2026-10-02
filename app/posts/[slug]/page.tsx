@@ -9,6 +9,9 @@ import { firstBodyImage } from '@/lib/articleCover'
 import { APP_URL, SITE_URL } from '@/lib/env'
 import { jsonLdHtml } from '@/lib/jsonLd'
 import { breadcrumbJsonLd } from '@/lib/breadcrumbJsonLd'
+import { guideForOverview } from '@/lib/topicPairs'
+import { getTopicCompanion } from '@/lib/topicCompanion'
+import TopicCompanion from '@/components/TopicCompanion'
 import { sanitize, sanitizeArticle, isArticleImageSrc } from '@/lib/sanitize'
 import { getSession } from '@/lib/session'
 import { resolveCityId, getCityConfig } from '@/lib/city'
@@ -245,6 +248,8 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
   const nextUp = preview ? null : await getNextInSeries(post.kind, post.category,
     post.publishedAt ? new Date(post.publishedAt).toISOString() : null, post.cityId ?? null)
 
+  const guideSlug = preview ? null : guideForOverview(slug)
+  const guide     = guideSlug ? await getTopicCompanion(guideSlug, 'handbook') : null
   const byline   = (await storyBylines(session, [post.author]))(post.author)
   // Read OUTSIDE getPost's unstable_cache, the same way the handbook reads
   // its likes: inside it the number is whatever it was up to five minutes
@@ -390,6 +395,10 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
               cacheKey={new Date(post.updatedAt ?? post.publishedAt ?? Date.now()).getTime().toString(36)}
             />
           </div>
+        )}
+
+        {guide && (
+          <TopicCompanion href={`/handbook/${guide.slug}`} kicker="Go deeper: the step-by-step guide" title={guide.title} excerpt={guide.excerpt} />
         )}
 
         {/* Next in the series — only where the category actually runs in order. */}
