@@ -550,7 +550,6 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
   const thisCityAvailability = publicCities.find(c => c.slug === city.slug)
   const hereAvailability = thisCityAvailability ? cityAvailability(thisCityAvailability) : 'coming_soon'
 
-
   return (
     <div className={`min-h-screen bg-white ${viewerVisit ? '' : 'pb-24 md:pb-0'}`}>
       {/* Hero — the shared PhotoHero the other arrival hubs use (Moving,
@@ -737,6 +736,28 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
         </div>
       </section>
 
+      {/* ── Read before your trip ── this city's Travellers and City Guide
+          posts (lib/tripPlan TRAVELLER_SHELF_CATEGORIES), newest first. Hidden until
+          the city has one. */}
+      {travellerStories.length > 0 && (
+        <section id="stories" aria-labelledby="stories-title" className="bg-white border-t border-gray-100 scroll-mt-20">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+            <div className="mb-8">
+              <h2 id="stories-title" className="section-title">Read before your trip</h2>
+              <p className="section-subtitle max-w-2xl">Visiting {city.name}: what to know, what to skip and what most visitors miss.</p>
+            </div>
+            <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {travellerStories.map(story => (
+                <li key={story.slug}>
+                  <Link href={`/posts/${story.slug}`}
+                    className="group h-full flex flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm hover:border-amber-200 hover:shadow-md transition-all">
+                    {story.cover && (
+                      // Absolute image: an aspect-ratio box grows to fit a portrait cover.
+                      <div className="relative aspect-[16/9] overflow-hidden bg-gray-100">
+                        <img src={story.cover} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+                      </div>
+                    )}
+
       {/* ── Your first 48 hours ── built only from what the city has: its
           Handbook articles for connectivity and transport, its Guide's
           first-timer experiences, and first-timer-friendly events actually
@@ -895,27 +916,6 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
         </section>
       )}
 
-      {/* ── Read before your trip ── this city's Travellers and City Guide
-          posts (lib/tripPlan TRAVELLER_SHELF_CATEGORIES), newest first. Hidden until
-          the city has one. */}
-      {travellerStories.length > 0 && (
-        <section id="stories" aria-labelledby="stories-title" className="bg-white border-t border-gray-100 scroll-mt-20">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
-            <div className="mb-8">
-              <h2 id="stories-title" className="section-title">Read before your trip</h2>
-              <p className="section-subtitle max-w-2xl">Visiting {city.name}: what to know, what to skip and what most visitors miss.</p>
-            </div>
-            <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {travellerStories.map(story => (
-                <li key={story.slug}>
-                  <Link href={`/posts/${story.slug}`}
-                    className="group h-full flex flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm hover:border-amber-200 hover:shadow-md transition-all">
-                    {story.cover && (
-                      // Absolute image: an aspect-ratio box grows to fit a portrait cover.
-                      <div className="relative aspect-[16/9] overflow-hidden bg-gray-100">
-                        <img src={story.cover} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
-                      </div>
-                    )}
                     <div className="p-5 flex flex-col flex-1">
                       <h3 className="font-bold text-gray-900 leading-snug group-hover:text-amber-700 transition-colors">{story.title}</h3>
                       {story.excerpt && <p className="mt-2 text-sm text-gray-600 leading-relaxed line-clamp-3 flex-1">{story.excerpt}</p>}

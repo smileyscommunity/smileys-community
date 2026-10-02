@@ -128,4 +128,15 @@ describe('Travellers shelf on /visiting', () => {
       expect(readFileSync(join(process.cwd(), f), 'utf8'), f).toMatch(/'Travellers':\s*'bg-/)
     }
   })
+
+  // Nate, 2026-10-02: right after Plan your visit, before Your first 48 hours.
+  it('sits right after Plan your visit', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const page = readFileSync(join(process.cwd(), 'app/visiting/page.tsx'), 'utf8')
+    const at = (id: string) => page.indexOf(`aria-labelledby="${id}"`)
+    expect(at('plan-title')).toBeGreaterThan(-1)
+    expect(at('plan-title')).toBeLessThan(at('stories-title'))
+    expect(at('stories-title')).toBeLessThan(at('first-48-title'))
+  })
 })
