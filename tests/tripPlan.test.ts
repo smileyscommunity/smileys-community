@@ -159,12 +159,25 @@ describe('/visiting section order', () => {
     for (const t of await topLevel()) expect((t.match(/<section/g) ?? []).length, t.slice(0, 80)).toBeLessThanOrEqual(1)
   })
 
-  it('sightseeing first, then the stories, then the planner, then the community', async () => {
+  // Three acts, in the order a trip happens (Nate, 2026-10-02): Before you
+  // go (essentials, stories, where to stay) → When you're here (first 48
+  // hours, sights, trip types) → Meet people (events during your stay, who's
+  // coming, tell the community). Events never lead.
+  it('reads as a trip: before you go, when you are here, meet people', async () => {
     const blocks = await topLevel()
     const at = (id: string) => blocks.findIndex(t => t.includes(`aria-labelledby="${id}"`) || t.includes(`<section id="${id}"`))
-    const order = ['first-48-title', 'interests-title', 'stories-title', 'plan-title', 'stay', 'tell-title', 'where-title'].map(at)
+    const order = ['essentials-title', 'stories-title', 'stay', 'first-48-title', 'interests-title', 'plan-title', 'tell-title', 'where-title'].map(at)
     expect(order.every(i => i > -1), JSON.stringify(order)).toBe(true)
     expect([...order].sort((a, b) => a - b)).toEqual(order)
+  })
+
+  it('each act is labelled, and Plan my visit lands on Before you go', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const page = readFileSync(join(process.cwd(), 'app/visiting/page.tsx'), 'utf8')
+    for (const label of ["actLabel('Before you go')", "actLabel('When you’re here')", "actLabel('Meet people')"]) expect(page).toContain(label)
+    expect(page.match(/href="#before-you-go"/g)).toHaveLength(2)   // hero + final CTA
+    expect(page).not.toContain('href="#plan" className="btn-')
   })
 })
 
