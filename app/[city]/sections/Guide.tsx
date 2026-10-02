@@ -49,12 +49,16 @@ function GuidePicks({ city, picks }: { city: PublicCity; picks: GuidePick[] }) {
   )
 }
 
-// The moving, remote-work and student hubs gather this section's practical links into
+// The visiting, moving, remote-work and student hubs gather this section's practical links into
 // arrival paths; text links rather than more buttons. Only live cities render this
 // section, and every live city has a hub.
 function RemoteWorkLink({ city }: { city: PublicCity }) {
   return (
     <div className="mt-6 flex flex-col sm:flex-row gap-x-6 gap-y-2 text-sm font-bold">
+      {/* Pinned with ?city= — a bare /visiting follows the view-city cookie. */}
+      <Link href={`/visiting?city=${city.slug}`} className="text-amber-700 hover:text-amber-800">
+        Visiting {city.name}? Plan your trip <span aria-hidden="true">→</span>
+      </Link>
       <Link href={`/${city.slug}/moving`} className="text-amber-700 hover:text-amber-800">
         Moving to {city.name}? Start here <span aria-hidden="true">→</span>
       </Link>
