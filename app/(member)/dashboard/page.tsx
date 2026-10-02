@@ -140,6 +140,13 @@ export default async function DashboardPage() {
   // 10:00 brunch was still one of "5 events this week" above a list of 4.
   const { cutoffTime } = startedCutoff(tz)
   const NOT_OVER = { OR: [{ date: { gt: today } }, { date: today, time: { gte: cutoffTime } }] }
+  // The city's events plus the trips that depart from it — the same rule as
+  // the events feed (lib/db getEvents, lib/eventTrip). A trip is filed under
+  // the city it visits, so `cityId` alone dropped an Istanbul club's day out
+  // to Eskişehir from every Istanbul shelf and from "going to" activity: 14
+  // Istanbul members joined one and none of it showed here. AND-wrapped
+  // because several of these wheres carry their own OR (NOT_OVER).
+  const IN_CITY = { AND: [{ OR: [{ cityId }, { originCityId: cityId }] }] }
 
   const blockedIds     = blockRows.map(b => b.blockerId === session.id ? b.blockedId : b.blockerId)
   const notMeOrBlocked = [session.id, ...blockedIds]
@@ -481,7 +488,7 @@ export default async function DashboardPage() {
       // cityId as well as the club filter downstream: a club you belong to
       // can sit in another city, and a global club runs events in several,
       // so recommendations otherwise followed you across the switch.
-      where: { cityId, date: { gte: today }, status: 'published', id: { notIn: joinedEventIds } },
+      where: { ...IN_CITY, date: { gte: today }, status: 'published', id: { notIn: joinedEventIds } },
       // Scored AFTER this cut, so a 24-event window by date meant 17 of
       // Istanbul's 41 upcoming events could never be recommended however
       // well they matched: a perfect-scoring event four weeks out lost its
@@ -626,7 +633,7 @@ export default async function DashboardPage() {
     // attendances, their clubs' membership) deliberately do NOT filter by
     // city: an RSVP you hold in another city is still yours.
     prisma.event.findMany({
-      where: { cityId, featured: true, date: { gte: today }, status: 'published', id: { notIn: joinedEventIds } },
+      where: { ...IN_CITY, featured: true, date: { gte: today }, status: 'published', id: { notIn: joinedEventIds } },
       orderBy: { date: 'asc' }, take: 3,
       select: { ...SHELF, id: true, title: true, date: true, emoji: true, neighborhood: true, price: true, currency: true, coverImage: true },
     }),
@@ -637,7 +644,7 @@ export default async function DashboardPage() {
     // browse to learn a ride had been posted. (No publishedAt column: an
     // event drafted early and published later counts from its creation.)
     prisma.event.findMany({
-      where: { cityId, date: { gte: today }, status: 'published', id: { notIn: joinedEventIds }, createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60_000) } },
+      where: { ...IN_CITY, date: { gte: today }, status: 'published', id: { notIn: joinedEventIds }, createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60_000) } },
       orderBy: { createdAt: 'desc' }, take: 4,
       select: { ...SHELF, id: true, title: true, date: true, emoji: true, neighborhood: true, price: true, currency: true },
     }),
@@ -645,7 +652,7 @@ export default async function DashboardPage() {
     // joined. Ordered soonest-first (date is text 'YYYY-MM-DD', so asc = chrono)
     // so the closest event sits on top — the one you need to grab a spot for now.
     prisma.event.findMany({
-      where: { cityId, date: { gte: today }, status: 'published', limitedSpots: true, soldOut: false, spotsLeft: { gt: 0, lte: 5 }, id: { notIn: joinedEventIds } },
+      where: { ...IN_CITY, date: { gte: today }, status: 'published', limitedSpots: true, soldOut: false, spotsLeft: { gt: 0, lte: 5 }, id: { notIn: joinedEventIds } },
       orderBy: [{ date: 'asc' }, { time: 'asc' }],
       take: 4,
       select: { ...SHELF, id: true, title: true, date: true, emoji: true, neighborhood: true, price: true },
@@ -746,7 +753,7 @@ export default async function DashboardPage() {
       orderBy: { joinedAt: 'desc' },
     }).then(rows => rows.map(m => ({ ...m, neighborhood: m.neighborhoodVisible ? m.neighborhood : null }))),
     prisma.event.findMany({
-      where: { cityId, date: { gte: today, lte: weekEndStr }, status: 'published' },
+      where: { ...IN_CITY, date: { gte: today, lte: weekEndStr }, status: 'published' },
       // time too: within a day the order was arbitrary, so a 22:00 event
       // could sit ahead of the 10:00 one behind "+N more".
       orderBy: [{ date: 'asc' }, { time: 'asc' }],
@@ -757,7 +764,7 @@ export default async function DashboardPage() {
     // counted admins and partners, so it disagreed with the panel above.
     // Same count as cityMemberCount above (the founding gate's), already read.
     Promise.resolve(cityMemberCount),
-    prisma.event.count({ where: { cityId, date: { lte: weekEndStr }, ...NOT_OVER, status: 'published' } }),
+    prisma.event.count({ where: { ...IN_CITY, date: { lte: weekEndStr }, ...NOT_OVER, status: 'published' } }),
     myHood
       ? prisma.event.count({ where: { cityId, neighborhood: myHood, ...NOT_OVER, status: 'published' } })
       : Promise.resolve(0),
@@ -834,7 +841,7 @@ export default async function DashboardPage() {
     // Ranked by people actually going (approved seats), in JS: the SQL order
     // counted every attendee row, cancelled ones included.
     prisma.event.findMany({
-      where: { cityId, date: { gte: today }, status: 'published', id: { notIn: joinedEventIds } },
+      where: { ...IN_CITY, date: { gte: today }, status: 'published', id: { notIn: joinedEventIds } },
       orderBy: { attendees: { _count: 'desc' } },
       take: 20,
       select: { ...SHELF, id: true, title: true, date: true, emoji: true, neighborhood: true, price: true, currency: true, totalSpots: true, _count: { select: { attendees: { where: { status: 'approved' } } } } },
@@ -962,7 +969,7 @@ export default async function DashboardPage() {
         user:      LISTABLE,
         userId:    { notIn: notMeOrBlocked },
         joinedAt:  { gte: weekAgo },
-        event:     { cityId, status: 'published', date: { gte: today } },
+        event:     { ...IN_CITY, status: 'published', date: { gte: today } },
       },
       orderBy: { joinedAt: 'desc' },
       take: 8,
@@ -1068,7 +1075,7 @@ export default async function DashboardPage() {
     // Community-wide events in the next 30 days — the "Events this month" stat.
     // (eventsThisMonth above is the viewer's OWN attendances; this is the whole
     // community, parallel to eventsThisWeek's next-7-days count so month ≥ week.)
-    prisma.event.count({ where: { cityId, date: { lte: monthEndStr }, ...NOT_OVER, status: 'published' } }),
+    prisma.event.count({ where: { ...IN_CITY, date: { lte: monthEndStr }, ...NOT_OVER, status: 'published' } }),
   ])
 
   // Score the recommendation candidates by what the member actually told

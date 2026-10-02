@@ -91,7 +91,7 @@ describe('right content, right city', () => {
   })
   it('15: counts on the lists\' window; finished events counted when they end', () => {
     expect(page).toContain("const NOT_OVER = { OR: [{ date: { gt: today } }, { date: today, time: { gte: cutoffTime } }] }")
-    expect(page).toContain("prisma.event.count({ where: { cityId, date: { lte: weekEndStr }, ...NOT_OVER, status: 'published' } }),")
+    expect(page).toContain("prisma.event.count({ where: { ...IN_CITY, date: { lte: weekEndStr }, ...NOT_OVER, status: 'published' } }),")
     expect(page).toContain('eventEndsAt(a.event, a.event.city?.timezone ?? tz).getTime() <= nowMs)')
     expect(page).toContain("orderBy: [{ date: 'asc' }, { time: 'asc' }],")
   })

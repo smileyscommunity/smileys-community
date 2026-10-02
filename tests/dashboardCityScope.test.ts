@@ -72,10 +72,15 @@ describe('dashboard is scoped to the city being viewed', () => {
       // Built above the query rather than inline; carries cityId at its
       // definition, asserted separately below.
       .filter(q => q.where !== 'suggestedMembersWhere')
-      .filter(q => !q.where.includes('cityId'))
+      // IN_CITY is cityId plus the trips departing from it (asserted below).
+      .filter(q => !q.where.includes('cityId') && !q.where.includes('...IN_CITY'))
       .map(q => `line ${q.line}: ${q.text}`)
 
     expect(unscoped, 'these dashboard queries would show another city\'s content').toEqual([])
+  })
+
+  it('IN_CITY is the viewed city plus trips departing from it, nothing wider', () => {
+    expect(SRC).toContain('const IN_CITY = { AND: [{ OR: [{ cityId }, { originCityId: cityId }] }] }')
   })
 
   it('builds suggested members from the viewed city too', () => {
