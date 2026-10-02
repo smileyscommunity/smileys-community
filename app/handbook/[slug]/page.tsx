@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import { jsonLdHtml } from '@/lib/jsonLd'
+import { breadcrumbJsonLd } from '@/lib/breadcrumbJsonLd'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { unstable_cache } from 'next/cache'
@@ -279,6 +280,19 @@ export default async function HandbookArticlePage({ params }: Params) {
           type="application/ld+json"
           dangerouslySetInnerHTML={{
             __html: jsonLdHtml(articleJsonLd),
+          }}
+        />
+      )}
+      {!preview && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: jsonLdHtml(breadcrumbJsonLd([
+              { name: 'Smileys',                url: APP_URL },
+              { name: `${cityName} Handbook`,   url: `${APP_URL}/handbook${qs}` },
+              ...(canonical ? [{ name: catLabel, url: `${APP_URL}/handbook/category/${encodeURIComponent(catKey)}${qs}` }] : []),
+              { name: post.title,               url: pageUrl },
+            ])),
           }}
         />
       )}

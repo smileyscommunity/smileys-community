@@ -8,6 +8,7 @@ import { resolveImageUrl, avatarUrl } from '@/lib/data'
 import { firstBodyImage } from '@/lib/articleCover'
 import { APP_URL, SITE_URL } from '@/lib/env'
 import { jsonLdHtml } from '@/lib/jsonLd'
+import { breadcrumbJsonLd } from '@/lib/breadcrumbJsonLd'
 import { sanitize, sanitizeArticle, isArticleImageSrc } from '@/lib/sanitize'
 import { getSession } from '@/lib/session'
 import { resolveCityId, getCityConfig } from '@/lib/city'
@@ -279,6 +280,13 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
     <div className="min-h-screen bg-warm">
       {blogPostingJsonLd && (
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdHtml(blogPostingJsonLd) }} />
+      )}
+      {blogPostingJsonLd && (
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdHtml(breadcrumbJsonLd([
+          { name: 'Smileys',  url: APP_URL },
+          { name: 'Stories',  url: `${APP_URL}/posts` },
+          { name: post.title, url: `${APP_URL}/posts/${slug}` },
+        ])) }} />
       )}
       {/* Back */}
       <div className="bg-white border-b border-gray-100">

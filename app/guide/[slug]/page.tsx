@@ -18,6 +18,8 @@ import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
 import { getCityConfig } from '@/lib/city'
 import { todayInTz } from '@/lib/cityTime'
 import { APP_URL } from '@/lib/env'
+import { jsonLdHtml } from '@/lib/jsonLd'
+import { breadcrumbJsonLd } from '@/lib/breadcrumbJsonLd'
 import { prisma } from '@/lib/prisma'
 import ExperienceActions from './ExperienceActions'
 import LiveHangouts from './LiveHangouts'
@@ -115,8 +117,26 @@ export default async function ExperiencePage({ params }: { params: Promise<{ slu
   // every week over an empty box.
   const hasCompany = matchedEvents.length > 0 || matchedClubs.length > 0
 
+  const pageUrl = `${APP_URL}/guide/${exp.slug}`
+  const pageJsonLd = {
+    '@context': 'https://schema.org',
+    '@type':    'WebPage',
+    name:        exp.title,
+    description: exp.tagline,
+    url:         pageUrl,
+    about:       { '@type': 'City', name: cityName },
+    isPartOf:    { '@type': 'WebSite', url: APP_URL, name: 'Smileys Community' },
+  }
+  const breadcrumbLd = breadcrumbJsonLd([
+    { name: 'Smileys',            url: APP_URL },
+    { name: `${cityName} Guide`,  url: `${APP_URL}/guide${qs}` },
+    { name: exp.title,            url: pageUrl },
+  ])
+
   return (
     <div className="min-h-screen bg-white">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdHtml(pageJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdHtml(breadcrumbLd) }} />
       {/* Hero — the experience photo when its drop-in asset exists
           (dark overlay keeps the copy readable); gradient fallback
           otherwise. */}
