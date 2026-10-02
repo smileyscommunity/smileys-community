@@ -181,3 +181,15 @@ describe('/visiting section order', () => {
   })
 })
 
+
+describe('/visiting before dates are entered', () => {
+  it('shows a three-card taster and a link to the calendar, not six cards', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const page = readFileSync(join(process.cwd(), 'app/visiting/page.tsx'), 'utf8')
+    expect(page).toContain('const PREVIEW_SHOWN  = 3')
+    expect(page).toContain('timedEvents.slice(0, PREVIEW_SHOWN)')
+    expect(page).not.toContain('timedEvents.slice(0, 6)')
+    expect(page).toContain('See everything on in {city.name} →')
+  })
+})

@@ -358,6 +358,10 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
   const filteredEvents = planRange ? applyTripFilters(timedEvents, filters) : timedEvents
   const filtersActive  = !!(filters.hood || filters.free || filters.first || filters.lang)
   const PLAN_SHOWN     = 12
+  // Before any dates are entered the list is a taster, not the calendar:
+  // three cards and a link (Nate, 2026-10-02 — six made the page longer
+  // without telling a visitor anything the calendar doesn't).
+  const PREVIEW_SHOWN  = 3
 
   // The cards' "N events while you're here" chip counts against every
   // listed visit's window, not the next 60 days.
@@ -955,8 +959,13 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
                 <h3 className="text-xl font-extrabold text-gray-900">Coming up in {city.name}</h3>
                 <p className="text-sm text-gray-600 mt-1">Add your dates above to see only what falls during your stay.</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
-                  {timedEvents.slice(0, 6).map(e => <VisitEventCard key={e.id} e={e} />)}
+                  {timedEvents.slice(0, PREVIEW_SHOWN).map(e => <VisitEventCard key={e.id} e={e} />)}
                 </div>
+                {timedEvents.length > PREVIEW_SHOWN && (
+                  <Link href={pinned ? `/${city.slug}/events` : '/events'} className="inline-block mt-6 text-sm font-bold text-amber-700 hover:underline">
+                    See everything on in {city.name} →
+                  </Link>
+                )}
               </>
             ) : (
               <p className="text-sm text-gray-600">Nothing on the {city.name} calendar in the next two months yet — add your dates and check back closer to your trip.</p>
