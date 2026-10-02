@@ -76,3 +76,14 @@ describe('server funnel events', () => {
       expect(read(f)).not.toMatch(/\b(email|phone|fullName|nationality|birthdate)\b\s*[:,]/)
   })
 })
+
+describe('Core Web Vitals reporting', () => {
+  it('sends each vital as a consent-gated web_vital event with a coarse device bucket and no query string', () => {
+    const c = read('components/WebVitalsReporter.tsx')
+    expect(c).toMatch(/useReportWebVitals/)
+    expect(c).toMatch(/track\('web_vital'/)
+    expect(c).toMatch(/window\.location\.pathname/)
+    expect(c).not.toMatch(/location\.(search|href)/)
+    expect(read('components/ClientOnlyComponents.tsx')).toMatch(/<WebVitalsReporter \/>/)
+  })
+})
