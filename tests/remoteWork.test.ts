@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import {
   groupHubArticles, buildChecklist, isWorkClub, utcOffsetLabel, pickHubEvents, workdayOverlap, coworkingWeek,
   ARTICLES_PER_TOPIC, HUB_WORK_EVENT_CAP, INTERVIEW_CATEGORY, NOMINATE_TOPIC, nominateHref,
@@ -334,5 +335,34 @@ describe('Working from interviews', () => {
     expect(src('app/contact/page.tsx')).toContain(`value: '${NOMINATE_TOPIC}'`)
     // Members only on the page — a guest gets the join button, not a nomination link.
     expect(src('app/[city]/remote-work/page.tsx')).toMatch(/\{session && \([\s\S]{0,400}nominateHref\(/)
+  })
+})
+
+// The Digital nomads shelf (2026-10-02): articles for remote workers had no
+// category and so no hub — one nomad piece sat in Community on no page. Its
+// own category, not 'Working from': the hub shows ONE interview as a card and
+// articles as a list, and a shared category could not tell them apart.
+describe('Digital nomads shelf', () => {
+  it('is its own category, accepted by the admin form, distinct from the interview', async () => {
+    const { NOMAD_STORY_CATEGORY } = await import('@/lib/remoteWork')
+    const { normalizeCommunityCategory } = await import('@/app/admin/posts/constants')
+    expect(CATEGORIES).toContain(NOMAD_STORY_CATEGORY)
+    expect(isCategory(NOMAD_STORY_CATEGORY)).toBe(true)
+    expect(normalizeCommunityCategory(NOMAD_STORY_CATEGORY)).toBe(NOMAD_STORY_CATEGORY)
+    expect(NOMAD_STORY_CATEGORY).not.toBe(INTERVIEW_CATEGORY)
+  })
+
+  it('the loader reads this city\'s shelf, newest first, and ships no body', () => {
+    const src = readFileSync(join(process.cwd(), 'app/[city]/data.ts'), 'utf8')
+    const loader = src.slice(src.indexOf('export const getCityRemoteWorkHub'), src.indexOf("['city-remote-work-hub']"))
+    expect(loader).toMatch(/category:\s*NOMAD_STORY_CATEGORY,\s*cityId\s*}/)
+    expect(loader).toMatch(/stories:\s*stories\.map/)
+    expect(loader).toMatch(/cover:\s*articleCover\(\{ coverImage: s\.coverImage/)
+  })
+
+  it('every badge map has a colour for it', () => {
+    for (const f of ['app/posts/page.tsx', 'app/posts/[slug]/page.tsx', 'app/admin/posts/page.tsx']) {
+      expect(readFileSync(join(process.cwd(), f), 'utf8'), f).toMatch(/'Digital nomads':\s*'bg-/)
+    }
   })
 })

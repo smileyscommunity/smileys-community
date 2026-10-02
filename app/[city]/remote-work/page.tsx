@@ -86,6 +86,11 @@ export default async function CityRemoteWorkPage({ params }: Params) {
   // the same projection every story surface uses. A guest gets the first
   // name and no photo; a connections-only author is shown as a member.
   const interview = hub.interview ? await interviewByline(hub.interview, session) : null
+  // Backgrounds alternate from "Work and meet people" (grey); the interview
+  // and the shelf only render when the city has them, so each colour is
+  // worked out from what is actually above it.
+  const storiesBg   = interview ? 'bg-gray-50' : 'bg-white'
+  const practicalBg = hub.stories.length > 0 ? (storiesBg === 'bg-white' ? 'bg-gray-50' : 'bg-white') : (interview ? 'bg-gray-50' : 'bg-white')
 
   const topics    = groupHubArticles(hub.articles, city.id)
   const checklist = buildChecklist({
@@ -333,9 +338,47 @@ export default async function CityRemoteWorkPage({ params }: Params) {
         </section>
       )}
 
+      {/* ── Digital nomads shelf ─────────────────────────────────────── */}
+      {/* This city's 'Digital nomads' articles (lib/remoteWork
+          NOMAD_STORY_CATEGORY), newest first. Hidden until there is one. */}
+      {hub.stories.length > 0 && (
+        <section id="stories" aria-labelledby="stories-title" className={`py-12 sm:py-16 ${storiesBg} border-t border-gray-100 scroll-mt-20`}>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="mb-8">
+              <h2 id="stories-title" className="section-title">Worth reading before you land</h2>
+              <p className="section-subtitle max-w-2xl">
+                Working remotely from {city.name} — the routines, the trade-offs and what nobody mentions.
+              </p>
+            </div>
+            <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {hub.stories.map(story => (
+                <li key={story.slug}>
+                  <Link href={`/posts/${story.slug}`}
+                    className="group h-full flex flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm hover:border-amber-200 hover:shadow-md transition-all">
+                    {story.cover && (
+                      // Absolute image: an aspect-ratio box grows to fit a portrait cover.
+                      <div className="relative aspect-[16/9] overflow-hidden bg-gray-100">
+                        <img src={story.cover} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+                      </div>
+                    )}
+                    <div className="p-5 flex flex-col flex-1">
+                      <h3 className="font-bold text-gray-900 leading-snug group-hover:text-amber-700 transition-colors">{story.title}</h3>
+                      {story.excerpt && <p className="mt-2 text-sm text-gray-600 leading-relaxed line-clamp-3 flex-1">{story.excerpt}</p>}
+                      <span className="mt-4 text-sm font-bold text-amber-700 group-hover:text-amber-800">
+                        Read <span aria-hidden="true">→</span>
+                      </span>
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      )}
+
       {/* ── Practical guides ─────────────────────────────────────────── */}
       {topics.length > 0 && (
-        <section className="py-12 sm:py-16 bg-white border-t border-gray-100">
+        <section className={`py-12 sm:py-16 ${practicalBg} border-t border-gray-100`}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="mb-8">
               <h2 className="section-title">The practical side</h2>

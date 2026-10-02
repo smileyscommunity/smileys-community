@@ -116,6 +116,14 @@ export function isWorkClub(name: string): boolean {
 /** The community-post category the series is published under. */
 export const INTERVIEW_CATEGORY = 'Working from'
 
+/** The hub's article shelf — remote-work and nomad pieces, newest first,
+ *  pinned to this city like the interview (no global fallback). Not the
+ *  interview's category: the hub shows one interview as a card, and articles
+ *  as a list; one category could not tell them apart. */
+export const NOMAD_STORY_CATEGORY = 'Digital nomads'
+/** How many the shelf lists — two rows of three. */
+export const NOMAD_STORY_LIMIT = 6
+
 /** The contact-form topic a nomination arrives as (app/api/contact). */
 export const NOMINATE_TOPIC = 'nominate'
 

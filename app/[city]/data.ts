@@ -21,7 +21,7 @@ import { isSoldOut } from '@/lib/soldOut'
 import type { Event } from '@/lib/data'
 import { LIVE_BOARD_AUTHOR, SHOWN_REPLY } from '@/lib/boardAccess'
 import { firstNameOf } from '@/lib/data'
-import { isWorkClub, pickHubEvents, INTERVIEW_CATEGORY } from '@/lib/remoteWork'
+import { isWorkClub, pickHubEvents, INTERVIEW_CATEGORY, NOMAD_STORY_CATEGORY, NOMAD_STORY_LIMIT } from '@/lib/remoteWork'
 import { EXPAT_STORY_CATEGORY, EXPAT_STORY_LIMIT } from '@/lib/relocation'
 import { pickFirstEvents, pickRegularEvents, eventFilterLinks, mostlyEnglish, STUDENT_STORY_CATEGORY, STUDENT_STORY_LIMIT, STUDENT_REASON_SQL, STUDENT_PROFESSION_SQL } from '@/lib/students'
 import { getCityHandbookIndex } from '@/lib/handbookIndex'
@@ -436,7 +436,7 @@ export const REMOTE_WORK_EVENT_LIMIT = 6
 
 export const getCityRemoteWorkHub = unstable_cache(
   async (cityId: string, country: string | null) => {
-    const [articles, clubs, { events }, neighborhoodCount, interview] = await Promise.all([
+    const [articles, clubs, { events }, neighborhoodCount, interview, stories] = await Promise.all([
       getCityHandbookIndex(cityId, country),
       getClubs(cityId),
       // The same window the city's events hub reads; the work/newcomer
@@ -452,6 +452,14 @@ export const getCityRemoteWorkHub = unstable_cache(
         where:   { kind: 'community', status: 'published', category: INTERVIEW_CATEGORY, cityId },
         orderBy: { publishedAt: 'desc' },
         select:  { slug: true, title: true, excerpt: true, coverImage: true, body: true, publishedAt: true, authorId: true },
+      }),
+      // The Digital nomads shelf — this city's articles, newest first. No
+      // author: the cards show none, and bylines are per request.
+      prisma.post.findMany({
+        where:   { kind: 'community', status: 'published', category: NOMAD_STORY_CATEGORY, cityId },
+        orderBy: { publishedAt: 'desc' },
+        take:    NOMAD_STORY_LIMIT,
+        select:  { slug: true, title: true, excerpt: true, coverImage: true, body: true },
       }),
     ])
 
@@ -485,6 +493,10 @@ export const getCityRemoteWorkHub = unstable_cache(
         cover: articleCover({ coverImage: interview.coverImage, body: interview.body }),
         publishedAt: interview.publishedAt, authorId: interview.authorId,
       },
+      stories: stories.map(s => ({
+        slug: s.slug, title: s.title, excerpt: s.excerpt,
+        cover: articleCover({ coverImage: s.coverImage, body: s.body }),
+      })),
     }
   },
   ['city-remote-work-hub'],
