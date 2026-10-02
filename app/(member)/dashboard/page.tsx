@@ -2139,68 +2139,6 @@ export default async function DashboardPage() {
               </div>
             )}
 
-            {/* ── COMMUNITY BOARD ── */}
-            {recentListings.length > 0 && (
-              <div className="bg-white rounded-2xl shadow-card p-5">
-                <div className="flex items-center justify-between mb-4">
-                  {/* Listings live on the marketplace since the board/marketplace
-                      split; /board is the conversation feed. */}
-                  <h2 className="text-sm font-bold text-gray-900"><span aria-hidden="true">🛍️ </span>Marketplace</h2>
-                  <Link href="/marketplace" className="text-xs text-amber-600 font-semibold hover:underline">See all →</Link>
-                </div>
-                <div className="space-y-3">
-                  {recentListings.slice(0, 4).map((l) => {
-                    const EMOJI: Record<string, string> = { ROOMS: '🏠', JOBS: '💼', SERVICES: '🛠️', BUY_SELL: '🛍️', FREE: '🎁', LOST_FOUND: '🔍', RECO: '⭐', EXPERIENCES: '🎟️', PETS: '🐾' }
-                    return (
-                      <Link key={l.id} href={`/marketplace?l=${l.id}`}
-                        className="flex items-center gap-3 group">
-                        <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center text-lg shrink-0">
-                          {EMOJI[l.category] ?? '📋'}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-gray-900 group-hover:text-amber-600 transition-colors truncate">{l.title}</p>
-                          <p className="text-xs text-gray-500 truncate">
-                            {firstNameOf(l.user.name)}{l.price ? ` · ${l.price}` : ''}
-                          </p>
-                        </div>
-                      </Link>
-                    )
-                  })}
-                </div>
-                <Link href="/board/new"
-                  className="mt-4 flex items-center justify-center gap-1.5 w-full py-2 text-xs font-semibold text-amber-600 border border-amber-200 rounded-xl hover:bg-amber-50 transition-colors">
-                  + Post a listing
-                </Link>
-              </div>
-            )}
-
-            {/* ── MOVING SALES — separate table from Listing, own small card
-                rather than merged into Community Board above (different
-                shape: multiple items + leaving date instead of one price). ── */}
-            {recentMovingSales.length > 0 && (
-              <div className="bg-white rounded-2xl shadow-card p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-sm font-bold text-gray-900"><span aria-hidden="true">📦 </span>Moving Sales</h2>
-                  <Link href="/marketplace?tab=MOVING" className="text-xs text-amber-600 font-semibold hover:underline">See all →</Link>
-                </div>
-                <div className="space-y-3">
-                  {recentMovingSales.map((s) => (
-                    <Link key={s.id} href={`/moving-sales/${s.id}`} className="flex items-center gap-3 group">
-                      <div aria-hidden="true" className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center text-lg shrink-0">📦</div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-900 group-hover:text-amber-600 transition-colors truncate">
-                          {firstNameOf(s.user.name)} is leaving{s.neighborhood ? ` ${s.neighborhood}` : ''}
-                        </p>
-                        <p className="text-xs text-gray-500 truncate">
-                          {s.items.map(it => it.name).join(', ')}
-                        </p>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {/* New this week — everything just posted, unranked */}
             {pickedNewThisWeek.length > 0 && (
               <div>
@@ -2582,6 +2520,72 @@ export default async function DashboardPage() {
             )}
 
             </div>{/* /hidden lg:block (desktop-only widgets) */}
+
+            {/* ── COMMUNITY BOARD ── In the right rail (Nate, 2026-10-02 — it
+                sat mid-centre column), above Discover. Outside the rail's
+                desktop-only block, so phones still get it (after the left
+                column). Compact rows, so it fits rail width as it was. */}
+            {recentListings.length > 0 && (
+              <div className="bg-white rounded-2xl shadow-card p-4">
+                <div className="flex items-center justify-between mb-4">
+                  {/* Listings live on the marketplace since the board/marketplace
+                      split; /board is the conversation feed. */}
+                  <h2 className="text-sm font-bold text-gray-900"><span aria-hidden="true">🛍️ </span>Marketplace</h2>
+                  <Link href="/marketplace" className="text-xs text-amber-600 font-semibold hover:underline">See all →</Link>
+                </div>
+                <div className="space-y-3">
+                  {recentListings.slice(0, 4).map((l) => {
+                    const EMOJI: Record<string, string> = { ROOMS: '🏠', JOBS: '💼', SERVICES: '🛠️', BUY_SELL: '🛍️', FREE: '🎁', LOST_FOUND: '🔍', RECO: '⭐', EXPERIENCES: '🎟️', PETS: '🐾' }
+                    return (
+                      <Link key={l.id} href={`/marketplace?l=${l.id}`}
+                        className="flex items-center gap-3 group">
+                        <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center text-lg shrink-0">
+                          {EMOJI[l.category] ?? '📋'}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-gray-900 group-hover:text-amber-600 transition-colors truncate">{l.title}</p>
+                          <p className="text-xs text-gray-500 truncate">
+                            {firstNameOf(l.user.name)}{l.price ? ` · ${l.price}` : ''}
+                          </p>
+                        </div>
+                      </Link>
+                    )
+                  })}
+                </div>
+                <Link href="/board/new"
+                  className="mt-4 flex items-center justify-center gap-1.5 w-full py-2 text-xs font-semibold text-amber-600 border border-amber-200 rounded-xl hover:bg-amber-50 transition-colors">
+                  + Post a listing
+                </Link>
+              </div>
+            )}
+
+            {/* ── MOVING SALES — separate table from Listing, own small card
+                rather than merged into Community Board above (different
+                shape: multiple items + leaving date instead of one price). ── */}
+            {recentMovingSales.length > 0 && (
+              <div className="bg-white rounded-2xl shadow-card p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-sm font-bold text-gray-900"><span aria-hidden="true">📦 </span>Moving Sales</h2>
+                  <Link href="/marketplace?tab=MOVING" className="text-xs text-amber-600 font-semibold hover:underline">See all →</Link>
+                </div>
+                <div className="space-y-3">
+                  {recentMovingSales.map((s) => (
+                    <Link key={s.id} href={`/moving-sales/${s.id}`} className="flex items-center gap-3 group">
+                      <div aria-hidden="true" className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center text-lg shrink-0">📦</div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 group-hover:text-amber-600 transition-colors truncate">
+                          {firstNameOf(s.user.name)} is leaving{s.neighborhood ? ` ${s.neighborhood}` : ''}
+                        </p>
+                        <p className="text-xs text-gray-500 truncate">
+                          {s.items.map(it => it.name).join(', ')}
+                        </p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+
 
             {/* ── DISCOVER ──
                 On mobile this is the ONLY route to these pages. The header's
