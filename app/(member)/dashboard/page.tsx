@@ -11,7 +11,7 @@ import { postCityScope } from '@/lib/postScope'
 import { getSession } from '@/lib/session'
 import { resolveCityId, getCityConfig } from '@/lib/city'
 import { getStatsFor } from '@/lib/cities'
-import { COMMUNITY_MEMBER_WHERE } from '@/lib/memberCount'
+import { COMMUNITY_MEMBER_WHERE, MEMBER_ROLE_FILTER } from '@/lib/memberCount'
 import { foundingRankFor } from '@/lib/foundingRank'
 import { countedReferralsWhere } from '@/lib/referrals'
 import { CITY_MATURITY } from '@/lib/cityMaturity'
@@ -771,7 +771,11 @@ export default async function DashboardPage() {
     prisma.user.findMany({
       // "Joined Smileys · <neighborhood>" is only said of members who show
       // their profile to everyone.
-      where: { ...COMMUNITY_MEMBER_WHERE, cityId, hiddenFromMembers: false, profileVisibility: { not: 'connections' }, joinedAt: { gte: weekAgo }, id: { notIn: notMeOrBlocked } },
+      // Approved, not activated: a newcomer belongs here from the day they're
+      // let in (Nate, 2026-10-02 — Candice, approved at 13:41, wasn't shown
+      // because she hadn't set a password yet). The member COUNTS keep the
+      // activated rule (lib/memberCount); this is a welcome list, not a tally.
+      where: { status: 'approved', role: MEMBER_ROLE_FILTER, cityId, hiddenFromMembers: false, profileVisibility: { not: 'connections' }, joinedAt: { gte: weekAgo }, id: { notIn: notMeOrBlocked } },
       select: { id: true, name: true, color: true, profilePhoto: true, neighborhood: true, neighborhoodVisible: true, joinedAt: true },
       orderBy: { joinedAt: 'desc' },
       take: 8,

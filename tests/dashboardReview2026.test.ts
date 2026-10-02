@@ -114,7 +114,7 @@ describe('discovery shelves offer only what a member can still join', () => {
   })
 
   it('new members are activated community members', () => {
-    expect(page).toContain("where: { ...COMMUNITY_MEMBER_WHERE, cityId, hiddenFromMembers: false, profileVisibility: { not: 'connections' }, joinedAt: { gte: weekAgo }")
+    expect(page).toContain("where: { status: 'approved', role: MEMBER_ROLE_FILTER, cityId, hiddenFromMembers: false, profileVisibility: { not: 'connections' }, joinedAt: { gte: weekAgo }")
   })
 
   it('listings past their expiry are not shown', () => {
