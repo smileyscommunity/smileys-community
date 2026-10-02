@@ -834,27 +834,94 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
         </section>
       )}
 
-      {/* ── Meet people ── the third act opens with the four promises (they
-          used to sit under the hero, 2,000px above anything about people). */}
-      <section className="bg-white border-t border-gray-100">
+      {/* ── Tell the community you're coming ── the page's core action, so it
+          opens Meet people as a panel (Nate, 2026-10-02: it sat ~6,000px down
+          as fine print). The four promises ride in it; the rules below are
+          word for word what they were, behind "How it works". Said
+          before anyone posts: Every line is a rule the product enforces:
+          posting needs an approved account (visiting/new is members-only),
+          visits default to members-only and a public card shows guests a
+          first name and the month (lib/visitorPolicy), contact happens by a
+          connection request the visitor accepts or declines (VisitingClient),
+          and Report/Block sit on every profile and message thread. It
+          promises no introductions — some visitors hear from nobody. */}
+      <section id="tell" aria-labelledby="tell-title" className="bg-white border-t border-gray-100 scroll-mt-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
           {actLabel('Meet people')}
-          <h2 className="section-title mb-8">Know someone while you&apos;re here</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {[
-              { icon: '☕', title: 'Meet a Local',      body: `Grab a coffee, drink or meal with someone already living in ${city.name}.` },
-              { icon: '💬', title: 'Get Local Tips',    body: 'Ask real people about neighborhoods, transport, restaurants and everyday life.' },
-              { icon: '🤝', title: 'Make Connections',  body: 'Start meeting people before your flight even lands.' },
-              { icon: '🎉', title: 'Find Plans',        body: "Discover Smileys events and activities happening while you're here." },
-            ].map(v => (
-              <div key={v.title} className="bg-gray-50 border border-gray-100 rounded-2xl p-5">
-                <div aria-hidden="true" className="text-2xl mb-3">{v.icon}</div>
-                <h3 className="text-sm font-bold text-gray-900 mb-1.5">{v.title}</h3>
-                <p className="text-xs text-gray-600 leading-relaxed">{v.body}</p>
-              </div>
-            ))}
+          <div className="rounded-3xl border border-amber-200 bg-amber-50 p-6 sm:p-10">
+            <h2 id="tell-title" className="section-title">Tell the community you&apos;re coming</h2>
+            <p className="section-subtitle max-w-2xl">Post your dates and a short intro, and members in {city.name} can see you&apos;re on your way.</p>
+            <ul className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {[
+                { icon: '☕', title: 'Meet a Local',      body: `Grab a coffee, drink or meal with someone already living in ${city.name}.` },
+                { icon: '💬', title: 'Get Local Tips',    body: 'Ask real people about neighborhoods, transport, restaurants and everyday life.' },
+                { icon: '🤝', title: 'Make Connections',  body: 'Start meeting people before your flight even lands.' },
+                { icon: '🎉', title: 'Find Plans',        body: "Discover Smileys events and activities happening while you're here." },
+              ].map(v => (
+                <li key={v.title} className="bg-white border border-amber-100 rounded-2xl p-4">
+                  <p className="text-sm font-bold text-gray-900"><span aria-hidden="true">{v.icon} </span>{v.title}</p>
+                  <p className="text-xs text-gray-600 mt-1 leading-relaxed">{v.body}</p>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-8 flex flex-col sm:flex-row gap-3">
+              <Link href={isMember ? newVisitHref : '/apply'} className="btn-primary">
+                {isMember ? ctaLabel : 'Apply to join — free, then post your visit'}
+              </Link>
+              <Link href="/guidelines" className="btn-secondary">
+                Community rules
+              </Link>
+            </div>
+            <details className="group mt-8 border-t border-amber-200 pt-6">
+              <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-bold text-amber-800">
+                How it works
+                <span aria-hidden="true" className="transition-transform group-open:rotate-45">+</span>
+              </summary>
+              <dl className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {[
+                  { icon: '🪪', term: 'You need a Smileys account', desc: 'Posting your dates, messaging members and joining events are for approved members. Applying is free and every application is reviewed by a person.' },
+                  { icon: '👀', term: 'Who sees your visit', desc: 'Only signed-in members, unless you choose to list it publicly. Even then, people who aren’t signed in see only your first name and the month — never your exact dates, neighbourhood or contact details.' },
+                  { icon: '🤝', term: 'What to expect', desc: 'A member who’d like to meet sends you a connection request with a note — a coffee, a tip, an event they’re going to — and can only message you once you accept. (Smileys staff and club hosts can message members directly.) Some visitors hear from several people and some from nobody; it depends on your dates and who’s around, so events are the surest way to meet people.' },
+                  { icon: '🛡️', term: 'Staying safe', desc: 'Never post where you’re staying or anything you wouldn’t tell a stranger — a neighbourhood is plenty. Meet in public places. If anyone makes you uncomfortable, block or report them from their profile or your message thread, and our team will review it.' },
+                ].map(x => (
+                  <div key={x.term} className="bg-white border border-amber-100 rounded-2xl p-5">
+                    <dt className="font-bold text-gray-900"><span aria-hidden="true">{x.icon} </span>{x.term}</dt>
+                    <dd className="text-sm text-gray-600 mt-1.5 leading-relaxed">{x.desc}</dd>
+                  </div>
+                ))}
+              </dl>
+            </details>
           </div>
         </div>
+      </section>
+
+      <section className="bg-gray-50 border-t border-gray-100">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+        {/* Full container width (not max-w-3xl) so the visitor cards can
+            lay out 3-up on desktop; the handbook cross-link below keeps
+            its own reading width so it doesn't stretch into a banner. */}
+        <div id="visitors" className="scroll-mt-20">
+
+        <VisitingClient announcements={serialised} events={eventsForCards} today={today} viewerIsLocal={viewerIsLocal} totalCount={totalCount} newVisitHref={isMember ? newVisitHref : '/apply'} cityCount={cityCount} featuredLocals={localsForViewer} cityName={city.name} />
+
+        {/* Cross-link to /handbook — visitors landing here are the exact
+            audience for the long-form survival reads. Closes the loop
+            with /handbook (and /guide) which both link back here as
+            "Visiting first?". Soft grey card so it doesn't compete
+            with the post-CTA. */}
+        <Link href={`/handbook${cityQs}`}
+          className="block mt-8 max-w-3xl bg-white hover:bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 transition-colors group">
+          <div className="flex items-center gap-4">
+            <div aria-hidden="true" className="text-2xl shrink-0">📖</div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-gray-900">Arriving soon? Read the Handbook.</p>
+              <p className="text-xs text-gray-600 mt-0.5">Residence permits, banking, transport — practical guides from the Smileys team.</p>
+            </div>
+            <span className="text-sm font-bold text-gray-700 shrink-0 group-hover:translate-x-0.5 transition-transform">→</span>
+          </div>
+        </Link>
+        </div>
+      </div>
       </section>
 
       {/* ── Plan your visit ── dates → events during your stay. Below the
@@ -862,11 +929,11 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
           form: works without JavaScript, every control is a native labelled
           input, and the result is a shareable URL. Filters appear only when
           they would narrow the list (lib/tripPlan tripFilterOptions). */}
-      <section id="plan" aria-labelledby="plan-title" className="bg-gray-50 border-t border-gray-100 scroll-mt-20">
+      <section id="plan" aria-labelledby="plan-title" className="bg-white border-t border-gray-100 scroll-mt-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
           <h2 id="plan-title" className="section-title">What’s on during your stay</h2>
 
-          <form method="get" action="/app/visiting#plan-events" className="mt-8 rounded-2xl border border-gray-200 bg-white p-4 sm:p-6">
+          <form method="get" action="/app/visiting#plan-events" className="mt-8 rounded-2xl border border-gray-200 bg-gray-50 p-4 sm:p-6">
             {pinned && <input type="hidden" name="city" value={city.slug} />}
             <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-4 items-end">
               <div>
@@ -985,73 +1052,6 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
         </div>
       </section>
 
-      <section className="bg-white border-t border-gray-100">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
-        {/* Full container width (not max-w-3xl) so the visitor cards can
-            lay out 3-up on desktop; the handbook cross-link below keeps
-            its own reading width so it doesn't stretch into a banner. */}
-        <div id="visitors" className="scroll-mt-20">
-
-        <VisitingClient announcements={serialised} events={eventsForCards} today={today} viewerIsLocal={viewerIsLocal} totalCount={totalCount} newVisitHref={isMember ? newVisitHref : '/apply'} cityCount={cityCount} featuredLocals={localsForViewer} cityName={city.name} />
-
-        {/* Cross-link to /handbook — visitors landing here are the exact
-            audience for the long-form survival reads. Closes the loop
-            with /handbook (and /guide) which both link back here as
-            "Visiting first?". Soft grey card so it doesn't compete
-            with the post-CTA. */}
-        <Link href={`/handbook${cityQs}`}
-          className="block mt-8 max-w-3xl bg-white hover:bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 transition-colors group">
-          <div className="flex items-center gap-4">
-            <div aria-hidden="true" className="text-2xl shrink-0">📖</div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-gray-900">Arriving soon? Read the Handbook.</p>
-              <p className="text-xs text-gray-600 mt-0.5">Residence permits, banking, transport — practical guides from the Smileys team.</p>
-            </div>
-            <span className="text-sm font-bold text-gray-700 shrink-0 group-hover:translate-x-0.5 transition-transform">→</span>
-          </div>
-        </Link>
-        </div>
-      </div>
-      </section>
-
-      {/* ── Tell the community you're coming ── how it actually works, said
-          before anyone posts. Every line is a rule the product enforces:
-          posting needs an approved account (visiting/new is members-only),
-          visits default to members-only and a public card shows guests a
-          first name and the month (lib/visitorPolicy), contact happens by a
-          connection request the visitor accepts or declines (VisitingClient),
-          and Report/Block sit on every profile and message thread. It
-          promises no introductions — some visitors hear from nobody. */}
-      <section id="tell" aria-labelledby="tell-title" className="bg-gray-50 border-t border-gray-100 scroll-mt-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
-          <div className="mb-8">
-            <h2 id="tell-title" className="section-title">Tell the community you&apos;re coming</h2>
-            <p className="section-subtitle max-w-2xl">Post your dates and a short intro, and members in {city.name} can see you&apos;re on your way. Here&apos;s exactly how it works.</p>
-          </div>
-          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {[
-              { icon: '🪪', term: 'You need a Smileys account', desc: 'Posting your dates, messaging members and joining events are for approved members. Applying is free and every application is reviewed by a person.' },
-              { icon: '👀', term: 'Who sees your visit', desc: 'Only signed-in members, unless you choose to list it publicly. Even then, people who aren’t signed in see only your first name and the month — never your exact dates, neighbourhood or contact details.' },
-              { icon: '🤝', term: 'What to expect', desc: 'A member who’d like to meet sends you a connection request with a note — a coffee, a tip, an event they’re going to — and can only message you once you accept. (Smileys staff and club hosts can message members directly.) Some visitors hear from several people and some from nobody; it depends on your dates and who’s around, so events are the surest way to meet people.' },
-              { icon: '🛡️', term: 'Staying safe', desc: 'Never post where you’re staying or anything you wouldn’t tell a stranger — a neighbourhood is plenty. Meet in public places. If anyone makes you uncomfortable, block or report them from their profile or your message thread, and our team will review it.' },
-            ].map(x => (
-              <div key={x.term} className="bg-white border border-gray-100 rounded-2xl p-5">
-                <dt className="font-bold text-gray-900"><span aria-hidden="true">{x.icon} </span>{x.term}</dt>
-                <dd className="text-sm text-gray-600 mt-1.5 leading-relaxed">{x.desc}</dd>
-              </div>
-            ))}
-          </dl>
-          <div className="mt-8 flex flex-col sm:flex-row gap-3">
-            <Link href={isMember ? newVisitHref : '/apply'} className="btn-primary">
-              {isMember ? ctaLabel : 'Apply to join — it’s free'}
-            </Link>
-            <Link href="/guidelines" className="btn-secondary">
-              Community rules
-            </Link>
-          </div>
-        </div>
-      </section>
-
       {/* ── Perfect for your stay — Guide experiences matched to the
           season of the viewer's posted dates. Members with dates only. */}
       {viewerVisit && (() => {
@@ -1063,7 +1063,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
         // still carries the viewer's club events, which it used to take down with it.
         if (picks.length === 0 && clubEventsDuringVisit.length === 0) return null
         return (
-          <section className="bg-white border-t border-gray-100">
+          <section className="bg-gray-50 border-t border-gray-100">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
               <h2 className="section-title">Perfect for your stay</h2>
               {picks.length > 0 && (<>
@@ -1112,7 +1112,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
           there are none. Spontaneous plans are the fastest way a visitor
           actually meets people, which is this page's whole promise. */}
       {hangoutsDuringVisit.length > 0 && (
-        <section className="bg-gray-50 border-t border-gray-100">
+        <section className="bg-white border-t border-gray-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
             <div className="mb-8">
               <h2 className="section-title">Hangouts while you&apos;re here</h2>
@@ -1121,7 +1121,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {hangoutsDuringVisit.map(hg => (
                 <Link key={hg.id} href={`/hangouts/${hg.id}`}
-                  className="bg-white border border-gray-100 rounded-2xl p-5 hover:shadow-md hover:border-amber-200 transition-all group">
+                  className="bg-gray-50 border border-gray-100 rounded-2xl p-5 hover:shadow-md hover:border-amber-200 transition-all group">
                   <p className="font-bold text-gray-900 leading-snug group-hover:text-amber-700 transition-colors">
                     {hg.title}
                   </p>
@@ -1145,7 +1145,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
       )}
 
       {/* ── Already in <city>? ── */}
-      <section className="bg-white border-t border-gray-100">
+      <section className="bg-gray-50 border-t border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
           <div className="max-w-3xl">
             <h2 className="section-title">Already in {city.name}?</h2>
@@ -1179,7 +1179,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
           means members and events now; Founding means the city is open but
           just starting (few or no events yet); Coming soon means no community
           there yet. Same maturity signal as the city cards (lib/tripPlan). */}
-      <section aria-labelledby="where-title" className="bg-gray-50 border-t border-gray-100">
+      <section aria-labelledby="where-title" className="bg-white border-t border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
           <h2 id="where-title" className="section-title">Where you can use Smileys today</h2>
           {hereAvailability !== 'active' && (
@@ -1195,7 +1195,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
               { key: 'founding',    title: 'Founding',    note: 'Open, but just starting — few or no events yet.',   cities: availability.founding },
               { key: 'coming_soon', title: 'Coming soon', note: 'No community there yet. Get notified when it opens.', cities: availability.coming_soon },
             ] as const).filter(g => g.cities.length > 0).map(g => (
-              <div key={g.key} className="rounded-2xl border border-gray-100 bg-white p-5">
+              <div key={g.key} className="rounded-2xl border border-gray-100 bg-gray-50 p-5">
                 <h3 className="font-bold text-gray-900">{g.title}</h3>
                 <p className="text-xs text-gray-500 mt-0.5 mb-3">{g.note}</p>
                 <ul className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm">

@@ -166,7 +166,9 @@ describe('/visiting section order', () => {
   it('reads as a trip: before you go, when you are here, meet people', async () => {
     const blocks = await topLevel()
     const at = (id: string) => blocks.findIndex(t => t.includes(`aria-labelledby="${id}"`) || t.includes(`<section id="${id}"`))
-    const order = ['essentials-title', 'stories-title', 'stay', 'first-48-title', 'interests-title', 'plan-title', 'tell-title', 'where-title'].map(at)
+    // Meet people opens with the visit panel (Nate, 2026-10-02: it was buried
+    // ~6,000px down), then who's coming, then the events.
+    const order = ['essentials-title', 'stories-title', 'stay', 'first-48-title', 'interests-title', 'tell-title', 'plan-title', 'where-title'].map(at)
     expect(order.every(i => i > -1), JSON.stringify(order)).toBe(true)
     expect([...order].sort((a, b) => a - b)).toEqual(order)
   })
@@ -192,4 +194,17 @@ describe('/visiting before dates are entered', () => {
     expect(page).not.toContain('timedEvents.slice(0, 6)')
     expect(page).toContain('See everything on in {city.name} →')
   })
+
+  it('the visit panel leads Meet people, says what the button does, and keeps every rule', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const page = readFileSync(join(process.cwd(), 'app/visiting/page.tsx'), 'utf8')
+    const tell = page.slice(page.indexOf('<section id="tell"'), page.indexOf('</section>', page.indexOf('<section id="tell"')))
+    expect(tell).toContain("{actLabel('Meet people')}")
+    expect(tell).toContain('Apply to join — free, then post your visit')
+    for (const term of ['You need a Smileys account', 'Who sees your visit', 'What to expect', 'Staying safe']) expect(tell, term).toContain(term)
+    expect(tell).toContain('some from nobody')   // the honest line stays
+    expect(page.match(/actLabel\('Meet people'\)/g)).toHaveLength(1)
+  })
 })
+
