@@ -29,7 +29,9 @@ export function isKind(s: unknown): s is Kind {
 // 'Digital nomads' is the remote-work hub's article shelf (lib/remoteWork
 // NOMAD_STORY_CATEGORY), pinned to its city — separate from 'Working from',
 // which is the one-member-a-month interview the hub shows as a single card.
-export const CATEGORIES = ['Community', 'Club Stories', 'Events', 'City Guide', 'Tips', 'Working from', 'Students', 'Expats', 'Digital nomads'] as const
+// 'Travellers' is /visiting's shelf (lib/tripPlan TRAVELLER_STORY_CATEGORY),
+// pinned to the city the visitor is looking at.
+export const CATEGORIES = ['Community', 'Club Stories', 'Events', 'City Guide', 'Tips', 'Working from', 'Students', 'Expats', 'Digital nomads', 'Travellers'] as const
 export type Category = (typeof CATEGORIES)[number]
 // The two retired names, accepted on write and folded into 'City Guide' so an
 // edit of an older row migrates it instead of resetting it to the default.

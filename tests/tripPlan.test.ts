@@ -98,3 +98,30 @@ describe('cityAvailability', () => {
     expect(cityAvailability({ status: 'preparing', stats: { maturity: 'seeding' } })).toBe('coming_soon')
   })
 })
+
+// /visiting's "Read before your trip" shelf (2026-10-02) — the visiting twin
+// of the Students, Expats and Digital nomads shelves.
+describe('Travellers shelf on /visiting', () => {
+  it('is a category the admin form accepts', async () => {
+    const { TRAVELLER_STORY_CATEGORY } = await import('@/lib/tripPlan')
+    const { CATEGORIES, isCategory, normalizeCommunityCategory } = await import('@/app/admin/posts/constants')
+    expect(CATEGORIES).toContain(TRAVELLER_STORY_CATEGORY)
+    expect(isCategory(TRAVELLER_STORY_CATEGORY)).toBe(true)
+    expect(normalizeCommunityCategory(TRAVELLER_STORY_CATEGORY)).toBe(TRAVELLER_STORY_CATEGORY)
+  })
+
+  it('reads the visited city\'s posts only, caches no body, and busts on publish', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const page = readFileSync(join(process.cwd(), 'app/visiting/page.tsx'), 'utf8')
+    const fn = page.slice(page.indexOf('const getTravellerStories'), page.indexOf("['visiting-traveller-stories']"))
+    expect(fn).toMatch(/category:\s*TRAVELLER_STORY_CATEGORY,\s*cityId\s*}/)
+    expect(fn).toMatch(/cover:\s*articleCover/)
+    // Only rendered fields leave the cache; the body goes into articleCover only.
+    expect(fn).toMatch(/rows\.map\(r => \(\{ slug: r\.slug, title: r\.title, excerpt: r\.excerpt, cover: articleCover/)
+    expect(page).toMatch(/\['visiting-traveller-stories'\],\s*\{[^}]*tags:\s*\['posts'\]/)
+    for (const f of ['app/posts/page.tsx', 'app/posts/[slug]/page.tsx', 'app/admin/posts/page.tsx']) {
+      expect(readFileSync(join(process.cwd(), f), 'utf8'), f).toMatch(/'Travellers':\s*'bg-/)
+    }
+  })
+})

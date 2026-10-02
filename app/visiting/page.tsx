@@ -24,7 +24,9 @@ import { formatTime } from '@/lib/data'
 import {
   parseTripRange, parseTripFilters, applyTripFilters, tripFilterOptions, tripEventWhen,
   cityAvailability, isFreeEvent, type TripWhen,
+  TRAVELLER_STORY_CATEGORY, TRAVELLER_STORY_LIMIT,
 } from '@/lib/tripPlan'
+import { articleCover } from '@/lib/articleCover'
 import { guestView, visitorName, visitAuthorOk } from '@/lib/visitorPolicy'
 import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
 import { loadExperiences } from '@/lib/guideContent'
@@ -56,6 +58,24 @@ const VISIT_WHERE = (today: string, cityId: string, forMembers: boolean) => ({
   // A banned, suspended or admin-hidden author's card goes with them.
   ...visitAuthorOk(),
 })
+
+// The "Read before your trip" shelf: this city's Travellers posts, newest
+// first (lib/tripPlan TRAVELLER_STORY_CATEGORY). Cached per city; only the
+// fields the cards render leave the cache (the body is read for the cover).
+// Tagged 'posts' so a publish from the panel shows here at once.
+const getTravellerStories = unstable_cache(
+  async (cityId: string) => {
+    const rows = await prisma.post.findMany({
+      where:   { kind: 'community', status: 'published', category: TRAVELLER_STORY_CATEGORY, cityId },
+      orderBy: { publishedAt: 'desc' },
+      take:    TRAVELLER_STORY_LIMIT,
+      select:  { slug: true, title: true, excerpt: true, coverImage: true, body: true },
+    })
+    return rows.map(r => ({ slug: r.slug, title: r.title, excerpt: r.excerpt, cover: articleCover({ coverImage: r.coverImage, body: r.body }) }))
+  },
+  ['visiting-traveller-stories'],
+  { revalidate: 60, tags: ['posts'] },
+)
 
 const getAnnouncements = unstable_cache(
   // cityId is an ARGUMENT, not a closure read: unstable_cache keys on its args,
@@ -485,11 +505,12 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
   // All existing content: the city's Handbook (lib/handbookIndex), its Guide
   // audiences and day routes (lib/guide, lib/guideContent), and the city list
   // with the same maturity signal the city cards use (lib/tripPlan).
-  const [handbook, routes, publicCities, handbookPicks] = await Promise.all([
+  const [handbook, routes, publicCities, handbookPicks, travellerStories] = await Promise.all([
     getCityHandbookIndex(cityId, city.country ?? null),
     loadRoutes(cityId),
     getPublicCities(),
     getCityHandbookPicks(cityId),
+    getTravellerStories(cityId),
   ])
   // The city's own article first (its transport card beats a national note).
   const essential = (category: string) => handbook
@@ -870,6 +891,42 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
                 </div>
               </div>
             )}
+          </div>
+        </section>
+      )}
+
+      {/* ── Read before your trip ── this city's Travellers posts
+          (lib/tripPlan TRAVELLER_STORY_CATEGORY), newest first. Hidden until
+          the city has one. */}
+      {travellerStories.length > 0 && (
+        <section id="stories" aria-labelledby="stories-title" className="bg-white border-t border-gray-100 scroll-mt-20">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+            <div className="mb-8">
+              <h2 id="stories-title" className="section-title">Read before your trip</h2>
+              <p className="section-subtitle max-w-2xl">Visiting {city.name}: what to know, what to skip and what most visitors miss.</p>
+            </div>
+            <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {travellerStories.map(story => (
+                <li key={story.slug}>
+                  <Link href={`/posts/${story.slug}`}
+                    className="group h-full flex flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm hover:border-amber-200 hover:shadow-md transition-all">
+                    {story.cover && (
+                      // Absolute image: an aspect-ratio box grows to fit a portrait cover.
+                      <div className="relative aspect-[16/9] overflow-hidden bg-gray-100">
+                        <img src={story.cover} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+                      </div>
+                    )}
+                    <div className="p-5 flex flex-col flex-1">
+                      <h3 className="font-bold text-gray-900 leading-snug group-hover:text-amber-700 transition-colors">{story.title}</h3>
+                      {story.excerpt && <p className="mt-2 text-sm text-gray-600 leading-relaxed line-clamp-3 flex-1">{story.excerpt}</p>}
+                      <span className="mt-4 text-sm font-bold text-amber-700 group-hover:text-amber-800">
+                        Read <span aria-hidden="true">→</span>
+                      </span>
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
           </div>
         </section>
       )}

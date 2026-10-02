@@ -138,3 +138,13 @@ export function cityAvailability(c: { status: string; stats?: { maturity?: CityM
   if (c.status !== CITY_STATUS.Live) return 'coming_soon'
   return c.stats?.maturity === CITY_MATURITY.Seeding ? 'founding' : 'active'
 }
+
+// ── Traveller stories ────────────────────────────────────────────────────────
+//
+// /visiting's "Read before your trip": community posts in this category pinned
+// to the city being visited, newest first — the visiting twin of the student,
+// expat and digital-nomad shelves. No global fallback: another city's "48
+// hours in Istanbul" is not this city's.
+export const TRAVELLER_STORY_CATEGORY = 'Travellers'
+/** How many the shelf lists — two rows of three. */
+export const TRAVELLER_STORY_LIMIT = 6
