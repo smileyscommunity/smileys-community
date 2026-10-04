@@ -1291,7 +1291,23 @@ export default async function DashboardPage() {
   // the list is capped at 20, the count isn't.
   const thisWeekShown = thisWeekEvents.filter(notEnded)
   const thisWeekTotal = thisWeekEvents.length < 20 ? thisWeekShown.length : Math.max(eventsThisWeek, thisWeekShown.length)
-  const clubEventsShown = recentClubEvents.filter(notEnded)
+  // An event is "new" from the moment staff approved it, not from when the host
+  // created it (Nate, 2026-10-04: approved a few minutes ago, shown as 3 hours).
+  // Event has no publishedAt; the moderator PATCH writes an `event.published`
+  // audit row, which is the approval time. Newest approval wins; an event
+  // created live by staff has no row and keeps its creation time.
+  const clubEventsFresh = recentClubEvents.filter(notEnded)
+  const publishedAudits = clubEventsFresh.length === 0 ? [] : await prisma.auditLog.findMany({
+    where: { targetType: 'event', action: 'event.published', targetId: { in: clubEventsFresh.map((e) => e.id) } },
+    select: { targetId: true, createdAt: true },
+    orderBy: { createdAt: 'desc' },
+  }).catch(() => [])
+  const publishedAt = new Map<string, Date>()
+  for (const a of publishedAudits) if (a.targetId && !publishedAt.has(a.targetId)) publishedAt.set(a.targetId, a.createdAt)
+  const clubEventsShown = clubEventsFresh.map((e) => {
+    const at = publishedAt.get(e.id)
+    return at && at > e.createdAt ? { ...e, createdAt: at } : e
+  })
   const trendingEvents = pickedTrendingRanked.length >= TRENDING_MIN_FIELD && (pickedTrendingRanked[0]?._count.attendees ?? 0) > 0
     ? pickedTrendingRanked.slice(0, 4)
     : []
