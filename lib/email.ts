@@ -1641,16 +1641,16 @@ export async function sendSpotReleasedEmail(
   const eventUrl  = `${APP_URL}/events/${eventId}`
   await send('sendSpotReleasedEmail', {
     from: FROM, to: email,
-    subject: safeSubject(`Your spot at ${eventTitle} went to the waitlist ${eventEmoji}`),
+    subject: safeSubject(`Your seat at ${eventTitle} was released ${eventEmoji}`),
     html: `
       <div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
         <div style="text-align:center;margin-bottom:28px">
           <span style="font-size:40px">${esc(eventEmoji)}</span>
-          <h1 style="font-size:22px;font-weight:800;color:#111;margin:8px 0 4px">We didn't hear back, ${esc(firstName)}</h1>
-          <p style="color:#6b7280;font-size:14px;margin:0">We asked earlier whether you were still coming to <strong>${esc(eventTitle)}</strong>. Someone was waiting, so the spot has gone to the waitlist.</p>
+          <h1 style="font-size:22px;font-weight:800;color:#111;margin:8px 0 4px">Your seat was released, ${esc(firstName)}</h1>
+          <p style="color:#6b7280;font-size:14px;margin:0">We asked earlier whether you were still coming to <strong>${esc(eventTitle)}</strong>. We didn't hear back and people are waiting, so your seat is no longer held — it has been offered to the waitlist.</p>
         </div>
         <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:16px 20px;margin-bottom:24px">
-          <p style="color:#92400e;font-size:14px;margin:0">This doesn't count against you. Still want to come? Rejoin if a spot is open, or take a place on the waitlist.</p>
+          <p style="color:#92400e;font-size:14px;margin:0">This doesn't count against you. Still want to come? You can rejoin if a spot is still open, or join the waitlist.</p>
         </div>
         <a href="${eventUrl}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:16px">
           See the event →

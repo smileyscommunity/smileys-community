@@ -160,10 +160,13 @@ export async function releaseEvent(event: {
     if (count === 0) continue
     const emoji = event.emoji ?? '📅'
     await createNotification(a.userId, 'reconfirm_released',
-      `${emoji} Your spot at ${event.title} went to the waitlist`,
+      `${emoji} Your seat at ${event.title} was released`,
       // "Yesterday" was wrong for the same reason as the ask's "tomorrow":
       // the ask can land on the event's own day.
-      'We asked earlier and didn\'t hear back, and someone was waiting. Still want to come? You can rejoin if a spot is open.',
+      // Unmistakable on purpose: a soft "we've released your spot" reads as
+      // cancellable, and a released member who turns up expecting a seat is a
+      // problem the host would have to settle at the door.
+      'Your seat is no longer held. We asked earlier, didn\'t hear back, and people are waiting for it. You can rejoin if a spot is still open, or join the waitlist.',
       `/events/${event.id}`)
     sendSpotReleasedEmail(a.user.email, a.user.name ?? 'Member', event.title, emoji, event.id)
       .catch(async err => {

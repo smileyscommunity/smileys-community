@@ -49,7 +49,7 @@ export default function EventBadges({ event, urgency, className = '', variant = 
         </Tip>
       )}
       {event.isPremium && !event.membersOnly && (
-        <Tip text="Curated premium experience for vetted members">
+        <Tip text="A premium experience — the price and number of seats are on the event page">
           <span className={pill('bg-gray-900 text-amber-400', 'text-amber-700 bg-amber-50 border border-amber-200')}>♛ Premium</span>
         </Tip>
       )}
