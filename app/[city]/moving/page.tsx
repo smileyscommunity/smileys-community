@@ -399,18 +399,18 @@ export default async function CityMovingPage({ params }: Params) {
 
       {/* ── Final CTA ────────────────────────────────────────────────── */}
       <section className="py-14 sm:py-20 bg-gradient-to-b from-white to-amber-50 border-t border-gray-100">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 text-center">
           <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight text-gray-900 mb-4">
             Arrive knowing people.
           </h2>
-          <p className="text-lg text-gray-600 mb-8">
+          <p className="text-lg text-gray-600 mb-8 max-w-3xl mx-auto">
             Joining is free. You only pay for events you choose, and the price is shown before you RSVP.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center flex-wrap">
+          <div className="flex flex-col sm:flex-row gap-3 justify-center flex-wrap lg:flex-nowrap lg:whitespace-nowrap">
             <JoinCityButton slug={city.slug} name={city.name} guest={!session} />
-            <Link href={`/handbook${cityQs}`} className="btn-secondary text-base px-6 py-4">Read the Handbook</Link>
-            <Link href={`/neighborhoods${cityQs}`} className="btn-secondary text-base px-6 py-4">Explore neighborhoods</Link>
-            <Link href={eventsHref} className="btn-secondary text-base px-6 py-4">See upcoming events</Link>
+            <Link href={`/handbook${cityQs}`} className="btn-secondary text-base px-5 py-4">Read the Handbook</Link>
+            <Link href={`/neighborhoods${cityQs}`} className="btn-secondary text-base px-5 py-4">Explore neighborhoods</Link>
+            <Link href={eventsHref} className="btn-secondary text-base px-5 py-4">See upcoming events</Link>
           </div>
         </div>
       </section>
