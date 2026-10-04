@@ -660,7 +660,7 @@ export async function DELETE(_: NextRequest, { params }: Params) {
 
     const target = await prisma.user.findUnique({
       where:  { id },
-      select: { id: true, name: true, email: true, phone: true, lastFingerprint: true, cityId: true },
+      select: { id: true, name: true, email: true, phone: true, lastFingerprint: true, cityId: true, role: true, status: true },
     })
     if (!target) return NextResponse.json({ error: 'User not found' }, { status: 404 })
     if (target.email.endsWith(TOMBSTONE_EMAIL_SUFFIX)) {

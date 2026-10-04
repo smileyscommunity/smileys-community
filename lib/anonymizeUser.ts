@@ -29,6 +29,8 @@ const DELETED_BODY = '[deleted]'
 export interface AnonymizeTarget {
   id: string; name: string | null; email: string; phone: string | null
   lastFingerprint: string | null; cityId: string | null
+  // Recorded in the audit snapshot (the row's role/status are overwritten).
+  role?: string | null; status?: string | null
 }
 
 export async function anonymizeUser(user: AnonymizeTarget, actor?: { id: string; name: string }): Promise<void> {
@@ -149,7 +151,10 @@ export async function anonymizeUser(user: AnonymizeTarget, actor?: { id: string;
     // user's words are replaced. Image references are nulled where
     // applicable so deleted-account photos don't render. Sequential for the
     // same single-connection reason as above.
-    await tx.directMessage.updateMany({ where: { fromId: id }, data: { text: DELETED_BODY, imageUrl: null } })
+    // An admin removal keeps what they SENT in private messages: it is the
+    // evidence behind the removal, and only its recipients ever saw it. A
+    // member leaving takes their words with them.
+    if (!actor) await tx.directMessage.updateMany({ where: { fromId: id }, data: { text: DELETED_BODY, imageUrl: null } })
     await tx.eventMessage.updateMany({ where: { userId: id }, data: { message: DELETED_BODY } })
     await tx.clubPostReply.updateMany({ where: { userId: id }, data: { content: DELETED_BODY } })
     await tx.neighborhoodPostReply.updateMany({ where: { userId: id }, data: { content: DELETED_BODY } })
@@ -225,7 +230,9 @@ export async function anonymizeUser(user: AnonymizeTarget, actor?: { id: string;
     // city/status/dates stay for stats. Case-insensitive: /apply lowercases,
     // older rows may not. The admin audit snapshot below remains the one
     // deliberate retention.
-    await tx.memberApplication.updateMany({
+    // Admin removal keeps the application (and the earlier-address ones below)
+    // intact: it is how the same person is recognised if they apply again.
+    if (!actor) await tx.memberApplication.updateMany({
       where: { email: { equals: user.email, mode: 'insensitive' } },
       data:  applicationScrubData(`${ghost}${TOMBSTONE_EMAIL_SUFFIX}`),
     })
@@ -248,7 +255,7 @@ export async function anonymizeUser(user: AnonymizeTarget, actor?: { id: string;
       const prev = leftAt.get(key)
       if (!prev || c.createdAt > prev) leftAt.set(key, c.createdAt)
     }
-    for (const [earlier, before] of leftAt) {
+    if (!actor) for (const [earlier, before] of leftAt) {
       const heldNow = await tx.user.findFirst({
         where:  { id: { not: id }, email: { equals: earlier, mode: 'insensitive' } },
         select: { id: true },
@@ -299,9 +306,10 @@ export async function anonymizeUser(user: AnonymizeTarget, actor?: { id: string;
         // Tracking arrays — leaving these populated would let admins
         // continue to recognize the user across accounts via fingerprints
         // even after they've exercised their right to be forgotten.
-        fingerprints:     [],
-        knownIps:         [],
-        lastFingerprint:  null,
+        // A member who LEFT takes their device trail with them. An admin
+        // REMOVAL keeps it: that is the evidence for spotting the same person
+        // returning under a new email (the shared-device flag reads it).
+        ...(actor ? {} : { fingerprints: [], knownIps: [], lastFingerprint: null }),
         // Auth state — null everything so a future signup with the same
         // email (impossible, since email is now ghost@deleted.smileys, but
         // defense in depth) doesn't inherit lockout / 2FA state.
@@ -328,16 +336,21 @@ export async function anonymizeUser(user: AnonymizeTarget, actor?: { id: string;
         emailVerified:    false,
         // Moderation state — clear so the deleted account doesn't carry
         // forward appeal / suspension metadata.
-        banReason:        'deleted',
-        bannedAt:         new Date(),
-        appealNote:       null,
-        appealStatus:     null,
-        appealedAt:       null,
-        warningCount:     0,
-        suspendedAt:      null,
-        suspendedUntil:   null,
-        suspendedBy:      null,
-        suspensionNote:   null,
+        banReason:        actor ? 'removed' : 'deleted',
+        // Moderation history: a member who left starts clean; an admin
+        // removal keeps the warnings, appeal and suspension record. Only the
+        // live suspension is lifted.
+        ...(actor ? { suspendedUntil: null } : {
+          bannedAt:       new Date(),
+          appealNote:     null,
+          appealStatus:   null,
+          appealedAt:     null,
+          warningCount:   0,
+          suspendedAt:    null,
+          suspendedUntil: null,
+          suspendedBy:    null,
+          suspensionNote: null,
+        }),
         // Invalidate every active session for this user — the cookie on
         // this device is also cleared below.
         tokenVersion:     { increment: 1 },
@@ -361,7 +374,7 @@ export async function anonymizeUser(user: AnonymizeTarget, actor?: { id: string;
   // an admin can still trace who a "Deleted Member" was if a safety question
   // arises. This is the one deliberate exception to the erasure above; it lives
   // only in the admin audit trail, never in a member-facing surface.
-  const snapshot = { name: user.name, email: user.email, phone: user.phone, fingerprint: user.lastFingerprint, cityId: user.cityId, retained }
+  const snapshot = { name: user.name, email: user.email, phone: user.phone, fingerprint: user.lastFingerprint, cityId: user.cityId, role: user.role ?? null, status: user.status ?? null, retained, ...(actor ? { removedBy: actor.name } : {}) }
   if (actor) {
     await writeAudit(actor.id, actor.name, 'user.remove', id, 'user', snapshot,
       `${user.name ?? id} (${user.email}) removed by ${actor.name} — account anonymized, records retained`)

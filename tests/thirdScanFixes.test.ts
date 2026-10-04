@@ -24,7 +24,7 @@ describe('6 cascaded history is snapshotted into the audit row', () => {
   it('user removal and self-deletion keep reports, cards and notes', () => {
     // One routine for both paths now: admin Remove calls the same anonymizer.
     expect(read('app/api/admin/users/[id]/route.ts')).toContain('await anonymizeUser(target')
-    expect(read('lib/anonymizeUser.ts')).toMatch(/const retained = await snapshotUserHistory\(id\)[\s\S]*?fingerprint: user\.lastFingerprint, cityId: user\.cityId, retained \}/)
+    expect(read('lib/anonymizeUser.ts')).toMatch(/const retained = await snapshotUserHistory\(id\)[\s\S]*?fingerprint: user\.lastFingerprint, cityId: user\.cityId, role: user\.role \?\? null, status: user\.status \?\? null, retained/)
   })
   it('directory and campaign deletion keep their reports, claims and ledger', () => {
     expect(read('app/api/admin/directory/route.ts')).toMatch(/retained: \{ reports, claims \}/)

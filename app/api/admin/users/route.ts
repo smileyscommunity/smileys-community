@@ -126,7 +126,7 @@ export async function GET(req: NextRequest) {
     // can trace who a deleted account was for safety. Full admins only; never
     // exposed to non-admin staff or any member-facing surface.
     const deletedIds = users.filter(u => u.email.endsWith('@deleted.smileys')).map(u => u.id)
-    const identityMap = new Map<string, { name?: string; email?: string; phone?: string }>()
+    const identityMap = new Map<string, { name?: string; email?: string; phone?: string; removedBy?: string }>()
     if (isAdmin && deletedIds.length) {
       const snaps = await prisma.auditLog.findMany({
         where:  { action: { in: ['account.self_delete', 'user.remove'] }, targetId: { in: deletedIds } },
@@ -135,7 +135,7 @@ export async function GET(req: NextRequest) {
       })
       for (const s of snaps) {
         if (s.targetId && s.meta && typeof s.meta === 'object') {
-          identityMap.set(s.targetId, s.meta as { name?: string; email?: string; phone?: string })
+          identityMap.set(s.targetId, s.meta as { name?: string; email?: string; phone?: string; removedBy?: string })
         }
       }
     }
