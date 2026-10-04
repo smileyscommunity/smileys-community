@@ -50,7 +50,6 @@ describe('18 stale-chunk reload', () => {
 describe('19 cron health', () => {
   it('records a run with failed sends as not ok', () => {
     expect(read('app/api/cron/sweep-login-nudge/route.ts')).toMatch(/recordCronRun\('sweep-login-nudge', failed === 0/)
-    expect(read('app/api/cron/first-rsvp-nudge/route.ts')).toMatch(/recordCronRun\('sweep-first-rsvp-nudge', result\.failed === 0/)
     expect(read('app/api/cron/sweep-newsletters/route.ts')).toMatch(/recordCronRun\('sweep-newsletters', result\.failedIssues === 0/)
   })
 })

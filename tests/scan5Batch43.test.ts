@@ -166,7 +166,7 @@ describe('a) a refused email is recorded, and thrown only where the caller repor
     const throwing = helpers.filter(c => /throwOnError: true/.test(c.body)).map(c => c.name).sort()
     expect(throwing).toEqual([
       'sendBroadcastEmail', 'sendCityLaunchEmail', 'sendConfirmEmailChange', 'sendEventReminderEmail', 'sendFinishRegistrationEmail',
-      'sendFirstEventNudgeEmail', 'sendLoginNudgeEmail', 'sendNewsletterEmail', 'sendNoShowEmail', 'sendRefundEmail',
+      'sendLoginNudgeEmail', 'sendNewsletterEmail', 'sendNoShowEmail', 'sendRefundEmail',
     ])
     const account = helpers.filter(c => /policy: 'account'/.test(c.body)).map(c => c.name).sort()
     // The email-change pair (2026-09-19): confirming the new address and

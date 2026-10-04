@@ -77,9 +77,8 @@ describe('39 hangout edges', () => {
 
 describe('40 email details', () => {
   const email = read('lib/email.ts')
-  it('text part uses the raw first name; nudge subject is sanitised; dates are readable', () => {
+  it('text part uses the raw first name; dates are readable', () => {
     expect(email).toMatch(/text:\s*`Hi \$\{firstNameRaw\},/)
-    expect(email).toMatch(/subject: safeSubject\(`\$\{ev\.emoji \? ev\.emoji \+ ' ' : ''\}\$\{ev\.title\} — your first Smileys event\?`\)/)
     // Six: the reminder mail joined the four in the third scan, then the
     // postponed notice.
     expect((email.match(/\$\{esc\(prettyEventDate\(eventDate\)\)\}/g) ?? []).length).toBe(6)

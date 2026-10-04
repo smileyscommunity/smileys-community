@@ -563,7 +563,7 @@ describe('k. the automated sweeps leave postponed events alone', () => {
     expect(needsReconfirmation({ ...e, status: 'postponed' })).toBe(false)
   })
 
-  it('no-show settling, surveys, reminders, auto-archive and the first-RSVP nudge only read published/archived', () => {
+  it('no-show settling, surveys, reminders, and auto-archive only read published/archived', () => {
     // Standing's sweep carries this rule now that v1's settleEvent is gone:
     // a postponed or draft event has no door to judge.
     expect(read('lib/standing.ts')).toContain("status: { in: ['published', 'archived'] },")
@@ -571,7 +571,6 @@ describe('k. the automated sweeps leave postponed events alone', () => {
     const reminders = read('app/api/admin/cron/reminders/route.ts')
     expect(reminders).toContain("where: { OR: before(todayGroups), status: 'published' },")
     expect(reminders).toContain("where: { OR: onDay(todayOrTomorrow), status: 'published' },")
-    expect(read('lib/firstRsvpNudge.ts')).toContain("where: { status: 'published', date:")
     for (const f of ['lib/standing.ts', 'lib/reconfirm.ts', 'app/api/cron/sweep-event-surveys/route.ts', 'app/api/admin/cron/reminders/route.ts']) {
       expect(read(f), f).not.toContain("'postponed'")
     }

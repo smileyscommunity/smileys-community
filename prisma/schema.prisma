@@ -37,9 +37,8 @@ model User {
   notificationsSeenAt        DateTime?
   nudgesSent                 Int                     @default(0)
   lastNudgedAt               DateTime?
-  // Weekly first-RSVP nudge (separate from the login nudge above): when this
-  // member was last emailed a "your first event?" suggestion, so the cron never
-  // re-nudges someone within 30 days.
+  // RETIRED 2026-10-05: the weekly first-RSVP nudge was removed (holdout showed
+  // no effect). Column kept as historical record; nothing reads or writes it.
   firstRsvpNudgedAt          DateTime?
   // Approved into a city while it was still in the seeding maturity stage.
   // Stored, not derived: "founding member" is a historical fact that must

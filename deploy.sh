@@ -429,8 +429,6 @@ echo "→ Pruning retained chunks from old builds..."
 #
 # Newsletter sweeper — every 5 min.
 #
-# First-RSVP nudge — Wed 12:00 Istanbul = 09:00 UTC.
-#
 # Nightly cleanup of expired AvailabilityPulse rows. Runs at 3 AM Istanbul
 # time (UTC+3 = 00:00 UTC). Without this stale pulses accumulate forever.
 #
@@ -544,12 +542,13 @@ chmod +x $REMOTE/scripts/sweep-newsletters.sh
 (crontab -l 2>/dev/null | grep -v 'sweep-newsletters' ; echo '*/5 * * * * $REMOTE/scripts/sweep-newsletters.sh >> /var/log/sweep-newsletters.log 2>&1') | crontab -
 echo '  ✓ newsletters'
 
-chmod +x $REMOTE/scripts/sweep-first-rsvp-nudge.sh
+# First-RSVP nudge retired 2026-10-05 (holdout read: no effect). Strip its crontab
+# entry so the server stops firing a script that no longer exists.
+crontab -l 2>/dev/null | grep -v 'sweep-first-rsvp-nudge' | crontab -
+echo '  ✓ first-rsvp-nudge stripped'
 chmod +x $REMOTE/scripts/sweep-handbook-sources.sh
-(crontab -l 2>/dev/null | grep -v 'sweep-first-rsvp-nudge' ; echo '0 9 * * 3 $REMOTE/scripts/sweep-first-rsvp-nudge.sh >> /var/log/sweep-first-rsvp-nudge.log 2>&1') | crontab -
 # Handbook source watch (lib/handbookSources): weekly, Monday 04:15 UTC.
 (crontab -l 2>/dev/null | grep -v 'sweep-handbook-sources' ; echo '15 4 * * 1 $REMOTE/scripts/sweep-handbook-sources.sh >> /var/log/sweep-handbook-sources.log 2>&1') | crontab -
-echo '  ✓ first-rsvp-nudge'
 
 chmod +x $REMOTE/scripts/sweep-availability-pulses.sh
 (crontab -l 2>/dev/null | grep -v 'sweep-availability-pulses' ; echo '0 0 * * * $REMOTE/scripts/sweep-availability-pulses.sh >> /var/log/sweep-availability-pulses.log 2>&1') | crontab -
