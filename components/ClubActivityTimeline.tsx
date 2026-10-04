@@ -400,8 +400,9 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
         <div key={`nm-${i}`} className="flex items-center gap-2.5">
           <Avatar name={name} color={color} />
           <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
-            <span className="font-semibold">{firstNameOf(name)}</span>
-            {' joined Smileys'}
+            {/* Labelled like "New event" / "New club started" (Nate, 2026-10-04). */}
+            {'New member — '}
+            <span className="font-semibold text-amber-600">{firstNameOf(name)}</span>
             {neighborhood && <span className="text-gray-500"> · {neighborhood}</span>}
           </p>
           <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
