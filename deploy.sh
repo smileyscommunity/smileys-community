@@ -180,7 +180,13 @@ echo "→ Checking for vulnerabilities..."
 # AUDIT_ALLOW stays as the mechanism for a documented, verified-non-applicable
 # advisory. It is empty because nothing currently qualifies; do not add an entry
 # without writing down what was checked and why it does not apply.
-AUDIT_ALLOW=""
+# 2026-10-04 — GHSA-vfj7-8cjw-p6xm (braces, stack-exhaustion DoS on deeply
+# nested glob patterns, published 2026-09-18, no patched release exists: 3.0.3
+# is latest). Checked: braces is reached only via tailwindcss (devDependency ->
+# chokidar/micromatch), a build-time globbing tool that never sees user input,
+# and it is absent from the .next/server bundle. Approved by Nate. Remove this
+# entry once braces ships a fix.
+AUDIT_ALLOW="GHSA-vfj7-8cjw-p6xm"
 npm audit --json --legacy-peer-deps 2>/dev/null | AUDIT_ALLOW="$AUDIT_ALLOW" python3 -c '
 import json, os, sys
 allow = set(os.environ.get("AUDIT_ALLOW", "").split())
