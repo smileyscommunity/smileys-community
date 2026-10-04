@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { confirmToast } from '@/lib/confirmToast'
@@ -52,7 +52,12 @@ export default function AdminStandingPage() {
   const { user } = useAuth()
   const isAdmin = user?.role === 'admin'
   const [view,      setView]      = useState<View>('disputes')
-  const [items,     setItems]     = useState<(OffenceRow | CardRow)[] | null>(null)
+  const [loaded,    setLoaded]    = useState<{ view: View; rows: (OffenceRow | CardRow)[] } | null>(null)
+  // Rows only count for the tab they were loaded for. The tile click changes
+  // `view` a render BEFORE the effect clears the old list, and for that frame
+  // offence rows were read as cards (c.offences.map on undefined) — the page
+  // threw "Something went wrong" on switching tabs (2026-10-04).
+  const items = loaded && loaded.view === view ? loaded.rows : null
   /** What the queue holds, which is more than one page when it is truncated. */
   const [total,     setTotal]     = useState(0)
   const [overview,  setOverview]  = useState<Overview | null>(null)
@@ -61,17 +66,21 @@ export default function AdminStandingPage() {
   const [busy,      setBusy]      = useState<string | null>(null)
 
   const load = useCallback(() => {
-    setItems(null); setLoadError(null)
+    setLoaded(null); setLoadError(null)
+    // A slow answer for the tab you just left must not land on this one.
+    let stale = false
+    staleRef.current = () => { stale = true }
     fetch(`/app/api/admin/standing?view=${view}`, { credentials: 'include' })
       .then(async r => { if (!r.ok) throw await loadFailure(r); return r.json() })
-      .then(d => { setItems(d.items ?? []); setTotal(d.total ?? (d.items ?? []).length) })
-      .catch((e: Error) => setLoadError(e?.message ?? 'Failed to load'))
+      .then(d => { if (stale) return; setLoaded({ view, rows: d.items ?? [] }); setTotal(d.total ?? (d.items ?? []).length) })
+      .catch((e: Error) => { if (!stale) setLoadError(e?.message ?? 'Failed to load') })
     fetch('/app/api/admin/standing/enforcement', { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d) setOverview(d) })
       .catch(() => {})
   }, [view])
-  useEffect(() => { load() }, [load])
+  const staleRef = useRef<() => void>(() => {})
+  useEffect(() => { load(); return () => staleRef.current() }, [load])
 
   async function post(url: string, body: object, success: string, key: string) {
     setBusy(key)
