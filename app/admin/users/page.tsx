@@ -392,13 +392,14 @@ function AdminUsersPageInner() {
   }
 
   async function removeUser(u: DBUser) {
-    if (!(await confirmToast(`Remove ${u.name}? This cannot be undone.`))) return
+    if (!(await confirmToast(`Remove ${u.name}? Their account is anonymized and moves to the Deleted tab; what they wrote is blanked and the events they host are cancelled. This cannot be undone.`))) return
     const res = await fetch(`/app/api/admin/users/${u.id}`, {
       method: 'DELETE',
       credentials: 'include',
     })
     if (res.ok) {
-      setUsers(prev => prev.filter(x => x.id !== u.id))
+      // The row stays as a "Deleted Member" (Deleted tab) — reload to show it.
+      load(true)
       toast(`${u.name} removed`)
     } else {
       // A failed DELETE used to show nothing at all — surface the reason

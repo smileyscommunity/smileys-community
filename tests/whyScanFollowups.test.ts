@@ -21,7 +21,7 @@ describe('1: member quotes go through the public gate, and edits clear the cache
     expect(page).toContain('{ revalidate: 300, tags: [WHY_PAGE_TAG] },')
     expect(read('app/api/admin/story-photos/route.ts')).toContain('bustCityPages()\n  return NextResponse.json(item)')
     expect(read('app/api/admin/story-photos/[id]/route.ts').split('bustCityPages()').length - 1).toBe(2)
-    expect(read('app/api/auth/delete-account/route.ts')).toContain('bustCityPages()\n  return NextResponse.json({ ok: true })')
+    expect(read('lib/anonymizeUser.ts')).toContain('bustCityPages()')
   })
 })
 

@@ -163,7 +163,7 @@ describe('quiet hours', () => {
 })
 
 describe('deleting your account', () => {
-  const s = src('app/api/auth/delete-account/route.ts')
+  const s = src('lib/anonymizeUser.ts')
 
   it('calls off the events they were hosting and tells the people who were going', () => {
     expect(s).toContain("status: { in: ['published', 'pending', 'draft', 'flagged', 'postponed'] },")

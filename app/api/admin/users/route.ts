@@ -129,8 +129,9 @@ export async function GET(req: NextRequest) {
     const identityMap = new Map<string, { name?: string; email?: string; phone?: string }>()
     if (isAdmin && deletedIds.length) {
       const snaps = await prisma.auditLog.findMany({
-        where:  { action: 'account.self_delete', targetId: { in: deletedIds } },
+        where:  { action: { in: ['account.self_delete', 'user.remove'] }, targetId: { in: deletedIds } },
         select: { targetId: true, meta: true },
+        orderBy: { createdAt: 'asc' },
       })
       for (const s of snaps) {
         if (s.targetId && s.meta && typeof s.meta === 'object') {

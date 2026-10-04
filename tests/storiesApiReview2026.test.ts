@@ -52,7 +52,7 @@ describe('whose story it is', () => {
   })
 
   it('leaving takes the unpublished stories along', () => {
-    expect(src('app/api/auth/delete-account/route.ts')).toContain("await tx.post.deleteMany({ where: { authorId: id, status: { not: 'published' } } })")
+    expect(src('lib/anonymizeUser.ts')).toContain("await tx.post.deleteMany({ where: { authorId: id, status: { not: 'published' } } })")
   })
 })
 
