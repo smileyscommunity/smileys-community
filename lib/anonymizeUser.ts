@@ -125,6 +125,9 @@ export async function anonymizeUser(user: AnonymizeTarget, actor?: { id: string;
     await tx.profileView.deleteMany({ where: { OR: [{ viewerId: id }, { viewedId: id }] } })
     await tx.memberBlock.deleteMany({ where: { OR: [{ blockerId: id }, { blockedId: id }] } })
     await tx.memberConnection.deleteMany({ where: { OR: [{ requesterId: id }, { receiverId: id }] } })
+    // Who they wanted to see again, and who wanted to see them — private by
+    // design, and a mutual match can't form with an anonymised account.
+    await tx.eventMeetAgain.deleteMany({ where: { OR: [{ pickerId: id }, { pickedId: id }] } })
     await tx.emailVerificationToken.deleteMany({ where: { userId: id } })
     await tx.passwordResetToken.deleteMany({ where: { userId: id } })
     await tx.totpBackupCode.deleteMany({ where: { userId: id } })

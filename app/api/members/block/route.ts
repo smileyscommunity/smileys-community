@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
+import { pairPicksWhere } from '@/lib/meetAgain'
 
 // GET — list blocked user IDs for current user
 export async function GET() {
@@ -68,6 +69,9 @@ export async function POST(req: NextRequest) {
         { userId,             savedId: session.id },
       ] },
     }),
+    // A pending "meet again" pick either way is the same kind of tie: without
+    // this, block → unblock inside the 7-day window left it primed to connect.
+    prisma.eventMeetAgain.deleteMany({ where: pairPicksWhere(session.id, userId) }),
     // Unseat the pair from each other's live hangouts too — a pre-block
     // joiner would otherwise stay in the party and keep getting its chat.
     prisma.hangoutJoin.deleteMany({

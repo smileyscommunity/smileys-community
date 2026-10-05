@@ -25,6 +25,8 @@ import PullToRefreshTrigger from '@/components/PullToRefreshTrigger'
 import QuickLinks from '@/components/QuickLinks'
 import CityWeather from '@/components/CityWeather'
 import ReviewReminder from '@/components/ReviewReminder'
+import MeetAgainCard from '@/components/MeetAgainCard'
+import { meetAgainPendingFor } from '@/lib/meetAgain'
 import { VenueReviewPrompts } from '@/components/VenueReviewPrompt'
 import TestimonialPrompt from '@/components/TestimonialPrompt'
 import ReferralImpact from '@/components/ReferralImpact'
@@ -301,6 +303,9 @@ export default async function DashboardPage() {
   // sixteen people holding a seat at a 12:00–17:00 event read "Upcoming 1"
   // directly above "No upcoming events".
   const upcomingCount = upcomingRaw.filter(a => eventEndsAt(a.event, a.event.city?.timezone ?? tz).getTime() > Date.now()).length
+
+  // A failed lookup must not take the dashboard down; the card is optional.
+  const meetAgainPending = await meetAgainPendingFor(session.id).catch(() => null)
 
   const unreviewed = unreviewedRaw
     .filter((a) => a.event.reviews.length === 0)
@@ -1826,6 +1831,7 @@ export default async function DashboardPage() {
             </div>
 
             {/* ── ACTIONS ── */}
+            {meetAgainPending && <MeetAgainCard event={meetAgainPending} />}
             <ReviewReminder events={unreviewed} />
 
             {/* Post-visit venue review — inline one-tap rating for the most

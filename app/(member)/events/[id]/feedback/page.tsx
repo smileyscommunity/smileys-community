@@ -3,6 +3,7 @@
 import { useEffect, useState, use } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import MeetAgainPicker from '@/components/MeetAgainPicker'
 
 // Post-event safety survey — two questions, anonymous from the host's
 // perspective. Renders only when the viewer is an eligible attendee of
@@ -109,6 +110,7 @@ export default function FeedbackPage({ params }: { params: Promise<{ id: string 
       <Shell>
         <h1 className="text-xl font-bold text-white mb-2">Thanks 🙏</h1>
         <p className="text-zinc-400 text-sm">Your feedback is in. {anomaly ? 'A moderator will review what you flagged.' : "We'll use this to keep curation tight."}</p>
+        <div className="mt-6"><MeetAgainPicker eventId={id} variant="dark" /></div>
         <button onClick={() => router.push('/events')} className="mt-6 text-amber-400 text-sm hover:underline">
           ← Back to events
         </button>
@@ -125,6 +127,9 @@ export default function FeedbackPage({ params }: { params: Promise<{ id: string 
       <Shell>
         <h1 className="text-xl font-bold text-white mb-2">{ctx.event.emoji} {ctx.event.title}</h1>
         <p className="text-zinc-400 text-sm">{msg}</p>
+        {/* Already answered the survey: the people step is separate and
+            stays open for the same 7 days, so it's still offered here. */}
+        {ctx.reason === 'submitted' && <div className="mt-6"><MeetAgainPicker eventId={id} variant="dark" /></div>}
         <button onClick={() => router.push('/events')} className="mt-6 text-amber-400 text-sm hover:underline">
           ← Back to events
         </button>
@@ -144,7 +149,7 @@ export default function FeedbackPage({ params }: { params: Promise<{ id: string 
       <div className="text-xs text-zinc-500 uppercase tracking-widest mb-2">Quick feedback</div>
       <h1 className="text-xl font-bold text-white">{ctx.event.emoji} {ctx.event.title}</h1>
       <p className="text-xs text-zinc-500 mt-0.5">{new Date(ctx.event.date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
-      <p className="text-xs text-zinc-500 mt-2">Two questions. Your name isn't shared with the host.</p>
+      <p className="text-xs text-zinc-500 mt-2">Two questions. Your name isn't shared with the host. After this, you can pick anyone you'd like to see again.</p>
 
       {/* Q1 — anomaly */}
       <div className="mt-6 space-y-2">

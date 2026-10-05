@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { createNotification } from '@/lib/notify'
 import { trackServer } from '@/lib/posthog-server'
+import { pairPicksWhere } from '@/lib/meetAgain'
 
 // PATCH /api/connections/[id] — accept or decline
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -102,6 +103,11 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     await prisma.memberConnection.update({ where: { id }, data: { status: 'declined' } })
   } else {
     await prisma.memberConnection.delete({ where: { id } })
+    // Unfriend: clear any "meet again" picks between them too, or one side
+    // could re-pick inside the event's window and reconnect them silently.
+    if (connection.status === 'accepted') {
+      await prisma.eventMeetAgain.deleteMany({ where: pairPicksWhere(connection.requesterId, connection.receiverId) })
+    }
   }
   // One event covers withdraw (requester deletes own pending request),
   // decline-via-DELETE (receiver deletes pending request), and unfriend

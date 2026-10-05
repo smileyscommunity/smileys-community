@@ -97,7 +97,7 @@ async function runSweep() {
           `event-survey:${event.id}:${userId}`,
           userId,
           `${event.emoji} How was "${event.title}"?`,
-          `Two quick questions. Anonymous to the host. Takes 20 seconds.`,
+          `Two quick questions, anonymous to the host — then pick anyone you'd like to see again.`,
           `/events/${event.id}/feedback`,
         )
         if (outcome === 'sent') dispatchedNotices++
