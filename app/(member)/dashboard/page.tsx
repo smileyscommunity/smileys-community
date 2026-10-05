@@ -25,6 +25,7 @@ import PullToRefreshTrigger from '@/components/PullToRefreshTrigger'
 import QuickLinks from '@/components/QuickLinks'
 import CityWeather from '@/components/CityWeather'
 import ReviewReminder from '@/components/ReviewReminder'
+import { summarizeHangoutsToday, HANGOUTS_SOON_MS } from '@/lib/hangoutsToday'
 import MeetAgainCard from '@/components/MeetAgainCard'
 import { meetAgainPendingFor } from '@/lib/meetAgain'
 import { VenueReviewPrompts } from '@/components/VenueReviewPrompt'
@@ -892,10 +893,12 @@ export default async function DashboardPage() {
       take: 3,
       select: { id: true, title: true, slug: true, excerpt: true, coverImage: true, body: true, category: true, publishedAt: true },
     }),
-    // Active hangouts happening now — started, not merely posted.
+    // "Hangouts today": live now plus anything starting within a day. Started-
+    // only hid a hangout posted for tonight all afternoon. The viewer's own
+    // are included (the timeline below leaves them out) so a host sees theirs.
     prisma.hangout.findMany({
-      where: { status: 'active', cityId, startsAt: { lte: new Date() }, endsAt: { gt: new Date() }, userId: { notIn: blockedIds }, user: LIVE },
-      select: { id: true, neighborhood: true },
+      where: { status: 'active', cityId, startsAt: { lte: new Date(Date.now() + HANGOUTS_SOON_MS) }, endsAt: { gt: new Date() }, userId: { notIn: blockedIds }, user: LIVE },
+      select: { id: true, title: true, neighborhood: true, startsAt: true, endsAt: true },
       orderBy: { startsAt: 'asc' },
       take: 10,
     }),
@@ -1098,6 +1101,8 @@ export default async function DashboardPage() {
     // community, parallel to eventsThisWeek's next-7-days count so month ≥ week.)
     prisma.event.count({ where: { ...IN_CITY, date: { lte: monthEndStr }, ...NOT_OVER, status: 'published' } }),
   ])
+
+  const hangoutsToday = summarizeHangoutsToday(activeHangouts, new Date(), tz)
 
   // Score the recommendation candidates by what the member actually told
   // us: their clubs (strongest signal — same weight family as
@@ -1843,18 +1848,30 @@ export default async function DashboardPage() {
                 The venue review wins (it's time-sensitive; this one isn't). */}
 
 
-            {/* Live hangouts strip */}
-            {activeHangouts.length > 0 && (
+            {/* Hangouts today — live now, plus what starts within a day */}
+            {hangoutsToday.live + hangoutsToday.upcoming > 0 && (
               <Link href="/hangouts" className="block group">
                 <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-center gap-3 hover:from-amber-100 hover:to-orange-100 transition-colors">
                   <div className="flex items-center gap-1.5 shrink-0">
-                    <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
-                    <span className="text-xs font-bold text-amber-800 uppercase tracking-wider">Live</span>
+                    {hangoutsToday.live > 0 && <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />}
+                    <span className="text-xs font-bold text-amber-800 uppercase tracking-wider">{hangoutsToday.live > 0 ? 'Live' : 'Soon'}</span>
                   </div>
                   <p className="text-sm text-amber-900 flex-1 truncate">
-                    <strong>{activeHangouts.length}</strong> hangout{activeHangouts.length !== 1 ? 's' : ''} happening now
-                    {activeHangouts[0]?.neighborhood && (
-                      <span className="text-amber-700 font-normal"> · in {activeHangouts[0].neighborhood}</span>
+                    {hangoutsToday.live > 0 ? (
+                      <>
+                        <strong>{hangoutsToday.live}</strong> hangout{hangoutsToday.live !== 1 ? 's' : ''} happening now
+                        {hangoutsToday.liveHood && <span className="text-amber-700 font-normal"> · in {hangoutsToday.liveHood}</span>}
+                        {hangoutsToday.upcoming > 0 && <span className="text-amber-700 font-normal"> · {hangoutsToday.upcoming} more later</span>}
+                      </>
+                    ) : hangoutsToday.next && (
+                      <>
+                        <strong>{hangoutsToday.next.title}</strong>
+                        <span className="text-amber-700 font-normal">
+                          {' · '}{hangoutsToday.next.tomorrow ? 'tomorrow ' : ''}{hangoutsToday.next.time}
+                          {hangoutsToday.next.neighborhood && <> · {hangoutsToday.next.neighborhood}</>}
+                          {hangoutsToday.upcoming > 1 && <> · +{hangoutsToday.upcoming - 1} more</>}
+                        </span>
+                      </>
                     )}
                   </p>
                   <span className="text-xs font-bold text-amber-600 shrink-0 group-hover:translate-x-0.5 transition-transform">See all →</span>
