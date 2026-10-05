@@ -7,7 +7,7 @@ import { eventEndsAt } from '@/lib/eventTime'
 // for are left out — the strip is for deciding what to go to, and "Going ✓"
 // belongs to the full week list below.
 
-export const EVENTS_SOON_MAX   = 3
+export const EVENTS_SOON_MAX   = 4
 // Show a seat count only when it is a reason to hurry, not on every event.
 export const SEATS_HURRY_AT    = 8
 

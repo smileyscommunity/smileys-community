@@ -1,4 +1,4 @@
-import { wallClockInTz, todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
+import { wallClockInTz, DEFAULT_TZ } from '@/lib/cityTime'
 
 // The dashboard's "Hangouts today" strip. It used to count only hangouts that
 // had already started, so one posted for 19:00 was invisible all afternoon —
@@ -33,7 +33,7 @@ export function summarizeHangoutsToday(rows: StripHangout[], now: Date, tz: stri
     upcoming: upcoming.length,
     liveHood: live[0]?.neighborhood ?? null,
     next: n
-      ? { id: n.id, title: n.title, neighborhood: n.neighborhood, time: wall.slice(11, 16), tomorrow: wall.slice(0, 10) !== todayInTz(tz) }
+      ? { id: n.id, title: n.title, neighborhood: n.neighborhood, time: wall.slice(11, 16), tomorrow: wall.slice(0, 10) !== wallClockInTz(now, tz).slice(0, 10) }
       : null,
   }
 }
