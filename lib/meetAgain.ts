@@ -202,14 +202,19 @@ export interface MeetAgainPending { id: string; title: string; emoji: string; pe
  * picked whom.
  */
 export async function meetAgainPendingFor(userId: string, now: number = Date.now()): Promise<MeetAgainPending | null> {
-  // Date-only prefilter, a day wider than the window; the window itself is
-  // checked per event on its city's clock below.
-  const since = shiftDay(todayInTz(DEFAULT_TZ), -9)
+  // Date-only prefilter, a day wider than the window on each side; the window
+  // itself is checked per event on its city's clock below. The upper bound is
+  // load-bearing: without it `take: 5` was filled by the member's FUTURE
+  // events (newest first), every one of them "too early", so anyone with five
+  // or more upcoming RSVPs never reached the event they had just been to.
+  const today = todayInTz(DEFAULT_TZ)
+  const since = shiftDay(today, -9)
+  const until = shiftDay(today, 1)
   const events = await prisma.event.findMany({
     where: {
       cancelledAt: null,
       status: { in: HAPPENED },
-      date:   { gte: since },
+      date:   { gte: since, lte: until },
       OR: [
         { hostId: userId },
         { cohosts:   { some: { userId } } },

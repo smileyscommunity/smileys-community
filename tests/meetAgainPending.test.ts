@@ -20,6 +20,7 @@ vi.mock('@/lib/prisma', () => ({
 import { meetAgainPendingFor } from '@/lib/meetAgain'
 import { blockedIdsFor, connectionIdsFor } from '@/lib/memberPrivacy'
 import { prisma } from '@/lib/prisma'
+import { DEFAULT_TZ, todayInTz, shiftDay } from '@/lib/cityTime'
 
 const p = prisma as any
 const DAY = 86_400_000
@@ -77,6 +78,16 @@ describe('meetAgainPendingFor (dashboard card)', () => {
     p.event.findMany.mockResolvedValue([event({ id: 'new' }), event({ id: 'old', title: 'Picnic' })])
     p.eventMeetAgain.findFirst.mockImplementation(async ({ where }: any) => where.eventId === 'new' ? { id: 'm' } : null)
     expect((await meetAgainPendingFor('me'))?.id).toBe('old')
+  })
+
+  it('never lets future events crowd the lookup: the date range has an upper bound', async () => {
+    // A member with 5+ upcoming RSVPs: `take: 5` newest-first used to be all
+    // future events, so the event they had just attended was never reached.
+    await meetAgainPendingFor('me')
+    const { date } = p.event.findMany.mock.calls[0][0].where
+    const today = todayInTz(DEFAULT_TZ)   // the code's calendar (Istanbul), not UTC
+    expect(date.gte).toBe(shiftDay(today, -9))
+    expect(date.lte).toBe(shiftDay(today, 1))
   })
 
   it('only asks the database about events that happened', async () => {
