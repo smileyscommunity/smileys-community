@@ -9,7 +9,7 @@ import { todayInTz } from '@/lib/cityTime'
 import { rateLimit } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
 import { HANGOUT_ACTIVITIES } from '@/lib/hangoutActivities'
-import { MAX_HANGOUT_LEAD_DAYS } from '@/lib/hangoutTime'
+import { MAX_HANGOUT_LEAD_DAYS, MAX_HANGOUT_DURATION_DAYS } from '@/lib/hangoutTime'
 import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
 import { restrictedSetFor } from '@/lib/memberPrivacy'
 import { canActInCity } from '@/lib/access'
@@ -186,9 +186,9 @@ export async function POST(req: NextRequest) {
     if (endDate <= startDate) {
       return NextResponse.json({ error: 'End must be after start' }, { status: 400 })
     }
-    // Cap window so people don't post 24h hangouts that clutter the feed.
-    if (endDate.getTime() - startDate.getTime() > 24 * 60 * 60 * 1000) {
-      return NextResponse.json({ error: 'Max 24 hours per hangout' }, { status: 400 })
+    // Cap window so a hangout can't sit in the feed indefinitely.
+    if (endDate.getTime() - startDate.getTime() > MAX_HANGOUT_DURATION_DAYS * 86_400_000) {
+      return NextResponse.json({ error: `Hangouts can run up to ${MAX_HANGOUT_DURATION_DAYS} days — for something longer, create an event` }, { status: 400 })
     }
     if (endDate < new Date()) {
       return NextResponse.json({ error: 'End is in the past' }, { status: 400 })

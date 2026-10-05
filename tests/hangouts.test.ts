@@ -47,11 +47,11 @@ beforeEach(() => {
   ;(prisma.memberBlock.findMany as any).mockResolvedValue([])
 })
 
-describe('Hangouts POST — Max duration 24h', () => {
-  it('400 when duration is > 24h', async () => {
+describe('Hangouts POST — Max duration 7 days', () => {
+  it('400 when duration is > 7 days', async () => {
     const now = new Date()
     const startsAt = now.toISOString()
-    const endsAt   = new Date(now.getTime() + 25 * 60 * 60 * 1000).toISOString()
+    const endsAt   = new Date(now.getTime() + 8 * 24 * 60 * 60 * 1000).toISOString()
     
     const res = await POST(req({
       title: 'Too long',
@@ -62,13 +62,13 @@ describe('Hangouts POST — Max duration 24h', () => {
     
     expect(res.status).toBe(400)
     const data = await res.json()
-    expect(data.error).toBe('Max 24 hours per hangout')
+    expect(data.error).toBe('Hangouts can run up to 7 days — for something longer, create an event')
   })
 
-  it('201 when duration is exactly 24h', async () => {
+  it('201 when duration is exactly 7 days', async () => {
     const now = new Date()
     const startsAt = now.toISOString()
-    const endsAt   = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString()
+    const endsAt   = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
     
     ;(prisma.hangout.create as any).mockResolvedValue({ id: 'h1' })
     
@@ -159,7 +159,7 @@ describe('Hangouts PATCH', () => {
     expect(prisma.hangout.update).not.toHaveBeenCalled()
   })
 
-  it('400 when duration > 24h on update', async () => {
+  it('400 when duration > 7 days on update', async () => {
     const now = new Date()
     ;(prisma.hangout.findUnique as any).mockResolvedValue({
       id: 'h1',
@@ -171,12 +171,12 @@ describe('Hangouts PATCH', () => {
     })
 
     const startsAt = now.toISOString()
-    const endsAt   = new Date(now.getTime() + 25 * 60 * 60 * 1000).toISOString()
+    const endsAt   = new Date(now.getTime() + 8 * 24 * 60 * 60 * 1000).toISOString()
 
     const res = await PATCH(req({ startsAt, endsAt }), params)
     expect(res.status).toBe(400)
     const data = await res.json()
-    expect(data.error).toBe('Max 24 hours per hangout')
+    expect(data.error).toBe('Hangouts can run up to 7 days — for something longer, create an event')
   })
 
   it('updates meetMode correctly', async () => {

@@ -8,6 +8,9 @@ import { DEFAULT_TZ, shiftDay } from './cityTime'
 // A plan, not a calendar: spontaneous means within the fortnight (the API
 // refuses a start further out on create and edit).
 export const MAX_HANGOUT_LEAD_DAYS = 14
+// Longest a single hangout can run. Was 24h; weekend trips and multi-day
+// meetups were being rejected. Still capped so the feed can't be parked on.
+export const MAX_HANGOUT_DURATION_DAYS = 7
 
 export type TimeFilter = 'all' | 'now' | 'today' | 'tonight' | 'tomorrow' | 'week'
 
