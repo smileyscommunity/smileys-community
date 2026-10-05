@@ -346,7 +346,9 @@ export default async function CityRemoteWorkPage({ params }: Params) {
         <section id="stories" aria-labelledby="stories-title" className={`py-12 sm:py-16 ${storiesBg} border-t border-gray-100 scroll-mt-20`}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="mb-8">
-              <h2 id="stories-title" className="section-title">Worth reading before you land</h2>
+              {/* Not "before you land": it sits after the events (the reader-based order
+                  noted above "Work and meet people"), so it isn't pre-arrival reading here. */}
+              <h2 id="stories-title" className="section-title">Worth reading</h2>
               <p className="section-subtitle max-w-2xl">
                 {/* No city in the line: most of these hold anywhere. */}
                 Working remotely — finding the work, the routines, the trade-offs and what nobody mentions.
