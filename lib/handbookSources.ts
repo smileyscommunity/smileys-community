@@ -16,6 +16,14 @@
 // keeps visible text only (scripts, styles, nav, header, footer and forms are
 // dropped), so a moved menu doesn't count — but digits are kept on purpose,
 // because a fare or a deadline is exactly the change worth catching.
+//
+// The first weeks showed what that costs: of 38 flagged changes, ~30 were a
+// news sidebar, a clock, a weather widget, a "5 sa önce" stamp or a portal's
+// own "last updated" line. Two filters, both aimed at pages that cannot hold
+// a fact worth a review: isNoisyUrl() drops news articles, announcements,
+// app-store pages and bare homepages from the watch list, and isVolatileLine()
+// drops lines that are only a date, a clock time, a relative time, a counter
+// or a temperature before the hash is taken.
 
 import { createHash } from 'crypto'
 import { prisma } from './prisma'
@@ -46,6 +54,27 @@ export function normaliseHtml(html: string): string {
     .slice(0, MAX_TEXT)
 }
 
+const MONTH = 'ocak|şubat|mart|nisan|mayıs|haziran|temmuz|ağustos|eylül|ekim|kasım|aralık|şub|nis|haz|tem|ağu|eyl|eki|kas|ara|jan\\w*|feb\\w*|mar\\w*|apr\\w*|may|jun\\w*|jul\\w*|aug\\w*|sep\\w*|oct\\w*|nov\\w*|dec\\w*'
+const VOLATILE_LINE = [
+  /^\d{1,2}[./-]\d{1,2}[./-]\d{2,4}(\s+\d{1,2}:\d{2}(:\d{2})?)?$/,   // 02.10.2026 · 17-09-2026 12:08
+  /^\d{1,2}:\d{2}(:\d{2})?$/,                                          // 07:16
+  new RegExp(`^\\d{1,2}\\s+(${MONTH})\\.?(\\s+\\d{4})?$`, 'iu'),                  // 05 Ekim 2026 · 26 Sept (month names only: "90 gün" is a rule, not a date)
+  /\b\d+\s*(sa|saat|dk|dakika|gün)\s+önce$/iu,                           // 5 sa önce
+  /\b\d+\s+(minutes?|hours?|days?|weeks?)\s+ago$/i,                      // 5 days ago
+  /^-?\d{1,2}\s?°\s?[CF]?$/,                                             // 18°
+  /^Bu sayfa en son\b.*güncellenmiştir\.?$/iu,                           // "this page was last updated on …"
+  /\bOkunma sayısı:\s*\d+/iu,                                            // view counters
+]
+/** A line that is only a timestamp, counter or weather reading — it moves every visit and never means a rule changed. */
+export function isVolatileLine(line: string): boolean {
+  return VOLATILE_LINE.some(re => re.test(line))
+}
+
+/** Normalised text with the volatile lines removed — what the hash and the diff are taken from. */
+export function comparableText(text: string): string {
+  return text.split('\n').filter(l => !isVolatileLine(l)).join('\n')
+}
+
 export function hashOf(data: string | Uint8Array): string {
   return createHash('sha256').update(data).digest('hex')
 }
@@ -74,13 +103,33 @@ export function isWatchableUrl(raw: string): boolean {
   return h.includes('.')
 }
 
+// Pages whose sidebars and tickers change daily while the thing cited does
+// not: news sites, app stores. (A published news article is not revised, so
+// watching it can only produce noise.)
+const NOISY_HOSTS = [
+  'apps.apple.com', 'play.google.com', 'bigpara.hurriyet.com.tr', 'hurriyet.com.tr', 'bloomberght.com', 'cnnturk.com',
+  'evrensel.net', 'gazetevatan.com', 'teknoblog.com', 'news.gtp.gr', 'birgun.net', 'sabah.com.tr', 'milliyet.com.tr',
+  'haberturk.com', 'trthaber.com', 'aa.com.tr', 'dailysabah.com',
+]
+const NEWS_PATH = /^(haber|haberler|news|duyuru|duyurular)$/i
+
+/** News articles, announcements, app-store pages and bare homepages — never worth a review on their own. */
+export function isNoisyUrl(raw: string): boolean {
+  let u: URL
+  try { u = new URL(raw) } catch { return false }
+  const h = u.hostname.toLowerCase()
+  if (NOISY_HOSTS.some(n => h === n || h.endsWith(`.${n}`))) return true
+  if (u.pathname.split('/').some(seg => NEWS_PATH.test(seg))) return true
+  return (u.pathname === '/' || u.pathname === '') && !u.search   // a homepage carries today's headlines
+}
+
 /** Every distinct watchable source URL cited by a published Handbook article. */
 export function collectSourceUrls(posts: { officialSources: unknown }[]): string[] {
   const urls = new Set<string>()
   for (const p of posts) {
     if (!Array.isArray(p.officialSources)) continue
     for (const s of p.officialSources as { url?: unknown }[]) {
-      if (typeof s?.url === 'string' && isWatchableUrl(s.url)) urls.add(s.url)
+      if (typeof s?.url === 'string' && isWatchableUrl(s.url) && !isNoisyUrl(s.url)) urls.add(s.url)
     }
   }
   return [...urls].sort()
@@ -101,7 +150,7 @@ export function sourceChangesForQueue(
   for (const p of posts) {
     if (!Array.isArray(p.officialSources)) continue
     for (const s of p.officialSources as { url?: unknown; label?: unknown }[]) {
-      if (typeof s?.url !== 'string') continue
+      if (typeof s?.url !== 'string' || isNoisyUrl(s.url)) continue
       const src = byUrl.get(s.url)
       if (!src?.changedAt) continue
       if (p.lastReviewedAt && p.lastReviewedAt >= src.changedAt) continue
@@ -128,7 +177,8 @@ async function fetchSource(url: string): Promise<Fetched> {
     const type = res.headers.get('content-type') ?? ''
     if (type.includes('html') || type.includes('text/plain')) {
       const text = normaliseHtml(new TextDecoder('utf-8', { fatal: false }).decode(buf))
-      return { ok: true, status: res.status, hash: hashOf(text), text }
+      const kept = comparableText(text)
+      return { ok: true, status: res.status, hash: hashOf(kept), text: kept }
     }
     // PDFs and other files: the bytes are the content; no text to diff.
     return { ok: true, status: res.status, hash: hashOf(buf), text: null }
@@ -173,8 +223,12 @@ export async function runSourceWatch(now: Date = new Date()): Promise<SweepResul
         }
         // Same lines in a new order (a re-sorted list, a moved menu) is not a
         // change a reader would notice: the hash moves, the diff is empty.
-        const diff    = prev?.text && got.text ? diffSummary(prev.text, got.text) : null
-        const changed = !!prev?.contentHash && prev.contentHash !== got.hash && !(prev.text && got.text && diff === null)
+        // The stored text may predate the volatile-line filter: filter it the
+        // same way, or the first sweep after it would flag everything once.
+        const prevText = prev?.text ? comparableText(prev.text) : null
+        const prevHash = prevText !== null ? hashOf(prevText) : prev?.contentHash
+        const diff     = prevText && got.text ? diffSummary(prevText, got.text) : null
+        const changed  = !!prev?.contentHash && prevHash !== got.hash && !(prevText && got.text && diff === null)
         if (!prev?.contentHash) result.baselined++
         if (changed) result.changed++
         await prisma.handbookSource.upsert({
