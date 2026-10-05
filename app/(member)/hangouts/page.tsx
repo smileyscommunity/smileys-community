@@ -1462,7 +1462,7 @@ function HangoutCard({ h, currentUser, onCancel, onMutated, neighborhoods }: {
           title card, and the body below starts at the time line. */}
       {photoUrl && (
         <Link href={`/hangouts/${h.id}`} className="block relative">
-          <img src={photoUrl} alt={h.title} className="w-full h-40 object-cover" />
+          <img src={photoUrl} alt={h.title} className="w-full h-56 sm:h-64 object-cover" />
           <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
           <p className="absolute bottom-3 left-4 right-4 text-white text-base font-bold leading-snug drop-shadow-sm">
             {h.title}
