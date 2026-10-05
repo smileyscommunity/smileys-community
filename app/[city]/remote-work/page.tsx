@@ -339,15 +339,17 @@ export default async function CityRemoteWorkPage({ params }: Params) {
       )}
 
       {/* ── Digital nomads shelf ─────────────────────────────────────── */}
-      {/* This city's 'Digital nomads' articles (lib/remoteWork
-          NOMAD_STORY_CATEGORY), newest first. Hidden until there is one. */}
+      {/* 'Digital nomads' articles for this city and unpinned ones
+          (lib/remoteWork nomadStoryScope), newest first. Hidden until there
+          is one. */}
       {hub.stories.length > 0 && (
         <section id="stories" aria-labelledby="stories-title" className={`py-12 sm:py-16 ${storiesBg} border-t border-gray-100 scroll-mt-20`}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="mb-8">
               <h2 id="stories-title" className="section-title">Worth reading before you land</h2>
               <p className="section-subtitle max-w-2xl">
-                Working remotely from {city.name} — the routines, the trade-offs and what nobody mentions.
+                {/* No city in the line: most of these hold anywhere. */}
+                Working remotely — finding the work, the routines, the trade-offs and what nobody mentions.
               </p>
             </div>
             <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">

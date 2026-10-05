@@ -116,13 +116,29 @@ export function isWorkClub(name: string): boolean {
 /** The community-post category the series is published under. */
 export const INTERVIEW_CATEGORY = 'Working from'
 
-/** The hub's article shelf — remote-work and nomad pieces, newest first,
- *  pinned to this city like the interview (no global fallback). Not the
- *  interview's category: the hub shows one interview as a card, and articles
- *  as a list; one category could not tell them apart. */
+/** The hub's article shelf — remote-work and nomad pieces, newest first.
+ *  Not the interview's category: the hub shows one interview as a card, and
+ *  articles as a list; one category could not tell them apart. */
 export const NOMAD_STORY_CATEGORY = 'Digital nomads'
 /** How many the shelf lists — two rows of three. */
 export const NOMAD_STORY_LIMIT = 6
+
+/**
+ * Which nomad stories a city's shelf shows: its own, and every story pinned
+ * to no city — unless that story is limited to another country (the admin
+ * form's "Applies in"). Unlike the interview, a nomad piece is usually advice
+ * that holds anywhere ("your first remote job"), and both early stories were
+ * saved with "No single city" — so city-only left the shelf empty
+ * (2026-10-06). A story pinned to one city still shows only there.
+ */
+export function nomadStoryScope(cityId: string, country: string | null) {
+  return {
+    OR: [
+      { cityId },
+      { cityId: null, OR: [{ country: null }, ...(country ? [{ country }] : [])] },
+    ],
+  }
+}
 
 /** The contact-form topic a nomination arrives as (app/api/contact). */
 export const NOMINATE_TOPIC = 'nominate'

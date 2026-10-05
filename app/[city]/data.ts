@@ -21,7 +21,7 @@ import { isSoldOut } from '@/lib/soldOut'
 import type { Event } from '@/lib/data'
 import { LIVE_BOARD_AUTHOR, SHOWN_REPLY } from '@/lib/boardAccess'
 import { firstNameOf } from '@/lib/data'
-import { isWorkClub, pickHubEvents, INTERVIEW_CATEGORY, NOMAD_STORY_CATEGORY, NOMAD_STORY_LIMIT } from '@/lib/remoteWork'
+import { isWorkClub, pickHubEvents, INTERVIEW_CATEGORY, NOMAD_STORY_CATEGORY, NOMAD_STORY_LIMIT, nomadStoryScope } from '@/lib/remoteWork'
 import { EXPAT_STORY_CATEGORY, EXPAT_STORY_LIMIT } from '@/lib/relocation'
 import { pickFirstEvents, pickRegularEvents, eventFilterLinks, mostlyEnglish, STUDENT_STORY_CATEGORY, STUDENT_STORY_LIMIT, STUDENT_REASON_SQL, STUDENT_PROFESSION_SQL } from '@/lib/students'
 import { getCityHandbookIndex } from '@/lib/handbookIndex'
@@ -453,10 +453,11 @@ export const getCityRemoteWorkHub = unstable_cache(
         orderBy: { publishedAt: 'desc' },
         select:  { slug: true, title: true, excerpt: true, coverImage: true, body: true, publishedAt: true, authorId: true },
       }),
-      // The Digital nomads shelf — this city's articles, newest first. No
-      // author: the cards show none, and bylines are per request.
+      // The Digital nomads shelf — this city's articles and the unpinned ones
+      // (lib/remoteWork nomadStoryScope), newest first. No author: the cards
+      // show none, and bylines are per request.
       prisma.post.findMany({
-        where:   { kind: 'community', status: 'published', category: NOMAD_STORY_CATEGORY, cityId },
+        where:   { kind: 'community', status: 'published', category: NOMAD_STORY_CATEGORY, ...nomadStoryScope(cityId, country) },
         orderBy: { publishedAt: 'desc' },
         take:    NOMAD_STORY_LIMIT,
         select:  { slug: true, title: true, excerpt: true, coverImage: true, body: true },

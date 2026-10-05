@@ -355,9 +355,25 @@ describe('Digital nomads shelf', () => {
   it('the loader reads this city\'s shelf, newest first, and ships no body', () => {
     const src = readFileSync(join(process.cwd(), 'app/[city]/data.ts'), 'utf8')
     const loader = src.slice(src.indexOf('export const getCityRemoteWorkHub'), src.indexOf("['city-remote-work-hub']"))
-    expect(loader).toMatch(/category:\s*NOMAD_STORY_CATEGORY,\s*cityId\s*}/)
+    expect(loader).toMatch(/category:\s*NOMAD_STORY_CATEGORY,\s*\.\.\.nomadStoryScope\(cityId, country\)\s*}/)
     expect(loader).toMatch(/stories:\s*stories\.map/)
     expect(loader).toMatch(/cover:\s*articleCover\(\{ coverImage: s\.coverImage/)
+  })
+
+  it('shows this city\'s stories and unpinned ones, never another city\'s or another country\'s', async () => {
+    const { nomadStoryScope } = await import('@/lib/remoteWork')
+    // The scope as a predicate over a post, so the rule is tested, not its shape.
+    const shows = (post: { cityId: string | null; country: string | null }, cityId: string, country: string | null) =>
+      nomadStoryScope(cityId, country).OR.some(c =>
+        'OR' in c
+          ? post.cityId === null && c.OR.some(o => o.country === post.country)
+          : post.cityId === c.cityId)
+    expect(shows({ cityId: 'ist', country: null }, 'ist', 'TR')).toBe(true)   // its own
+    expect(shows({ cityId: null, country: null }, 'ist', 'TR')).toBe(true)    // global
+    expect(shows({ cityId: null, country: 'TR' }, 'ist', 'TR')).toBe(true)    // national, same country
+    expect(shows({ cityId: null, country: 'TR' }, 'tbs', 'GE')).toBe(false)   // national, other country
+    expect(shows({ cityId: 'ist', country: null }, 'izm', 'TR')).toBe(false)  // another city's
+    expect(shows({ cityId: null, country: 'TR' }, 'x', null)).toBe(false)     // city with no country
   })
 
   it('every badge map has a color for it', () => {
