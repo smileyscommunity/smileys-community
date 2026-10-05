@@ -87,9 +87,11 @@ describe('what the page says', () => {
 describe('discovery shelves offer only what a member can still join', () => {
   it('drops ended, full and already-requested events before the claims', () => {
     expect(page).toContain("notEnded(e) && !e.soldOut && !(e.limitedSpots && e.spotsLeft <= 0) && !pendingIds.has(e.id)")
-    for (const shelf of ['featuredEvents', 'deduplicatedRecommended', 'runningLow', 'newThisWeek', 'trendingRanked']) {
+    for (const shelf of ['featuredEvents', 'deduplicatedRecommended', 'runningLow', 'trendingRanked']) {
       expect(page).toContain(`claimEvents(${shelf}.filter(joinable))`)
     }
+    // New this week: a weekly series is one entry (its nearest date), then the same joinable rule.
+    expect(page).toContain('claimEvents(nearestPerSeries(newThisWeek).slice(0, 4).filter(joinable))')
   })
 
   it('browse surfaces keep full events but not finished ones', () => {

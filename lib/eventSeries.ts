@@ -86,3 +86,20 @@ export function seriesCadenceLabel(group: SeriesGroup<SeriesGroupable>): string 
   }
   return `${group.seriesCount} upcoming dates`
 }
+
+// A weekly series is published as one row per date, all sharing a seriesId.
+// Surfaces that announce what's NEW on the dashboard would otherwise list
+// every date of the series as its own "new event" and crowd out everything
+// else; one entry, the soonest date, is the announcement.
+export function nearestPerSeries<T extends { seriesId?: string | null; date: string; time?: string | null }>(events: T[]): T[] {
+  const key = (e: T) => `${e.date} ${e.time ?? ''}`
+  const nearest = new Map<string, T>()
+  for (const e of events) {
+    if (!e.seriesId) continue
+    const cur = nearest.get(e.seriesId)
+    if (!cur || key(e) < key(cur)) nearest.set(e.seriesId, e)
+  }
+  // Input order is kept (callers sort by recency); only the later dates of a
+  // series are dropped. Events with no seriesId are never touched.
+  return events.filter(e => !e.seriesId || nearest.get(e.seriesId) === e)
+}

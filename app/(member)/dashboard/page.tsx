@@ -26,6 +26,7 @@ import QuickLinks from '@/components/QuickLinks'
 import CityWeather from '@/components/CityWeather'
 import ReviewReminder from '@/components/ReviewReminder'
 import { summarizeHangoutsToday, HANGOUTS_SOON_MS } from '@/lib/hangoutsToday'
+import { nearestPerSeries } from '@/lib/eventSeries'
 import MeetAgainCard from '@/components/MeetAgainCard'
 import { meetAgainPendingFor } from '@/lib/meetAgain'
 import { VenueReviewPrompts } from '@/components/VenueReviewPrompt'
@@ -658,8 +659,11 @@ export default async function DashboardPage() {
     // event drafted early and published later counts from its creation.)
     prisma.event.findMany({
       where: { ...IN_CITY, date: { gte: today }, status: 'published', id: { notIn: joinedEventIds }, createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60_000) } },
-      orderBy: { createdAt: 'desc' }, take: 4,
-      select: { ...SHELF, id: true, title: true, date: true, emoji: true, neighborhood: true, price: true, currency: true },
+      // Over-fetched: a weekly series lands as one row per date, and only its
+      // nearest date is shown (nearestPerSeries below), so the 4 shown come
+      // from a wider pool than 4 rows.
+      orderBy: { createdAt: 'desc' }, take: 16,
+      select: { ...SHELF, id: true, title: true, date: true, emoji: true, neighborhood: true, price: true, currency: true, seriesId: true },
     }),
     // Spots running low: upcoming events with ≤5 spots left that user hasn't
     // joined. Ordered soonest-first (date is text 'YYYY-MM-DD', so asc = chrono)
@@ -702,7 +706,7 @@ export default async function DashboardPage() {
       take: FEED_TAKE,
       // Only what the timeline shows: a full Event row carries the address,
       // meeting and chat links and payment contact.
-      select: { id: true, title: true, emoji: true, date: true, time: true, endTime: true, createdAt: true, originCityId: true, club: { select: { name: true, emoji: true, slug: true } } },
+      select: { id: true, title: true, emoji: true, date: true, time: true, endTime: true, createdAt: true, originCityId: true, seriesId: true, club: { select: { name: true, emoji: true, slug: true } } },
     }),
     // Referral stats — reuses userProfile.referralCode (already loaded in
     // batch 1) instead of a redundant prisma.user.findUnique. Self-hides
@@ -1293,7 +1297,7 @@ export default async function DashboardPage() {
   const pickedFeatured    = claimEvents(featuredEvents.filter(joinable))
   const pickedRecommended = claimEvents(deduplicatedRecommended.filter(joinable))
   const pickedRunningLow  = claimEvents(runningLow.filter(joinable))
-  const pickedNewThisWeek = claimEvents(newThisWeek.filter(joinable))
+  const pickedNewThisWeek = claimEvents(nearestPerSeries(newThisWeek).slice(0, 4).filter(joinable))
   // Trending is gated AFTER the claim, on what is actually left to rank.
   const pickedTrendingRanked = claimEvents(trendingRanked.filter(joinable))
   // The browse surfaces stay complete — full events included — but never
@@ -1306,7 +1310,8 @@ export default async function DashboardPage() {
   // Event has no publishedAt; the moderator PATCH writes an `event.published`
   // audit row, which is the approval time. Newest approval wins; an event
   // created live by staff has no row and keeps its creation time.
-  const clubEventsFresh = recentClubEvents.filter(notEnded)
+  // A weekly series is one announcement, not one per date.
+  const clubEventsFresh = nearestPerSeries(recentClubEvents.filter(notEnded))
   const publishedAudits = clubEventsFresh.length === 0 ? [] : await prisma.auditLog.findMany({
     where: { targetType: 'event', action: 'event.published', targetId: { in: clubEventsFresh.map((e) => e.id) } },
     select: { targetId: true, createdAt: true },
