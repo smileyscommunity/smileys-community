@@ -7,7 +7,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { resolveImageUrl, avatarUrl, getInitials, firstNameOf} from '@/lib/data'
 import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import { countryFlag } from '@/lib/countries'
-import { matchesTimeFilter, statusBadge, type TimeFilter } from '@/lib/hangoutTime'
+import { matchesTimeFilter, statusBadge, formatHangoutWindow, hangoutUntilLabel, hangoutDayLabel, type TimeFilter } from '@/lib/hangoutTime'
 import { HANGOUT_ACTIVITIES, ACTIVITY_META, HANGOUT_CAPACITIES } from '@/lib/hangoutActivities'
 import posthog from 'posthog-js'
 import { toast } from 'sonner'
@@ -100,24 +100,7 @@ interface HangoutMessage {
 // from useCurrentCity), never the viewer's device timezone — a member abroad
 // (or with a misconfigured device clock) still sees the local meet time.
 function formatWindow(startsAt: string, endsAt: string, TZ: string) {
-  const s = new Date(startsAt)
-  const e = new Date(endsAt)
-  const now = new Date()
-  const minsToStart = Math.round((s.getTime() - now.getTime()) / 60_000)
-
-  const fmtTime = (d: Date) => d.toLocaleTimeString('en-GB', { timeZone: TZ, hourCycle: 'h23', hour: '2-digit', minute: '2-digit' })
-  // Day comparisons in the city's tz, not the device tz.
-  const istDay = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: TZ })
-
-  let prefix = ''
-  if (minsToStart < 0)        prefix = 'Now · '
-  else if (minsToStart < 60)  prefix = `In ${minsToStart}m · `
-  else if (istDay(s) === istDay(now)) prefix = 'Today · '
-  else                        prefix = s.toLocaleDateString('en-GB', { timeZone: TZ, weekday: 'short', day: 'numeric', month: 'short' }) + ' · '
-
-  // Past midnight, say so: "23:00–01:00" alone reads as two hours ago.
-  const nextDay = istDay(e) !== istDay(s) ? ' (next day)' : ''
-  return `${prefix}${fmtTime(s)}–${fmtTime(e)}${nextDay}`
+  return formatHangoutWindow(startsAt, endsAt, TZ)
 }
 
 // Live/upcoming split + human label. Once a hangout is running, the raw
@@ -128,10 +111,11 @@ function timeStatus(startsAt: string, endsAt: string, TZ: string): { live: boole
   const e = new Date(endsAt)
   const now = new Date()
   if (s <= now && e > now) {
-    const fmtTime = (d: Date) => d.toLocaleTimeString('en-GB', { timeZone: TZ, hourCycle: 'h23', hour: '2-digit', minute: '2-digit' })
+    // Spans days: "Started 50h 3m ago" is not an answer. Name the dates.
+    if (hangoutDayLabel(s, TZ) !== hangoutDayLabel(e, TZ)) return { live: true, label: `Now · ${formatWindow(startsAt, endsAt, TZ)}` }
     const m = Math.round((now.getTime() - s.getTime()) / 60_000)
     const ago = m < 1 ? 'Just started' : m < 60 ? `Started ${m}m ago` : `Started ${Math.floor(m / 60)}h${m % 60 ? ` ${m % 60}m` : ''} ago`
-    return { live: true, label: `${ago} · until ${fmtTime(e)}` }
+    return { live: true, label: `${ago} · ${hangoutUntilLabel(e, TZ, now)}` }
   }
   return { live: false, label: formatWindow(startsAt, endsAt, TZ) }
 }

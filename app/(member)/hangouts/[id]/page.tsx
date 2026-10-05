@@ -231,7 +231,7 @@ export default async function HangoutPermalinkPage({ params }: PageProps) {
                 {' – '}
                 {/* Past midnight: name the day, or "23:00 – 01:00" reads as two hours ago. */}
                 {startDate !== hangout.endsAt.toLocaleDateString('en-CA', { timeZone: tz })
-                  ? hangout.endsAt.toLocaleString('en-GB', { timeZone: tz, weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+                  ? hangout.endsAt.toLocaleString('en-GB', { timeZone: tz, weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
                   : hangout.endsAt.toLocaleTimeString('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}
               </span></p>
             </div>

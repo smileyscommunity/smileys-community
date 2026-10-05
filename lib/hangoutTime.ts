@@ -52,3 +52,33 @@ export function statusBadge(startsAt: string, endsAt: string, now = new Date(), 
   return null
 }
 
+
+// "Mon Oct 5" — the city's calendar day, American order, no comma.
+export function hangoutDayLabel(d: Date, tz: string = DEFAULT_TZ): string {
+  return d.toLocaleDateString('en-US', { timeZone: tz, weekday: 'short', month: 'short', day: 'numeric' }).replace(',', '')
+}
+const hangoutTime = (d: Date, tz: string) => d.toLocaleTimeString('en-GB', { timeZone: tz, hourCycle: 'h23', hour: '2-digit', minute: '2-digit' })
+
+// The window line on a hangout card. A hangout that ends on a different day
+// than it starts names both days ("Mon Oct 5 – Wed Oct 8 · 09:00–20:00"):
+// with up to 7 days allowed, "Today · 09:00–20:00 (next day)" no longer tells
+// the reader how long it runs. Same-day hangouts keep the Now / In Nm / Today
+// prefixes.
+export function formatHangoutWindow(startsAt: string, endsAt: string, tz: string = DEFAULT_TZ, now = new Date()): string {
+  const s = new Date(startsAt), e = new Date(endsAt)
+  const times = `${hangoutTime(s, tz)}–${hangoutTime(e, tz)}`
+  if (cityDay(s, tz) !== cityDay(e, tz)) return `${hangoutDayLabel(s, tz)} – ${hangoutDayLabel(e, tz)} · ${times}`
+  const minsToStart = Math.round((s.getTime() - now.getTime()) / 60_000)
+  let prefix: string
+  if (minsToStart < 0)       prefix = 'Now · '
+  else if (minsToStart < 60) prefix = `In ${minsToStart}m · `
+  else if (cityDay(s, tz) === cityDay(now, tz)) prefix = 'Today · '
+  else prefix = `${hangoutDayLabel(s, tz)} · `
+  return `${prefix}${times}`
+}
+
+// "until 20:00", or "until Wed Oct 8, 20:00" when that is not today.
+export function hangoutUntilLabel(endsAt: Date, tz: string = DEFAULT_TZ, now = new Date()): string {
+  const t = hangoutTime(endsAt, tz)
+  return cityDay(endsAt, tz) === cityDay(now, tz) ? `until ${t}` : `until ${hangoutDayLabel(endsAt, tz)}, ${t}`
+}
