@@ -26,6 +26,7 @@ import QuickLinks from '@/components/QuickLinks'
 import CityWeather from '@/components/CityWeather'
 import ReviewReminder from '@/components/ReviewReminder'
 import { summarizeHangoutsToday, HANGOUTS_SOON_MS } from '@/lib/hangoutsToday'
+import { eventsSoon } from '@/lib/eventsSoon'
 import { nearestPerSeries } from '@/lib/eventSeries'
 import MeetAgainCard from '@/components/MeetAgainCard'
 import { meetAgainPendingFor } from '@/lib/meetAgain'
@@ -1304,6 +1305,7 @@ export default async function DashboardPage() {
   // show one that has already finished. The heading counts the whole week:
   // the list is capped at 20, the count isn't.
   const thisWeekShown = thisWeekEvents.filter(notEnded)
+  const soonEvents = eventsSoon(thisWeekEvents, { today, tz, now: nowMs, joined: new Set(joinedEventIds), pending: pendingIds })
   const thisWeekTotal = thisWeekEvents.length < 20 ? thisWeekShown.length : Math.max(eventsThisWeek, thisWeekShown.length)
   // An event is "new" from the moment staff approved it, not from when the host
   // created it (Nate, 2026-10-04: approved a few minutes ago, shown as 3 hours).
@@ -1882,6 +1884,36 @@ export default async function DashboardPage() {
                   <span className="text-xs font-bold text-amber-600 shrink-0 group-hover:translate-x-0.5 transition-transform">See all →</span>
                 </div>
               </Link>
+            )}
+
+            {/* Today & tomorrow — what the member can still join in the next
+                two days, from the same rows as "This week" below. */}
+            {soonEvents.length > 0 && (
+              <div className="bg-white rounded-2xl shadow-card p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="text-sm font-bold text-gray-900">Today &amp; tomorrow</h2>
+                  <Link href="/events" className="text-xs text-amber-600 font-semibold hover:underline">All events →</Link>
+                </div>
+                <div className="space-y-1">
+                  {soonEvents.map((e) => (
+                    <Link key={e.id} href={`/events/${e.id}`}
+                      className="flex items-center gap-3 rounded-xl px-2 py-2 hover:bg-amber-50 transition-colors group">
+                      <span className="text-lg w-8 text-center shrink-0" aria-hidden="true">{e.emoji}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 group-hover:text-amber-600 transition-colors truncate">{e.title}</p>
+                        <p className="text-xs text-gray-500 truncate">
+                          {e.day}{e.time ? ` · ${e.time}` : ''}{e.neighborhood ? ` · ${e.neighborhood}` : ''}
+                        </p>
+                      </div>
+                      {e.seatsLeft !== null && (
+                        <span className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full shrink-0">
+                          {e.seatsLeft} seat{e.seatsLeft !== 1 ? 's' : ''} left
+                        </span>
+                      )}
+                    </Link>
+                  ))}
+                </div>
+              </div>
             )}
 
             {/* Advertisement banners (promo type moved to hero; only remaining types show here) */}
