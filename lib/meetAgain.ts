@@ -4,7 +4,8 @@ import { claimOnce, releaseClaim } from '@/lib/rateLimit'
 import { writeAudit } from '@/lib/audit'
 import { firstNameOf } from '@/lib/data'
 import { eventEndsAt } from '@/lib/eventTime'
-import { DEFAULT_TZ } from '@/lib/cityTime'
+import { DEFAULT_TZ, todayInTz, shiftDay } from '@/lib/cityTime'
+import { blockedIdsFor, connectionIdsFor } from '@/lib/memberPrivacy'
 
 // "Would you meet them again?" — after an event, each person in the room
 // privately ticks who they'd like to see again. A pick is never shown to
@@ -182,4 +183,60 @@ export async function resolveMutualPick(
     if (!sent) await releaseClaim(key)
   }))
   return true
+}
+
+// Events that happened — the route's rule. A postponed event keeps its
+// approved RSVPs, so status alone is what separates "took place".
+const HAPPENED = ['published', 'archived']
+
+export interface MeetAgainPending { id: string; title: string; emoji: string; people: number }
+
+/**
+ * The dashboard's prompt: the viewer's most recent event still inside the
+ * seven-day window that they were in the room for, with someone left to pick
+ * and no pick made yet. Null when there's nothing to ask — the card then
+ * isn't rendered at all.
+ *
+ * Reveals nothing the picker doesn't: `people` is the size of the list the
+ * picker would show them (room minus self, blocks, connections), never who
+ * picked whom.
+ */
+export async function meetAgainPendingFor(userId: string, now: number = Date.now()): Promise<MeetAgainPending | null> {
+  // Date-only prefilter, a day wider than the window; the window itself is
+  // checked per event on its city's clock below.
+  const since = shiftDay(todayInTz(DEFAULT_TZ), -9)
+  const events = await prisma.event.findMany({
+    where: {
+      cancelledAt: null,
+      status: { in: HAPPENED },
+      date:   { gte: since },
+      OR: [
+        { hostId: userId },
+        { cohosts:   { some: { userId } } },
+        { attendees: { some: { userId, status: 'approved' } } },
+      ],
+    },
+    select: {
+      id: true, title: true, emoji: true, date: true, time: true, endTime: true,
+      hostId: true, city: { select: { timezone: true } },
+    },
+    orderBy: [{ date: 'desc' }, { time: 'desc' }],
+    take: 5,
+  })
+  if (events.length === 0) return null
+
+  const [blocked, connected] = await Promise.all([blockedIdsFor(userId), connectionIdsFor(userId)])
+  for (const event of events) {
+    if (meetAgainWindow(event, event.city?.timezone, now)) continue
+    const room = await meetAgainRoom(event.id, event.hostId)
+    if (!room.has(userId)) continue
+    const people = [...room].filter(uid => uid !== userId && !blocked.has(uid) && !connected.has(uid)).length
+    if (people === 0) continue
+    const already = await prisma.eventMeetAgain.findFirst({
+      where: { eventId: event.id, pickerId: userId }, select: { id: true },
+    })
+    if (already) continue
+    return { id: event.id, title: event.title, emoji: event.emoji, people }
+  }
+  return null
 }

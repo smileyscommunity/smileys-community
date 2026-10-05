@@ -1193,7 +1193,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
           {/* Meet again — private picks for the 7 days after (lib/meetAgain).
               The component asks the server who may pick and renders
               nothing for anyone else. */}
-          {isPast && canSeeInside && <MeetAgainPicker eventId={event.id} />}
+          {isPast && canSeeInside && <div id="meet-again" className="scroll-mt-20"><MeetAgainPicker eventId={event.id} /></div>}
 
           {/* Reviews (past events) */}
           <EventReviews eventId={event.id} isPast={isPast} />
