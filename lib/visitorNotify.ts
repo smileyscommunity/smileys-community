@@ -5,9 +5,9 @@ import { DEFAULT_CITY_SLUG } from '@/lib/city'
 import { firstNameOf } from '@/lib/data'
 import { notifyText } from '@/lib/visitorPolicy'
 
-// "Visitor coming to Moda" — the push to a neighbourhood's locals when a
-// visit names one. Once per (visit, neighbourhood): a new post pings, an
-// edit that moves the visit to another neighbourhood pings that one, an
+// "Visitor coming to Moda" — the push to a neighborhood's locals when a
+// visit names one. Once per (visit, neighborhood): a new post pings, an
+// edit that moves the visit to another neighborhood pings that one, an
 // edit that only changes the dates pings nobody twice. Server-side only.
 
 export async function notifyLocalsOfVisit(v: {
@@ -23,7 +23,7 @@ export async function notifyLocalsOfVisit(v: {
     select: { blockerId: true, blockedId: true },
   })).map(b => (b.blockerId === v.userId ? b.blockedId : b.blockerId)))
   const locals = await prisma.user.findMany({
-    // Destination city's locals — neighbourhood names are only unique per
+    // Destination city's locals — neighborhood names are only unique per
     // city, and an Istanbul 'Moda' ping about an Izmir visit would be noise.
     where:  { neighborhood: v.neighborhood, status: 'approved', hiddenFromMembers: false, cityId: v.cityId },
     select: { id: true },

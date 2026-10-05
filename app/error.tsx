@@ -14,13 +14,13 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
     // Stale chunk after a deploy — reload once and pull fresh bundles rather
     // than leaving someone on "Something went wrong". The rule and the
     // one-per-minute guard live in lib/staleChunk so this boundary and the
-    // global one cannot recognise different sets of patterns, which is
+    // global one cannot recognize different sets of patterns, which is
     // exactly what had happened.
     recoverFromStaleChunk(error)
   }, [error])
 
   return (
-    <main className="min-h-screen bg-warm flex items-center justify-center px-4">
+    <div className="min-h-screen bg-warm flex items-center justify-center px-4">
       <div className="max-w-md w-full text-center">
         <div className="text-6xl mb-6">⚠️</div>
         <h1 className="text-2xl font-extrabold text-gray-900 mb-3">Something went wrong</h1>
@@ -47,6 +47,6 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
           </a>
         </div>
       </div>
-    </main>
+    </div>
   )
 }

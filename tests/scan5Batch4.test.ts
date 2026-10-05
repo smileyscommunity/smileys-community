@@ -27,7 +27,7 @@ const author = (id: string, name: string, vis = 'everyone') => ({ id, name, colo
 beforeEach(() => { vi.clearAllMocks(); privacy.restricted = new Set(); session.current = null })
 
 describe('author projection (items 18–20)', () => {
-  it('guests get a first name and colour, no photo, no member id', async () => {
+  it('guests get a first name and color, no photo, no member id', async () => {
     const project = await authorProjector(null, [author('u1', 'Ayşe Yılmaz')])
     expect(project(author('u1', 'Ayşe Yılmaz'))).toEqual({ id: 'member', name: 'Ayşe', color: '#f00', profilePhoto: null })
   })
@@ -63,7 +63,9 @@ describe('19. board posts, replies and guide tips project their authors', () => 
   it.each([
     ['app/api/board/route.ts',             'user: project(p.user),'],
     ['app/api/board/[id]/replies/route.ts', 'user: project(r.user),'],
-    ['app/api/guide/[slug]/tips/route.ts',  'user: project(t.user),'],
+    // The tips list read moved to lib/guideTips (shared by the route and the
+    // experience page); the projection rule travels with it.
+    ['lib/guideTips.ts',                    'user: project(t.user),'],
   ])('%s', (file, snippet) => {
     const src = read(file)
     expect(src).toContain('await authorProjector(session,')
@@ -75,7 +77,7 @@ describe('20. moving sales show guests the sale, not the seller', () => {
   it('the API projects the seller, drops the neighborhood for guests, and skips hidden or banned sellers', () => {
     const src = read('app/api/moving-sales/route.ts')
     // Now a multi-line object: the note is redacted for guests too
-    // (marketplace review, 2026-09-21) — withholding the neighbourhood is
+    // (marketplace review, 2026-09-21) — withholding the neighborhood is
     // pointless if the note reads "Cihangir, Akarsu Sok 12".
     expect(src).toContain('user: project(s.user),')
     expect(src).toContain('neighborhood: session ? s.neighborhood : null,')

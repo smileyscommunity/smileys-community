@@ -9,7 +9,7 @@ import { firstNameOf } from '@/lib/data'
 // (403 "You can only message connected members"), and the /visiting wave
 // exception doesn't apply here: that one is scoped to people with an
 // active visit post, which is what makes bypassing the guard defensible.
-// Neighbours have made no such invitation, so they consent first.
+// Neighbors have made no such invitation, so they consent first.
 export default function SayHiButton({ targetId, targetName }: { targetId: string; targetName: string }) {
   const [sending, setSending] = useState(false)
   const [sent,    setSent]    = useState(false)

@@ -40,6 +40,13 @@
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+/* Room under the page for the mobile sticky Join bar (components/JoinStickyBar),
+   so it never covers the footer's last links. Phones only — the bar is md:hidden. */
+@media (max-width: 767px) {
+  html.has-join-bar body { padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
+}
+@keyframes joinbar-in { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
 /* Hide scrollbars on overflow-x scroll containers */
 .scrollbar-hide,
 .scrollbar-none {

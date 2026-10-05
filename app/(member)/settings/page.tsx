@@ -179,7 +179,7 @@ function Section({ id, title, description, children }: { id?: string; title: str
   )
 }
 
-// A bare <button> with a coloured pill inside announces itself as an unnamed
+// A bare <button> with a colored pill inside announces itself as an unnamed
 // button in a screen reader — nothing about it says "switch", and nothing
 // says whether it's on. role/aria-checked plus the visible label as its
 // accessible name is the whole fix.

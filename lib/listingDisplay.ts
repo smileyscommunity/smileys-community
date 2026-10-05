@@ -61,12 +61,12 @@ const PET_GOAL: Record<string, string> = {
 /**
  * The category fields the post form collects and the API allowlists
  * (housing type, available-from, furnished, job type, remote, rate unit,
- * adoption/foster), as a small labelled list. Only keys that are actually
+ * adoption/foster), as a small labeled list. Only keys that are actually
  * present come back, in a fixed order, so the sheet and the permalink list
  * them the same way round.
  *
  * Unknown keys and unknown values are skipped rather than printed raw: the
- * allowlist lives in the API, and a value this function doesn't recognise is
+ * allowlist lives in the API, and a value this function doesn't recognize is
  * one it can't name in English.
  */
 export function describeAttrs(attrs: Record<string, unknown> | null | undefined): AttrRow[] {

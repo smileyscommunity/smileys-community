@@ -75,7 +75,7 @@ const req = (body: unknown) => ({ json: async () => body }) as any
 const cronReq = () => new Request('http://x/api', { headers: { 'x-cron-secret': 'sek', authorization: 'Bearer sek' } }) as any
 const order = (f: any) => f.mock.invocationCallOrder[0]
 
-// In-memory payment ledger: status + notes guards are honoured, so "marked
+// In-memory payment ledger: status + notes guards are honored, so "marked
 // once" and "paid untouched" are claims about rows.
 type Pay = { id: string; userId: string; eventId: string; status: string; amount: number; currency: string; notes: string | null; event?: { title: string } }
 let ledger: Pay[] = []

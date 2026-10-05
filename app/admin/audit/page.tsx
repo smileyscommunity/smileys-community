@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
+import { memberHref } from '@/lib/adminNav'
 import CitySelect, { useAdminCities } from '@/components/admin/CitySelect'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { fromWallClockInTz, shiftDay, DEFAULT_TZ } from '@/lib/cityTime'
@@ -13,12 +14,16 @@ import { loadFailure } from '@/lib/admin/useAdminLoad'
 // Map an audit entry's targetType to the admin detail route for that
 // resource. Returning null means the target has no admin landing page
 // (payments, messages, reports, attendees) and the id stays as plain
-// text. Centralised here so a new targetType only edits one place.
-function targetHref(targetType: string | null, targetId: string | null): string | null {
+// text. Centralized here so a new targetType only edits one place.
+// By viewer: the member and club admin pages are admin-only (the layout
+// bounces moderators to Mod Home), so a moderator's links went nowhere. A
+// moderator gets the member profile, and a club stays plain text — the row
+// has only the club's id, and the public club page is addressed by slug.
+function targetHref(targetType: string | null, targetId: string | null, viewerRole: string | null | undefined): string | null {
   if (!targetType || !targetId) return null
-  if (targetType === 'user')  return `/admin/users/${targetId}`
+  if (targetType === 'user')  return memberHref(targetId, viewerRole)
   if (targetType === 'event') return `/admin/events/${targetId}/edit`
-  if (targetType === 'club')  return `/admin/clubs/${targetId}`
+  if (targetType === 'club')  return viewerRole === 'admin' ? `/admin/clubs/${targetId}` : null
   return null
 }
 
@@ -40,6 +45,14 @@ const ACTION_STYLES: Record<string, string> = {
   'user.role_change':      'bg-violet-500/10 text-violet-400 border-violet-500/20',
   'user.status_change':    'bg-amber-500/10 text-amber-400 border-amber-500/20',
   'user.update':           'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  'user.unsuspend':        'bg-green-500/10 text-green-400 border-green-500/20',
+  'user.membership_change':'bg-violet-500/10 text-violet-400 border-violet-500/20',
+  'user.appeal_decision':  'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  'application.suggest':   'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  'hangout.staff_edit':    'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  'hangout.staff_remove':  'bg-red-500/10 text-red-400 border-red-500/20',
+  'moving_sale.staff_edit':  'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  'moving_sale.staff_remove':'bg-red-500/10 text-red-400 border-red-500/20',
   'payment.status':        'bg-blue-500/10 text-blue-400 border-blue-500/20',
   'application.approve':   'bg-green-500/10 text-green-400 border-green-500/20',
   'application.reject':    'bg-red-500/10 text-red-400 border-red-500/20',
@@ -63,6 +76,14 @@ const ACTION_LABELS: Record<string, string> = {
   'user.role_change':      'Role change',
   'user.status_change':    'Status change',
   'user.update':           'Update',
+  'user.unsuspend':        'Suspension lifted',
+  'user.membership_change':'Membership',
+  'user.appeal_decision':  'Appeal',
+  'application.suggest':   'Suggestion',
+  'hangout.staff_edit':    'Hangout edited',
+  'hangout.staff_remove':  'Hangout removed',
+  'moving_sale.staff_edit':  'Moving sale edited',
+  'moving_sale.staff_remove':'Moving sale removed',
   'payment.status':        'Payment',
   'application.approve':   'Approve',
   'application.reject':    'Reject',
@@ -448,7 +469,7 @@ function AdminAuditPageInner() {
 
                       <DiffView meta={log.meta} action={log.action} />
                       {log.targetId && (() => {
-                        const href = targetHref(log.targetType, log.targetId)
+                        const href = targetHref(log.targetType, log.targetId, user?.role)
                         const text = `${log.targetType} · ${log.targetId}`
                         // Click through to the resource's admin page when
                         // one exists (user / event / club). Other target

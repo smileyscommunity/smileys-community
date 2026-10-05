@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { reportCityOf } from '@/lib/admin/reportScope'
 import OpenAI from 'openai'
 import { prisma } from '@/lib/prisma'
 import { rateLimit } from '@/lib/rateLimit'
 import { getSession } from '@/lib/session'
-import { canModerateReports, canActInCity } from '@/lib/access'
+import { canModerateReports, canActInCity, isAdmin } from '@/lib/access'
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
@@ -44,7 +45,9 @@ export async function POST(req: NextRequest) {
   // The moderation queue scopes moderators to reports about their own
   // city's members; this AI-triage route accepted any reportId and fed the
   // subject's history into the summary. Same scope as the queue itself.
-  if (!canActInCity(session, report.reported.cityId)) {
+  // The queue's rule for which city a report belongs to (content first).
+  const reportCity = isAdmin(session) ? null : await reportCityOf(report)
+  if (!isAdmin(session) && (!reportCity || !canActInCity(session, reportCity))) {
     return NextResponse.json({ error: 'Cross-city moderation is admin-only' }, { status: 403 })
   }
   // Rate-limit the OpenAI call after auth — see applications/screen.

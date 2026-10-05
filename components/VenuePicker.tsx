@@ -46,7 +46,7 @@ export default function VenuePicker({
   const listId = useId()
 
   useEffect(() => {
-    // Only what the organiser types searches — not the value a loaded event
+    // Only what the organizer types searches — not the value a loaded event
     // or a duplicate prefilled.
     if (!typed.current) return
     const q = value.replace(/\s+/g, ' ').trim()

@@ -1,5 +1,7 @@
 'use client'
 
+import { hasAnalyticsConsent } from '@/lib/consent'
+import { clearApplyDraft } from '@/lib/applyDraft'
 import { createContext, useContext, useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import posthog from 'posthog-js'
@@ -89,6 +91,8 @@ export function AuthProvider({ children, initialUser = null }: { children: React
     await drainQueue().catch(() => 0)
     await fetch('/app/api/auth/logout', { method: 'POST' })
     resetCurrentCity()
+    // A half-finished application on this device is not the next person's.
+    clearApplyDraft()
     // Drop the auth-scoped SW cache (/app/api/events/attending) so on a
     // shared device, the next user signing in doesn't get the previous
     // user's offline-cached events. See public/sw.js message handler.
@@ -99,7 +103,9 @@ export function AuthProvider({ children, initialUser = null }: { children: React
     // attribute to the previous user. Also opt back in — if the prior session
     // was staff we opted out at login, and reset() doesn't undo that.
     posthog.reset()
-    posthog.opt_in_capturing()
+    // Back on only for a browser whose visitor accepted analytics (lib/consent);
+    // this switched capturing on for everyone who ever signed out.
+    if (hasAnalyticsConsent()) posthog.opt_in_capturing()
     setUser(GUEST)
     setIsLoggedIn(false)
     router.push('/login')

@@ -33,6 +33,8 @@ type NewEvent = {
   emoji: string
   createdAt: Date | string
   club: { name: string; emoji: string; slug: string } | null
+  // A cross-city trip (lib/eventTrip) — says "New trip" instead of "New event".
+  isTrip?: boolean
 }
 
 type PhotoItem = {
@@ -45,6 +47,9 @@ type PhotoItem = {
   // null when the viewer wasn't at the event or in the club: the credit goes
   // to the event, not the uploader (see the dashboard's recentPhotos).
   user: { name: string; color: string } | null
+  // Photos grouped into one row per gallery — one upload of six was six
+  // identical rows. Absent or 1 reads as before.
+  count?: number
 }
 
 type EventRsvp = {
@@ -316,374 +321,394 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
   }
 
   if (items.length === 0) return null
+  const shown = new Set(items)
+  const rest  = merged.filter(it => !shown.has(it))
+
+  // One row of the wall; the first `cap` rows and the "Show more" rest share it.
+  const renderItem = (it: TimelineItem, i: number) => {
+    if (it.kind === 'member') {
+      const { user, club } = it.data
+      return (
+        <div key={`m-${i}`} className="flex items-center gap-2.5">
+          <Avatar name={user.name} color={user.color} />
+          <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
+            <span className="font-semibold">{firstNameOf(user.name)}</span>
+            {' joined '}
+            <Link href={`/clubs/${club.slug}`} className="font-semibold text-amber-600 hover:underline">
+              <span aria-hidden="true">{club.emoji}</span> {club.name}
+            </Link>
+          </p>
+          <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
+        </div>
+      )
+    }
+    if (it.kind === 'post') {
+      const { user, club, content, type, poll } = it.data
+      const verb = poll ? 'started a poll in' : type === 'announcement' ? 'announced in' : 'posted in'
+      return (
+        <Link key={`p-${i}`} href={`/clubs/${club.slug}`}
+              className="flex gap-2.5 hover:opacity-80 transition-opacity">
+          <Avatar name={user.name} color={user.color} />
+          <div className="min-w-0 flex-1">
+            <p className="text-xs text-gray-700 leading-snug">
+              <span className="font-semibold">{firstNameOf(user.name)}</span>
+              {' '}{verb}{' '}
+              <span className="font-semibold text-amber-600"><span aria-hidden="true">{club.emoji}</span> {club.name}</span>
+            </p>
+            <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{content || poll?.question}</p>
+          </div>
+          <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
+        </Link>
+      )
+    }
+    if (it.kind === 'photo') {
+      const { user, href, title } = it.data
+      return (
+        <Link key={`ph-${i}`} href={href}
+              className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
+          {user
+            ? <Avatar name={user.name} color={user.color} />
+            : <span aria-hidden="true" className="w-7 h-7 rounded-full bg-amber-50 flex items-center justify-center text-sm shrink-0">📸</span>}
+          <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
+            {user
+              ? <><span className="font-semibold">{firstNameOf(user.name)}</span>{' posted photos · '}</>
+              : (it.data.count ?? 1) > 1 ? `${it.data.count} new photos · ` : 'New photos · '}
+            <span className="font-semibold text-amber-600">{title}</span>
+          </p>
+          <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
+        </Link>
+      )
+    }
+    if (it.kind === 'rsvp') {
+      const { user, event } = it.data
+      return (
+        <Link key={`r-${i}`} href={`/events/${event.id}`}
+              className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
+          <Avatar name={user.name} color={user.color} />
+          <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
+            <span className="font-semibold">{firstNameOf(user.name)}</span>
+            {' is going to '}
+            <span className="font-semibold text-amber-600"><span aria-hidden="true">{event.emoji}</span> {event.title}</span>
+          </p>
+          <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
+        </Link>
+      )
+    }
+    if (it.kind === 'newmember') {
+      const { name, color, neighborhood } = it.data
+      return (
+        <div key={`nm-${i}`} className="flex items-center gap-2.5">
+          <Avatar name={name} color={color} />
+          <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
+            {/* Labelled like "New event" / "New club started" (Nate, 2026-10-04). */}
+            {'New member — '}
+            <span className="font-semibold text-amber-600">{firstNameOf(name)}</span>
+            {neighborhood && <span className="text-gray-500"> · {neighborhood}</span>}
+          </p>
+          <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
+        </div>
+      )
+    }
+    if (it.kind === 'hangout') {
+      const { id, title, neighborhood, user } = it.data
+      return (
+        <Link key={`h-${i}`} href={`/hangouts/${id}`}
+              className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
+          <Avatar name={user.name} color={user.color} />
+          <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
+            <span className="font-semibold">{firstNameOf(user.name)}</span>
+            {' posted a hangout'}
+            {neighborhood && <span className="text-gray-500"> · {neighborhood}</span>}
+            {' — '}
+            <span className="font-semibold text-amber-600">{title}</span>
+          </p>
+          <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
+        </Link>
+      )
+    }
+    if (it.kind === 'pulse') {
+      const { neighborhood, note, user } = it.data
+      return (
+        <Link key={`pl-${i}`} href="/hangouts"
+              className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
+          <Avatar name={user.name} color={user.color} />
+          <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
+            <span className="font-semibold">{firstNameOf(user.name)}</span>
+            {' is around to hang out'}
+            {neighborhood && <span className="text-gray-500"> · {neighborhood}</span>}
+            {note && <span className="text-gray-500"> — {note}</span>}
+          </p>
+          <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
+        </Link>
+      )
+    }
+    if (it.kind === 'connection') {
+      const { requester, receiver } = it.data
+      return (
+        <div key={`c-${i}`} className="flex items-center gap-2.5">
+          <div className="flex -space-x-2 shrink-0">
+            <Avatar name={requester.name} color={requester.color} />
+            <Avatar name={receiver.name}  color={receiver.color}  />
+          </div>
+          <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
+            <span className="font-semibold">{firstNameOf(requester.name)}</span>
+            {' and '}
+            <span className="font-semibold">{firstNameOf(receiver.name)}</span>
+            {' connected'}
+          </p>
+          <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
+        </div>
+      )
+    }
+    if (it.kind === 'reference') {
+      const { fromUser, hangout } = it.data
+      return (
+        <Link key={`rf-${i}`} href={`/hangouts/${hangout.id}`}
+              className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
+          <Avatar name={fromUser.name} color={fromUser.color} />
+          <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
+            <span className="font-semibold">{firstNameOf(fromUser.name)}</span>
+            {' left a good reference for '}
+            <span className="font-semibold text-amber-600">{hangout.title}</span>
+          </p>
+          <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
+        </Link>
+      )
+    }
+    if (it.kind === 'eventreview') {
+      const { user, event, rating } = it.data
+      return (
+        <Link key={`er-${i}`} href={`/events/${event.id}`}
+              className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
+          <Avatar name={user.name} color={user.color} />
+          <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
+            <span className="font-semibold">{firstNameOf(user.name)}</span>
+            {' rated '}
+            <span className="font-semibold text-amber-600"><span aria-hidden="true">{event.emoji}</span> {event.title}</span>
+            {' '}<span aria-hidden="true" className="text-amber-500">{'★'.repeat(rating)}</span><span className="sr-only">{rating} out of 5 stars</span>
+          </p>
+          <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
+        </Link>
+      )
+    }
+    if (it.kind === 'placereview') {
+      const { author, business, rating } = it.data
+      return (
+        <Link key={`pr-${i}`} href={`/directory/${business.id}`}
+              className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
+          <Avatar name={author.name} color={author.color} />
+          <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
+            <span className="font-semibold">{firstNameOf(author.name)}</span>
+            {' reviewed '}
+            <span className="font-semibold text-amber-600">{business.name}</span>
+            {' '}<span aria-hidden="true" className="text-amber-500">{'★'.repeat(rating)}</span><span className="sr-only">{rating} out of 5 stars</span>
+          </p>
+          <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
+        </Link>
+      )
+    }
+    if (it.kind === 'visitor') {
+      const { name, fromCity } = it.data
+      return (
+        <Link key={`v-${i}`} href="/visiting"
+              className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
+          <div aria-hidden="true" className="w-7 h-7 rounded-xl bg-amber-50 flex items-center justify-center text-base shrink-0">
+            🧳
+          </div>
+          <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
+            <span className="font-semibold">{firstNameOf(name)}</span>
+            {' is visiting ' + cityName}
+            {fromCity && <span className="text-gray-500"> · from {fromCity}</span>}
+          </p>
+          <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
+        </Link>
+      )
+    }
+    if (it.kind === 'hangoutjoin') {
+      const { user, hangout } = it.data
+      return (
+        <Link key={`hj-${i}`} href={`/hangouts/${hangout.id}`}
+              className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
+          <Avatar name={user.name} color={user.color} />
+          <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
+            <span className="font-semibold">{firstNameOf(user.name)}</span>
+            {' joined a hangout — '}
+            <span className="font-semibold text-amber-600">{hangout.title}</span>
+          </p>
+          <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
+        </Link>
+      )
+    }
+    if (it.kind === 'hoodpost') {
+      const { user, neighborhood, slug, content } = it.data
+      return (
+        <Link key={`np-${i}`} href={`/neighborhoods/${slug}`}
+              className="flex gap-2.5 hover:opacity-80 transition-opacity">
+          <Avatar name={user.name} color={user.color} />
+          <div className="min-w-0 flex-1">
+            <p className="text-xs text-gray-700 leading-snug">
+              <span className="font-semibold">{firstNameOf(user.name)}</span>
+              {' posted in '}
+              <span className="font-semibold text-amber-600">{neighborhood}</span>
+            </p>
+            <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{content}</p>
+          </div>
+          <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
+        </Link>
+      )
+    }
+    if (it.kind === 'resource') {
+      const { title, emoji, club } = it.data
+      return (
+        <Link key={`res-${i}`} href={`/clubs/${club.slug}`}
+              className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
+          <div aria-hidden="true" className="w-7 h-7 rounded-xl bg-amber-50 flex items-center justify-center text-base shrink-0">
+            {emoji}
+          </div>
+          <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
+            {'New resource in '}
+            <span className="font-semibold text-amber-600"><span aria-hidden="true">{club.emoji}</span> {club.name}</span>
+            {' — '}
+            <span className="font-semibold">{title}</span>
+          </p>
+          <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
+        </Link>
+      )
+    }
+    if (it.kind === 'testimonial') {
+      const { memberName, quote } = it.data
+      return (
+        <div key={`t-${i}`} className="flex gap-2.5">
+          <div aria-hidden="true" className="w-7 h-7 rounded-xl bg-amber-50 flex items-center justify-center text-base shrink-0">
+            💬
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs text-gray-700 leading-snug">
+              <span className="font-semibold">{firstNameOf(memberName)}</span>
+              {' shared their Smileys story'}
+            </p>
+            <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">“{quote}”</p>
+          </div>
+          <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
+        </div>
+      )
+    }
+    if (it.kind === 'listing') {
+      const { id, title, user } = it.data
+      return (
+        <Link key={`l-${i}`} href={`/board/${id}`}
+              className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
+          <Avatar name={user.name} color={user.color} />
+          <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
+            <span className="font-semibold">{firstNameOf(user.name)}</span>
+            {' posted a listing — '}
+            <span className="font-semibold text-amber-600">{title}</span>
+          </p>
+          <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
+        </Link>
+      )
+    }
+    if (it.kind === 'business') {
+      const { id, name, category } = it.data
+      return (
+        <Link key={`b-${i}`} href={`/directory/${id}`}
+              className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
+          <div aria-hidden="true" className="w-7 h-7 rounded-xl bg-amber-50 flex items-center justify-center text-base shrink-0">
+            📍
+          </div>
+          <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
+            {'New in the directory — '}
+            <span className="font-semibold text-amber-600">{name}</span>
+            <span className="text-gray-500"> · {category}</span>
+          </p>
+          <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
+        </Link>
+      )
+    }
+    if (it.kind === 'article') {
+      const { title, slug, kind: postKind } = it.data
+      const isHandbook = postKind === 'handbook'
+      const href = isHandbook ? `/handbook/${slug}` : `/posts/${slug}`
+      return (
+        <Link key={`ar-${i}`} href={href}
+              className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
+          <div aria-hidden="true" className="w-7 h-7 rounded-xl bg-amber-50 flex items-center justify-center text-base shrink-0">
+            {isHandbook ? '📖' : '📰'}
+          </div>
+          <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
+            {isHandbook ? 'New in the Handbook — ' : 'New story — '}
+            <span className="font-semibold text-amber-600">{title}</span>
+          </p>
+          <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
+        </Link>
+      )
+    }
+    if (it.kind === 'club') {
+      const { name, slug, emoji } = it.data
+      return (
+        <Link key={`nc-${i}`} href={`/clubs/${slug}`}
+              className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
+          <div aria-hidden="true" className="w-7 h-7 rounded-xl bg-amber-50 flex items-center justify-center text-base shrink-0">
+            {emoji}
+          </div>
+          <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
+            {'New club started — '}
+            <span className="font-semibold text-amber-600">{name}</span>
+          </p>
+          <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
+        </Link>
+      )
+    }
+    // event
+    const { id, title, emoji, club } = it.data
+    return (
+      <Link key={`e-${i}`} href={`/events/${id}`}
+            className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
+        <div aria-hidden="true" className="w-7 h-7 rounded-xl bg-amber-50 flex items-center justify-center text-base shrink-0">
+          {emoji}
+        </div>
+        {/* One line with a dash, like every other item on the wall.
+            This used to stack the title under the club on a second
+            line, both bold amber, and "⛵️ Sailing / Sunset Sailing
+            Cruise" read as one run-on phrase — the club and the event
+            mixed (2026-09-07). Only the event is amber now: it is the
+            wall's most actionable item and should read as one. */}
+        <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
+          {it.data.isTrip ? 'New trip' : 'New event'}
+          {club && (
+            <>
+              {' in '}
+              <span className="font-semibold"><span aria-hidden="true">{club.emoji}</span> {club.name}</span>
+            </>
+          )}
+          {' — '}
+          <span className="font-semibold text-amber-600">{title}</span>
+        </p>
+        <span className="text-[10px] text-gray-500 shrink-0">{formatAgo(it.ts)}</span>
+      </Link>
+    )
+  }
 
   return (
     <div className="bg-white rounded-2xl shadow-card p-5">
-      <h2 className="text-sm font-bold text-gray-900 mb-3">Recent activity</h2>
+      <h2 className="text-sm font-bold text-gray-900 mb-3">What&apos;s new in {cityName}</h2>
       <div className="space-y-3">
-        {items.map((it, i) => {
-          if (it.kind === 'member') {
-            const { user, club } = it.data
-            return (
-              <div key={`m-${i}`} className="flex items-center gap-2.5">
-                <Avatar name={user.name} color={user.color} />
-                <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
-                  <span className="font-semibold">{firstNameOf(user.name)}</span>
-                  {' joined '}
-                  <Link href={`/clubs/${club.slug}`} className="font-semibold text-amber-600 hover:underline">
-                    <span aria-hidden="true">{club.emoji}</span> {club.name}
-                  </Link>
-                </p>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
-              </div>
-            )
-          }
-          if (it.kind === 'post') {
-            const { user, club, content, type, poll } = it.data
-            const verb = poll ? 'started a poll in' : type === 'announcement' ? 'announced in' : 'posted in'
-            return (
-              <Link key={`p-${i}`} href={`/clubs/${club.slug}`}
-                    className="flex gap-2.5 hover:opacity-80 transition-opacity">
-                <Avatar name={user.name} color={user.color} />
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs text-gray-700 leading-snug">
-                    <span className="font-semibold">{firstNameOf(user.name)}</span>
-                    {' '}{verb}{' '}
-                    <span className="font-semibold text-amber-600"><span aria-hidden="true">{club.emoji}</span> {club.name}</span>
-                  </p>
-                  <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{content || poll?.question}</p>
-                </div>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
-              </Link>
-            )
-          }
-          if (it.kind === 'photo') {
-            const { user, href, title } = it.data
-            return (
-              <Link key={`ph-${i}`} href={href}
-                    className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
-                {user
-                  ? <Avatar name={user.name} color={user.color} />
-                  : <span aria-hidden="true" className="w-7 h-7 rounded-full bg-amber-50 flex items-center justify-center text-sm shrink-0">📸</span>}
-                <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
-                  {user
-                    ? <><span className="font-semibold">{firstNameOf(user.name)}</span>{' posted photos · '}</>
-                    : 'New photos · '}
-                  <span className="font-semibold text-amber-600">{title}</span>
-                </p>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
-              </Link>
-            )
-          }
-          if (it.kind === 'rsvp') {
-            const { user, event } = it.data
-            return (
-              <Link key={`r-${i}`} href={`/events/${event.id}`}
-                    className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
-                <Avatar name={user.name} color={user.color} />
-                <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
-                  <span className="font-semibold">{firstNameOf(user.name)}</span>
-                  {' is going to '}
-                  <span className="font-semibold text-amber-600"><span aria-hidden="true">{event.emoji}</span> {event.title}</span>
-                </p>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
-              </Link>
-            )
-          }
-          if (it.kind === 'newmember') {
-            const { name, color, neighborhood } = it.data
-            return (
-              <div key={`nm-${i}`} className="flex items-center gap-2.5">
-                <Avatar name={name} color={color} />
-                <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
-                  <span className="font-semibold">{firstNameOf(name)}</span>
-                  {' joined Smileys'}
-                  {neighborhood && <span className="text-gray-500"> · {neighborhood}</span>}
-                </p>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
-              </div>
-            )
-          }
-          if (it.kind === 'hangout') {
-            const { id, title, neighborhood, user } = it.data
-            return (
-              <Link key={`h-${i}`} href={`/hangouts/${id}`}
-                    className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
-                <Avatar name={user.name} color={user.color} />
-                <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
-                  <span className="font-semibold">{firstNameOf(user.name)}</span>
-                  {' posted a hangout'}
-                  {neighborhood && <span className="text-gray-500"> · {neighborhood}</span>}
-                  {' — '}
-                  <span className="font-semibold text-amber-600">{title}</span>
-                </p>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
-              </Link>
-            )
-          }
-          if (it.kind === 'pulse') {
-            const { neighborhood, note, user } = it.data
-            return (
-              <Link key={`pl-${i}`} href="/hangouts"
-                    className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
-                <Avatar name={user.name} color={user.color} />
-                <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
-                  <span className="font-semibold">{firstNameOf(user.name)}</span>
-                  {' is around to hang out'}
-                  {neighborhood && <span className="text-gray-500"> · {neighborhood}</span>}
-                  {note && <span className="text-gray-400"> — {note}</span>}
-                </p>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
-              </Link>
-            )
-          }
-          if (it.kind === 'connection') {
-            const { requester, receiver } = it.data
-            return (
-              <div key={`c-${i}`} className="flex items-center gap-2.5">
-                <div className="flex -space-x-2 shrink-0">
-                  <Avatar name={requester.name} color={requester.color} />
-                  <Avatar name={receiver.name}  color={receiver.color}  />
-                </div>
-                <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
-                  <span className="font-semibold">{firstNameOf(requester.name)}</span>
-                  {' and '}
-                  <span className="font-semibold">{firstNameOf(receiver.name)}</span>
-                  {' connected'}
-                </p>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
-              </div>
-            )
-          }
-          if (it.kind === 'reference') {
-            const { fromUser, hangout } = it.data
-            return (
-              <Link key={`rf-${i}`} href={`/hangouts/${hangout.id}`}
-                    className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
-                <Avatar name={fromUser.name} color={fromUser.color} />
-                <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
-                  <span className="font-semibold">{firstNameOf(fromUser.name)}</span>
-                  {' left a good reference for '}
-                  <span className="font-semibold text-amber-600">{hangout.title}</span>
-                </p>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
-              </Link>
-            )
-          }
-          if (it.kind === 'eventreview') {
-            const { user, event, rating } = it.data
-            return (
-              <Link key={`er-${i}`} href={`/events/${event.id}`}
-                    className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
-                <Avatar name={user.name} color={user.color} />
-                <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
-                  <span className="font-semibold">{firstNameOf(user.name)}</span>
-                  {' rated '}
-                  <span className="font-semibold text-amber-600"><span aria-hidden="true">{event.emoji}</span> {event.title}</span>
-                  {' '}<span className="text-amber-500">{'★'.repeat(rating)}</span>
-                </p>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
-              </Link>
-            )
-          }
-          if (it.kind === 'placereview') {
-            const { author, business, rating } = it.data
-            return (
-              <Link key={`pr-${i}`} href={`/directory/${business.id}`}
-                    className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
-                <Avatar name={author.name} color={author.color} />
-                <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
-                  <span className="font-semibold">{firstNameOf(author.name)}</span>
-                  {' reviewed '}
-                  <span className="font-semibold text-amber-600">{business.name}</span>
-                  {' '}<span className="text-amber-500">{'★'.repeat(rating)}</span>
-                </p>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
-              </Link>
-            )
-          }
-          if (it.kind === 'visitor') {
-            const { name, fromCity } = it.data
-            return (
-              <Link key={`v-${i}`} href="/visiting"
-                    className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
-                <div aria-hidden="true" className="w-7 h-7 rounded-xl bg-amber-50 flex items-center justify-center text-base shrink-0">
-                  🧳
-                </div>
-                <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
-                  <span className="font-semibold">{firstNameOf(name)}</span>
-                  {' is visiting ' + cityName}
-                  {fromCity && <span className="text-gray-500"> · from {fromCity}</span>}
-                </p>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
-              </Link>
-            )
-          }
-          if (it.kind === 'hangoutjoin') {
-            const { user, hangout } = it.data
-            return (
-              <Link key={`hj-${i}`} href={`/hangouts/${hangout.id}`}
-                    className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
-                <Avatar name={user.name} color={user.color} />
-                <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
-                  <span className="font-semibold">{firstNameOf(user.name)}</span>
-                  {' joined a hangout — '}
-                  <span className="font-semibold text-amber-600">{hangout.title}</span>
-                </p>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
-              </Link>
-            )
-          }
-          if (it.kind === 'hoodpost') {
-            const { user, neighborhood, slug, content } = it.data
-            return (
-              <Link key={`np-${i}`} href={`/neighborhoods/${slug}`}
-                    className="flex gap-2.5 hover:opacity-80 transition-opacity">
-                <Avatar name={user.name} color={user.color} />
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs text-gray-700 leading-snug">
-                    <span className="font-semibold">{firstNameOf(user.name)}</span>
-                    {' posted in '}
-                    <span className="font-semibold text-amber-600">{neighborhood}</span>
-                  </p>
-                  <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{content}</p>
-                </div>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
-              </Link>
-            )
-          }
-          if (it.kind === 'resource') {
-            const { title, emoji, club } = it.data
-            return (
-              <Link key={`res-${i}`} href={`/clubs/${club.slug}`}
-                    className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
-                <div aria-hidden="true" className="w-7 h-7 rounded-xl bg-amber-50 flex items-center justify-center text-base shrink-0">
-                  {emoji}
-                </div>
-                <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
-                  {'New resource in '}
-                  <span className="font-semibold text-amber-600"><span aria-hidden="true">{club.emoji}</span> {club.name}</span>
-                  {' — '}
-                  <span className="font-semibold">{title}</span>
-                </p>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
-              </Link>
-            )
-          }
-          if (it.kind === 'testimonial') {
-            const { memberName, quote } = it.data
-            return (
-              <div key={`t-${i}`} className="flex gap-2.5">
-                <div className="w-7 h-7 rounded-xl bg-amber-50 flex items-center justify-center text-base shrink-0">
-                  💬
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs text-gray-700 leading-snug">
-                    <span className="font-semibold">{firstNameOf(memberName)}</span>
-                    {' shared their Smileys story'}
-                  </p>
-                  <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">“{quote}”</p>
-                </div>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
-              </div>
-            )
-          }
-          if (it.kind === 'listing') {
-            const { id, title, user } = it.data
-            return (
-              <Link key={`l-${i}`} href={`/board/${id}`}
-                    className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
-                <Avatar name={user.name} color={user.color} />
-                <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
-                  <span className="font-semibold">{firstNameOf(user.name)}</span>
-                  {' posted a listing — '}
-                  <span className="font-semibold text-amber-600">{title}</span>
-                </p>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
-              </Link>
-            )
-          }
-          if (it.kind === 'business') {
-            const { id, name, category } = it.data
-            return (
-              <Link key={`b-${i}`} href={`/directory/${id}`}
-                    className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
-                <div className="w-7 h-7 rounded-xl bg-amber-50 flex items-center justify-center text-base shrink-0">
-                  📍
-                </div>
-                <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
-                  {'New in the directory — '}
-                  <span className="font-semibold text-amber-600">{name}</span>
-                  <span className="text-gray-500"> · {category}</span>
-                </p>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
-              </Link>
-            )
-          }
-          if (it.kind === 'article') {
-            const { title, slug, kind: postKind } = it.data
-            const isHandbook = postKind === 'handbook'
-            const href = isHandbook ? `/handbook/${slug}` : `/posts/${slug}`
-            return (
-              <Link key={`ar-${i}`} href={href}
-                    className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
-                <div className="w-7 h-7 rounded-xl bg-amber-50 flex items-center justify-center text-base shrink-0">
-                  {isHandbook ? '📖' : '📰'}
-                </div>
-                <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
-                  {isHandbook ? 'New in the Handbook — ' : 'New story — '}
-                  <span className="font-semibold text-amber-600">{title}</span>
-                </p>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
-              </Link>
-            )
-          }
-          if (it.kind === 'club') {
-            const { name, slug, emoji } = it.data
-            return (
-              <Link key={`nc-${i}`} href={`/clubs/${slug}`}
-                    className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
-                <div aria-hidden="true" className="w-7 h-7 rounded-xl bg-amber-50 flex items-center justify-center text-base shrink-0">
-                  {emoji}
-                </div>
-                <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
-                  {'New club started — '}
-                  <span className="font-semibold text-amber-600">{name}</span>
-                </p>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
-              </Link>
-            )
-          }
-          // event
-          const { id, title, emoji, club } = it.data
-          return (
-            <Link key={`e-${i}`} href={`/events/${id}`}
-                  className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
-              <div aria-hidden="true" className="w-7 h-7 rounded-xl bg-amber-50 flex items-center justify-center text-base shrink-0">
-                {emoji}
-              </div>
-              {/* One line with a dash, like every other item on the wall.
-                  This used to stack the title under the club on a second
-                  line, both bold amber, and "⛵️ Sailing / Sunset Sailing
-                  Cruise" read as one run-on phrase — the club and the event
-                  mixed (2026-09-07). Only the event is amber now: it is the
-                  wall's most actionable item and should read as one. */}
-              <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
-                {'New event'}
-                {club && (
-                  <>
-                    {' in '}
-                    <span className="font-semibold"><span aria-hidden="true">{club.emoji}</span> {club.name}</span>
-                  </>
-                )}
-                {' — '}
-                <span className="font-semibold text-amber-600">{title}</span>
-              </p>
-              <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
-            </Link>
-          )
-        })}
+        {items.map((it, i) => renderItem(it, i))}
       </div>
+      {/* Everything the balanced first view left out, newest first and with
+          no per-kind cap: "anything new should be on the dashboard" (Nate,
+          2026-10-02). A <details>, so no client JS for a server component. */}
+      {rest.length > 0 && (
+        <details className="mt-3 group">
+          <summary className="cursor-pointer list-none text-xs font-semibold text-amber-600 hover:underline">
+            <span className="group-open:hidden">Show {rest.length} more</span>
+            <span className="hidden group-open:inline">Show less</span>
+          </summary>
+          <div className="space-y-3 mt-3">
+            {rest.map((it, i) => renderItem(it, items.length + i))}
+          </div>
+        </details>
+      )}
     </div>
   )
 }

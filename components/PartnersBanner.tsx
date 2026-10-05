@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { resolveImageUrl, firstNameOf} from '@/lib/data'
+import { resolveImageUrl } from '@/lib/data'
 import { useMediaQuery, LG_UP } from '@/hooks/useMediaQuery'
 
 interface Partner {
@@ -62,7 +62,9 @@ export default function PartnersBanner() {
                 }
               </div>
               <div className="text-center">
-                <p className="text-xs font-semibold text-gray-700 truncate max-w-[56px]">{firstNameOf(p.name)}</p>
+                {/* A business name, not a person's: firstNameOf cut
+                    "Kahve Dünyası" to "Kahve". Truncation handles the width. */}
+                <p className="text-xs font-semibold text-gray-700 truncate max-w-[56px]" title={p.name}>{p.name}</p>
                 <p className="text-[9px] text-amber-600 font-bold truncate max-w-[56px]">{p.discount.split(' ').slice(0, 2).join(' ')}</p>
               </div>
             </Link>

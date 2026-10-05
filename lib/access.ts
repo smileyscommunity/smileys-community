@@ -89,7 +89,7 @@ export function canManagePayments(session: SessionUser): boolean {
 //
 // targetCityId scopes moderators to applications targeting their own
 // city. Existing call sites that omit the argument keep the
-// pre-multi-city behaviour (moderators can review any application);
+// pre-multi-city behavior (moderators can review any application);
 // new city-aware call sites pass the application's targetCityId.
 export function canReviewApplications(session: SessionUser, targetCityId?: string | null): boolean {
   if (session.role !== 'admin' && session.role !== 'moderator') return false

@@ -41,7 +41,10 @@ export default function GetStartedChecklist(props: Props) {
           <Link
             key={step.label}
             href={step.href}
-            className={`flex items-center gap-2.5 text-sm transition-colors ${step.done ? 'text-gray-400 line-through pointer-events-none' : 'text-gray-700 hover:text-amber-600'}`}
+            // A finished step is out of the tab order too, not just unclickable.
+            tabIndex={step.done ? -1 : undefined}
+            aria-disabled={step.done || undefined}
+            className={`flex items-center gap-2.5 text-sm transition-colors ${step.done ? 'text-gray-500 line-through pointer-events-none' : 'text-gray-700 hover:text-amber-600'}`}
           >
             <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${step.done ? 'border-green-400 bg-green-400' : 'border-gray-300'}`}>
               {step.done && (

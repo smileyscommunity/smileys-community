@@ -67,15 +67,17 @@ describe('create buttons cannot stick on a non-JSON error (4)', () => {
 
 describe('analytics (5)', () => {
   const src = read('app/admin/analytics/page.tsx')
-  it('dormant Draft / Send toast failures', () => {
-    expect(src).toContain("toast.error(d?.error ?? 'Could not draft')")
-    expect(src).toContain("toast.error(d?.error ?? 'Could not send')")
+  it('dormant Draft / Send failures are shown, not swallowed', () => {
+    // The tab's own dormant list went (2026-09-27); Retention's rows here show
+    // a draft or send failure inline instead of doing nothing.
+    expect(src).toContain("setError(data?.error ?? 'Could not draft')")
+    expect(src).toContain("setError(d?.error ?? 'Could not send')")
   })
   it('top events format the text date with formatDay', () => {
     expect(src).not.toContain('new Date(e.date).toLocaleDateString()')
     expect(src).toContain("formatDay(e.date, { day: 'numeric', month: 'short', year: 'numeric' })")
   })
-  it('revenue is labelled with the scoped cities currency, never blindly the current city', () => {
+  it('revenue is labeled with the scoped cities currency, never blindly the current city', () => {
     expect(src).not.toMatch(/formatMoney\(data\.revenue\.\w+, cur\)/)
     expect(src).not.toContain('formatMoney(c.revenue, cur)')
     expect(src).not.toContain('({currencySymbol(cur).trim()})')
@@ -124,7 +126,7 @@ describe('participants: confirmed sequential batches, city-day past check (8)', 
     expect(src).toContain('onClick={() => approveAll(pending)} disabled={busy !== null}')
     expect(src).toContain('onClick={() => promoteBatch(waitlist.slice(0, promotable))} disabled={busy !== null}')
   })
-  it('batches confirm, run one at a time, summarise once and reload', () => {
+  it('batches confirm, run one at a time, summarize once and reload', () => {
     expect(src).toMatch(/async function approveAll[\s\S]*?confirmToast\(/)
     expect(src).toMatch(/async function promoteBatch[\s\S]*?confirmToast\(/)
     expect(src).toMatch(/for \(const userId of userIds\) \{[\s\S]*?await fetch\(/)

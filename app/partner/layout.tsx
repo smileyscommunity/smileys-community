@@ -59,9 +59,9 @@ export default function PartnerLayout({ children }: { children: ReactNode }) {
             </div>
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto bg-black">
+        <div className="flex-1 overflow-y-auto bg-black">
           {children}
-        </main>
+        </div>
       </div>
     </div>
   )

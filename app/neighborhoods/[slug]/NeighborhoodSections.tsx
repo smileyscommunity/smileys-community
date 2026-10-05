@@ -1,5 +1,6 @@
 import Link from 'next/link'
-import { guestView, visitorName } from '@/lib/visitorPolicy'
+import { resolvePostingCityId } from '@/lib/cityMembership'
+import { visitorName } from '@/lib/visitorPolicy'
 import { jsonLdHtml } from '@/lib/jsonLd'
 import Image from 'next/image'
 import { prisma } from '@/lib/prisma'
@@ -19,6 +20,7 @@ import AvatarImg from '@/components/AvatarImg'
 import { eventStartDate } from '@/lib/eventJsonLd'
 import { todayInTz, shiftDay } from '@/lib/cityTime'
 import { PUBLIC_EVENT_STATUSES } from '@/lib/db'
+import { PhotoCredit, creditedCoverOk } from '@/components/PhotoCredit'
 
 // Same rule as HeroStats: public and actually held — no drafts/pending/flagged,
 // no cancelled, no postponed.
@@ -39,10 +41,10 @@ function absoluteImageUrl(path: string | null | undefined): string | undefined {
 // doesn't escape `<`, so a literal `</script>` in interpolated text would
 // break out of the tag.
 
-// Istanbul's areas read naturally as "the centre" / "the European side";
+// Istanbul's areas read naturally as "the center" / "the European side";
 // another city's area is just a name, so it falls through to "Also in <area>".
 const SIDE_HEADINGS: Record<string, string> = {
-  Central:  'Also in the centre',
+  Central:  'Also in the center',
   Islands:  'Also on the islands',
   European: 'Also on the European side',
   Asian:    'Also on the Asian side',
@@ -98,6 +100,12 @@ export default async function NeighborhoodSections({
 
   const now = new Date()
 
+  // Who may write here: a member's own city, or one they have joined
+  // (resolvePostingCityId — the rule the wall's POST enforces). Said up
+  // front, so a member browsing another city is not handed a composer that
+  // fails on submit.
+  const canPost = viewer ? (await resolvePostingCityId(viewer)) === cityId : false
+
   // A blocked pair sees nothing of each other, on every card below that names
   // a member — the visits and the hangouts both read this list.
   const blockedIds = myId
@@ -135,7 +143,10 @@ export default async function NeighborhoodSections({
     // connected (restrictedSetFor, applied below).
     prisma.user.findMany({
       where:   {
-        neighborhood: name, cityId, status: 'approved',
+        // Activated members (lib/memberCount), the same people totalLocals
+        // counts — a never-activated account made "(N)" smaller than its
+        // own avatar row.
+        neighborhood: name, cityId, ...ACTIVATED_MEMBER_WHERE,
         neighborhoodVisible: true, hiddenFromMembers: false,
         ...(viewer ? {} : { profileVisibility: { not: 'connections' } }),
       },
@@ -151,8 +162,14 @@ export default async function NeighborhoodSections({
       orderBy: { _count: { hostId: 'desc' } },
       take:    4,
     }),
-    // A public member total — activated members only (lib/memberCount).
-    prisma.user.count({ where: { ...ACTIVATED_MEMBER_WHERE, neighborhood: name, cityId, neighborhoodVisible: true, hiddenFromMembers: false } }),
+    // A public member total — activated members only (lib/memberCount). For a
+    // guest it counts the same people the strip shows: a connections-only
+    // member is hidden from guests above, and "Local members (3)" over two
+    // tiles told a guest a private member lives here.
+    prisma.user.count({ where: {
+      ...ACTIVATED_MEMBER_WHERE, neighborhood: name, cityId, neighborhoodVisible: true, hiddenFromMembers: false,
+      ...(viewer ? {} : { profileVisibility: { not: 'connections' } }),
+    } }),
     prisma.event.groupBy({
       by:    ['neighborhood'],
       // "N upcoming" on the nearby cards: the same published-only rule as the
@@ -160,14 +177,29 @@ export default async function NeighborhoodSections({
       where: { cityId, date: { gte: today }, status: 'published' },
       _count: { _all: true },
     }),
-    // Each photo links to its event and borrows its title — never from an
-    // event the event page itself wouldn't show.
-    prisma.eventPhoto.findMany({
-      where:   { event: { neighborhood: name, cityId, status: { in: [...PUBLIC_EVENT_STATUSES] } } },
-      take:    9,
-      orderBy: { createdAt: 'desc' },
-      select:  { id: true, url: true, caption: true, event: { select: { id: true, title: true } } },
-    }),
+    // Event photos are a roster: the event page shows its gallery only to the
+    // host, co-hosts, approved attendees and staff, because the pictures name
+    // who was there (stealth attendees included). This strip ran the query
+    // for everyone and put member faces from events on an indexed page for
+    // any logged-out visitor. Same rule as the event page now: a guest gets
+    // nothing, a member their own events' photos, staff all of them.
+    myId
+      ? prisma.eventPhoto.findMany({
+          where: {
+            event: {
+              neighborhood: name, cityId, status: { in: [...PUBLIC_EVENT_STATUSES] },
+              ...(isStaff ? {} : { OR: [
+                { hostId: myId },
+                { cohosts:   { some: { userId: myId } } },
+                { attendees: { some: { userId: myId, status: 'approved' } } },
+              ] }),
+            },
+          },
+          take:    9,
+          orderBy: { createdAt: 'desc' },
+          select:  { id: true, url: true, caption: true, event: { select: { id: true, title: true } } },
+        })
+      : Promise.resolve([]),
     myId ? prisma.neighborhoodPost.count({ where: { neighborhood: name, cityId } }) : Promise.resolve(null),
     // Active marketplace listings tagged to this neighborhood — lets housing
     // posts surface where people look for them ("flats in Moda" arrives on the
@@ -187,11 +219,14 @@ export default async function NeighborhoodSections({
     // Members-only visits are for members (the form promises "off the
     // public web"); a banned or hidden author's card goes with them; a
     // blocked pair sees nothing of each other.
-    (async () => {
+    // Members only. lib/visitorPolicy promises a guest "a first name and the
+    // month, never the neighborhood" — and this section IS the neighborhood,
+    // with the origin city and the intro beside it. /visiting withholds all
+    // three from guests; a public neighborhood page cannot hand them out.
+    !myId ? Promise.resolve([]) : (async () => {
       const rows = await prisma.visitorAnnouncement.findMany({
         where:   {
           neighborhood: name, cityId, status: 'active', endsOn: { gte: today },
-          ...(myId ? {} : { visibility: 'public' }),
           AND: [
             { OR: [{ userId: null }, { user: { status: 'approved', hiddenFromMembers: false } }] },
             ...(blockedIds.length ? [{ OR: [{ userId: null }, { userId: { notIn: blockedIds } }] }] : []),
@@ -203,8 +238,7 @@ export default async function NeighborhoodSections({
           id: true, name: true, fromCity: true, startsOn: true, endsOn: true, intro: true,
         },
       })
-      // A guest gets a first name and the month, not the days (lib/visitorPolicy).
-      return myId ? rows.map(r => ({ ...r, name: visitorName(r.name), approximate: false })) : rows.map(r => ({ ...r, ...guestView(r) }))
+      return rows.map(r => ({ ...r, name: visitorName(r.name), approximate: false }))
     })(),
     // Active hangouts in this neighborhood — sweeper flips them to 'expired'
     // when endsAt passes, but we also filter by endsAt >= now so a missed
@@ -240,7 +274,7 @@ export default async function NeighborhoodSections({
       take:    6,
       select:  {
         id: true, name: true, category: true, description: true,
-        logo: true, coverImage: true, website: true, instagram: true,
+        logo: true, coverImage: true, coverCredit: true, website: true, instagram: true,
         isExpatOwned: true, isExpatFriendly: true,
       },
     }),
@@ -272,7 +306,7 @@ export default async function NeighborhoodSections({
     // carry a neighborhood at all.
     // The board's own read gate (lib/boardAccess), with private clubs out
     // for everyone: this page is public and indexed. It had only
-    // neighbourhood and city, so a private club's post, a banned member's
+    // neighborhood and city, so a private club's post, a banned member's
     // and a blocked member's all showed here.
     prisma.boardPost.findMany({
       where: {
@@ -295,7 +329,7 @@ export default async function NeighborhoodSections({
   // first name, no photo, to a stranger — lib/authorProjection).
   const showBoardAuthor = await authorProjector(viewer, boardPosts.map(bp => bp.user))
   const restrictedLocals = viewer ? await restrictedSetFor(viewer, localCandidates) : new Set<string>()
-  // The strip has always labelled everyone by first name — but the avatar was
+  // The strip has always labeled everyone by first name — but the avatar was
   // handed the full one, and AvatarImg renders it as the img `alt`, so it went
   // out in the HTML and the RSC payload whatever the label said. The photo and
   // the /members/<id> link went with it, to anyone at all. Guests now get the
@@ -330,8 +364,12 @@ export default async function NeighborhoodSections({
     orderBy: { _count: { clubId: 'desc' } },
     take: 3,
   })
+  // The clubs are already this neighborhood's: the activity above is scoped
+  // to this city's events here. Filtering the clubs by cityId again dropped
+  // the global ones (cityId null — the Culture and Language clubs), which
+  // could be the most active club on the page and vanish from its section.
   const clubsActiveHere = clubActivity.length > 0 ? await prisma.club.findMany({
-    where:  { id: { in: clubActivity.map(c => c.clubId as string) }, isActive: true, cityId },
+    where:  { id: { in: clubActivity.map(c => c.clubId as string) }, isActive: true },
     select: { id: true, slug: true, name: true, emoji: true, memberCount: true },
   }).then(clubs => clubs.map(c => ({
     ...c,
@@ -346,7 +384,7 @@ export default async function NeighborhoodSections({
   // outright, a blocked pair never sees each other, and how much of the host
   // is shown is the one shared rule (lib/authorProjection): full to a member,
   // first name and initials to a guest. "N events hosted in X" is a fact about
-  // the neighbourhood rather than the person, so it stays on every card.
+  // the neighborhood rather than the person, so it stays on every card.
   const hosts = hostCounts.length > 0
     ? await prisma.user.findMany({
         where:  {
@@ -423,7 +461,8 @@ export default async function NeighborhoodSections({
         description:  b.description
           ? b.description.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 500)
           : undefined,
-        image:        absoluteImageUrl(b.logo || b.coverImage),
+        // A credited cover stays out of structured data (no room for its credit).
+        image:        absoluteImageUrl(b.logo || (creditedCoverOk(b) ? b.coverImage : null)),
         url:          `${APP_URL}/directory/${b.id}`,
         address: {
           '@type':         'PostalAddress',
@@ -494,7 +533,7 @@ export default async function NeighborhoodSections({
         <div>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">Clubs active around {name}</h2>
-            <Link href="/clubs" className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
+            <Link href={`/clubs${cityQuery}`} className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
               All clubs →
             </Link>
           </div>
@@ -567,10 +606,12 @@ export default async function NeighborhoodSections({
             <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">
               Local members ({totalLocals})
             </h2>
-            <Link href={`/members?neighborhood=${encodeURIComponent(name)}`}
+            {myId && (
+              <Link href={`/members?neighborhood=${encodeURIComponent(name)}`}
               className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
               See all →
             </Link>
+            )}
           </div>
           <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
             <div className="flex flex-wrap gap-4">
@@ -631,15 +672,21 @@ export default async function NeighborhoodSections({
         <div>
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">Upcoming events</h2>
-            <Link href={`/members?neighborhood=${encodeURIComponent(name)}`}
+            {myId && (
+              <Link href={`/members?neighborhood=${encodeURIComponent(name)}`}
               className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
               {totalLocals} local member{totalLocals !== 1 ? 's' : ''} →
             </Link>
+            )}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {upcomingRaw.slice(0, 3).map((event, idx) => {
               const spotsLeft  = Math.max(0, event.spotsLeft)
-              const goingCount = event.totalSpots - spotsLeft
+              // The approved attendees the query already counts, not
+              // capacity arithmetic: RSVPs decrement spotsLeft on unlimited
+              // events too, so "going" capped at the default 20 and the
+              // Popular badge followed it.
+              const goingCount = event._count.attendees
               const isHot      = idx === 0 && goingCount >= 3
               return (
                 <Link key={event.id} href={`/events/${event.id}`} className="group block">
@@ -693,7 +740,7 @@ export default async function NeighborhoodSections({
             })}
           </div>
           <div className="mt-6 text-center">
-            <Link href={`/events?neighborhood=${encodeURIComponent(name)}`}
+            <Link href={`/events?neighborhood=${encodeURIComponent(name)}&city=${encodeURIComponent(city.slug)}`}
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 hover:border-amber-300 hover:text-amber-700 transition-colors">
               See all events in {name}
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -751,7 +798,7 @@ export default async function NeighborhoodSections({
         <div className="pt-6 border-t border-gray-100">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">Visitors heading to {name}</h2>
-            {/* Members only: a guest's cards carry no neighbourhood to filter on. */}
+            {/* Members only: a guest's cards carry no neighborhood to filter on. */}
             {myId && (
               <Link href={`/visiting?neighborhood=${encodeURIComponent(name)}&city=${encodeURIComponent(city.slug)}`}
                 className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
@@ -776,7 +823,7 @@ export default async function NeighborhoodSections({
                 ? `${s.toLocaleDateString('en-GB', { day: 'numeric', timeZone: 'UTC' })}–${e.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })}`
                 : `${s.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })} – ${e.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })}`
               return (
-                <Link key={v.id} href="/visiting" className="group block">
+                <Link key={v.id} href={`/visiting${cityQuery}`} className="group block">
                   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hover:shadow-md hover:-translate-y-0.5 transition-all h-full">
                     <div className="flex items-center gap-2 mb-2">
                       <span aria-hidden="true" className="text-2xl">👋</span>
@@ -828,6 +875,12 @@ export default async function NeighborhoodSections({
                       {logo && (
                         <div className="absolute bottom-2 right-2 w-9 h-9 rounded-xl overflow-hidden border-2 border-white shadow-sm bg-white">
                           <img src={logo} alt={b.name} className="w-full h-full object-cover" />
+                        </div>
+                      )}
+                      {/* The whole card is a link, so the credit is text only. */}
+                      {cover && b.coverCredit && (
+                        <div className="absolute bottom-2 left-2 max-w-[65%]">
+                          <PhotoCredit credit={b.coverCredit} variant="overlay" />
                         </div>
                       )}
                     </div>
@@ -917,13 +970,13 @@ export default async function NeighborhoodSections({
               Neighborhood Wall{wallPostCount !== null && wallPostCount > 0 ? ` (${wallPostCount})` : ''}
             </h2>
             <div className="flex-1 h-px bg-gray-100" />
-            <span className="text-xs text-gray-400">Open to all members</span>
+            <span className="text-xs text-gray-400">Members of {city.name}</span>
           </div>
           {/* isStaff arrives as a bare role check from the parent page, so a
               moderator for another city was handed this city's wall controls.
               Scope it here as well — the wall's own API has to enforce it, but
               the affordance shouldn't be offered to someone who can't act. */}
-          <NeighborhoodWall slug={slug} name={name} myId={myId} citySlug={city.slug}
+          <NeighborhoodWall slug={slug} name={name} myId={myId} citySlug={city.slug} canPost={canPost} cityName={city.name}
             isStaff={isStaff && !!viewer && canActInCity(viewer, cityId)} />
         </div>
       )}
@@ -948,7 +1001,7 @@ export default async function NeighborhoodSections({
                 l.category === 'BUY_SELL' ? '🛍️' :
                 l.category === 'FREE'     ? '🎁' : '⭐'
               return (
-                <Link key={l.id} href={`/board?l=${l.id}`} className="group block">
+                <Link key={l.id} href={`/board?l=${l.id}&city=${encodeURIComponent(city.slug)}`} className="group block">
                   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all h-full">
                     {l.photo ? (
                       <div className="relative h-32 bg-gray-100">
@@ -987,7 +1040,7 @@ export default async function NeighborhoodSections({
               </Link>
             ))}
           </div>
-          <p className="text-xs text-gray-400 mt-3 text-center">Photos from Smileys events in {name}</p>
+          <p className="text-xs text-gray-400 mt-3 text-center">{isStaff ? `Photos from Smileys events in ${name}` : `Photos from your Smileys events in ${name}`}</p>
         </div>
       )}
 
@@ -1005,8 +1058,8 @@ export default async function NeighborhoodSections({
                   <span aria-hidden="true">{cat.emoji}</span> {cat.category}
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {cat.items.map(place => (
-                    <div key={place.name} className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+                  {(cat.items ?? []).map((place, pi) => (
+                    <div key={`${pi}-${place.name}`} className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
                       <div className="flex items-start justify-between gap-2 mb-1">
                         <span className="text-sm font-bold text-gray-900">{place.name}</span>
                         {place.badge && (

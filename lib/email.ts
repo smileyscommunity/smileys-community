@@ -63,7 +63,7 @@ type RecipientPolicy = 'member' | 'account'
 const BLOCKED_USER_STATUSES = ['banned', 'deleted']
 const normEmail = (a: string) => a.trim().toLowerCase()
 
-/** The addresses (normalised) among these that belong to a banned account. Fails open — empty — on a lookup error. */
+/** The addresses (normalized) among these that belong to a banned account. Fails open — empty — on a lookup error. */
 export async function blockedRecipients(addresses: string[]): Promise<Set<string>> {
   const wanted  = [...new Set(addresses.filter(Boolean))]
   const blocked = new Set(wanted.map(normEmail).filter(a => a.endsWith('@deleted.smileys')))
@@ -455,26 +455,64 @@ export async function sendPasswordResetEmail(email: string, name: string, token:
   })
 }
 
-export async function sendApplicationReceivedEmail(email: string, name: string) {
+export async function sendApplicationReceivedEmail(
+  email: string,
+  name: string,
+  // Double opt-in (2026-09-29): the link that confirms the address is ours.
+  // Optional so a caller without one (a resend path) still sends the receipt.
+  confirmUrl?: string,
+  cityName?: string,
+  cityLive = true,
+) {
+  const where = cityName ? ` to Smileys ${esc(cityName)}` : ''
   await send('sendApplicationReceivedEmail', {
     from: FROM, to: email,
-    subject: 'We received your application 😊',
+    subject: confirmUrl ? 'Confirm your Smileys application 😊' : 'We received your application 😊',
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
         <div style="text-align:center;margin-bottom:32px">
           <span style="font-size:40px">😊</span>
-          <h1 style="font-size:24px;font-weight:800;color:#111;margin:8px 0 4px">Thanks for applying, ${esc(name)}!</h1>
+          <h1 style="font-size:24px;font-weight:800;color:#111;margin:8px 0 4px">Thanks for applying${where}, ${esc(name)}!</h1>
           <p style="color:#6b7280;font-size:14px;margin:0">Your application has been received</p>
         </div>
+        ${confirmUrl ? `
+        <a href="${confirmUrl}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:12px">
+          Confirm it's you
+        </a>
+        <p style="color:#6b7280;font-size:13px;text-align:center;margin:0 0 24px">
+          One tap tells us this address really is yours. If you didn't apply, ignore this email — nothing more will happen.
+        </p>` : ''}
         <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:20px 24px;margin-bottom:24px">
           <p style="color:#92400e;font-size:14px;margin:0;line-height:1.6">
             Our team personally reviews every application to keep Smileys a high-quality community.
-            We'll get back to you within <strong>24–48 hours</strong>.
+            We'll get back to you within <strong>24–48 hours</strong>.${cityLive ? '' : ` Smileys ${esc(cityName ?? '')} hasn't opened yet — its first events start once the founding members are in.`}
           </p>
         </div>
-        <p style="color:#9ca3af;font-size:12px;text-align:center">
+        <p style="color:#6b7280;font-size:12px;text-align:center">
           Questions? Reply to this email or reach us at info@smileyscommunity.com
         </p>
+      </div>
+    `,
+  })
+}
+
+/**
+ * Someone applied again with an email that already has an application on
+ * file. The screen stays neutral (it can't say whose email it is); the inbox
+ * owner learns where things stand. The retry used to read as a rejection.
+ */
+export async function sendApplicationOnFileEmail(email: string, name: string) {
+  await send('sendApplicationOnFileEmail', {
+    from: FROM, to: email,
+    subject: 'Your Smileys application is already with us',
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <h1 style="font-size:22px;font-weight:800;color:#111;margin:0 0 12px">Hi ${esc(name)},</h1>
+        <p style="color:#374151;font-size:14px;line-height:1.6;margin:0 0 16px">
+          Someone just tried to start a new Smileys application with this email. We already have one from you,
+          so there's nothing more to do — our team reviews every application and will get back to you within 24–48 hours.
+        </p>
+        <p style="color:#6b7280;font-size:12px">If that wasn't you, you can ignore this email. Questions? Reach us at info@smileyscommunity.com</p>
       </div>
     `,
   })
@@ -982,6 +1020,36 @@ export async function sendEventCancelledEmail(email: string, name: string, event
   })
 }
 
+// Postponing keeps every seat, request and waitlist place (only cancelling
+// releases them), so the email says which one this person still has.
+export type PostponedRole = 'going' | 'pending' | 'waitlist'
+const POSTPONED_KEEP: Record<PostponedRole, string> = {
+  going:    "Your spot is kept for the new date. If that date doesn't work for you, you can give it up from the event page.",
+  pending:  'Your request stays with the host for the new date.',
+  waitlist: "You stay on the waitlist for the new date, and we'll tell you if a spot opens.",
+}
+
+export async function sendEventPostponedEmail(email: string, name: string, eventTitle: string, eventDate: string, eventId: string, role: PostponedRole) {
+  const firstName = firstNameOf(name)
+  await send('sendEventPostponedEmail', {
+    from: FROM, to: email,
+    subject: safeSubject(`"${eventTitle}" has been postponed`),
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <div style="text-align:center;margin-bottom:28px">
+          <span style="font-size:40px">⏸️</span>
+          <h1 style="font-size:24px;font-weight:800;color:#111;margin:8px 0 4px">Hi ${esc(firstName)},</h1>
+          <p style="color:#6b7280;font-size:14px;margin:0"><strong>${esc(eventTitle)}</strong> (${esc(prettyEventDate(eventDate))}) has been postponed. It won't happen on that date.</p>
+        </div>
+        <p style="color:#374151;font-size:14px;text-align:center;margin-bottom:24px">${esc(POSTPONED_KEEP[role])} We'll let you know when there's a new date.</p>
+        <a href="${APP_URL}/events/${encodeURIComponent(eventId)}" style="display:block;text-align:center;background:#111;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none">
+          See the event →
+        </a>
+      </div>
+    `,
+  })
+}
+
 export async function sendRefundEmail(email: string, name: string, eventTitle: string, amount: number, currency: string, note?: string) {
   const firstName = firstNameOf(name)
   const noteHtml = note
@@ -1169,83 +1237,6 @@ export async function sendBroadcastEmail(
       </div>
     `,
   }, { throwOnError: true })
-}
-
-// A single low-pressure "your first Smileys event?" invite, personalised to the
-// event the matcher picked. Sent by the weekly first-RSVP nudge cron to members
-// who've joined but never RSVP'd. Email (not push) so it reaches dormant members
-// without adding notification load; unsubscribe respects emailMarketing.
-export async function sendFirstEventNudgeEmail(
-  userId: string,
-  email: string,
-  name: string,
-  ev: { id: string; title: string; date: string; time: string | null; neighborhood: string | null; emoji: string | null; attendees: number; isFirstTimerFriendly: boolean },
-  cityName?: string,
-) {
-  const unsub     = unsubscribeUrl(userId)
-  const firstName = firstNameOf(name)
-  const pretty    = new Date(ev.date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
-  const meta      = [ev.neighborhood, `${pretty}${ev.time ? ` · ${ev.time}` : ''}`].filter(Boolean).map(x => esc(String(x))).join(' · ')
-  const going     = ev.attendees > 0 ? `${ev.attendees} ${ev.attendees === 1 ? 'person is' : 'people are'} going` : ''
-  await send('sendFirstEventNudgeEmail', {
-    from: FROM, to: email,
-    subject: safeSubject(`${ev.emoji ? ev.emoji + ' ' : ''}${ev.title} — your first Smileys event?`),
-    html: `
-      <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto;background:#fff;border-radius:16px;padding:40px 32px;border:1px solid #e5e7eb">
-        <p style="margin:0 0 28px;font-size:14px;color:#6b7280"><span style="font-size:26px;vertical-align:-5px">😊</span>&nbsp;<strong style="color:#374151">Smileys&nbsp;Community</strong>${cityName ? `&nbsp;·&nbsp;${esc(cityName)}` : ''}</p>
-        <h2 style="font-size:20px;font-weight:800;color:#111827;margin:0 0 16px">Your first Smileys event? 👋</h2>
-        <p style="margin:0 0 8px;color:#374151;font-size:14px">Hi ${esc(firstName)},</p>
-        <p style="margin:0 0 20px;color:#374151;font-size:14px;line-height:1.6">You joined Smileys but haven't been to an event yet — no pressure at all. Here's one we think would make a lovely first, close to you:</p>
-        <div style="border:1px solid #fde68a;background:#fffbeb;border-radius:14px;padding:20px">
-          <p style="margin:0;font-size:17px;font-weight:800;color:#111827">${ev.emoji ? esc(ev.emoji) + ' ' : ''}${esc(ev.title)}</p>
-          <p style="margin:6px 0 0;color:#b45309;font-size:13px;font-weight:600">${meta}</p>
-          ${going ? `<p style="margin:8px 0 0;color:#6b7280;font-size:13px">👥 ${going}</p>` : ''}
-          ${ev.isFirstTimerFriendly ? `<p style="margin:8px 0 0;color:#15803d;font-size:12px;font-weight:700">✅ First-timers especially welcome</p>` : ''}
-          <a href="${APP_URL}/events/${ev.id}?utm_source=first_rsvp_nudge" style="display:inline-block;margin-top:16px;background:#f59e0b;color:#fff;font-weight:700;font-size:14px;padding:12px 24px;border-radius:10px;text-decoration:none">See the event →</a>
-        </div>
-        <p style="margin:20px 0 0;color:#6b7280;font-size:13px;line-height:1.6">Not your thing? <a href="${APP_URL}/events?utm_source=first_rsvp_nudge" style="color:#b45309;font-weight:600;text-decoration:none">Browse everything on this week →</a> Just come as you are and say hi — that's all it takes.</p>
-        <p style="color:#9ca3af;font-size:11px;margin-top:24px;line-height:1.5">You're receiving this because you're a member of Smileys Community.<br><a href="${unsub}" style="color:#9ca3af">Unsubscribe from these emails</a></p>
-      </div>`,
-  }, { throwOnError: true })
-}
-
-// Internal weekly summary of the first-RSVP nudge cron, sent to admins so the
-// loop reports its own results (send volume + running RSVP conversion).
-export async function sendNudgeReportEmail(
-  to: string,
-  r: { emailed: number; matched: number; segment: number; interestMatched: number; sameHood: number; priorNudged: number; priorConverted: number
-       heldOut?: number; expTreated?: number; expTreatedConverted?: number; expControl?: number; expControlConverted?: number },
-) {
-  const rate = r.priorNudged > 0 ? Math.round(100 * r.priorConverted / r.priorNudged) : 0
-  const pct  = (n: number, d: number) => (d > 0 ? `${Math.round(1000 * n / d) / 10}%` : '—')
-  // The blended "conversion so far" number above can't tell the nudge apart
-  // from members who would have RSVP'd anyway. The arm split is the read.
-  const arms = (r.expTreated ?? 0) + (r.expControl ?? 0) > 0
-    ? `
-        <p style="color:#374151;font-size:14px;line-height:1.7;margin:14px 0 0;padding:12px;background:#f9fafb;border-radius:8px">
-          <strong>Holdout experiment</strong> (members assigned since the holdout shipped):<br>
-          Emailed: <strong>${r.expTreatedConverted ?? 0}/${r.expTreated ?? 0}</strong> RSVP'd (${pct(r.expTreatedConverted ?? 0, r.expTreated ?? 0)})<br>
-          Held back: <strong>${r.expControlConverted ?? 0}/${r.expControl ?? 0}</strong> RSVP'd (${pct(r.expControlConverted ?? 0, r.expControl ?? 0)})<br>
-          <span style="color:#6b7280;font-size:12px">Both arms were matched to a real event; only the first was emailed.</span>
-        </p>`
-    : ''
-  await send('sendNudgeReportEmail', {
-    from: FROM, to,
-    subject: `First-RSVP nudge: ${r.emailed} sent · ${rate}% converting`,
-    html: `
-      <div style="font-family:system-ui,sans-serif;max-width:520px;margin:0 auto;padding:24px">
-        <h2 style="font-size:18px;margin:0 0 12px;color:#111827">First-RSVP nudge — weekly run</h2>
-        <p style="color:#374151;font-size:14px;line-height:1.7;margin:0">
-          <strong>${r.emailed}</strong> members emailed this week (of ${r.matched} matched / ${r.segment} in segment)${r.heldOut ? `, <strong>${r.heldOut}</strong> held back as controls` : ''}.<br>
-          ${r.interestMatched} matched on a stated interest · ${r.sameHood} in their own neighbourhood.
-        </p>
-        <p style="color:#374151;font-size:14px;line-height:1.7;margin:14px 0 0">
-          <strong>Conversion so far:</strong> ${r.priorConverted} of ${r.priorNudged} members nudged 3+ days ago have since RSVP'd (<strong>${rate}%</strong>).
-        </p>
-        ${arms}
-        <p style="color:#9ca3af;font-size:12px;margin-top:16px">Automated — Smileys first-RSVP nudge cron.</p>
-      </div>`,
-  })
 }
 
 export async function sendListingAlertEmail(
@@ -1573,16 +1564,16 @@ export async function sendSpotReleasedEmail(
   const eventUrl  = `${APP_URL}/events/${eventId}`
   await send('sendSpotReleasedEmail', {
     from: FROM, to: email,
-    subject: safeSubject(`Your spot at ${eventTitle} went to the waitlist ${eventEmoji}`),
+    subject: safeSubject(`Your seat at ${eventTitle} was released ${eventEmoji}`),
     html: `
       <div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
         <div style="text-align:center;margin-bottom:28px">
           <span style="font-size:40px">${esc(eventEmoji)}</span>
-          <h1 style="font-size:22px;font-weight:800;color:#111;margin:8px 0 4px">We didn't hear back, ${esc(firstName)}</h1>
-          <p style="color:#6b7280;font-size:14px;margin:0">We asked earlier whether you were still coming to <strong>${esc(eventTitle)}</strong>. Someone was waiting, so the spot has gone to the waitlist.</p>
+          <h1 style="font-size:22px;font-weight:800;color:#111;margin:8px 0 4px">Your seat was released, ${esc(firstName)}</h1>
+          <p style="color:#6b7280;font-size:14px;margin:0">We asked earlier whether you were still coming to <strong>${esc(eventTitle)}</strong>. We didn't hear back and people are waiting, so your seat is no longer held — it has been offered to the waitlist.</p>
         </div>
         <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:16px 20px;margin-bottom:24px">
-          <p style="color:#92400e;font-size:14px;margin:0">This doesn't count against you. Still want to come? Rejoin if a spot is open, or take a place on the waitlist.</p>
+          <p style="color:#92400e;font-size:14px;margin:0">This doesn't count against you. Still want to come? You can rejoin if a spot is still open, or join the waitlist.</p>
         </div>
         <a href="${eventUrl}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:16px">
           See the event →

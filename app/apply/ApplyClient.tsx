@@ -7,7 +7,9 @@ import Turnstile from '@/components/Turnstile'
 import { z } from 'zod'
 import { resolveImageUrl } from '@/lib/data'
 import { COUNTRIES } from '@/lib/countries'
-import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
+import { useCityNeighborhoodList } from '@/hooks/useCityNeighborhoods'
+import { hasAnalyticsConsent } from '@/lib/consent'
+import { DRAFT_KEY, DRAFT_CONTACT_KEY, DRAFT_MAX_AGE_MS, clearApplyDraft } from '@/lib/applyDraft'
 import FingerprintJS from '@fingerprintjs/fingerprintjs'
 import posthog from 'posthog-js'
 import { INTERESTS as INTERESTS_LIST, COMMON_LANGUAGES, LOOKING_FOR_OPTIONS } from '@/lib/profileOptions'
@@ -15,6 +17,7 @@ import { downscaleImage, ImageUploadError } from '@/lib/image-resize'
 import PhotoRotateDialog from '@/components/PhotoRotateDialog'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { phonePlaceholder, dialCode } from '@/lib/country'
+import { ageOn } from '@/lib/applicantIdentity'
 
 const step0Schema = z.object({
   firstName:    z.string().min(1, 'First name is required'),
@@ -26,7 +29,7 @@ const step0Schema = z.object({
   gender:       z.string().min(1, 'Gender is required'),
 })
 
-type FieldErrors = Partial<Record<keyof z.infer<typeof step0Schema>, string>>
+type FieldErrors = Partial<Record<keyof z.infer<typeof step0Schema> | 'birthdate', string>>
 
 function fieldCls(error?: string) {
   return error ? 'input input-error' : 'input'
@@ -45,11 +48,14 @@ const STEPS = ['Basic Info', 'About You', 'Verification']
 // Rough time-left estimate shown next to the step label.
 const STEP_MINUTES_LEFT = [3, 2, 1]
 
+// The neighborhood choice for a visitor or someone still moving — sent as
+// notResident, never stored as a neighborhood.
+const NOT_RESIDENT = '__not_resident__'
+
 // Chips, not free text: these feed matching and filters, which a typed
 // "3 yrs" or "relocated 4 work" never could. Stored as the label.
 const TIME_IN_CITY = ['Just arrived', 'Under a year', '1–3 years', 'Longer than 3 years', 'Born here']
 const REASONS_HERE = ['Work', 'Study', 'Family or partner', 'Digital nomad', 'Born or raised here', 'Other']
-const DRAFT_KEY = 'smileys_apply_draft_v1'
 
 const SOCIAL_STYLES = [
   { id: 'deep_talker',      label: '🗣️ Deep Talker',      desc: 'Loves meaningful 1:1 conversations' },
@@ -66,21 +72,30 @@ const SOCIAL_STYLES = [
 // vocabulary shared with registration and /profile, matched to
 // interest_tag_map so personalization works.
 
-export default function ApplyClient() {
+// The city the page resolved on the server from ?city= (case-insensitive,
+// public cities only) — so the first paint names the right city. The form
+// used to start on Istanbul and switch once /api/cities answered: the server
+// HTML said "a curated community in Istanbul" on /apply?city=tbilisi, and if
+// that fetch failed the application silently went to Istanbul.
+export interface InitialCity { slug: string; name: string; status: string; maturity?: string | null }
+
+export default function ApplyClient({ initialCity = null }: { initialCity?: InitialCity | null }) {
   return (
     <Suspense>
-      <ApplyForm />
+      <ApplyForm initialCity={initialCity} />
     </Suspense>
   )
 }
 
-function ApplyForm() {
+const DEFAULT_APPLY_CITY: InitialCity = { slug: 'istanbul', name: 'Istanbul', status: 'live', maturity: null }
+
+function ApplyForm({ initialCity }: { initialCity: InitialCity | null }) {
   const country = useCurrentCity()?.country
   const searchParams = useSearchParams()
   const refCode = searchParams.get('ref') ?? ''
   // Homepage city cards link here as /apply?city=<slug> — both the "Explore"
   // path and the "Get notified" path for a city that hasn't launched.
-  const cityParam = searchParams.get('city') ?? ''
+  const cityParam = (searchParams.get('city') ?? '').trim().toLowerCase()
   // Arrived from the student hub (/[city]/students): one reassurance line in
   // the header. Nothing else changes — students apply like anyone else.
   const fromStudents = searchParams.get('from') === 'students'
@@ -104,19 +119,30 @@ function ApplyForm() {
   // Available cities for the target-city selector. Populated from
   // /api/cities; defaults to Istanbul-only on first load so the form
   // is usable while the fetch is in flight.
-  const [cities,         setCities]         = useState<{ slug: string; name: string; status: string }[]>([{ slug: 'istanbul', name: 'Istanbul', status: 'live' }])
-  const [targetCitySlug, setTargetCitySlug] = useState('istanbul')
+  const [cities,         setCities]         = useState<InitialCity[]>([initialCity ?? DEFAULT_APPLY_CITY])
+  const [targetCitySlug, setTargetCitySlug] = useState(initialCity?.slug ?? DEFAULT_APPLY_CITY.slug)
 
   // The neighborhood options belong to the city being applied TO, not to
   // whatever city the browser is resolved into — someone applying to İzmir
   // from an Istanbul-pinned session must pick from İzmir's list.
-  const neighborhoods = useCityNeighborhoods(targetCitySlug)
+  const { list: neighborhoods, loaded: hoodsLoaded } = useCityNeighborhoodList(targetCitySlug, { forApply: true })
+  // A city with no neighborhoods on file (Athens, Sofia) can't require a
+  // pick: the empty select used to stop every applicant on step 1.
+  const hoodOptional = hoodsLoaded && neighborhoods.length === 0
   // The city being applied TO — drives the visible copy so a Bodrum applicant
   // isn't asked about Istanbul. Falls back to the default until cities load.
-  const targetCityName = cities.find(c => c.slug === targetCitySlug)?.name ?? 'Istanbul'
+  const targetCity = cities.find(c => c.slug === targetCitySlug) ?? (initialCity?.slug === targetCitySlug ? initialCity : null) ?? DEFAULT_APPLY_CITY
+  const targetCityName = targetCity.name
+  // What the page may claim follows the city's stage: the member stories and
+  // "what to expect" are true of an established city, not of one with no
+  // members yet or one that hasn't opened.
+  const cityLive   = targetCity.status === 'live'
+  const cityMature = cityLive && targetCity.maturity === 'self_sustaining'
 
   useEffect(() => {
-    FingerprintJS.load().then(fp => fp.get()).then(result => setFingerprint(result.visitorId)).catch(() => {})
+    // Device fingerprinting only after "Accept all" (lib/consent). The server
+    // treats a missing fingerprint as nothing unusual.
+    if (hasAnalyticsConsent()) FingerprintJS.load().then(fp => fp.get()).then(result => setFingerprint(result.visitorId)).catch(() => {})
     try { setBrowserTz(Intl.DateTimeFormat().resolvedOptions().timeZone) } catch {}
   }, [])
 
@@ -140,12 +166,14 @@ function ApplyForm() {
       .then(r => r.ok ? r.json() : null)
       .then(d => {
         if (!Array.isArray(d) || d.length === 0) return
-        setCities(d)
-        // Honour ?city= only once the list is known, so a stale or made-up
-        // slug can't route an application at a city that doesn't exist.
-        if (cityParam && d.some((c: { slug: string }) => c.slug === cityParam)) {
-          setTargetCitySlug(cityParam)
-        }
+        // Open cities first — the coming-soon ones sorted above Istanbul.
+        const rank = (st: string) => (st === 'live' ? 0 : st === 'preparing' ? 1 : 2)
+        setCities([...d].sort((a: InitialCity, b: InitialCity) => rank(a.status) - rank(b.status)))
+        // ?city= wins when it names a real city; otherwise keep the current
+        // pick (the server's, or a restored draft's) if it is still in the
+        // list, and fall back to the default if it isn't.
+        const has = (slug: string) => d.some((c: { slug: string }) => c.slug === slug)
+        setTargetCitySlug(cur => cityParam && has(cityParam) ? cityParam : has(cur) ? cur : DEFAULT_APPLY_CITY.slug)
       })
       .catch(() => {})
   }, [cityParam])
@@ -193,6 +221,14 @@ function ApplyForm() {
   // in place of the photo (2026-09-08).
   const [photoPreview,   setPhotoPreview]   = useState('')
   const photoInputRef  = useRef<HTMLInputElement>(null)
+  // Focus follows the step: it stayed on the button at the bottom while the
+  // page scrolled to the top, and Continue turned into Submit under it.
+  const stepCardRef    = useRef<HTMLDivElement>(null)
+  const firstStepRender = useRef(true)
+  useEffect(() => {
+    if (firstStepRender.current) { firstStepRender.current = false; return }
+    stepCardRef.current?.focus({ preventScroll: true })
+  }, [step])
   const errorRef       = useRef<HTMLDivElement>(null)
 
   // Restore any in-progress draft on first mount. Errors (private window,
@@ -203,17 +239,25 @@ function ApplyForm() {
       const raw = localStorage.getItem(DRAFT_KEY)
       if (raw) {
         const d = JSON.parse(raw)
+        // A week at most (lib/applyDraft); an older or undated draft is dropped.
+        if (typeof d.savedAt !== 'number' || Date.now() - d.savedAt > DRAFT_MAX_AGE_MS) { clearApplyDraft(); throw new Error('stale draft') }
+        let contact: { email?: string; phone?: string; birthdate?: string } = {}
+        try { contact = JSON.parse(sessionStorage.getItem(DRAFT_CONTACT_KEY) ?? '{}') } catch {}
         // The uploaded photo is never restored: unsubmitted uploads are deleted
         // after 48 hours, so a stored link can point at nothing.
-        if (d.form)         setForm(f => ({ ...f, ...d.form, profilePhoto: '' }))
+        if (d.form)         setForm(f => ({ ...f, ...d.form, ...contact, profilePhoto: '' }))
         if (d.interests)    setInterests(d.interests)
         if (d.socialStyles) setSocialStyles(d.socialStyles)
         if (d.languages)    setLanguages(d.languages)
         if (d.lookingFor)   setLookingFor(d.lookingFor)
+        // The city the draft was for — unless the link names one. The draft
+        // didn't keep it, so a half-finished İzmir form reopened from a
+        // plain /apply link went to Istanbul.
+        if (!cityParam && typeof d.targetCitySlug === 'string' && d.targetCitySlug) setTargetCitySlug(d.targetCitySlug)
         // A draft from the five-step form may sit on a step that no longer
-        // exists; land it on the last one rather than off the end.
-        if (typeof d.step === 'number' && d.step >= STEPS.length) setStep(STEPS.length - 1)
-        if (typeof d.step === 'number') setStep(d.step)
+        // exists. The clamp was immediately overwritten by the raw step, which
+        // opened an empty card with no verification widget and no way to submit.
+        if (typeof d.step === 'number') setStep(Math.min(Math.max(0, Math.floor(d.step)), STEPS.length - 1))
       }
     } catch {}
     setDraftHydrated(true)
@@ -224,11 +268,43 @@ function ApplyForm() {
   useEffect(() => {
     if (!draftHydrated) return
     try {
+      const { email: _e, phone: _p, birthdate: _b, ...answers } = form
       localStorage.setItem(DRAFT_KEY, JSON.stringify({
-        form: { ...form, profilePhoto: '' }, interests, socialStyles, languages, lookingFor, step,
+        form: { ...answers, profilePhoto: '' }, interests, socialStyles, languages, lookingFor, step, targetCitySlug,
+        savedAt: Date.now(),
       }))
+      sessionStorage.setItem(DRAFT_CONTACT_KEY, JSON.stringify({ email: form.email, phone: form.phone, birthdate: form.birthdate }))
     } catch {}
-  }, [draftHydrated, form, interests, socialStyles, languages, lookingFor, step])
+  }, [draftHydrated, form, interests, socialStyles, languages, lookingFor, step, targetCitySlug])
+
+  // Funnel: started = the first edit after the form (or a restored draft) has
+  // loaded — not the page view, which join_cta_click and the pageview already
+  // count. Abandoned = the page is left mid-application. A tab switch is not
+  // leaving, so only `pagehide` counts; analysis should still drop anyone with
+  // a later application_submitted (they came back from another tab or device).
+  // Step and city only — no answers. Consent-gated like every capture.
+  const startedRef  = useRef(false)
+  const baselineRef = useRef<string | null>(null)
+  const leaveRef    = useRef({ step: 0, submitted: false, city: '' })
+  leaveRef.current = { step, submitted, city: targetCitySlug }
+  useEffect(() => {
+    if (!draftHydrated || startedRef.current) return
+    const snap = JSON.stringify([form, interests, socialStyles, languages, lookingFor])
+    if (baselineRef.current === null) { baselineRef.current = snap; return }
+    if (snap === baselineRef.current) return
+    startedRef.current = true
+    posthog.capture('application_started', { target_city: targetCitySlug, step_index: step })
+  }, [draftHydrated, form, interests, socialStyles, languages, lookingFor, targetCitySlug, step])
+  useEffect(() => {
+    function onLeave() {
+      const { step: st, submitted: done, city } = leaveRef.current
+      if (!startedRef.current || done) return
+      startedRef.current = false  // at most once per leave
+      posthog.capture('application_abandoned', { step_index: st, step_name: STEPS[st], target_city: city })
+    }
+    window.addEventListener('pagehide', onLeave)
+    return () => window.removeEventListener('pagehide', onLeave)
+  }, [])
 
   // Switching the target city invalidates a neighborhood picked from the
   // previous city's list. Clear it only once the new list has actually loaded
@@ -236,9 +312,12 @@ function ApplyForm() {
   // "the slug changed" keeps a restored draft's valid pick intact when the
   // ?city= resolution lands on the city that draft was already for.
   useEffect(() => {
-    if (neighborhoods.length === 0) return
-    setForm(f => (f.neighborhood && !neighborhoods.includes(f.neighborhood) ? { ...f, neighborhood: '' } : f))
-  }, [neighborhoods])
+    // Only once the list has arrived — an empty list that is still loading
+    // must not wipe a restored draft's valid pick; an empty list that IS the
+    // answer must (a Tbilisi application went in with an Istanbul name).
+    if (!hoodsLoaded) return
+    setForm(f => (f.neighborhood && f.neighborhood !== NOT_RESIDENT && !neighborhoods.includes(f.neighborhood) ? { ...f, neighborhood: '' } : f))
+  }, [neighborhoods, hoodsLoaded])
 
   function set(key: string, value: string) {
     setForm(f => ({ ...f, [key]: value }))
@@ -248,7 +327,7 @@ function ApplyForm() {
     }
   }
 
-  function validateField(key: keyof FieldErrors, value: string) {
+  function validateField(key: keyof z.infer<typeof step0Schema>, value: string) {
     const result = step0Schema.shape[key].safeParse(value)
     setFieldErrors(e => ({
       ...e,
@@ -273,6 +352,10 @@ function ApplyForm() {
       const res  = await fetch('/app/api/apply/upload', { method: 'POST', body: fd })
       const data = await res.json()
       if (!res.ok || !data.url) {
+        // The preview went up before the upload; a refusal takes it down, so
+        // a failed photo can't sit there looking accepted (or stand in for
+        // the one that will actually be submitted).
+        URL.revokeObjectURL(localUrl); setLocalPhoto('')
         // Say it where the applicant is looking. This used to set the banner
         // at the top of the page and leave the rotate dialog open on top of
         // it, so a refused upload looked like one that never finished
@@ -297,6 +380,7 @@ function ApplyForm() {
         return true
       }
     } catch (e) {
+      URL.revokeObjectURL(localUrl); setLocalPhoto('')
       // ImageUploadError carries a user-facing, actionable message
       // (0-byte iCloud photo, unconvertible oversized file) — show it
       // verbatim instead of the generic fallback.
@@ -308,18 +392,26 @@ function ApplyForm() {
     }
   }
 
+  // Step 1's rules, used by Continue and again at Submit: a restored draft
+  // can land past step 1 with a field that no longer holds (its city's
+  // neighborhood cleared), and the server then answered with a raw schema
+  // message naming no field.
+  function step0Errors(): FieldErrors {
+    const result = step0Schema.safeParse(hoodOptional ? { ...form, neighborhood: form.neighborhood || '—' } : form)
+    const errs: FieldErrors = {}
+    if (!result.success) result.error.issues.forEach(i => {
+      const key = i.path[0] as keyof FieldErrors
+      if (!errs[key]) errs[key] = i.message
+    })
+    const age = ageOn(form.birthdate)
+    if (age !== null && age < 18) errs.birthdate = 'Smileys is for adults — you need to be 18 or older.'
+    return errs
+  }
+
   function validateStep(): boolean {
     if (step === 0) {
-      const result = step0Schema.safeParse(form)
-      if (!result.success) {
-        const errs: FieldErrors = {}
-        result.error.issues.forEach(i => {
-          const key = i.path[0] as keyof FieldErrors
-          if (!errs[key]) errs[key] = i.message
-        })
-        setFieldErrors(errs)
-        return false
-      }
+      const errs = step0Errors()
+      if (Object.keys(errs).length > 0) { setFieldErrors(errs); return false }
       setFieldErrors({})
     }
     if (step === STEPS.length - 1) {
@@ -356,6 +448,13 @@ function ApplyForm() {
   }
 
   async function handleSubmit() {
+    const first = step0Errors()
+    if (Object.keys(first).length > 0) {
+      setFieldErrors(first)
+      setStep(0)
+      showError('A few details on the first step need another look.')
+      return
+    }
     if (!validateStep()) return
     if (!turnstileToken) {
       showError('Please complete the human verification above before submitting.')
@@ -367,24 +466,27 @@ function ApplyForm() {
       const res  = await fetch('/app/api/apply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, interests, socialStyles, languages, lookingFor, termsAccepted: agreements.terms, emailMarketing: agreements.marketing, referredBy: refCode || undefined, targetCitySlug, _hp: honeypot, _cf: turnstileToken, _fp: fingerprint, _tz: browserTz }),
+        body: JSON.stringify({ ...form, neighborhood: form.neighborhood === NOT_RESIDENT ? '' : form.neighborhood, notResident: form.neighborhood === NOT_RESIDENT, interests, socialStyles, languages, lookingFor, termsAccepted: agreements.terms, emailMarketing: agreements.marketing, referredBy: refCode || undefined, targetCitySlug, _hp: honeypot, _cf: turnstileToken, _fp: fingerprint, _tz: browserTz }),
       })
       const data = await res.json()
       if (!res.ok) {
+        // A refusal is final for these details: don't leave them on the device.
+        if (res.status === 409 || res.status === 403) clearApplyDraft()
         showError(data.error ?? 'Failed to submit')
         setTurnstileToken('')
         setTurnstileReset(n => n + 1)
         return
       }
+      // No nationality or neighborhood: personal details don't belong in an
+      // analytics event (and it only fires at all with consent).
       posthog.capture('application_submitted', {
         source:      form.source,
         interests:   interests,
         has_referral: !!refCode,
-        neighborhood: form.neighborhood,
-        country:     form.country,
+        target_city: targetCitySlug,
       })
       setSubmitted(true)
-      try { localStorage.removeItem(DRAFT_KEY) } catch {}
+      clearApplyDraft()
     } catch {
       showError('Something went wrong. Please try again.')
       setTurnstileToken('')
@@ -408,18 +510,21 @@ function ApplyForm() {
             Thanks for applying to Smileys Community. We personally review every application to
             make sure we're bringing together the right people for our community.
           </p>
-          <p className="text-gray-600 text-sm mb-3">
-            We'll get back to you at <strong>{form.email}</strong> within 24–48 hours.
+          <p className="text-gray-600 text-sm mb-3 ph-no-capture">
+            We&apos;ve sent a link to <strong>{form.email}</strong> — tap it so we know the address is yours.
+            We&apos;ll get back to you there within 24–48 hours.
           </p>
           {/* What approval actually leads to. Applicants read "approved" as "I'm in"
               and then ignored the activation email, so the next step is named here. */}
           <p className="text-gray-600 text-sm leading-relaxed mb-3">
-            If your application is approved, you'll receive an invitation to activate your Smileys
-            Community account. Once your account is activated, you'll be able to access the
-            community and start joining events and meeting people.
+            If your application to Smileys {targetCityName} is approved, you&apos;ll receive an invitation to
+            activate your account.{' '}
+            {cityLive
+              ? 'Once it is activated, you can start joining events and meeting people.'
+              : `Smileys ${targetCityName} hasn't opened yet — its first events start once the founding members are in.`}
           </p>
           <p className="text-gray-600 text-sm mb-6">See you soon! 😊</p>
-          <Link href="/" className="text-amber-600 font-semibold text-sm hover:underline">← Back to home</Link>
+          <Link href={`/${targetCitySlug}`} className="text-amber-600 font-semibold text-sm hover:underline">← Back to Smileys {targetCityName}</Link>
         </div>
       </div>
     )
@@ -435,7 +540,11 @@ function ApplyForm() {
         <div className="mb-6">
           <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">Application</span>
           <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight mb-1">Apply to join</h1>
-          <p className="text-gray-600 text-sm">Smileys is a curated community in {targetCityName}.</p>
+          <p className="text-gray-600 text-sm">
+            {cityLive
+              ? <>Smileys is a curated community in {targetCityName}.</>
+              : <>Smileys is opening in {targetCityName} — apply to be one of its founding members.</>}
+          </p>
           {/* The deal, before the form: free to join, pay-per-event. This
               lived only in the FAQ, so applicants assumed a subscription. */}
           <ul className="mt-3 space-y-1 text-xs text-gray-500">
@@ -453,11 +562,12 @@ function ApplyForm() {
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold text-gray-600">
               Step {step + 1} of {STEPS.length}
-              <span className="text-gray-400 font-normal"> · about {STEP_MINUTES_LEFT[step] ?? 1} min left</span>
+              <span className="text-gray-500 font-normal"> · about {STEP_MINUTES_LEFT[step] ?? 1} min left</span>
             </span>
             <span className="text-xs font-semibold text-amber-600">{STEPS[step]}</span>
           </div>
-          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+          <div className="h-2 bg-gray-100 rounded-full overflow-hidden" role="progressbar" aria-label="Application progress"
+            aria-valuemin={1} aria-valuemax={STEPS.length} aria-valuenow={step + 1} aria-valuetext={`Step ${step + 1} of ${STEPS.length}: ${STEPS[step]}`}>
             <div className="h-full bg-amber-500 rounded-full transition-all duration-500"
               style={{ width: `${progress}%` }} />
           </div>
@@ -494,11 +604,11 @@ function ApplyForm() {
         )}
 
         {/* Referral chip — only when ?ref=XYZ resolved to a real
-            approved member. Personalised "Sarah invited you" with a
+            approved member. Personalized "Sarah invited you" with a
             face beats any aggregate stat for conversion, so it sits
             above the generic social-proof block on step 0. */}
         {step === 0 && referralCtx?.inviter && (
-          <div className="bg-amber-100 border border-amber-200 rounded-2xl p-3.5 mb-3 flex items-center gap-3">
+          <div className="bg-amber-100 border border-amber-200 rounded-2xl p-3.5 mb-3 flex items-center gap-3 ph-no-capture">
             <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ backgroundColor: referralCtx.inviter.color }}>
               {referralCtx.inviter.profilePhoto
                 ? <img src={referralCtx.inviter.profilePhoto.startsWith('http') ? referralCtx.inviter.profilePhoto : `/app${referralCtx.inviter.profilePhoto}`} alt="" className="w-full h-full object-cover" />
@@ -514,13 +624,17 @@ function ApplyForm() {
         {/* Social proof — only on first step */}
         {step === 0 && (
           <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4 mb-6 space-y-2">
-            {[
+            {(cityMature ? [
               { icon: '🤝', text: 'Members who made their closest friends here' },
               { icon: '🌍', text: `Expats who found their ${targetCityName} community` },
               { icon: '💼', text: 'Founders who met their co-founders at events' },
-            ].map(s => (
+            ] : [
+              cityLive
+                ? { icon: '🌱', text: `Smileys ${targetCityName} is in its founding stage — the first members shape what it becomes.` }
+                : { icon: '🌱', text: `Smileys hasn't opened in ${targetCityName} yet — the first members in will shape it.` },
+            ]).map(s => (
               <div key={s.text} className="flex items-center gap-2.5">
-                <span className="text-base shrink-0">{s.icon}</span>
+                <span aria-hidden="true" className="text-base shrink-0">{s.icon}</span>
                 <span className="text-xs text-amber-800 font-medium">{s.text}</span>
               </div>
             ))}
@@ -530,25 +644,25 @@ function ApplyForm() {
                 rather than two stacked cards. */}
             {(referralCtx?.totalActiveInviters ?? 0) >= 5 && (
               <div className="flex items-center gap-2.5 pt-2 border-t border-amber-200">
-                <span className="text-base shrink-0">💌</span>
+                <span aria-hidden="true" className="text-base shrink-0">💌</span>
                 <span className="text-xs text-amber-800 font-medium">
-                  Invited by <span className="font-bold text-amber-900">{referralCtx?.totalActiveInviters} members</span> who've brought friends in
+                  Invited by <span className="font-bold text-amber-900">{referralCtx?.totalActiveInviters} members</span> across Smileys who&apos;ve brought friends in
                 </span>
               </div>
             )}
             <div className="pt-2 border-t border-amber-200 mt-1">
-              <Link href="/why" className="text-xs font-bold text-amber-600 hover:underline">Read member stories →</Link>
+              <Link href={`/why?city=${targetCitySlug}`} className="text-xs font-bold text-amber-600 hover:underline">Read member stories <span aria-hidden="true">→</span></Link>
             </div>
           </div>
         )}
 
         {submitError && (
-          <div ref={errorRef} className="px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm font-medium mb-4">
+          <div ref={errorRef} role="alert" className="px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm font-medium mb-4">
             {submitError}
           </div>
         )}
 
-        <div className="bg-white rounded-2xl shadow-card p-6 space-y-4">
+        <div ref={stepCardRef} tabIndex={-1} aria-label={`Step ${step + 1}: ${STEPS[step]}`} className="bg-white rounded-2xl shadow-card p-6 space-y-4 outline-none">
           <input type="text" name="website" value={honeypot} onChange={e => setHoneypot(e.target.value)}
             tabIndex={-1} autoComplete="off" aria-hidden="true" aria-label="Leave this field blank"
             style={{ position: 'absolute', left: '-9999px', opacity: 0, height: 0 }} />
@@ -571,7 +685,7 @@ function ApplyForm() {
                   Why we ask for these details
                 </summary>
                 <ul className="mt-2 space-y-1.5">
-                  <li><span className="font-semibold text-gray-800">Neighbourhood</span> — so we can suggest people, clubs and plans near where you live, in the right city.</li>
+                  <li><span className="font-semibold text-gray-800">Neighborhood</span> — so we can suggest people, clubs and plans near where you live, in the right city.</li>
                   <li><span className="font-semibold text-gray-800">Date of birth</span> (optional) — Smileys is for adults, and it helps us review your application.</li>
                   <li><span className="font-semibold text-gray-800">Gender</span> — many events are gender-balanced so the mix feels comfortable. &ldquo;Prefer not to say&rdquo; is always an option.</li>
                   <li><span className="font-semibold text-gray-800">WhatsApp number</span> — so our team can reach you; event and club chats often run on WhatsApp. It is never shown publicly.</li>
@@ -589,8 +703,8 @@ function ApplyForm() {
                   onChange={e => set('firstName', e.target.value)}
                   onBlur={e => validateField('firstName', e.target.value)}
                   autoComplete="given-name"
-                  placeholder="Ayşe" className={fieldCls(fieldErrors.firstName)} />
-                {fieldErrors.firstName && <p className="text-xs text-red-500 mt-1">{fieldErrors.firstName}</p>}
+                  placeholder="Ayşe" className={fieldCls(fieldErrors.firstName)} aria-invalid={!!fieldErrors.firstName} aria-describedby={fieldErrors.firstName ? 'err-firstName' : undefined} />
+                {fieldErrors.firstName && <p id="err-firstName" className="text-xs text-red-600 mt-1">{fieldErrors.firstName}</p>}
               </div>
               <div>
                 <label htmlFor="ap-lastname" className="block text-xs font-semibold text-gray-600 mb-2">Last name *</label>
@@ -598,20 +712,21 @@ function ApplyForm() {
                   onChange={e => set('lastName', e.target.value)}
                   onBlur={e => validateField('lastName', e.target.value)}
                   autoComplete="family-name"
-                  placeholder="Kaya" className={fieldCls(fieldErrors.lastName)} />
-                {fieldErrors.lastName && <p className="text-xs text-red-500 mt-1">{fieldErrors.lastName}</p>}
+                  placeholder="Kaya" className={fieldCls(fieldErrors.lastName)} aria-invalid={!!fieldErrors.lastName} aria-describedby={fieldErrors.lastName ? 'err-lastName' : undefined} />
+                {fieldErrors.lastName && <p id="err-lastName" className="text-xs text-red-600 mt-1">{fieldErrors.lastName}</p>}
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label htmlFor="ap-birthdate" className="block text-xs font-semibold text-gray-600 mb-2">Date of birth</label>
-                <input id="ap-birthdate" type="date" value={form.birthdate} onChange={e => set('birthdate', e.target.value)}
-                  autoComplete="bday"
-                  max={new Date().toISOString().split('T')[0]} className={inputCls} />
+                <input id="ap-birthdate" type="date" value={form.birthdate} onChange={e => { set('birthdate', e.target.value); setFieldErrors(er => { const n = { ...er }; delete n.birthdate; return n }) }}
+                  autoComplete="bday" aria-invalid={!!fieldErrors.birthdate} aria-describedby={fieldErrors.birthdate ? 'err-birthdate' : undefined}
+                  max={new Date().toISOString().split('T')[0]} className={fieldCls(fieldErrors.birthdate)} />
+                {fieldErrors.birthdate && <p id="err-birthdate" className="text-xs text-red-600 mt-1">{fieldErrors.birthdate}</p>}
               </div>
               <div>
                 {/* This answer becomes the member's NATIONALITY on approval
-                    (app/api/admin/applications). Labelled "Country" with no
+                    (app/api/admin/applications). Labeled "Country" with no
                     hint, applicants already living in the city read it as
                     where they live and picked the host country — 132 of one
                     month's approvals, UK and UAE phone numbers among them
@@ -624,12 +739,12 @@ function ApplyForm() {
                   onChange={e => set('country', e.target.value)}
                   onBlur={e => validateField('country', e.target.value)}
                   autoComplete="off"
-                  className={`${fieldCls(fieldErrors.country)} bg-white`}>
+                  className={`${fieldCls(fieldErrors.country)} bg-white`} aria-invalid={!!fieldErrors.country} aria-describedby={fieldErrors.country ? 'err-country' : undefined}>
                   <option value="">Select your nationality…</option>
                   {COUNTRIES.map(c => <option key={c.code} value={c.name}>{c.name}</option>)}
                 </select>
                 {fieldErrors.country
-                  ? <p className="text-xs text-red-500 mt-1">{fieldErrors.country}</p>
+                  ? <p id="err-country" className="text-xs text-red-600 mt-1">{fieldErrors.country}</p>
                   : <p className="text-xs text-gray-500 mt-1">Where you&apos;re from — not where you live now.</p>}
               </div>
             </div>
@@ -640,7 +755,7 @@ function ApplyForm() {
                 value={form.gender}
                 onChange={e => { set('gender', e.target.value); validateField('gender', e.target.value) }}
                 onBlur={e => validateField('gender', e.target.value)}
-                className={`${fieldCls(fieldErrors.gender)} bg-white`}
+                className={`${fieldCls(fieldErrors.gender)} bg-white`} aria-invalid={!!fieldErrors.gender} aria-describedby={fieldErrors.gender ? 'err-gender' : undefined}
               >
                 <option value="">Select…</option>
                 <option value="male">Male</option>
@@ -648,20 +763,30 @@ function ApplyForm() {
                 <option value="non_binary">Non-binary</option>
                 <option value="prefer_not_to_say">Prefer not to say</option>
               </select>
-              {fieldErrors.gender && <p className="text-xs text-red-500 mt-1">{fieldErrors.gender}</p>}
+              {fieldErrors.gender && <p id="err-gender" className="text-xs text-red-600 mt-1">{fieldErrors.gender}</p>}
             </div>
+            {hoodOptional ? (
+              <div>
+                <p className="block text-xs font-semibold text-gray-600 mb-2">Neighborhood / Area</p>
+                <p className="text-sm text-gray-600 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5">
+                  No neighborhoods are listed for {targetCityName} yet — you can add yours once you&apos;re in.
+                </p>
+              </div>
+            ) : (
             <div>
               <label htmlFor="ap-neighborhood" className="block text-xs font-semibold text-gray-600 mb-2">Neighborhood / Area *</label>
               <select id="ap-neighborhood" value={form.neighborhood}
                 onChange={e => { set('neighborhood', e.target.value); validateField('neighborhood', e.target.value) }}
-                className={fieldCls(fieldErrors.neighborhood)}>
+                className={fieldCls(fieldErrors.neighborhood)} aria-invalid={!!fieldErrors.neighborhood} aria-describedby={fieldErrors.neighborhood ? 'err-neighborhood' : undefined}>
                 <option value="">Select your neighborhood…</option>
                 {neighborhoods.map(n => (
                   <option key={n} value={n}>{n}</option>
                 ))}
+                <option value={NOT_RESIDENT}>I don&apos;t live here (yet)</option>
               </select>
-              {fieldErrors.neighborhood && <p className="text-xs text-red-500 mt-1">{fieldErrors.neighborhood}</p>}
+              {fieldErrors.neighborhood && <p id="err-neighborhood" className="text-xs text-red-600 mt-1">{fieldErrors.neighborhood}</p>}
             </div>
+            )}
             <div>
               <label htmlFor="ap-phone" className="block text-xs font-semibold text-gray-600 mb-2">Phone (WhatsApp) *</label>
               <input id="ap-phone" type="tel" value={form.phone}
@@ -669,8 +794,8 @@ function ApplyForm() {
                 onBlur={e => validateField('phone', e.target.value)}
                 inputMode="tel"
                 autoComplete="tel"
-                placeholder={phonePlaceholder(country)} className={fieldCls(fieldErrors.phone)} />
-              {fieldErrors.phone && <p className="text-xs text-red-500 mt-1">{fieldErrors.phone}</p>}
+                placeholder={phonePlaceholder(country)} className={fieldCls(fieldErrors.phone)} aria-invalid={!!fieldErrors.phone} aria-describedby={fieldErrors.phone ? 'err-phone' : undefined} />
+              {fieldErrors.phone && <p id="err-phone" className="text-xs text-red-600 mt-1">{fieldErrors.phone}</p>}
             </div>
             <div>
               <label htmlFor="ap-email" className="block text-xs font-semibold text-gray-600 mb-2">Email *</label>
@@ -679,8 +804,8 @@ function ApplyForm() {
                 onBlur={e => validateField('email', e.target.value)}
                 inputMode="email"
                 autoComplete="email"
-                placeholder="you@example.com" className={fieldCls(fieldErrors.email)} />
-              {fieldErrors.email && <p className="text-xs text-red-500 mt-1">{fieldErrors.email}</p>}
+                placeholder="you@example.com" className={fieldCls(fieldErrors.email)} aria-invalid={!!fieldErrors.email} aria-describedby={fieldErrors.email ? 'err-email' : undefined} />
+              {fieldErrors.email && <p id="err-email" className="text-xs text-red-600 mt-1">{fieldErrors.email}</p>}
             </div>
             {/* Instagram + LinkedIn moved to profile-edit post-approval —
                 most applicants filled only one anyway, kept the funnel lighter. */}
@@ -695,10 +820,10 @@ function ApplyForm() {
                 placeholder="e.g. Product designer, teacher, founder…" className={inputCls} />
             </div>
             <div>
-              <p className="text-xs font-semibold text-gray-600 mb-2">How long have you been in {targetCityName}?</p>
-              <div className="flex flex-wrap gap-2">
+              <p id="grp-time" className="text-xs font-semibold text-gray-600 mb-2">How long have you been in {targetCityName}?</p>
+              <div className="flex flex-wrap gap-2" role="group" aria-labelledby="grp-time">
                 {TIME_IN_CITY.map(opt => (
-                  <button key={opt} type="button" onClick={() => set('timeInCity', form.timeInCity === opt ? '' : opt)}
+                  <button key={opt} type="button" aria-pressed={form.timeInCity === opt} onClick={() => set('timeInCity', form.timeInCity === opt ? '' : opt)}
                     className={`px-3 py-1.5 rounded-full border text-sm font-medium transition-all ${
                       form.timeInCity === opt ? 'bg-amber-50 border-amber-400 text-amber-700' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
                     }`}>
@@ -708,10 +833,10 @@ function ApplyForm() {
               </div>
             </div>
             <div>
-              <p className="text-xs font-semibold text-gray-600 mb-2">What brought you here?</p>
-              <div className="flex flex-wrap gap-2">
+              <p id="grp-reason" className="text-xs font-semibold text-gray-600 mb-2">What brought you here?</p>
+              <div className="flex flex-wrap gap-2" role="group" aria-labelledby="grp-reason">
                 {REASONS_HERE.map(opt => (
-                  <button key={opt} type="button" onClick={() => set('reasonHere', form.reasonHere === opt ? '' : opt)}
+                  <button key={opt} type="button" aria-pressed={form.reasonHere === opt} onClick={() => set('reasonHere', form.reasonHere === opt ? '' : opt)}
                     className={`px-3 py-1.5 rounded-full border text-sm font-medium transition-all ${
                       form.reasonHere === opt ? 'bg-amber-50 border-amber-400 text-amber-700' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
                     }`}>
@@ -721,13 +846,13 @@ function ApplyForm() {
               </div>
             </div>
             <div className="pt-4 mt-2 border-t border-gray-100">
-              <p className="text-xs font-semibold text-gray-600 mb-1">What are you hoping to find here?</p>
-              <p className="text-xs text-gray-400 mb-2">Pick all that apply — this is how we introduce you to the right people.</p>
-              <div className="flex flex-wrap gap-2">
+              <p id="grp-looking" className="text-xs font-semibold text-gray-600 mb-1">What are you hoping to find here?</p>
+              <p className="text-xs text-gray-500 mb-2">Pick all that apply — this is how we introduce you to the right people.</p>
+              <div className="flex flex-wrap gap-2" role="group" aria-labelledby="grp-looking">
                 {LOOKING_FOR_OPTIONS.map(opt => {
                   const active = lookingFor.includes(opt.id)
                   return (
-                    <button key={opt.id} type="button"
+                    <button key={opt.id} type="button" aria-pressed={active}
                       onClick={() => setLookingFor(prev => active ? prev.filter(x => x !== opt.id) : [...prev, opt.id])}
                       className={`px-3 py-1.5 rounded-full border text-sm font-medium transition-all ${
                         active ? 'bg-amber-50 border-amber-400 text-amber-700' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
@@ -739,12 +864,12 @@ function ApplyForm() {
               </div>
             </div>
             <div className="pt-4 mt-2 border-t border-gray-100">
-              <p className="text-xs font-semibold text-gray-600 mb-2">Languages you speak</p>
-              <div className="flex flex-wrap gap-2">
+              <p id="grp-languages" className="text-xs font-semibold text-gray-600 mb-2">Languages you speak</p>
+              <div className="flex flex-wrap gap-2" role="group" aria-labelledby="grp-languages">
                 {COMMON_LANGUAGES.map(lang => {
                   const active = languages.includes(lang)
                   return (
-                    <button key={lang} type="button"
+                    <button key={lang} type="button" aria-pressed={active}
                       onClick={() => setLanguages(prev =>
                         prev.includes(lang) ? prev.filter(l => l !== lang) : [...prev, lang]
                       )}
@@ -758,13 +883,13 @@ function ApplyForm() {
               </div>
             </div>
             <div className="pt-4 mt-2 border-t border-gray-100">
-              <p className="text-xs font-semibold text-gray-600 mb-1">Interests & activities</p>
-              <p className="text-xs text-gray-400 mb-2">Select everything that interests you.</p>
-              <div className="grid grid-cols-2 gap-2">
+              <p id="grp-interests" className="text-xs font-semibold text-gray-600 mb-1">Interests & activities</p>
+              <p className="text-xs text-gray-500 mb-2">Select everything that interests you.</p>
+              <div className="grid grid-cols-2 gap-2" role="group" aria-labelledby="grp-interests">
                 {INTERESTS_LIST.map(item => {
                   const active = interests.includes(item.value)
                   return (
-                    <button key={item.value} type="button"
+                    <button key={item.value} type="button" aria-pressed={active}
                       onClick={() => setInterests(prev =>
                         prev.includes(item.value) ? prev.filter(i => i !== item.value) : [...prev, item.value]
                       )}
@@ -772,7 +897,7 @@ function ApplyForm() {
                         active ? 'bg-amber-50 border-amber-400 text-amber-700' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
                       }`}
                     >
-                      <span className="text-lg">{item.emoji}</span>
+                      <span aria-hidden="true" className="text-lg">{item.emoji}</span>
                       <span>{item.label}</span>
                     </button>
                   )
@@ -780,13 +905,13 @@ function ApplyForm() {
               </div>
             </div>
             <div className="pt-4 mt-2 border-t border-gray-100">
-              <p className="text-xs font-semibold text-gray-600 mb-1">Social style <span className="font-normal text-gray-400">(optional)</span></p>
-              <p className="text-xs text-gray-400 mb-2">How do you show up socially? Pick up to 3.</p>
-              <div className="flex flex-wrap gap-2">
+              <p id="grp-style" className="text-xs font-semibold text-gray-600 mb-1">Social style <span className="font-normal text-gray-500">(optional)</span></p>
+              <p className="text-xs text-gray-500 mb-2">How do you show up socially? Pick up to 3.</p>
+              <div className="flex flex-wrap gap-2" role="group" aria-labelledby="grp-style">
                 {SOCIAL_STYLES.map(s => {
                   const active = socialStyles.includes(s.id)
                   return (
-                    <button key={s.id} type="button" title={s.desc}
+                    <button key={s.id} type="button" title={s.desc} aria-pressed={active} aria-label={`${s.label.replace(/^\S+\s+/, '')} — ${s.desc}`}
                       onClick={() => setSocialStyles(prev =>
                         active ? prev.filter(x => x !== s.id) : prev.length < 3 ? [...prev, s.id] : prev
                       )}
@@ -801,7 +926,7 @@ function ApplyForm() {
             </div>
             <div className="pt-4 mt-2 border-t border-gray-100">
               <label htmlFor="ap-community" className="block text-xs font-semibold text-gray-600 mb-2">
-                Anything you&apos;d like to add? <span className="font-normal text-gray-400">(optional)</span>
+                Anything you&apos;d like to add? <span className="font-normal text-gray-500">(optional)</span>
               </label>
               <textarea id="ap-community" rows={2} value={form.aboutCommunity} onChange={e => set('aboutCommunity', e.target.value)}
                 placeholder="A line about you, or what would make Smileys feel like yours."
@@ -835,19 +960,19 @@ function ApplyForm() {
               </div>
             )}
             <div className="pt-4 mt-2 border-t border-gray-100">
-              <p className="text-xs font-semibold text-gray-600 mb-2">What role do you see yourself playing?</p>
-              <div className="space-y-2">
+              <p id="grp-role" className="text-xs font-semibold text-gray-600 mb-2">What role do you see yourself playing?</p>
+              <div className="space-y-2" role="group" aria-labelledby="grp-role">
                 {[
                   { value: 'attend',   label: 'Attend events',               emoji: '🎟️' },
                   { value: 'organize', label: 'Help organize events',        emoji: '🤝' },
                   { value: 'host',     label: 'Become a host in the future',  emoji: '🎖️' },
                 ].map(opt => (
-                  <button key={opt.value} type="button" onClick={() => set('contribution', opt.value)}
+                  <button key={opt.value} type="button" aria-pressed={form.contribution === opt.value} onClick={() => set('contribution', opt.value)}
                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-sm font-medium transition-all text-left ${
                       form.contribution === opt.value ? 'bg-amber-50 border-amber-400 text-amber-700' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
                     }`}
                   >
-                    <span className="text-xl">{opt.emoji}</span>
+                    <span aria-hidden="true" className="text-xl">{opt.emoji}</span>
                     <span>{opt.label}</span>
                     {form.contribution === opt.value && <span className="ml-auto text-amber-500">✓</span>}
                   </button>
@@ -855,7 +980,7 @@ function ApplyForm() {
               </div>
             </div>
             <h2 className="font-bold text-gray-900 text-base mb-1 pt-6 mt-4 border-t border-gray-100">Verification</h2>
-            <p className="text-xs text-gray-400 mb-3">We review every application personally — a real photo of you is required and helps us keep the community genuine.</p>
+            <p className="text-xs text-gray-500 mb-3">We review every application personally — a real photo of you is required and helps us keep the community genuine.</p>
             <div>
               <label htmlFor="ap-photo" className="block text-xs font-semibold text-gray-600 mb-2">Profile photo — a real photo of you <span className="text-red-400">*</span></label>
               <input id="ap-photo" ref={photoInputRef} type="file" accept="image/*" className="hidden"
@@ -888,10 +1013,10 @@ function ApplyForm() {
               ) : (
                 <button type="button" onClick={() => photoInputRef.current?.click()} disabled={photoUploading}
                   className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-8 flex flex-col items-center gap-2 hover:border-amber-400 transition-colors disabled:opacity-50">
-                  {photoUploading ? <span className="text-sm text-gray-400">Uploading…</span> : <>
-                    <span className="text-3xl">📸</span>
+                  {photoUploading ? <span className="text-sm text-gray-500">Uploading…</span> : <>
+                    <span aria-hidden="true" className="text-3xl">📸</span>
                     <span className="text-sm font-medium text-gray-600">Upload a real photo of you</span>
-                    <span className="text-xs text-gray-400 px-4 text-center">Face clearly visible — no logos, avatars, or group shots. JPG or PNG, max 4MB</span>
+                    <span className="text-xs text-gray-500 px-4 text-center">Face clearly visible — no logos, avatars, or group shots. JPG or PNG, max 4MB</span>
                   </>}
                 </button>
               )}
@@ -901,8 +1026,8 @@ function ApplyForm() {
                 member lands discoverable in /members filters. Skipping these
                 doesn't block the application. */}
             <div className="pt-4 mt-2 border-t border-gray-100 space-y-2">
-              <h3 className="font-bold text-gray-900 text-sm">Open to… <span className="font-normal text-gray-400">(optional)</span></h3>
-              <p className="text-xs text-gray-400 mb-1">Lets newcomers and locals reach out for the right kind of meet-up.</p>
+              <h3 className="font-bold text-gray-900 text-sm">Open to… <span className="font-normal text-gray-500">(optional)</span></h3>
+              <p className="text-xs text-gray-500 mb-1">Lets newcomers and locals reach out for the right kind of meet-up.</p>
               {[
                 { key: 'openToCoffee'   as const, emoji: '☕', label: 'Coffee with newcomers' },
                 { key: 'openToLanguage' as const, emoji: '🗣️', label: 'Language exchange'    },
@@ -913,7 +1038,7 @@ function ApplyForm() {
                     checked={form[opt.key] as boolean}
                     onChange={e => setForm(f => ({ ...f, [opt.key]: e.target.checked }))}
                     className="w-4 h-4 rounded text-amber-500 focus:ring-amber-400" />
-                  <span className="text-sm text-gray-700"><span className="mr-1.5">{opt.emoji}</span>{opt.label}</span>
+                  <span className="text-sm text-gray-700"><span aria-hidden="true" className="mr-1.5">{opt.emoji}</span>{opt.label}</span>
                 </label>
               ))}
             </div>
@@ -929,11 +1054,15 @@ function ApplyForm() {
                   </>
                 ) },
                 { key: 'conduct' as const, text: <>I&apos;ll treat every member with respect. Smileys is curated, and membership can be revoked.</> },
-                { key: 'marketing' as const, text: <>Email me about events and community news. <span className="text-gray-400">(optional)</span></> },
+                { key: 'marketing' as const, text: <>Email me about events and community news. <span className="text-gray-500">(optional)</span></> },
               ]).map(({ key, text }) => (
-                <label key={key} className="flex items-start gap-3 cursor-pointer group"
-                  onClick={() => setAgreements(a => ({ ...a, [key]: !a[key] }))}>
-                  <div className={`mt-0.5 w-5 h-5 rounded-md border-2 shrink-0 flex items-center justify-center transition-colors ${
+                // A real checkbox behind the styled box: it was a <label> with
+                // an onClick around a <div>, which a keyboard can't reach and a
+                // screen reader can't tick — and two of these are required.
+                <label key={key} className="flex items-start gap-3 cursor-pointer group">
+                  <input type="checkbox" className="sr-only peer" checked={agreements[key]}
+                    onChange={e => setAgreements(a => ({ ...a, [key]: e.target.checked }))} />
+                  <div aria-hidden="true" className={`mt-0.5 w-5 h-5 rounded-md border-2 shrink-0 flex items-center justify-center transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-amber-500 peer-focus-visible:ring-offset-2 ${
                     agreements[key] ? 'bg-amber-500 border-amber-500' : 'border-gray-300 group-hover:border-amber-400'
                   }`}>
                     {agreements[key] && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -975,22 +1104,23 @@ function ApplyForm() {
           )}
         </div>
 
-        <p className="text-xs text-gray-400 mt-4">
+        <p className="text-xs text-gray-500 mt-4">
           Already a member?{' '}
           <Link href="/login" className="text-amber-600 font-semibold hover:underline">Sign in</Link>
         </p>
 
         {/* What to expect — moved here from /about (2026-08-30): first-event
-            reassurance belongs where someone is actually deciding to apply. */}
-        <div className="mt-10 pt-8 border-t border-gray-100">
+            reassurance belongs where someone is actually deciding to apply.
+            Only for an open city: a coming-soon city has no first event yet. */}
+        {cityLive && <div className="mt-10 pt-8 border-t border-gray-100">
           <h2 className="text-base font-extrabold text-gray-900 mb-1">What to expect at your first event</h2>
           <p className="text-sm text-gray-500 mb-6">First events can feel daunting. Here&rsquo;s what actually happens.</p>
           <ul className="space-y-5">
             {[
               { icon: '👋', title: 'A warm welcome', body: 'Every event has a host whose job is to make introductions. You will never have to walk into a room and figure it out alone.' },
-              { icon: '👥', title: 'Small, balanced groups', body: 'We keep guest lists tight — typically 20 to 60 people — and gender-balanced by default. It feels more like a dinner party than a conference.' },
+              { icon: '👥', title: 'Small groups', body: 'Guest lists stay small — typically 20 to 60 people. It feels more like a dinner party than a conference.' },
               { icon: '🌍', title: 'Instant common ground', body: 'Everyone in the room chose to be here. That shared curiosity about the city is the icebreaker. The conversations start easily.' },
-              { icon: '🔁', title: 'Familiar faces, fast', body: 'Members attend regularly. Within two or three events, you start recognising people. That\'s when it starts feeling like a community.' },
+              { icon: '🔁', title: 'Familiar faces, fast', body: 'Members attend regularly. Within two or three events, you start recognizing people. That\'s when it starts feeling like a community.' },
             ].map(item => (
               <li key={item.title} className="flex gap-4">
                 <span aria-hidden="true" className="text-2xl mt-0.5 shrink-0">{item.icon}</span>
@@ -1001,7 +1131,7 @@ function ApplyForm() {
               </li>
             ))}
           </ul>
-        </div>
+        </div>}
       </div>
     </div>
   )

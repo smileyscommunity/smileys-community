@@ -40,6 +40,7 @@ interface Entry {
   content: { why?: string; take?: string; sections?: Section[]; photo?: string } | null
   status: string
   sortOrder: number
+  lastReviewedAt: string | null
   city: { slug: string; name: string }
 }
 
@@ -141,6 +142,15 @@ export default function AdminGuideEntriesPage() {
 
   const toggle = (list: string[], v: string) =>
     list.includes(v) ? list.filter(x => x !== v) : [...list, v]
+
+  // "Reviewed today" — the only way lastReviewedAt moves (see the route).
+  async function markReviewed(e: Entry) {
+    const r = await fetch(`/app/api/admin/guide-entries/${e.id}/reviewed`, { method: 'POST', credentials: 'include' })
+    const d = await r.json().catch(() => ({}))
+    if (!r.ok) { toast.error(d.error ?? 'Could not mark as reviewed'); return }
+    setEntries(prev => prev.map(x => x.id === e.id ? { ...x, lastReviewedAt: d.lastReviewedAt } : x))
+    toast.success(`"${e.title}" marked as reviewed`)
+  }
 
   async function save() {
     setSaving(true)
@@ -411,8 +421,15 @@ export default function AdminGuideEntriesPage() {
                 )}
               </div>
               <p className="text-xs text-gray-500 truncate">{e.tagline}</p>
+              <p className="text-[11px] text-gray-400 mt-0.5">
+                {e.lastReviewedAt
+                  ? `Reviewed ${new Date(e.lastReviewedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
+                  : 'Never reviewed — readers see no date'}
+              </p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              <button onClick={() => markReviewed(e)} title="Checked this entry against reality today"
+                className="text-xs font-semibold text-green-700 hover:text-green-800">Reviewed today</button>
               <a href={`/app/guide/${e.slug}`} target="_blank" rel="noopener noreferrer"
                 className="text-xs font-semibold text-gray-500 hover:text-gray-700">View</a>
               <button onClick={() => startEdit(e)} className="text-xs font-bold text-amber-600 hover:text-amber-700">Edit</button>

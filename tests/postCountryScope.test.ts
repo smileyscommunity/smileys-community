@@ -18,7 +18,7 @@ import { postCityScope, postCityScopeSql } from '@/lib/postScope'
 
 // Evaluate a Prisma-shaped where against a row, for exactly the operators
 // postCityScope emits: a top-level OR of ANDed equality clauses. Small on
-// purpose; it exists so the scope can be tested as behaviour, not as text.
+// purpose; it exists so the scope can be tested as behavior, not as text.
 type Row = { cityId: string | null; country: string | null }
 function matches(row: Row, where: { OR: Partial<Row>[] }): boolean {
   return where.OR.some(clause =>

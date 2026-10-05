@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Explicit cityId wins (validated + canActInCity-gated); omitted keeps the
-  // old behaviour — the creator's own context via resolveCityId.
+  // old behavior — the creator's own context via resolveCityId.
   const target = await resolveTargetCityId(session, requestedCityId)
   if ('error' in target) {
     return NextResponse.json({ error: target.error }, { status: target.status })

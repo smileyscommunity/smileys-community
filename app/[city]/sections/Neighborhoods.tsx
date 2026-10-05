@@ -6,8 +6,8 @@ import type { PublicCity, EnterLink, NeighborhoodTile } from '../data'
 // arriving from /izmir sets the view-city cookie first — without it a member
 // whose home city is Istanbul would land on the İzmir slug and 404 all over
 // again.
-export default function Neighborhoods({ city, topNeighborhoods, neighborhoodsHaveEvents, enter }: {
-  city: PublicCity; topNeighborhoods: NeighborhoodTile[]; neighborhoodsHaveEvents: boolean; enter: EnterLink
+export default function Neighborhoods({ city, topNeighborhoods, neighborhoodsHaveEvents, neighborhoodTotal, enter }: {
+  city: PublicCity; topNeighborhoods: NeighborhoodTile[]; neighborhoodsHaveEvents: boolean; neighborhoodTotal: number; enter: EnterLink
 }) {
   if (topNeighborhoods.length === 0) return null
   return (
@@ -25,13 +25,13 @@ export default function Neighborhoods({ city, topNeighborhoods, neighborhoodsHav
                 : `The areas Smileys covers in ${city.name} — see who's around and what's starting.`}
             </p>
           </div>
-          <a href={enter('neighborhoods')} className="hidden md:flex btn-ghost text-sm items-center gap-1">All neighborhoods →</a>
+          <a href={enter('neighborhoods')} className="hidden md:flex btn-ghost text-sm items-center gap-1">All {neighborhoodTotal} neighborhoods →</a>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {topNeighborhoods.map(n => (
             <a key={n.slug} href={enter('neighborhoods', n.slug)}
               className="group flex flex-col items-center text-center gap-2 bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-amber-200 hover:-translate-y-0.5 transition-all duration-200">
-              <span className="text-3xl">{n.emoji}</span>
+              <span aria-hidden="true" className="text-3xl">{n.emoji}</span>
               <span className="font-semibold text-sm text-gray-900 group-hover:text-amber-600 transition-colors leading-tight">{n.name}</span>
               {/* Event count where there are events; the neighborhood's own
                   vibe line otherwise. "0 events" on every card reads as a
@@ -45,6 +45,12 @@ export default function Neighborhoods({ city, topNeighborhoods, neighborhoodsHav
             </a>
           ))}
         </div>
+        {/* The header link is desktop-only (it would crowd the title on a
+            phone), and nothing else on the page led to the full list — a
+            phone showed six of the founding city's 94 and stopped there. */}
+        <a href={enter('neighborhoods')} className="md:hidden mt-6 btn-secondary w-full justify-center text-sm">
+          See all {neighborhoodTotal} neighborhoods →
+        </a>
       </div>
     </section>
   )

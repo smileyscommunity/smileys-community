@@ -3,7 +3,7 @@ import { readFileSync } from 'fs'
 import { join } from 'path'
 
 // 2026-09-23. "Who's going 👀" on the dashboard had no test of any kind, and
-// two reviews found the same shape of problem the neighbourhoods pass had just
+// two reviews found the same shape of problem the neighborhoods pass had just
 // closed: a first name on the screen and a full name on the wire, and a
 // visibility rule the widget never applied because it never selected the
 // column it would need.
@@ -33,7 +33,7 @@ describe("who's going is about the events you're going to", () => {
   it('and inherits the "already ended" rule rather than re-deriving it', () => {
     // upcomingAttendances is filtered on eventEndsAt, so a 10:00 coffee is
     // not still advertised at 23:00 the same day.
-    expect(src).toContain('eventEndsAt(a.event, tz).getTime() > Date.now()')
+    expect(src).toContain('eventEndsAt(a.event, a.event.city?.timezone ?? tz).getTime() > Date.now()')
   })
 })
 

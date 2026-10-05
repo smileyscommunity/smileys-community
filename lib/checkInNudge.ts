@@ -10,7 +10,7 @@ import { checkInIsCredible } from '@/lib/noShowPolicy'
 // to that event's roster.
 //
 // Pure selection; the hourly reminders sweep (app/api/admin/cron/reminders)
-// sends. That sweep fires at :00, so the window is centred on the start: an
+// sends. That sweep fires at :00, so the window is centered on the start: an
 // event at 19:30 is nudged at 19:00, one at 19:45 at 20:00. Never more than
 // half an hour from the start, and every start falls in exactly one run.
 

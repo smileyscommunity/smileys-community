@@ -73,7 +73,7 @@ export default function ProfileVisitorsPage() {
             {visitors.map(v => {
               // A connections-only viewer you aren't connected to appears the
               // way their profile would show them to you: first name and
-              // colour, no photo. The list used to print their full name and
+              // color, no photo. The list used to print their full name and
               // photo — more than their own profile page reveals.
               const restricted = v.viewer.restricted
               const name  = restricted ? firstNameOf(v.viewer.name) : v.viewer.name

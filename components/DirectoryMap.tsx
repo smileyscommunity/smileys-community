@@ -24,7 +24,7 @@ export interface MapBusiness extends PositionedBusiness {
 interface Props {
   businesses:   MapBusiness[]
   onPinClick?:  (id: string) => void
-  // Where the map opens when no pins are visible — the viewed city's centre.
+  // Where the map opens when no pins are visible — the viewed city's center.
   // Optional: without it (or with a city missing coordinates) the map falls
   // back to the Istanbul-wide default view below.
   defaultCenter?: [number, number] | null
@@ -86,6 +86,7 @@ export default function DirectoryMap({ businesses, onPinClick, defaultCenter }: 
       }
       markersRef.current = []
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- init once; the marker effect re-centers on defaultCenter
   }, [])
 
   // Re-render pins whenever the business set changes (filter, search,
@@ -148,7 +149,7 @@ export default function DirectoryMap({ businesses, onPinClick, defaultCenter }: 
 
     return () => { cancelled = true }
     // Keyed on CONTENT: the parent hands over a fresh array and a fresh
-  // centre tuple every render, which removed and re-added every pin and
+  // center tuple every render, which removed and re-added every pin and
   // snapped the viewport back on each keystroke. `ready` covers the first
   // mount, where this used to run before the map existed.
   // eslint-disable-next-line react-hooks/exhaustive-deps

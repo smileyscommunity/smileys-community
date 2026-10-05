@@ -109,7 +109,8 @@ describe('6. payments totals are per currency', () => {
     const api = read('app/api/admin/payments/route.ts')
     expect(api).toMatch(/prisma\.payment\.groupBy\(\{\s*by:\s*\['currency'\],\s*where: \{ status: 'paid' \}/)
     expect(api).not.toContain('paidSum')
-    expect(api).toContain('currency: meta.currency ?? DEFAULT_CURRENCY')
+    // The row's currency is the payments' own, the event's only as a fallback (2026-09-27).
+    expect(api).toContain('currency: g.currency ?? meta.currency ?? DEFAULT_CURRENCY')
   })
   it('the page formats each total and event row in its own currency', () => {
     const page = read('app/admin/payments/page.tsx')

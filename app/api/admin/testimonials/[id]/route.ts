@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { bustCityPages } from '@/lib/cityPageCache'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
@@ -61,6 +62,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   })
   writeAudit(session.id, session.name, 'testimonial.update', id, 'testimonial',
     { cityId: item.cityId, fields: Object.keys(data) }, `Edited the quote from ${item.memberName}`)
+  bustCityPages()
   return NextResponse.json(item)
 }
 
@@ -82,5 +84,6 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     { memberName: snapshot.memberName, role: snapshot.role, category: snapshot.category, active: snapshot.active, quotePreview: snapshot.quote.slice(0, 100), cityId: snapshot.cityId },
     `Deleted testimonial from "${snapshot.memberName}" (${snapshot.category})`,
   )
+  bustCityPages()
   return NextResponse.json({ ok: true })
 }

@@ -27,7 +27,7 @@ const LINES = SRC.split('\n')
  *
  * Brace-matched, not a fixed window of following lines: a window bleeds into
  * the next query, so a one-line `count({ where: { … } })` that had lost its
- * cityId still "passed" because a neighbouring query further down had one.
+ * cityId still "passed" because a neighboring query further down had one.
  * That version of this guard failed to catch a deliberately reintroduced bug,
  * which is the only test result that matters when writing a guard.
  */
@@ -72,10 +72,15 @@ describe('dashboard is scoped to the city being viewed', () => {
       // Built above the query rather than inline; carries cityId at its
       // definition, asserted separately below.
       .filter(q => q.where !== 'suggestedMembersWhere')
-      .filter(q => !q.where.includes('cityId'))
+      // IN_CITY is cityId plus the trips departing from it (asserted below).
+      .filter(q => !q.where.includes('cityId') && !q.where.includes('...IN_CITY'))
       .map(q => `line ${q.line}: ${q.text}`)
 
     expect(unscoped, 'these dashboard queries would show another city\'s content').toEqual([])
+  })
+
+  it('IN_CITY is the viewed city plus trips departing from it, nothing wider', () => {
+    expect(SRC).toContain('const IN_CITY = { AND: [{ OR: [{ cityId }, { originCityId: cityId }] }] }')
   })
 
   it('builds suggested members from the viewed city too', () => {
@@ -89,8 +94,8 @@ describe('dashboard is scoped to the city being viewed', () => {
   })
 
   it('counts events in the viewer\'s neighborhood within the city, since names repeat across cities', () => {
-    const seg = SRC.split('neighborhood: userProfile.neighborhood')[1]?.slice(0, 200) ?? ''
-    const decl = SRC.split('neighborhood: userProfile.neighborhood')[0].slice(-200)
-    expect(decl + seg).toContain('cityId')
+    // myHood is the home neighborhood, used only on the home city's page.
+    expect(SRC).toContain('prisma.event.count({ where: { cityId, neighborhood: myHood, ...NOT_OVER, status: \'published\' } })')
+    expect(SRC).toContain("const myHood = cityId === session.cityId ? (userProfile?.neighborhood ?? null) : null")
   })
 })

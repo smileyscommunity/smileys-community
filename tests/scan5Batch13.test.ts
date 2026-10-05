@@ -17,18 +17,18 @@ vi.mock('@/lib/access', () => ({
   hostCityIds:        vi.fn(),
 }))
 vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn(), claimOnce: vi.fn(async () => true), releaseClaim: vi.fn(async () => {}) }))
-vi.mock('@/lib/notify', () => ({ createNotification: vi.fn(), notifyNewEvent: vi.fn() }))
+vi.mock('@/lib/notify', () => ({ createNotification: vi.fn(), notifyNewEvent: vi.fn() , notifyTripArrival: vi.fn(async () => {})}))
 vi.mock('@/lib/audit', () => ({ writeAudit: vi.fn(), getDiff: vi.fn(() => null) }))
-vi.mock('@/lib/email', () => ({ sendEventCancelledEmail: vi.fn(), recordEmailFailure: vi.fn() }))
+vi.mock('@/lib/email', () => ({ sendEventCancelledEmail: vi.fn(), sendEventPostponedEmail: vi.fn(async () => {}), recordEmailFailure: vi.fn() }))
 vi.mock('@/lib/spotsLeft', () => ({ recomputeSpotsLeft: vi.fn(async () => {}) }))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     $transaction:  vi.fn(async (ops: any) => Promise.all(ops)),
     event:         { findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
     eventAttendee: { findMany: vi.fn(), updateMany: vi.fn() },
-    waitlistEntry: { deleteMany: vi.fn() },
+    waitlistEntry: { deleteMany: vi.fn(), findMany: vi.fn(async () => []) },
     auditLog:      { findMany: vi.fn() },
-    user:          { findUnique: vi.fn() },
+    user:          { findUnique: vi.fn(), findMany: vi.fn(async () => []) },
     eventCoHost:   { findMany: vi.fn(), upsert: vi.fn(), deleteMany: vi.fn() },
     tagGroup:      { findMany: vi.fn() },
     // Cancel/postpone check whether the event has started, on its city's clock.
@@ -47,6 +47,7 @@ import { getSession } from '@/lib/session'
 import { isClubHost, isClubHostFor, hostCityIds } from '@/lib/access'
 import { rateLimit } from '@/lib/rateLimit'
 import { createNotification, notifyNewEvent } from '@/lib/notify'
+import { sendEventPostponedEmail } from '@/lib/email'
 import { writeAudit } from '@/lib/audit'
 import { prisma } from '@/lib/prisma'
 
@@ -64,9 +65,13 @@ function req(body: unknown, bad = false) {
   return { json: async () => { if (bad) throw new SyntaxError('Unexpected token'); return body } } as never
 }
 
+// Thirty days out, always: a hard-coded date became "already started" on
+// the evening of 2026-10-01 and these edits began answering 409.
+const FUTURE_DATE = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10)
+
 function existing(status: string) {
   return {
-    hostId: 'h1', clubId: 'club1', cityId: 'c1', date: '2026-10-01', time: '19:00',
+    hostId: 'h1', clubId: 'club1', cityId: 'c1', date: FUTURE_DATE, time: '19:00',
     location: 'x', title: 'Picnic', neighborhood: 'x', price: 0, memberPrice: null,
     totalSpots: 10, emoji: '🎉', isPremium: false, membersOnly: false,
     limitedSpots: false, isFirstTimerFriendly: false, status, seriesId: null,
@@ -154,28 +159,40 @@ describe('51b. parking a live event asks first', () => {
   })
 })
 
-describe('51c. postponing a live event tells the people going', () => {
-  it('host: one event_updated notification per approved attendee', async () => {
+// Seats, pending requests and the waitlist all hear it, by bell and email
+// (tests/eventPostponedNotice has the source-level rules).
+const seat = (userId: string, status = 'approved') => ({ userId, status, user: { email: `${userId}@x.test`, name: userId } })
+describe('51c. postponing a live event tells everyone waiting on it', () => {
+  it('host: one event_updated notification and one email per person, with what they keep', async () => {
     m(prisma.event.findUnique).mockResolvedValue(existing('published'))
-    m(prisma.eventAttendee.findMany).mockResolvedValue([{ userId: 'u1' }, { userId: 'u2' }])
+    m(prisma.eventAttendee.findMany).mockResolvedValue([seat('u1'), seat('u2', 'pending')])
+    m(prisma.waitlistEntry.findMany).mockResolvedValue([{ userId: 'u3' }, { userId: 'u1' }])
+    m(prisma.user.findMany).mockResolvedValue([
+      { id: 'u3', email: 'u3@x.test', name: 'u3' }, { id: 'u1', email: 'u1@x.test', name: 'u1' },
+    ])
     const res = await PUT(req({ status: 'postponed' }), params)
     expect(res.status).toBe(200)
     await flush()
-    expect(m(prisma.eventAttendee.findMany).mock.calls[0][0].where).toEqual({ eventId: 'e1', status: 'approved' })
+    expect(m(prisma.eventAttendee.findMany).mock.calls[0][0].where).toEqual({ eventId: 'e1', status: { in: ['approved', 'pending'] } })
     const calls = m(createNotification).mock.calls
-    expect(calls.map(c => c[0]).sort()).toEqual(['u1', 'u2'])
+    expect(calls.map(c => c[0]).sort()).toEqual(['u1', 'u2', 'u3'])
     for (const c of calls) {
       expect(c[1]).toBe('event_updated')
       expect(c[4]).toBe('/events/e1')
     }
+    // u1 is both seated and waitlisted: one email, as going.
+    const roles = Object.fromEntries(m(sendEventPostponedEmail).mock.calls.map(c => [c[0], c[5]]))
+    expect(roles).toEqual({ 'u1@x.test': 'going', 'u2@x.test': 'pending', 'u3@x.test': 'waitlist' })
   })
   it('staff postponing notifies too', async () => {
     m(getSession).mockResolvedValue(admin)
     m(prisma.event.findUnique).mockResolvedValue(existing('published'))
-    m(prisma.eventAttendee.findMany).mockResolvedValue([{ userId: 'u1' }])
+    m(prisma.eventAttendee.findMany).mockResolvedValue([seat('u1')])
+    m(prisma.waitlistEntry.findMany).mockResolvedValue([])
     await PUT(req({ status: 'postponed' }), params)
     await flush()
     expect(createNotification).toHaveBeenCalledTimes(1)
+    expect(sendEventPostponedEmail).toHaveBeenCalledTimes(1)
   })
   it('draft, or an event that was not live, sends nothing', async () => {
     m(prisma.eventAttendee.findMany).mockResolvedValue([{ userId: 'u1' }])

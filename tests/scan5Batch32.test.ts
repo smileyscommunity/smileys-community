@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 //       events; the first still immediate
 //   98. the club memberCount recount counts what the live paths count —
 //       banned members' rows don't come back overnight
-//  100. an approval only enrols the member in their approved city's clubs
+//  100. an approval only enrolls the member in their approved city's clubs
 //       (or global ones); a repair script plans removal of the ones that didn't
 
 const h = vi.hoisted(() => {
@@ -52,7 +52,7 @@ vi.mock('@/lib/prisma', () => ({ prisma: {
   waitlistEntry:      { findMany: vi.fn() },
   user:               { findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn() },
   club:               { findMany: vi.fn(), findUnique: vi.fn(), findFirst: vi.fn(), update: vi.fn().mockResolvedValue({}), updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
-  // Enrolment checks for an existing row, then creates (2026-09-26: a retried
+  // Enrollment checks for an existing row, then creates (2026-09-26: a retried
   // approval must not count a member into a club twice).
   clubMembership:     { groupBy: vi.fn(), count: vi.fn(), upsert: vi.fn().mockResolvedValue({}), findUnique: vi.fn().mockResolvedValue(null), create: vi.fn().mockResolvedValue({}) },
   memberApplication:  { findUnique: vi.fn(), update: vi.fn() },
@@ -145,8 +145,8 @@ describe('97. spot-opened alerts are throttled per member', () => {
 // ── 98 ───────────────────────────────────────────────────────────────────────
 
 describe('98. the club recount counts what the live paths count', () => {
-  it('the shared definition is approved rows of members who are not banned', () => {
-    expect(COUNTED_CLUB_MEMBERSHIP_WHERE).toEqual({ status: 'approved', user: { status: { not: 'banned' } } })
+  it('the shared definition is approved rows of activated members who are not banned', () => {
+    expect(COUNTED_CLUB_MEMBERSHIP_WHERE).toEqual({ status: 'approved', user: { status: { not: 'banned' }, password: { not: null } } })
   })
 
   it('the nightly sweep groups by that definition, so a ban decrement stays', async () => {
@@ -166,13 +166,13 @@ describe('98. the club recount counts what the live paths count', () => {
     p.clubMembership.count.mockResolvedValue(4)
     const res = await recount({} as any, { params: Promise.resolve({ id: 'k1' }) })
     expect(await res.json()).toEqual({ memberCount: 4, drift: 0 })
-    expect(p.clubMembership.count).toHaveBeenCalledWith({ where: { clubId: 'k1', status: 'approved', user: { status: { not: 'banned' } } } })
+    expect(p.clubMembership.count).toHaveBeenCalledWith({ where: { clubId: 'k1', status: 'approved', user: { status: { not: 'banned' }, password: { not: null } } } })
   })
 })
 
 // ── 100 ──────────────────────────────────────────────────────────────────────
 
-describe('100. approval only enrols in the approved city (or global) clubs', () => {
+describe('100. approval only enrolls in the approved city (or global) clubs', () => {
   const CLUBS = [
     { id: 'club-default-city', cityId: 'c-ist' },
     { id: 'club-izmir',        cityId: 'c-izm' },
@@ -204,7 +204,7 @@ describe('100. approval only enrols in the approved city (or global) clubs', () 
     })
   })
 
-  it('approving into İzmir skips the other city club and enrols the İzmir and global ones', async () => {
+  it('approving into İzmir skips the other city club and enrolls the İzmir and global ones', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const res = await reviewApplication(req({ id: 'a1', status: 'approved', assignedClubs: ['club-default-city', 'club-izmir', 'club-global'] }))
     warn.mockRestore()
@@ -261,7 +261,7 @@ describe('100. repair-cross-city-club-assignments planner', () => {
     expect(repairTargets(rows)).toEqual([])
   })
 
-  it('a registration-time enrolment is UNSURE (assignment and onboarding pick look the same)', () => {
+  it('a registration-time enrollment is UNSURE (assignment and onboarding pick look the same)', () => {
     const registered = { ...user, joinedAt: secs(3 * 86_400) }
     const [row] = planCrossCityRepairs({ applications: [app], users: [registered], memberships: [m({ joinedAt: secs(3 * 86_400 + 1) })], joinedCities: [] })
     expect(row.origin).toBe('UNSURE')

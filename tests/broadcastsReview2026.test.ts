@@ -34,7 +34,7 @@ describe('who a broadcast can reach', () => {
     expect(route).toContain("return NextResponse.json({ error: 'That audience has nobody in it — nothing was sent' }, { status: 400 })")
   })
 
-  it('the email honours a suspension the bell already honoured, and skips unverified addresses', () => {
+  it('the email honors a suspension the bell already honored, and skips unverified addresses', () => {
     expect(route).toContain("? dedup.filter(u => u.emailMarketing && u.emailVerified && !recipientSkipReason(u, notifType))")
     expect(route).toContain("const willNotify = dedup.filter(u => !recipientSkipReason(u, notifType))")
   })

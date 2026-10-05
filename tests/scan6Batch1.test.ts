@@ -57,7 +57,7 @@ vi.mock('@/lib/access', () => ({
   isClubHostFor:      vi.fn(async () => true),
   hostCityIds:        h.hostCityIds,
 }))
-vi.mock('@/lib/notify',               () => ({ createNotification: h.createNotification, notifyNewEvent: h.notifyNewEvent }))
+vi.mock('@/lib/notify',               () => ({ createNotification: h.createNotification, notifyNewEvent: h.notifyNewEvent , notifyTripArrival: vi.fn(async () => {})}))
 vi.mock('@/lib/audit',                () => ({ writeAudit: h.writeAudit, getDiff: vi.fn(() => null) }))
 vi.mock('@/lib/email',                () => h.email)
 vi.mock('@/lib/spotsLeft',            () => ({ recomputeSpotsLeft: h.recompute }))
@@ -262,7 +262,7 @@ describe('c. a host cannot republish a cancelled-then-parked event', () => {
 
 // ── d ──────────────────────────────────────────────────────────────────────
 describe('d. sweeps skip an archived cancelled event', () => {
-  // Stands in for the DB filter: honours `cancelledAt: null` when the query sets it.
+  // Stands in for the DB filter: honors `cancelledAt: null` when the query sets it.
   const matches = (where: any, e: { cancelledAt: Date | null }) => !('cancelledAt' in where) || (where.cancelledAt === null ? !e.cancelledAt : true)
 
   it('the survey sweep asks only the event that happened', async () => {

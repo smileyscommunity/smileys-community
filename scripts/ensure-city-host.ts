@@ -81,7 +81,7 @@ async function main() {
     touched.push(club.slug)
     if (APPLY) {
       // One transaction so a membership can never exist without its count,
-      // matching how the approvals route enrols members.
+      // matching how the approvals route enrolls members.
       await prisma.$transaction([
         prisma.clubMembership.create({
           data: { userId: host.id, clubId: club.id, role: 'host', status: 'approved' },

@@ -151,8 +151,9 @@ describe('d. public and member-facing member totals use the rule', () => {
   const SURFACES: [string, RegExp][] = [
     ['app/page.tsx',                                     /prisma\.user\.count\(\{ where: ACTIVATED_MEMBER_WHERE \}\)/],
     ['app/[city]/data.ts',                               /\.\.\.ACTIVATED_MEMBER_WHERE, role: 'member', joinedAt/],
-    ['app/neighborhoods/[slug]/HeroStats.tsx',           /user\.count\(\{ where: \{ \.\.\.ACTIVATED_MEMBER_WHERE, neighborhood: name, cityId, neighborhoodVisible: true, hiddenFromMembers: false \} \}\)/],
-    ['app/neighborhoods/[slug]/NeighborhoodSections.tsx', /user\.count\(\{ where: \{ \.\.\.ACTIVATED_MEMBER_WHERE, neighborhood: name, cityId, neighborhoodVisible/],
+    // 2026-09-28: a guest's count also drops connections-only members (the strip hides them).
+    ['app/neighborhoods/[slug]/HeroStats.tsx',           /user\.count\(\{ where: \{\s*\.\.\.ACTIVATED_MEMBER_WHERE, neighborhood: name, cityId, neighborhoodVisible: true, hiddenFromMembers: false,\s*\.\.\.\(userId \? \{\} : \{ profileVisibility: \{ not: 'connections' \} \}\),/],
+    ['app/neighborhoods/[slug]/NeighborhoodSections.tsx', /user\.count\(\{ where: \{\s*\.\.\.ACTIVATED_MEMBER_WHERE, neighborhood: name, cityId, neighborhoodVisible/],
     ['app/neighborhoods/page.tsx',                       /\.\.\.ACTIVATED_MEMBER_WHERE, cityId, neighborhood: \{ not: null \}/],
     ['app/guide/page.tsx',                               /\.\.\.ACTIVATED_MEMBER_WHERE, neighborhood: \{ not: null \}, cityId/],
     ['app/visiting/page.tsx',                            /\.\.\.ACTIVATED_MEMBER_WHERE, neighborhood: \{ not: null \}, cityId/],
@@ -163,7 +164,7 @@ describe('d. public and member-facing member totals use the rule', () => {
     const src = read('app/(member)/dashboard/page.tsx')
     // COMMUNITY_MEMBER_WHERE is ACTIVATED_MEMBER_WHERE plus the member-role
     // rule; the rank lives in lib/foundingRank (scan6Batch9).
-    expect(src).toMatch(/cityMemberCount = await prisma\.user\.count\(\{\s*where: \{ \.\.\.COMMUNITY_MEMBER_WHERE, cityId \}/)
+    expect(src).toMatch(/prisma\.user\.count\(\{ where: \{ \.\.\.COMMUNITY_MEMBER_WHERE, cityId \} \}\)/)
     expect(src).toMatch(/const rank = await foundingRankFor\(cityId, \{ joinedAt: userProfile\.joinedAt, activated: true \}\)/)
     // "Total members" reuses that one count (2026-09-26: it ran the same query twice).
     expect(src).toContain('Promise.resolve(cityMemberCount),')
@@ -252,7 +253,7 @@ describe('f. scripts/audit-unactivated-members planning', () => {
     expect(plan.cities.map(c => [c.city, c.total, c.withClubs, c.clubMemberships])).toEqual([['ist', 3, 1, 3], ['izm', 1, 1, 1]])
   })
 
-  it('the club gap lists clubs holding never-activated enrolments, biggest first', () => {
+  it('the club gap lists clubs holding never-activated enrollments, biggest first', () => {
     const gap = planClubGap([
       { clubId: 'k1', name: 'Hiking',  city: 'ist', memberCount: 50, unactivated: 5 },
       { clubId: 'k2', name: 'Books',   city: 'ist', memberCount: 20, unactivated: 0 },

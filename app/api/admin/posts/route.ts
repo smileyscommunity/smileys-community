@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
   // community story has none of these and the keys are ignored for it.
   const handbook = cleanKind === 'handbook' ? parseHandbookFields(payload) : { ok: true as const, data: {} }
   if (!handbook.ok) return NextResponse.json({ error: handbook.error }, { status: 400 })
-  // Both kinds normalise: handbook categories onto the canonical IA key, and
+  // Both kinds normalize: handbook categories onto the canonical IA key, and
   // the retired per-city guide names onto 'City Guide' — so editing an
   // article still stored under a legacy key migrates it instead of
   // preserving the old vocabulary forever (or resetting it to the default).

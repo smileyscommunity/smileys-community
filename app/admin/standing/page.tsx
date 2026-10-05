@@ -1,12 +1,14 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { confirmToast } from '@/lib/confirmToast'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import { loadFailure } from '@/lib/admin/useAdminLoad'
 import { useAuth } from '@/contexts/AuthContext'
+// Member links: /admin/users/:id is admin-only, a dead end for moderators.
+import { memberHref } from '@/lib/adminNav'
 import { REVIEW_CONFLICT_MESSAGE, type ReviewConflict } from '@/lib/noShowPolicy'
 import { YELLOW_AFTER_OFFENCES as YELLOW_AT, STANDING_WINDOW_DAYS as STANDING_WINDOW } from '@/lib/standingPolicy'
 
@@ -50,7 +52,12 @@ export default function AdminStandingPage() {
   const { user } = useAuth()
   const isAdmin = user?.role === 'admin'
   const [view,      setView]      = useState<View>('disputes')
-  const [items,     setItems]     = useState<(OffenceRow | CardRow)[] | null>(null)
+  const [loaded,    setLoaded]    = useState<{ view: View; rows: (OffenceRow | CardRow)[] } | null>(null)
+  // Rows only count for the tab they were loaded for. The tile click changes
+  // `view` a render BEFORE the effect clears the old list, and for that frame
+  // offence rows were read as cards (c.offences.map on undefined) — the page
+  // threw "Something went wrong" on switching tabs (2026-10-04).
+  const items = loaded && loaded.view === view ? loaded.rows : null
   /** What the queue holds, which is more than one page when it is truncated. */
   const [total,     setTotal]     = useState(0)
   const [overview,  setOverview]  = useState<Overview | null>(null)
@@ -59,17 +66,21 @@ export default function AdminStandingPage() {
   const [busy,      setBusy]      = useState<string | null>(null)
 
   const load = useCallback(() => {
-    setItems(null); setLoadError(null)
+    setLoaded(null); setLoadError(null)
+    // A slow answer for the tab you just left must not land on this one.
+    let stale = false
+    staleRef.current = () => { stale = true }
     fetch(`/app/api/admin/standing?view=${view}`, { credentials: 'include' })
       .then(async r => { if (!r.ok) throw await loadFailure(r); return r.json() })
-      .then(d => { setItems(d.items ?? []); setTotal(d.total ?? (d.items ?? []).length) })
-      .catch((e: Error) => setLoadError(e?.message ?? 'Failed to load'))
+      .then(d => { if (stale) return; setLoaded({ view, rows: d.items ?? [] }); setTotal(d.total ?? (d.items ?? []).length) })
+      .catch((e: Error) => { if (!stale) setLoadError(e?.message ?? 'Failed to load') })
     fetch('/app/api/admin/standing/enforcement', { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d) setOverview(d) })
       .catch(() => {})
   }, [view])
-  useEffect(() => { load() }, [load])
+  const staleRef = useRef<() => void>(() => {})
+  useEffect(() => { load(); return () => staleRef.current() }, [load])
 
   async function post(url: string, body: object, success: string, key: string) {
     setBusy(key)
@@ -214,7 +225,7 @@ export default function AdminStandingPage() {
                 <span className="text-xl" aria-hidden="true">{o.event.emoji}</span>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <Link href={`/admin/users/${o.user.id}`} className="font-semibold text-white hover:underline">{o.user.name}</Link>
+                    <Link href={memberHref(o.user.id, user?.role)} className="font-semibold text-white hover:underline">{o.user.name}</Link>
                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase bg-zinc-700 text-zinc-200">{KIND[o.kind] ?? o.kind}</span>
                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase bg-zinc-800 text-zinc-400">
                       {o.counts ? o.tier : `logged · ${o.loggedReason === 'new_city' ? 'new city' : 'open'}`}
@@ -270,7 +281,7 @@ export default function AdminStandingPage() {
                 <span className="text-xl" aria-hidden="true">{c.level === 'red' ? '🟥' : '🟨'}</span>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <Link href={`/admin/users/${c.user.id}`} className="font-semibold text-white hover:underline">{c.user.name}</Link>
+                    <Link href={memberHref(c.user.id, user?.role)} className="font-semibold text-white hover:underline">{c.user.name}</Link>
                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase bg-zinc-700 text-zinc-200">{c.status}</span>
                     {c.shadow && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase bg-zinc-800 text-zinc-500">shadow</span>}
                   </div>
@@ -306,10 +317,10 @@ function Stat({ label, value, sub, tone, active, onClick }: {
   label: string; value: number; sub?: string; tone?: 'warn' | 'bad'
   active?: boolean; onClick?: () => void
 }) {
-  const colour = tone === 'bad' ? 'text-red-400' : tone === 'warn' ? 'text-amber-400' : 'text-white'
+  const color = tone === 'bad' ? 'text-red-400' : tone === 'warn' ? 'text-amber-400' : 'text-white'
   const body = (
     <>
-      <p className={`text-xl font-bold ${colour}`}>{value}</p>
+      <p className={`text-xl font-bold ${color}`}>{value}</p>
       <p className="text-[11px] text-zinc-400 mt-0.5">{label}</p>
       {sub && <p className="text-[10px] text-zinc-600 mt-0.5">{sub}</p>}
     </>
@@ -317,7 +328,7 @@ function Stat({ label, value, sub, tone, active, onClick }: {
   const base = 'rounded-lg px-3 py-2.5 border text-left w-full transition-colors'
   if (!onClick) return <div className={`${base} bg-zinc-900 border-zinc-800`}>{body}</div>
   // A real button: keyboard-reachable, and aria-pressed says which queue is
-  // open, since the only other cue is a border colour.
+  // open, since the only other cue is a border color.
   return (
     <button type="button" onClick={onClick} aria-pressed={!!active}
       className={`${base} ${active

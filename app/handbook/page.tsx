@@ -9,8 +9,7 @@ import { prisma } from '@/lib/prisma'
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { DEFAULT_CITY_SLUG } from '@/lib/city'
-import { DEFAULT_TZ } from '@/lib/cityTime'
-import { resolveCityForPage, type CitySearch } from '@/lib/cityPageParam'
+import { resolveCityForPage, cityQs, type CitySearch } from '@/lib/cityPageParam'
 import { shareCover } from '@/lib/shareCover'
 import { postCityScope } from '@/lib/postScope'
 import { articleCover } from '@/lib/articleCover'
@@ -18,11 +17,12 @@ import { getSession } from '@/lib/session'
 import { storyBylines } from '@/lib/storyByline'
 import { canonicalCategory, categoryMeta, CATEGORY_KEYS, HANDBOOK_CATEGORIES } from '@/lib/handbook-categories'
 import { reviewLabel, readingTime } from '@/lib/handbook-review'
+import ReviewChip from '@/components/ReviewChip'
 import type { HandbookSearchItem } from '@/lib/handbook-search'
 import { APP_URL } from '@/lib/env'
 import { populatedStages } from '@/lib/relocation'
 import { hasQuickReference } from '@/lib/quickReference'
-import { resolveImageUrl } from '@/lib/data'
+import { resolveImageUrl, previewUrl } from '@/lib/data'
 
 // Card covers come from lib/articleCover: explicit cover, else the first
 // inline body image — OWN UPLOADS ONLY — else the category banner. A private
@@ -143,16 +143,6 @@ const START_HERE: { slug: string; emoji: string; label: string }[] = [
   { slug: 'scams-tourist-traps-in-t-rkiye-how-to-stay-safe-without-becoming-paranoid', emoji: '🛡️', label: 'Avoid scams and stay safe' },
 ]
 
-// A review is a staff act, so it reads in the default city's day — the same
-// calendar reviewLabel() uses for the article page and the search results.
-// (The server is UTC; without a zone a review stamped at 00:30 Istanbul read
-// as the day before, and a viewer-city zone made the card and the article
-// disagree by a day for cities off Istanbul's offset.)
-function formatReviewedShort(d: Date | string) {
-  return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: DEFAULT_TZ })
-}
-
-
 export default async function HandbookPage({ searchParams }: { searchParams?: Promise<CitySearch> }) {
   const { city: cfg, cityId, pinned } = await resolveCityForPage(searchParams)
   // Put the city in the URL for anyone not on the default city, so the address
@@ -202,16 +192,11 @@ export default async function HandbookPage({ searchParams }: { searchParams?: Pr
       category: meta?.label ?? a.category,
       emoji:    meta?.emoji ?? '📖',
       reviewed: review?.text ?? null,
+      reviewedStale: review?.stale ?? false,
       minutes:  readingTime(a.body),
       tags:     a.tags,
     } satisfies HandbookSearchItem
   })
-  // Whether a reviewed article is past its interval — the chip below must
-  // not stay green on a review that has lapsed while the article page says
-  // "⏳" for the same state.
-  const staleBySlug = new Map(articles.map(a => [a.slug,
-    reviewLabel({ category: canonicalCategory(a.category) ?? a.category, lastReviewedAt: a.lastReviewedAt, reviewIntervalDays: a.reviewIntervalDays })?.stale ?? false,
-  ]))
   const enrichedBySlug = new Map(enriched.map(e => [e.slug, e]))
 
   // An article's own photo (cover or first inline upload), WITHOUT
@@ -257,7 +242,7 @@ export default async function HandbookPage({ searchParams }: { searchParams?: Pr
   const latest  = articles.filter(a => !onShelf.has(a.slug)).slice(0, 5)
 
   return (
-    <main>
+    <div>
       {/* Hero + search share one band. Search stays the page's primary
           action (brief §7/§41): on desktop the photo sits beside the title
           and search rather than above them, and on phones it's a short strip
@@ -283,7 +268,7 @@ export default async function HandbookPage({ searchParams }: { searchParams?: Pr
                 written by the Smileys team, with official sources linked where the details matter.
               </p>
               <div className="max-w-2xl mt-6">
-                <HandbookSearch items={enriched} />
+                <HandbookSearch items={enriched} boardHref={`/board${cityQs(cfg.slug)}`} />
               </div>
             </div>
           </div>
@@ -305,7 +290,7 @@ export default async function HandbookPage({ searchParams }: { searchParams?: Pr
                       fallback for an article with neither. */}
                   {c.cover ? (
                     <div className="aspect-[16/9] bg-gray-100 overflow-hidden">
-                      <img src={c.cover} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                      <img src={previewUrl(c.cover)} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                     </div>
                   ) : (
                     <div aria-hidden="true" className="aspect-[16/9] bg-amber-50 flex items-center justify-center text-3xl">{c.emoji}</div>
@@ -363,7 +348,7 @@ export default async function HandbookPage({ searchParams }: { searchParams?: Pr
                         Housing) and repeated the title printed under it. */}
                     {photo && (
                       <div className="aspect-[5/2] bg-gray-100 overflow-hidden">
-                        <img src={photo} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                        <img src={previewUrl(photo)} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                       </div>
                     )}
                     <div className="p-6">
@@ -408,7 +393,7 @@ export default async function HandbookPage({ searchParams }: { searchParams?: Pr
                     <div className={cover ? 'sm:flex sm:items-stretch' : ''}>
                       {cover && (
                         <div className="w-full sm:w-56 shrink-0 bg-gray-100 overflow-hidden aspect-[3/2] sm:aspect-auto">
-                          <img src={cover} alt=""
+                          <img src={previewUrl(cover)} alt=""
                             className="w-full h-full object-cover" loading="lazy" decoding="async" />
                         </div>
                       )}
@@ -417,13 +402,7 @@ export default async function HandbookPage({ searchParams }: { searchParams?: Pr
                           <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-bold">{e?.category ?? a.category}</span>
                           <span>by {byline(a.author).name}</span>
                           <span>· {e?.minutes ?? 1} min read</span>
-                          {a.lastReviewedAt && (
-                            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-bold ${
-                              staleBySlug.get(a.slug) ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
-                            }`}>
-                              <span aria-hidden="true">{staleBySlug.get(a.slug) ? '⏳' : '✓'}</span> Reviewed {formatReviewedShort(a.lastReviewedAt)}
-                            </span>
-                          )}
+                          <ReviewChip text={e?.reviewed ?? null} stale={e?.reviewedStale ?? false} size="xs" />
                         </div>
                         <h3 className="text-lg sm:text-xl font-extrabold text-gray-900 group-hover:text-amber-600 transition-colors leading-tight">
                           {a.title}
@@ -508,6 +487,6 @@ export default async function HandbookPage({ searchParams }: { searchParams?: Pr
           </div>
         </section>
       )}
-    </main>
+    </div>
   )
 }

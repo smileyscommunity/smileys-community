@@ -37,7 +37,7 @@ export interface AdminPrize {
 export const PRIZE_STATUSES   = ['draft', 'active', 'awarded', 'archived'] as const
 export const SPONSOR_STATUSES = ['active', 'archived'] as const
 
-// Same Tailwind pill colours we use on the Campaign status row so
+// Same Tailwind pill colors we use on the Campaign status row so
 // the visual vocabulary stays consistent across the admin panel.
 export const STATUS_PILL: Record<string, string> = {
   draft:    'bg-zinc-700 text-zinc-400',

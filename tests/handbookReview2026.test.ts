@@ -18,7 +18,8 @@ describe('card covers', () => {
   it('come from the one helper that refuses an external image, on every list', () => {
     expect(src('app/handbook/page.tsx')).toContain("import { articleCover } from '@/lib/articleCover'")
     expect(src('app/handbook/page.tsx')).not.toContain('FIRST_BODY_IMG_RE')
-    expect(src('app/handbook/category/[key]/page.tsx')).toContain('const cover = articleCover({ coverImage: a.coverImage, body: a.body, category: canonical })')
+    // 2026-09-27: the category banner fallback is gone (text graphics with retired names); own photos only.
+    expect(src('app/handbook/category/[key]/page.tsx')).toContain('const cover = articleCover({ coverImage: a.coverImage, body: a.body })')
     expect(src('app/handbook/category/[key]/page.tsx')).not.toMatch(/a\.body\.match\(/)
   })
 
@@ -39,14 +40,15 @@ describe('dates', () => {
     // from the server, never computed in this client component.
     expect(src('app/handbook/[slug]/page.tsx')).toContain("const fresh     = await prisma.post.findUnique({ where: { id: post.id }, select: { views: true } })")
     expect(editable).toContain('👁 ${props.views.toLocaleString')
-    expect(src('app/handbook/category/[key]/page.tsx')).toContain('formatDate(a.publishedAt, cfg.timezone)')
+    // 2026-09-27: a city-local row reads on its own city's clock, national ones on the viewer's.
+    expect(src('app/handbook/category/[key]/page.tsx')).toContain('formatDate(a.publishedAt, (a.cityId && tzById.get(a.cityId)) || cfg.timezone)')
   })
 })
 
 describe('the review lifecycle', () => {
   it('has a staff path: "Reviewed today" on the article, nothing else moves lastReviewedAt', () => {
     const route = src('app/api/admin/posts/[id]/reviewed/route.ts')
-    expect(route).toContain("data: { lastReviewedAt: now }")
+    expect(route).toContain('SET "lastReviewedAt" = ${now}')
     expect(route).toContain("'post.reviewed'")
     expect(route).toContain("revalidateTag('handbook')")
     // The form never carries it.
@@ -85,11 +87,15 @@ describe('the review lifecycle', () => {
 
   it('an overdue review is amber on the index too, in one calendar', () => {
     const index = src('app/handbook/page.tsx')
-    expect(index).toContain("staleBySlug.get(a.slug) ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'")
+    // 2026-09-27: one chip component for every surface (components/ReviewChip) — amber when stale, in one calendar.
+    expect(index).toContain('<ReviewChip text={e?.reviewed ?? null} stale={e?.reviewedStale ?? false}')
+    expect(src('components/ReviewChip.tsx')).toContain("stale ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'")
     // A review is a staff act: the card, the article chip and the search
     // result all read it in the default city's day, or two of them disagree
-    // by a day for a city off Istanbul's offset.
-    expect(index).toContain('timeZone: DEFAULT_TZ })')
+    // by a day for a city off Istanbul's offset. The index no longer formats
+    // a date of its own — every surface shows reviewLabel()'s text.
+    expect(src('lib/handbook-review.ts')).toContain('timeZone: DEFAULT_TZ })')
+    expect(index).toContain('reviewed: review?.text ?? null')
   })
 })
 
@@ -129,8 +135,11 @@ describe('the article page', () => {
   })
 
   it('names the article that overlaps it', () => {
-    expect(seeAlsoSlug('istanbul-residence-permit-guide')).toBe('residence-permit-first-application')
-    expect(seeAlsoSlug('opening-turkish-bank-account')).toBe('istanbul-bank-account-guide')
+    // Both pairs were merged (2026-09-28) — redirects now, not see-alsos.
+    expect(seeAlsoSlug('istanbul-residence-permit-guide')).toBeNull()
+    expect(seeAlsoSlug('residence-permit-first-application')).toBeNull()
+    expect(seeAlsoSlug('opening-turkish-bank-account')).toBeNull()
+    expect(seeAlsoSlug('istanbul-bank-account-guide')).toBeNull()
     expect(seeAlsoSlug('istanbulkart-mastery')).toBeNull()
     expect(page).toContain("where:  { slug, kind: 'handbook', status: 'published' },")
   })

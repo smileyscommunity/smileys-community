@@ -1,5 +1,6 @@
 import { dayInTz, DEFAULT_TZ, shiftDay } from './cityTime'
-import { todayInCity } from '@/lib/city'
+import { todayInCity, getCityTz } from '@/lib/city'
+import { eventEndsAt } from '@/lib/eventTime'
 import { prisma } from '@/lib/prisma'
 import { activeAttendeeWhere } from '@/lib/attendance'
 import { stampRecommendation } from '@/lib/eventRecommendations'
@@ -121,12 +122,23 @@ export type FirstEventCard = {
  * scored so nearby/first-timer/relevant events float up, and popular
  * cross-neighborhood events still surface when nothing local exists.
  */
-export async function getFirstEventRecommendations(userId: string, limit = 3): Promise<FirstEventCard[]> {
-  const user = await prisma.user.findUnique({
+export async function getFirstEventRecommendations(
+  userId: string,
+  limit = 3,
+  // cityId: the city the member is LOOKING at (the dashboard's), not only
+  // their home — it recommended home-city events on another city's page.
+  // excludeIds: events already on the page's shelves, so the block never
+  // repeats one of them (Antalya's single event was in both).
+  opts: { cityId?: string; excludeIds?: string[] } = {},
+): Promise<FirstEventCard[]> {
+  const found = await prisma.user.findUnique({
     where: { id: userId },
     select: { interests: true, neighborhood: true, cityId: true },
   })
-  if (!user) return []
+  if (!found) return []
+  const cityId = opts.cityId ?? found.cityId
+  // The home neighborhood only means something in the home city.
+  const user = { ...found, cityId, neighborhood: cityId === found.cityId ? found.neighborhood : null }
 
   const wanted = user.interests.length
     ? await prisma.interestTagMap.findMany({
@@ -137,7 +149,7 @@ export async function getFirstEventRecommendations(userId: string, limit = 3): P
   const wantedTagIds = new Set(wanted.map(w => w.tagId))
 
   // The member's own city day (the matcher already scopes events to it).
-  const todayStr = await todayInCity(user.cityId)
+  const [todayStr, tz] = await Promise.all([todayInCity(user.cityId), getCityTz(user.cityId)])
   const soonCutoffStr = shiftDay(todayStr, SOON_WINDOW_DAYS)
 
   const candidates = await prisma.event.findMany({
@@ -146,10 +158,13 @@ export async function getFirstEventRecommendations(userId: string, limit = 3): P
       status: 'published',
       date: { gte: todayStr },          // Event.date is text 'YYYY-MM-DD'
       OR: [{ limitedSpots: false }, { spotsLeft: { gt: 0 } }],   // unlimited events tally past 0
+      // A host can mark an event sold out by hand; it was recommended with "RSVP →".
+      soldOut: false,
+      ...(opts.excludeIds?.length ? { id: { notIn: opts.excludeIds } } : {}),
       attendees: { none: { userId, ...activeAttendeeWhere } },  // exclude already RSVP'd (a cancelled row is not an RSVP)
     },
     select: {
-      id: true, title: true, date: true, time: true, neighborhood: true,
+      id: true, title: true, date: true, time: true, endTime: true, neighborhood: true,
       emoji: true, coverImage: true, price: true, spotsLeft: true,
       isFirstTimerFriendly: true,
       tags: { select: { tagId: true } },
@@ -163,7 +178,10 @@ export async function getFirstEventRecommendations(userId: string, limit = 3): P
 
   const ctx: ScoreContext = { wantedTagIds, userNeighborhood: user.neighborhood, todayStr, soonCutoffStr }
 
+  const now = Date.now()
   return candidates
+    // A 10:00 brunch viewed at 21:00 has ended, whatever its date says.
+    .filter(ev => eventEndsAt(ev, tz).getTime() > now)
     .map(ev => {
       const tagIds = ev.tags.map(t => t.tagId)
       const { score, reason } = scoreEvent(

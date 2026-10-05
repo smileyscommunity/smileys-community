@@ -12,7 +12,7 @@ interface FaqSection { id: string; icon: string; title: string; items: FaqItem[]
 interface Content {
   // `metric` set = published number comes from the database, not `value`.
   stats:         { value?: string; label: string; metric?: 'members' | 'events' | 'clubs' }[]
-  home:          { headline: string; subtitle: string; heroImage?: string }
+  home:          { headline: string; subtitle: string; heroImage?: string; heroAlt?: string }
   about:         { headline: string; subtitle: string; story_p1: string; story_p2: string; story_p3: string }
   why:           { headline: string; tagline: string; subtitle: string; closing: string }
   get_involved:  { headline: string; subtitle: string }
@@ -58,7 +58,7 @@ const labelCls  = 'block text-xs font-bold text-zinc-400 uppercase tracking-wide
 // throw on first edit.
 const DEFAULT_CONTENT: Content = {
   stats:         [],
-  home:          { headline: '', subtitle: '', heroImage: '' },
+  home:          { headline: '', subtitle: '', heroImage: '', heroAlt: '' },
   about:         { headline: '', subtitle: '', story_p1: '', story_p2: '', story_p3: '' },
   why:           { headline: '', tagline: '',  subtitle: '', closing: '' },
   get_involved:  { headline: '', subtitle: '' },
@@ -226,7 +226,7 @@ export default function ContentPage() {
       {/* ── Stats ── */}
       {tab === 'stats' && (
         <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5 space-y-4">
-          <p className="text-xs text-zinc-500">These numbers appear on the footer and the About, Why Smileys, Advertise and Get Involved pages. They override what the site would otherwise measure for itself.</p>
+          <p className="text-xs text-zinc-500">These numbers appear on the footer and the Advertise and Get Involved pages. They override what the site would otherwise measure for itself. The About and Why Smileys pages always show measured numbers.</p>
           {live && (
             <div className="rounded-xl bg-zinc-950 border border-zinc-800 p-4">
               <p className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider mb-2">Live, from the database</p>
@@ -315,6 +315,13 @@ export default function ContentPage() {
                     Remove (back to the shipped photo)
                   </button>
                 )}
+                <div>
+                  <label className={labelCls}>Describe the photo (alt text)</label>
+                  <input value={content.home.heroAlt ?? ''} maxLength={200}
+                    onChange={e => set('home', { ...content.home, heroAlt: e.target.value })}
+                    placeholder="What a visitor who can't see it should know, e.g. Friends talking on a rooftop terrace at sunset"
+                    className={inputCls} />
+                </div>
                 <p className="text-[11px] text-zinc-600 leading-relaxed">
                   Landscape, ideally people rather than scenery — it sits beside the headline and is the first thing a
                   visitor sees. Save below to publish. Large photos are downscaled before upload.
@@ -349,7 +356,7 @@ export default function ContentPage() {
       {/* ── Why Smileys ── */}
       {tab === 'why' && (
         <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5 space-y-4">
-          <p className="text-xs text-zinc-500">Why Smileys page — hero section.</p>
+          <p className="text-xs text-zinc-500">Why Smileys page — hero section, shown for the default city. Other cities get a neutral hero with their own name. The stats band on that page is measured, not taken from the Stats tab.</p>
           <div>
             <label className={labelCls}>Headline</label>
             <input value={content.why.headline} onChange={e => set('why', { ...content.why, headline: e.target.value })} className={inputCls} />
@@ -405,7 +412,7 @@ export default function ContentPage() {
       {/* ── Week Timeline ── */}
       {tab === 'week' && (
         <div className="space-y-3">
-          <p className="text-xs text-zinc-500 bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3">Appears in the "A Week Inside Smileys" section on the Why Smileys page.</p>
+          <p className="text-xs text-zinc-500 bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3">Not shown on the site any more: the Why Smileys page now lists each city&apos;s real events for the next seven days.</p>
           {content.week.map((d, i) => (
             <div key={i} className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5 space-y-3">
               <div className="flex items-center gap-3">

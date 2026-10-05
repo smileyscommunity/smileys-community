@@ -5,8 +5,8 @@ import type { PublicCity, Visitors as VisitorsData } from '../data'
 // Who's coming to town, and the door to announcing your own trip. Renders
 // even when empty for LIVE cities: the empty state IS the invitation, and
 // the announce CTA is how the first visitor card ever appears.
-export default function Visitors({ city, visitors, visitorTotal, isDefaultCity }: {
-  city: PublicCity; visitors: VisitorsData['visitors']; visitorTotal: number; isDefaultCity: boolean
+export default function Visitors({ city, visitors, visitorTotal, isDefaultCity, signedIn }: {
+  city: PublicCity; visitors: VisitorsData['visitors']; visitorTotal: number; isDefaultCity: boolean; signedIn: boolean
 }) {
   return (
     <section className="py-14 sm:py-20 bg-white">
@@ -38,8 +38,11 @@ export default function Visitors({ city, visitors, visitorTotal, isDefaultCity }
           </div>
         )}
         <div className="flex items-center gap-4 flex-wrap">
-          <Link href={`/visiting/new?city=${city.slug}`} className="btn-primary px-6 py-3">
-            Announce your visit
+          {/* Announcing is a member action (the form lives behind the member
+              layout): a guest was sent to a blank page and bounced to login.
+              Same rule as /visiting — guests get the application. */}
+          <Link href={signedIn ? `/visiting/new?city=${city.slug}` : `/apply?city=${city.slug}`} className="btn-primary px-6 py-3">
+            {signedIn ? 'Announce your visit' : 'Join to announce your visit'}
           </Link>
           {/* Every city now, not just the default one: /visiting follows
               ?city= (a4d00f3), so the rest of a second city's travelers are

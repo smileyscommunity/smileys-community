@@ -44,14 +44,27 @@ export async function restrictedSetFor(
   )
   if (privateOnes.length === 0) return new Set()
 
-  // Privileged viewers see everyone in full.
-  if (isAdminOrModerator(session) || (await isClubHost(session.id))) return new Set()
+  // Privileged viewers see everyone in full: admins, and club hosts (their
+  // exemption is platform-wide by design — Nate's call to narrow).
+  if (session.role === 'admin' || (await isClubHost(session.id))) return new Set()
+
+  // A moderator is staff in their OWN city (lib/access canActInCity). They
+  // were exempt everywhere, so an Ankara moderator viewing Istanbul saw its
+  // connections-only members in full (2026-09-29).
+  let exempt = new Set<string>()
+  if (isAdminOrModerator(session) && session.cityId) {
+    const rows = await prisma.user.findMany({
+      where:  { id: { in: privateOnes.map(m => m.id) }, cityId: session.cityId },
+      select: { id: true },
+    })
+    exempt = new Set(rows.map(r => r.id))
+  }
 
   const connectionIds = knownConnectionIds
     ? new Set(knownConnectionIds)
     : await connectionIdsFor(session.id)
 
-  return new Set(privateOnes.filter(m => !connectionIds.has(m.id)).map(m => m.id))
+  return new Set(privateOnes.filter(m => !connectionIds.has(m.id) && !exempt.has(m.id)).map(m => m.id))
 }
 
 /**
@@ -93,7 +106,11 @@ export async function nameSearchWhere(
   mode: 'contains' | 'startsWith',
 ): Promise<Prisma.UserWhereInput> {
   const match = { [mode]: q, mode: 'insensitive' as const }
-  if (isAdminOrModerator(session) || (await isClubHost(session.id))) return { name: match }
+  if (session.role === 'admin' || (await isClubHost(session.id))) return { name: match }
+  // A moderator matches full names only in their own city (the same scope as
+  // restrictedSetFor): exempt everywhere, a surname search confirmed what the
+  // redacted card in another city hides.
+  const modCity = isAdminOrModerator(session) && session.cityId ? session.cityId : null
   const conns = await prisma.memberConnection.findMany({
     where:  { status: 'accepted', OR: [{ requesterId: session.id }, { receiverId: session.id }] },
     select: { requesterId: true, receiverId: true },
@@ -103,6 +120,7 @@ export async function nameSearchWhere(
     OR: [
       { profileVisibility: { not: 'connections' }, name: match },
       { id: { in: [session.id, ...connected] }, name: match },
+      ...(modCity ? [{ cityId: modCity, name: match }] : []),
       ...(/\s/.test(q) ? [] : [{ profileVisibility: 'connections', name: { startsWith: q, mode: 'insensitive' as const } }]),
     ],
   }

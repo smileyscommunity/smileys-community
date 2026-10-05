@@ -219,7 +219,7 @@ export default function AdminParticipantsPage() {
   }, [])
 
   function toggleSelect(key: string) {
-    setSelected(prev => { const s = new Set(prev); s.has(key) ? s.delete(key) : s.add(key); return s })
+    setSelected(prev => { const s = new Set(prev); if (s.has(key)) s.delete(key); else s.add(key); return s })
   }
 
   async function approve(userId: string, eventId: string) {
@@ -358,7 +358,7 @@ export default function AdminParticipantsPage() {
       else groups.set(day, [a])
     }
     return [...groups.entries()]
-  }, [approved])
+  }, [approved, tz])
 
   // ── Bulk actions (Pending view) ────────────────────────────────────
   // Tracks per-id success so a partial failure only flips the rows that

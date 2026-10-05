@@ -9,7 +9,7 @@ const IST = 'Europe/Istanbul'   // UTC+3, no DST
 const LIS = 'Europe/Lisbon'     // UTC+1 in September (DST)
 
 describe('eventEndsAt', () => {
-  it('honours endTime on the event city clock', () => {
+  it('honors endTime on the event city clock', () => {
     expect(eventEndsAt({ date: '2026-09-12', time: '19:00', endTime: '22:30' }, IST).toISOString())
       .toBe('2026-09-12T19:30:00.000Z')
     expect(eventEndsAt({ date: '2026-09-12', time: '19:00', endTime: '22:30' }, LIS).toISOString())

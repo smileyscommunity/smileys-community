@@ -3,6 +3,7 @@ import { getSession } from '@/lib/session'
 import { getCommunityStats } from '@/lib/communityStats'
 import { isAdmin, isAdminOrModerator } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
+import { revalidatePath } from 'next/cache'
 import fs from 'fs'
 import path from 'path'
 
@@ -50,7 +51,7 @@ function str(v: unknown, max: number): string {
 interface HeroBlock { headline?: string; subtitle?: string; badge?: string }
 interface ContentValue {
   stats?:        Array<{ value?: string; label: string; metric?: 'members' | 'events' | 'clubs' }>
-  home?:         { headline: string; subtitle: string; heroImage?: string }
+  home?:         { headline: string; subtitle: string; heroImage?: string; heroAlt?: string }
   about?:        { headline: string; subtitle: string; story_p1: string; story_p2: string; story_p3: string }
   why?:          { headline: string; tagline: string; subtitle: string; closing: string }
   get_involved?: { headline: string; subtitle: string }
@@ -67,7 +68,11 @@ interface ContentValue {
 // when the incoming key isn't allowlisted; per-field validation caps
 // every string and bounds every array.
 const PHOTO_MAX = 300
-const HOME_PHOTO_RE = /^\/app\/api\/files\/(?!applications\/)[a-zA-Z0-9-]+\/[a-zA-Z0-9-]+\.(jpg|jpeg|png|webp|gif)$/
+// An allowlist of the public upload folders, not a denylist of one private
+// one: a private folder (messages/, reports/) 403s for every visitor and
+// crawler, so the hero and the share card silently broke. The hero upload
+// writes to general/; city heroes live in cities/.
+const HOME_PHOTO_RE = /^\/app\/api\/files\/(general|cities)\/[a-zA-Z0-9-]+\.(jpg|jpeg|png|webp|gif)$/
 
 function normalizeSection(key: string, raw: unknown):
   | { ok: true; value: unknown }
@@ -136,15 +141,15 @@ function normalizeSection(key: string, raw: unknown):
   // moved into app/about/page.tsx as owner-authored JSX (2026-08-30).
   if (key === 'about') {
     return { ok: true, value: {
-      headline: str(r.headline, HEADLINE_MAX),
-      subtitle: str(r.subtitle, SUBTITLE_MAX),
+      headline: str(r.headline, HEADLINE_MAX).trim(),
+      subtitle: str(r.subtitle, SUBTITLE_MAX).trim(),
     } }
   }
   if (key === 'why') {
     return { ok: true, value: {
-      headline: str(r.headline, HEADLINE_MAX),
+      headline: str(r.headline, HEADLINE_MAX).trim(),
       tagline:  str(r.tagline,  TAGLINE_MAX),
-      subtitle: str(r.subtitle, SUBTITLE_MAX),
+      subtitle: str(r.subtitle, SUBTITLE_MAX).trim(),
       closing:  str(r.closing,  CLOSING_MAX),
     } }
   }
@@ -160,17 +165,22 @@ function normalizeSection(key: string, raw: unknown):
       return { ok: false, error: 'Invalid hero image URL' }
     }
     return { ok: true, value: {
-      headline:  str(r.headline, HEADLINE_MAX),
-      subtitle:  str(r.subtitle, SUBTITLE_MAX),
+      // Trimmed: a headline of spaces is truthy, so the page rendered it —
+      // an empty <h1> — instead of the shipped default.
+      headline:  str(r.headline, HEADLINE_MAX).trim(),
+      subtitle:  str(r.subtitle, SUBTITLE_MAX).trim(),
       badge:     str(r.badge,    BADGE_MAX),
       heroImage: hero,
+      // What the photo shows, for screen readers and the share card. Trimmed:
+      // whitespace would read as a description and say nothing.
+      heroAlt:   str(r.heroAlt, 200).trim(),
     } }
   }
 
   // get_involved, advertise, events, clubs, members, neighborhoods
   return { ok: true, value: {
-    headline: str(r.headline, HEADLINE_MAX),
-    subtitle: str(r.subtitle, SUBTITLE_MAX),
+    headline: str(r.headline, HEADLINE_MAX).trim(),
+    subtitle: str(r.subtitle, SUBTITLE_MAX).trim(),
     badge:    str(r.badge,    BADGE_MAX),
   } }
 }
@@ -237,6 +247,13 @@ export async function POST(req: NextRequest) {
     { sections: touched },
     `Updated content section${touched.length === 1 ? '' : 's'}: ${touched.join(', ')}`,
   )
+
+  // The pages that read content.json (FAQ, About, Advertise, Get involved,
+  // Why, Neighborhoods, the home page, and the layout) are cached for up to
+  // an hour, so a save showed "Saved ✓" while the site kept the old text.
+  // Content edits are rare; refreshing the whole tree is the simple rule
+  // that can't miss a reader.
+  revalidatePath('/', 'layout')
 
   return NextResponse.json({ ok: true, updatedSections: touched })
 }

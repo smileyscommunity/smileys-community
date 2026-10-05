@@ -2,7 +2,7 @@ import { restrictedSetFor } from '@/lib/memberPrivacy'
 import { firstNameOf } from '@/lib/data'
 import type { SessionUser } from '@/lib/session'
 
-// Who wrote it, as this viewer may see them — for the neighbourhood wall.
+// Who wrote it, as this viewer may see them — for the neighborhood wall.
 //
 // The wall read its authors raw: full name, photo and member id for
 // everyone. `buildAuthor` in lib/posts "never passes profileVisibility

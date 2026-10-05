@@ -111,7 +111,34 @@ export function validateBusinessCreate(input: Record<string, unknown>):
     }
   }
 
+  const credit = parseCoverCredit(input)
+  if ('error' in credit) return { error: credit.error }
+  data.coverCredit    = data.coverImage ? credit.coverCredit ?? null : null
+  data.coverCreditUrl = data.coverImage ? credit.coverCreditUrl ?? null : null
+
   return { data }
+}
+
+/**
+ * The cover's photo credit (components/PhotoCredit): plain text, capped, and
+ * an optional https link to the source page. Keys absent → undefined.
+ */
+export function parseCoverCredit(input: Record<string, unknown>):
+  | { coverCredit?: string | null; coverCreditUrl?: string | null }
+  | { error: string }
+{
+  const out: { coverCredit?: string | null; coverCreditUrl?: string | null } = {}
+  if ('coverCredit' in input) {
+    // One line of text; tags and line breaks have no business in a caption.
+    const raw = typeof input.coverCredit === 'string' ? input.coverCredit.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ') : ''
+    out.coverCredit = str(raw, DIRECTORY_LIMITS.coverCredit)
+  }
+  if ('coverCreditUrl' in input) {
+    const v = str(input.coverCreditUrl, DIRECTORY_LIMITS.coverCreditUrl)
+    if (v !== null && !(isSafeHref(v) && /^https:\/\//i.test(v))) return { error: 'Photo credit link must be an https:// URL' }
+    out.coverCreditUrl = v
+  }
+  return out
 }
 
 // Drop keys from `patch` whose value equals the corresponding key in
@@ -219,6 +246,16 @@ export function validateFieldUpdate(input: Record<string, unknown>, opts: { owne
         data[k] = v
       }
     }
+  }
+  // The credit belongs to one photo. Set with it, or cleared when the cover
+  // changes without one — a new photo must never inherit the old credit.
+  const credit = parseCoverCredit(input)
+  if ('error' in credit) return { error: credit.error }
+  if ('coverCredit' in credit) data.coverCredit = credit.coverCredit
+  if ('coverCreditUrl' in credit) data.coverCreditUrl = credit.coverCreditUrl
+  if ('coverImage' in data) {
+    if (!('coverCredit' in data) || data.coverImage === null) data.coverCredit = null
+    if (!('coverCreditUrl' in data) || data.coverImage === null) data.coverCreditUrl = null
   }
   if ('isExpatOwned'    in input) data.isExpatOwned    = !!input.isExpatOwned
   if ('isExpatFriendly' in input) data.isExpatFriendly = !!input.isExpatFriendly

@@ -1,6 +1,18 @@
 const { withPostHogConfig } = require('@posthog/nextjs-config')
 
 /** @type {import('next').NextConfig} */
+// Utility, account and member-only paths that must never be indexed. robots.txt
+// Disallow only stops crawling — a linked URL can still be indexed from its
+// anchor text — so these also carry a noindex header, which a crawler can read
+// on any path robots.txt leaves fetchable. (/members, /clubs/[slug], /invite
+// and /perks already set their own robots meta.)
+const NOINDEX_PATHS = [
+  'dashboard', 'messages', 'settings', 'profile', 'profile-visitors', 'my-events', 'card',
+  'notifications', 'pending', 'standing', 'contacts', 'reviews', 'no-show', 'share-story',
+  'survey', 'admin', 'host', 'login', 'forgot-password', 'reset-password', 'verify-email',
+  'activate', 'unsubscribe', 'appeal', 'partner',
+]
+
 const nextConfig = {
   basePath: '/app',
   // No `X-Powered-By: Next.js` on every response. It tells a scanner which
@@ -57,6 +69,15 @@ const nextConfig = {
   },
   async redirects() {
     return [
+      // The typed addresses outside /app. nginx sends every path that starts
+      // with "/app" to this server unchanged, so /apply and /appeal (which
+      // begin with those letters) arrived here as /apply and /appeal — outside
+      // the basePath — and 404'd, while /events or /faq were redirected by
+      // nginx correctly. The FAQ tells people to type both. basePath: false
+      // lets the rule match the bare path.
+      { source: '/apply',         destination: '/app/apply',         basePath: false, permanent: true },
+      { source: '/apply/:path*',  destination: '/app/apply/:path*',  basePath: false, permanent: true },
+      { source: '/appeal',        destination: '/app/appeal',        basePath: false, permanent: true },
       // Legacy /admin/cup → consolidated into /admin/campaigns. The
       // Smileys Cup is one campaign among many now, with fixture
       // management surfaced as the "Fixtures + results" tab on the
@@ -66,6 +87,13 @@ const nextConfig = {
       {
         source:      '/admin/cup',
         destination: '/admin/campaigns',
+        permanent:   true,
+      },
+      // Legacy /admin/engagement (announcements + polls, misnamed) — was a
+      // page whose only job was redirect(); the list is where redirects live.
+      {
+        source:      '/admin/engagement',
+        destination: '/admin/announcements',
         permanent:   true,
       },
       // /listings → /board rename. Permanent 308 so bookmarks, Google's index,
@@ -93,10 +121,31 @@ const nextConfig = {
         destination: '/handbook/sim-card-and-home-internet-in-turkiye',
         permanent:   true,
       },
+      // The Istanbul residence-permit guide was merged into the national one
+      // (2026-09-28): same process countrywide, and the Istanbul-only parts
+      // (appointment waits, the notary, PTT delivery) now live there. The
+      // Istanbul row is unpublished; this 308 keeps its indexed URL alive.
+      {
+        source:      '/handbook/istanbul-residence-permit-guide',
+        destination: '/handbook/residence-permit-first-application',
+        permanent:   true,
+      },
+      // Same for the Istanbul bank-account guide (2026-09-28): its branch
+      // tips, the SIM → tax number → bank order and the fee question now
+      // live in the national article; the Istanbul row is unpublished.
+      {
+        source:      '/handbook/istanbul-bank-account-guide',
+        destination: '/handbook/opening-turkish-bank-account',
+        permanent:   true,
+      },
     ]
   },
   async headers() {
     return [
+      ...NOINDEX_PATHS.map(path => ({
+        source: `/${path}/:rest*`,
+        headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }],
+      })),
       {
         source: '/(.*)',
         headers: [

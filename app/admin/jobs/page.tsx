@@ -39,7 +39,7 @@ const LOAD_FAILED =
 // seventeen sweepers that are fine.
 const STATE_ORDER: Record<JobState, number> = { error: 0, never: 1, stale: 2, ok: 3 }
 
-// The pill carries its word as well as its colour — colour alone isn't a
+// The pill carries its word as well as its color — color alone isn't a
 // state anyone can read out loud, or see.
 const STATE_PILL: Record<JobState, { label: string; className: string }> = {
   ok:    { label: 'OK',        className: 'bg-green-900/50 text-green-400' },

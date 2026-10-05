@@ -8,7 +8,7 @@ const read = (p: string) => readFileSync(join(__dirname, '..', p), 'utf8')
 describe('1. moderators do not receive applicants\' private data', () => {
   const src = read('app/api/admin/applications/route.ts')
   it('non-admins get the masked rows', () => {
-    expect(src).toContain('return NextResponse.json(isAdmin(session) ? applications : applications.map(forModerator))')
+    expect(src).toContain('return NextResponse.json(isAdmin(session) ? rows : rows.map(forModerator))')
   })
   it('contact masked, IP/fingerprint hashed, device dropped, birthdate only while deciding', () => {
     expect(src).toContain('email:       maskEmail(a.email)')
@@ -34,12 +34,12 @@ describe('2. a guide editor cannot wipe the live guide', () => {
 describe('3–4. attendee emails reach the right people once', () => {
   const noShows = read('app/api/admin/events/[id]/notify-noshows/route.ts')
   it('no-show notices go to settled no-shows with approved accounts, once each', () => {
-    expect(noShows).toContain("where: { eventId: id, status: 'approved', attendance: 'no_show', user: { status: 'approved' } },")
+    expect(noShows).toContain("where: { eventId: id, status: 'approved', attendance: 'no_show', user: MESSAGEABLE_USER },")
     expect(noShows).toContain('claimOnce(`noshow-notice:${a.userId}:${id}`')
     expect(noShows).not.toContain('checkedIn: false')
   })
   it('remind-attendees skips banned and deleted accounts', () => {
-    expect(read('app/api/admin/events/[id]/remind-attendees/route.ts')).toContain("where: { eventId: id, status: 'approved', user: { status: 'approved' } },")
+    expect(read('app/api/admin/events/[id]/remind-attendees/route.ts')).toContain("where: { eventId: id, status: 'approved', user: MESSAGEABLE_USER },")
   })
 })
 
@@ -47,7 +47,9 @@ describe('5. a ban from the moderation queue is guarded like one from the users 
   it('asks for step-up, tells the member, and the button confirms', () => {
     const route = read('app/api/admin/moderation/[id]/route.ts')
     expect(route).toContain("if (action === 'ban') {\n      const stepUp = requireStepUp(session)")
-    expect(route).toContain("createNotification(report.reportedId, 'rsvp', 'Your account has been suspended'")
+    // The member notice lives in the shared afterBan now (lib/memberDiscipline).
+    expect(route).toContain('await afterBan({')
+    expect(read('lib/memberDiscipline.ts')).toContain("createNotification(userId, 'rsvp', 'Your account has been suspended',")
     expect(read('app/admin/moderation/page.tsx')).toContain("if (!(await confirmToast(`Ban ${who}?")
   })
 })

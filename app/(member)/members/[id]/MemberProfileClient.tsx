@@ -17,6 +17,7 @@ import { SkeletonCard, SkeletonCircle, SkeletonLine } from '@/components/Skeleto
 import MembershipBadge from '@/components/MembershipBadge'
 import ReportButton from '@/components/ReportButton'
 import SharedContextBlock, { suggestedOpeners, type ProfileSharedContext } from './SharedContextBlock'
+import { HOST_TITLE } from '@/lib/hostTitles'
 
 interface ReceivedReference {
   id:        string
@@ -47,7 +48,7 @@ interface UpcomingEvent {
 //   full   — self, an accepted connection, staff or a club host.
 //   member — a public profile, not connected: no Instagram, LinkedIn or work
 //            details.
-//   locked — a connections-only profile, not connected: first name, colour
+//   locked — a connections-only profile, not connected: first name, color
 //            and the connection state, nothing else.
 type ViewLevel = 'full' | 'member' | 'locked'
 
@@ -66,6 +67,8 @@ interface MemberProfile {
   role: string | null
   membershipType?: string | null
   foundingMember?: boolean
+  // Cities this member leads (lib/hostTitles City Lead); [] when none.
+  leadCities?: string[]
   instagram: string | null
   linkedin: string | null
   industry: string | null
@@ -101,7 +104,7 @@ interface MemberProfile {
 const arr = <T,>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : [])
 
 // A locked profile arrives with most fields null or empty, so every list is
-// normalised here once rather than guarded at each render site.
+// normalized here once rather than guarded at each render site.
 function normaliseProfile(d: Record<string, unknown>): MemberProfile {
   const viewLevel: ViewLevel =
     d.viewLevel === 'full' || d.viewLevel === 'member' || d.viewLevel === 'locked'
@@ -114,6 +117,7 @@ function normaliseProfile(d: Record<string, unknown>): MemberProfile {
     languages:      arr<string>(d.languages),
     socialStyles:   arr<string>(d.socialStyles),
     clubs:          arr<HostClub>(d.clubs),
+    leadCities:     arr<string>(d.leadCities),
     upcomingEvents: arr<UpcomingEvent>(d.upcomingEvents),
   }
 }
@@ -486,7 +490,7 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
 
       <div className="max-w-2xl mx-auto px-4 pt-6 space-y-5">
         {/* Locked — a connections-only member the viewer isn't connected
-            to. The API sends a first name, a colour and the connection
+            to. The API sends a first name, a color and the connection
             state and nothing else, so this card is all there is; the
             Connect / Accept row below is the reason the page exists at all
             (it used to 404, which left the receiver of their request with
@@ -534,8 +538,16 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
               {member.foundingMember && (
                 <span className="text-xs font-semibold bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">⭐ Founding</span>
               )}
+              {/* The two host titles (lib/hostTitles): City Lead names the
+                  city, so a lead of one city reads right on every profile;
+                  Host is the club tier. A lead who also hosts shows both. */}
+              {(member.leadCities?.length ?? 0) > 0 && (
+                <span className="text-xs font-semibold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
+                  ★ {HOST_TITLE.lead} · {member.leadCities!.join(' · ')}
+                </span>
+              )}
               {member.clubs.length > 0 && (
-                <span className="text-xs font-semibold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Host</span>
+                <span className="text-xs font-semibold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{HOST_TITLE.host}</span>
               )}
               {!isOwnProfile && isAccepted && (
                 <span className="text-xs font-semibold bg-green-100 text-green-700 px-2 py-0.5 rounded-full flex items-center gap-1">
@@ -698,7 +710,7 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
 
             {/* C — Message — connected, or role-based bypass. Primary
                 amber when it's the main action (connected); secondary
-                grey when it shares the row with Connect (host/staff on a
+                gray when it shares the row with Connect (host/staff on a
                 not-yet-connected profile) so the hierarchy stays clear. */}
             {(isAccepted || canMessageByRole) && (
               <Link href={`/messages/${member.id}`}

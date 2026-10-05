@@ -5,13 +5,13 @@ import { formatDay } from '@/lib/cityTime'
 import { useState, useEffect, useMemo, Suspense } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { toast } from 'sonner'
-import { resolveImageUrl, avatarUrl } from '@/lib/data'
 import { CLUB_FILTER_GROUPS, HEALTH_RANK, type ClubHealthLabel } from '@/lib/clubDiscovery'
-import AvatarImg from '@/components/AvatarImg'
 import { useAuth } from '@/contexts/AuthContext'
+import { resolveImageUrl } from '@/lib/data'
 import { clubHref } from '@/lib/clubLink'
 import ClubCardSkeleton from '@/components/ClubCardSkeleton'
 import AdBannerStrip from '@/components/AdBannerStrip'
+import { fold } from '@/lib/turkishFold'
 
 interface Club {
   id: string
@@ -91,157 +91,94 @@ function ClubCard({ club, membership, toggling, onToggle, href }: {
   toggling: string | null
   onToggle: (club: Club) => void
 }) {
-  const photo     = club.coverImage ? resolveImageUrl(club.coverImage) : null
   const isJoined  = membership?.status === 'approved'
   const isPending = membership?.status === 'pending'
   const isHost    = membership?.role === 'host'
   const isGlobal  = club.isGlobal ?? club.cityId == null
+  const c = club
+
+  // Compact on purpose (2026-09-29): the card was ~300px of cover and a
+  // two-line description that read the same on 107 clubs ("A curated social
+  // club for…"). What a member decides on is what's on and when, so that
+  // leads; the description stays on the club's own page.
+  // A club with something coming up gets its cover as a hero (Nate,
+  // 2026-09-29): those are the clubs worth a look, and all 14 have one.
+  // ?w=800: the file route's preview size — one cover was a 3 MB PNG.
+  const heroSrc = club.nextEvent && club.coverImage ? resolveImageUrl(club.coverImage) : null
+  const hero = heroSrc && heroSrc.startsWith('/app/api/files/') ? `${heroSrc}?w=800` : heroSrc
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden flex flex-col group">
-
-      {/* Cover / Hero — single overlay structure that floats the badges
-          over either the photo or the emoji fallback. The two used to be
-          near-identical branches with ~50 lines of duplicated JSX; now
-          only the background layer switches. */}
-      <Link href={href} className="block">
-        <div className="relative h-36 overflow-hidden">
-          {photo ? (
-            <>
-              <img src={photo} alt={club.name} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
-            </>
-          ) : (
-            <div className={`absolute inset-0 ${club.bgColor} flex items-center justify-center`}>
-              <span className="text-5xl opacity-80 select-none">{club.emoji}</span>
-            </div>
-          )}
-
-          {/* Category + Private — slight bg-tone difference between the
-              two background variants is preserved (more translucent + a
-              backdrop blur on the emoji variant so the chip reads against
-              the saturated bgColor). */}
-          <div className="absolute top-3 left-3 flex items-center gap-1.5">
-            <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${photo ? 'bg-white/90' : 'bg-white/80 backdrop-blur-sm'} ${club.color}`}>
-              {club.category}
-            </span>
-            {club.isPrivate && (
-              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-violet-500 text-white">
-                Private
-              </span>
-            )}
-          </div>
-
-          {/* Global clubs sit in every opted-in city's grid, so without this
-              "Arabic" and "After Work" look like the same kind of thing and
-              a low member count reads as a dead club rather than a club whose
-              people are mostly elsewhere. Bottom-right, clear of the
-              category chip and the Joined/Pending badge. */}
-          {isGlobal && (
-            <div className="absolute bottom-3 right-3">
-              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${photo ? 'bg-white/90 text-gray-700' : 'bg-white/80 backdrop-blur-sm text-gray-700'}`}>
-                🌍 Across Smileys
-              </span>
-            </div>
-          )}
-
-          {(isJoined || isPending) && (
-            <div className="absolute top-3 right-3">
-              {isJoined && (
-                // Solid amber-500 = active commitment, matches the
-                // events page's amber-not-green Going treatment.
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-500 text-white">
-                  {isHost ? 'Host' : '✓ Joined'}
-                </span>
-              )}
-              {isPending && (
-                // Soft amber-100 = in-progress / waiting state, so the
-                // Pending badge differentiates from solid Joined without
-                // breaking the amber palette.
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
-                  Pending
-                </span>
-              )}
-            </div>
-          )}
-        </div>
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-amber-200 transition-all overflow-hidden flex flex-col">
+      {hero && (
+        <Link href={href} tabIndex={-1} aria-hidden="true" className="block relative h-32 overflow-hidden">
+          <img src={hero} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
+        </Link>
+      )}
+    <div className="p-4 flex items-start gap-3">
+      <Link href={href} tabIndex={-1} aria-hidden="true"
+        className={`w-12 h-12 rounded-xl ${club.bgColor} flex items-center justify-center text-2xl shrink-0`}>
+        {club.emoji}
       </Link>
-
-      {/* Info */}
-      <div className="p-4 flex-1 flex flex-col gap-2">
-        <div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5 flex-wrap">
           <Link href={href}>
-            <h3 className="font-bold text-gray-900 text-sm leading-snug hover:text-amber-600 transition-colors">{club.name}</h3>
+            <h3 className="font-bold text-gray-900 text-sm leading-snug hover:text-amber-700 transition-colors">{club.name}</h3>
           </Link>
-          <p className="text-xs text-gray-600 line-clamp-2 mt-1 leading-relaxed">{club.description}</p>
+          {club.isPrivate && (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700">Private</span>
+          )}
+          {/* Global clubs sit in every opted-in city's list, so a low local
+              count reads as a club whose people are mostly elsewhere. */}
+          {isGlobal && (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-700">🌍 Across Smileys</span>
+          )}
+          {isJoined && (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500 text-white">{isHost ? 'Host' : '✓ Joined'}</span>
+          )}
+          {isPending && (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800">Pending</span>
+          )}
         </div>
-
-        {/* Discovery signals (brief §10): faces + honest activity state.
-            Upcoming activity beats a "quiet lately" note; neither fakes
-            anything. */}
-        {(club.upcomingCount ?? 0) > 0 ? (
-          <p className="text-[11px] font-semibold text-green-700"><span aria-hidden="true">📅</span> {club.upcomingCount} upcoming event{club.upcomingCount !== 1 ? 's' : ''}</p>
-        ) : club.health === 'quiet' ? (
-          <p className="text-[11px] text-gray-400">Quiet lately — be the spark</p>
+        <p className="text-xs text-gray-500 mt-0.5">
+          {club.category}{memberLine(club) ? <> · {memberLine(club)}</> : null}
+        </p>
+        {/* What's on: the next event, else what the week held. */}
+        {club.nextEvent ? (
+          <p className="text-xs text-green-800 font-semibold mt-1 truncate">
+            <span aria-hidden="true">📅 </span>{formatDay(club.nextEvent.date)} · {club.nextEvent.title}
+            {(club.upcomingCount ?? 0) > 1 && <span className="font-normal text-gray-500"> · +{(club.upcomingCount ?? 0) - 1} more</span>}
+          </p>
+        ) : (c.activityThisWeek ?? 0) > 0 ? (
+          <p className="text-xs text-gray-600 mt-1">{activitySummary(c)}</p>
         ) : null}
-
-        {/* Footer */}
-        <div className="flex items-center justify-between mt-auto pt-2 border-t border-gray-50">
-          <span className="flex items-center gap-1.5 text-xs text-gray-400">
-            {(club.faces?.length ?? 0) > 0 && (
-              <span className="flex -space-x-1.5">
-                {club.faces!.slice(0, 3).map((f, i) => (
-                  <AvatarImg key={i} src={avatarUrl(f.profilePhoto, 64)} name={f.name} color={f.color}
-                    size="w-5 h-5" textSize="text-[9px]" className="ring-2 ring-white rounded-full" />
-                ))}
-              </span>
-            )}
-            {memberLine(club)}
-          </span>
-          <div className="flex items-center gap-2">
-            {/* Leave is now shown on every tab (was previously gated by a
-                tab-specific showLeave prop). A member who lands on a club
-                they've already joined while browsing Explore can leave
-                without first switching tabs. Hosts never see Leave —
-                they need to transfer hosting before leaving. */}
-            {/* aria-busy tells the SR rotor the button is mid-request;
-                the success/error outcome itself is announced via the
-                sonner toast (Toaster is rendered in app/layout.tsx with
-                its default aria-live region). */}
-            {isJoined && !isHost && (
-              <button
-                onClick={() => onToggle(club)}
-                disabled={toggling === club.id}
-                aria-busy={toggling === club.id}
-                className="text-xs px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors font-medium disabled:opacity-50">
-                {toggling === club.id ? '…' : 'Leave'}
-              </button>
-            )}
-            {isPending && (
-              <button
-                onClick={() => onToggle(club)}
-                disabled={toggling === club.id}
-                aria-busy={toggling === club.id}
-                className="text-xs px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors font-medium disabled:opacity-50">
-                {toggling === club.id ? '…' : 'Cancel'}
-              </button>
-            )}
-            {!isJoined && !isPending && (
-              <button
-                onClick={() => onToggle(club)}
-                disabled={toggling === club.id}
-                aria-busy={toggling === club.id}
-                className="text-xs px-3 py-1.5 rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors font-semibold disabled:opacity-50">
-                {toggling === club.id ? '…' : club.isPrivate ? 'Request' : 'Join'}
-              </button>
-            )}
-            <Link href={href}
-              className="text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:border-amber-300 hover:text-amber-600 transition-colors font-medium">
-              View →
-            </Link>
-          </div>
-        </div>
       </div>
+      <div className="shrink-0">
+        {/* aria-busy tells the SR rotor the button is mid-request; the
+            outcome is announced by the sonner toast. Hosts never see Leave —
+            they transfer hosting first. */}
+        {isJoined && !isHost && (
+          <button onClick={() => onToggle(club)} disabled={toggling === club.id} aria-busy={toggling === club.id}
+            aria-label={`Leave ${club.name}`}
+            className="text-xs px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors font-medium disabled:opacity-50">
+            {toggling === club.id ? '…' : 'Leave'}
+          </button>
+        )}
+        {isPending && (
+          <button onClick={() => onToggle(club)} disabled={toggling === club.id} aria-busy={toggling === club.id}
+            aria-label={`Cancel your request to join ${club.name}`}
+            className="text-xs px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors font-medium disabled:opacity-50">
+            {toggling === club.id ? '…' : 'Cancel'}
+          </button>
+        )}
+        {!isJoined && !isPending && (
+          <button onClick={() => onToggle(club)} disabled={toggling === club.id} aria-busy={toggling === club.id}
+            aria-label={`${club.isPrivate ? 'Request to join' : 'Join'} ${club.name}`}
+            className="text-xs px-3 py-1.5 rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors font-semibold disabled:opacity-50">
+            {toggling === club.id ? '…' : club.isPrivate ? 'Request' : 'Join'}
+          </button>
+        )}
+      </div>
+    </div>
     </div>
   )
 }
@@ -398,48 +335,88 @@ function AppClubsPageInner() {
     [clubs, membershipByClubId]
   )
 
-  const q = search.trim().toLowerCase()
+  // Folded (lib/turkishFold) and word by word: "İstanbul" typed on a Turkish
+  // keyboard lowercases to "i̇stanbul" and matched nothing.
+  const q = fold(search)
+  const qWords = q.split(/\s+/).filter(Boolean)
   const matches = (c: Club) =>
     (activeCategory === 'All' || groupOf(c) === activeCategory) &&
-    (!q || `${c.name} ${c.description} ${c.category}`.toLowerCase().includes(q))
+    (qWords.length === 0 || qWords.every(w => fold(`${c.name} ${c.description} ${c.category}`).includes(w)))
 
   // Health-ranked discovery (brief §36): Active first, New second, Quiet
   // last; ties broken by this-week activity, then size.
-  const exploreClubs = useMemo(
-    () => clubs.filter(matches).sort((a, b) =>
+  // Explore is for clubs you're NOT in: your own are in "Your clubs" at the
+  // top and on the My Clubs tab, and the grid showed them a third time.
+  const mineIds = useMemo(
+    () => new Set([...joinedClubs, ...pendingClubs].map(c => c.id)),
+    [joinedClubs, pendingClubs]
+  )
+  const notMine = useMemo(() => clubs.filter(c => !mineIds.has(c.id)), [clubs, mineIds])
+
+  // A search or a category pill is a request to see everything that matches —
+  // your own clubs included. Leaving them out meant searching for a club you
+  // were in answered "No clubs found".
+  const filtering = !!q || activeCategory !== 'All'
+  const exploreBase = useMemo(
+    () => (filtering ? clubs : notMine).filter(matches).sort((a, b) =>
       (HEALTH_RANK[a.health ?? 'quiet'] - HEALTH_RANK[b.health ?? 'quiet'])
       || ((b.activityThisWeek ?? 0) - (a.activityThisWeek ?? 0))
       || (b.memberCount - a.memberCount)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [clubs, activeCategory, q]
+    [clubs, notMine, filtering, activeCategory, q]
   )
 
+  // Your clubs with an event coming up, soonest first — the top row.
+  const myUpcoming = useMemo(
+    () => joinedClubs.filter(c => c.nextEvent).sort((a, b) => a.nextEvent!.date.localeCompare(b.nextEvent!.date)),
+    [joinedClubs]
+  )
+  // My Clubs tab: planned first (by date), then the rest.
   const myClubs = useMemo(
-    () => [...joinedClubs, ...pendingClubs].filter(matches),
+    () => [...joinedClubs, ...pendingClubs].filter(matches).sort((a, b) =>
+      (a.nextEvent ? 0 : 1) - (b.nextEvent ? 0 : 1)
+      || (a.nextEvent && b.nextEvent ? a.nextEvent.date.localeCompare(b.nextEvent.date) : a.name.localeCompare(b.name))),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [joinedClubs, pendingClubs, activeCategory, q]
   )
 
-  // "Active this week" strip (brief §11) — real activity only, never
-  // membership size. Silent when nothing qualifies.
-  const activeThisWeek = useMemo(
-    () => clubs.filter(c => (c.activityThisWeek ?? 0) > 0)
-      .sort((a, b) => (b.activityThisWeek ?? 0) - (a.activityThisWeek ?? 0))
-      .slice(0, 4),
-    [clubs]
-  )
+  // Explore in four sections (2026-09-29). 14 of Istanbul's 148 clubs had
+  // anything coming up and 107 had never met, so one grid sorted by health
+  // made members scroll ~23 screens of dormant clubs to find the live ones.
+  // Each club lands in the first section it qualifies for.
+  const sections = useMemo(() => {
+    const soon = exploreBase.filter(c => c.nextEvent)
+      .sort((a, b) => a.nextEvent!.date.localeCompare(b.nextEvent!.date))
+    const lately = exploreBase.filter(c => !c.nextEvent && (c.health === 'active' || c.health === 'new'))
+    const taken  = new Set([...soon, ...lately].map(c => c.id))
+    const global = exploreBase.filter(c => !taken.has(c.id) && (c.isGlobal ?? c.cityId == null))
+    const quiet  = exploreBase.filter(c => !taken.has(c.id) && !(c.isGlobal ?? c.cityId == null))
+    return { soon, lately, global, quiet }
+  }, [exploreBase])
 
-  // "Coming up in your clubs" (brief §43) — next events across the
-  // viewer's joined clubs, soonest first.
-  const comingUp = useMemo(
-    () => joinedClubs
-      .filter(c => c.nextEvent)
-      .sort((a, b) => (a.nextEvent!.date).localeCompare(b.nextEvent!.date))
-      .slice(0, 3),
-    [joinedClubs]
+  // The long tails open on request: 32 language/culture clubs and ~105
+  // dormant ones made the page ~10,000px even as compact rows.
+  const [showAllGlobal, setShowAllGlobal] = useState(false)
+  const [showAllQuiet,  setShowAllQuiet]  = useState(false)
+  const GLOBAL_PREVIEW = 6
+  const QUIET_PREVIEW  = 10
+  const renderCard = (club: Club) => (
+    <ClubCard
+      key={club.id}
+      href={clubLinkFor(club.slug)}
+      club={club}
+      membership={membershipByClubId.get(club.id)}
+      toggling={toggling}
+      onToggle={toggleMembership}
+    />
   )
-
-  const displayClubs = tab === 'mine' ? myClubs : exploreClubs
+  // Hosting is for members; a guest applies first (as on /get-involved).
+  const offerHostHref = isLoggedIn
+    ? `/contact?topic=host${viewCity?.slug ? `&city=${viewCity.slug}` : ''}`
+    : `/apply${viewCity?.slug ? `?city=${viewCity.slug}` : ''}`
+  // The count says how many clubs match — the strip's four included — not
+  // how many cards happen to sit in the grid under it.
+  const shownCount   = tab === 'mine' ? myClubs.length : exploreBase.length
 
   return (
     <div className="min-h-screen bg-warm pb-20 md:pb-0">
@@ -495,7 +472,7 @@ function AppClubsPageInner() {
               grid for the SR semantics. */}
           <div role="tablist" aria-label="Filter clubs by membership" className="flex flex-wrap gap-2 mb-4">
             {(isLoggedIn
-              ? [['explore', 'Explore', clubs.length], ['mine', 'My Clubs', joinedClubs.length + pendingClubs.length]] as [Tab, string, number][]
+              ? [['explore', 'Explore', notMine.length], ['mine', 'My Clubs', joinedClubs.length + pendingClubs.length]] as [Tab, string, number][]
               : [['explore', 'Explore', clubs.length]] as [Tab, string, number][]
             ).map(([key, label, count]) => (
               <button
@@ -552,51 +529,30 @@ function AppClubsPageInner() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Your Clubs (brief §5) — members with clubs never rediscover
-            them; the row leads the page on the explore tab. */}
-        {!loading && tab === 'explore' && joinedClubs.length > 0 && (
+        {/* Your clubs — only the ones with something coming up, soonest
+            first. It listed every club a member had joined as a large card,
+            and half of a typical 14 said "Nothing planned yet" above
+            everything else (2026-09-29). The rest are one tap away. */}
+        {/* Hidden while filtering: it ignores the filter, so it sat above the
+            results unchanged and a click on "Travel" looked like it did nothing. */}
+        {!loading && tab === 'explore' && joinedClubs.length > 0 && !filtering && (
           <div className="mb-8">
-            <h2 className="text-xl font-extrabold tracking-tight text-gray-900 mb-3">Your clubs</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              {joinedClubs.map(c => (
-                <Link key={c.id} href={`/clubs/${c.slug}`}
-                  className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:border-amber-200 hover:shadow-md transition-all group">
-                  <div className="flex items-center gap-2.5 mb-2">
-                    <span aria-hidden="true" className="text-2xl shrink-0">{c.emoji}</span>
-                    <p className="font-bold text-gray-900 leading-snug truncate group-hover:text-amber-700 transition-colors">{c.name}</p>
-                  </div>
-                  {c.nextEvent ? (
-                    <p className="text-xs text-gray-600">
-                      <span className="font-semibold text-amber-700">Next:</span> {c.nextEvent.title.slice(0, 40)}
-                      <span className="block text-gray-400 mt-0.5">{formatDay(c.nextEvent.date)}</span>
-                    </p>
-                  ) : (
-                    <p className="text-xs text-gray-400">Nothing planned yet</p>
-                  )}
-                  <span className="inline-block text-xs font-bold text-amber-600 mt-2">Open club →</span>
-                </Link>
-              ))}
+            <div className="flex items-baseline justify-between gap-3 mb-3">
+              <h2 className="text-xl font-extrabold tracking-tight text-gray-900">Coming up in your clubs</h2>
+              <button onClick={() => setTab('mine')} className="text-sm font-semibold text-amber-700 hover:underline shrink-0">
+                All your clubs ({joinedClubs.length + pendingClubs.length}) →
+              </button>
             </div>
-          </div>
-        )}
-
-        {/* Coming up in your clubs (brief §43). */}
-        {!loading && tab === 'explore' && comingUp.length > 0 && (
-          <div className="mb-8 bg-amber-50 border border-amber-100 rounded-2xl p-5">
-            <h2 className="text-sm font-extrabold text-amber-800 uppercase tracking-widest mb-3">Coming up in your clubs</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {comingUp.map(c => (
-                <Link key={c.id} href={`/clubs/${c.slug}`} className="flex items-start gap-3 bg-white rounded-xl border border-amber-100 px-4 py-3 hover:border-amber-300 transition-colors">
-                  <span aria-hidden="true" className="text-xl shrink-0">{c.emoji}</span>
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold text-gray-900 truncate">{c.nextEvent!.title}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      {formatDay(c.nextEvent!.date)} · {c.name}
-                    </p>
-                  </div>
-                </Link>
-              ))}
-            </div>
+            {myUpcoming.length > 0 ? (
+              // Every one of your clubs with something coming up (Nate: "all
+              // clubs with events not just 4"), on the full card so it carries
+              // the cover hero too.
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                {myUpcoming.map(club => renderCard(club))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-600">None of your clubs has anything planned right now.</p>
+            )}
           </div>
         )}
 
@@ -617,25 +573,6 @@ function AppClubsPageInner() {
           </div>
         )}
 
-        {/* Active this week (brief §11) — real activity, not size. */}
-        {!loading && tab === 'explore' && activeCategory === 'All' && !q && activeThisWeek.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-sm font-extrabold text-gray-600 uppercase tracking-widest mb-3"><span aria-hidden="true">🔥</span> Active this week</h2>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              {activeThisWeek.map(c => (
-                <Link key={c.id} href={clubLinkFor(c.slug)}
-                  className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:border-amber-200 hover:shadow-md transition-all group">
-                  <div className="flex items-center gap-2">
-                    <span aria-hidden="true" className="text-xl shrink-0">{c.emoji}</span>
-                    <p className="text-sm font-bold text-gray-900 truncate group-hover:text-amber-700 transition-colors">{c.name}</p>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1.5">{activitySummary(c)}</p>
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
-
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {Array.from({ length: 8 }).map((_, i) => <ClubCardSkeleton key={i} />)}
@@ -649,7 +586,7 @@ function AppClubsPageInner() {
               Try again
             </button>
           </div>
-        ) : displayClubs.length === 0 ? (
+        ) : shownCount === 0 ? (
           <div className="text-center py-20 max-w-xs mx-auto">
             <div className="text-6xl mb-4">🏛️</div>
             <h2 className="text-lg font-bold text-gray-900 mb-2">
@@ -679,23 +616,118 @@ function AppClubsPageInner() {
           <>
             {!loading && (
               <p className="text-sm text-gray-600 mb-5">
-                <strong className="text-gray-900 font-bold">{displayClubs.length}</strong>{' '}
-                club{displayClubs.length !== 1 ? 's' : ''}
+                <strong className="text-gray-900 font-bold">{shownCount}</strong>{' '}
+                club{shownCount !== 1 ? 's' : ''}
                 {activeCategory !== 'All' && ` in ${categoryLabel(activeCategory)}`}
               </p>
             )}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-              {displayClubs.map(club => (
-                <ClubCard
-                  key={club.id}
-                  href={clubLinkFor(club.slug)}
-                  club={club}
-                  membership={membershipByClubId.get(club.id)}
-                  toggling={toggling}
-                  onToggle={toggleMembership}
-                />
-              ))}
-            </div>
+            {tab === 'mine' ? (
+              <div className="space-y-8">
+                {myClubs.some(c => c.nextEvent) && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                    {myClubs.filter(c => c.nextEvent).map(club => renderCard(club))}
+                  </div>
+                )}
+                {myClubs.some(c => !c.nextEvent) && (
+                  <section aria-labelledby="mine-quiet">
+                    <h2 id="mine-quiet" className="text-sm font-bold text-gray-600 uppercase tracking-widest mb-3">Nothing planned right now</h2>
+                    <ul className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-100">
+                      {myClubs.filter(c => !c.nextEvent).map(club => {
+                        const m = membershipByClubId.get(club.id)
+                        return (
+                          <li key={club.id} className="flex items-center gap-3 px-4 py-2.5">
+                            <span aria-hidden="true" className="text-xl shrink-0">{club.emoji}</span>
+                            <Link href={`/clubs/${club.slug}`} className="min-w-0 flex-1 group">
+                              <p className="text-sm font-semibold text-gray-900 truncate group-hover:text-amber-700">{club.name}</p>
+                              <p className="text-xs text-gray-500 truncate">{club.category}{memberLine(club) ? ` · ${memberLine(club)}` : ''}{m?.status === 'pending' ? ' · Request pending' : m?.role === 'host' ? ' · You host' : ''}</p>
+                            </Link>
+                            {m && m.role !== 'host' && (
+                              <button onClick={() => toggleMembership(club)} disabled={toggling === club.id} aria-busy={toggling === club.id}
+                                aria-label={`${m.status === 'pending' ? 'Cancel your request to join' : 'Leave'} ${club.name}`}
+                                className="text-xs px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors font-medium disabled:opacity-50 shrink-0">
+                                {toggling === club.id ? '…' : m.status === 'pending' ? 'Cancel' : 'Leave'}
+                              </button>
+                            )}
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </section>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-10">
+                {sections.soon.length > 0 && (
+                  <section aria-labelledby="clubs-soon">
+                    <h2 id="clubs-soon" className="text-lg font-extrabold text-gray-900 mb-1">Happening soon</h2>
+                    <p className="text-sm text-gray-600 mb-4">Clubs with an event coming up, soonest first.</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                      {sections.soon.map(club => renderCard(club))}
+                    </div>
+                  </section>
+                )}
+                {sections.lately.length > 0 && (
+                  <section aria-labelledby="clubs-lately">
+                    <h2 id="clubs-lately" className="text-lg font-extrabold text-gray-900 mb-1">Active lately</h2>
+                    <p className="text-sm text-gray-600 mb-4">Met, talked or planned something in the last two months — or just started.</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                      {sections.lately.map(club => renderCard(club))}
+                    </div>
+                  </section>
+                )}
+                {sections.global.length > 0 && (
+                  <section aria-labelledby="clubs-global">
+                    <h2 id="clubs-global" className="text-lg font-extrabold text-gray-900 mb-1">Languages &amp; cultures</h2>
+                    <p className="text-sm text-gray-600 mb-4">One community across every Smileys city.</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                      {(showAllGlobal || filtering ? sections.global : sections.global.slice(0, GLOBAL_PREVIEW)).map(club => renderCard(club))}
+                    </div>
+                    {!showAllGlobal && !filtering && sections.global.length > GLOBAL_PREVIEW && (
+                      <button onClick={() => setShowAllGlobal(true)}
+                        className="mt-3 text-sm font-semibold text-amber-700 hover:underline">
+                        Show all {sections.global.length} language &amp; culture clubs
+                      </button>
+                    )}
+                  </section>
+                )}
+                {sections.quiet.length > 0 && (
+                  <section aria-labelledby="clubs-quiet">
+                    <h2 id="clubs-quiet" className="text-lg font-extrabold text-gray-900 mb-1">Looking for a host</h2>
+                    <p className="text-sm text-gray-600 mb-4">
+                      These clubs haven&apos;t met lately. Join one to hear when it does — or{' '}
+                      <Link href={offerHostHref} className="font-semibold text-amber-700 hover:underline">offer to host it</Link>.
+                    </p>
+                    <ul className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-100">
+                      {(showAllQuiet || filtering ? sections.quiet : sections.quiet.slice(0, QUIET_PREVIEW)).map(club => {
+                        const m = membershipByClubId.get(club.id)
+                        return (
+                          <li key={club.id} className="flex items-center gap-3 px-4 py-2.5">
+                            <span aria-hidden="true" className="text-xl shrink-0">{club.emoji}</span>
+                            <Link href={clubLinkFor(club.slug)} className="min-w-0 flex-1 group">
+                              <p className="text-sm font-semibold text-gray-900 truncate group-hover:text-amber-700">{club.name}</p>
+                              <p className="text-xs text-gray-500 truncate">{club.category}{memberLine(club) ? ` · ${memberLine(club)}` : ''}{m?.status === 'pending' ? ' · Request pending' : m ? " · You're in" : ''}</p>
+                            </Link>
+                            {!m && (
+                              <button onClick={() => toggleMembership(club)} disabled={toggling === club.id} aria-busy={toggling === club.id}
+                                aria-label={`${club.isPrivate ? 'Request to join' : 'Join'} ${club.name}`}
+                                className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700 hover:border-amber-300 hover:text-amber-700 transition-colors font-semibold disabled:opacity-50 shrink-0">
+                                {toggling === club.id ? '…' : club.isPrivate ? 'Request' : 'Join'}
+                              </button>
+                            )}
+                          </li>
+                        )
+                      })}
+                    </ul>
+                    {!showAllQuiet && !filtering && sections.quiet.length > QUIET_PREVIEW && (
+                      <button onClick={() => setShowAllQuiet(true)}
+                        className="mt-3 text-sm font-semibold text-amber-700 hover:underline">
+                        Show all {sections.quiet.length} clubs looking for a host
+                      </button>
+                    )}
+                  </section>
+                )}
+              </div>
+            )}
           </>
         )}
       </div>

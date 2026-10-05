@@ -236,7 +236,8 @@ describe('b. one "members" rule: activated, every role except admin and partner'
     expect(wheres).toContainEqual({ ...COMMUNITY_MEMBER_WHERE, cityId: 'c-sd' })
     // Same object, not a look-alike literal.
     const memberWheres = wheres.filter((w: any) => w.status === 'approved' && w.role?.notIn)
-    expect(memberWheres).toHaveLength(3)
+    // 5 since 2026-09-27: the "+N this month" pair joined the headline's rule.
+    expect(memberWheres).toHaveLength(5)
     for (const w of memberWheres) expect(w.role).toBe(MEMBER_ROLE_FILTER)
     expect(wheres.some((w: any) => Array.isArray(w.role?.in))).toBe(false)
     // Computed over the seeded table: 12 activated incl. the host, 18 not.

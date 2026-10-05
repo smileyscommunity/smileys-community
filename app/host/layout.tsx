@@ -141,7 +141,7 @@ export default function HostLayout({ children }: { children: ReactNode }) {
 
   // A full-screen shell, like /admin: the member Navbar, Footer and bottom nav
   // stand aside on these routes (lib/bottomNav isHostPanelRoute), so the panel
-  // owns the whole viewport and scrolls inside <main>. h-dvh, not h-screen —
+  // owns the whole viewport and scrolls inside its content area. h-dvh, not h-screen —
   // on a phone 100vh runs under the browser's toolbar and hid the last rows.
   return (
     <div className="flex h-dvh bg-black overflow-hidden">
@@ -169,9 +169,9 @@ export default function HostLayout({ children }: { children: ReactNode }) {
         </div>
         {/* The installed app runs edge to edge (viewportFit cover): the last
             row — check-in's close-out button — must clear the home indicator. */}
-        <main className="flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom)]">
+        <div className="flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom)]">
           {children}
-        </main>
+        </div>
       </div>
     </div>
   )

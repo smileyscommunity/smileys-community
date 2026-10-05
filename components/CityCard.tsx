@@ -35,14 +35,28 @@ export default function CityCard({
   featured = false,
   viewing = false,
   home = false,
+  switches = false,
+  priority = false,
+  headingLevel = 3,
 }: {
   city: PublicCity
   featured?: boolean
+  // Preload the photo — only where the card is above the fold (/cities with
+  // one live city). On the landing page it sat below the fold as a third
+  // high-priority image.
+  priority?: boolean
+  // The card title's level under whatever heading groups it.
+  headingLevel?: 3 | 4
   // Which card is "yours". The city index is the only city list a member on a
   // phone can reach — the nav's menu is desktop-only — so without these the
   // answer to "which one am I in?" existed nowhere on mobile.
   viewing?: boolean
   home?: boolean
+  // Signed-in viewer: tapping a live city also makes it the viewing city.
+  // On a phone this card IS the city switcher (the bottom nav's Cities tab
+  // opens /cities), and a plain link landed on /bursa while the feeds, the
+  // nav and this page's own "Viewing" badge stayed on the previous city.
+  switches?: boolean
 }) {
   const isLive = city.status === CITY_STATUS.Live
   const meta   = CITY_STATUS_META[city.status]
@@ -51,7 +65,9 @@ export default function CityCard({
   // made one card speak two vocabularies. "Live" is reserved for cities whose
   // community carries itself; the badge follows the same derived maturity the
   // card body already uses.
-  const founding = isLive && city.stats?.maturity === CITY_MATURITY.Seeding
+  // Forming too: a forming city is still filed under "Founding now" on the
+  // landing page, so a "Live" badge there spoke the other vocabulary.
+  const founding = isLive && !!city.stats && city.stats.maturity !== CITY_MATURITY.SelfSustaining
 
   // Falls back rather than blocking: a city created two minutes ago with no
   // marketing copy yet still renders as a real card.
@@ -73,11 +89,11 @@ export default function CityCard({
             // "not live". The badge and the absent statistics carry that signal
             // already.
             className="object-cover"
-            priority={featured}
+            priority={priority}
           />
         ) : (
           // No photo yet — a flat wash with the city initial, not a broken
-          // image or an empty grey box.
+          // image or an empty gray box.
           <div aria-hidden="true" className="absolute inset-0 flex items-center justify-center">
             <span className="text-6xl font-extrabold text-amber-700/30">{city.name.charAt(0)}</span>
           </div>
@@ -105,7 +121,7 @@ export default function CityCard({
 
       <div className="p-5">
         <div className="flex items-baseline gap-2 mb-1">
-          <h3 className={`font-extrabold text-gray-900 ${featured ? 'text-2xl' : 'text-lg'}`}>{city.name}</h3>
+          {(() => { const H = headingLevel === 4 ? 'h4' : 'h3'; return <H className={`font-extrabold text-gray-900 ${featured ? 'text-2xl' : 'text-lg'}`}>{city.name}</H> })()}
           <span className="text-xs text-gray-500 tracking-wide">{countryName(city.country)}</span>
         </div>
 
@@ -167,15 +183,27 @@ export default function CityCard({
   //
   // Plain <a>, not <Link>: this is a server redirect that sets a cookie, and a
   // client-side prefetch of a mutating endpoint is not something to invite.
+  // Live cities link straight to the city page. They went through the
+  // cookie-setting entry route, which robots.txt disallows, so no crawler
+  // could follow a link from the landing page to /ankara or /bursa — and a
+  // guest's one click set a year-long view cookie that re-routed the landing
+  // page's own links. The city page's onward links set the view city for
+  // members when it matters.
+  // A signed-in member's tap is a city switch, so it goes through the
+  // cookie-setting entry route after all — as a plain <a> (see above).
+  // Guests and crawlers never get it: switches is false for them.
+  if (city.status === 'live' && switches) {
+    return <a href={`/app/api/city/enter?city=${city.slug}&to=city`} className="group block h-full">{body}</a>
+  }
   return city.status === 'live'
-    ? <a href={`/app/api/city/enter?city=${city.slug}&to=city`} className="group block h-full">{body}</a>
+    ? <Link href={`/${city.slug}`} className="group block h-full">{body}</Link>
     : (
       // Stretched link, not a wrapping <Link>: the coming-soon card carries a
       // real button (CityNotifyChip), and interactive elements can't nest.
       // The overlay link keeps the whole card clickable; the chip sits above
       // it on z-10.
       <div className="group block h-full relative">
-        <Link href={`/${city.slug}`} aria-label={`About ${city.name}`} className="absolute inset-0 z-0" />
+        <Link href={`/${city.slug}`} className="absolute inset-0 z-0"><span className="sr-only">About {city.name}</span></Link>
         {body}
       </div>
     )

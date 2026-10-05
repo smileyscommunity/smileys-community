@@ -180,7 +180,13 @@ echo "→ Checking for vulnerabilities..."
 # AUDIT_ALLOW stays as the mechanism for a documented, verified-non-applicable
 # advisory. It is empty because nothing currently qualifies; do not add an entry
 # without writing down what was checked and why it does not apply.
-AUDIT_ALLOW=""
+# 2026-10-04 — GHSA-vfj7-8cjw-p6xm (braces, stack-exhaustion DoS on deeply
+# nested glob patterns, published 2026-09-18, no patched release exists: 3.0.3
+# is latest). Checked: braces is reached only via tailwindcss (devDependency ->
+# chokidar/micromatch), a build-time globbing tool that never sees user input,
+# and it is absent from the .next/server bundle. Approved by Nate. Remove this
+# entry once braces ships a fix.
+AUDIT_ALLOW="GHSA-vfj7-8cjw-p6xm"
 npm audit --json --legacy-peer-deps 2>/dev/null | AUDIT_ALLOW="$AUDIT_ALLOW" python3 -c '
 import json, os, sys
 allow = set(os.environ.get("AUDIT_ALLOW", "").split())
@@ -423,8 +429,6 @@ echo "→ Pruning retained chunks from old builds..."
 #
 # Newsletter sweeper — every 5 min.
 #
-# First-RSVP nudge — Wed 12:00 Istanbul = 09:00 UTC.
-#
 # Nightly cleanup of expired AvailabilityPulse rows. Runs at 3 AM Istanbul
 # time (UTC+3 = 00:00 UTC). Without this stale pulses accumulate forever.
 #
@@ -538,9 +542,13 @@ chmod +x $REMOTE/scripts/sweep-newsletters.sh
 (crontab -l 2>/dev/null | grep -v 'sweep-newsletters' ; echo '*/5 * * * * $REMOTE/scripts/sweep-newsletters.sh >> /var/log/sweep-newsletters.log 2>&1') | crontab -
 echo '  ✓ newsletters'
 
-chmod +x $REMOTE/scripts/sweep-first-rsvp-nudge.sh
-(crontab -l 2>/dev/null | grep -v 'sweep-first-rsvp-nudge' ; echo '0 9 * * 3 $REMOTE/scripts/sweep-first-rsvp-nudge.sh >> /var/log/sweep-first-rsvp-nudge.log 2>&1') | crontab -
-echo '  ✓ first-rsvp-nudge'
+# First-RSVP nudge retired 2026-10-05 (holdout read: no effect). Strip its crontab
+# entry so the server stops firing a script that no longer exists.
+crontab -l 2>/dev/null | grep -v 'sweep-first-rsvp-nudge' | crontab -
+echo '  ✓ first-rsvp-nudge stripped'
+chmod +x $REMOTE/scripts/sweep-handbook-sources.sh
+# Handbook source watch (lib/handbookSources): weekly, Monday 04:15 UTC.
+(crontab -l 2>/dev/null | grep -v 'sweep-handbook-sources' ; echo '15 4 * * 1 $REMOTE/scripts/sweep-handbook-sources.sh >> /var/log/sweep-handbook-sources.log 2>&1') | crontab -
 
 chmod +x $REMOTE/scripts/sweep-availability-pulses.sh
 (crontab -l 2>/dev/null | grep -v 'sweep-availability-pulses' ; echo '0 0 * * * $REMOTE/scripts/sweep-availability-pulses.sh >> /var/log/sweep-availability-pulses.log 2>&1') | crontab -

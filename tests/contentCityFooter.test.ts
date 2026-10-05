@@ -6,7 +6,7 @@ import { contentCitySlugPath, cityCandidatesFromUrl } from '@/lib/pathCitySlug'
 // resolved from the row; a feed keeps following the reader.
 
 describe('contentCitySlugPath', () => {
-  it('recognises the pages whose city is a property of the content', () => {
+  it('recognizes the pages whose city is a property of the content', () => {
     expect(contentCitySlugPath('/app/guide/kara-ada-hot-springs')).toEqual({ kind: 'guide', slug: 'kara-ada-hot-springs' })
     expect(contentCitySlugPath('/guide/routes/bosphorus-day')).toEqual({ kind: 'route', slug: 'bosphorus-day' })
     expect(contentCitySlugPath('/app/neighborhoods/gumusluk')).toEqual({ kind: 'neighborhood', slug: 'gumusluk' })

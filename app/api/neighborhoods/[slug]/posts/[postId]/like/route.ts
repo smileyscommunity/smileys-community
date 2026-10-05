@@ -4,6 +4,8 @@ import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
 import { REACTION_EMOJIS } from '@/lib/posts'
 import { postMatchesSlug } from '@/lib/neighborhoodsDb'
+import { isBlockedEitherWay } from '@/lib/memberPrivacy'
+import { resolvePostingCityId } from '@/lib/cityMembership'
 
 type Params = { params: Promise<{ slug: string; postId: string }> }
 
@@ -24,8 +26,14 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   // IDOR fix: scope the post by the slug in the URL. The column holds the
   // display name, the URL the slug — compare like with like.
-  const post = await prisma.neighborhoodPost.findUnique({ where: { id: postId }, select: { neighborhood: true, cityId: true } })
+  const post = await prisma.neighborhoodPost.findUnique({ where: { id: postId }, select: { neighborhood: true, cityId: true, userId: true } })
   if (!post || !await postMatchesSlug(post, slug)) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  // Same gates as posting and replying: your own city's wall, never a
+  // blocked pair's post.
+  if (post.cityId !== await resolvePostingCityId(session)) {
+    return NextResponse.json({ error: 'You can react on your own city\'s neighborhood walls — join this city first' }, { status: 403 })
+  }
+  if (await isBlockedEitherWay(session.id, post.userId)) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const existing = await prisma.neighborhoodPostLike.findUnique({
     where: { postId_userId: { postId, userId: session.id } },

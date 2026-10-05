@@ -6,7 +6,7 @@ import { eventStartDate } from '@/lib/eventJsonLd'
 // Every Smileys city was in Türkiye, which has not observed daylight saving
 // since 2016, so no code path had ever met an offset that moves. The first
 // non-Turkish city — Athens, Sofia, New York — brings one. These pin the
-// behaviour of lib/cityTime on zones where the clock jumps, on both sides
+// behavior of lib/cityTime on zones where the clock jumps, on both sides
 // of the jump, so the helpers are trusted for what they now have to do
 // rather than for what they happened to do at +03:00.
 
@@ -69,7 +69,7 @@ describe('callers that used to hand-write +03:00', () => {
     expect(periodStartDate('2026-Q2', ATHENS).toISOString()).toBe('2026-03-31T21:00:00.000Z')
     // Q1 is winter in Athens: midnight is 22:00Z.
     expect(periodStartDate('2026-Q1', ATHENS).toISOString()).toBe('2025-12-31T22:00:00.000Z')
-    // Default stays the founding city — the cron's behaviour is unchanged.
+    // Default stays the founding city — the cron's behavior is unchanged.
     expect(periodStartDate('2026-Q2').toISOString()).toBe('2026-03-31T21:00:00.000Z')
   })
   it('JSON-LD startDate carries the city offset for the date, not a fixed one', () => {

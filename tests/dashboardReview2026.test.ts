@@ -4,16 +4,16 @@ import { join } from 'path'
 
 // The member dashboard review (2026-09-19). The page showed galleries to
 // people who couldn't open them, sent private clubs' invite links to the
-// browser, listed connections-only and neighbourhood-hidden members to
+// browser, listed connections-only and neighborhood-hidden members to
 // strangers, and pointed "Next event" at pages that 404'd. These pin the fixes.
 
 const page = readFileSync(join(__dirname, '..', 'app/(member)/dashboard/page.tsx'), 'utf8')
 
 describe('privacy', () => {
-  // Widened 2026-09-24 to public clubs' photos, so members discover clubs
-  // they haven't joined. What must hold: private clubs stay out, and a photo
-  // from somewhere the viewer wasn't is credited to the event, not the
-  // uploader (an uploader is an attendee, so naming them is a roster).
+  // Widened 2026-09-24 to public clubs' photos. On 2026-09-29 Nate opened
+  // public clubs' galleries to the city, which is what makes this honest:
+  // private clubs stay out, and a photo from somewhere the viewer wasn't is
+  // credited to the event, not the uploader.
   it('photos come from galleries the viewer can open, and public clubs', () => {
     expect(page).toContain("{ event: { club: { isActive: true, isPrivate: false } } },")
     expect(page).toContain("OR: [{ clubId: { in: clubIds } }, { userId: session.id }, { club: { isPrivate: false } }],")
@@ -26,14 +26,15 @@ describe('privacy', () => {
   })
 
   it('the club lineup sends only the tile\'s fields to the browser', () => {
-    expect(page).toContain("})).map(c => ({ id: c.id, slug: c.slug, name: c.name, emoji: c.emoji, bgColor: c.bgColor, category: c.category, memberCount: c.memberCount }))")
+    expect(page).toContain("(await lineupP).map(c => ({ id: c.id, slug: c.slug, name: c.name, emoji: c.emoji, bgColor: c.bgColor, category: c.category, memberCount: c.memberCount }))")
   })
 
-  it('people listed are live, public or connected, and chose to be listed by neighbourhood', () => {
+  it('people listed are live, public or connected, and chose to be listed by neighborhood', () => {
     // Activated community members only (2026-09-26): never-activated accounts and admin/partner logins were listed.
     expect(page).toContain("const LISTABLE = { ...LIVE, ...COMMUNITY_MEMBER_WHERE, OR: [{ profileVisibility: { not: 'connections' } }, { id: { in: connectedIds } }] }")
-    expect(page).toContain("conditions.push({ neighborhood: userProfile.neighborhood, neighborhoodVisible: true })")
-    expect(page).toContain("where: { neighborhood: userProfile.neighborhood, neighborhoodVisible: true, cityId, id: { notIn: notMeOrBlocked }, AND: [LISTABLE] }")
+    // myHood: the home neighborhood, only on the home city's dashboard.
+    expect(page).toContain("conditions.push({ neighborhood: myHood, neighborhoodVisible: true })")
+    expect(page).toContain("where: { neighborhood: myHood, neighborhoodVisible: true, cityId, id: { notIn: notMeOrBlocked }, AND: [LISTABLE] }")
     // Suggestions skip people already connected.
     expect(page).toContain("id: { notIn: [...notMeOrBlocked, ...connectedIds] }")
   })
@@ -52,11 +53,14 @@ describe('privacy', () => {
 describe('what the page says', () => {
   it('"Next event" and the upcoming count are published events that haven\'t ended', () => {
     expect(page).toContain("event: { date: { gte: today }, status: 'published', cancelledAt: null }")
-    expect(page).toContain('upcomingRaw.filter(a => eventEndsAt(a.event, tz).getTime() > Date.now())')
+    // Each RSVP ends on its own city's clock.
+    expect(page).toContain('upcomingRaw.filter(a => eventEndsAt(a.event, a.event.city?.timezone ?? tz).getTime() > Date.now())')
   })
 
   it('pending requests are for events still to come', () => {
+    // Fetched from today, then shown by the shelves' own end rule (notEnded).
     expect(page).toContain("where: { userId: session.id, status: 'pending', event: { date: { gte: today }, status: 'published', cancelledAt: null } }")
+    expect(page).toContain('const waitlistedShown = waitlisted.filter(w => notEnded(w.event))')
   })
 
   it('no streak or profile-view tiles; counts are events actually gone to', () => {
@@ -90,13 +94,19 @@ describe('discovery shelves offer only what a member can still join', () => {
 
   it('browse surfaces keep full events but not finished ones', () => {
     expect(page).toContain('const thisWeekShown = thisWeekEvents.filter(notEnded)')
-    expect(page).toContain('events={clubEventsShown} rsvps=')
+    expect(page).toContain('events={clubEventsShown.map(')
   })
 
-  it('the timeline carries nothing that has its own section (2026-09-26)', () => {
+  // Reversed 2026-10-02 (Nate: "anything new should be on the dashboard"):
+  // one "What's new" feed carries every new thing, the members rail box went
+  // into it, and free-now pulses stay out because the live strip pins them.
+  it('the timeline carries everything new; only pulses stay out', () => {
     const tl = page.slice(page.indexOf('<ClubActivityTimeline'), page.indexOf('/>', page.indexOf('<ClubActivityTimeline')))
-    for (const prop of ['photos=', 'pulses=', 'visitors=', 'newMembers=', 'listings=']) expect(tl).not.toContain(prop)
+    for (const prop of ['photos=', 'visitors=', 'newMembers=', 'listings=']) expect(tl).toContain(prop)
+    expect(tl).not.toContain('pulses=')
     expect(tl).toContain('articles={timelineArticles}')
+    expect(tl).toContain('cap={20}')
+    expect(page).not.toContain('New this week<span aria-hidden="true"> 🌱</span>')
   })
 
   it('the rail no longer repeats the Featured shelf or the Marketplace block', () => {
@@ -110,7 +120,7 @@ describe('discovery shelves offer only what a member can still join', () => {
   })
 
   it('new members are activated community members', () => {
-    expect(page).toContain("where: { ...COMMUNITY_MEMBER_WHERE, cityId, hiddenFromMembers: false, profileVisibility: { not: 'connections' }, joinedAt: { gte: weekAgo }")
+    expect(page).toContain("where: { status: 'approved', role: MEMBER_ROLE_FILTER, cityId, hiddenFromMembers: false, profileVisibility: { not: 'connections' }, joinedAt: { gte: weekAgo }")
   })
 
   it('listings past their expiry are not shown', () => {

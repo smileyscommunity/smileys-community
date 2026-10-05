@@ -1,6 +1,7 @@
 'use client'
 
 import { useEditor, EditorContent } from '@tiptap/react'
+import { normalizeLinkHref } from '@/lib/editorLinks'
 import { richTextExtensions } from './richTextExtensions'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -177,7 +178,7 @@ export default function RichTextEditor({ value, onChange, placeholder, className
                 else editor.chain().focus().unsetColor().run()
               }}
               title={c.label}
-              aria-label={c.value ? `Text colour: ${c.label}` : 'Default text colour'}
+              aria-label={c.value ? `Text color: ${c.label}` : 'Default text color'}
               aria-pressed={c.value ? editor.isActive('textStyle', { color: c.value }) : undefined}
               className="w-4 h-4 rounded-full border border-zinc-600 transition-transform hover:scale-125 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
               style={{ backgroundColor: c.value || '#e4e4e7' }}
@@ -203,7 +204,7 @@ export default function RichTextEditor({ value, onChange, placeholder, className
                 e.preventDefault()
                 const url = linkUrl.trim()
                 if (!url) editor.chain().focus().unsetLink().run()
-                else editor.chain().focus().extendMarkRange('link').setLink({ href: /^https?:\/\//i.test(url) ? url : `https://${url}` }).run()
+                else editor.chain().focus().extendMarkRange('link').setLink({ href: normalizeLinkHref(url) }).run()
                 setLinkOpen(false)
               }
               if (e.key === 'Escape') setLinkOpen(false)
@@ -218,7 +219,7 @@ export default function RichTextEditor({ value, onChange, placeholder, className
             onClick={() => {
               const url = linkUrl.trim()
               if (!url) editor.chain().focus().unsetLink().run()
-              else editor.chain().focus().extendMarkRange('link').setLink({ href: /^https?:\/\//i.test(url) ? url : `https://${url}` }).run()
+              else editor.chain().focus().extendMarkRange('link').setLink({ href: normalizeLinkHref(url) }).run()
               setLinkOpen(false)
             }}
             className="text-xs font-semibold text-amber-400 hover:text-amber-300 px-2 py-1 shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 rounded">

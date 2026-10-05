@@ -22,6 +22,7 @@ import { clampOccurrences, seriesOutcomeMessage, MIN_SERIES_COPIES, MAX_SERIES_C
 import { clubOptionLabel } from '@/lib/clubLabel'
 import VenuePicker, { type LinkedVenue, type PickedVenue } from '@/components/VenuePicker'
 import { seriesDates } from '@/lib/seriesDates'
+import { useAdminCities } from '@/components/admin/CitySelect'
 const inputCls = 'bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none px-3 py-2.5 w-full text-sm'
 
 const emptyForm = {
@@ -32,7 +33,7 @@ const emptyForm = {
   isPremium: false, membersOnly: false, limitedSpots: true, isFirstTimerFriendly: false, isRecurring: false,
   approvalRequired: false,
   genderBalance: false, maleQuota: '', femaleQuota: '', turkishMaleQuota: '',
-  coverImage: '', coverImagePosition: 50, meetingUrl: '', whatsappUrl: '',
+  coverImage: '', coverImagePosition: 50, flyerImage: '', meetingUrl: '', whatsappUrl: '',
   minAge: '', maxAge: '',
   language: '', refundPolicy: '', registrationDeadline: '',
   endTime: '', lat: '', lng: '',
@@ -57,6 +58,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
   // clubs and global ones: the PUT route refuses a move under another city's
   // club (it would re-file the event under people who already joined).
   const [eventCityId,   setEventCityId]   = useState('')
+  const [eventOriginCityId, setEventOriginCityId] = useState('')
   // The directory listing the venue is linked to (components/VenuePicker).
   const [venue,         setVenue]         = useState<LinkedVenue | null>(null)
   const [hostSearch,    setHostSearch]    = useState('')
@@ -160,6 +162,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
           isRecurring:  event.isRecurring  ?? false,
           coverImage:         event.coverImage         ?? '',
           coverImagePosition: event.coverImagePosition ?? 50,
+          flyerImage:         event.flyerImage         ?? '',
           meetingUrl:         event.meetingUrl         ?? '',
           whatsappUrl:  event.whatsappUrl  ?? '',
           minAge:       event.minAge != null   ? String(event.minAge)   : '',
@@ -176,6 +179,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
         })
         setLoadedStatus(event.status ?? 'published')
         if (typeof event.cityId === 'string') setEventCityId(event.cityId)
+        if (typeof event.originCityId === 'string') setEventOriginCityId(event.originCityId)
         if (event.venue?.id) setVenue(event.venue)
         if (Array.isArray(event.tags) && event.tags.length) setSelectedTagIds(event.tags)
         if (event.seriesId) setSeriesId(event.seriesId)
@@ -185,10 +189,13 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
     })
   }, [id])
 
-  // Neighborhoods follow the event's city (its parent club's), not the
-  // viewer's — so a Bodrum event offers Bodrum areas. Falls back to the
-  // viewer's own city until a club is chosen.
-  const selectedClubCity = clubs.find(c => c.id === form.clubId)?.city?.slug
+  // Neighborhoods follow the event's city, not the viewer's — so a Bodrum
+  // event offers Bodrum areas. That is the city the event is FILED in, which
+  // for a cross-city trip (lib/eventTrip) is the destination, not the club's
+  // city; until the event loads, the club's city; then the viewer's own.
+  const adminCities = useAdminCities()
+  const selectedClubCity = adminCities.find(c => c.id === eventCityId)?.slug
+    ?? clubs.find(c => c.id === form.clubId)?.city?.slug
   const neighborhoods = useCityNeighborhoods(selectedClubCity)
   // Location lookup searches the same city's country (it used to search one
   // country for every city); the route falls back to the viewer's city.
@@ -320,6 +327,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
       turkishMaleQuota: form.genderBalance && form.turkishMaleQuota ? parseInt(form.turkishMaleQuota) : null,
       coverImage:         form.coverImage   || null,
       coverImagePosition: form.coverImagePosition,
+      flyerImage:         form.flyerImage   || null,
       meetingUrl:         form.meetingUrl   || null,
       whatsappUrl:  form.whatsappUrl  || null,
       address:      form.address      || null,
@@ -678,6 +686,12 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
           <div className="col-span-full">
             <ImageUpload value={form.coverImage} onChange={url => set('coverImage', url)} folder="events"
               position={form.coverImagePosition} onPositionChange={pos => set('coverImagePosition', pos)} />
+            {/* The flyer — shown whole on the event page. The cover above is
+                cropped to a banner everywhere, so a poster doesn't belong there. */}
+            <div className="mt-4">
+              <ImageUpload value={form.flyerImage} onChange={url => set('flyerImage', url)} folder="events"
+                label="Flyer (optional) — shown uncropped on the event page" />
+            </div>
           </div>
         </div>
       </section>
@@ -715,7 +729,8 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
             <VenuePicker
               value={form.location} onText={v => set('location', v)}
               venue={venue} onVenue={pickVenue}
-              cityParam={eventCityId ? `cityId=${encodeURIComponent(eventCityId)}` : ''}
+              // A trip may meet in either of its cities.
+              cityParam={(eventCityId ? `cityId=${encodeURIComponent(eventCityId)}` : '') + (eventOriginCityId ? `&cityId=${encodeURIComponent(eventOriginCityId)}` : '')}
               className={inputCls}
             />
           </div>

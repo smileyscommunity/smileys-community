@@ -2,6 +2,33 @@
 // lib/neighborhoodsDb.ts — importing prisma here breaks the client bundle
 // (EventCard and BottomNav both import this module). See that file's header.
 
+/** Great-circle distance in km between two points (haversine). */
+export function distanceKm(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
+  const toRad = (d: number) => (d * Math.PI) / 180
+  const dLat = toRad(b.lat - a.lat)
+  const dLon = toRad(b.lon - a.lon)
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon / 2) ** 2
+  return 2 * 6371 * Math.asin(Math.sqrt(h))
+}
+
+/**
+ * The `take` nearest neighborhoods to `from`, by real distance when both
+ * sides have coordinates; siblings without coordinates never rank. Used for
+ * "It's close to X and Y" on the neighborhood page — which was the first
+ * two same-area rows by registry sort order, so Florya (western coast) read
+ * as close to Beykoz and Sarıyer, 30 km away across the Bosphorus.
+ */
+export function nearestByDistance<T extends { name: string; lat: number | null; lon: number | null }>(from: T, siblings: T[], take: number): T[] {
+  if (from.lat == null || from.lon == null) return []
+  const here = { lat: from.lat, lon: from.lon }
+  return siblings
+    .filter(n => n.name !== from.name && n.lat != null && n.lon != null)
+    .map(n => ({ n, d: distanceKm(here, { lat: n.lat as number, lon: n.lon as number }) }))
+    .sort((a, b) => a.d - b.d)
+    .slice(0, take)
+    .map(x => x.n)
+}
+
 export function neighborhoodToSlug(name: string): string {
   return name
     .toLowerCase()
@@ -53,7 +80,7 @@ export interface NeighborhoodMeta {
   // read it as `LOOKUP[side] ?? fallback`, never as an exhaustive Record.
   side:  NeighborhoodSide | (string & {})
   cost:  number
-  // Null when nobody has given this neighbourhood coordinates yet. 0 is a
+  // Null when nobody has given this neighborhood coordinates yet. 0 is a
   // real place (the Gulf of Guinea) and the map went there.
   lat:   number | null
   lon:   number | null
@@ -98,7 +125,7 @@ export const NEIGHBORHOOD_META: Record<string, NeighborhoodMeta> = {
   'Teşvikiye':      { emoji: '🌹', vibe: 'Quiet luxury & boutiques',        side: 'Central',  cost: 3, lat: 41.0508, lon: 28.9986 },
   'Taksim':         { emoji: '🎶', vibe: 'Central & buzzing',               side: 'Central',  cost: 2, lat: 41.0369, lon: 28.9850 },
   'Ortaköy':        { emoji: '🕌', vibe: 'Iconic & scenic',                 side: 'Central',  cost: 2, lat: 41.0479, lon: 29.0280 },
-  'Balat':          { emoji: '🌈', vibe: 'Colourful & artsy',               side: 'Central',  cost: 1, lat: 41.0265, lon: 28.9470 },
+  'Balat':          { emoji: '🌈', vibe: 'Colorful & artsy',               side: 'Central',  cost: 1, lat: 41.0265, lon: 28.9470 },
 
   // ── European Side ─────────────────────────────────────────────────────────
   'Şişli':          { emoji: '🏙️', vibe: 'Business & fashion',              side: 'European', cost: 2, lat: 41.0604, lon: 28.9873 },
@@ -157,7 +184,7 @@ export const NEIGHBORHOOD_META: Record<string, NeighborhoodMeta> = {
   // ── Islands ───────────────────────────────────────────────────────────────
   'Büyükada':       { emoji: '🚲', vibe: 'Car-free & grand',                 side: 'Islands',  cost: 2, lat: 40.8762, lon: 29.1262 },
   'Heybeliada':     { emoji: '🌲', vibe: 'Forested & serene',                side: 'Islands',  cost: 2, lat: 40.8793, lon: 29.0862 },
-  'Burgazada':      { emoji: '⛵', vibe: 'Cosy island life',                  side: 'Islands',  cost: 2, lat: 40.8783, lon: 29.0573 },
+  'Burgazada':      { emoji: '⛵', vibe: 'Cozy island life',                  side: 'Islands',  cost: 2, lat: 40.8783, lon: 29.0573 },
   'Kınalıada':      { emoji: '🐑', vibe: 'Smallest & peaceful',              side: 'Islands',  cost: 1, lat: 40.9030, lon: 29.0374 },
 
   // ── Emerging Areas ────────────────────────────────────────────────────────

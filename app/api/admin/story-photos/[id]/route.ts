@@ -4,6 +4,7 @@ import { getSession } from '@/lib/session'
 import { isAdmin } from '@/lib/access'
 import { isUploadedImageUrl } from '@/lib/uploadedImageUrl'
 import { writeAudit } from '@/lib/audit'
+import { bustCityPages } from '@/lib/cityPageCache'
 
 // Admin only, like creating one (../route.ts): the /why page is every city's.
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -38,6 +39,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const item = await prisma.storyPhoto.update({ where: { id }, data })
   writeAudit(session.id, session.name, 'story_photo.update', id, 'story_photo', data, `Edited a story photo (${item.url})`)
+  bustCityPages()
   return NextResponse.json(item)
 }
 
@@ -54,5 +56,6 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     snapshot as Record<string, unknown>,
     `Deleted story photo (${snapshot.url ?? id})`,
   )
+  bustCityPages()
   return NextResponse.json({ ok: true })
 }

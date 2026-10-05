@@ -3,8 +3,8 @@ import { prisma } from '@/lib/prisma'
 // ── Who can read what on the community board ────────────────────────────────
 //
 // One read gate for every surface that lists board posts — the feed, the deep
-// link, the replies, the neighbourhood pages, club health. Each used to carry
-// its own copy; the neighbourhood pages' copy had none of the author or
+// link, the replies, the neighborhood pages, club health. Each used to carry
+// its own copy; the neighborhood pages' copy had none of the author or
 // private-club conditions, so a private club's post showed on a public page.
 // Server only (lib/board.ts is the client-safe half).
 

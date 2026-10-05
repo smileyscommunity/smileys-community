@@ -143,10 +143,6 @@ export default function Sidebar({ open, onClose }: Props) {
       const [key, val] = hrefQuery.split('=')
       return params.get(key) === val
     }
-    // Legacy /admin/engagement → /admin/announcements redirect still
-    // works via the rewrite; skip it here so the sidebar doesn't
-    // double-highlight on the destination route.
-    if (hrefPath === '/admin/engagement')    return false  // legacy redirect
     return true
   }
 

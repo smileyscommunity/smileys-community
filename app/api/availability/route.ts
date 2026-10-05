@@ -187,7 +187,7 @@ export async function POST(req: NextRequest) {
         // A connections-only member is a first name to everyone they aren't
         // connected to — their profile, the directory and the visitor board
         // all hold that line. This pushed their full name to every
-        // unconnected person living in the neighbourhood.
+        // unconnected person living in the neighborhood.
         const me = await prisma.user.findUnique({
           where: { id: session.id }, select: { profileVisibility: true },
         })

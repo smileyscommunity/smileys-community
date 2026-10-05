@@ -11,7 +11,7 @@
 // An application is relinked only on strong evidence. Its email must match no
 // user row at all (any status), it must be approved and not a scrubbed
 // tombstone, and then one of:
-//   · name+phone — its fullName AND its phone, both normalised, match the SAME
+//   · name+phone — its fullName AND its phone, both normalized, match the SAME
 //     single live account (not banned, not self-deleted) that has no linked
 //     application yet;
 //   · phone+approval-timing — its phone matches exactly ONE live account, that
@@ -98,9 +98,9 @@ export function normName(s: string | null | undefined): string {
     .trim()
 }
 
-/** "first last" of a normalised name with at least two tokens, else null. */
-export function firstLastKey(normalised: string): string | null {
-  const t = normalised.split(' ').filter(Boolean)
+/** "first last" of a normalized name with at least two tokens, else null. */
+export function firstLastKey(normalized: string): string | null {
+  const t = normalized.split(' ').filter(Boolean)
   return t.length >= 2 ? `${t[0]} ${t[t.length - 1]}` : null
 }
 

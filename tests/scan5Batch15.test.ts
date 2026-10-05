@@ -9,7 +9,7 @@ import { readFileSync } from 'fs'
 //      device's subscription while the cookie still authorizes it, and the
 //      prompt's once-a-day re-sync is stamped per member.
 // 60 — "Visitor coming to <neighborhood>" skipped the block list that every
-//      other neighborhood fan-out honours, in both directions.
+//      other neighborhood fan-out honors, in both directions.
 
 const read = (p: string) => readFileSync(p, 'utf-8')
 
@@ -82,7 +82,7 @@ describe('55b logout removes this device\'s push subscription first', () => {
   it('forgets the device before the logout request drops the cookie', () => {
     // Everything this device kept for the member is dropped between the two
     // — the door roster, a queued tap, the card code — but the push
-    // subscription still goes first, while the cookie can still authorise it.
+    // subscription still goes first, while the cookie can still authorize it.
     expect(ctx).toMatch(/async function logout\(\) \{[\s\S]*?await forgetPushDevice\(\)[\s\S]*?await fetch\('\/app\/api\/auth\/logout'/)
     const logoutBody = ctx.slice(ctx.indexOf('async function logout()'), ctx.indexOf("await fetch('/app/api/auth/logout'"))
     expect(logoutBody.indexOf('forgetPushDevice()')).toBeLessThan(logoutBody.indexOf('clearCachedRosters()'))

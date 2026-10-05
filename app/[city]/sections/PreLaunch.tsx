@@ -9,7 +9,7 @@ import type { PublicCity } from '../data'
 // A city that isn't live has no events, clubs or members to show. Rather
 // than render a page full of empty sections, it gets a holding page — the
 // same rule the city cards follow.
-export default function PreLaunch({ city }: { city: PublicCity }) {
+export default function PreLaunch({ city, signedIn }: { city: PublicCity; signedIn: boolean }) {
   return (
     <section className="max-w-3xl mx-auto px-4 sm:px-6 py-16 text-center">
       <CityPageTracker slug={city.slug} status={city.status} />
@@ -38,12 +38,19 @@ export default function PreLaunch({ city }: { city: PublicCity }) {
         Smileys is coming to <span className="text-amber-600">{city.name}.</span>
       </h1>
       <p className="text-lg text-gray-600 leading-relaxed mb-10">
-        {city.description ?? `We're building the ${city.name} community now — founding members, hosts and the first clubs. Join the list and you'll be among the first in.`}
+        {city.description ?? `We're building the ${city.name} community now — founding members, hosts and the first clubs. Apply now and you'll be among the first in.`}
       </p>
       <div className="flex flex-col sm:flex-row gap-4 justify-center">
-        <JoinCityButton slug={city.slug} name={city.name} live={false} />
+        <JoinCityButton slug={city.slug} name={city.name} live={false} guest={!signedIn} />
         <Link href="/cities" className="btn-secondary text-base px-8 py-4">See our live cities</Link>
       </div>
+      {/* What the guest button is, said plainly: there is no guest mailing
+          list, so the link is the membership application. */}
+      {!signedIn && (
+        <p className="text-sm text-gray-500 mt-4">
+          Smileys is membership-based: a short application, reviewed by hand.
+        </p>
+      )}
     </section>
   )
 }

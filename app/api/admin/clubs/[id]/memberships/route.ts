@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client'
 import { canManageClubs } from '@/lib/access'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
@@ -34,6 +35,13 @@ import { writeAudit } from '@/lib/audit'
 //
 // /recount is the recovery hatch when historical drift sneaks
 // through (see app/api/admin/clubs/[id]/recount/route.ts).
+//
+// The ops arrays are typed PrismaPromise, not Promise: array-form
+// $transaction only accepts Prisma calls and throws at runtime on
+// anything else. They used to be cast `as never`, which hid a
+// claimOnce() (a plain async helper) in the reject path — every
+// admin rejection 500'd with "All elements of the array need to be
+// Prisma Client promises", after the cooldown claim had already run.
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -68,7 +76,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     // transaction so the count change can't outlive a failed
     // membership insert.
     const delta = countDelta(null, 'approved')
-    const ops: Promise<unknown>[] = [
+    const ops: Prisma.PrismaPromise<unknown>[] = [
       prisma.clubMembership.create({
         data: { userId, clubId: id, role, status: 'approved' },
         include: { user: { select: { id: true, name: true, email: true, color: true, role: true } } },
@@ -77,7 +85,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (delta !== 0) {
       ops.push(prisma.club.update({ where: { id }, data: { memberCount: { increment: delta } } }))
     }
-    const [membership] = await prisma.$transaction(ops as never) as [{ user: { name: string } }]
+    const [membership] = await prisma.$transaction(ops) as [{ user: { name: string } }]
 
     // Audit — fire-and-forget so a transient audit-write failure
     // never rolls back the membership. Same pattern as the rest of
@@ -144,7 +152,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     })
     if (!prior) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-    // Rejection deletes the row outright — the prior behaviour was
+    // Rejection deletes the row outright — the prior behavior was
     // to keep a status='rejected' row in DB, which silently jammed
     // re-adds (P2002 on the unique constraint) and stranded the row
     // in a state the admin UI couldn't reach. The audit log
@@ -154,11 +162,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const nextStatus = isReject ? null : (status ?? prior.status)
     const delta     = countDelta(prior.status, nextStatus)
 
-    const ops: Promise<unknown>[] = []
+    const ops: Prisma.PrismaPromise<unknown>[] = []
     if (isReject) {
       ops.push(prisma.clubMembership.delete({ where: { userId_clubId: { userId, clubId: id } } }))
-      // A week before the same person can ask again (see the host route).
-      ops.push(claimOnce(`club-rejected:${userId}:${id}`, 7 * 24 * 60 * 60_000))
     } else {
       const data: Record<string, string> = {}
       if (status) data.status = status
@@ -171,7 +177,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // Declared here rather than above the branches so it can be const:
     // the first op's result is this endpoint's response body (see the
     // NextResponse.json(membership) below).
-    const membership = (await prisma.$transaction(ops as never) as unknown[])[0]
+    const membership = (await prisma.$transaction(ops))[0]
+
+    // A week before the same person can ask again (see the host route).
+    // Claimed only once the row is gone, as the host route does: a
+    // claim taken for a rejection that rolled back would block a
+    // member who is still in the club from re-asking later.
+    if (isReject) await claimOnce(`club-rejected:${userId}:${id}`, 7 * 24 * 60 * 60_000)
 
     // Notifications + audit are fire-and-forget (no rollback needed
     // if they fail). The club + user lookups run out of the
@@ -235,13 +247,13 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     if (!prior) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
     const delta = countDelta(prior.status, null)
-    const ops: Promise<unknown>[] = [
+    const ops: Prisma.PrismaPromise<unknown>[] = [
       prisma.clubMembership.delete({ where: { userId_clubId: { userId, clubId: id } } }),
     ]
     if (delta !== 0) {
       ops.push(prisma.club.update({ where: { id }, data: { memberCount: { increment: delta } } }))
     }
-    await prisma.$transaction(ops as never)
+    await prisma.$transaction(ops)
 
     // Audit — out-of-transaction lookups for name resolution.
     const [club, user] = await Promise.all([

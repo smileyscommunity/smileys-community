@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import CitySelect, { CityBadge, useAdminCities } from '@/components/admin/CitySelect'
 import { confirmToast } from '@/lib/confirmToast'
+import { useAuth } from '@/contexts/AuthContext'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { resolveImageUrl } from '@/lib/data'
@@ -45,6 +46,9 @@ const FIELDS = [
 const inputCls = 'w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2 text-white text-sm focus:outline-none focus:border-amber-500'
 
 export default function AdminPartnersPage() {
+  // Delete is admin-only on the server; moderators got a button that always 403'd.
+  const { user: me } = useAuth()
+  const isAdminUser = me?.role === 'admin'
   // useAdminLoad in place of a hand-rolled fetch + setState dance:
   // it r.ok-gates + shape-validates the response and exposes retry.
   // Was previously using .then(r => r.json()) with no r.ok check —
@@ -149,7 +153,10 @@ export default function AdminPartnersPage() {
     toast.success(`${p.name} ${next ? 'activated' : 'deactivated'}`)
   }
 
+  // Both change the person's role (member ↔ partner) and sign them out, so
+  // ask first — they used to fire on one click.
   async function assignUser(partnerId: string, user: Member) {
+    if (!(await confirmToast(`Make ${user.name} a partner account? Their role changes and they're signed out.`))) return
     const res = await fetch(`/app/api/admin/partners/${partnerId}`, {
       method: 'POST', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -166,6 +173,7 @@ export default function AdminPartnersPage() {
   }
 
   async function removeUser(partnerId: string, userId: string) {
+    if (!(await confirmToast('Remove this person from the partner? They go back to a member account and are signed out.'))) return
     const res = await fetch(`/app/api/admin/partners/${partnerId}`, {
       method: 'DELETE', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -277,10 +285,12 @@ export default function AdminPartnersPage() {
                       className="text-xs px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-400 transition-colors">
                       {p.isActive ? 'Deactivate' : 'Activate'}
                     </button>
-                    <button onClick={() => handleDelete(p.id)}
-                      className="text-xs px-3 py-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 transition-colors">
-                      Delete
-                    </button>
+                    {isAdminUser && (
+                      <button onClick={() => handleDelete(p.id)}
+                        className="text-xs px-3 py-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 transition-colors">
+                        Delete
+                      </button>
+                    )}
                   </div>
                 </div>
 

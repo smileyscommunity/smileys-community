@@ -50,6 +50,17 @@ export const HEADLINE: Record<Bucket, { title: (city: string) => string; line: (
   night:     { title: c => `${c} after dark`, line: () => "The second shift is just getting started." },
 }
 
+// The evening bucket runs 17:00–22:00, and "Sunset is coming" was true for
+// all of it only in June. In winter the sun is down before 18:00, so for
+// most of the bucket, four months a year, the headline promised a sunset
+// that had already happened. After 19:00 the evening speaks for itself.
+export const EVENING_LATE_HOUR = 19
+const LATE_EVENING = { title: (c: string) => `${c} this evening`, line: () => 'The light has gone; the good part of the evening has not.' }
+
+export function headlineFor(bucket: Bucket, hour: number): { title: (city: string) => string; line: (city: string) => string } {
+  return bucket === 'evening' && hour >= EVENING_LATE_HOUR ? LATE_EVENING : HEADLINE[bucket]
+}
+
 // The fallback ordering for a city with no curated table: which of its own
 // moods/collections suit each part of the day. Values that a city doesn't use
 // are simply skipped, so one list serves every vocabulary.
@@ -70,7 +81,7 @@ export interface TodayContext {
 
 // Deterministic within a request — the page calls this too, so it can exclude
 // Today's picks from other sections. Same ctx in, same slugs out.
-export function computeTodayPicks(exclude: string[] = [], ctx: TodayContext): { bucket: Bucket; slugs: string[] } {
+export function computeTodayPicks(exclude: string[] = [], ctx: TodayContext): { bucket: Bucket; hour: number; slugs: string[] } {
   const { hour, month } = cityNow(ctx.timezone)
   const bucket: Bucket =
     hour >= 6 && hour < 12 ? 'morning'
@@ -104,5 +115,5 @@ export function computeTodayPicks(exclude: string[] = [], ctx: TodayContext): { 
   let slugs = candidates.filter(s => !exclude.includes(s)).slice(0, 3)
   // If exclusions gut the list, time-relevance wins over de-duplication.
   if (slugs.length < 2) slugs = candidates.slice(0, 3)
-  return { bucket, slugs }
+  return { bucket, hour, slugs }
 }

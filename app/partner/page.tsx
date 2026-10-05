@@ -119,7 +119,7 @@ export default function PartnerDashboard() {
         <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4">
           <p className="text-xs font-bold text-amber-400 mb-2">Complete your profile</p>
           <ul className="space-y-1">
-            {!partner.logo       && <li className="text-xs text-zinc-400">• Add a logo so members recognise you</li>}
+            {!partner.logo       && <li className="text-xs text-zinc-400">• Add a logo so members recognize you</li>}
             {!partner.coverImage && <li className="text-xs text-zinc-400">• Add a cover photo to stand out</li>}
             {!partner.instagram  && <li className="text-xs text-zinc-400">• Add your Instagram so members can follow you</li>}
             {!partner.website    && <li className="text-xs text-zinc-400">• Add your website for more info</li>}

@@ -1028,7 +1028,8 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
     const wasSaved = savedSet.has(listingId)
     setSavedSet(prev => {
       const next = new Set(prev)
-      wasSaved ? next.delete(listingId) : next.add(listingId)
+      if (wasSaved) next.delete(listingId)
+      else next.add(listingId)
       return next
     })
     if (category === 'SAVED' && wasSaved) {
@@ -1042,7 +1043,8 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
     } catch {
       setSavedSet(prev => {
         const next = new Set(prev)
-        wasSaved ? next.add(listingId) : next.delete(listingId)
+        if (wasSaved) next.add(listingId)
+        else next.delete(listingId)
         return next
       })
       toast.error('Could not update — check your connection')
@@ -1150,7 +1152,7 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
   // Which narrowings are in force, in words. The empty state used to know
   // about the category and the search box only, so a marketplace with two
   // hundred listings in it read "No listings yet — be the first to post
-  // something" the moment someone picked a quiet neighbourhood.
+  // something" the moment someone picked a quiet neighborhood.
   const activeFilters: string[] = []
   if (debouncedSearch) activeFilters.push(`“${debouncedSearch}”`)
   if (neighborhood)    activeFilters.push(neighborhood)

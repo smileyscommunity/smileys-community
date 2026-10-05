@@ -3,11 +3,12 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { loadViewerFacts, sharedContextFor } from '@/lib/sharedContext'
 import { rateLimit } from '@/lib/rateLimit'
-import { isAdminOrModerator, isClubHost } from '@/lib/access'
+import { isAdminOrModerator, isClubHost, canActInCity } from '@/lib/access'
 import { isBlockedEitherWay } from '@/lib/memberPrivacy'
 import { todayInCity, resolveCityId } from '@/lib/city'
 import { firstNameOf } from '@/lib/data'
 import { countedReferralsWhere } from '@/lib/referrals'
+import { leadCityNamesFor } from '@/lib/hostRoster'
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
@@ -22,12 +23,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id } = await params
   const today = await todayInCity(await resolveCityId(session))
 
-  const [user, upcomingEvents, connection, hangoutsHosted, hangoutsJoined, savedRow, activePulse, activeHangout] = await Promise.all([
+  const [user, upcomingEvents, connection, hangoutsHosted, hangoutsJoined, savedRow, activePulse, activeHangout, leadCities] = await Promise.all([
     prisma.user.findFirst({
       where: { id, status: 'approved', role: { in: ['member', 'moderator', 'admin'] } },
       select: {
         id: true, name: true, color: true, bio: true,
-        neighborhood: true, neighborhoodVisible: true, hiddenFromMembers: true, suspendedUntil: true,
+        neighborhood: true, neighborhoodVisible: true, hiddenFromMembers: true, suspendedUntil: true, cityId: true,
         nationality: true, interests: true,
         languages: true, profilePhoto: true, joinedAt: true, role: true,
         instagram: true, linkedin: true, socialStyles: true, lookingFor: true, lastActive: true, profileVisibility: true, membershipType: true,
@@ -89,6 +90,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       orderBy: { startsAt: 'asc' },
       select:  { id: true, title: true, neighborhood: true, startsAt: true },
     }),
+    // The cities they lead, for the City Lead chip (lib/hostTitles).
+    leadCityNamesFor(id),
   ])
 
   if (!user) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -119,7 +122,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   //            first name and the connection state only. It used to be a
   //            404, which left the receiver of a request from a private
   //            member with nothing to accept it from.
-  const privileged = staff || await isClubHost(session.id)
+  // A moderator sees a profile in full in their own city only (canActInCity,
+  // lib/memberPrivacy); elsewhere they get what a member gets.
+  const privileged = canActInCity(session, user.cityId) || await isClubHost(session.id)
   const connected = connection?.status === 'accepted'
   const viewLevel: 'full' | 'member' | 'locked' =
     self || connected || privileged ? 'full'
@@ -133,7 +138,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const fromChat = req.nextUrl.searchParams.get('context') === 'dm'
   recordView(session, id, self || fromChat)
 
-  // A chat header needs a name, a colour, a photo and when they were last
+  // A chat header needs a name, a color, a photo and when they were last
   // here. The full answer below is eight queries plus shared context and a
   // referral count — run every minute, per open conversation, for four
   // fields.
@@ -160,7 +165,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       viewLevel,
       viewerHasFullProfile: false,
       bio: null, neighborhood: null, nationality: null, interests: [], languages: [], socialStyles: [],
-      joinedAt: null, role: null, membershipType: null, foundingMember: false,
+      joinedAt: null, role: null, membershipType: null, foundingMember: false, leadCities: [],
       instagram: null, linkedin: null, industry: null, professionalRole: null, professionalStatus: null,
       clubs: [], upcomingEvents: [], sharedContext: null,
       isConnected: false,
@@ -227,6 +232,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     role:         user.role,
     membershipType: user.membershipType,
     foundingMember: user.foundingMember,
+    // A title, not personal data: shown at every level that shows the name.
+    leadCities,
     instagram:    fullAccess ? user.instagram : null,
     linkedin:     fullAccess ? user.linkedin : null,
     // Professional fields surfaced only when the member opted in to a

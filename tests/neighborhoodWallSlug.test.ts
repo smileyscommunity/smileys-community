@@ -10,6 +10,13 @@ vi.mock('@/lib/city',     () => ({
   DEFAULT_CITY_SLUG: 'istanbul',
 }))
 vi.mock('@/lib/cities', () => ({ getPublicCity: vi.fn().mockResolvedValue(null) }))
+// Likes and replies carry the post route's two gates since 2026-09-28: a write
+// lands in a city the member has joined, and never on a blocked pair's post.
+vi.mock('@/lib/cityMembership', () => ({ resolvePostingCityId: vi.fn(async (session: any) => session.cityId) }))
+vi.mock('@/lib/memberPrivacy',  () => ({
+  blockedIdsFor: vi.fn().mockResolvedValue(new Set()), isBlockedEitherWay: vi.fn().mockResolvedValue(false),
+  restrictedSetFor: vi.fn().mockResolvedValue(new Set()), connectionIdsFor: vi.fn().mockResolvedValue(new Set()),
+}))
 vi.mock('@/lib/neighborhoodsDb', () => ({
   resolveNeighborhoodBySlug: vi.fn(),
   // Registry lookup stand-in: Kadıköy owns 'kadikoy' in Istanbul, nothing else resolves.
@@ -27,6 +34,8 @@ import { POST as like } from '@/app/api/neighborhoods/[slug]/posts/[postId]/like
 import { GET as listReplies, POST as reply } from '@/app/api/neighborhoods/[slug]/posts/[postId]/replies/route'
 import { GET as listPosts, POST as createPost } from '@/app/api/neighborhoods/[slug]/posts/route'
 import { getSession } from '@/lib/session'
+import { resolvePostingCityId } from '@/lib/cityMembership'
+import { isBlockedEitherWay } from '@/lib/memberPrivacy'
 import { prisma } from '@/lib/prisma'
 import { resolveNeighborhoodBySlug, postMatchesSlug } from '@/lib/neighborhoodsDb'
 import { getPublicCity } from '@/lib/cities'
@@ -46,7 +55,9 @@ const postParams = { params: Promise.resolve({ slug: 'kadikoy', postId: 'p1' }) 
 beforeEach(() => {
   vi.clearAllMocks()
   ;(getSession as any).mockResolvedValue({ id: 'u1', name: 'U', role: 'member', cityId: 'izmir' })
-  p.neighborhoodPost.findUnique.mockResolvedValue({ id: 'p1', neighborhood: 'Kadıköy', cityId: 'istanbul' })
+  p.neighborhoodPost.findUnique.mockResolvedValue({ id: 'p1', neighborhood: 'Kadıköy', cityId: 'istanbul', userId: 'author' })
+  ;(resolvePostingCityId as any).mockImplementation(async (session: any) => session.cityId)
+  ;(isBlockedEitherWay as any).mockResolvedValue(false)
   p.neighborhoodPostLike.findUnique.mockResolvedValue(null)
   p.neighborhoodPostLike.create.mockResolvedValue({})
   p.neighborhoodPostReply.create.mockResolvedValue({ id: 'r1', content: 'x', createdAt: new Date(), user: { id: 'u1', name: 'U', color: '', profilePhoto: null, role: 'member' } })
@@ -54,17 +65,33 @@ beforeEach(() => {
 
 describe('likes and replies resolve the slug through the city registry', () => {
   it('likes a post whose name slugifies to the URL slug', async () => {
+    // The member has joined Istanbul (the post's city) — the write gate below.
+    ;(resolvePostingCityId as any).mockResolvedValue('istanbul')
     const res = await like(req({ emoji: '❤️' }), postParams)
     expect(res.status).toBe(200)
-    expect(postMatchesSlug).toHaveBeenCalledWith({ id: 'p1', neighborhood: 'Kadıköy', cityId: 'istanbul' }, 'kadikoy')
+    expect(postMatchesSlug).toHaveBeenCalledWith({ id: 'p1', neighborhood: 'Kadıköy', cityId: 'istanbul', userId: 'author' }, 'kadikoy')
     expect(p.neighborhoodPostLike.create).toHaveBeenCalled()
   })
   it('lists and posts replies on it', async () => {
+    ;(resolvePostingCityId as any).mockResolvedValue('istanbul')
     expect((await listReplies(req(), postParams)).status).toBe(200)
     expect((await reply(req({ content: 'hi' }), postParams)).status).toBe(201)
   })
   it('still refuses a post from another neighborhood', async () => {
     p.neighborhoodPost.findUnique.mockResolvedValue({ id: 'p1', neighborhood: 'Moda', cityId: 'istanbul' })
+    expect((await like(req({ emoji: '❤️' }), postParams)).status).toBe(404)
+    expect((await reply(req({ content: 'hi' }), postParams)).status).toBe(404)
+  })
+  it('refuses a like or a reply on a city the member has not joined (2026-09-28)', async () => {
+    // The session's own city is İzmir; the post is Istanbul's.
+    expect((await like(req({ emoji: '❤️' }), postParams)).status).toBe(403)
+    expect((await reply(req({ content: 'hi' }), postParams)).status).toBe(403)
+    expect(p.neighborhoodPostLike.create).not.toHaveBeenCalled()
+    expect(p.neighborhoodPostReply.create).not.toHaveBeenCalled()
+  })
+  it('a blocked pair cannot attach to each other\'s posts', async () => {
+    ;(resolvePostingCityId as any).mockResolvedValue('istanbul')
+    ;(isBlockedEitherWay as any).mockResolvedValue(true)
     expect((await like(req({ emoji: '❤️' }), postParams)).status).toBe(404)
     expect((await reply(req({ content: 'hi' }), postParams)).status).toBe(404)
   })

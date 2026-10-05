@@ -423,6 +423,10 @@ interface Props {
   myId:    string | null
   isStaff: boolean
   name:    string
+  /** Whether this viewer may post here (their own or a joined city) — the
+   *  page decides with the same rule the POST enforces. */
+  canPost?: boolean
+  cityName?: string
   /** The city the PAGE resolved to. Four slugs belong to two cities each, so
    *  without this the wall asked the API to resolve the slug all over again
    *  from the viewer's own city: Ankara's Ulus page showed Istanbul's wall
@@ -447,7 +451,7 @@ function buildReactions(likes: { userId: string; emoji: string }[], myId?: strin
     .filter(r => r.count > 0)
 }
 
-export default function NeighborhoodWall({ slug, myId, isStaff, name, citySlug }: Props) {
+export default function NeighborhoodWall({ slug, myId, isStaff, name, citySlug, canPost = true, cityName }: Props) {
   const wallUrl = `/app/api/neighborhoods/${slug}/posts?city=${encodeURIComponent(citySlug)}`
   const [posts,          setPosts]          = useState<Post[]>([])
   const [loading,        setLoading]        = useState(true)
@@ -530,9 +534,14 @@ export default function NeighborhoodWall({ slug, myId, isStaff, name, citySlug }
 
   return (
     <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-      {/* Compose */}
+      {/* Compose — or the reason there is none: the composer used to open for
+          a member browsing another city and fail on submit. */}
       <div className="p-3 border-b border-gray-100">
-        {!composeOpen ? (
+        {!canPost ? (
+          <p className="text-sm text-gray-500 bg-gray-50 rounded-xl px-3 py-2.5">
+            You can read this wall; posting is for members of {cityName ?? 'this city'}. Join {cityName ?? 'the city'} from its page to take part.
+          </p>
+        ) : !composeOpen ? (
           <button
             onClick={() => setComposeOpen(true)}
             className="w-full text-left text-sm text-gray-400 bg-gray-50 hover:bg-gray-100 transition-colors rounded-xl px-3 py-2.5">

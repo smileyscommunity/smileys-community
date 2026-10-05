@@ -18,6 +18,7 @@ export type HandbookSearchItem = {
   category: string          // canonical display label
   emoji:    string
   reviewed: string | null   // public review line, or null (never fake a date)
+  reviewedStale: boolean    // past its interval — the same chip as every listing
   minutes:  number
   tags:     string[]
 }

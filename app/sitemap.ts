@@ -1,4 +1,6 @@
 import { MetadataRoute } from 'next'
+import { canonicalCategory } from '@/lib/handbook-categories'
+import { populatedStages } from '@/lib/relocation'
 import { statSync } from 'fs'
 import { join } from 'path'
 import { prisma } from '@/lib/prisma'
@@ -6,6 +8,8 @@ import { LIVE_BOARD_AUTHOR } from '@/lib/boardAccess'
 import { loadExperiences, loadRoutes } from '@/lib/guideContent'
 import { getDefaultCityId, getPublicCities, CITY_STATUS, DEFAULT_CITY_SLUG } from '@/lib/cities'
 import { NEIGHBORHOOD_META, neighborhoodToSlug } from '@/lib/neighborhoods'
+import { EVENT_WINDOWS, inWindow } from '@/lib/eventWindows'
+import { todayInTz, shiftDay } from '@/lib/cityTime'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,26 +38,52 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // never silently produces a sitemap with no content in it.
   const cityIds  = liveIds.length ? liveIds : [await getDefaultCityId()]
 
+  // Event pages in the index: every upcoming event, plus past ones for six
+  // months that are worth landing on (a cover and a written description) — a
+  // recap people search for, not a thousand bare "ended" rows. Older or thin
+  // past events stay reachable but out of the sitemap. Members-only events are
+  // never listed: their page is a teaser with the venue and details withheld.
+  // `date` is text 'YYYY-MM-DD', so these are string comparisons.
+  const sitemapToday  = todayInTz()
+  const pastCutoff    = shiftDay(sitemapToday, -183)
+
   const [events, clubs, posts, listings, businesses, movingSales, hoods, guideEntries] = await Promise.all([
     prisma.event.findMany({
-      where: { status: 'published', cityId: { in: cityIds } },
-      select: { id: true, updatedAt: true },
+      where: {
+        status: 'published', cityId: { in: cityIds }, membersOnly: false,
+        OR: [
+          { date: { gte: sitemapToday } },
+          { date: { gte: pastCutoff }, coverImage: { not: '' }, description: { not: '' } },
+        ],
+      },
+      select: { id: true, updatedAt: true, cityId: true, date: true },
       orderBy: { date: 'desc' },
-      take: 200,
+      take: 2000,
     }),
     prisma.club.findMany({
       where: { isActive: true, cityId: { in: cityIds } },
-      select: { slug: true, createdAt: true },
+      select: { slug: true, createdAt: true, cityId: true },
     }),
     // Unpinned articles (global / national) plus the live cities' own — a
     // coming-soon city's stories were being indexed, and `take` with no order
     // was an arbitrary 200 once the table passed that.
-    prisma.post.findMany({
-      where:   { status: 'published', OR: [{ cityId: null }, { cityId: { in: cityIds } }] },
-      select:  { slug: true, publishedAt: true, kind: true },
-      orderBy: { publishedAt: 'desc' },
-      take:    200,
-    }),
+    // Two reads, not one capped list: the Handbook is evergreen and small,
+    // and ordered newest-first with the stories its older articles were the
+    // first to drop off once the two kinds together passed 200. Every
+    // published Handbook article is listed; stories keep the cap.
+    Promise.all([
+      prisma.post.findMany({
+        where:   { status: 'published', kind: 'handbook', OR: [{ cityId: null }, { cityId: { in: cityIds } }] },
+        select:  { slug: true, title: true, publishedAt: true, kind: true, category: true, cityId: true, country: true },
+        orderBy: { publishedAt: 'desc' },
+      }),
+      prisma.post.findMany({
+        where:   { status: 'published', kind: { not: 'handbook' }, OR: [{ cityId: null }, { cityId: { in: cityIds } }] },
+        select:  { slug: true, title: true, publishedAt: true, kind: true, category: true, cityId: true, country: true },
+        orderBy: { publishedAt: 'desc' },
+        take:    200,
+      }),
+    ]).then(([handbook, stories]) => [...handbook, ...stories]),
     // Marketplace listings are public — let Google crawl them so search hits
     // like "flats in Moda" can land on the listing.
     // The same rows the listing page will actually serve: a sitemap that
@@ -132,7 +162,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // them changes until they launch.
   const cityRoutes: MetadataRoute.Sitemap = cities.map(c => (
     c.status === CITY_STATUS.Live
-      ? { url: `${BASE}/${c.slug}`, priority: 0.95, changeFrequency: 'daily' as const, lastModified: newest([newestEvent, newestClub]) }
+      // Its own events and clubs — every city page claimed the newest change
+      // anywhere, so Bursa's page carried Istanbul's freshness. None → no
+      // date (the rule at the top of this file).
+      ? { url: `${BASE}/${c.slug}`, priority: 0.95, changeFrequency: 'daily' as const, lastModified: newest([
+          ...events.filter(e => e.cityId === c.id).map(e => e.updatedAt),
+          ...clubs.filter(cl => cl.cityId === c.id).map(cl => cl.createdAt),
+        ]) }
       : { url: `${BASE}/${c.slug}`, priority: 0.4,  changeFrequency: 'monthly' as const }
   ))
   // The crawlable listing layer per city (/[city]/events, /[city]/clubs).
@@ -145,7 +181,24 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       { url: `${BASE}/${c.slug}/clubs`,     priority: 0.75, changeFrequency: 'weekly' as const, lastModified: newestClub },
       { url: `${BASE}/${c.slug}/directory`, priority: 0.75, changeFrequency: 'weekly' as const, lastModified: newestBusiness },
       { url: `${BASE}/${c.slug}/board`,     priority: 0.75, changeFrequency: 'daily'  as const, lastModified: newestListing },
+      { url: `${BASE}/${c.slug}/hosts`,     priority: 0.6,  changeFrequency: 'weekly' as const, lastModified: newestEvent },
+      { url: `${BASE}/${c.slug}/experiences`, priority: 0.7, changeFrequency: 'daily'  as const, lastModified: newestEvent },
     ])
+  // /[city]/events/today | this-week | this-weekend: always canonical to
+  // themselves, and noindex while empty — so only a window that has events
+  // today is listed.
+  const eventWindowRoutes: MetadataRoute.Sitemap = cities
+    .filter(c => c.status === CITY_STATUS.Live)
+    .flatMap(c => {
+      const mine = events.filter(e => e.cityId === c.id)
+      const today = todayInTz(c.timezone)
+      return EVENT_WINDOWS
+        .filter(w => inWindow(mine, w, today).length > 0)
+        .map(w => ({
+          url: `${BASE}/${c.slug}/events/${w}`, priority: 0.8, changeFrequency: 'daily' as const,
+          lastModified: newest(inWindow(mine, w, today).map(e => e.updatedAt)),
+        }))
+    })
   // The remote-work, moving and student hubs have no global twin, so — unlike the listing hubs
   // above — every live city's is canonical to itself, the default included.
   // lastModified is its newest input: the events and Handbook it gathers.
@@ -159,6 +212,28 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // The pages with no hub of their own: for every city but the default they
   // are canonical at their ?city= URL (lib/cityPageParam), which nothing linked
   // for a crawler to find. The default city keeps the bare URLs listed below.
+  // The Handbook's category and life-stage pages, per live city — none was
+  // listed before. A category is advertised for a city when that city's
+  // scope (its own + its country's national + global, lib/postScope) has an
+  // article in it; a stage when lib/relocation would populate it. The
+  // default city's are bare URLs, every other city's carry ?city=.
+  const handbookRows = posts.filter(p => p.kind === 'handbook')
+  const handbookSectionRoutes: MetadataRoute.Sitemap = cities
+    .filter(c => c.status === CITY_STATUS.Live)
+    .flatMap(c => {
+      const qs   = c.slug === DEFAULT_CITY_SLUG ? '' : `?city=${c.slug}`
+      const mine = handbookRows.filter(p => p.cityId === c.id || (p.cityId === null && (p.country === null || p.country === c.country)))
+      const cats = new Set(mine.map(p => canonicalCategory(p.category)).filter((k): k is string => !!k))
+      return [
+        ...[...cats].map(key => ({
+          url: `${BASE}/handbook/category/${encodeURIComponent(key)}${qs}`, priority: 0.6, changeFrequency: 'weekly' as const, lastModified: newestPost,
+        })),
+        ...populatedStages(mine, c.id).map(({ stage }) => ({
+          url: `${BASE}/handbook/stage/${stage.key}${qs}`, priority: 0.5, changeFrequency: 'weekly' as const, lastModified: newestPost,
+        })),
+      ]
+    })
+
   const cityParamRoutes: MetadataRoute.Sitemap = cities
     .filter(c => c.status === CITY_STATUS.Live && c.slug !== DEFAULT_CITY_SLUG)
     .flatMap(c => [
@@ -171,15 +246,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: BASE,                    priority: 1.0, changeFrequency: 'daily',   lastModified: newest([newestEvent, newestPost, newestClub]) },
     { url: `${BASE}/events`,        priority: 0.9, changeFrequency: 'daily',   lastModified: newestEvent },
+    { url: `${BASE}/experiences`,   priority: 0.8, changeFrequency: 'daily',   lastModified: newestEvent },
     { url: `${BASE}/board`,         priority: 0.8, changeFrequency: 'daily',   lastModified: newest([newestListing, newestMovingSale]) },
     { url: `${BASE}/visiting`,      priority: 0.8, changeFrequency: 'daily'   },
     { url: `${BASE}/guide`,         priority: 0.8, changeFrequency: 'weekly',  lastModified: fileMtime('guide-experiences.json') },
     { url: `${BASE}/clubs`,         priority: 0.8, changeFrequency: 'weekly',  lastModified: newestClub },
+    // The default city's roster: its /[city]/hosts twin is canonical here
+    // and skipped above, and this was the one hub listed nowhere.
+    { url: `${BASE}/hosts`,         priority: 0.6, changeFrequency: 'weekly',  lastModified: newestEvent },
     { url: `${BASE}/apply`,         priority: 0.8, changeFrequency: 'monthly' },
     { url: `${BASE}/about`,         priority: 0.7, changeFrequency: 'monthly' },
-    { url: `${BASE}/why`,           priority: 0.7, changeFrequency: 'monthly', lastModified: fileMtime('why-content.json') },
+    { url: `${BASE}/why`,           priority: 0.7, changeFrequency: 'monthly', lastModified: fileMtime('content.json') },
     { url: `${BASE}/faq`,           priority: 0.6, changeFrequency: 'monthly', lastModified: fileMtime('content.json') },
     { url: `${BASE}/contact`,       priority: 0.5, changeFrequency: 'monthly' },
+    // The hosting and club pitch — linked from every city's Meet your hosts.
+    { url: `${BASE}/get-involved`,  priority: 0.5, changeFrequency: 'monthly' },
     { url: `${BASE}/neighborhoods`, priority: 0.6, changeFrequency: 'monthly', lastModified: newest([...neighborhoodMtimes.values()]) },
     { url: `${BASE}/directory`,     priority: 0.8, changeFrequency: 'weekly',  lastModified: newestBusiness },
     { url: `${BASE}/handbook/quick-reference`, priority: 0.5, changeFrequency: 'monthly' },
@@ -197,15 +278,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     changeFrequency: 'weekly',
   }))
 
-  const clubRoutes: MetadataRoute.Sitemap = clubs.map(c => ({
-    url:          `${BASE}/clubs/${c.slug}`,
-    lastModified: c.createdAt,
-    priority:     0.7,
-    changeFrequency: 'weekly',
-  }))
+  // No per-club URLs: /clubs/[slug] is members-only, so a crawler gets an empty
+  // shell (and the page is noindex for guests). Clubs are discoverable through
+  // the crawlable /[city]/clubs listings instead.
 
   // Handbook articles live at /handbook/[slug]; other posts at /posts/[slug].
-  // Mapping every post to /posts/... (the old behaviour) pointed the handbook
+  // Mapping every post to /posts/... (the old behavior) pointed the handbook
   // URLs at a 404. Handbook is public, evergreen, and a top-of-funnel SEO
   // asset, so it gets a higher priority and weekly recrawl.
   const postRoutes: MetadataRoute.Sitemap = posts.map(p => {
@@ -260,7 +338,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       // belong to the default city alone — Ankara's Ulus was claiming the
       // mtime of Istanbul's ulus.json.
       lastModified:    (citySlug === DEFAULT_CITY_SLUG ? neighborhoodMtimes.get(n.slug) : undefined) ?? n.updatedAt,
-      priority:        0.7,
+      // A neighborhood with a hand-written guide is a real page; one running
+      // on the generated paragraph alone is not worth the same crawl budget.
+      priority:        (citySlug === DEFAULT_CITY_SLUG
+        ? neighborhoodMtimes.get(n.slug) !== undefined
+        : !!citySlug && fileMtime('neighborhoods', citySlug, `${n.slug}.json`) !== undefined) ? 0.7 : 0.5,
       changeFrequency: 'weekly' as const,
     }] as const
   })).values()]
@@ -305,8 +387,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...neighborhoodRoutes,
     ...guideRoutes,
     ...eventRoutes,
-    ...clubRoutes,
+    ...eventWindowRoutes,
     ...postRoutes,
+    ...handbookSectionRoutes,
     ...listingRoutes,
     ...movingSaleRoutes,
     ...businessRoutes,

@@ -6,6 +6,7 @@
 // no caching layer needed).
 
 import { readFileSync } from 'fs'
+import type { ListingSettings } from './listingCategories'
 import { join } from 'path'
 
 export interface CommunityRule {
@@ -38,6 +39,8 @@ export interface CommunitySettings {
   // Membership intake switch. false = applications paused (apply page shows a
   // closed notice, the submit API rejects). Undefined/true = open (default).
   applicationsOpen?: boolean
+  // Marketplace rules, enforced by the member listing-create route.
+  listingSettings?: ListingSettings
   // Admin email on each new (non-suspicious) application. false = muted.
   // Undefined/true = on (default). Suspicious applications always email.
   newApplicationEmails?: boolean
@@ -87,7 +90,7 @@ export function communityInstagramUrl(handle: string | undefined | null): string
 }
 
 /**
- * Validate + normalise a stored WhatsApp channel URL. Accepts the
+ * Validate + normalize a stored WhatsApp channel URL. Accepts the
  * canonical `https://whatsapp.com/channel/...` shape (with or without
  * the `www.` prefix), trims whitespace, and rejects anything else —
  * we deliberately don't fall back to wa.me click-to-chat, since the
@@ -126,7 +129,7 @@ export function sameSocialUrl(a: string | null | undefined, b: string | null | u
       const host = url.hostname.toLowerCase().replace(/^www\./, '')
       // Host is case-insensitive, but the PATH is not: WhatsApp invite/
       // channel codes (chat.whatsapp.com/AbCd…) are case-sensitive, so two
-      // distinct groups must not normalise equal and hide a real CTA.
+      // distinct groups must not normalize equal and hide a real CTA.
       const path = url.pathname.replace(/\/+$/, '')
       return `${host}${path}`
     } catch { return null }

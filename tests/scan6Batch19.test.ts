@@ -12,8 +12,8 @@ import { join } from 'path'
 //       Dormant list: COMMUNITY_MEMBER_WHERE (activated). Ban-rate denominator
 //       and cohort set: approval-level with MEMBER_ROLE_FILTER.
 //   30. a) moving-sales GET hid expired sales by the UTC day while POST/PATCH
-//       use the city's day. b) neighbourhood HeroStats counted members who hid
-//       their neighbourhood / admin-hidden accounts and computed "today" and
+//       use the city's day. b) neighborhood HeroStats counted members who hid
+//       their neighborhood / admin-hidden accounts and computed "today" and
 //       "this month" in server UTC.
 
 const h = vi.hoisted(() => ({
@@ -81,7 +81,7 @@ afterEach(() => { vi.useRealTimers() })
 
 describe('25. club member counts exclude banned members', () => {
   it('the shared rule is approved rows whose user is not banned', () => {
-    expect(COUNTED_CLUB_MEMBERSHIP_WHERE).toEqual({ status: 'approved', user: { status: { not: 'banned' } } })
+    expect(COUNTED_CLUB_MEMBERSHIP_WHERE).toEqual({ status: 'approved', user: { status: { not: 'banned' }, password: { not: null } } })
   })
 
   it("a city's club list counts both totals by the rule", async () => {
@@ -91,7 +91,7 @@ describe('25. club member counts exclude banned members', () => {
     expect(include._count.select.memberships.where).toEqual(COUNTED_CLUB_MEMBERSHIP_WHERE)
     // The city-scoped count merges the city into the rule's user filter —
     // a plain `user: { cityId }` would silently drop the ban exclusion.
-    expect(include.memberships.where).toEqual({ status: 'approved', user: { status: { not: 'banned' }, cityId: 'c-tbs' } })
+    expect(include.memberships.where).toEqual({ status: 'approved', user: { status: { not: 'banned' }, password: { not: null }, cityId: 'c-tbs' } })
     expect(club.memberCount).toBe(3)
   })
 
@@ -121,10 +121,11 @@ describe('29. analytics member counts use the shared role rule', () => {
 
   it('the dormant list is activated community members (hosts included), city-scoped', async () => {
     await run()
+    // Analytics no longer builds its own dormant list (2026-09-27): "dormant"
+    // is Retention's, one definition, and that route uses COMMUNITY_MEMBER_WHERE.
     const dormant = p.user.findMany.mock.calls.map((c: any[]) => c[0]).find((a: any) => a.where?.joinedEvents)
-    expect(dormant).toBeDefined()
-    expect(dormant.where).toMatchObject({ ...COMMUNITY_MEMBER_WHERE, cityId: 'c-tbs' })
-    expect(dormant.where.role).toEqual({ notIn: ['admin', 'partner'] })
+    expect(dormant).toBeUndefined()
+    expect(COMMUNITY_MEMBER_WHERE.role).toEqual({ notIn: ['admin', 'partner'] })
   })
 
   it('the ban-rate denominator is approved members by MEMBER_ROLE_FILTER, city-scoped', async () => {
@@ -163,11 +164,11 @@ describe("30a. moving-sales GET hides expired sales by the city's day", () => {
 })
 
 // HeroStats is a .tsx server component (no JSX transform in vitest) — source pins.
-describe('30b. neighbourhood HeroStats', () => {
+describe('30b. neighborhood HeroStats', () => {
   const src = read('app/neighborhoods/[slug]/HeroStats.tsx')
 
-  it('"local members" excludes hidden-neighbourhood and admin-hidden accounts, like NeighborhoodSections', () => {
-    expect(src).toMatch(/prisma\.user\.count\(\{ where: \{ \.\.\.ACTIVATED_MEMBER_WHERE, neighborhood: name, cityId, neighborhoodVisible: true, hiddenFromMembers: false \} \}\)/)
+  it('"local members" excludes hidden-neighborhood and admin-hidden accounts, like NeighborhoodSections', () => {
+    expect(src).toMatch(/prisma\.user\.count\(\{ where: \{\s*\.\.\.ACTIVATED_MEMBER_WHERE, neighborhood: name, cityId, neighborhoodVisible: true, hiddenFromMembers: false,/)
   })
 
   it('"today" and "this month" come from the city timezone, not server UTC', () => {

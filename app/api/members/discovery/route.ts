@@ -24,6 +24,10 @@ import { rotationSeed, seededShuffle } from '@/lib/rotation'
 const CARD_SELECT = {
   id: true, name: true, color: true, profilePhoto: true,
   neighborhood: true, neighborhoodVisible: true, interests: true, joinedAt: true, role: true,
+  // Hosting is a club membership, not a User.role (`role === 'host'` is dead
+  // — nobody holds it — so the HOST chip never rendered). One approved host
+  // row of an active club is enough; take: 1 keeps the payload flat.
+  clubMemberships: { where: { role: 'host', status: 'approved', club: { isActive: true } }, select: { clubId: true }, take: 1 },
 } as const
 
 // How many candidates each section pulls (ids only) before rotation, and
@@ -135,10 +139,10 @@ export async function GET() {
     // §13 — around your neighborhood
     viewer.neighborhood
       ? prisma.user.findMany({
-          // Only members who chose to be listed by their neighbourhood: this
+          // Only members who chose to be listed by their neighborhood: this
           // pool doesn't just show the name, it gathers people BY it, which
-          // turned "don't list my neighbourhood" into "here are your
-          // neighbours, including the ones who asked not to be".
+          // turned "don't list my neighborhood" into "here are your
+          // neighbors, including the ones who asked not to be".
           where:  { ...visibleWhere, neighborhood: viewer.neighborhood, neighborhoodVisible: true },
           select: { id: true },
           take:   POOL,
@@ -221,7 +225,7 @@ export async function GET() {
       id: m.id, name: m.name, color: m.color, profilePhoto: m.profilePhoto,
       neighborhood: m.neighborhoodVisible ? m.neighborhood : null,
       interests: m.interests.slice(0, 3),
-      isHost: m.role === 'host',
+      isHost: m.clubMemberships.length > 0,
       context: c ? { label: contextLabel(c), clubs: c.clubs.slice(0, 2) } : null,
     }
   }
@@ -243,7 +247,7 @@ export async function GET() {
   return NextResponse.json({
     mightMeet,
     clubMates:  section(clubSample),
-    neighbours: section(hoodSample),
+    neighbors: section(hoodSample),
     eventMates: section(eventSample),
     newcomers:  section(newSample),
     hosts:      section(hostSample),

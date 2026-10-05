@@ -448,7 +448,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
       })
       if (res.ok) {
         toast.success('Profile updated')
-        // The response is the saved profile fields (normalised name,
+        // The response is the saved profile fields (normalized name,
         // neighborhood…), not the page's whole record: merge it in. Replacing
         // the state with it dropped joinedEvents and crashed the page.
         const updated = await res.json().catch(() => null) as Partial<UserDetail> | null
@@ -740,7 +740,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                     {cities.filter(c => c.status === 'live' || c.slug === profileBaseline.homeCitySlug)
                       .map(c => <option key={c.id} value={c.slug}>{c.name}</option>)}
                   </select>
-                  <p className="text-[10px] text-zinc-600 mt-1">Their old city stays on their list, and their neighbourhood is cleared — it belongs to the city they left. Staff can&apos;t move themselves, so this is the way.</p>
+                  <p className="text-[10px] text-zinc-600 mt-1">Their old city stays on their list, and their neighborhood is cleared — it belongs to the city they left. Staff can&apos;t move themselves, so this is the way.</p>
                 </div>
               )}
               <div>

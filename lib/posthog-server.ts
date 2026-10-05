@@ -1,4 +1,5 @@
 import { PostHog } from 'posthog-node'
+import { prisma } from '@/lib/prisma'
 
 // Module-level singleton — the previous per-request `new PostHog()` + `await
 // posthog.shutdown()` pattern killed batching on a long-running PM2 server and
@@ -26,4 +27,24 @@ export function trackServer(
 ) {
   if (user.role !== 'member') return
   getPostHogClient()?.capture({ distinctId: user.id, event, properties })
+}
+
+// For an event ABOUT a member that someone else caused — staff approving an
+// application, a host's door tap, a promotion off the waitlist. trackServer
+// takes the actor, and the actor there is staff (skipped) or the host, so the
+// member's own funnel step would never be recorded. This looks the subject's
+// role up and applies the same staff filter to THEM. Best-effort: analytics
+// must never fail the request that triggered it.
+export async function trackServerForUser(
+  userId: string,
+  event: string,
+  properties: Record<string, unknown> = {},
+) {
+  try {
+    const client = getPostHogClient()
+    if (!client) return
+    const u = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } })
+    if (u?.role !== 'member') return
+    client.capture({ distinctId: userId, event, properties })
+  } catch { /* best-effort */ }
 }

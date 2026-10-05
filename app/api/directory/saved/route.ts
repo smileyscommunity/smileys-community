@@ -21,6 +21,7 @@ export async function GET() {
             id: true, name: true, category: true, description: true,
             neighborhood: true, address: true, phone: true,
             website: true, instagram: true, logo: true, coverImage: true,
+            coverCredit: true, coverCreditUrl: true,
             isExpatOwned: true, isExpatFriendly: true, languages: true,
             latitude: true, longitude: true,
             hours: true, memberDiscount: true, tags: true,

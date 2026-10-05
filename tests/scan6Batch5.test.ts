@@ -49,7 +49,7 @@ vi.mock('@/lib/email',          () => ({ sendEventApprovedEmail: vi.fn(async () 
 vi.mock('@/lib/audit',          () => ({ writeAudit: vi.fn() }))
 vi.mock('@/lib/autoJoinClub',   () => ({ autoJoinClub: vi.fn(async () => {}) }))
 vi.mock('@/lib/firstEvent',     () => ({ stampFirstEventRsvp: vi.fn(async () => {}) }))
-vi.mock('@/lib/posthog-server', () => ({ trackServer: vi.fn() }))
+vi.mock('@/lib/posthog-server', () => ({ trackServer: vi.fn(), trackServerForUser: vi.fn() }))
 vi.mock('@/lib/spotsLeft',      () => ({ recomputeSpotsLeft: h.recompute }))
 vi.mock('@/lib/spotOpened',     () => ({ announceSpotOpened: h.announceSpotOpened }))
 vi.mock('@/lib/rsvpConfirmed',  () => ({ createSeatPayment: h.createSeatPayment, announceConfirmedSeat: vi.fn(async () => {}) }))
@@ -218,7 +218,7 @@ describe("e. a legacy '19.30' time reads as 19:30", () => {
 })
 
 // ── f ──────────────────────────────────────────────────────────────────────
-describe('f. rsvp route on the shared helper: behaviour unchanged', () => {
+describe('f. rsvp route on the shared helper: behavior unchanged', () => {
   const STARTED_ERROR = 'This event has already started — RSVPs and the waitlist are closed'
 
   it('POST after the start is refused with the started error', async () => {

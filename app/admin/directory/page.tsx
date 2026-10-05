@@ -157,6 +157,8 @@ interface Business {
   instagram: string | null
   logo: string | null
   coverImage: string | null
+  coverCredit?: string | null
+  coverCreditUrl?: string | null
   isExpatOwned: boolean
   isExpatFriendly: boolean
   languages: string | null
@@ -184,6 +186,10 @@ type EditFields = {
   languages: string
   logo: string
   coverImage: string
+  // Credit for a photo that isn't ours or the venue's (Commons CC BY/BY-SA):
+  // shown wherever the cover is. Cleared by the API when the cover changes.
+  coverCredit: string
+  coverCreditUrl: string
   latitude:  string
   longitude: string
   memberDiscount: string
@@ -211,6 +217,8 @@ function toEditFields(b: Business): EditFields {
     languages:       b.languages       ?? '',
     logo:            b.logo            ?? '',
     coverImage:      b.coverImage      ?? '',
+    coverCredit:     b.coverCredit     ?? '',
+    coverCreditUrl:  b.coverCreditUrl  ?? '',
     latitude:        b.latitude  != null ? String(b.latitude)  : '',
     longitude:       b.longitude != null ? String(b.longitude) : '',
     memberDiscount:  b.memberDiscount  ?? '',
@@ -520,8 +528,17 @@ function BusinessRow({ b, onAction, neighborhoods, neighborhoodsFailed = false, 
               <label className={labelCls}>Cover / Banner URL</label>
               <div className="flex gap-2">
                 <input maxLength={DIRECTORY_LIMITS.coverImage} placeholder="https://…" {...field('coverImage')} className={inputCls} />
-                <UploadButton label="Banner" onUploaded={url => setEdit(s => ({ ...s, coverImage: url }))} />
+                {/* A new photo starts without the old one's credit. */}
+                <UploadButton label="Banner" onUploaded={url => setEdit(s => ({ ...s, coverImage: url, coverCredit: '', coverCreditUrl: '' }))} />
               </div>
+            </div>
+            <div>
+              <label className={labelCls}>Cover photo credit</label>
+              <input maxLength={DIRECTORY_LIMITS.coverCredit} placeholder='Only for others’ photos, e.g. "Asibala · CC BY-SA 4.0"' {...field('coverCredit')} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Credit link (photo’s source page)</label>
+              <input maxLength={DIRECTORY_LIMITS.coverCreditUrl} placeholder="https://commons.wikimedia.org/wiki/File:…" {...field('coverCreditUrl')} className={inputCls} />
             </div>
             <div className="sm:col-span-2">
               <label className={labelCls}>Paste Google Maps URL</label>

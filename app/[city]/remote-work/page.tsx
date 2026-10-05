@@ -8,12 +8,19 @@ import { CITY_STATUS } from '@/lib/cityStatus'
 import { APP_URL } from '@/lib/env'
 import { shareCover } from '@/lib/shareCover'
 import { reviewLabel } from '@/lib/handbook-review'
-import { groupHubArticles, buildChecklist, utcOffsetLabel } from '@/lib/remoteWork'
+import { groupHubArticles, buildChecklist, utcOffsetLabel, nominateHref, workdayOverlap, coworkingWeek } from '@/lib/remoteWork'
+import { todayInTz } from '@/lib/cityTime'
+import { storyBylines } from '@/lib/storyByline'
+import { prisma } from '@/lib/prisma'
+import { avatarUrl } from '@/lib/data'
 import EventCard from '@/components/EventCard'
 import JoinCityButton from '@/components/JoinCityButton'
 import { clubHref } from '@/lib/clubLink'
 import { pickArticle, REMOTE_WORK_LEGAL, ENTRY_RULES } from '@/lib/relocation'
 import PhotoHero, { HERO_SECONDARY } from '@/components/PhotoHero'
+import HandbookPicks from '@/components/HandbookPicks'
+import { cityQs as handbookQs } from '@/lib/cityPageParam'
+import { getCityHandbookPicks } from '@/lib/cityHandbookPicks'
 import { getCityRemoteWorkHub } from '../data'
 
 // /[city]/remote-work — the arrival path for someone who works remotely:
@@ -33,7 +40,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const city = await getPublicCity(slug)
   if (!city || city.status !== CITY_STATUS.Live) return {}
   const title = `Remote work in ${city.name} — Smileys Community`
-  const description = `Working remotely from ${city.name}? Your first 72 hours: getting connected, choosing a neighbourhood, coworking sessions, money and transport — and people to spend time with.`
+  const description = `Working remotely from ${city.name}? Your first 72 hours: getting connected, choosing a neighborhood, coworking sessions, money and transport — and people to spend time with.`
   const image = shareCover('events', city, title)
   const url = `${APP_URL}/${city.slug}/remote-work`
   return {
@@ -44,6 +51,22 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   }
 }
 
+async function interviewByline(interview: NonNullable<Awaited<ReturnType<typeof getCityRemoteWorkHub>>['interview']>, session: Awaited<ReturnType<typeof getSession>>) {
+  const author = await prisma.user.findUnique({
+    where:  { id: interview.authorId },
+    select: { id: true, name: true, color: true, profilePhoto: true, profileVisibility: true, status: true, hiddenFromMembers: true },
+  })
+  // An author row can go missing (account deleted) — the story stays up.
+  const byline = author ? (await storyBylines(session, [author]))(author) : { name: 'Smileys member', color: '#f59e0b', profilePhoto: null }
+  return { ...interview, byline }
+}
+
+// In the city's own day: the server is UTC (see app/posts).
+function formatDate(d: Date | string | null, timeZone: string) {
+  if (!d) return ''
+  return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone })
+}
+
 export default async function CityRemoteWorkPage({ params }: Params) {
   const { city: slug } = await params
   const city = await getPublicCity(slug)
@@ -51,11 +74,23 @@ export default async function CityRemoteWorkPage({ params }: Params) {
   // A pre-launch city has no community to meet yet; its own page says so.
   if (city.status !== CITY_STATUS.Live) redirect(`/${city.slug}`)
 
-  const hub = await getCityRemoteWorkHub(city.id, city.country ?? null)
+  const [hub, handbookPicks] = await Promise.all([
+    getCityRemoteWorkHub(city.id, city.country ?? null),
+    getCityHandbookPicks(city.id),
+  ])
   // Guest redaction is per-request, outside the shared cache — the rule every
   // city hub follows (see ../events/page.tsx).
   const session = await getSession()
   const events  = session ? await projectEventsForMember(hub.events, session) : hub.events.map(redactEventForGuest)
+  // The interview's byline, per request and outside the cache (lib/remoteWork):
+  // the same projection every story surface uses. A guest gets the first
+  // name and no photo; a connections-only author is shown as a member.
+  const interview = hub.interview ? await interviewByline(hub.interview, session) : null
+  // Backgrounds alternate from "Work and meet people" (gray); the interview
+  // and the shelf only render when the city has them, so each color is
+  // worked out from what is actually above it.
+  const storiesBg   = interview ? 'bg-gray-50' : 'bg-white'
+  const practicalBg = hub.stories.length > 0 ? (storiesBg === 'bg-white' ? 'bg-gray-50' : 'bg-white') : (interview ? 'bg-gray-50' : 'bg-white')
 
   const topics    = groupHubArticles(hub.articles, city.id)
   const checklist = buildChecklist({
@@ -67,7 +102,9 @@ export default async function CityRemoteWorkPage({ params }: Params) {
     workMembersOnly:  hub.workMembersOnly,
     hasEvents:        events.length > 0,
   })
-  const offset = utcOffsetLabel(city.timezone)
+  const offset  = utcOffsetLabel(city.timezone)
+  const overlap = workdayOverlap(city.timezone)
+  const week    = coworkingWeek(hub.workSessions, todayInTz(city.timezone))
   // The legal note may only point at official sources if the guides it is
   // talking about actually cite some.
   const legalCitesSources = topics
@@ -97,14 +134,28 @@ export default async function CityRemoteWorkPage({ params }: Params) {
           an offline community together — so within a few days you know where to work, where to live, what
           to set up, and who to spend time with.
         </p>
-        <p className="text-sm text-white/80 mb-8">
+        <p className={`text-sm text-white/80 ${overlap.length > 0 ? 'mb-2' : 'mb-8'}`}>
           <span aria-hidden="true">🕒 </span>
           Local time in {city.name} is <span className="font-semibold text-white">{offset}</span>
           <span className="text-white/70"> ({city.timezone})</span>
         </p>
+        {/* What the offset means for calls home, from today's offsets on
+            both sides (lib/remoteWork) — right through each DST change. */}
+        {overlap.length > 0 && (
+          <div className="text-sm text-white/80 mb-8 max-w-xl">
+            <p>A 9-to-5 back home, in {city.name} time:</p>
+            <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+              {overlap.map(o => (
+                <li key={o.label} className="whitespace-nowrap">
+                  {o.label} <span className="font-semibold text-white">{o.start}–{o.end}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div className="flex flex-col sm:flex-row gap-3">
-          <JoinCityButton slug={city.slug} name={city.name} />
-          <Link href={events.length > 0 ? '#work-and-meet' : `/${city.slug}/events`} className={HERO_SECONDARY}>
+          <JoinCityButton slug={city.slug} name={city.name} guest={!session} />
+          <Link href={events.length > 0 ? '#sessions' : `/${city.slug}/events`} className={HERO_SECONDARY}>
             See upcoming events
           </Link>
         </div>
@@ -166,6 +217,16 @@ export default async function CityRemoteWorkPage({ params }: Params) {
             </p>
           )}
 
+          {/* The quick answer before the cards: is there somewhere to work
+              with people this week, and where. Hidden on an empty week. */}
+          {week && (
+            <p className="mb-6 text-base text-gray-800">
+              <span aria-hidden="true">💻 </span>
+              <span className="font-bold">{week.count} coworking session{week.count === 1 ? '' : 's'} in the next 7 days</span>
+              {week.places.length > 0 && <>: {week.places.join(', ')}</>}
+            </p>
+          )}
+
           {hub.workClubs.length > 0 && (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-10">
               {hub.workClubs.map(c => (
@@ -180,9 +241,9 @@ export default async function CityRemoteWorkPage({ params }: Params) {
                   {c.memberCount > 0 && (
                     <p className="text-xs font-semibold text-amber-700 mt-0.5">{c.memberCount} club member{c.memberCount === 1 ? '' : 's'}</p>
                   )}
-                  <p className="text-xs text-gray-500 mt-2">
-                    {c.nextEvent ? `Next: ${c.nextEvent.title}` : 'No sessions scheduled yet'}
-                  </p>
+                  {/* Only a real next session earns a line: three cards
+                      saying "none scheduled" made a busy community read as idle. */}
+                  {c.nextEvent && <p className="text-xs text-gray-500 mt-2">Next: {c.nextEvent.title}</p>}
                   {!session && <p className="text-xs font-semibold text-amber-700 mt-2">Join Smileys to join this club →</p>}
                 </Link>
               ))}
@@ -190,7 +251,7 @@ export default async function CityRemoteWorkPage({ params }: Params) {
           )}
 
           {events.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" aria-describedby="recurring-note">
+            <div id="sessions" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 scroll-mt-24" aria-describedby="recurring-note">
               {events.map(e => <EventCard key={e.id} event={e} timeZone={city.timezone} />)}
             </div>
           ) : (
@@ -210,14 +271,120 @@ export default async function CityRemoteWorkPage({ params }: Params) {
         </div>
       </section>
 
+      {/* ── Working from {city}: the interview ───────────────────────── */}
+      {/* One member a month, the same questions, ending with the session
+          they'll be at. Hidden until the city has one — no "coming soon". */}
+      {interview && (
+        <section id="working-from" className="py-12 sm:py-16 bg-white border-t border-gray-100 scroll-mt-20">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="mb-8">
+              <p className="text-xs font-bold tracking-widest uppercase text-amber-600 mb-2">Meet a remote worker</p>
+              <h2 className="section-title">Working from {city.name}</h2>
+              <p className="section-subtitle max-w-2xl">
+                Every month one member answers the same questions about working from {city.name} — where they
+                actually work, what nobody told them, and where to find them next.
+              </p>
+            </div>
+
+            <Link href={`/posts/${interview.slug}`}
+              className="group grid gap-0 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm hover:border-amber-200 hover:shadow-md transition-all md:grid-cols-5">
+              {interview.cover && (
+                <div className="md:col-span-2 aspect-[16/10] md:aspect-auto md:min-h-[260px] bg-gray-100">
+                  {/* Their desk, café or view — the interview's own picture. */}
+                  <img src={interview.cover} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
+                </div>
+              )}
+              <div className={`p-6 sm:p-8 flex flex-col justify-center ${interview.cover ? 'md:col-span-3' : 'md:col-span-5'}`}>
+                <h3 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900 group-hover:text-amber-700 transition-colors leading-tight">
+                  {interview.title}
+                </h3>
+                {interview.excerpt && (
+                  <p className="mt-3 text-gray-600 leading-relaxed line-clamp-3">{interview.excerpt}</p>
+                )}
+                <div className="mt-5 flex items-center gap-3 text-sm text-gray-500">
+                  <span aria-hidden="true"
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 overflow-hidden"
+                    style={{ backgroundColor: interview.byline.color }}>
+                    {interview.byline.profilePhoto
+                      ? <img src={avatarUrl(interview.byline.profilePhoto, 64)} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                      : interview.byline.name[0]?.toUpperCase()}
+                  </span>
+                  <span className="font-semibold text-gray-800">{interview.byline.name}</span>
+                  {interview.publishedAt && (
+                    <>
+                      <span aria-hidden="true">·</span>
+                      <span>{formatDate(interview.publishedAt, city.timezone)}</span>
+                    </>
+                  )}
+                </div>
+                <span className="mt-5 inline-block text-sm font-bold text-amber-700 group-hover:text-amber-800">
+                  Read the interview <span aria-hidden="true">→</span>
+                </span>
+              </div>
+            </Link>
+
+            {/* A nomination is a member vouching for another member, so the
+                link is for members; a guest already has the join button. */}
+            {session && (
+              <p className="mt-6 text-sm text-gray-600">
+                Know someone whose answers would be worth reading?{' '}
+                <Link href={nominateHref(city.name)} className="font-semibold text-amber-700 hover:underline">
+                  Nominate them for next month
+                </Link>
+                .
+              </p>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* ── Digital nomads shelf ─────────────────────────────────────── */}
+      {/* This city's 'Digital nomads' articles (lib/remoteWork
+          NOMAD_STORY_CATEGORY), newest first. Hidden until there is one. */}
+      {hub.stories.length > 0 && (
+        <section id="stories" aria-labelledby="stories-title" className={`py-12 sm:py-16 ${storiesBg} border-t border-gray-100 scroll-mt-20`}>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="mb-8">
+              <h2 id="stories-title" className="section-title">Worth reading before you land</h2>
+              <p className="section-subtitle max-w-2xl">
+                Working remotely from {city.name} — the routines, the trade-offs and what nobody mentions.
+              </p>
+            </div>
+            <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {hub.stories.map(story => (
+                <li key={story.slug}>
+                  <Link href={`/posts/${story.slug}`}
+                    className="group h-full flex flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm hover:border-amber-200 hover:shadow-md transition-all">
+                    {story.cover && (
+                      // Absolute image: an aspect-ratio box grows to fit a portrait cover.
+                      <div className="relative aspect-[16/9] overflow-hidden bg-gray-100">
+                        <img src={story.cover} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+                      </div>
+                    )}
+                    <div className="p-5 flex flex-col flex-1">
+                      <h3 className="font-bold text-gray-900 leading-snug group-hover:text-amber-700 transition-colors">{story.title}</h3>
+                      {story.excerpt && <p className="mt-2 text-sm text-gray-600 leading-relaxed line-clamp-3 flex-1">{story.excerpt}</p>}
+                      <span className="mt-4 text-sm font-bold text-amber-700 group-hover:text-amber-800">
+                        Read <span aria-hidden="true">→</span>
+                      </span>
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      )}
+
       {/* ── Practical guides ─────────────────────────────────────────── */}
       {topics.length > 0 && (
-        <section className="py-12 sm:py-16 bg-white border-t border-gray-100">
+        <section className={`py-12 sm:py-16 ${practicalBg} border-t border-gray-100`}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="mb-8">
               <h2 className="section-title">The practical side</h2>
               <p className="section-subtitle max-w-2xl">From the Smileys Handbook.</p>
             </div>
+            <HandbookPicks citySlug={city.slug} picks={handbookPicks} className="mb-8" />
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {topics.map(topic => (
                 <div key={topic.key} className="bg-gray-50 border border-gray-100 rounded-2xl p-5">
@@ -229,7 +396,7 @@ export default async function CityRemoteWorkPage({ params }: Params) {
                       const reviewed = reviewLabel(a)
                       return (
                         <li key={a.slug}>
-                          <Link href={`/handbook/${a.slug}`} className="font-semibold text-gray-900 hover:text-amber-700 leading-snug">
+                          <Link href={`/handbook/${a.slug}${handbookQs(city.slug)}`} className="font-semibold text-gray-900 hover:text-amber-700 leading-snug">
                             {a.title}
                           </Link>
                           {(reviewed || a.hasOfficialSources) && (
@@ -268,14 +435,14 @@ export default async function CityRemoteWorkPage({ params }: Params) {
               <ul className="mt-3 space-y-1 text-sm">
                 {workLegalGuide && (
                   <li>
-                    <Link href={`/handbook/${workLegalGuide.slug}`} className="font-semibold text-amber-700 hover:text-amber-800">
+                    <Link href={`/handbook/${workLegalGuide.slug}${handbookQs(city.slug)}`} className="font-semibold text-amber-700 hover:text-amber-800">
                       Can I work remotely here? {workLegalGuide.title} <span aria-hidden="true">→</span>
                     </Link>
                   </li>
                 )}
                 {entryGuide && (
                   <li>
-                    <Link href={`/handbook/${entryGuide.slug}`} className="font-semibold text-amber-700 hover:text-amber-800">
+                    <Link href={`/handbook/${entryGuide.slug}${handbookQs(city.slug)}`} className="font-semibold text-amber-700 hover:text-amber-800">
                       How long can I stay? {entryGuide.title} <span aria-hidden="true">→</span>
                     </Link>
                   </li>
@@ -296,7 +463,7 @@ export default async function CityRemoteWorkPage({ params }: Params) {
             Joining is free. You only pay for events you choose, and the price is shown before you RSVP.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <JoinCityButton slug={city.slug} name={city.name} />
+            <JoinCityButton slug={city.slug} name={city.name} guest={!session} />
             <Link href={`/${city.slug}/events`} className="btn-secondary text-base px-8 py-4">See upcoming events</Link>
           </div>
         </div>

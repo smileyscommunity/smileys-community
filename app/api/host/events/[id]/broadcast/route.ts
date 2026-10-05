@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { MESSAGEABLE_USER } from '@/lib/attendeeAudience'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin, canManageEventOps } from '@/lib/access'
@@ -49,7 +50,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     // count would have included; and a write that failed
     // (createNotification → false) isn't a message anyone got.
     const attendees = await prisma.eventAttendee.findMany({
-      where: { eventId, status: 'approved', userId: { not: session.id }, user: { status: { notIn: ['banned', 'deleted'] } } },
+      where: { eventId, status: 'approved', userId: { not: session.id }, user: MESSAGEABLE_USER },
       select: { userId: true },
     })
 

@@ -12,6 +12,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { useAuth } from '@/contexts/AuthContext'
 import { resolveImageUrl } from '@/lib/data'
+import { PhotoCredit } from '@/components/PhotoCredit'
 
 interface SavedBusiness {
   id: string
@@ -23,6 +24,8 @@ interface SavedBusiness {
   instagram: string | null
   logo: string | null
   coverImage: string | null
+  coverCredit?: string | null
+  coverCreditUrl?: string | null
   isExpatOwned: boolean
   isExpatFriendly: boolean
   memberDiscount: string | null
@@ -157,6 +160,11 @@ export default function SavedDirectoryPage() {
                     {logo && (
                       <div className="absolute bottom-2 right-2 w-9 h-9 rounded-xl overflow-hidden border-2 border-white shadow-sm bg-white">
                         <img src={logo} alt={b.name} className="w-full h-full object-cover" />
+                      </div>
+                    )}
+                    {cover && b.coverCredit && (
+                      <div className="absolute bottom-2 left-2 max-w-[65%]">
+                        <PhotoCredit credit={b.coverCredit} url={b.coverCreditUrl} variant="overlay" link />
                       </div>
                     )}
                   </div>

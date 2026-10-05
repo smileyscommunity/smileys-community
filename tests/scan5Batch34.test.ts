@@ -54,7 +54,7 @@ const h = vi.hoisted(() => {
 vi.mock('@/lib/prisma',         () => ({ prisma: h.prisma }))
 vi.mock('@/lib/session',        () => ({ getSession: h.getSession }))
 vi.mock('@/lib/rateLimit',      () => ({ rateLimit: vi.fn(async () => true), claimOnce: h.claimOnce, releaseClaim: h.releaseClaim }))
-vi.mock('@/lib/notify',         () => ({ createNotification: h.createNotification, notifyNewEvent: vi.fn(async () => {}) }))
+vi.mock('@/lib/notify',         () => ({ createNotification: h.createNotification, notifyNewEvent: vi.fn(async () => {}) , notifyTripArrival: vi.fn(async () => {})}))
 vi.mock('@/lib/city',           () => h.city)
 vi.mock('@/lib/cronHealth',     () => ({ recordCronRun: vi.fn() }))
 vi.mock('@/lib/confirmToast',   () => ({ confirmToast: h.confirmToast }))
@@ -387,7 +387,7 @@ describe('h. lib/admin/overCapacity', () => {
   const other   = () => new Response(JSON.stringify({ error: 'paused', code: 'red_card_blocked' }), { status: 409 })
   const ok      = () => new Response('{}', { status: 200 })
 
-  it('recognises only a capacity refusal, and leaves the body readable', async () => {
+  it('recognizes only a capacity refusal, and leaves the body readable', async () => {
     const res = refused()
     expect(await capacityRefusal(res)).toMatchObject({ code: 'over_capacity', approved: 10, totalSpots: 10 })
     expect((await res.json()).error).toBe('full')
@@ -563,7 +563,7 @@ describe('k. the automated sweeps leave postponed events alone', () => {
     expect(needsReconfirmation({ ...e, status: 'postponed' })).toBe(false)
   })
 
-  it('no-show settling, surveys, reminders, auto-archive and the first-RSVP nudge only read published/archived', () => {
+  it('no-show settling, surveys, reminders, and auto-archive only read published/archived', () => {
     // Standing's sweep carries this rule now that v1's settleEvent is gone:
     // a postponed or draft event has no door to judge.
     expect(read('lib/standing.ts')).toContain("status: { in: ['published', 'archived'] },")
@@ -571,7 +571,6 @@ describe('k. the automated sweeps leave postponed events alone', () => {
     const reminders = read('app/api/admin/cron/reminders/route.ts')
     expect(reminders).toContain("where: { OR: before(todayGroups), status: 'published' },")
     expect(reminders).toContain("where: { OR: onDay(todayOrTomorrow), status: 'published' },")
-    expect(read('lib/firstRsvpNudge.ts')).toContain("where: { status: 'published', date:")
     for (const f of ['lib/standing.ts', 'lib/reconfirm.ts', 'app/api/cron/sweep-event-surveys/route.ts', 'app/api/admin/cron/reminders/route.ts']) {
       expect(read(f), f).not.toContain("'postponed'")
     }

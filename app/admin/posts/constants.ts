@@ -16,16 +16,37 @@ export function isKind(s: unknown): s is Kind {
 // "Antalya Guide" were the taxonomy naming two of seven cities, and a story
 // pinned to İzmir had nowhere to go. Which city a guide is about is the
 // post's cityId, and the public pages label it from that.
-export const CATEGORIES = ['Community', 'Club Stories', 'Events', 'City Guide', 'Tips'] as const
+// 'Working from' is the remote-work hub's interview series (lib/remoteWork
+// INTERVIEW_CATEGORY): one member a month, the same questions each time,
+// pinned to the city it is about — a post in it with no cityId is shown by
+// nobody's hub.
+// 'Students' is what the student hub shows (lib/students STUDENT_STORY_CATEGORY):
+// Erasmus and exchange-student pieces, pinned to the city they are about —
+// like 'Working from', a post in it with no cityId is on no hub.
+// 'Expats' is the moving hub's reading series (lib/relocation
+// EXPAT_STORY_CATEGORY): living-here pieces, read in order, pinned to their
+// city. 'Tips' stays for advice that is about no one city.
+// 'Digital nomads' is the remote-work hub's article shelf (lib/remoteWork
+// NOMAD_STORY_CATEGORY), pinned to its city — separate from 'Working from',
+// which is the one-member-a-month interview the hub shows as a single card.
+// 'Travelers' is /visiting's shelf (lib/tripPlan TRAVELLER_STORY_CATEGORY),
+// pinned to the city the visitor is looking at; the shelf shows City Guide
+// posts too (TRAVELLER_SHELF_CATEGORIES).
+export const CATEGORIES = ['Community', 'Club Stories', 'Events', 'City Guide', 'Tips', 'Working from', 'Students', 'Expats', 'Digital nomads', 'Travelers'] as const
 export type Category = (typeof CATEGORIES)[number]
 // The two retired names, accepted on write and folded into 'City Guide' so an
 // edit of an older row migrates it instead of resetting it to the default.
 const LEGACY_CITY_GUIDE = new Set(['Istanbul Guide', 'Antalya Guide'])
+// The British spelling the category launched under (2026-10-02, renamed for
+// US spelling the same day): accepted on write and folded into 'Travelers',
+// so an edit of a row still stored that way migrates it.
+const LEGACY_TRAVELERS = 'Travellers'
 export function isCategory(s: unknown): s is Category {
-  return typeof s === 'string' && ((CATEGORIES as readonly string[]).includes(s) || LEGACY_CITY_GUIDE.has(s))
+  return typeof s === 'string' && ((CATEGORIES as readonly string[]).includes(s) || LEGACY_CITY_GUIDE.has(s) || s === LEGACY_TRAVELERS)
 }
 export function normalizeCommunityCategory(s: unknown): Category {
   if (typeof s === 'string' && LEGACY_CITY_GUIDE.has(s)) return 'City Guide'
+  if (s === LEGACY_TRAVELERS) return 'Travelers'
   return isCategory(s) ? (s as Category) : CATEGORIES[0]
 }
 
@@ -35,7 +56,7 @@ export function normalizeCommunityCategory(s: unknown): Category {
 // with no server-only imports, so the client PostForm can import it too.)
 export const HANDBOOK_CATEGORIES = CATEGORY_KEYS as readonly string[]
 
-// Writes accept legacy keys as well as canonical ones, then normalise. Without
+// Writes accept legacy keys as well as canonical ones, then normalize. Without
 // this, saving an article still stored under 'Bureaucracy' would fail the
 // allowlist and get silently reset to the default category — a real data-loss
 // path, since the inline article editor round-trips category on every save.

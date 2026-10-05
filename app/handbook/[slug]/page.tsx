@@ -1,17 +1,21 @@
 import { notFound } from 'next/navigation'
 import { jsonLdHtml } from '@/lib/jsonLd'
+import { breadcrumbJsonLd } from '@/lib/breadcrumbJsonLd'
+import { overviewForGuide } from '@/lib/topicPairs'
+import { getTopicCompanion } from '@/lib/topicCompanion'
+import TopicCompanion from '@/components/TopicCompanion'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { resolveCityId, getCityConfig, DEFAULT_CITY_SLUG } from '@/lib/city'
+import { cityQs } from '@/lib/cityPageParam'
 import { postCityScope } from '@/lib/postScope'
 import { sanitizeArticle } from '@/lib/sanitize'
 import { resolveImageUrl } from '@/lib/data'
 import { firstBodyImage } from '@/lib/articleCover'
 import { isArticleImageSrc } from '@/lib/uploadedImageUrl'
-import { getNextInSeries } from '@/lib/postSeries'
 import { SITE_URL, APP_URL } from '@/lib/env'
 import { HANDBOOK_TO_GUIDE } from '@/lib/handbook-links'
 import { seeAlsoSlug } from '@/lib/handbookSeeAlso'
@@ -177,29 +181,28 @@ export default async function HandbookArticlePage({ params }: Params) {
   // VIEWER's city — see getHandbookRelated.
   const articleCity = post.cityId ? await getCityConfig(post.cityId) : viewerCity
   const cityName    = articleCity.name
-  // The "Quick links for this topic" callout deep-links into /handbook's
-  // quick-reference block — Istanbul's link pack, rendered on the default
-  // city's index only — so the callout follows the same gate (same rule as
-  // handbookCity() on the index; per-city quick reference is the follow-up).
-  const viewerCityIsDefault = viewerCity.slug === DEFAULT_CITY_SLUG
+  // The city every link out of this page names, and the one "More in …" is
+  // scoped to: the article's own when it has one, else the viewer's. It all
+  // followed the viewer before, so a cookie-less guest on İzmir's transport
+  // guide got an Istanbul breadcrumb, Istanbul's category page, Istanbulkart
+  // as "more in this category" and Istanbul's quick links at the foot.
+  const linkCity = post.cityId ? articleCity : viewerCity
+  const qs       = cityQs(linkCity.slug)
+  // The "Quick links for this topic" callout deep-links into the quick
+  // reference — Istanbul's link pack — so it shows only when the article's
+  // city IS the default (per-city quick reference is the follow-up).
+  const linkCityIsDefault = linkCity.slug === DEFAULT_CITY_SLUG
 
   const related = preview ? [] : await getHandbookRelated(
     canonical ? storedKeysFor(canonical) : [post.category],
     post.id,
-    cityId,
-    viewerCity.country ?? null,
+    post.cityId ?? cityId,
+    linkCity.country ?? null,
   )
   const seeAlsoTarget = seeAlsoSlug(post.slug)
   const seeAlso = seeAlsoTarget && !preview ? await getSeeAlso(seeAlsoTarget) : null
-
-  // Null unless this category is listed as a real sequence in lib/postSeries.
-  // Handbook categories are parallel by nature — "Getting Around" is six city
-  // transit cards — so this is off here until a category earns it.
-  // publishedAt arrives as a Date on a cache miss and as an ISO STRING on a
-  // hit — unstable_cache serialises its value to JSON, and Prisma's types
-  // still claim Date, so typecheck cannot see it. new Date() accepts both.
-  const nextUp = preview ? null : await getNextInSeries(post.kind, post.category,
-    post.publishedAt ? new Date(post.publishedAt).toISOString() : null)
+  const overviewSlug = preview ? null : overviewForGuide(post.slug)
+  const overview     = overviewSlug ? await getTopicCompanion(overviewSlug, 'community') : null
 
   // Freshness + sources are computed server-side so the client component gets
   // settled strings (see EditableArticle's props comment). The published date
@@ -276,12 +279,25 @@ export default async function HandbookArticlePage({ params }: Params) {
   )
 
   return (
-    <main className="bg-white">
+    <div className="bg-white">
       {!preview && (
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
             __html: jsonLdHtml(articleJsonLd),
+          }}
+        />
+      )}
+      {!preview && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: jsonLdHtml(breadcrumbJsonLd([
+              { name: 'Smileys',                url: APP_URL },
+              { name: `${cityName} Handbook`,   url: `${APP_URL}/handbook${qs}` },
+              ...(canonical ? [{ name: catLabel, url: `${APP_URL}/handbook/category/${encodeURIComponent(catKey)}${qs}` }] : []),
+              { name: post.title,               url: pageUrl },
+            ])),
           }}
         />
       )}
@@ -296,10 +312,10 @@ export default async function HandbookArticlePage({ params }: Params) {
             article — icons at the top were removed). A row whose category
             matches nothing has no category page to link. */}
         <nav className="flex items-center gap-2 text-xs text-gray-600 flex-wrap mb-6">
-          <Link href="/handbook" className="hover:text-amber-600 font-semibold">📖 Handbook</Link>
+          <Link href={`/handbook${qs}`} className="hover:text-amber-600 font-semibold">📖 Handbook</Link>
           <span>›</span>
           {canonical
-            ? <Link href={`/handbook/category/${encodeURIComponent(catKey)}`} className="hover:text-amber-600 font-semibold">{catLabel}</Link>
+            ? <Link href={`/handbook/category/${encodeURIComponent(catKey)}${qs}`} className="hover:text-amber-600 font-semibold">{catLabel}</Link>
             : <span className="font-semibold">{catLabel}</span>}
         </nav>
 
@@ -310,19 +326,17 @@ export default async function HandbookArticlePage({ params }: Params) {
             — it is not shipped to every reader. */}
         {/* sanitizeArticle, not sanitize: handbook bodies come from the same
             RichTextEditor as community articles, so the strict sanitizer
-            silently dropped every colour the toolbar offers. */}
+            silently dropped every color the toolbar offers. */}
         <EditableArticle
           id={post.id}
+          slug={post.slug}
           cityId={post.cityId}
           title={post.title}
           excerpt={post.excerpt}
           sanitizedBody={sanitizeArticle(post.body)}
-          category={post.category}
           categoryLabel={catLabel}
           catCls={catCls}
           coverImage={post.coverImage ? resolveImageUrl(post.coverImage) : null}
-          coverImageRaw={post.coverImage}
-          status={post.status}
           preview={preview}
           byline={{ name: byline.name, color: byline.color }}
           publishedText={publishedText}
@@ -409,12 +423,16 @@ export default async function HandbookArticlePage({ params }: Params) {
           </section>
         )}
 
+        {overview && (
+          <TopicCompanion href={`/posts/${overview.slug}`} kicker="The overview, as a story" title={overview.title} excerpt={overview.excerpt} />
+        )}
+
         {/* Cross-link to the matching City Guide section. The handbook
             article gives the *how*; the guide gives the *what links
             to bookmark*. Showing both right at the end of the article
             answers the natural next question ("OK, now what app do I
             use?") without sending members away to search. */}
-        {viewerCityIsDefault && HANDBOOK_TO_GUIDE[catKey] && (
+        {linkCityIsDefault && HANDBOOK_TO_GUIDE[catKey] && (
           <section className="mt-12 pt-8 border-t border-gray-100">
             <Link href={`/handbook/quick-reference#${HANDBOOK_TO_GUIDE[catKey].anchor}`}
               className="block bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-2xl px-5 py-4 transition-colors group">
@@ -455,21 +473,6 @@ export default async function HandbookArticlePage({ params }: Params) {
           </div>
         </section>
 
-        {nextUp && (
-          <Link
-            href={`/handbook/${nextUp.slug}`}
-            className="mt-12 flex items-center justify-between gap-4 p-5 rounded-2xl border border-amber-200 bg-amber-50 hover:bg-amber-100 transition-colors group"
-          >
-            <span className="min-w-0">
-              <span className="block text-xs font-bold uppercase tracking-widest text-amber-600 mb-1">Next in {catLabel}</span>
-              <span className="block font-bold text-gray-900 group-hover:text-amber-700 transition-colors leading-snug">{nextUp.title}</span>
-            </span>
-            <svg className="w-5 h-5 shrink-0 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </Link>
-        )}
-
         {related.length > 0 && (
           <section className="mt-12 pt-8 border-t border-gray-100">
             <p className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-4">More in {catLabel}</p>
@@ -488,9 +491,9 @@ export default async function HandbookArticlePage({ params }: Params) {
         )}
 
         <div className="mt-12 pt-6 border-t border-gray-100">
-          <Link href="/handbook" className="text-sm text-amber-600 font-bold hover:underline">← Back to the Handbook</Link>
+          <Link href={`/handbook${qs}`} className="text-sm text-amber-600 font-bold hover:underline">← Back to the Handbook</Link>
         </div>
       </article></div>
-    </main>
+    </div>
   )
 }

@@ -22,11 +22,6 @@ export const NO_SHOW_ROLLING_WINDOW_DAYS       = 90
 export const RED_CARD_BLOCK_DAYS               = 30
 export const RED_CARD_APPEAL_WINDOW_HOURS      = 48
 export const NO_SHOW_PROCESSING_DELAY_HOURS    = 2
-// Launch backstop: an event that ended longer ago than this is never
-// processed. Without it the first run would settle every past event in the
-// database and hand out cards for things that happened before the policy
-// existed.
-export const NO_SHOW_PROCESSING_LOOKBACK_DAYS  = 7
 // "The host ran check-in" means more than one scan. A door that checked in
 // three friends and nobody else is not evidence that the other seventeen
 // stayed home — it is evidence the host stopped scanning. No-shows are only
@@ -58,21 +53,6 @@ export const NO_SHOW_POLICY_PATH = '/posts/how-free-event-spots-work'
 
 const HOUR = 60 * 60 * 1000
 const DAY  = 24 * HOUR
-
-export const CardKind = { Yellow: 'yellow', Red: 'red' } as const
-export type CardKind = typeof CardKind[keyof typeof CardKind]
-
-export const CardStatus = {
-  Active:        'active',
-  AppealPending: 'appeal_pending',
-  Waived:        'waived',        // host: the attendance result was wrong
-  Overturned:    'overturned',    // admin: appeal accepted
-  Expired:       'expired',       // ran its course
-} as const
-export type CardStatus = typeof CardStatus[keyof typeof CardStatus]
-
-/** Statuses that still count as a no-show in the rolling window. */
-export const COUNTING_STATUSES: string[] = [CardStatus.Active, CardStatus.AppealPending, CardStatus.Expired]
 
 // ── Who is never carded, and who may not judge a card ───────────────────────
 //
@@ -223,75 +203,6 @@ export function windowStart(reference: Date): Date {
   return new Date(reference.getTime() - NO_SHOW_ROLLING_WINDOW_DAYS * DAY)
 }
 
-/** First no-show in the window → yellow; any further one → red. */
-export function cardKindFor(priorCountingNoShows: number): CardKind {
-  return priorCountingNoShows === 0 ? CardKind.Yellow : CardKind.Red
-}
-
-/** A red card's timeline, from the moment it is issued. */
-export function redCardWindows(issuedAt: Date) {
-  const appealDeadlineAt    = new Date(issuedAt.getTime() + RED_CARD_APPEAL_WINDOW_HOURS * HOUR)
-  const restrictionStartsAt = appealDeadlineAt
-  const restrictionEndsAt   = new Date(restrictionStartsAt.getTime() + RED_CARD_BLOCK_DAYS * DAY)
-  return { appealDeadlineAt, restrictionStartsAt, restrictionEndsAt }
-}
-
-/** When a rejected appeal lets the block begin: never before the deadline. */
-export function restrictionAfterRejectedAppeal(appealDeadlineAt: Date, resolvedAt: Date) {
-  const restrictionStartsAt = new Date(Math.max(appealDeadlineAt.getTime(), resolvedAt.getTime()))
-  const restrictionEndsAt   = new Date(restrictionStartsAt.getTime() + RED_CARD_BLOCK_DAYS * DAY)
-  return { restrictionStartsAt, restrictionEndsAt }
-}
-
-// ── The RSVP gate ───────────────────────────────────────────────────────────
-
-export interface GateCard {
-  id:                  string
-  kind:                string
-  status:              string
-  eventId:             string
-  occurredAt:          Date
-  acknowledgedAt:      Date | null
-  appealDeadlineAt:    Date | null
-  restrictionStartsAt: Date | null
-  restrictionEndsAt:   Date | null
-}
-
-export type GateResult =
-  | { ok: true }
-  | { ok: false; code: 'red_card_blocked';    cardId: string; restrictionEndsAt: Date; appealDeadlineAt: Date | null }
-  | { ok: false; code: 'yellow_ack_required'; cardId: string; eventId: string }
-
-/** Is this red card's block in force right now? */
-export function isBlocking(card: GateCard, now: Date): boolean {
-  return card.kind === CardKind.Red
-    && card.status === CardStatus.Active
-    && !!card.restrictionStartsAt && !!card.restrictionEndsAt
-    && card.restrictionStartsAt.getTime() <= now.getTime()
-    && now.getTime() < card.restrictionEndsAt.getTime()
-}
-
-/** Does this yellow card still want its "I'll actually come" confirmation? */
-export function needsAcknowledgement(card: GateCard, now: Date): boolean {
-  return card.kind === CardKind.Yellow
-    && card.status === CardStatus.Active
-    && card.acknowledgedAt === null
-    && card.occurredAt.getTime() >= windowStart(now).getTime()
-}
-
-/**
- * May this member RSVP or join a waitlist right now? A block wins over a
- * pending confirmation; with several blocks the one ending last is reported.
- */
-export function evaluateGate(cards: GateCard[], now: Date = new Date()): GateResult {
-  const blocking = cards.filter(c => isBlocking(c, now))
-    .sort((a, b) => b.restrictionEndsAt!.getTime() - a.restrictionEndsAt!.getTime())[0]
-  if (blocking) {
-    return { ok: false, code: 'red_card_blocked', cardId: blocking.id,
-             restrictionEndsAt: blocking.restrictionEndsAt!, appealDeadlineAt: blocking.appealDeadlineAt }
-  }
-  const yellow = cards.filter(c => needsAcknowledgement(c, now))
-    .sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime())[0]
-  if (yellow) return { ok: false, code: 'yellow_ack_required', cardId: yellow.id, eventId: yellow.eventId }
-  return { ok: true }
-}
+// The v1 card engine (card kinds and statuses, red-card windows, the RSVP
+// gate) was deleted with v1 in 2026-09; standing (lib/standingPolicy) is what
+// runs now. What's left here is still read by it and the reconfirm flow.

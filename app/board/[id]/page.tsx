@@ -208,7 +208,7 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
   // stays full-size since it's the page's primary content.
   const avatar = avatarUrl(listing.user.profilePhoto, 128)
 
-  // A phone number or a WhatsApp link, never an arbitrary host labelled
+  // A phone number or a WhatsApp link, never an arbitrary host labeled
   // "WhatsApp" — the same reading the sheet does. See lib/listingDisplay.
   const contact  = contactRender(listing.contact)
   const mailHref = listing.contactEmail

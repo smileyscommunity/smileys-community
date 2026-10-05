@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { bustCityPages } from '@/lib/cityPageCache'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator, isAdmin, failClosedCityId } from '@/lib/access'
@@ -97,5 +98,6 @@ export async function PATCH(req: NextRequest) {
   await Promise.all(ids.map((id: string, i: number) =>
     prisma.testimonial.update({ where: { id }, data: { order: i } })
   ))
+  bustCityPages()
   return NextResponse.json({ ok: true })
 }

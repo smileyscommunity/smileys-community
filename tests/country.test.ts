@@ -9,7 +9,7 @@ describe('countryName', () => {
     expect(countryName('PT')).toBe('Portugal')
   })
   it('passes legacy full-name rows through unchanged', () => {
-    // Until every row is normalised, a stray 'TURKEY' must still render.
+    // Until every row is normalized, a stray 'TURKEY' must still render.
     expect(countryName('TURKEY')).toBe('TURKEY')
   })
   it('handles empty input', () => {

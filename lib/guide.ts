@@ -1,3 +1,6 @@
+import { foldPlaceName } from './neighborhoods'
+import { DEFAULT_TZ } from './cityTime'
+
 // Istanbul Guide — experience content layer. The Guide answers "what
 // should I experience?" (the Handbook answers "how do I function here",
 // the Directory "where do I find a business"). Experiences are editorial
@@ -8,6 +11,69 @@
 // stable ids used in experience JSON + URL params; labels/emoji render
 // the chips. Order = display order.
 export interface GuideTaxon { value: string; label: string; emoji: string }
+
+/**
+ * Does an experience match a free-text search?
+ *
+ * Both sides are folded with the neighborhoods' Turkish fold, so "izmir"
+ * finds "İzmir" and "kadikoy" finds "Kadıköy" from a Latin keyboard —
+ * `toLowerCase()` alone turns İ into i̇ (dotted i + combining dot) and never
+ * matches plain i. Mood LABELS are searched as well as values: "Go Out
+ * Tonight" used to find nothing because only 'night-out' was indexed.
+ */
+export function experienceMatchesQuery(
+  exp: { title: string; tagline: string; why?: string; take?: string; moods: string[] },
+  query: string,
+  moods: GuideTaxon[] = [],
+): boolean {
+  return searchTextMatches(experienceSearchText(exp, moods), query)
+}
+
+/**
+ * The folded haystack an experience is searched by. Built once on the
+ * server and shipped to the explorer INSTEAD of the why/take/sections: the
+ * index used to send every experience's full text to the browser (174 KB of
+ * page for fifteen cards) so that client-side search could read it.
+ */
+export function experienceSearchText(
+  exp: { title: string; tagline: string; why?: string; take?: string; moods: string[] },
+  moods: GuideTaxon[] = [],
+): string {
+  const labels = exp.moods.map(m => moods.find(t => t.value === m)?.label ?? m)
+  return foldPlaceName([exp.title, exp.tagline, exp.why ?? '', exp.take ?? '', ...exp.moods, ...labels].join(' '))
+}
+
+export function searchTextMatches(searchText: string, query: string): boolean {
+  const q = foldPlaceName(query)
+  return !q || searchText.includes(q)
+}
+
+/** What the mood explorer needs for a card — and nothing it doesn't. */
+export interface ExplorerCard {
+  slug: string
+  title: string
+  emoji: string
+  tagline: string
+  cost: string
+  time: string
+  moods: string[]
+  photo?: string | null
+  search: string
+}
+
+/**
+ * The trust line under an experience: "Checked by Smileys · 12 March 2026",
+ * or the honest absence. Never derived from updatedAt — a typo fix is not a
+ * review (same rule as the Handbook, lib/handbook-review). Unlike Handbook
+ * articles, experiences carry no category, so there is no staleness tier:
+ * the date is shown as-is and the reader judges.
+ */
+export function guideReviewLine(lastReviewedAt: string | Date | null | undefined): string | null {
+  if (!lastReviewedAt) return null
+  const d = new Date(lastReviewedAt)
+  if (Number.isNaN(d.getTime())) return null
+  return `Checked by Smileys · ${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: DEFAULT_TZ })}`
+}
 
 // Istanbul's vocabulary. "Be by the Bosphorus" is not a mood a Bodrum member
 // can act on, which is the whole reason these are per city now: a shared list
@@ -112,7 +178,7 @@ const GENERIC_COLLECTIONS: GuideTaxon[] = [
 ]
 
 // Keyed by city SLUG, not id: these are editorial vocabularies that live with
-// the code, and a slug is what a reader of this file recognises.
+// the code, and a slug is what a reader of this file recognizes.
 const CITY_MOODS:       Record<string, GuideTaxon[]> = { istanbul: ISTANBUL_MOODS, bodrum: BODRUM_MOODS, izmir: IZMIR_MOODS }
 const CITY_COLLECTIONS: Record<string, GuideTaxon[]> = { istanbul: ISTANBUL_COLLECTIONS, bodrum: BODRUM_COLLECTIONS, izmir: IZMIR_COLLECTIONS }
 
@@ -143,7 +209,7 @@ export type GuideCollection = string
 // "Families" and "Digital nomads" are in the brief and are deliberately absent:
 // nothing in the taxonomy records whether an experience suits a five-year-old or
 // has wifi, so any mapping would be a guess — and a guess here recommends a
-// beach-club night to someone travelling with kids. Add the audience when the
+// beach-club night to someone traveling with kids. Add the audience when the
 // data can answer it (a `family` mood, a coworking flag), not before.
 export interface GuideAudience {
   value: string
@@ -195,7 +261,7 @@ const CITY_AUDIENCES: Record<string, GuideAudience[]> = {
 }
 
 /**
- * The audiences a city can actually honour.
+ * The audiences a city can actually honor.
  *
  * Every mood and collection is checked against that city's live vocabulary and
  * dropped if absent, so a renamed taxon or a city on the reduced generic set
@@ -308,6 +374,9 @@ export interface Experience {
   // Annotated at render time by the server loader when
   // public/images/guide/<slug>.jpg exists — never set in the JSON.
   photo?: string | null
+  // When a staff member last checked the entry against reality (ISO). Set
+  // only by the "Reviewed today" action; null reads as "not yet reviewed".
+  lastReviewedAt?: string | null
   // Contextual integrations (IA brief §16/§18/§19) — the Guide references
   // canonical homes, never duplicates them. All optional.
   handbook?: { slug: string; label: string }[]

@@ -34,6 +34,7 @@ interface Application {
   // Single-dimension axis for sorting the pending queue when spam waves
   // hit; rendered as a "🚨 Sus N" pill in the badge row.
   suspicionScore?: number
+  emailConfirmedAt?: string | null
   referrer?: { name: string } | null
   escalated?: boolean; escalatedNote?: string | null
   // Which Smileys city they applied to — NOT the free-text `city` above,
@@ -165,7 +166,7 @@ function AdminApplicationsPageInner() {
   const [selected,      setSelected]      = useState<Application | null>(null)
   // 'hold' status (API-side) folds INTO the Pending tab as a badge rather
   // than getting its own tab. The Request More Info workflow is preserved
-  // (modal button + API behaviour unchanged) — admins just see held apps
+  // (modal button + API behavior unchanged) — admins just see held apps
   // alongside genuinely-pending ones, marked "✉ Info requested Xd ago",
   // so they don't disappear into a side tab nobody clicks.
   const [tab,           setTab]           = useState<TabKey>(
@@ -923,7 +924,7 @@ function AdminApplicationsPageInner() {
               {/* Checkbox */}
               <input type="checkbox" checked={selected2.has(app.id)}
                 onClick={e => e.stopPropagation()}
-                onChange={() => setSelected2(prev => { const s = new Set(prev); s.has(app.id) ? s.delete(app.id) : s.add(app.id); return s })}
+                onChange={() => setSelected2(prev => { const s = new Set(prev); if (s.has(app.id)) s.delete(app.id); else s.add(app.id); return s })}
                 className="w-4 h-4 rounded accent-amber-500 shrink-0" />
 
               {/* Avatar */}
@@ -955,6 +956,14 @@ function AdminApplicationsPageInner() {
                       : 'bg-amber-500/10 text-amber-400'
                     }`}>
                       🚨 Sus {app.suspicionScore}
+                    </span>
+                  )}
+                  {/* Double opt-in: the applicant hasn't clicked the link in
+                      their email yet. It may not be their address — a
+                      rejection sends them nothing until they do. */}
+                  {app.emailConfirmedAt === null && (
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-zinc-700/60 text-zinc-300" title="The applicant hasn't confirmed this email address yet">
+                      ✉️ Email not confirmed
                     </span>
                   )}
                   {/* Info-requested badge — shown for hold-status apps that
@@ -1387,7 +1396,7 @@ function AdminApplicationsPageInner() {
                             value={welcomeMsg}
                             onChange={e => setWelcomeMsg(e.target.value)}
                             rows={3}
-                            placeholder="AI will draft a personalised welcome — or write your own…"
+                            placeholder="AI will draft a personalized welcome — or write your own…"
                             className="w-full px-3 py-2 text-xs bg-zinc-900 border border-zinc-700 rounded-lg text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-violet-500/50 resize-none"
                           />
                           {welcomeMsg && <p className="text-xs text-zinc-600">Sent to the member on approval. Edit before approving.</p>}

@@ -37,7 +37,7 @@ describe('Turnstile expiry recovery', () => {
   })
 
   it('still tells the parent the token is gone, so the submit button disables', () => {
-    expect(expiredBody).toMatch(/onExpire\?\.\(\)/)
+    expect(expiredBody).toMatch(/onExpire(Ref\.current)?\?\.\(\)/)
   })
 })
 

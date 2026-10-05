@@ -10,6 +10,8 @@ import { createSeatPayment } from '@/lib/rsvpConfirmed'
 
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 import { writeAudit } from '@/lib/audit'
+import { trackServerForUser } from '@/lib/posthog-server'
+import { changePaymentStatus } from '@/lib/paymentStatus'
 import { activateAttendee, activeAttendeeWhere, cancelAttendeeOp, isActiveAttendee, type CancelActor } from '@/lib/attendance'
 import { standingLevelsFor, redCardBlocksSeat } from '@/lib/standingRead'
 import { DEFAULT_CURRENCY } from '@/lib/data'
@@ -313,6 +315,9 @@ export async function DELETE(req: NextRequest, { params }: Params) {
           return room
         })
         if (next && promoted) {
+          // Funnel: a waitlister seated by the host's removal (the member-claimed
+          // route reports event_rsvp via 'waitlist_claim').
+          void trackServerForUser(next.userId, 'waitlist_promoted', { event_id: eventId, city_id: eventRow?.cityId ?? null })
           createNotification(next.userId, 'waitlist_promoted', 'Spot available! 🎉',
             `A spot opened up for "${eventRow?.title}" — you're in!`, `/events/${eventId}`)
         }
@@ -370,26 +375,37 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
       if (action === 'markPaid') {
         if (existing?.status === 'paid') return NextResponse.json({ ok: true, payment: existing })
-        let payment
+        const actor = { id: session.id, name: session.name }
         if (existing) {
-          payment = await prisma.payment.update({ where: { id: existing.id }, data: { status: 'paid' } })
-          await prisma.paymentLog.create({
-            data: { paymentId: existing.id, adminId: session.id, adminName: session.name,
-                    fromStatus: 'pending', toStatus: 'paid', note: `Marked paid on participants checklist ("${evt.title}")` },
+          // lib/paymentStatus: conditional on still being pending, with the
+          // PaymentLog and — new here — the audit row /admin/payments writes.
+          const ok = await changePaymentStatus({
+            paymentId: existing.id, from: existing.status, to: 'paid', actor,
+            logNote: `Marked paid on participants checklist ("${evt.title}")`,
+            auditMeta: { eventId, via: 'participants' },
+            auditDescription: `Marked paid on the participants checklist for "${evt.title}"`,
           })
-        } else {
-          // No ledger row — RSVP predates the payTo flip, or the member was
-          // added directly by an admin. Create it as paid so the checklist
-          // and the payments overview agree.
-          payment = await prisma.payment.create({
-            data: { userId, eventId, amount: Math.max(0, Number(evt.price) || 0),
-                    currency: evt.currency ?? DEFAULT_CURRENCY, status: 'paid', method: 'manual' },
-          })
-          await prisma.paymentLog.create({
-            data: { paymentId: payment.id, adminId: session.id, adminName: session.name,
-                    fromStatus: null, toStatus: 'paid', note: `Created + marked paid on participants checklist ("${evt.title}")` },
-          })
+          if (!ok) return NextResponse.json({ error: 'This payment changed in the meantime — reload and try again.' }, { status: 409 })
+          return NextResponse.json({ ok: true, payment: await prisma.payment.findUnique({ where: { id: existing.id } }) })
         }
+        // No ledger row — RSVP predates the payTo flip, or the member was
+        // added directly by an admin. Create it as paid so the checklist and
+        // the payments overview agree. A double click created two paid rows
+        // (twice the revenue): one creation per member and event at a time.
+        if (!await claimOnce(`checklist-markpaid:${userId}:${eventId}`, 30_000)) {
+          return NextResponse.json({ error: 'Already being marked paid — reload in a moment.' }, { status: 409 })
+        }
+        const payment = await prisma.payment.create({
+          data: { userId, eventId, amount: Math.max(0, Number(evt.price) || 0),
+                  currency: evt.currency ?? DEFAULT_CURRENCY, status: 'paid', method: 'manual', paidAt: new Date() },
+        })
+        await prisma.paymentLog.create({
+          data: { paymentId: payment.id, adminId: session.id, adminName: session.name,
+                  fromStatus: null, toStatus: 'paid', note: `Created + marked paid on participants checklist ("${evt.title}")` },
+        })
+        writeAudit(session.id, session.name, 'payment.status', payment.id, 'payment',
+          { from: null, to: 'paid', eventId, via: 'participants', created: true },
+          `Created a paid payment on the participants checklist for "${evt.title}"`)
         return NextResponse.json({ ok: true, payment })
       }
 
@@ -397,12 +413,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       if (!existing || existing.status !== 'paid') {
         return NextResponse.json({ error: 'No paid payment to revert' }, { status: 400 })
       }
-      const payment = await prisma.payment.update({ where: { id: existing.id }, data: { status: 'pending' } })
-      await prisma.paymentLog.create({
-        data: { paymentId: existing.id, adminId: session.id, adminName: session.name,
-                fromStatus: 'paid', toStatus: 'pending', note: `Reverted to unpaid on participants checklist ("${evt.title}")` },
+      const ok = await changePaymentStatus({
+        paymentId: existing.id, from: 'paid', to: 'pending', actor: { id: session.id, name: session.name },
+        logNote: `Reverted to unpaid on participants checklist ("${evt.title}")`,
+        auditMeta: { eventId, via: 'participants' },
+        auditDescription: `Reverted to unpaid on the participants checklist for "${evt.title}"`,
       })
-      return NextResponse.json({ ok: true, payment })
+      if (!ok) return NextResponse.json({ error: 'This payment changed in the meantime — reload and try again.' }, { status: 409 })
+      return NextResponse.json({ ok: true, payment: await prisma.payment.findUnique({ where: { id: existing.id } }) })
     }
 
     const [event, user, current] = await Promise.all([

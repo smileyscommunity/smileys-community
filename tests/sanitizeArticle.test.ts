@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import { sanitize, sanitizeArticle } from '@/lib/sanitize'
 
-// sanitizeArticle() exists to let RichTextEditor's colour picker survive to the
+// sanitizeArticle() exists to let RichTextEditor's color picker survive to the
 // published page. The whole reason `style` is banned on the strict sanitizer is
 // that it turns member-authored text into a CSS injection surface, so these
 // tests pin the narrow shape of the exception: `color` on `<span>`, nothing else.
 
-describe('sanitizeArticle — colour passes through', () => {
-  it('keeps a hex colour on a span', () => {
+describe('sanitizeArticle — color passes through', () => {
+  it('keeps a hex color on a span', () => {
     expect(sanitizeArticle('<p><span style="color: #f59e0b">amber</span></p>'))
       .toBe('<p><span style="color:#f59e0b">amber</span></p>')
   })
@@ -17,14 +17,14 @@ describe('sanitizeArticle — colour passes through', () => {
     expect(sanitizeArticle('<span style="color: rgba(245, 158, 11, 0.5)">x</span>')).toContain('rgba(245, 158, 11, 0.5)')
   })
 
-  it('still strips colour for the strict sanitizer used on member content', () => {
+  it('still strips color for the strict sanitizer used on member content', () => {
     expect(sanitize('<p><span style="color: #f59e0b">amber</span></p>'))
       .toBe('<p><span>amber</span></p>')
   })
 })
 
 describe('sanitizeArticle — everything else about style stays blocked', () => {
-  it('drops every property other than color, keeping the colour', () => {
+  it('drops every property other than color, keeping the color', () => {
     const out = sanitizeArticle(
       '<span style="color: #fff; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 99">overlay</span>',
     )
@@ -35,13 +35,13 @@ describe('sanitizeArticle — everything else about style stays blocked', () => 
     }
   })
 
-  it('drops a url() beacon smuggled as a colour or background', () => {
+  it('drops a url() beacon smuggled as a color or background', () => {
     const out = sanitizeArticle('<span style="background-image: url(https://evil.example/p.gif); color: url(https://evil.example/q.gif)">x</span>')
     expect(out).not.toContain('evil.example')
     expect(out).not.toContain('url(')
   })
 
-  it('rejects a colour value that is not a hex/rgb literal', () => {
+  it('rejects a color value that is not a hex/rgb literal', () => {
     // `expression()` and var() lookups are the classic CSS-value escapes.
     expect(sanitizeArticle('<span style="color: expression(alert(1))">x</span>')).not.toContain('expression')
     expect(sanitizeArticle('<span style="color: var(--x)">x</span>')).not.toContain('var(')

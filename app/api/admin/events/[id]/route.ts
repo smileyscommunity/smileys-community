@@ -1,21 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { bustCityPages } from '@/lib/cityPageCache'
 import { isTier } from '@/lib/standingPolicy'
 import { prisma } from '@/lib/prisma'
 import { claimOnce, releaseClaim, rateLimit } from '@/lib/rateLimit'
 import { hostIdError } from '@/lib/eventHostCheck'
+import { scopeCityId, eventCityIds } from '@/lib/eventTrip'
 import { notifyCityStaff } from '@/lib/staffNotify'
 import { venueIdInput } from '@/lib/eventVenue'
 import { ensurePendingVenueBusiness } from '@/lib/venueDirectory'
 import { activeAttendeeWhere } from '@/lib/attendance'
+import { AttendeeStatus } from '@/lib/constants'
 import { restoreSeatsReleasedByCancel, type PaidOnWaitlist } from '@/lib/eventRestore'
 import { backfillSeatPayments, collectsSeatPayment } from '@/lib/rsvpConfirmed'
 import { getSession } from '@/lib/session'
-import { isAdmin, isAdminOrModerator, isClubHost, isClubHostFor, hostCityIds } from '@/lib/access'
-import { createNotification, notifyNewEvent } from '@/lib/notify'
+import { isAdmin, isAdminOrModerator, isClubHost, isClubHostFor, hostCityIds, canActInCity } from '@/lib/access'
+import { createNotification, notifyNewEvent, notifyTripArrival } from '@/lib/notify'
 import { writeAudit, getDiff } from '@/lib/audit'
 import { normalizePaymentContact } from '@/lib/safeUrl'
 import { splitLeadingEmoji, stripDupTrailingEmoji } from '@/lib/data'
-import { sendEventCancelledEmail, recordEmailFailure } from '@/lib/email'
+import { sendEventCancelledEmail, sendEventPostponedEmail, recordEmailFailure, type PostponedRole } from '@/lib/email'
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 import { todayInCity, getCityTz } from '@/lib/city'
 import { checkSeriesId, seriesScopeFor } from '@/lib/seriesOwnership'
@@ -49,7 +52,7 @@ export async function DELETE(_: NextRequest, { params }: Params) {
     // City-scope check for non-admins (moderators + club hosts both need it
     // here — the previous DELETE handler gated only on hostId for club hosts
     // and let any moderator delete any event in any city).
-    const eventScope = await prisma.event.findUnique({ where: { id }, select: { hostId: true, cityId: true, title: true, date: true } })
+    const eventScope = await prisma.event.findUnique({ where: { id }, select: { hostId: true, cityId: true, originCityId: true, title: true, date: true } })
     if (!eventScope) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
     if ((clubHost || cityHostOf.length > 0) && eventScope.hostId !== session.id) {
@@ -63,10 +66,12 @@ export async function DELETE(_: NextRequest, { params }: Params) {
     if (!isAdmin(session) && !clubHost) {
       // A moderator's own event in a city they host (not their home city)
       // is theirs to run as its host.
+      // A trip can be moderated from either of its cities (lib/eventTrip).
+      const cities = eventCityIds(eventScope)
       const cityOk = cityHostOf.length > 0
-        ? cityHostOf.includes(eventScope.cityId)
-        : session.cityId === eventScope.cityId ||
-          (eventScope.hostId === session.id && (await hostCityIds(session.id)).includes(eventScope.cityId))
+        ? cities.some(c => cityHostOf.includes(c))
+        : cities.includes(session.cityId ?? '') ||
+          (eventScope.hostId === session.id && (await hostCityIds(session.id)).some(c => cities.includes(c)))
       if (!cityOk) return NextResponse.json({ error: 'Cross-city moderation is admin-only' }, { status: 403 })
     }
 
@@ -135,6 +140,7 @@ export async function DELETE(_: NextRequest, { params }: Params) {
       { title: eventScope.title, date: eventScope.date, attendeesRemoved: attendeeCount, cityId: eventScope.cityId },
       `Deleted event "${eventScope.title}" (${eventScope.date}, ${attendeeCount} attendees removed)`,
     )
+    bustCityPages()
     return NextResponse.json({ ok: true })
   } catch (e) {
     console.error(e)
@@ -158,7 +164,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
     const before = await prisma.event.findUnique({
       where: { id },
       select: {
-        hostId: true, clubId: true, cityId: true, date: true, time: true, endTime: true, location: true, title: true,
+        hostId: true, clubId: true, cityId: true, originCityId: true, date: true, time: true, endTime: true, location: true, title: true,
         neighborhood: true, price: true, memberPrice: true, payTo: true, totalSpots: true,
         emoji: true, isPremium: true, membersOnly: true, limitedSpots: true, isFirstTimerFriendly: true, status: true,
         seriesId: true, cancelledAt: true, approvalRequired: true, tierOverride: true,
@@ -178,10 +184,13 @@ export async function PUT(req: NextRequest, { params }: Params) {
     if (!isAdmin(session) && !clubHost) {
       // A moderator's own event in a city they host (not their home city)
       // is theirs to run as its host.
+      // A trip can be moderated from either of its cities (lib/eventTrip);
+      // publishing it is the destination's call (below).
+      const cities = eventCityIds(before)
       const cityOk = cityHostOf.length > 0
-        ? cityHostOf.includes(before.cityId)
-        : session.cityId === before.cityId ||
-          (before.hostId === session.id && (await hostCityIds(session.id)).includes(before.cityId))
+        ? cities.some(c => cityHostOf.includes(c))
+        : cities.includes(session.cityId ?? '') ||
+          (before.hostId === session.id && (await hostCityIds(session.id)).some(c => cities.includes(c)))
       if (!cityOk) return NextResponse.json({ error: 'Cross-city moderation is admin-only' }, { status: 403 })
     }
 
@@ -197,7 +206,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
       ...(admin ? ['totalSpots', 'spotsLeft', 'cancelCutoffHours'] : []),
       'tierOverride',
       'price', 'memberPrice', 'payTo', 'paymentContact', 'ticketUrl', 'intent', 'emoji', 'isPremium',
-      'membersOnly', 'limitedSpots', 'soldOut', 'isFirstTimerFriendly', 'vibes', 'status', 'coverImage', 'coverImagePosition', 'meetingUrl',
+      'membersOnly', 'limitedSpots', 'soldOut', 'isFirstTimerFriendly', 'vibes', 'status', 'coverImage', 'coverImagePosition', 'flyerImage', 'meetingUrl',
       'whatsappUrl', 'minAge', 'maxAge', 'language', 'difficulty', 'refundPolicy',
       'registrationDeadline', 'endTime', 'currency', 'approvalRequired', 'isRecurring',
       'lat', 'lng', 'featured', 'genderBalance', 'maleQuota', 'femaleQuota', 'turkishMaleQuota',
@@ -229,6 +238,10 @@ export async function PUT(req: NextRequest, { params }: Params) {
     const safeHttps     = (v: unknown) => !v || (typeof v === 'string' && v.startsWith('https://'))
     if ('coverImage'  in rest && !safeLocalFile(rest.coverImage))
       return NextResponse.json({ error: 'Invalid cover image URL' }, { status: 400 })
+    if ('flyerImage'  in rest && !safeLocalFile(rest.flyerImage))
+      return NextResponse.json({ error: 'Invalid flyer image URL' }, { status: 400 })
+    // Removing the flyer sends '' — store no flyer, not an empty string.
+    if ('flyerImage'  in rest && !rest.flyerImage) rest.flyerImage = null
     if ('meetingUrl'  in rest && !safeHttps(rest.meetingUrl))
       return NextResponse.json({ error: 'Meeting URL must start with https://' }, { status: 400 })
     if ('whatsappUrl' in rest && !safeHttps(rest.whatsappUrl))
@@ -269,7 +282,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
     // A moderator editing their own event in a city they host (not their home)
     // is its host there, under the host rules — status gates included.
     const host = clubHost || cityHostOf.length > 0 ||
-      (!isAdmin(session) && session.cityId !== before.cityId && before.hostId === session.id)
+      (!isAdmin(session) && session.cityId !== scopeCityId(before) && before.hostId === session.id)
     if (host) {
       delete rest.hostId
       delete rest.featured
@@ -292,7 +305,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
           return NextResponse.json({ error: 'This event is with the moderators — it goes live when they approve it' }, { status: 403 })
         }
         if (resubmitting) {
-          notifyCityStaff(before.cityId, 'system_alert', '📝 Event resubmitted for review',
+          notifyCityStaff(scopeCityId(before), 'system_alert', '📝 Event resubmitted for review',
             `"${before.title}" was edited and resubmitted by its host.`, '/admin/moderation?tab=events').catch(() => {})
         }
         // An event that has started is over for cancelling or postponing: a
@@ -353,8 +366,22 @@ export async function PUT(req: NextRequest, { params }: Params) {
     // a moderator can hand it to someone else but not to themselves — making
     // yourself host was a way round the contact masking every moderator list
     // applies.
+    // Publishing a trip is the decision of the city it VISITS: it goes on
+    // that city's page. Departure-side staff can park or cancel it, and its
+    // host can bring back an event they parked themselves, but nobody else
+    // but an admin or destination staff can publish it — or undo a
+    // destination takedown (flagged/unpublished) or skip its review (pending).
+    if (before.originCityId && 'status' in rest && rest.status !== before.status &&
+        !isAdmin(session) && !canActInCity(session, before.cityId)) {
+      const parking    = ['cancelled', 'draft', 'postponed'].includes(rest.status as string)
+      const hostResume = host && rest.status === 'published' && ['draft', 'postponed'].includes(before.status)
+      if (!parking && !hostResume) {
+        return NextResponse.json({ error: 'Publishing a trip is up to the staff of the city it visits' }, { status: 403 })
+      }
+    }
+
     if ('hostId' in rest) {
-      const hostErr = await hostIdError(rest.hostId, before.cityId, session, (rest.clubId as string | undefined) ?? before.clubId)
+      const hostErr = await hostIdError(rest.hostId, scopeCityId(before), session, (rest.clubId as string | undefined) ?? before.clubId)
       if (hostErr) return NextResponse.json({ error: hostErr }, { status: 400 })
       if (!isAdmin(session) && rest.hostId === session.id) {
         const joined = await prisma.eventAttendee.count({ where: { eventId: id, status: 'approved' } })
@@ -373,7 +400,8 @@ export async function PUT(req: NextRequest, { params }: Params) {
     if (rest.clubId && rest.clubId !== before.clubId) {
       const targetClub = await prisma.club.findUnique({ where: { id: rest.clubId as string }, select: { cityId: true } })
       if (!targetClub) return NextResponse.json({ error: 'That club no longer exists' }, { status: 400 })
-      if (targetClub.cityId && targetClub.cityId !== before.cityId) {
+      // A trip's clubs are its DEPARTURE city's (lib/eventTrip).
+      if (targetClub.cityId && targetClub.cityId !== scopeCityId(before)) {
         return NextResponse.json(
           { error: 'That club is in another city. Create the event there instead — moving it would change its time zone, currency and listings for people who already joined.', code: 'club_other_city' },
           { status: 409 },
@@ -385,7 +413,8 @@ export async function PUT(req: NextRequest, { params }: Params) {
     // renamed without a pick links the listing that name has in the city, or
     // a pending stub (as on create) — the old link named the old venue.
     if ('businessId' in body) {
-      const venue = await venueIdInput(body.businessId, before.cityId)
+      // A trip may meet in either of its cities (lib/eventTrip).
+      const venue = await venueIdInput(body.businessId, eventCityIds(before))
       if ('error' in venue) return NextResponse.json({ error: venue.error }, { status: 400 })
       rest.businessId = venue.value
     }
@@ -729,6 +758,8 @@ export async function PUT(req: NextRequest, { params }: Params) {
     // path already announced, this is a no-op.
     if (before.status !== 'published' && event.status === 'published') {
       notifyNewEvent({ id, title: event.title, clubId: before.clubId, hostId: before.hostId }).catch(() => {})
+      // A trip also tells the city it visits (lib/notify notifyTripArrival).
+      notifyTripArrival({ id, title: event.title, date: event.date, cityId: before.cityId, originCityId: before.originCityId, clubId: before.clubId, hostId: before.hostId }).catch(() => {})
     }
 
     // Notify new host if host assignment changed
@@ -744,7 +775,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
     // Notify attendees if date, time, or location changed
     const whenChanged = (body.date && body.date !== before.date) ||
-                        // The normalised value: '19.30' resent for a stored '19:30' is no change.
+                        // The normalized value: '19.30' resent for a stored '19:30' is no change.
                         (data.time && data.time !== before.time)
     const whereChanged = body.location && body.location !== before.location
     if (whenChanged || whereChanged) {
@@ -771,14 +802,43 @@ export async function PUT(req: NextRequest, { params }: Params) {
     }
 
     // Postponing a live event pulls it off the feed; the people going were
-    // never told, so they'd find out at the door. One bell entry each.
+    // never told, so they'd find out at the door. It was a bell entry for the
+    // approved seats only: nothing for anyone without push, and nothing at all
+    // for pending requests or the waitlist, who are waiting on the same date.
+    // Now each of them gets the bell and an email, as a cancellation does.
+    // Nothing is released: seats, requests and waitlist places carry over.
     if (before.status === 'published' && event.status === 'postponed') {
       ;(async () => {
-        const attendees = await prisma.eventAttendee.findMany({ where: { eventId: id, status: 'approved' }, select: { userId: true } })
-        await Promise.all(attendees.map(a =>
-          createNotification(a.userId, 'event_updated', 'Event postponed ⏸️', `"${before.title}" has been postponed — keep an eye out for the new date.`, `/events/${id}`)
-        ))
-      })().catch(() => {})
+        const [rsvps, waitlist] = await Promise.all([
+          prisma.eventAttendee.findMany({
+            where:  { eventId: id, ...activeAttendeeWhere },
+            select: { userId: true, status: true, user: { select: { email: true, name: true } } },
+          }),
+          // WaitlistEntry has no user relation; the people are read below.
+          prisma.waitlistEntry.findMany({ where: { eventId: id }, select: { userId: true } }).then(rows =>
+            rows.length === 0 ? [] : prisma.user.findMany({
+              where:  { id: { in: rows.map(r => r.userId) } },
+              select: { id: true, email: true, name: true },
+            })),
+        ])
+        // One message per person: a seat outranks a waitlist place.
+        const recipients = new Map<string, { email: string; name: string | null; role: PostponedRole }>()
+        for (const w of waitlist) recipients.set(w.id, { email: w.email, name: w.name, role: 'waitlist' })
+        for (const r of rsvps) recipients.set(r.userId, { ...r.user, role: r.status === AttendeeStatus.Approved ? 'going' : 'pending' })
+
+        const results = await Promise.all([...recipients].map(async ([userId, r]) => {
+          await createNotification(userId, 'event_updated', 'Event postponed ⏸️',
+            `"${before.title}" has been postponed — keep an eye out for the new date.`, `/events/${id}`).catch(() => {})
+          return sendEventPostponedEmail(r.email, r.name ?? 'Member', before.title, before.date, id, r.role)
+            .then(() => true)
+            .catch(async err => {
+              await recordEmailFailure({ helper: 'sendEventPostponedEmail', recipient: r.email, error: err, context: { eventId: id, userId } })
+              return false
+            })
+        }))
+        const failed = results.filter(ok => !ok).length
+        if (failed > 0) console.error('[event PUT postpone] sendEventPostponedEmail failures', { eventId: id, total: results.length, failed })
+      })().catch(err => console.error('[event PUT postpone] fan-out failed', { eventId: id, err: String(err) }))
     }
 
     // Email all approved attendees if event was just cancelled
@@ -840,6 +900,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
       })().catch(err => console.error('[event PATCH cancel] fan-out failed', { eventId: id, err: String(err) }))
     }
 
+    bustCityPages()
     return NextResponse.json(event)
   } catch (e) {
     console.error(e)
@@ -863,7 +924,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     const before = await prisma.event.findUnique({
       where: { id },
-      select: { title: true, hostId: true, clubId: true, status: true, cityId: true, cancelledAt: true, approvalRequired: true, totalSpots: true, limitedSpots: true },
+      select: { title: true, hostId: true, clubId: true, status: true, cityId: true, originCityId: true, date: true, cancelledAt: true, approvalRequired: true, totalSpots: true, limitedSpots: true },
     })
     if (!before) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
@@ -928,9 +989,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           ).catch(() => {})
         }
         await notifyNewEvent({ id, title: before.title, clubId: before.clubId, hostId: before.hostId })
+        // A trip also tells the city it visits (lib/notify notifyTripArrival).
+        await notifyTripArrival({ id, title: before.title, date: before.date, cityId: before.cityId, originCityId: before.originCityId, clubId: before.clubId, hostId: before.hostId })
       })().catch(() => {})
     }
 
+    bustCityPages()
     return NextResponse.json(event)
   } catch (e) {
     console.error(e)

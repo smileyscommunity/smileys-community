@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { areApplicationsOpen } from '@/lib/communitySettings'
 import { writeFileSync, mkdirSync } from 'fs'
 import { join, extname } from 'path'
 import { randomBytes } from 'crypto'
@@ -7,7 +8,7 @@ import { rateLimit, getIp } from '@/lib/rateLimit'
 import { detectImageFormat } from '@/lib/imageMagic'
 import { uploadRoot } from '@/lib/uploadRoot'
 
-// A solid-colour 16000×16000 PNG is well under the byte cap yet decodes to
+// A solid-color 16000×16000 PNG is well under the byte cap yet decodes to
 // ~1 GB RGBA (PNG/WebP have no shrink-on-load); sharp's default ceiling is
 // 268 megapixels. 50 MP is ~7000×7000 — above any phone camera, and the
 // client already downsizes before upload.
@@ -25,8 +26,17 @@ export async function POST(req: NextRequest) {
     // spend the whole hour's allowance in two minutes, then get refused on
     // every try after that — for them, the photo just never finished
     // (2026-09-09). Each upload is one Sharp resize; 30 is still a cap.
+    // Paused intake takes no uploads either (they are only for an application).
+    if (!areApplicationsOpen()) {
+      return NextResponse.json({ error: 'Applications are currently closed. Please check back soon.' }, { status: 403 })
+    }
     if (!await rateLimit(`apply-upload:${getIp(req)}`, 30, 60 * 60_000)) {
       return NextResponse.json({ error: 'Too many uploads. Try again later.' }, { status: 429 })
+    }
+    // And a day's cap: 30 an hour was 720 photos a day from one address,
+    // more than the nightly sweep's 500-a-night budget could ever clear.
+    if (!await rateLimit(`apply-upload-day:${getIp(req)}`, 60, 24 * 60 * 60_000)) {
+      return NextResponse.json({ error: 'Too many uploads today. Try again tomorrow.' }, { status: 429 })
     }
 
     // Pre-check the body size before calling formData(). Next's middleware

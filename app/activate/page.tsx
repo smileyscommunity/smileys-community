@@ -1,5 +1,6 @@
 'use client'
 
+import { hasAnalyticsConsent } from '@/lib/consent'
 import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -68,7 +69,7 @@ function ActivateForm() {
       // same way the login flow does — activation was previously anonymous, so these
       // newcomers showed up in PostHog as throwaway UUIDs. New activations are always
       // non-staff; person props stay PII-light (we join on distinctId server-side).
-      posthog.opt_in_capturing()
+      if (hasAnalyticsConsent()) posthog.opt_in_capturing()
       posthog.identify(data.id, { role: data.role })
       posthog.capture('account_activated', { role: data.role })
       setDone(true)
@@ -115,7 +116,7 @@ function ActivateForm() {
         {resent && (
           <p className="text-sm text-gray-700">Sent to <strong>{resent}</strong>. Open the newest email from Smileys — the link in it works for 7 days.</p>
         )}
-        {/* A link we no longer recognise (replaced by a newer one, or long
+        {/* A link we no longer recognize (replaced by a newer one, or long
             gone) still has a way back: forgot-password mails a fresh
             activation link to an approved account that never set a password. */}
         {!expired && (

@@ -21,7 +21,7 @@ export interface ParsedCheckinQR {
 /**
  * Parses a check-in QR code value.
  *
- * Three formats are recognised:
+ * Three formats are recognized:
  *   - `smileys:card:{userId}.{exp}.{sig}` — the member card. Signed and
  *     good for a day (lib/cardToken); only the server can check that, so
  *     here we read the id out of it for the roster look-up and nothing else.

@@ -8,7 +8,7 @@
 //   lib/cityStatus.ts  pure vocabulary + types. Safe in CLIENT components;
 //                      importing prisma there breaks the browser bundle.
 //   lib/city.ts        request scoping (which city is THIS request about).
-//   lib/cities.ts      this file — the public catalogue and its statistics.
+//   lib/cities.ts      this file — the public catalog and its statistics.
 // The first two are re-exported here so server callers need one import.
 
 import { unstable_cache } from 'next/cache'
@@ -18,7 +18,7 @@ import React from 'react'
 const cache: <T extends (...a: never[]) => unknown>(fn: T) => T =
   (React as unknown as { cache?: typeof cache }).cache ?? ((fn) => fn)
 import { prisma } from './prisma'
-import { todayInTz, DEFAULT_TZ } from './cityTime'
+import { todayInTz, DEFAULT_TZ, startedCutoff } from './cityTime'
 import { CITY_STATUS, isCityStatus, type CityStatus, type CityStats, type PublicCity } from './cityStatus'
 import { classifyCityMaturity } from './cityMaturity'
 import { COMMUNITY_MEMBER_WHERE } from './memberCount'
@@ -91,7 +91,8 @@ export async function getStatsFor(cityIds: string[]): Promise<Map<string, CitySt
   // shared "today" (formerly the default city's) counted finished events for
   // an hour a day in Tbilisi and dropped tonight's from 17:00 in New York.
   const zones = await prisma.city.findMany({ where: { id: { in: cityIds } }, select: { id: true, timezone: true } })
-  const todayOf = (id: string) => todayInTz(zones.find(z => z.id === id)?.timezone ?? DEFAULT_TZ)
+  const tzOf    = (id: string) => zones.find(z => z.id === id)?.timezone ?? DEFAULT_TZ
+  const todayOf = (id: string) => todayInTz(tzOf(id))
 
   const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
 
@@ -114,7 +115,12 @@ export async function getStatsFor(cityIds: string[]): Promise<Map<string, CitySt
     }),
     prisma.event.groupBy({
       by: ['cityId'],
-      where: { status: 'published', OR: cityIds.map(id => ({ cityId: id, date: { gte: todayOf(id) } })) },
+      // The event list's window (lib/cityTime startedCutoff), so "Upcoming"
+      // on the hero counts what the list below it shows.
+      where: { status: 'published', OR: cityIds.flatMap(id => {
+        const { today, cutoffTime } = startedCutoff(tzOf(id))
+        return [{ cityId: id, date: { gt: today } }, { cityId: id, date: today, time: { gte: cutoffTime } }]
+      }) },
       _count: { _all: true },
     }),
     // Maturity signals. Hosted clubs can't come from groupBy (relation

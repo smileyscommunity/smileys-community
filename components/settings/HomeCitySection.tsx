@@ -66,7 +66,7 @@ export default function HomeCitySection({ staff = false }: { staff?: boolean }) 
     if (!target || !home) return
     const ok = await confirmToast(
       `Make ${target.name} your home city? Your feeds will show ${target.name}; ${home.name} stays on your list as a joined city. `
-      + `The neighbourhood on your profile is cleared — ${home.name}'s neighbourhoods don't exist in ${target.name} — so pick a new one afterwards.`,
+      + `The neighborhood on your profile is cleared — ${home.name}'s neighborhoods don't exist in ${target.name} — so pick a new one afterwards.`,
       { confirmLabel: 'Move' },
     )
     if (!ok) return
@@ -103,8 +103,8 @@ export default function HomeCitySection({ staff = false }: { staff?: boolean }) 
           <p className="text-xs text-amber-900 leading-relaxed">
             {moved.name} is your home city now.
             {moved.neighborhoodCleared
-              ? <> Your old neighbourhood was cleared — <Link href="/profile" className="font-semibold underline">pick a new one on your profile</Link>.</>
-              : <> Set a neighbourhood on <Link href="/profile" className="font-semibold underline">your profile</Link> so people nearby can find you.</>}
+              ? <> Your old neighborhood was cleared — <Link href="/profile" className="font-semibold underline">pick a new one on your profile</Link>.</>
+              : <> Set a neighborhood on <Link href="/profile" className="font-semibold underline">your profile</Link> so people nearby can find you.</>}
           </p>
         </div>
       )}

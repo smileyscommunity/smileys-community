@@ -132,11 +132,23 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const homeSlug       = cityRows.find(c => c.id === session?.cityId)?.slug
   const viewingSlug    = cityRows.find(c => c.id === viewCityId)?.slug
   const footerCityName = cityRows.find(c => c.id === footerCityId)?.name ?? 'Istanbul'
-  // Only Istanbul has neighbourhoods today. Rather than link every city to a
+  // The column's links are bare paths, and a bare path resolves to the
+  // reader's city (sessionCityId: cookie, then account). When the column is
+  // about some OTHER city — a guest on /eskisehir — they must carry it, or
+  // "Handbook" under "In Eskişehir" opens Istanbul's.
+  const footerCitySlug = cityRows.find(c => c.id === footerCityId)?.slug
+  const footerCityQs   = footerCityId !== sessionCityId && footerCitySlug ? `?city=${footerCitySlug}` : ''
+  // Only Istanbul has neighborhoods today. Rather than link every city to a
   // page that would be empty, the entry appears when the city has rows.
-  const hasNeighborhoods = (await prisma.neighborhood.count({
-    where: { cityId: footerCityId, active: true },
-  })) > 0
+  // Perks, likewise: the Perks links appear only where a partner is live.
+  // Every city had none on 2026-09-29, and three menus sent members to
+  // "No partners yet". Same city as /api/partners (resolveCityId).
+  const [hoodCount, perkCount] = await Promise.all([
+    prisma.neighborhood.count({ where: { cityId: footerCityId, active: true } }),
+    session ? prisma.partner.count({ where: { cityId: sessionCityId, isActive: true } }) : Promise.resolve(0),
+  ])
+  const hasNeighborhoods = hoodCount > 0
+  const hasPerks = perkCount > 0
   // Sitewide Organization schema — feeds Google's brand/knowledge-panel
   // signals. Not LocalBusiness: Smileys has no single storefront, events run
   // across venues city-wide. sameAs mirrors the social links in Footer.tsx.
@@ -220,12 +232,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           totpEnabled:   session.totpEnabled,
           joinedEvents:  [],
         } : null}>
-          <Navbar cities={navCities} homeSlug={homeSlug} viewingSlug={viewingSlug} />
+          <Navbar cities={navCities} homeSlug={homeSlug} viewingSlug={viewingSlug} hasPerks={hasPerks} cityQs={footerCityQs} />
           <VerifyEmailBanner />
           <PendingApprovalBanner />
           <main className="flex-1">{children}</main>
-          <BottomNav cities={navCities} homeSlug={homeSlug} viewingSlug={viewingSlug} />
-          <Footer stats={footerStats} cityName={footerCityName} hasNeighborhoods={hasNeighborhoods} />
+          <BottomNav cities={navCities} homeSlug={homeSlug} viewingSlug={viewingSlug} hasPerks={hasPerks} />
+          <Footer stats={footerStats} cityName={footerCityName} hasNeighborhoods={hasNeighborhoods} urlCitySlug={urlCity?.slug} cityQs={footerCityQs} />
           <ClientOnlyComponents />
           <Toaster position="top-right" richColors closeButton />
         </AuthProvider>

@@ -14,7 +14,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 //   f. a throttle store failure still sends
 
 const h = vi.hoisted(() => {
-  // A rate_limits table in memory, honouring resetAt against the pinned clock.
+  // A rate_limits table in memory, honoring resetAt against the pinned clock.
   const store = new Map<string, { count: number; resetAt: number }>()
   const hit = async (key: string, limit: number, ms: number) => {
     const now = Date.now()

@@ -111,9 +111,9 @@ async function runSweep() {
       select: { id: true },
     })
 
-    // Every other push goes through createNotification, which honours the
+    // Every other push goes through createNotification, which honors the
     // member's mutes and quiet hours; this fan-out wrote no row and so
-    // honoured neither — a 30-minutes-to-kickoff ping at any hour, to
+    // honored neither — a 30-minutes-to-kickoff ping at any hour, to
     // anyone with a subscription.
     const recipients = await pushablePushIds(candidates.map(u => u.id), 'cup_reminder')
 

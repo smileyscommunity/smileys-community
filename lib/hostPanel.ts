@@ -18,7 +18,7 @@ export function searchKey(s: string): string {
   return s.toLocaleLowerCase('tr').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ı/g, 'i')
 }
 
-/** True when `query` (normalised the same way) appears in `name`. Blank matches all. */
+/** True when `query` (normalized the same way) appears in `name`. Blank matches all. */
 export function matchesName(name: string, query: string): boolean {
   const q = searchKey(query.trim())
   return !q || searchKey(name).includes(q)

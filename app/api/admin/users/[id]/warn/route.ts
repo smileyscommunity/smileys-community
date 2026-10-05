@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { createNotification } from '@/lib/notify'
 import { writeAudit } from '@/lib/audit'
+import { warnMember } from '@/lib/memberDiscipline'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -21,35 +22,8 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Warning reason is required' }, { status: 400 })
     }
 
-    const user = await prisma.user.update({
-      where: { id },
-      data: { warningCount: { increment: 1 } },
-      select: { name: true, warningCount: true }
-    })
-
-    // Create a persistent admin note about the warning
-    await prisma.adminNote.create({
-      data: {
-        userId:    id,
-        adminId:   session.id,
-        adminName: session.name,
-        text:      `⚠️ Formal Warning #${user.warningCount}: ${reason.trim()}`,
-      }
-    })
-
-    // Notify the user
-    await createNotification(
-      id,
-      'rsvp', // Using rsvp type as a general alert type for now
-      'Official Warning ⚠️',
-      `You have received a formal warning: ${reason.trim()}. Repeated violations may lead to account suspension.`,
-    )
-
-    // Audit log
-    await writeAudit(session.id, session.name, 'user.warn', id, 'user',
-      { reason: reason.trim(), warningCount: user.warningCount, name: user.name },
-      `Issued formal warning #${user.warningCount} to ${user.name} — ${reason.trim()}`
-    )
+    // lib/memberDiscipline — the same warning the moderation queue gives.
+    const user = await warnMember({ userId: id, reason: reason.trim(), actor: { id: session.id, name: session.name } })
 
     return NextResponse.json({ ok: true, warningCount: user.warningCount })
   } catch (e) {

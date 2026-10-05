@@ -7,7 +7,7 @@ import { fold } from '@/lib/turkishFold'
 // half is pinned in membersDirectoryReview2026. Sending someone a request
 // read back the full name and photo their locked card hides;
 // block-then-unblock erased a permanent decline and the abuse scan's
-// evidence; discovery listed members by the neighbourhood they had asked not
+// evidence; discovery listed members by the neighborhood they had asked not
 // to be listed by; and the search box promised interests and clubs it never
 // searched.
 
@@ -44,9 +44,9 @@ describe('blocking', () => {
 describe('discovery', () => {
   const route = src('app/api/members/discovery/route.ts')
 
-  it('respects the neighbourhood opt-out, in the card and in the pool', () => {
+  it('respects the neighborhood opt-out, in the card and in the pool', () => {
     expect(route).toContain('neighborhood: m.neighborhoodVisible ? m.neighborhood : null,')
-    // The pool gathers people BY neighbourhood, which turned the opt-out
+    // The pool gathers people BY neighborhood, which turned the opt-out
     // into a listing of exactly the people who opted out.
     expect(route).toContain('neighborhood: viewer.neighborhood, neighborhoodVisible: true },')
   })

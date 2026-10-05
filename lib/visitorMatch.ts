@@ -1,7 +1,7 @@
 // Why a local might say hi to a visitor.
 //
 // The /visiting cards already carried the raw facts — the visitor's languages,
-// the neighbourhood they're staying in — but only interests were ever compared
+// the neighborhood they're staying in — but only interests were ever compared
 // against the viewer. So the card would show "🗣️ Arabic" to an Arabic speaker
 // and "📍 Kadıköy" to someone who lives in Kadıköy without ever telling either
 // of them it was a match, which is the whole reason those fields are collected.

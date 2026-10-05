@@ -11,7 +11,7 @@ import { confirmToast } from '@/lib/confirmToast'
 // One rule for every staff door: refuse, ask, then override explicitly.
 //
 // Client-safe (no prisma): the codes are shared with the server so the page
-// recognises a capacity refusal rather than any 400/409.
+// recognizes a capacity refusal rather than any 400/409.
 
 export const OVER_CAPACITY_CODE  = 'over_capacity'
 export const BELOW_APPROVED_CODE = 'below_approved_seats'

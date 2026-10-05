@@ -1,6 +1,6 @@
 // Approved members who never activated — the 2026-09 production audit found
 // 268. Public and member-facing member totals no longer count them
-// (lib/memberCount), but Club.memberCount is enrolment and still does, which
+// (lib/memberCount), but Club.memberCount is enrollment and still does, which
 // is a product decision this report exists to inform.
 //
 // READ-ONLY. Nothing is written and nobody is emailed. Prints:
@@ -18,7 +18,7 @@
 
 import { prisma } from '@/lib/prisma'
 import { NOT_ACTIVATED_MEMBER_WHERE } from '@/lib/memberCount'
-import { COUNTED_CLUB_MEMBERSHIP_WHERE } from '@/lib/clubMemberCount'
+import { ENROLLED_CLUB_MEMBERSHIP_WHERE } from '@/lib/clubMemberCount'
 
 const DAY = 24 * 60 * 60 * 1000
 
@@ -123,7 +123,7 @@ async function load() {
     select: {
       id: true, joinedAt: true,
       city:   { select: { slug: true } },
-      _count: { select: { clubMemberships: { where: COUNTED_CLUB_MEMBERSHIP_WHERE } } },
+      _count: { select: { clubMemberships: { where: ENROLLED_CLUB_MEMBERSHIP_WHERE } } },
     },
   })
   const ids = users.map(u => u.id)
@@ -146,7 +146,7 @@ async function load() {
   // user filter narrows to NOT_ACTIVATED_MEMBER_WHERE without widening.
   const gapGroups = await prisma.clubMembership.groupBy({
     by:     ['clubId'],
-    where:  { ...COUNTED_CLUB_MEMBERSHIP_WHERE, user: NOT_ACTIVATED_MEMBER_WHERE },
+    where:  { ...ENROLLED_CLUB_MEMBERSHIP_WHERE, user: NOT_ACTIVATED_MEMBER_WHERE },
     _count: { _all: true },
   })
   const clubs = gapGroups.length === 0 ? [] : await prisma.club.findMany({
@@ -181,7 +181,7 @@ async function main() {
 
   // Every row, never truncated.
   const { rows, totals } = planClubGap(gap)
-  console.log('\nclub gap — Club.memberCount is enrolment and still counts these:')
+  console.log('\nclub gap — Club.memberCount is enrollment and still counts these:')
   for (const r of rows) {
     console.log(`  [${r.city}] ${r.clubId} "${r.name}" memberCount=${r.memberCount} neverActivated=${r.unactivated} (${Math.round(r.share * 100)}%) activated≈${r.activatedEnrolment}`)
   }

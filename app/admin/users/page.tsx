@@ -60,7 +60,8 @@ interface DBUser {
   // …@deleted.smileys email. deletedIdentity is the admin-only retained
   // snapshot of who they were (from the account.self_delete audit entry) —
   // surfaced for safety/abuse tracing, never member-facing.
-  deletedIdentity?: { name?: string; email?: string; phone?: string } | null
+  banReason?: string | null
+  deletedIdentity?: { name?: string; email?: string; phone?: string; removedBy?: string } | null
 }
 
 function isSuspended(u: { suspendedUntil: string | null }): boolean {
@@ -392,13 +393,14 @@ function AdminUsersPageInner() {
   }
 
   async function removeUser(u: DBUser) {
-    if (!(await confirmToast(`Remove ${u.name}? This cannot be undone.`))) return
+    if (!(await confirmToast(`Remove ${u.name}? Their account is anonymized and moves to the Deleted tab; what they posted publicly is blanked and the events they host are cancelled. Your evidence stays: device trail, warnings, appeal and suspension history, private messages they sent, and their application. This cannot be undone.`))) return
     const res = await fetch(`/app/api/admin/users/${u.id}`, {
       method: 'DELETE',
       credentials: 'include',
     })
     if (res.ok) {
-      setUsers(prev => prev.filter(x => x.id !== u.id))
+      // The row stays as a "Deleted Member" (Deleted tab) — reload to show it.
+      load(true)
       toast(`${u.name} removed`)
     } else {
       // A failed DELETE used to show nothing at all — surface the reason
@@ -930,12 +932,14 @@ function AdminUsersPageInner() {
                         {u.phone && <> · 📱 {u.phone}</>}
                       </div>
                       {isDeletedAccount(u) && u.deletedIdentity?.name && (
-                        <div className="text-[11px] text-amber-400/80 truncate" title={`Admin-only safety record · ${u.deletedIdentity.email ?? ''}`}>was: {u.deletedIdentity.name}{u.deletedIdentity.email ? ` · ${u.deletedIdentity.email}` : ''}</div>
+                        <div className="text-[11px] text-amber-400/80 truncate" title={`Admin-only safety record · ${u.deletedIdentity.email ?? ''}`}>was: {u.deletedIdentity.name}{u.deletedIdentity.email ? ` · ${u.deletedIdentity.email}` : ''}{u.deletedIdentity.removedBy ? ` · removed by ${u.deletedIdentity.removedBy}` : ''}</div>
                       )}
                       {(u.status === 'banned' || isSuspended(u) || u.warningCount > 0 || sharedFp || u.hiddenFromMembers) && (
                         <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                           {u.status === 'banned' && (isDeletedAccount(u)
-                          ? <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-zinc-600/20 text-zinc-400 border border-zinc-600/30" title="Member deleted their own account">deleted</span>
+                          ? (u.banReason === 'removed'
+                            ? <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20" title={`Removed by ${u.deletedIdentity?.removedBy ?? 'an admin'}`}>removed</span>
+                            : <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-zinc-600/20 text-zinc-400 border border-zinc-600/30" title="Member deleted their own account">left</span>)
                           : <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">banned</span>)}
                           {u.hiddenFromMembers && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20" title="Not shown in the members list">hidden</span>}
                           {isSuspended(u) && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20" title={`Until ${new Date(u.suspendedUntil!).toLocaleDateString('en-GB')}`}>suspended</span>}
@@ -968,7 +972,9 @@ function AdminUsersPageInner() {
                             suspended rows without inferring it from the
                             absence of the suspend/ban action buttons. */}
                         {u.status === 'banned' && (isDeletedAccount(u)
-                          ? <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-zinc-600/20 text-zinc-400 border border-zinc-600/30" title="Member deleted their own account">deleted</span>
+                          ? (u.banReason === 'removed'
+                            ? <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20" title={`Removed by ${u.deletedIdentity?.removedBy ?? 'an admin'}`}>removed</span>
+                            : <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-zinc-600/20 text-zinc-400 border border-zinc-600/30" title="Member deleted their own account">left</span>)
                           : <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">banned</span>)}
                         {u.hiddenFromMembers && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20" title="Not shown in the members list">hidden</span>}
                         {isSuspended(u) && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20" title={`Until ${new Date(u.suspendedUntil!).toLocaleDateString('en-GB')}`}>suspended</span>}

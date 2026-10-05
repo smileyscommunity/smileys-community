@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs'
 // are unchanged.
 //
 // lib/access is REAL here; prisma is a tiny in-memory store whose membership
-// queries honour `club: { isActive }`, so each test proves the filter.
+// queries honor `club: { isActive }`, so each test proves the filter.
 
 const h = vi.hoisted(() => {
   const clubs: Record<string, { id: string; slug: string; name: string; emoji: string; memberCount: number; isActive: boolean; cityId: string; isPrivate: boolean }> = {

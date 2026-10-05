@@ -312,7 +312,7 @@ function MemberModal({ m, onClose, currentUserId, currentUserRole, viewerPrivile
   const isSelf      = m.id === currentUserId
   // Same rule as the grid card and the flash-card deck — this modal used
   // to gate everything on isConnected and tell a member their public
-  // neighbour's bio was private while the card behind it showed that bio.
+  // neighbor's bio was private while the card behind it showed that bio.
   const seesProfile = isSelf || seesProfileOf(m, isConnected)
 
   const [blocked,    setBlocked]    = useState(false)
@@ -500,7 +500,7 @@ function MemberModal({ m, onClose, currentUserId, currentUserRole, viewerPrivile
                       'Member' is the default and just eats space. */}
                   {(m.isHost || m.role === 'admin' || m.role === 'moderator') && roleBadge}
                 </div>
-                {/* A locked card has no neighbourhood and no joined date to
+                {/* A locked card has no neighborhood and no joined date to
                     show, so this line disappears rather than printing
                     "Joined Invalid Date". */}
                 {(seesProfile && m.neighborhood) || joined ? (
@@ -923,7 +923,7 @@ function MemberFlashCards({ members, currentUserId, connections, onConnectionCha
 
   const status      = getConnectionStatus(m.id)
   const isConnected = status === 'accepted' || status === 'privileged'
-  // A public profile's bio, interests and (if listed) neighbourhood are for
+  // A public profile's bio, interests and (if listed) neighborhood are for
   // every member, as on the profile page; the API already withholds what a
   // viewer may not see.
   const isSelf      = m.id === currentUserId

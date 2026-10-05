@@ -43,6 +43,17 @@ function photoFor(slug: string, citySlug?: string): string | null {
   return existsSync(join(base, `${slug}.jpg`)) ? `/app/images/guide/${slug}.jpg` : null
 }
 
+/**
+ * The query string that keeps a guide link on its city: '' for the default
+ * city (its bare URLs are the canonical ones), '?city=<slug>' for any other.
+ * Every page under /guide resolves its city from ?city= before the cookie
+ * (lib/cityPageParam), so a link without it sends a cookie-less guest — the
+ * one who arrived on a shared İzmir link — to Istanbul.
+ */
+export function guideCityQs(citySlug: string): string {
+  return citySlug === DEFAULT_CITY_SLUG ? '' : `?city=${citySlug}`
+}
+
 export interface RouteStop {
   title: string
   note: string
@@ -93,6 +104,9 @@ function rowToExperience(r: any, citySlug?: string): Experience {
     // pipeline) wins over the deploy-time filesystem convention — uploads
     // survive rsync --delete; files dropped into public/ at runtime don't.
     photo: (typeof c.photo === 'string' && c.photo ? c.photo : null) ?? photoFor(r.slug, citySlug),
+    // Date → ISO here: the row is memoised and serialised, and the page
+    // formats it anyway.
+    lastReviewedAt: r.lastReviewedAt instanceof Date ? r.lastReviewedAt.toISOString() : (r.lastReviewedAt ?? null),
   } as Experience
 }
 
@@ -177,11 +191,31 @@ async function getExperienceAnyCityUncached(
         cityName:   row.city.name,
       }
     }
+    // No published row. The shipped JSON is the DEFAULT city's fallback for
+    // an EMPTY table (same rule as loadExperiences), never a per-slug one:
+    // once the default city has rows, a slug with none is unpublished or
+    // deleted, and the page must go with it. It used to fall through here
+    // and keep serving a drafted entry — and taking its tips and saves — at
+    // the canonical URL.
+    if (await defaultCityHasRows('experience')) return undefined
   } catch { /* fall through to the shipped default-city content */ }
   const fromJson = jsonExperiences().find(e => e.slug === slug)
   if (!fromJson) return undefined
   const cfg = await getCityConfig(await getDefaultCityId())
   return { experience: fromJson, cityId: await getDefaultCityId(), citySlug: cfg.slug, cityName: cfg.name }
+}
+
+// Does the default city have ANY entry of this kind (any status)? Decides
+// whether the shipped JSON is a fallback for an empty table or a ghost of a
+// removed entry. Cached like dbEntries: this sits on every detail-page hit.
+async function defaultCityHasRows(kind: 'experience' | 'route'): Promise<boolean> {
+  const cityId = await getDefaultCityId()
+  const key = `has:${cityId}:${kind}`
+  const hit = cache.get(key)
+  if (hit && hit.expires > Date.now()) return hit.rows.length > 0
+  const n = await prisma.guideEntry.count({ where: { cityId, kind } })
+  cache.set(key, { rows: n > 0 ? [true] : [], expires: Date.now() + CACHE_TTL_MS })
+  return n > 0
 }
 
 /**
@@ -203,6 +237,8 @@ async function getRouteAnyCityUncached(
       const row = rows.find(r => r.cityId === defaultId) ?? rows[0]
       return { route: rowToRoute(row), cityId: row.city.id, citySlug: row.city.slug, cityName: row.city.name }
     }
+    // Same rule as the experience resolver above.
+    if (await defaultCityHasRows('route')) return undefined
   } catch { /* fall through to the shipped default-city content */ }
   const fromJson = jsonRoutes().find(r => r.slug === slug)
   if (!fromJson) return undefined

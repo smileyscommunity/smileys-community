@@ -29,6 +29,9 @@ interface PostFormProps {
     tags?: string[]
     officialSources?: unknown
     lastReviewedAt?: string | null
+    // The row's version as loaded. Sent back on save so the server can refuse
+    // (409) if someone else saved the article since this form opened.
+    updatedAt?: string
   }
 }
 
@@ -147,6 +150,7 @@ export default function PostForm({ initial = {} }: PostFormProps) {
         cityId: cityId || null,
         country: cityId ? null : (country || null),
         ...(authorId ? { authorId } : {}),
+        ...(isEdit ? { expectedUpdatedAt: initial.updatedAt } : {}),
         // Review metadata is a Handbook concern; a community post never
         // sends it. Rows with only one of label/url are kept so the server
         // can reject them with a clear message rather than silently drop
@@ -167,6 +171,10 @@ export default function PostForm({ initial = {} }: PostFormProps) {
         body: JSON.stringify(payload),
       })
       const data = await res.json().catch(() => ({}))
+      // A 409 is someone else's save landing since this form opened. Saving
+      // anyway would put their change back the way it was, so the toast stays
+      // up until dismissed and the form stays as typed (copy it out, reload).
+      if (res.status === 409) { toast.error(data?.error ?? 'This article was changed since you opened it — reload before saving', { duration: Infinity }); return }
       if (!res.ok) { toast.error(data?.error ?? 'Save failed'); return }
       // Differentiate update-of-published from new-publish so the
       // toast accurately reflects what happened.
@@ -419,6 +427,14 @@ export default function PostForm({ initial = {} }: PostFormProps) {
                 className="w-full bg-zinc-900 border border-zinc-700 text-white text-sm rounded-lg px-3 py-2 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
               />
               <p className="text-[11px] text-zinc-500 mt-1.5 mb-3">Days between reviews — leave blank to use the category&rsquo;s own cadence.</p>
+              {/* The interval counts from the last review. On an article nobody
+                  has reviewed it does nothing, and four live articles carried
+                  one for weeks with no effect. */}
+              {!initial.lastReviewedAt && reviewDays && (
+                <p className="text-[11px] text-amber-400 -mt-1.5 mb-3">
+                  This only counts from the first review — mark the article reviewed from its page, or the interval never runs.
+                </p>
+              )}
 
               <label className="block text-xs font-semibold text-zinc-400 mb-1.5" htmlFor="post-tags">Tags</label>
               <input

@@ -181,10 +181,10 @@ export interface NeighborhoodView {
   vibe:  string
   area:  string
   cost:  number
-  // Null when nobody has given this neighbourhood coordinates yet — bulk-add
+  // Null when nobody has given this neighborhood coordinates yet — bulk-add
   // takes names alone and calls the rest "enrichment that can come later".
   // These were coerced to 0, which is a real place: 0,0 is in the Gulf of
-  // Guinea, and the map centred a district marker in the ocean (the JSON-LD
+  // Guinea, and the map centered a district marker in the ocean (the JSON-LD
   // already guarded against exactly this; the visible map did not).
   lat:   number | null
   lon:   number | null
@@ -193,7 +193,7 @@ export interface NeighborhoodView {
 // NEIGHBORHOOD_META is Istanbul's hand-authored editorial layer (vibes,
 // coordinates, cost tiers written by members). It's keyed by bare name, so it
 // may only be applied to the DEFAULT city — otherwise a second city that
-// happens to name a district "Merkez" or "Centre" would silently inherit
+// happens to name a district "Merkez" or "Center" would silently inherit
 // Istanbul's copy and Istanbul's latitude.
 function toView(row: CityNeighborhood, editorial: boolean): NeighborhoodView {
   const meta = editorial ? NEIGHBORHOOD_META[row.name] : undefined

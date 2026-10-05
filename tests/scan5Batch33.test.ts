@@ -39,7 +39,7 @@ const h = vi.hoisted(() => {
 vi.mock('@/lib/prisma',         () => ({ prisma: h.prisma }))
 vi.mock('@/lib/session',        () => ({ getSession: h.getSession }))
 vi.mock('@/lib/rateLimit',      () => ({ rateLimit: vi.fn(async () => true), claimOnce: vi.fn(async () => true) }))
-vi.mock('@/lib/notify',         () => ({ createNotification: h.createNotification, notifyNewEvent: vi.fn(async () => {}) }))
+vi.mock('@/lib/notify',         () => ({ createNotification: h.createNotification, notifyNewEvent: vi.fn(async () => {}) , notifyTripArrival: vi.fn(async () => {})}))
 vi.mock('@/lib/city',           () => h.city)
 vi.mock('@/lib/cronHealth',     () => ({ recordCronRun: vi.fn() }))
 vi.mock('@/lib/access', () => ({
@@ -63,7 +63,7 @@ vi.mock('@/lib/autoJoinClub',   () => ({ autoJoinClub: vi.fn(async () => {}) }))
 vi.mock('@/lib/spotsLeft',      () => ({ recomputeSpotsLeft: vi.fn(async () => {}) }))
 vi.mock('@/lib/spotOpened',     () => ({ announceSpotOpened: vi.fn(async () => 0) }))
 vi.mock('@/lib/firstEvent',     () => ({ stampFirstEventRsvp: vi.fn(async () => {}) }))
-vi.mock('@/lib/posthog-server', () => ({ trackServer: vi.fn() }))
+vi.mock('@/lib/posthog-server', () => ({ trackServer: vi.fn(), trackServerForUser: vi.fn() }))
 vi.mock('@/lib/eventQuota', () => ({
   findPromotableFromWaitlist: vi.fn(), hasQuotaRoomFor: vi.fn(async () => ({ ok: true })), quotaEventSelect: {},
 }))

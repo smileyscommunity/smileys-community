@@ -21,7 +21,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('@/lib/session', () => ({ getSession: vi.fn() }))
 vi.mock('@/lib/notify', () => ({
   createNotification: vi.fn(async () => {}),
-  notifyNewEvent:     vi.fn(async () => {}),
+  notifyNewEvent:     vi.fn(async () => {}), notifyTripArrival: vi.fn(async () => {}),
 }))
 vi.mock('@/lib/venueDirectory', () => ({ ensurePendingVenueBusiness: vi.fn(async () => {}) }))
 vi.mock('@/lib/survey', () => ({ computeEventSurveyRollup: vi.fn(async () => new Map()) }))

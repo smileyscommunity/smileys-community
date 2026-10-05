@@ -16,7 +16,7 @@ import { readFileSync } from 'fs'
 vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn(async () => true), claimOnce: vi.fn(async () => true), releaseClaim: vi.fn(async () => {}) }))
 vi.mock('@/lib/session', () => ({ getSession: vi.fn() }))
 vi.mock('@/lib/audit',   () => ({ writeAudit: vi.fn(async () => {}), getDiff: vi.fn(() => null) }))
-vi.mock('@/lib/notify',  () => ({ createNotification: vi.fn(async () => {}), notifyNewEvent: vi.fn(async () => {}) }))
+vi.mock('@/lib/notify',  () => ({ createNotification: vi.fn(async () => {}), notifyNewEvent: vi.fn(async () => {}) , notifyTripArrival: vi.fn(async () => {})}))
 vi.mock('@/lib/email',   () => ({ sendEventCancelledEmail: vi.fn(), recordEmailFailure: vi.fn() }))
 vi.mock('@/lib/spotsLeft', () => ({ recomputeSpotsLeft: vi.fn(async () => {}) }))
 vi.mock('@/lib/venueDirectory', () => ({ ensurePendingVenueBusiness: vi.fn(async () => {}) }))
@@ -221,7 +221,7 @@ describe('create route validates times', () => {
     expect((await res.json()).error).toMatch(/Start time/)
   })
 
-  it('stores the normalised values', async () => {
+  it('stores the normalized values', async () => {
     const res = await post(payload({ time: '19.30', endTime: '24:00' }))
     expect(res.status).toBe(200)
     const data = (prisma.event.create as any).mock.calls[0][0].data
@@ -312,7 +312,7 @@ describe('planStampRepair', () => {
 describe('planTimeRepair', () => {
   const r = (time: string, endTime: string | null) => ({ id: 'e1', title: 'T', date: '2026-09-01', time, endTime })
 
-  it('proposes the normalised value for each malformed field, and UNFIXABLE otherwise', () => {
+  it('proposes the normalized value for each malformed field, and UNFIXABLE otherwise', () => {
     const fixes = planTimeRepair([r('19:00', '22.00'), r('18', '24:00'), r('24:00', 'late'), r('19:00', '')])
     expect(fixes.map(f => [f.field, f.old, f.proposed])).toEqual([
       ['endTime', '22.00', '22:00'],

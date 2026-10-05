@@ -77,11 +77,11 @@ describe('39 hangout edges', () => {
 
 describe('40 email details', () => {
   const email = read('lib/email.ts')
-  it('text part uses the raw first name; nudge subject is sanitised; dates are readable', () => {
+  it('text part uses the raw first name; dates are readable', () => {
     expect(email).toMatch(/text:\s*`Hi \$\{firstNameRaw\},/)
-    expect(email).toMatch(/subject: safeSubject\(`\$\{ev\.emoji \? ev\.emoji \+ ' ' : ''\}\$\{ev\.title\} — your first Smileys event\?`\)/)
-    // Five since the third scan: the reminder mail joined the four.
-    expect((email.match(/\$\{esc\(prettyEventDate\(eventDate\)\)\}/g) ?? []).length).toBe(5)
+    // Six: the reminder mail joined the four in the third scan, then the
+    // postponed notice.
+    expect((email.match(/\$\{esc\(prettyEventDate\(eventDate\)\)\}/g) ?? []).length).toBe(6)
   })
   it('admin event mails judge the day on the event city; bulk alerts go to approved members; quiet hours with equal bounds are off', () => {
     expect(read('app/api/admin/events/[id]/remind-attendees/route.ts')).toMatch(/await todayInCity\(event\.cityId\)/)

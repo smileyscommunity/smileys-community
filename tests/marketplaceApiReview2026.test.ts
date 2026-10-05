@@ -28,7 +28,7 @@ describe('what a guest can ask', () => {
     expect(lib).toContain('const { userId: _omitUserId, ...rest } = listing')
   })
 
-  it('a moving sale\'s note is redacted too — the neighbourhood is withheld for a reason', () => {
+  it('a moving sale\'s note is redacted too — the neighborhood is withheld for a reason', () => {
     const sales = src('app/api/moving-sales/route.ts')
     expect(sales).toContain('note: session ? s.note : (s.note ? redactBoardTextForGuest(s.note) : null),')
     expect(sales).toContain('items: session ? s.items : s.items.map(i => ({ ...i, name: redactBoardTextForGuest(i.name) })),')

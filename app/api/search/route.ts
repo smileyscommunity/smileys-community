@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
   // the tag "vergi numarası", which needs a contains over the joined tags.
   // The pattern is passed as a bound parameter (Prisma.sql), never
   // interpolated, so `q` can't inject; %/_ in the query are treated as
-  // wildcards, which for search is behaviour, not a bug.
+  // wildcards, which for search is behavior, not a bug.
   // Search is scoped to the viewer's city by the shared rule in lib/postScope:
   // this city's articles, its COUNTRY's national ones, and the global ones.
   const cityId = await resolveCityId(session)
@@ -76,8 +76,8 @@ export async function GET(req: NextRequest) {
         OR: [{ suspendedUntil: null }, { suspendedUntil: { lte: new Date() } }],
         AND: [{ OR: [
           await nameSearchWhere(session, q, 'contains'),
-          // Only for public members who chose to be listed by neighbourhood —
-          // otherwise a search confirms a neighbourhood the profile hides.
+          // Only for public members who chose to be listed by neighborhood —
+          // otherwise a search confirms a neighborhood the profile hides.
           { neighborhood: { contains: q, mode: 'insensitive' }, neighborhoodVisible: true, profileVisibility: { not: 'connections' } },
         ] }],
       },

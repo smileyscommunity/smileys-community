@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { COMMUNITY_MEMBER_WHERE } from '@/lib/memberCount'
 import { getCityTz } from '@/lib/city'
 import { dayInTz, DEFAULT_TZ } from '@/lib/cityTime'
 import { emailFor } from '@/lib/admin/maskContact'
@@ -30,8 +31,11 @@ export async function GET(req: NextRequest) {
   const day60Str  = dayInTz(day60ago, cityId ? await getCityTz(cityId) : DEFAULT_TZ)
 
   // Never attended: approved members > 7 days old with 0 approved attendances
+  // Activated community members only (lib/memberCount): approved alone took in
+  // admins, moderators' own partner logins and accounts that never set a
+  // password — people a nudge can't reach, inflating both lists.
   const neverWhere = {
-    status: 'approved',
+    ...COMMUNITY_MEMBER_WHERE,
     joinedAt: { lt: day7ago },
     joinedEvents: { none: { status: 'approved' } },
     ...(cityId ? { cityId } : {}),
@@ -60,7 +64,7 @@ export async function GET(req: NextRequest) {
     FROM users u
     JOIN event_attendees ea ON ea."userId" = u.id AND ea.status = 'approved'
     JOIN events e ON e.id = ea."eventId"
-    WHERE u.status = 'approved'
+    WHERE u.status = 'approved' AND u.password IS NOT NULL AND u.role NOT IN ('admin', 'partner')
       AND (${cityId}::text IS NULL OR u."cityId" = ${cityId})
     GROUP BY u.id, u.name, u.email, u.color, u.neighborhood
     HAVING MAX(e.date) < ${day60Str}
@@ -73,7 +77,7 @@ export async function GET(req: NextRequest) {
       FROM users u
       JOIN event_attendees ea ON ea."userId" = u.id AND ea.status = 'approved'
       JOIN events e ON e.id = ea."eventId"
-      WHERE u.status = 'approved'
+      WHERE u.status = 'approved' AND u.password IS NOT NULL AND u.role NOT IN ('admin', 'partner')
         AND (${cityId}::text IS NULL OR u."cityId" = ${cityId})
       GROUP BY u.id
       HAVING MAX(e.date) < ${day60Str}

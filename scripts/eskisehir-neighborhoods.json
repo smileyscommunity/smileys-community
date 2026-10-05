@@ -1,0 +1,146 @@
+[
+  {
+    "name": "Odunpazarı",
+    "emoji": "🏘️",
+    "vibe": "The hill of restored Ottoman timber houses — Kurşunlu Mosque, glass workshops and the Odunpazarı Modern Museum",
+    "area": "Old Town",
+    "cost": 2,
+    "lat": 39.7651,
+    "lng": 30.5242
+  },
+  {
+    "name": "Arifiye",
+    "emoji": "♨️",
+    "vibe": "Hamamyolu's long park strip with the old thermal baths, the center's evening walk",
+    "area": "Center",
+    "cost": 2,
+    "lat": 39.7727,
+    "lng": 30.5186
+  },
+  {
+    "name": "İstiklal",
+    "emoji": "🛶",
+    "vibe": "The south bank of the Porsuk in the middle of town — riverside cafés, footbridges, the tourist boats",
+    "area": "Center",
+    "cost": 2,
+    "lat": 39.7746,
+    "lng": 30.5161
+  },
+  {
+    "name": "Hoşnudiye",
+    "emoji": "🍻",
+    "vibe": "Across the river on the Tepebaşı side — Barlar Sokağı and the center's late nights",
+    "area": "Center",
+    "cost": 2,
+    "lat": 39.7788,
+    "lng": 30.5146
+  },
+  {
+    "name": "Yenibağlar",
+    "emoji": "🚋",
+    "vibe": "Bağlar — the tram stop, Espark mall, student flats between the center and Anadolu University",
+    "area": "University",
+    "cost": 1,
+    "lat": 39.7869,
+    "lng": 30.5086
+  },
+  {
+    "name": "Yeşiltepe",
+    "emoji": "🎓",
+    "vibe": "Anadolu University's Yunus Emre campus and the student streets around it",
+    "area": "University",
+    "cost": 1,
+    "lat": 39.7959,
+    "lng": 30.5004
+  },
+  {
+    "name": "Meşelik",
+    "emoji": "🌲",
+    "vibe": "Osmangazi University's main campus on the south-western edge of town",
+    "area": "University",
+    "cost": 1,
+    "lat": 39.7485,
+    "lng": 30.4761
+  },
+  {
+    "name": "İki Eylül",
+    "emoji": "🔬",
+    "vibe": "Eskişehir Technical University's campus out on the Sarıcakaya road, north of the city",
+    "area": "University",
+    "cost": 1,
+    "lat": 39.8169,
+    "lng": 30.5317
+  },
+  {
+    "name": "Vişnelik",
+    "emoji": "🍒",
+    "vibe": "Apartment blocks off Atatürk Bulvarı, a walk from the old town and Kanlıkavak Parkı",
+    "area": "Residential",
+    "cost": 2,
+    "lat": 39.7678,
+    "lng": 30.5095
+  },
+  {
+    "name": "Büyükdere",
+    "emoji": "🏢",
+    "vibe": "Residential blocks along Atatürk Bulvarı on the way out to the Osmangazi campus",
+    "area": "Residential",
+    "cost": 2,
+    "lat": 39.7561,
+    "lng": 30.5011
+  },
+  {
+    "name": "Batıkent",
+    "emoji": "🏗️",
+    "vibe": "Newer housing estates on the western side of Tepebaşı",
+    "area": "Residential",
+    "cost": 2,
+    "lat": 39.7915,
+    "lng": 30.4623
+  },
+  {
+    "name": "Sazova",
+    "emoji": "🏰",
+    "vibe": "Sazova Park — the fairy-tale castle, the pirate ship, the Japanese garden, weekend picnics",
+    "area": "Parks",
+    "cost": 2,
+    "lat": 39.7651,
+    "lng": 30.4742
+  },
+  {
+    "name": "Kentpark",
+    "emoji": "🏖️",
+    "vibe": "The city park with a lake and a sand beach in the middle of Anatolia, with its own tram stop",
+    "area": "Parks",
+    "cost": 2,
+    "lat": 39.7734,
+    "lng": 30.5497
+  },
+  {
+    "name": "Seyitgazi",
+    "emoji": "🕌",
+    "vibe": "The hilltop Seyyid Battal Gazi complex above a small town, under an hour south",
+    "area": "Day Trips",
+    "cost": 1,
+    "lat": 39.4443,
+    "lng": 30.696
+  },
+  {
+    "name": "Yazılıkaya",
+    "emoji": "🗿",
+    "vibe": "The Phrygian Midas Monument carved into the rock — the heart of the Phrygian Valley",
+    "area": "Day Trips",
+    "cost": 1,
+    "lat": 39.2001,
+    "lng": 30.7135
+  },
+  {
+    "name": "Sivrihisar",
+    "emoji": "🪵",
+    "vibe": "The Seljuk Great Mosque with its forest of wooden columns, and Nasreddin Hoca's home district",
+    "area": "Day Trips",
+    "cost": 1,
+    "lat": 39.451,
+    "lng": 31.5368
+  }
+]

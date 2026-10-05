@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { COMMUNITY_MEMBER_WHERE } from '@/lib/memberCount'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator, isAdmin, failClosedCityId } from '@/lib/access'
@@ -81,7 +82,8 @@ export async function GET(req: NextRequest) {
       where:  { period: { in: periods }, ...cityScope },
       select: { score: true, period: true },
     }),
-    prisma.user.count({ where: { status: 'approved', joinedAt: { lt: eligibilityCutoff() }, ...(isAdmin(session) ? {} : { cityId: failClosedCityId(session) }) } }),
+    // Who could have answered: activated community members, not every approved row.
+    prisma.user.count({ where: { ...COMMUNITY_MEMBER_WHERE, joinedAt: { lt: eligibilityCutoff() }, ...(isAdmin(session) ? {} : { cityId: failClosedCityId(session) }) } }),
     // Strip userId before returning. We surface score + comment +
     // period + createdAt — enough for the admin to read sentiment
     // and trend, never enough to identify the responder. Score

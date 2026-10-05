@@ -1,14 +1,15 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import posthog from 'posthog-js'
 import { useAuth } from '@/contexts/AuthContext'
 
 // §11/§18 — ♡ Save (private bucket list) + ❤️ Recommend (public count).
-// Client island so the ISR-cached experience page stays shared HTML;
-// viewer state arrives from /api/guide/[slug] after hydration.
+// Client island for the buttons; the viewer's state and the count arrive
+// from the page as `initial` (lib/guideTips) rather than from a fetch after
+// hydration — the page is rendered per request and already knows.
 //
 // These sit over the hero photo. They used to be bg-white/10 — ten percent
 // white over an arbitrary photograph — 36px tall, which on a phone over a
@@ -19,24 +20,15 @@ import { useAuth } from '@/contexts/AuthContext'
 // already holds itself to (see GuideStickyNav).
 const PILL = 'inline-flex items-center gap-1.5 min-h-11 px-4 py-2.5 text-sm font-bold rounded-xl transition-colors border'
 const IDLE = 'bg-black/50 hover:bg-black/65 border-white/25 text-white backdrop-blur-sm'
-export default function ExperienceActions({ slug, cityName }: { slug: string; cityName: string }) {
-  const { isLoggedIn } = useAuth()
-  const [saved,       setSaved]       = useState(false)
-  const [recommended, setRecommended] = useState(false)
-  const [done,        setDone]        = useState(false)
-  const [count,       setCount]       = useState<number | null>(null)
-  const [busy,        setBusy]        = useState(false)
+interface Initial { recommendCount: number; viewer: { saved: boolean; recommended: boolean; done: boolean } | null }
 
-  useEffect(() => {
-    fetch(`/app/api/guide/${slug}`, { credentials: 'include' })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => {
-        if (!d) return
-        setCount(d.recommendCount)
-        if (d.viewer) { setSaved(d.viewer.saved); setRecommended(d.viewer.recommended); setDone(d.viewer.done ?? false) }
-      })
-      .catch(() => {})
-  }, [slug])
+export default function ExperienceActions({ slug, cityName, applyHref, initial }: { slug: string; cityName: string; applyHref: string; initial: Initial }) {
+  const { isLoggedIn } = useAuth()
+  const [saved,       setSaved]       = useState(initial.viewer?.saved ?? false)
+  const [recommended, setRecommended] = useState(initial.viewer?.recommended ?? false)
+  const [done,        setDone]        = useState(initial.viewer?.done ?? false)
+  const [count,       setCount]       = useState<number>(initial.recommendCount)
+  const [busy,        setBusy]        = useState(false)
 
   async function toggle(kind: 'save' | 'recommend' | 'done') {
     if (busy) return
@@ -70,12 +62,12 @@ export default function ExperienceActions({ slug, cityName }: { slug: string; ci
   if (!isLoggedIn) {
     return (
       <div className="flex flex-wrap items-center gap-3">
-        <Link href="/apply" className={`${PILL} ${IDLE}`}>
+        <Link href={applyHref} className={`${PILL} ${IDLE}`}>
           <span aria-hidden="true">♡</span> Save for later — join Smileys
         </Link>
-        {(count ?? 0) > 0 && (
+        {count > 0 && (
           <span className="text-xs font-semibold text-amber-200">
-            <span aria-hidden="true">❤️</span> Recommended by {count} Smileys
+            <span aria-hidden="true">❤️</span> Recommended by {count} member{count === 1 ? '' : 's'}
           </span>
         )}
       </div>
@@ -96,9 +88,9 @@ export default function ExperienceActions({ slug, cityName }: { slug: string; ci
         className={`${PILL} ${done ? 'bg-green-600 border-green-600 text-white' : IDLE}`}>
         <span aria-hidden="true">✓</span> {done ? 'Done' : "I've done this"}
       </button>
-      {(count ?? 0) > 0 && (
+      {count > 0 && (
         <span className="text-xs font-semibold text-amber-200">
-          Recommended by {count} Smileys
+          Recommended by {count} member{count === 1 ? '' : 's'}
         </span>
       )}
     </div>

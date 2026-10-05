@@ -4,9 +4,14 @@ import type { Metadata } from 'next'
 import { unstable_cache } from 'next/cache'
 import { getNextInSeries } from '@/lib/postSeries'
 import { prisma } from '@/lib/prisma'
-import { resolveImageUrl, avatarUrl } from '@/lib/data'
+import { resolveImageUrl, avatarUrl, previewUrl } from '@/lib/data'
 import { firstBodyImage } from '@/lib/articleCover'
 import { APP_URL, SITE_URL } from '@/lib/env'
+import { jsonLdHtml } from '@/lib/jsonLd'
+import { breadcrumbJsonLd } from '@/lib/breadcrumbJsonLd'
+import { guideForOverview } from '@/lib/topicPairs'
+import { getTopicCompanion } from '@/lib/topicCompanion'
+import TopicCompanion from '@/components/TopicCompanion'
 import { sanitize, sanitizeArticle, isArticleImageSrc } from '@/lib/sanitize'
 import { getSession } from '@/lib/session'
 import { resolveCityId, getCityConfig } from '@/lib/city'
@@ -15,6 +20,7 @@ import { canManagePosts, canActOnCityContent } from '@/lib/access'
 import { storyBylines } from '@/lib/storyByline'
 import { normalizeCommunityCategory } from '@/app/admin/posts/constants'
 import ArticleInlineEditor from '@/components/ArticleInlineEditor'
+import SocialShare from '@/components/SocialShare'
 import ArticleViewBeacon from '@/components/ArticleViewBeacon'
 
 // The author's privacy columns ride along so the byline can be projected for
@@ -51,6 +57,11 @@ const categoryColors: Record<string, string> = {
   'Events':       'bg-blue-100 text-blue-700',
   'City Guide':   'bg-green-100 text-green-700',
   'Tips':         'bg-pink-100 text-pink-700',
+  'Working from': 'bg-sky-100 text-sky-700',
+  'Students':     'bg-indigo-100 text-indigo-700',
+  'Expats':       'bg-teal-100 text-teal-700',
+  'Digital nomads': 'bg-cyan-100 text-cyan-700',
+  'Travelers':   'bg-orange-100 text-orange-700',
 }
 
 // In the city's own day: the server is UTC, so a story published at 01:00 in
@@ -91,10 +102,10 @@ const BODY_PROSE = [
   'prose-ul:my-5 prose-ol:my-5 prose-li:text-[17px] prose-li:text-gray-700 prose-li:my-1',
   '[&_li::marker]:text-amber-500',
   'prose-strong:font-bold prose-strong:text-gray-900',
-  // A colour picked in the editor lands as `<span style="color: …">`, and a
-  // child's own class beats a colour inherited from its parent — so bold text
-  // inside a coloured span would render prose-strong's gray-900 and lose the
-  // colour. Make anything nested in a styled span inherit it instead.
+  // A color picked in the editor lands as `<span style="color: …">`, and a
+  // child's own class beats a color inherited from its parent — so bold text
+  // inside a colored span would render prose-strong's gray-900 and lose the
+  // color. Make anything nested in a styled span inherit it instead.
   '[&_span[style]_*]:text-[color:inherit]',
   'prose-a:text-amber-600 prose-a:font-medium',
   'prose-blockquote:border-l-4 prose-blockquote:border-amber-400 prose-blockquote:not-italic prose-blockquote:text-gray-600',
@@ -238,8 +249,10 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
   // hit — unstable_cache serialises its value to JSON, and Prisma's types
   // still claim Date, so typecheck cannot see it. new Date() accepts both.
   const nextUp = preview ? null : await getNextInSeries(post.kind, post.category,
-    post.publishedAt ? new Date(post.publishedAt).toISOString() : null)
+    post.publishedAt ? new Date(post.publishedAt).toISOString() : null, post.cityId ?? null)
 
+  const guideSlug = preview ? null : guideForOverview(slug)
+  const guide     = guideSlug ? await getTopicCompanion(guideSlug, 'handbook') : null
   const byline   = (await storyBylines(session, [post.author]))(post.author)
   // Read OUTSIDE getPost's unstable_cache, the same way the handbook reads
   // its likes: inside it the number is whatever it was up to five minutes
@@ -253,8 +266,36 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
   // ("Istanbul Guide"), which left the other cities without one.
   const cityLabel = category === 'City Guide' && post.cityId ? (await getCityConfig(post.cityId)).name : null
 
+  // BlogPosting for the live story only (a preview is staff-only and noindex).
+  // The author is the privacy-projected byline — what this viewer is allowed to
+  // see — and the image is the story's own upload, or omitted rather than a
+  // brand card standing in for a photo.
+  const ldCover = post.coverImage ?? firstBodyImage(post.body)
+  const blogPostingJsonLd = preview ? null : {
+    '@context':       'https://schema.org',
+    '@type':          'BlogPosting',
+    headline:         post.title,
+    description:      post.excerpt ?? plainSummary(post.body),
+    ...(isArticleImageSrc(ldCover) ? { image: `${SITE_URL}${resolveImageUrl(ldCover)}?w=1200` } : {}),
+    datePublished:    post.publishedAt ? new Date(post.publishedAt).toISOString() : undefined,
+    dateModified:     post.updatedAt ? new Date(post.updatedAt).toISOString() : undefined,
+    author:           { '@type': 'Person', name: byline.name },
+    publisher:        { '@type': 'Organization', name: 'Smileys Community', url: SITE_URL },
+    mainEntityOfPage: `${APP_URL}/posts/${slug}`,
+  }
+
   return (
-    <main className="min-h-screen bg-warm">
+    <div className="min-h-screen bg-warm">
+      {blogPostingJsonLd && (
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdHtml(blogPostingJsonLd) }} />
+      )}
+      {blogPostingJsonLd && (
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdHtml(breadcrumbJsonLd([
+          { name: 'Smileys',  url: APP_URL },
+          { name: 'Stories',  url: `${APP_URL}/posts` },
+          { name: post.title, url: `${APP_URL}/posts/${slug}` },
+        ])) }} />
+      )}
       {/* Back */}
       <div className="bg-white border-b border-gray-100">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center gap-3">
@@ -277,7 +318,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
       {post.coverImage && (
         <div className="relative w-full h-64 sm:h-96 overflow-hidden">
           <img
-            src={resolveImageUrl(post.coverImage)}
+            src={previewUrl(post.coverImage, 1200)}
             alt=""
             className="w-full h-full object-cover"
           />
@@ -345,6 +386,24 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
           : <div>{renderBody(post.body)}</div>}
        </ArticleInlineEditor>
 
+        {/* Share — stories are public, like the handbook, so a reader can send
+            one to a friend who isn't in the community yet. cacheKey busts
+            stale WhatsApp/Facebook previews after an edit; the canonical
+            above drops the ?v=. Drafts in staff preview have nothing to share. */}
+        {!preview && (
+          <div className="mt-10 pt-8 border-t border-gray-100">
+            <SocialShare
+              title={`${post.title} — Smileys Community`}
+              url={`${APP_URL}/posts/${post.slug}`}
+              cacheKey={new Date(post.updatedAt ?? post.publishedAt ?? Date.now()).getTime().toString(36)}
+            />
+          </div>
+        )}
+
+        {guide && (
+          <TopicCompanion href={`/handbook/${guide.slug}`} kicker="Go deeper: the step-by-step guide" title={guide.title} excerpt={guide.excerpt} />
+        )}
+
         {/* Next in the series — only where the category actually runs in order. */}
         {nextUp && (
           <Link
@@ -353,7 +412,8 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
           >
             <span className="min-w-0">
               <span className="block text-xs font-bold uppercase tracking-widest text-amber-600 mb-1">
-                Next in {category}
+                {/* "Next in Working from" reads wrong; the series is the interviews. */}
+                {category === 'Working from' ? 'Next interview' : `Next in ${category}`}
               </span>
               <span className="block font-bold text-gray-900 group-hover:text-amber-700 transition-colors leading-snug">
                 {nextUp.title}
@@ -413,6 +473,6 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
           </div>
         </section>
       )}
-    </main>
+    </div>
   )
 }

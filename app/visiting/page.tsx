@@ -11,7 +11,7 @@ import type { Metadata } from 'next'
 import { getSession } from '@/lib/session'
 import { redirect } from 'next/navigation'
 import { DEFAULT_CITY_SLUG } from '@/lib/city'
-import { resolveCityForPage, type CitySearch } from '@/lib/cityPageParam'
+import { resolveCityForPage, cityQs as handbookQs, type CitySearch } from '@/lib/cityPageParam'
 import { shareCover } from '@/lib/shareCover'
 import { firstNameOf, formatPrice, resolveImageUrl } from '@/lib/data'
 import { getPublicCities } from '@/lib/cities'
@@ -24,8 +24,10 @@ import { formatTime } from '@/lib/data'
 import {
   parseTripRange, parseTripFilters, applyTripFilters, tripFilterOptions, tripEventWhen,
   cityAvailability, isFreeEvent, type TripWhen,
+  TRAVELLER_SHELF_CATEGORIES, TRAVELLER_STORY_LIMIT,
 } from '@/lib/tripPlan'
-import { guestView, visitorName } from '@/lib/visitorPolicy'
+import { articleCover } from '@/lib/articleCover'
+import { guestView, visitorName, visitAuthorOk } from '@/lib/visitorPolicy'
 import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
 import { loadExperiences } from '@/lib/guideContent'
 import VisitingClient from './VisitingClient'
@@ -52,8 +54,43 @@ const VISIT_WHERE = (today: string, cityId: string, forMembers: boolean) => ({
   endsOn: { gte: today },
   ...(forMembers ? {} : { visibility: 'public' }),
   // A banned, suspended or admin-hidden author's card goes with them.
-  OR: [{ userId: null }, { user: { status: 'approved', hiddenFromMembers: false } }],
+  ...visitAuthorOk(),
 })
+
+// The "Read before your trip" shelf: this city's Travelers and City Guide
+// posts, newest first (lib/tripPlan TRAVELLER_SHELF_CATEGORIES). Cached per city; only the
+// fields the cards render leave the cache (the body is read for the cover).
+// Tagged 'posts' so a publish from the panel shows here at once.
+// Covers for the first visitor essentials (Nate, 2026-10-02: "add image to
+// first 3"). The Handbook index carries no covers on purpose — every hub
+// reads it, and a cover means reading the body — so only the featured
+// slugs are looked up here. No category-banner fallback: those are text
+// graphics, not photos; a guide without a photo shows without one.
+const getEssentialCovers = unstable_cache(
+  async (slugs: string[]) => {
+    const rows = await prisma.post.findMany({
+      where:  { slug: { in: slugs }, kind: 'handbook', status: 'published' },
+      select: { slug: true, coverImage: true, body: true },
+    })
+    return Object.fromEntries(rows.map(r => [r.slug, articleCover({ coverImage: r.coverImage, body: r.body })]))
+  },
+  ['visiting-essential-covers'],
+  { revalidate: 300, tags: ['handbook'] },
+)
+
+const getTravellerStories = unstable_cache(
+  async (cityId: string) => {
+    const rows = await prisma.post.findMany({
+      where:   { kind: 'community', status: 'published', category: { in: TRAVELLER_SHELF_CATEGORIES }, cityId },
+      orderBy: { publishedAt: 'desc' },
+      take:    TRAVELLER_STORY_LIMIT,
+      select:  { slug: true, title: true, excerpt: true, coverImage: true, body: true },
+    })
+    return rows.map(r => ({ slug: r.slug, title: r.title, excerpt: r.excerpt, cover: articleCover({ coverImage: r.coverImage, body: r.body }) }))
+  },
+  ['visiting-traveler-stories'],
+  { revalidate: 60, tags: ['posts'] },
+)
 
 const getAnnouncements = unstable_cache(
   // cityId is an ARGUMENT, not a closure read: unstable_cache keys on its args,
@@ -62,7 +99,7 @@ const getAnnouncements = unstable_cache(
   //
   // The guest entry is made safe INSIDE the cache: unstable_cache values
   // stream to the browser in the RSC payload, so a guest's entry must never
-  // hold exact dates, a full name, a neighbourhood or an author — it holds
+  // hold exact dates, a full name, a neighborhood or an author — it holds
   // what a guest is shown (lib/visitorPolicy guestView) and nothing else.
   async (today: string, forMembers: boolean, cityId: string): Promise<CachedVisit[]> => {
     if (!forMembers) {
@@ -338,6 +375,10 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
   const filteredEvents = planRange ? applyTripFilters(timedEvents, filters) : timedEvents
   const filtersActive  = !!(filters.hood || filters.free || filters.first || filters.lang)
   const PLAN_SHOWN     = 12
+  // Before any dates are entered the list is a taster, not the calendar:
+  // three cards and a link (Nate, 2026-10-02 — six made the page longer
+  // without telling a visitor anything the calendar doesn't).
+  const PREVIEW_SHOWN  = 3
 
   // The cards' "N events while you're here" chip counts against every
   // listed visit's window, not the next 60 days.
@@ -483,25 +524,51 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
   // All existing content: the city's Handbook (lib/handbookIndex), its Guide
   // audiences and day routes (lib/guide, lib/guideContent), and the city list
   // with the same maturity signal the city cards use (lib/tripPlan).
-  const [handbook, routes, publicCities] = await Promise.all([
+  const [handbook, routes, publicCities, travellerStories] = await Promise.all([
     getCityHandbookIndex(cityId, city.country ?? null),
     loadRoutes(cityId),
     getPublicCities(),
+    getTravellerStories(cityId),
   ])
   // The city's own article first (its transport card beats a national note).
-  const essential = (category: string) => handbook
+  const essentialIn = (pool: typeof handbook, category: string) => pool
     .filter(a => canonicalCategory(a.category) === category)
     .sort((a, b) => Number(b.cityId === cityId) - Number(a.cityId === cityId))[0] ?? null
-  const essentials = [
-    // Before anything else a traveller needs to know whether they can come
-    // and for how long — the entry-rules guide, found by topic (it shares
-    // Residence & Legal with the residence-permit guides a visitor doesn't need).
-    { key: 'entry',     label: 'Entry rules and visas',  article: pickArticle(handbook, 'Residence & Legal', ENTRY_RULES, cityId) },
-    { key: 'connect',   label: 'SIM and internet',       article: essential('Mobile & Digital') },
-    { key: 'transport', label: 'Getting around',         article: essential('Getting Around') },
-    { key: 'money',     label: 'Money',                  article: essential('Money & Banking') },
-    { key: 'safety',    label: 'Safety and emergencies', article: essential('Safety & Emergencies') },
-  ].filter(x => x.article)
+  // A VISITOR's essentials, in the order a trip needs them (Nate, 2026-10-02):
+  // the page used to share the city page's "Start here" shelf (renting a flat,
+  // family life) and listed the bank-account guide as "Money". Each row asks
+  // for the article ABOUT its topic, not the newest in its category (that rule
+  // once put "SIM and internet" on the e-Devlet guide). Rows marked fallback
+  // take the city's own article in the category when none matches the topic
+  // (a small city's SIM or transport note); the rest show nothing rather than
+  // something wrong.
+  // One article answers one row — the airport guide is picked before the
+  // transport card so the broader transport pattern can't claim it.
+  const essentialRows = [
+    { key: 'entry',     label: 'Entry rules and visas', category: 'Residence & Legal',    about: ENTRY_RULES, fallback: false },
+    // Arrival guides only: "Getting Around Bodrum: … & the Airport" is Bodrum's
+    // transport guide and must stay its "Getting around" row.
+    { key: 'airport',   label: 'From the airport',      category: 'Getting Around',       about: /arriving in|from (the )?airport|airport transfer|havaliman|sabiha/i, fallback: false },
+    { key: 'connect',   label: 'SIM and internet',      category: 'Mobile & Digital',     about: /\bsim\b|esim|internet/i, fallback: true },
+    { key: 'transport', label: 'Getting around',        category: 'Getting Around',       about: /kart|card|getting.around|dolmu/i, fallback: true },
+    { key: 'scams',     label: 'Scams and tourist traps', category: 'Safety & Emergencies', about: /scam|trap/i, fallback: false },
+    { key: 'emergency', label: 'Emergency numbers',     category: 'Safety & Emergencies', about: /emergenc|\b112\b/i, fallback: true },
+  ] as const
+  const usedSlugs = new Set<string>()
+  const essentials = essentialRows.flatMap(r => {
+    const pool    = handbook.filter(a => !usedSlugs.has(a.slug))
+    const article = pickArticle(pool, r.category, r.about, cityId) ?? (r.fallback ? essentialIn(pool, r.category) : null)
+    if (!article) return []
+    usedSlugs.add(article.slug)
+    return [{ key: r.key, label: r.label, article }]
+  })
+  // The first three get a cover card; the rest stay a compact list.
+  const FEATURED_ESSENTIALS = 3
+  const featuredEssentials = essentials.slice(0, FEATURED_ESSENTIALS)
+  const otherEssentials    = essentials.slice(FEATURED_ESSENTIALS)
+  const essentialCovers    = featuredEssentials.length > 0
+    ? await getEssentialCovers(featuredEssentials.map(x => x.article.slug))
+    : {}
   const firstTimerSoon = timedEvents.filter(e => e.isFirstTimerFriendly)
   // Guide intents this city's vocabulary can answer, with how many
   // experiences each one opens — an intent with none is not offered.
@@ -518,12 +585,20 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
   const hereAvailability = thisCityAvailability ? cityAvailability(thisCityAvailability) : 'coming_soon'
 
 
+  // The page reads as a trip: Before you go → When you're here → Meet people
+  // (Nate, 2026-10-02). Each act's first section carries its label; Before
+  // you go starts on whichever of its sections the city has.
+  const act1Lead = essentials.length > 0 ? 'essentials' : travellerStories.length > 0 ? 'stories' : 'stay'
+  const actLabel = (label: string) => (
+    <p className="text-xs font-bold tracking-[0.2em] uppercase text-amber-600 mb-3">{label}</p>
+  )
+
   return (
     <div className={`min-h-screen bg-white ${viewerVisit ? '' : 'pb-24 md:pb-0'}`}>
       {/* Hero — the shared PhotoHero the other arrival hubs use (Moving,
           Remote work, Students): this city's own visiting-hero-<city>.jpg,
           else its hero photo, under the same legibility gradient. */}
-      <PhotoHero kind="visiting" city={city} alt={`A traveller on a ferry in ${city.name} at sunset, looking out across the water at the city`}>
+      <PhotoHero kind="visiting" city={city} alt={`A traveler on a ferry in ${city.name} at sunset, looking out across the water at the city`}>
         <Link href={`/${city.slug}`} className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-white/80 hover:text-white mb-6">
           <span aria-hidden="true">←</span> Smileys {city.name}
         </Link>
@@ -540,7 +615,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
           {/* Posting is member-only (anonymous posting was tried and
               reverted — see app/(member)/visiting/new/page.tsx), so the
               second button leads to the explainer, not into a form. */}
-          <a href="#plan" className="btn-primary text-base px-8 py-4">
+          <a href="#before-you-go" className="btn-primary text-base px-8 py-4">
             Plan my visit
             <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
@@ -555,152 +630,126 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
         </p>
       </PhotoHero>
 
-      {/* Value strip — four short promises. Deliberately terse: this sits
-          between the hero and the visitor list, so anything longer pushes
-          the actual people (the point of the page) further down. */}
-      <section className="bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-12">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {[
-              { icon: '☕', title: 'Meet a Local',      body: `Grab a coffee, drink or meal with someone already living in ${city.name}.` },
-              { icon: '💬', title: 'Get Local Tips',    body: 'Ask real people about neighborhoods, transport, restaurants and everyday life.' },
-              { icon: '🤝', title: 'Make Connections',  body: 'Start meeting people before your flight even lands.' },
-              { icon: '🎉', title: 'Find Plans',        body: "Discover Smileys events and activities happening while you're here." },
-            ].map(v => (
-              <div key={v.title} className="bg-gray-50 border border-gray-100 rounded-2xl p-5">
-                <div aria-hidden="true" className="text-2xl mb-3">{v.icon}</div>
-                <h3 className="text-sm font-bold text-gray-900 mb-1.5">{v.title}</h3>
-                <p className="text-xs text-gray-600 leading-relaxed">{v.body}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* "Plan my visit" lands here: the start of Before you go. */}
+      <div id="before-you-go" className="scroll-mt-20" />
 
-      {/* ── Plan your visit ── the page's primary interaction. A plain GET
-          form: works without JavaScript, every control is a native labelled
-          input, and the result is a shareable URL. Filters appear only when
-          they would narrow the list (lib/tripPlan tripFilterOptions). */}
-      <section id="plan" aria-labelledby="plan-title" className="bg-white border-t border-gray-100 scroll-mt-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
-          <h2 id="plan-title" className="section-title">Plan your visit</h2>
-          <ol className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm text-gray-600">
-            {[
-              { n: 1, label: 'Your dates',           href: '#plan' },
-              { n: 2, label: 'Events during your stay', href: '#plan-events' },
-              { n: 3, label: 'Experiences you’ll like', href: '#interests' },
-              { n: 4, label: 'Where you’re staying', href: '#stay' },
-              { n: 5, label: 'Tell the community',   href: '#tell' },
-            ].map(st => (
-              <li key={st.n}>
-                <a href={st.href} className="inline-flex items-center gap-2 hover:text-amber-700">
-                  <span aria-hidden="true" className="w-6 h-6 rounded-full bg-amber-100 text-amber-800 text-xs font-extrabold flex items-center justify-center">{st.n}</span>
-                  {st.label}
-                </a>
-              </li>
-            ))}
-          </ol>
-
-          <form method="get" action="/app/visiting#plan-events" className="mt-8 rounded-2xl border border-gray-200 bg-gray-50 p-4 sm:p-6">
-            {pinned && <input type="hidden" name="city" value={city.slug} />}
-            <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-4 items-end">
-              <div>
-                <label htmlFor="trip-from" className="block text-sm font-semibold text-gray-800 mb-1.5">Arriving</label>
-                <input id="trip-from" name="from" type="date" min={today} required
-                  defaultValue={trip.range?.from ?? (planFromVisit ? planRange?.from : '') ?? ''} className="input bg-white" />
-              </div>
-              <div>
-                <label htmlFor="trip-to" className="block text-sm font-semibold text-gray-800 mb-1.5">Leaving</label>
-                <input id="trip-to" name="to" type="date" min={today} required
-                  defaultValue={trip.range?.to ?? (planFromVisit ? planRange?.to : '') ?? ''} className="input bg-white" />
-              </div>
-              <button type="submit" className="btn-primary px-6 py-3">Show my events</button>
+      {/* ── Before you go: visitor essentials ── the guides a trip needs, in
+          the order it needs them (essentials, above). Was a card inside the
+          first 48 hours; it is reading for before the flight. */}
+      {essentials.length > 0 && (
+        <section id="essentials" aria-labelledby="essentials-title" className="bg-white border-t border-gray-100 scroll-mt-20">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+            {act1Lead === 'essentials' && actLabel('Before you go')}
+            <div className="mb-8">
+              <h2 id="essentials-title" className="section-title">Visitor essentials</h2>
+              <p className="section-subtitle max-w-2xl">The guides worth reading before you fly.</p>
             </div>
-
-            {filterOptions && (filterOptions.hoods.length > 0 || filterOptions.free || filterOptions.first || filterOptions.langs.length > 0) && (
-              <fieldset className="mt-5 pt-5 border-t border-gray-200">
-                <legend className="text-sm font-semibold text-gray-800 mb-3">Narrow it down</legend>
-                <div className="flex flex-wrap items-end gap-4">
-                  {filterOptions.hoods.length > 0 && (
-                    <div>
-                      <label htmlFor="trip-hood" className="block text-xs font-semibold text-gray-600 mb-1">Neighbourhood</label>
-                      <select id="trip-hood" name="hood" defaultValue={filters.hood ?? ''} className="input bg-white py-2">
-                        <option value="">Anywhere</option>
-                        {filterOptions.hoods.map(h => <option key={h} value={h}>{h}</option>)}
-                      </select>
-                    </div>
-                  )}
-                  {filterOptions.langs.length > 0 && (
-                    <div>
-                      <label htmlFor="trip-lang" className="block text-xs font-semibold text-gray-600 mb-1">Language</label>
-                      <select id="trip-lang" name="lang" defaultValue={filters.lang ?? ''} className="input bg-white py-2">
-                        <option value="">Any</option>
-                        {filterOptions.langs.map(l => <option key={l} value={l}>{l}</option>)}
-                      </select>
-                    </div>
-                  )}
-                  {filterOptions.free && (
-                    <label className="inline-flex items-center gap-2 text-sm text-gray-700 py-2">
-                      <input type="checkbox" name="free" value="1" defaultChecked={filters.free} className="accent-amber-500 w-4 h-4" />
-                      Free only
-                    </label>
-                  )}
-                  {filterOptions.first && (
-                    <label className="inline-flex items-center gap-2 text-sm text-gray-700 py-2">
-                      <input type="checkbox" name="first" value="1" defaultChecked={filters.first} className="accent-amber-500 w-4 h-4" />
-                      First-timer friendly
-                    </label>
-                  )}
-                </div>
-                {filterOptions.langs.length > 0 && (
-                  <p className="text-xs text-gray-500 mt-2">Language only matches events whose host listed one.</p>
-                )}
-              </fieldset>
-            )}
-          </form>
-
-          <div id="plan-events" className="scroll-mt-24 mt-8" aria-live="polite">
-            {trip.error ? (
-              <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{trip.error}</p>
-            ) : planRange ? (
-              <>
-                <h3 className="text-xl font-extrabold text-gray-900">
-                  {filteredEvents.length === 0
-                    ? `Nothing ${filtersActive ? 'matching' : 'scheduled'} between ${formatDay(planRange.from)} and ${formatDay(planRange.to)} yet`
-                    : `${filteredEvents.length} event${filteredEvents.length === 1 ? '' : 's'} between ${formatDay(planRange.from)} and ${formatDay(planRange.to)}`}
-                </h3>
-                <p className="text-sm text-gray-600 mt-1">
-                  {planFromVisit ? 'Matched to the dates on your visit card. ' : ''}
-                  {trip.clamped ? 'Your stay has already started, so this shows today onwards. ' : ''}
-                  {filteredEvents.length === 0
-                    ? (filtersActive
-                        ? <>Try fewer filters — <Link href={`/visiting?${new URLSearchParams({ ...(pinned ? { city: city.slug } : {}), from: planRange.from, to: planRange.to })}#plan-events`} className="font-semibold text-amber-700 hover:underline">clear them</Link>.</>
-                        : 'New events are added every week, so check back closer to your trip.')
-                    : 'Events that have already finished are not shown.'}
-                </p>
-                {filteredEvents.length > 0 && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
-                    {filteredEvents.slice(0, PLAN_SHOWN).map(e => <VisitEventCard key={e.id} e={e} />)}
-                  </div>
-                )}
-                {filteredEvents.length > PLAN_SHOWN && (
-                  <Link href={pinned ? `/${city.slug}/events` : '/events'} className="inline-block mt-6 text-sm font-bold text-amber-700 hover:underline">
-                    {filteredEvents.length - PLAN_SHOWN} more — open the full calendar →
-                  </Link>
-                )}
-              </>
-            ) : timedEvents.length > 0 ? (
-              <>
-                <h3 className="text-xl font-extrabold text-gray-900">Coming up in {city.name}</h3>
-                <p className="text-sm text-gray-600 mt-1">Add your dates above to see only what falls during your stay.</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
-                  {timedEvents.slice(0, 6).map(e => <VisitEventCard key={e.id} e={e} />)}
-                </div>
-              </>
-            ) : (
-              <p className="text-sm text-gray-600">Nothing on the {city.name} calendar in the next two months yet — add your dates and check back closer to your trip.</p>
-            )}
+            <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {featuredEssentials.map(x => {
+                const cover = essentialCovers[x.article.slug]
+                return (
+                  <li key={x.key}>
+                    <Link href={`/handbook/${x.article.slug}${handbookQs(city.slug)}`}
+                      className="group h-full flex flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm hover:border-amber-200 hover:shadow-md transition-all">
+                      {cover && (
+                        // Absolute image: an aspect-ratio box grows to fit a portrait cover.
+                        <div className="relative aspect-[16/9] overflow-hidden bg-gray-100">
+                          <img src={cover} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+                        </div>
+                      )}
+                      <div className="p-5 flex-1">
+                        <span className="block text-xs font-bold uppercase tracking-wide text-gray-500">{x.label}</span>
+                        <span className="mt-1 block font-semibold text-gray-900 leading-snug group-hover:text-amber-700 transition-colors">{x.article.title}</span>
+                      </div>
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>
+            <div className="mt-5 rounded-2xl border border-gray-100 bg-white shadow-sm p-5">
+              {otherEssentials.length > 0 && (
+                <ul className="grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3 text-sm mb-4">
+                  {otherEssentials.map(x => (
+                    <li key={x.key}>
+                      <span className="block text-xs font-bold uppercase tracking-wide text-gray-500">{x.label}</span>
+                      <Link href={`/handbook/${x.article.slug}${handbookQs(city.slug)}`} className="font-semibold text-gray-900 hover:text-amber-700">{x.article.title}</Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <p className="text-xs text-gray-500 leading-relaxed">
+                Practical guidance, not legal, visa, medical or transport-operator advice. Fares,
+                rules and requirements change — where a guide links official sources, check them before you rely on it.
+              </p>
+            </div>
           </div>
+        </section>
+      )}
+
+      {/* ── Read before your trip ── this city's Travelers and City Guide
+          posts (lib/tripPlan TRAVELLER_SHELF_CATEGORIES), newest first. Hidden until
+          the city has one. */}
+      {travellerStories.length > 0 && (
+        <section id="stories" aria-labelledby="stories-title" className="bg-gray-50 border-t border-gray-100 scroll-mt-20">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+            {act1Lead === 'stories' && actLabel('Before you go')}
+            <div className="mb-8">
+              <h2 id="stories-title" className="section-title">Read before your trip</h2>
+              <p className="section-subtitle max-w-2xl">Visiting {city.name}: what to know, what to skip and what most visitors miss.</p>
+            </div>
+            <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {travellerStories.map(story => (
+                <li key={story.slug}>
+                  <Link href={`/posts/${story.slug}`}
+                    className="group h-full flex flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm hover:border-amber-200 hover:shadow-md transition-all">
+                    {story.cover && (
+                      // Absolute image: an aspect-ratio box grows to fit a portrait cover.
+                      <div className="relative aspect-[16/9] overflow-hidden bg-gray-100">
+                        <img src={story.cover} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+                      </div>
+                    )}
+                    <div className="p-5 flex flex-col flex-1">
+                      <h3 className="font-bold text-gray-900 leading-snug group-hover:text-amber-700 transition-colors">{story.title}</h3>
+                      {story.excerpt && <p className="mt-2 text-sm text-gray-600 leading-relaxed line-clamp-3 flex-1">{story.excerpt}</p>}
+                      <span className="mt-4 text-sm font-bold text-amber-700 group-hover:text-amber-800">
+                        Read <span aria-hidden="true">→</span>
+                      </span>
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      )}
+
+      {/* ── Know where you're staying? ── */}
+      <section id="stay" className="bg-white border-t border-gray-100 scroll-mt-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+          {act1Lead === 'stay' && actLabel('Before you go')}
+          <div className="mb-8">
+            <h2 className="section-title">Know where you&apos;re staying?</h2>
+            <p className="section-subtitle max-w-2xl">Discover your neighborhood before you arrive.</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {neighborhoodPicks.map(n => (
+              <Link key={n.name} href={`/neighborhoods/${n.slug}${cityQs}`}
+                className="bg-white border border-gray-100 rounded-2xl p-5 hover:border-amber-200 hover:shadow-md transition-all group">
+                <div aria-hidden="true" className="text-2xl mb-2">{n.meta?.emoji ?? '📍'}</div>
+                <h3 className="font-bold text-gray-900">{n.name}</h3>
+                {n.members > 0 && (
+                  <p className="text-xs font-semibold text-amber-700 mt-0.5">{n.members} Smileys nearby</p>
+                )}
+                <p className="text-xs text-gray-500 mt-2 leading-relaxed">{n.meta?.vibe ?? 'Local recommendations · People nearby'}</p>
+                <span className="inline-block text-xs font-bold text-gray-700 mt-3 group-hover:text-amber-600 transition-colors">
+                  Explore {n.name} →
+                </span>
+              </Link>
+            ))}
+          </div>
+          <Link href={`/neighborhoods${cityQs}`} className="inline-block mt-8 text-sm font-bold text-amber-700 hover:text-amber-800">
+            Explore all {city.name} neighborhoods <span aria-hidden="true">→</span>
+          </Link>
         </div>
       </section>
 
@@ -713,6 +762,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
           cancellation rule), not promises about any one event. */}
       <section id="first-48" aria-labelledby="first-48-title" className="bg-gray-50 border-t border-gray-100 scroll-mt-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+          {actLabel('When you’re here')}
           <div className="mb-8">
             <h2 id="first-48-title" className="section-title">Your first 48 hours</h2>
             <p className="section-subtitle max-w-2xl">Four things to do once you land, in roughly this order.</p>
@@ -722,13 +772,13 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
               {
                 title: 'Arrive and get connected',
                 body:  'A local SIM or eSIM, so maps, messages and ride apps work from the start.',
-                href:  essentials.find(x => x.key === 'connect')?.article ? `/handbook/${essentials.find(x => x.key === 'connect')!.article!.slug}` : null,
+                href:  essentials.find(x => x.key === 'connect')?.article ? `/handbook/${essentials.find(x => x.key === 'connect')!.article!.slug}${handbookQs(city.slug)}` : null,
                 cta:   'SIM and internet guide',
               },
               {
                 title: 'Learn the transport basics',
                 body:  'How to pay for buses, metro and ferries, and what to buy on day one.',
-                href:  essentials.find(x => x.key === 'transport')?.article ? `/handbook/${essentials.find(x => x.key === 'transport')!.article!.slug}` : null,
+                href:  essentials.find(x => x.key === 'transport')?.article ? `/handbook/${essentials.find(x => x.key === 'transport')!.article!.slug}${handbookQs(city.slug)}` : null,
                 cta:   'Transport guide',
               },
               {
@@ -761,34 +811,6 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
             ))}
           </ol>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
-            {essentials.length > 0 && (
-              <div className="rounded-2xl border border-gray-100 bg-white shadow-sm p-5">
-                <h3 className="font-bold text-gray-900 mb-2">Handbook essentials</h3>
-                <ul className="space-y-1.5 text-sm">
-                  {essentials.map(x => (
-                    <li key={x.key}>
-                      <span className="text-gray-500">{x.label}: </span>
-                      <Link href={`/handbook/${x.article!.slug}`} className="font-semibold text-gray-900 hover:text-amber-700">{x.article!.title}</Link>
-                    </li>
-                  ))}
-                </ul>
-                <p className="text-xs text-gray-500 mt-3 leading-relaxed">
-                  Practical guidance, not legal, visa, medical or transport-operator advice. Fares,
-                  rules and requirements change — where a guide links official sources, check them before you rely on it.
-                </p>
-              </div>
-            )}
-            <div className="rounded-2xl border border-gray-100 bg-white shadow-sm p-5">
-              <h3 className="font-bold text-gray-900 mb-2">What a first Smileys event is like</h3>
-              <ul className="space-y-2 text-sm text-gray-600 leading-relaxed">
-                <li className="flex gap-2"><span aria-hidden="true">👋</span><span>Events marked <span className="font-semibold text-gray-900">First-timer friendly</span> are picked by the team as easy ones to come to on your own.</span></li>
-                <li className="flex gap-2"><span aria-hidden="true">👤</span><span>Every event names its host and shows how many people are going before you RSVP.</span></li>
-                <li className="flex gap-2"><span aria-hidden="true">💰</span><span>Many are free; when there is a price, it is shown up front.</span></li>
-                <li className="flex gap-2"><span aria-hidden="true">📅</span><span>Plans change? Cancel as early as you can, so someone on the waitlist gets your spot.</span></li>
-              </ul>
-            </div>
-          </div>
         </div>
       </section>
 
@@ -860,7 +882,68 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
         </section>
       )}
 
-      <section className="bg-white border-t border-gray-100">
+      {/* ── Tell the community you're coming ── the page's core action, so it
+          opens Meet people as a panel (Nate, 2026-10-02: it sat ~6,000px down
+          as fine print). The four promises ride in it; the rules below are
+          word for word what they were, behind "How it works". Said
+          before anyone posts: Every line is a rule the product enforces:
+          posting needs an approved account (visiting/new is members-only),
+          visits default to members-only and a public card shows guests a
+          first name and the month (lib/visitorPolicy), contact happens by a
+          connection request the visitor accepts or declines (VisitingClient),
+          and Report/Block sit on every profile and message thread. It
+          promises no introductions — some visitors hear from nobody. */}
+      <section id="tell" aria-labelledby="tell-title" className="bg-white border-t border-gray-100 scroll-mt-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+          {actLabel('Meet people')}
+          <div className="rounded-3xl border border-amber-200 bg-amber-50 p-6 sm:p-10">
+            <h2 id="tell-title" className="section-title">Tell the community you&apos;re coming</h2>
+            <p className="section-subtitle max-w-2xl">Post your dates and a short intro, and members in {city.name} can see you&apos;re on your way.</p>
+            <ul className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {[
+                { icon: '☕', title: 'Meet a Local',      body: `Grab a coffee, drink or meal with someone already living in ${city.name}.` },
+                { icon: '💬', title: 'Get Local Tips',    body: 'Ask real people about neighborhoods, transport, restaurants and everyday life.' },
+                { icon: '🤝', title: 'Make Connections',  body: 'Start meeting people before your flight even lands.' },
+                { icon: '🎉', title: 'Find Plans',        body: "Discover Smileys events and activities happening while you're here." },
+              ].map(v => (
+                <li key={v.title} className="bg-white border border-amber-100 rounded-2xl p-4">
+                  <p className="text-sm font-bold text-gray-900"><span aria-hidden="true">{v.icon} </span>{v.title}</p>
+                  <p className="text-xs text-gray-600 mt-1 leading-relaxed">{v.body}</p>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-8 flex flex-col sm:flex-row gap-3">
+              <Link href={isMember ? newVisitHref : '/apply'} className="btn-primary">
+                {isMember ? ctaLabel : 'Apply to join — free, then post your visit'}
+              </Link>
+              <Link href="/guidelines" className="btn-secondary">
+                Community rules
+              </Link>
+            </div>
+            <details className="group mt-8 border-t border-amber-200 pt-6">
+              <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-bold text-amber-800">
+                How it works
+                <span aria-hidden="true" className="transition-transform group-open:rotate-45">+</span>
+              </summary>
+              <dl className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {[
+                  { icon: '🪪', term: 'You need a Smileys account', desc: 'Posting your dates, messaging members and joining events are for approved members. Applying is free and every application is reviewed by a person.' },
+                  { icon: '👀', term: 'Who sees your visit', desc: 'Only signed-in members, unless you choose to list it publicly. Even then, people who aren’t signed in see only your first name and the month — never your exact dates, neighborhood or contact details.' },
+                  { icon: '🤝', term: 'What to expect', desc: 'A member who’d like to meet sends you a connection request with a note — a coffee, a tip, an event they’re going to — and can only message you once you accept. (Smileys staff and club hosts can message members directly.) Some visitors hear from several people and some from nobody; it depends on your dates and who’s around, so events are the surest way to meet people.' },
+                  { icon: '🛡️', term: 'Staying safe', desc: 'Never post where you’re staying or anything you wouldn’t tell a stranger — a neighborhood is plenty. Meet in public places. If anyone makes you uncomfortable, block or report them from their profile or your message thread, and our team will review it.' },
+                ].map(x => (
+                  <div key={x.term} className="bg-white border border-amber-100 rounded-2xl p-5">
+                    <dt className="font-bold text-gray-900"><span aria-hidden="true">{x.icon} </span>{x.term}</dt>
+                    <dd className="text-sm text-gray-600 mt-1.5 leading-relaxed">{x.desc}</dd>
+                  </div>
+                ))}
+              </dl>
+            </details>
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-gray-50 border-t border-gray-100">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
         {/* Full container width (not max-w-3xl) so the visitor cards can
             lay out 3-up on desktop; the handbook cross-link below keeps
@@ -872,10 +955,10 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
         {/* Cross-link to /handbook — visitors landing here are the exact
             audience for the long-form survival reads. Closes the loop
             with /handbook (and /guide) which both link back here as
-            "Visiting first?". Soft grey card so it doesn't compete
+            "Visiting first?". Soft gray card so it doesn't compete
             with the post-CTA. */}
         <Link href={`/handbook${cityQs}`}
-          className="block mt-8 max-w-3xl bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-2xl px-5 py-4 transition-colors group">
+          className="block mt-8 max-w-3xl bg-white hover:bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 transition-colors group">
           <div className="flex items-center gap-4">
             <div aria-hidden="true" className="text-2xl shrink-0">📖</div>
             <div className="flex-1 min-w-0">
@@ -889,69 +972,130 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
       </div>
       </section>
 
-      {/* ── Know where you're staying? ── */}
-      <section id="stay" className="bg-gray-50 border-t border-gray-100 scroll-mt-20">
+      {/* ── Plan your visit ── dates → events during your stay. Below the
+          sightseeing sections (Nate, 2026-10-02: events don't lead). A plain GET
+          form: works without JavaScript, every control is a native labeled
+          input, and the result is a shareable URL. Filters appear only when
+          they would narrow the list (lib/tripPlan tripFilterOptions). */}
+      <section id="plan" aria-labelledby="plan-title" className="bg-white border-t border-gray-100 scroll-mt-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
-          <div className="mb-8">
-            <h2 className="section-title">Know where you&apos;re staying?</h2>
-            <p className="section-subtitle max-w-2xl">Discover your neighbourhood before you arrive.</p>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {neighborhoodPicks.map(n => (
-              <Link key={n.name} href={`/neighborhoods/${n.slug}${cityQs}`}
-                className="bg-white border border-gray-100 rounded-2xl p-5 hover:border-amber-200 hover:shadow-md transition-all group">
-                <div aria-hidden="true" className="text-2xl mb-2">{n.meta?.emoji ?? '📍'}</div>
-                <h3 className="font-bold text-gray-900">{n.name}</h3>
-                {n.members > 0 && (
-                  <p className="text-xs font-semibold text-amber-700 mt-0.5">{n.members} Smileys nearby</p>
-                )}
-                <p className="text-xs text-gray-500 mt-2 leading-relaxed">{n.meta?.vibe ?? 'Local recommendations · People nearby'}</p>
-                <span className="inline-block text-xs font-bold text-gray-700 mt-3 group-hover:text-amber-600 transition-colors">
-                  Explore {n.name} →
-                </span>
-              </Link>
-            ))}
-          </div>
-          <Link href={`/neighborhoods${cityQs}`} className="inline-block mt-8 text-sm font-bold text-amber-700 hover:text-amber-800">
-            Explore all {city.name} neighbourhoods <span aria-hidden="true">→</span>
-          </Link>
-        </div>
-      </section>
+          <h2 id="plan-title" className="section-title">What’s on during your stay</h2>
 
-      {/* ── Tell the community you're coming ── how it actually works, said
-          before anyone posts. Every line is a rule the product enforces:
-          posting needs an approved account (visiting/new is members-only),
-          visits default to members-only and a public card shows guests a
-          first name and the month (lib/visitorPolicy), contact happens by a
-          connection request the visitor accepts or declines (VisitingClient),
-          and Report/Block sit on every profile and message thread. It
-          promises no introductions — some visitors hear from nobody. */}
-      <section id="tell" aria-labelledby="tell-title" className="bg-white border-t border-gray-100 scroll-mt-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
-          <div className="mb-8">
-            <h2 id="tell-title" className="section-title">Tell the community you&apos;re coming</h2>
-            <p className="section-subtitle max-w-2xl">Post your dates and a short intro, and members in {city.name} can see you&apos;re on your way. Here&apos;s exactly how it works.</p>
-          </div>
-          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {[
-              { icon: '🪪', term: 'You need a Smileys account', desc: 'Posting your dates, messaging members and joining events are for approved members. Applying is free and every application is reviewed by a person.' },
-              { icon: '👀', term: 'Who sees your visit', desc: 'Only signed-in members, unless you choose to list it publicly. Even then, people who aren’t signed in see only your first name and the month — never your exact dates, neighbourhood or contact details.' },
-              { icon: '🤝', term: 'What to expect', desc: 'A member who’d like to meet sends you a connection request with a note — a coffee, a tip, an event they’re going to — and can only message you once you accept. (Smileys staff and club hosts can message members directly.) Some visitors hear from several people and some from nobody; it depends on your dates and who’s around, so events are the surest way to meet people.' },
-              { icon: '🛡️', term: 'Staying safe', desc: 'Never post where you’re staying or anything you wouldn’t tell a stranger — a neighbourhood is plenty. Meet in public places. If anyone makes you uncomfortable, block or report them from their profile or your message thread, and our team will review it.' },
-            ].map(x => (
-              <div key={x.term} className="bg-gray-50 border border-gray-100 rounded-2xl p-5">
-                <dt className="font-bold text-gray-900"><span aria-hidden="true">{x.icon} </span>{x.term}</dt>
-                <dd className="text-sm text-gray-600 mt-1.5 leading-relaxed">{x.desc}</dd>
+          <form method="get" action="/app/visiting#plan-events" className="mt-8 rounded-2xl border border-gray-200 bg-gray-50 p-4 sm:p-6">
+            {pinned && <input type="hidden" name="city" value={city.slug} />}
+            <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-4 items-end">
+              <div>
+                <label htmlFor="trip-from" className="block text-sm font-semibold text-gray-800 mb-1.5">Arriving</label>
+                <input id="trip-from" name="from" type="date" min={today} required
+                  defaultValue={trip.range?.from ?? (planFromVisit ? planRange?.from : '') ?? ''} className="input bg-white" />
               </div>
-            ))}
-          </dl>
-          <div className="mt-8 flex flex-col sm:flex-row gap-3">
-            <Link href={isMember ? newVisitHref : '/apply'} className="btn-primary">
-              {isMember ? ctaLabel : 'Apply to join — it’s free'}
-            </Link>
-            <Link href="/guidelines" className="btn-secondary">
-              Community rules
-            </Link>
+              <div>
+                <label htmlFor="trip-to" className="block text-sm font-semibold text-gray-800 mb-1.5">Leaving</label>
+                <input id="trip-to" name="to" type="date" min={today} required
+                  defaultValue={trip.range?.to ?? (planFromVisit ? planRange?.to : '') ?? ''} className="input bg-white" />
+              </div>
+              <button type="submit" className="btn-primary px-6 py-3">Show my events</button>
+            </div>
+
+            {filterOptions && (filterOptions.hoods.length > 0 || filterOptions.free || filterOptions.first || filterOptions.langs.length > 0) && (
+              <fieldset className="mt-5 pt-5 border-t border-gray-200">
+                <legend className="text-sm font-semibold text-gray-800 mb-3">Narrow it down</legend>
+                <div className="flex flex-wrap items-end gap-4">
+                  {filterOptions.hoods.length > 0 && (
+                    <div>
+                      <label htmlFor="trip-hood" className="block text-xs font-semibold text-gray-600 mb-1">Neighborhood</label>
+                      <select id="trip-hood" name="hood" defaultValue={filters.hood ?? ''} className="input bg-white py-2">
+                        <option value="">Anywhere</option>
+                        {filterOptions.hoods.map(h => <option key={h} value={h}>{h}</option>)}
+                      </select>
+                    </div>
+                  )}
+                  {filterOptions.langs.length > 0 && (
+                    <div>
+                      <label htmlFor="trip-lang" className="block text-xs font-semibold text-gray-600 mb-1">Language</label>
+                      <select id="trip-lang" name="lang" defaultValue={filters.lang ?? ''} className="input bg-white py-2">
+                        <option value="">Any</option>
+                        {filterOptions.langs.map(l => <option key={l} value={l}>{l}</option>)}
+                      </select>
+                    </div>
+                  )}
+                  {filterOptions.free && (
+                    <label className="inline-flex items-center gap-2 text-sm text-gray-700 py-2">
+                      <input type="checkbox" name="free" value="1" defaultChecked={filters.free} className="accent-amber-500 w-4 h-4" />
+                      Free only
+                    </label>
+                  )}
+                  {filterOptions.first && (
+                    <label className="inline-flex items-center gap-2 text-sm text-gray-700 py-2">
+                      <input type="checkbox" name="first" value="1" defaultChecked={filters.first} className="accent-amber-500 w-4 h-4" />
+                      First-timer friendly
+                    </label>
+                  )}
+                </div>
+                {filterOptions.langs.length > 0 && (
+                  <p className="text-xs text-gray-500 mt-2">Language only matches events whose host listed one.</p>
+                )}
+              </fieldset>
+            )}
+          </form>
+
+          <div id="plan-events" className="scroll-mt-24 mt-8" aria-live="polite">
+            {trip.error ? (
+              <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{trip.error}</p>
+            ) : planRange ? (
+              <>
+                <h3 className="text-xl font-extrabold text-gray-900">
+                  {filteredEvents.length === 0
+                    ? `Nothing ${filtersActive ? 'matching' : 'scheduled'} between ${formatDay(planRange.from)} and ${formatDay(planRange.to)} yet`
+                    : `${filteredEvents.length} event${filteredEvents.length === 1 ? '' : 's'} between ${formatDay(planRange.from)} and ${formatDay(planRange.to)}`}
+                </h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  {planFromVisit ? 'Matched to the dates on your visit card. ' : ''}
+                  {trip.clamped ? 'Your stay has already started, so this shows today onwards. ' : ''}
+                  {filteredEvents.length === 0
+                    ? (filtersActive
+                        ? <>Try fewer filters — <Link href={`/visiting?${new URLSearchParams({ ...(pinned ? { city: city.slug } : {}), from: planRange.from, to: planRange.to })}#plan-events`} className="font-semibold text-amber-700 hover:underline">clear them</Link>.</>
+                        : 'New events are added every week, so check back closer to your trip.')
+                    : 'Events that have already finished are not shown.'}
+                </p>
+                {filteredEvents.length > 0 && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
+                    {filteredEvents.slice(0, PLAN_SHOWN).map(e => <VisitEventCard key={e.id} e={e} />)}
+                  </div>
+                )}
+                {filteredEvents.length > PLAN_SHOWN && (
+                  <Link href={pinned ? `/${city.slug}/events` : '/events'} className="inline-block mt-6 text-sm font-bold text-amber-700 hover:underline">
+                    {filteredEvents.length - PLAN_SHOWN} more — open the full calendar →
+                  </Link>
+                )}
+              </>
+            ) : timedEvents.length > 0 ? (
+              <>
+                <h3 className="text-xl font-extrabold text-gray-900">Coming up in {city.name}</h3>
+                <p className="text-sm text-gray-600 mt-1">Add your dates above to see only what falls during your stay.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
+                  {timedEvents.slice(0, PREVIEW_SHOWN).map(e => <VisitEventCard key={e.id} e={e} />)}
+                </div>
+                {timedEvents.length > PREVIEW_SHOWN && (
+                  <Link href={pinned ? `/${city.slug}/events` : '/events'} className="inline-block mt-6 text-sm font-bold text-amber-700 hover:underline">
+                    See everything on in {city.name} →
+                  </Link>
+                )}
+              </>
+            ) : (
+              <p className="text-sm text-gray-600">Nothing on the {city.name} calendar in the next two months yet — add your dates and check back closer to your trip.</p>
+            )}
+          </div>
+
+          {/* What a first event is like — beside the events it explains. */}
+          <div className="mt-8 max-w-3xl rounded-2xl border border-gray-100 bg-white shadow-sm p-5">
+            <h3 className="font-bold text-gray-900 mb-2">What a first Smileys event is like</h3>
+            <ul className="space-y-2 text-sm text-gray-600 leading-relaxed">
+              <li className="flex gap-2"><span aria-hidden="true">👋</span><span>Events marked <span className="font-semibold text-gray-900">First-timer friendly</span> are picked by the team as easy ones to come to on your own.</span></li>
+              <li className="flex gap-2"><span aria-hidden="true">👤</span><span>Every event names its host and shows how many people are going before you RSVP.</span></li>
+              <li className="flex gap-2"><span aria-hidden="true">💰</span><span>Many are free; when there is a price, it is shown up front.</span></li>
+              <li className="flex gap-2"><span aria-hidden="true">📅</span><span>Plans change? Cancel as early as you can, so someone on the waitlist gets your spot.</span></li>
+            </ul>
           </div>
         </div>
       </section>
@@ -1122,7 +1266,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
           fabrication, so the section stays out until real ones exist. */}
 
       {/* ── Final CTA ── the arrival hubs' closing block (Moving, Remote
-          work, Students): light, centred, one primary and one secondary. */}
+          work, Students): light, centered, one primary and one secondary. */}
       <section className="py-14 sm:py-20 bg-gradient-to-b from-white to-amber-50 border-t border-gray-100">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
           <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight text-gray-900 mb-4">
@@ -1138,7 +1282,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
               </svg>
             </Link>
-            <a href="#plan" className="btn-secondary text-base px-8 py-4">Plan my visit</a>
+            <a href="#before-you-go" className="btn-secondary text-base px-8 py-4">Plan my visit</a>
           </div>
         </div>
       </section>

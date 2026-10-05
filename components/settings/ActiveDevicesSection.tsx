@@ -60,7 +60,7 @@ function timeAgo(iso: string): string {
 // Windows machine was you at lunch. On the city's clock, and hourCycle 'h23'
 // rather than hour12:false, which renders midnight as 24:05 on some ICU
 // builds — the browser's own zone was a different answer for anyone
-// travelling, which is most of this community.
+// traveling, which is most of this community.
 function exactTime(iso: string, timeZone?: string): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return ''
@@ -75,7 +75,7 @@ function exactTime(iso: string, timeZone?: string): string {
 // Which row is the browser you're reading this on. The server marks it when
 // the session carries an id — sessions minted before per-device rows existed
 // don't, so NOTHING is marked and every row looks equally disposable. The UA
-// match is a guess and is labelled as one.
+// match is a guess and is labeled as one.
 function looksLikeThisBrowser(ua: string | null): boolean {
   if (!ua || typeof navigator === 'undefined') return false
   return ua === navigator.userAgent

@@ -12,6 +12,12 @@ const p = vi.hoisted(() => ({
 }))
 const gate = vi.hoisted(() => ({ blocked: new Set<string>() }))
 vi.mock('@/lib/prisma', () => ({ prisma: p }))
+// 2026-09-29: projectEventsForMember also runs the member-privacy reads
+// (blocks, connections-only); none apply to these cases.
+vi.mock('@/lib/memberPrivacy', () => ({
+  blockedIdsFor:    vi.fn(async () => new Set<string>()),
+  restrictedSetFor: vi.fn(async () => new Set<string>()),
+}))
 // A paused member is a red card now, read through standing rather than v1's
 // gate. The rule is the same and still enforced: blocksRsvp keeps a red card
 // out of the seatable count, so an open seat it could not take covers nobody.
@@ -136,7 +142,7 @@ describe('11. club faces never expose hidden or private members, and guests get 
   it('the cached faces query filters hidden and connections-only members', () => {
     expect(src).toContain(`AND u."hiddenFromMembers" = false AND u."profileVisibility" <> 'connections'`)
   })
-  it('guests get a coloured initial, no name and no photo', () => {
+  it('guests get a colored initial, no name and no photo', () => {
     expect(src).toContain('faces: c.faces.map(f => ({ name: f.name.trim().charAt(0), color: f.color, profilePhoto: null })),')
   })
 })

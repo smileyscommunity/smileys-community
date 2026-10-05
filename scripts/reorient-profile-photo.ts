@@ -64,7 +64,7 @@ async function main() {
   const meta = await sharp(raw).metadata()
   // A file that still carries an Orientation tag is a different bug — the
   // upload route should have baked it in. Rotating on top of it would
-  // double-apply once something finally honours the tag.
+  // double-apply once something finally honors the tag.
   if (meta.orientation && meta.orientation !== 1) {
     console.error(`${filename} still has EXIF Orientation ${meta.orientation} — fix the upload path, don't rotate here`)
     process.exit(1)

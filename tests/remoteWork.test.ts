@@ -1,9 +1,16 @@
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import {
-  groupHubArticles, buildChecklist, isWorkClub, utcOffsetLabel, pickHubEvents,
-  ARTICLES_PER_TOPIC, HUB_WORK_EVENT_CAP, type HubArticle,
+  groupHubArticles, buildChecklist, isWorkClub, utcOffsetLabel, pickHubEvents, workdayOverlap, coworkingWeek,
+  ARTICLES_PER_TOPIC, HUB_WORK_EVENT_CAP, INTERVIEW_CATEGORY, NOMINATE_TOPIC, nominateHref,
+  type HubArticle,
 } from '@/lib/remoteWork'
 import { goodToKnowRows } from '@/lib/eventGoodToKnow'
+import { CATEGORIES, isCategory } from '@/app/admin/posts/constants'
+import { isSeriesCategory } from '@/lib/postSeries'
+
+const src = (p: string) => readFileSync(p, 'utf8')
 
 // The remote-work hub may only point at content the city actually has. These
 // pin the rules in lib/remoteWork (and the event "Good to know" rows) that
@@ -26,13 +33,45 @@ describe('groupHubArticles', () => {
     expect(topics).toEqual([expect.objectContaining({ key: 'legal', articles: [expect.objectContaining({ slug: 'permit' })] })])
   })
 
-  it('ranks the on-topic article over a broad-category neighbour', () => {
+  it('ranks the on-topic article over a broad-category neighbor', () => {
     // 'Daily Life' is filed under Home & Housing; the apartment guide is the housing answer.
     const topics = groupHubArticles([
       article({ slug: 'daily-life', title: 'Daily life: the little things', category: 'Daily Life' }),
       article({ slug: 'apartment-hunting', title: 'Renting an apartment', category: 'Living in Istanbul' }),
     ], 'c1')
-    expect(topics[0].articles.map(a => a.slug)).toEqual(['apartment-hunting', 'daily-life'])
+    // …and the off-topic neighbor doesn't take the second slot.
+    expect(topics[0].articles.map(a => a.slug)).toEqual(['apartment-hunting'])
+  })
+
+  it('never fills the second slot with an off-topic article (e-Devlet is not a SIM guide)', () => {
+    const topics = groupHubArticles([
+      article({ slug: 'sim', title: 'Getting a SIM card and home internet', category: 'Mobile & Digital' }),
+      article({ slug: 'e-devlet', title: 'e-Devlet for foreigners', category: 'Mobile & Digital' }),
+    ], 'c1')
+    expect(topics[0].articles.map(a => a.slug)).toEqual(['sim'])
+  })
+
+  it('still leads with the best article when none is on-topic', () => {
+    const topics = groupHubArticles([article({ slug: 'e-devlet', title: 'e-Devlet for foreigners', category: 'Mobile & Digital' })], 'c1')
+    expect(topics[0].articles.map(a => a.slug)).toEqual(['e-devlet'])
+  })
+
+  it('leads money with the bank account, not the tax number listed first', () => {
+    const topics = groupHubArticles([
+      article({ slug: 'tax-number', title: 'Getting a Turkish tax number', cityId: null }),
+      article({ slug: 'bank', title: 'Opening a Turkish bank account', cityId: null }),
+    ], 'c1')
+    expect(topics[0].articles.map(a => a.slug)).toEqual(['bank', 'tax-number'])
+    expect(buildChecklist({ citySlug: 'istanbul', topics, hasNeighborhoods: true, hasWorkClubs: false, hasWorkEvents: false, hasEvents: false })
+      .find(s => s.key === 'money')?.href).toBe('/handbook/bank')
+  })
+
+  it('keeps the airport guide in Getting around', () => {
+    const topics = groupHubArticles([
+      article({ slug: 'istanbulkart', title: 'Istanbulkart Mastery', category: 'Getting Around', cityId: 'c1' }),
+      article({ slug: 'arriving-in-istanbul', title: 'Arriving in Istanbul: IST and Sabiha Gökçen', category: 'Getting Around', cityId: 'c1' }),
+    ], 'c1')
+    expect(topics[0].articles.map(a => a.slug)).toEqual(['istanbulkart', 'arriving-in-istanbul'])
   })
 
   it("puts the city's own article ahead of the national one, and caps the topic", () => {
@@ -47,6 +86,60 @@ describe('groupHubArticles', () => {
 
   it('ignores articles in an unknown category rather than inventing a topic', () => {
     expect(groupHubArticles([article({ category: 'Nonsense' })], 'c1')).toEqual([])
+  })
+})
+
+describe('pickHubEvents — order within a day', () => {
+  it('puts an 11:00 first-timer event before a 12:00 coworking session on the same day', () => {
+    const picked = pickHubEvents([
+      { id: 'cowork', date: '2026-09-30', time: '12:00', title: 'Coworking', clubId: 'w' },
+      { id: 'meetup', date: '2026-09-30', time: '11:00', title: 'Meetup', isFirstTimerFriendly: true },
+      { id: 'social', date: '2026-09-30', time: '19:00', title: 'Social', isFirstTimerFriendly: true },
+    ], new Set(['w']), 6)
+    expect(picked.map(e => e.id)).toEqual(['meetup', 'cowork', 'social'])
+  })
+})
+
+describe('Health and insurance topic', () => {
+  it('files the health-insurance guide under its own topic, last', () => {
+    const topics = groupHubArticles([
+      article({ slug: 'bank', title: 'Bank account' }),
+      article({ slug: 'hi', title: 'Health Insurance for Your Residence Permit', category: 'Healthcare' }),
+    ], 'c1')
+    expect(topics.map(t => t.key)).toEqual(['money', 'health'])
+  })
+})
+
+describe('workdayOverlap', () => {
+  it('reads a London/Berlin/NY/SF 9-to-5 in Istanbul time in summer', () => {
+    expect(workdayOverlap('Europe/Istanbul', new Date('2026-07-15T12:00:00Z'))).toEqual([
+      { label: 'London', start: '11:00', end: '19:00' },
+      { label: 'Berlin', start: '10:00', end: '18:00' },
+      { label: 'New York', start: '16:00', end: '00:00' },
+      { label: 'San Francisco', start: '19:00', end: '03:00' },
+    ])
+  })
+  it('follows each side’s DST change — Europe and the US switch on different weekends', () => {
+    // 30 Oct 2026: Europe is back on winter time, the US not until 1 Nov.
+    const gap = workdayOverlap('Europe/Istanbul', new Date('2026-10-30T12:00:00Z'))
+    expect(gap.find(o => o.label === 'London')).toMatchObject({ start: '12:00', end: '20:00' })
+    expect(gap.find(o => o.label === 'New York')).toMatchObject({ start: '16:00', end: '00:00' })
+    const winter = workdayOverlap('Europe/Istanbul', new Date('2026-12-15T12:00:00Z'))
+    expect(winter.find(o => o.label === 'New York')).toMatchObject({ start: '17:00', end: '01:00' })
+  })
+  it('leaves out a home zone on the city’s own offset', () => {
+    expect(workdayOverlap('Europe/London', new Date('2026-07-15T12:00:00Z')).map(o => o.label)).not.toContain('London')
+  })
+})
+
+describe('coworkingWeek', () => {
+  const s = (date: string, neighborhood: string | null = null) => ({ date, neighborhood })
+  it('counts every session in the next 7 days and lists the places once, soonest first', () => {
+    expect(coworkingWeek([s('2026-10-06', 'Bomonti'), s('2026-09-30', 'Kadıköy'), s('2026-10-01', 'Beyoğlu'), s('2026-10-07', 'Kadıköy'), s('2026-10-02', 'Kadıköy')], '2026-09-30'))
+      .toEqual({ count: 4, places: ['Kadıköy', 'Beyoğlu', 'Bomonti'] })
+  })
+  it('is null on an empty week, and ignores past sessions', () => {
+    expect(coworkingWeek([s('2026-09-29', 'Kadıköy'), s('2026-10-08', 'Kadıköy')], '2026-09-30')).toBeNull()
   })
 })
 
@@ -82,10 +175,13 @@ describe('buildChecklist', () => {
 
   it('gives five steps, each linked to the page that answers it', () => {
     const steps = buildChecklist(base)
-    expect(steps.map(s => s.key)).toEqual(['connect', 'neighbourhood', 'workspace', 'money', 'first-event'])
-    expect(steps.find(s => s.key === 'connect')?.href).toBe('/handbook/sim')
-    expect(steps.find(s => s.key === 'neighbourhood')?.href).toBe('/neighborhoods?city=izmir')
-    expect(steps.find(s => s.key === 'money')?.href).toBe('/handbook/bank')
+    expect(steps.map(s => s.key)).toEqual(['connect', 'neighborhood', 'workspace', 'money', 'first-event'])
+    // Article links keep the city (İzmir isn't the default city).
+    expect(steps.find(s => s.key === 'connect')?.href).toBe('/handbook/sim?city=izmir')
+    expect(steps.find(s => s.key === 'neighborhood')?.href).toBe('/neighborhoods?city=izmir')
+    expect(steps.find(s => s.key === 'money')?.href).toBe('/handbook/bank?city=izmir')
+    // …and the default city's stay clean.
+    expect(buildChecklist({ ...base, citySlug: 'istanbul' }).find(s => s.key === 'connect')?.href).toBe('/handbook/sim')
   })
 
   it('does not claim coworking sessions a city does not have', () => {
@@ -143,7 +239,7 @@ describe('pickHubEvents', () => {
     { id: 'm2', date: '2026-10-06', title: 'Coworking in Bomonti', clubId: 'cowork', seriesId: 'bomonti' },
     { id: 'k2', date: '2026-10-07', title: 'Coworking Kadıköy', clubId: 'cowork', seriesId: 'kadikoy' },
     { id: 'm3', date: '2026-10-13', title: 'Coworking in Bomonti', clubId: 'cowork', seriesId: 'bomonti' },
-    { id: 'x1', date: '2026-10-01', title: 'Theatre', clubId: 'theatre', seriesId: null },
+    { id: 'x1', date: '2026-10-01', title: 'Theater', clubId: 'theater', seriesId: null },
   ]
 
   it('shows each weekly session once, and never crowds out first-timer events', () => {
@@ -182,10 +278,91 @@ describe('buildChecklist — arrival and membership', () => {
     ])
   })
 
+  it('sends "see sessions" and "first event" to the session cards, not the club cards above them', () => {
+    const steps = buildChecklist(base)
+    expect(steps.find(s => s.key === 'workspace')?.href).toBe('#sessions')
+    expect(steps.find(s => s.key === 'first-event')?.href).toBe('#sessions')
+    // No sessions yet: the clubs are the answer to "somewhere to work".
+    expect(buildChecklist({ ...base, hasWorkEvents: false }).find(s => s.key === 'workspace')?.href).toBe('#work-and-meet')
+    expect(src('app/[city]/remote-work/page.tsx')).toMatch(/id="sessions"/)
+  })
+
   it('says coworking is for members when every session is members-only', () => {
     const open = buildChecklist(base).find(s => s.key === 'workspace')!
     const closed = buildChecklist({ ...base, workMembersOnly: true }).find(s => s.key === 'workspace')!
     expect(open.body).not.toMatch(/members:/)
     expect(closed.body).toMatch(/for members: joining is free/)
+  })
+})
+
+// ── "Working from …" interviews ─────────────────────────────────────────────
+//
+// The hub's interview card is an ordinary community post in one category.
+// These pin the seams: the category the loader queries must be one the admin
+// form can save, the series Next link must stay inside the city, the loader
+// must filter on the city (not the listing scope) and cache no byline, and
+// the nomination must arrive at the contact form as a topic it knows.
+describe('Working from interviews', () => {
+  it('is a category the admin form and API accept', () => {
+    expect(CATEGORIES).toContain(INTERVIEW_CATEGORY)
+    expect(isCategory(INTERVIEW_CATEGORY)).toBe(true)
+  })
+
+  it('runs as a series, and the Next link stays inside the city', () => {
+    expect(isSeriesCategory(INTERVIEW_CATEGORY)).toBe(true)
+    // getNextInSeries filters on cityId: Istanbul's interview must not hand
+    // the reader İzmir's as "next".
+    const series = src('lib/postSeries.ts')
+    expect(series).toMatch(/where:\s*\{[^}]*\bcityId\b[^}]*publishedAt: \{ gt:/)
+    expect(src('app/posts/[slug]/page.tsx')).toMatch(/getNextInSeries\([\s\S]{0,200}post\.cityId/)
+  })
+
+  it('the loader takes only this city\'s interview and caches no author fields', () => {
+    const loader = src('app/[city]/data.ts')
+    const query  = loader.slice(loader.indexOf('category: INTERVIEW_CATEGORY'))
+    // The city itself, not postCityScope: a global interview belongs to no hub.
+    expect(query).toMatch(/^[^\n]*\bcityId \}/m)
+    expect(loader.slice(loader.indexOf('getCityRemoteWorkHub'), loader.indexOf("['city-remote-work-hub']"))).not.toMatch(/author: \{ select/)
+    // The page projects the byline per request through the shared rule.
+    const page = src('app/[city]/remote-work/page.tsx')
+    expect(page).toContain("from '@/lib/storyByline'")
+    expect(page).toMatch(/storyBylines\(session/)
+  })
+
+  it('nominating goes to the contact form as a topic it labels', () => {
+    expect(nominateHref('İzmir')).toBe('/contact?topic=nominate&city=%C4%B0zmir')
+    expect(src('app/api/contact/route.ts')).toMatch(new RegExp(`^\\s*${NOMINATE_TOPIC}:\\s+'`, 'm'))
+    expect(src('app/contact/page.tsx')).toContain(`value: '${NOMINATE_TOPIC}'`)
+    // Members only on the page — a guest gets the join button, not a nomination link.
+    expect(src('app/[city]/remote-work/page.tsx')).toMatch(/\{session && \([\s\S]{0,400}nominateHref\(/)
+  })
+})
+
+// The Digital nomads shelf (2026-10-02): articles for remote workers had no
+// category and so no hub — one nomad piece sat in Community on no page. Its
+// own category, not 'Working from': the hub shows ONE interview as a card and
+// articles as a list, and a shared category could not tell them apart.
+describe('Digital nomads shelf', () => {
+  it('is its own category, accepted by the admin form, distinct from the interview', async () => {
+    const { NOMAD_STORY_CATEGORY } = await import('@/lib/remoteWork')
+    const { normalizeCommunityCategory } = await import('@/app/admin/posts/constants')
+    expect(CATEGORIES).toContain(NOMAD_STORY_CATEGORY)
+    expect(isCategory(NOMAD_STORY_CATEGORY)).toBe(true)
+    expect(normalizeCommunityCategory(NOMAD_STORY_CATEGORY)).toBe(NOMAD_STORY_CATEGORY)
+    expect(NOMAD_STORY_CATEGORY).not.toBe(INTERVIEW_CATEGORY)
+  })
+
+  it('the loader reads this city\'s shelf, newest first, and ships no body', () => {
+    const src = readFileSync(join(process.cwd(), 'app/[city]/data.ts'), 'utf8')
+    const loader = src.slice(src.indexOf('export const getCityRemoteWorkHub'), src.indexOf("['city-remote-work-hub']"))
+    expect(loader).toMatch(/category:\s*NOMAD_STORY_CATEGORY,\s*cityId\s*}/)
+    expect(loader).toMatch(/stories:\s*stories\.map/)
+    expect(loader).toMatch(/cover:\s*articleCover\(\{ coverImage: s\.coverImage/)
+  })
+
+  it('every badge map has a color for it', () => {
+    for (const f of ['app/posts/page.tsx', 'app/posts/[slug]/page.tsx', 'app/admin/posts/page.tsx']) {
+      expect(readFileSync(join(process.cwd(), f), 'utf8'), f).toMatch(/'Digital nomads':\s*'bg-/)
+    }
   })
 })

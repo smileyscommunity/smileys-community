@@ -195,7 +195,7 @@ export const SUSPENDED_SKIPPED_TYPES: ReadonlySet<string> = new Set([
 // email goes regardless.) Quiet hours never suppressed these before —
 // they had no preference key at all — and silencing them would be a
 // regression dressed as a fix.
-// Wide fan-outs: sent to a city, a neighbourhood or a whole club, not to one
+// Wide fan-outs: sent to a city, a neighborhood or a whole club, not to one
 // member about their own business. Used when the recipient's account can't be
 // read — see createNotification.
 export const BROADCAST_TYPES: ReadonlySet<string> = new Set([
@@ -406,12 +406,11 @@ export async function notifyNewArticle(post: {
   // null proceeds. Closes the double-submit race (two concurrent publishes),
   // the unpublish→republish re-notify, and a backfill re-run — all become
   // no-ops once an article has been announced. To deliberately re-announce,
-  // clear notifiedAt first.
-  const claim = await prisma.post.updateMany({
-    where: { id: post.id, notifiedAt: null },
-    data:  { notifiedAt: new Date() },
-  })
-  if (claim.count === 0) return
+  // clear notifiedAt first. Raw SQL so the claim doesn't move updatedAt: it
+  // runs just after the publish save returned, and the editor's version check
+  // would otherwise 409 the next save of an article nobody else touched.
+  const claimed = await prisma.$executeRaw`UPDATE "posts" SET "notifiedAt" = ${new Date()} WHERE "id" = ${post.id} AND "notifiedAt" IS NULL`
+  if (claimed === 0) return
 
   const isHandbook = post.kind === 'handbook'
   const link  = isHandbook ? `/handbook/${post.slug}` : `/posts/${post.slug}`
@@ -481,6 +480,82 @@ export async function notifyNewEvent(event: {
   for (let i = 0; i < members.length; i += BATCH) {
     await Promise.allSettled(
       members.slice(i, i + BATCH).map(m => createNotification(m.userId, 'new_event', title, body, link)),
+    )
+  }
+}
+
+/**
+ * Cross-city trips, phase 2 (lib/eventTrip). A trip from Istanbul to Eskişehir
+ * tells the club (notifyNewEvent, above) — and this tells the people already in
+ * Eskişehir: "members from Istanbul are coming, come and meet them". That turns
+ * a group's day out into a meet-up with the locals, which is the whole point of
+ * a trip visiting a young city.
+ *
+ * Recipients: members whose home city is the destination, plus members who
+ * joined it as a second city — minus the host and the club's own members, who
+ * already heard through the club. One announcement per trip (the same claim
+ * pattern as notifyNewEvent). Delivered as 'new_event', so anyone who muted new
+ * events, is outside the app's reach, or is in quiet hours is respected by
+ * createNotification exactly as for any event.
+ */
+/** The destination's people, minus the host and the club (it heard via notifyNewEvent). */
+export function tripArrivalRecipients(localIds: string[], clubMemberIds: string[], hostId: string | null): string[] {
+  const skip = new Set(clubMemberIds)
+  if (hostId) skip.add(hostId)
+  return [...new Set(localIds)].filter(id => !skip.has(id))
+}
+
+/** "Members from Istanbul are coming to Eskişehir 🚆" / "\"Day trip\" on 12 Oct — come and meet them." */
+export function tripArrivalMessage(originName: string, destinationName: string, eventTitle: string, date: string): { title: string; body: string } {
+  // Date-only 'YYYY-MM-DD', formatted in UTC so the server's zone can't move it.
+  const [y, m, d] = date.split('-').map(Number)
+  const day = new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+  return {
+    title: `Members from ${originName} are coming to ${destinationName} 🚆`,
+    body:  `"${eventTitle}" on ${day} — come and meet them.`,
+  }
+}
+
+export async function notifyTripArrival(event: {
+  id: string
+  title: string
+  date: string
+  cityId: string
+  originCityId: string | null
+  clubId: string | null
+  hostId: string | null
+}) {
+  if (!event.originCityId || event.originCityId === event.cityId) return
+  if (!await rateLimit(`trip-arrival-announce:${event.id}`, 1, 30 * 24 * 60 * 60_000)) return
+
+  const [origin, destination, clubMembers, locals] = await Promise.all([
+    prisma.city.findUnique({ where: { id: event.originCityId }, select: { name: true } }),
+    prisma.city.findUnique({ where: { id: event.cityId },       select: { name: true } }),
+    event.clubId
+      ? prisma.clubMembership.findMany({ where: { clubId: event.clubId, status: 'approved' }, select: { userId: true } })
+      : Promise.resolve([] as { userId: string }[]),
+    prisma.user.findMany({
+      where: {
+        status: 'approved',
+        OR: [
+          { cityId: event.cityId },
+          { cityRelationships: { some: { cityId: event.cityId, type: 'member' } } },
+        ],
+      },
+      select: { id: true },
+    }),
+  ])
+  if (!origin || !destination) return
+
+  const recipients = tripArrivalRecipients(locals.map(u => u.id), clubMembers.map(m => m.userId), event.hostId)
+  if (recipients.length === 0) return
+  const { title, body } = tripArrivalMessage(origin.name, destination.name, event.title, event.date)
+  const link  = `/events/${event.id}`
+
+  const BATCH = 50
+  for (let i = 0; i < recipients.length; i += BATCH) {
+    await Promise.allSettled(
+      recipients.slice(i, i + BATCH).map(id => createNotification(id, 'new_event', title, body, link)),
     )
   }
 }

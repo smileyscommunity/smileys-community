@@ -5,9 +5,9 @@
 // on the missing factory. One reload pulls fresh bundles; without it the
 // person sits on "Something went wrong" until they think to hard-refresh.
 //
-// This lives here because it had already drifted. app/error.tsx recognised
+// This lives here because it had already drifted. app/error.tsx recognized
 // four patterns; app/global-error.tsx duplicated the logic inline and
-// recognised three, missing the webpack-runtime one — which is the pattern
+// recognized three, missing the webpack-runtime one — which is the pattern
 // that fires when a SERVER component references a vanished chunk, and so the
 // one most likely to reach the GLOBAL boundary rather than the route one. The
 // boundary best placed to recover was the one that could not. Two copies of a

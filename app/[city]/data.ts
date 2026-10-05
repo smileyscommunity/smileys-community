@@ -1,24 +1,33 @@
 import type { Metadata } from 'next'
+import { testimonialAuthorOk, TESTIMONIAL_SELECT, publicTestimonial } from '@/lib/testimonialQuery'
 import { unstable_cache } from 'next/cache'
+import { getCityHostRoster, rosterForViewer } from '@/lib/hostRoster'
+import type { SessionUser } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
-import { guestView, visitorName } from '@/lib/visitorPolicy'
+import { guestView, visitorName, visitAuthorOk } from '@/lib/visitorPolicy'
 import { ACTIVATED_MEMBER_WHERE } from '@/lib/memberCount'
 import { postCityScope } from '@/lib/postScope'
 import { todayInTz } from '@/lib/cityTime'
 import { getEvents, getClubs } from '@/lib/db'
 import { queryDirectory } from '@/lib/directory'
 import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
+import { loadExperiences } from '@/lib/guideContent'
 import { getPublicCity, DEFAULT_CITY_SLUG } from '@/lib/cities'
 import { CITY_STATUS } from '@/lib/cityStatus'
+import { CITY_MATURITY } from '@/lib/cityMaturity'
 import { APP_URL } from '@/lib/env'
 import { absoluteOgImage } from '@/lib/og'
 import { isSoldOut } from '@/lib/soldOut'
 import type { Event } from '@/lib/data'
 import { LIVE_BOARD_AUTHOR, SHOWN_REPLY } from '@/lib/boardAccess'
 import { firstNameOf } from '@/lib/data'
-import { isWorkClub, pickHubEvents } from '@/lib/remoteWork'
-import { pickFirstEvents, pickRegularEvents, eventFilterLinks } from '@/lib/students'
+import { isWorkClub, pickHubEvents, INTERVIEW_CATEGORY, NOMAD_STORY_CATEGORY, NOMAD_STORY_LIMIT } from '@/lib/remoteWork'
+import { EXPAT_STORY_CATEGORY, EXPAT_STORY_LIMIT } from '@/lib/relocation'
+import { pickFirstEvents, pickRegularEvents, eventFilterLinks, mostlyEnglish, STUDENT_STORY_CATEGORY, STUDENT_STORY_LIMIT, STUDENT_REASON_SQL, STUDENT_PROFESSION_SQL } from '@/lib/students'
 import { getCityHandbookIndex } from '@/lib/handbookIndex'
+import { articleCover } from '@/lib/articleCover'
+import { eventEndsAt } from '@/lib/eventTime'
+import { isOffCalendar } from '@/lib/eventJoinState'
 
 // Everything the city shopfront reads, in one place, with the one boundary
 // that matters drawn explicitly:
@@ -40,11 +49,18 @@ export function cityMetadata(city: PublicCity): Metadata {
 
   // A pre-launch page must not promise joinable clubs and events in the
   // search snippet — say what it actually is.
-  const title = city.status === CITY_STATUS.Live
-    ? `Smileys ${city.name} — meet people, join clubs, discover events`
-    : `Smileys ${city.name} — coming soon`
-  const description = city.description
-    ?? city.tagline
+  // A live city still in its founding stage (lib/cityMaturity) has no
+  // events to "discover" — Bursa, with no members, was titled that way.
+  const title = city.status !== CITY_STATUS.Live
+    ? `Smileys ${city.name} — ${city.status === CITY_STATUS.Preparing ? 'in preparation' : 'coming soon'}`
+    : city.stats?.maturity === CITY_MATURITY.Seeding
+      ? `Smileys ${city.name} — join the founding members`
+      : `Smileys ${city.name} — meet people, join clubs, discover events`
+  // The tagline is the snippet-length line (≤160); the description is the
+  // hero paragraph, 300+ characters on some cities and cut off mid-sentence
+  // in a search result.
+  const description = city.tagline
+    ?? city.description
     ?? `Your international social life in ${city.name}. Events, clubs and community for people building a life abroad.`
 
   return {
@@ -85,11 +101,15 @@ export const getCityPageData = unstable_cache(
       }),
       // This city's members, plus quotes marked across-Smileys. Not every
       // quote: these used to be Istanbul's words on every city's page.
+      // Over-fetch, then the city's own quotes lead (below): the across-
+      // Smileys ones carried the lowest `order` values, so they filled
+      // Istanbul's own page ahead of its six Istanbul quotes.
       prisma.testimonial.findMany({
-        where:   { active: true, OR: [{ cityId }, { cityId: null }] },
+        where:   { active: true, AND: [{ OR: [{ cityId }, { cityId: null }] }, testimonialAuthorOk()] },
         orderBy: [{ order: 'asc' }],
-        take:    3,
-      }),
+        take:    6,
+        select:  TESTIMONIAL_SELECT,
+      }).then(rows => rows.map(publicTestimonial)),
       // A number is all the page renders — never fetch names for a count
       // (the shape invites the next edit to display them), and admin-hidden
       // accounts stay out of every public figure. Uncapped: 'take' was
@@ -119,7 +139,11 @@ export const getCityPageData = unstable_cache(
       .sort((a, b) => Number(b.cityId === cityId) - Number(a.cityId === cityId))
       .slice(0, 3)
 
-    return { events, clubs, neighborhoodCounts, testimonials, newMembersThisWeek, guideEntries, latestStories }
+    const ownFirst = <T extends { cityId: string | null }>(rows: T[]) =>
+      rows.sort((a, b) => Number(b.cityId === cityId) - Number(a.cityId === cityId))
+    const shownTestimonials = ownFirst(testimonials).slice(0, 3)
+
+    return { events, clubs, neighborhoodCounts, testimonials: shownTestimonials, newMembersThisWeek, guideEntries, latestStories }
   },
   ['city-page-data'],
   { revalidate: 60, tags: ['home'] },
@@ -140,7 +164,7 @@ export async function getVisitors(city: PublicCity, signedIn: boolean) {
     cityId: city.id, status: 'active', endsOn: { gte: visitorsToday },
     ...(signedIn ? {} : { visibility: 'public' }),
     // A banned, suspended or admin-hidden author's card goes with them.
-    OR: [{ userId: null }, { user: { status: 'approved', hiddenFromMembers: false } }],
+    ...visitAuthorOk(),
   }
   const [visitors, visitorTotal] = await Promise.all([
     prisma.visitorAnnouncement.findMany({
@@ -157,6 +181,20 @@ export async function getVisitors(city: PublicCity, signedIn: boolean) {
 
 export type Visitors = Awaited<ReturnType<typeof getVisitors>>
 
+// Meet your hosts: the city's roster (lib/hostRoster, cached by city) cut to
+// the few the page shows, projected per request for the viewer — a guest
+// gets first names and no profile links (lib/hostTitles), so, like the
+// events above, the redaction never enters the shared cache entry.
+export const CITY_PAGE_HOST_LIMIT = 6
+
+export async function getCityHosts(city: PublicCity, session: SessionUser | null) {
+  const roster = await getCityHostRoster(city.id, city.timezone)
+  const visible = await rosterForViewer(roster, session)
+  return { hosts: visible.slice(0, CITY_PAGE_HOST_LIMIT), hostTotal: visible.length }
+}
+
+export type CityHosts = Awaited<ReturnType<typeof getCityHosts>>
+
 export interface NeighborhoodTile { name: string; slug: string; emoji: string; eventCount: number; vibe: string | null }
 
 // Emoji and slug come from THIS city's registry, not Istanbul's constant —
@@ -172,20 +210,27 @@ export async function getTopNeighborhoods(cityId: string, neighborhoodCounts: Ci
   // A young city has neighborhoods before it has events, and deriving this
   // section purely from event counts hid it entirely: Bodrum launched with 8
   // neighborhoods, 0 upcoming events, and therefore no way to browse them from
-  // its own page. Fall back to the city's registry so the areas are still
-  // discoverable — the cards drop the count rather than advertise "0 events".
-  const topNeighborhoods: NeighborhoodTile[] = byEvents.length > 0
-    ? byEvents
-    : registry.slice(0, 6).map(n => ({ name: n.name, slug: n.slug, emoji: n.emoji, eventCount: 0, vibe: n.vibe }))
-  return { topNeighborhoods, neighborhoodsHaveEvents: byEvents.length > 0 }
+  // its own page. The registry tops the grid up to a full row instead — the
+  // filler cards drop the count rather than advertise "0 events". Topping up
+  // rather than falling back only when there are NO events: one event in one
+  // district had Eskişehir's section showing a single card out of 16.
+  const filler = registry
+    .filter(n => !byEvents.some(b => b.slug === n.slug))
+    .slice(0, Math.max(0, NEIGHBORHOOD_GRID_MIN - byEvents.length))
+    .map(n => ({ name: n.name, slug: n.slug, emoji: n.emoji, eventCount: 0, vibe: n.vibe }))
+  const topNeighborhoods: NeighborhoodTile[] = [...byEvents, ...filler]
+  return { topNeighborhoods, neighborhoodsHaveEvents: byEvents.length > 0, neighborhoodTotal: registry.length }
 }
+
+// One full row on desktop (lg:grid-cols-6), three on a phone.
+const NEIGHBORHOOD_GRID_MIN = 6
 
 // ── Pure arrangement ────────────────────────────────────────────────────────
 
 // Prospect-facing surface: cancelled events break trust in a showcase slot,
 // and sold-out ones sink below the joinable ones.
 export function arrangeEvents(events: Event[]): Event[] {
-  const liveEvents = events.filter(e => e.status !== 'cancelled')
+  const liveEvents = events.filter(e => !isOffCalendar(e))
   return [
     ...liveEvents.filter(e => !isSoldOut(e)),
     ...liveEvents.filter(isSoldOut),
@@ -201,7 +246,26 @@ export function featureClubs(clubs: CityPageData['clubs']) {
   ].slice(0, 4)
 }
 
-export type EnterTarget = 'events' | 'clubs' | 'directory' | 'board' | 'neighborhoods' | 'guide' | 'handbook' | 'visiting'
+// ── Guide shelf ─────────────────────────────────────────────────────────────
+
+export interface GuidePick { slug: string; title: string; emoji: string; tagline: string; cost: string; time: string; photo: string | null }
+
+export const CITY_PAGE_GUIDE_LIMIT = 6
+
+// The city's guide entries are the most city-specific writing on the site,
+// and the shopfront offered them only as a "Read the guide" button. The
+// entries a newcomer should do first lead (firstTime), then the admin's own
+// order — loadExperiences already sorts by sortOrder, and the sort below is
+// stable. Cut to what a card renders: the body sections stay on /guide.
+export async function getGuidePicks(cityId: string): Promise<GuidePick[]> {
+  const experiences = await loadExperiences(cityId)
+  return [...experiences]
+    .sort((a, b) => Number(!!b.firstTime) - Number(!!a.firstTime))
+    .slice(0, CITY_PAGE_GUIDE_LIMIT)
+    .map(e => ({ slug: e.slug, title: e.title, emoji: e.emoji, tagline: e.tagline, cost: e.cost, time: e.time, photo: e.photo ?? null }))
+}
+
+export type EnterTarget = 'events' | 'clubs' | 'directory' | 'board' | 'hosts' | 'neighborhoods' | 'guide' | 'handbook' | 'visiting'
 export type EnterLink   = (to: EnterTarget, n?: string) => string
 
 // Feed links route through /api/city/enter, which sets the view-city cookie
@@ -224,10 +288,15 @@ export function enterLinkFor(slug: string): EnterLink {
 // canonical URLs (rewording a URL Google ranks costs something for nothing),
 // so its hubs point back there; every other city's hub is canonical to itself.
 
-export type HubKind = 'events' | 'clubs' | 'directory' | 'board'
+export type HubKind = 'events' | 'clubs' | 'directory' | 'board' | 'hosts' | 'experiences'
 
 export function isDefaultCitySlug(slug: string): boolean {
   return slug === DEFAULT_CITY_SLUG
+}
+
+/** The same hub as a path, for a <Link> — an absolute href is a full page load. */
+export function hubPath(slug: string, kind: HubKind): string {
+  return isDefaultCitySlug(slug) ? `/${kind}` : `/${slug}/${kind}`
 }
 
 /** The canonical URL for a city's hub — absolute, for <link rel=canonical>. */
@@ -244,14 +313,23 @@ export function hubCanonical(slug: string, kind: HubKind): string {
  */
 export function publicLinkFor(slug: string, enter: EnterLink): EnterLink {
   return (to, n) => {
-    if (to === 'events' || to === 'clubs' || to === 'directory' || to === 'board') {
+    if (to === 'events' || to === 'clubs' || to === 'directory' || to === 'board' || to === 'hosts') {
       return isDefaultCitySlug(slug) ? `/app/${to}` : `/app/${slug}/${to}`
+    }
+    // The rest have no per-city hub but every one of them reads ?city=
+    // (resolveCityForPage). The entry link sets a cookie and redirects to the
+    // bare path — a visitor without cookies, which is every crawler, landed
+    // on "Istanbul City Guide" from İzmir's "Read the Izmir guide".
+    if (to === 'guide' || to === 'handbook' || to === 'neighborhoods' || to === 'visiting') {
+      const qs = isDefaultCitySlug(slug) ? '' : `?city=${slug}`
+      if (to === 'neighborhoods' && n) return `/app/neighborhoods/${encodeURIComponent(n)}${qs}`
+      return `/app/${to}${qs}`
     }
     return enter(to, n)
   }
 }
 
-// A hub is a crawlable page, not the whole catalogue: the founding city has
+// A hub is a crawlable page, not the whole catalog: the founding city has
 // 140+ clubs, and rendering every card put 1.3 MB of HTML on one page. The
 // first HUB_LIMIT (scheduled/soonest first) plus an honest "and N more" link
 // into the interactive list covers both the crawler and the reader.
@@ -292,13 +370,15 @@ export const getCityDirectoryHub = unstable_cache(
     // browser, so it must hold nothing the page doesn't show.
     const items = page.items.slice(0, HUB_LIMIT).map(b => ({
       id: b.id, name: b.name, category: b.category, description: b.description,
-      neighborhood: b.neighborhood, coverImage: b.coverImage, logo: b.logo,
+      neighborhood: b.neighborhood, coverImage: b.coverImage, coverCredit: b.coverCredit, logo: b.logo,
       isExpatOwned: b.isExpatOwned, isExpatFriendly: b.isExpatFriendly,
       memberDiscount: b.memberDiscount, avgRating: b.avgRating, reviewCount: b.reviewCount,
     }))
     return { items, total: page.total }
   },
-  ['city-directory-hub'],
+  // v2: items carry coverCredit — a new key so no cached v1 value (without
+  // it) is served as the new shape.
+  ['city-directory-hub-v2'],
   { revalidate: 60, tags: ['home'] },
 )
 
@@ -356,13 +436,31 @@ export const REMOTE_WORK_EVENT_LIMIT = 6
 
 export const getCityRemoteWorkHub = unstable_cache(
   async (cityId: string, country: string | null) => {
-    const [articles, clubs, { events }, neighborhoodCount] = await Promise.all([
+    const [articles, clubs, { events }, neighborhoodCount, interview, stories] = await Promise.all([
       getCityHandbookIndex(cityId, country),
       getClubs(cityId),
       // The same window the city's events hub reads; the work/newcomer
       // filter below runs over it rather than adding a second query shape.
       getEvents({ limit: HUB_LIMIT, upcoming: true, cityId }),
       prisma.neighborhood.count({ where: { cityId, active: true } }),
+      // The newest "Working from" interview pinned to this city — cityId,
+      // not the listing scope: a global or another city's interview is not
+      // this city's (lib/remoteWork). Author by id only; the byline is a
+      // per-request projection on the page, so nothing private sits in the
+      // cache (see the note above getCityPageData).
+      prisma.post.findFirst({
+        where:   { kind: 'community', status: 'published', category: INTERVIEW_CATEGORY, cityId },
+        orderBy: { publishedAt: 'desc' },
+        select:  { slug: true, title: true, excerpt: true, coverImage: true, body: true, publishedAt: true, authorId: true },
+      }),
+      // The Digital nomads shelf — this city's articles, newest first. No
+      // author: the cards show none, and bylines are per request.
+      prisma.post.findMany({
+        where:   { kind: 'community', status: 'published', category: NOMAD_STORY_CATEGORY, cityId },
+        orderBy: { publishedAt: 'desc' },
+        take:    NOMAD_STORY_LIMIT,
+        select:  { slug: true, title: true, excerpt: true, coverImage: true, body: true },
+      }),
     ])
 
     const workClubs = clubs
@@ -376,16 +474,29 @@ export const getCityRemoteWorkHub = unstable_cache(
 
     // Coworking sessions and first-timer-friendly events, each weekly session
     // once, neither kind crowding out the other (lib/remoteWork pickHubEvents).
-    const workEvents = events.filter(e => e.status !== 'cancelled' && e.clubId && workClubIds.has(e.clubId))
+    const workEvents = events.filter(e => !isOffCalendar(e) && e.clubId && workClubIds.has(e.clubId))
 
     return {
       articles,
       workClubs,
       events:        pickHubEvents(events, workClubIds, REMOTE_WORK_EVENT_LIMIT),
       hasWorkEvents: workEvents.length > 0,
+      // Every coworking occurrence (series not collapsed) for the "this week"
+      // line — date and neighborhood only, both already public on the cards.
+      workSessions:  workEvents.map(e => ({ date: e.date, neighborhood: e.neighborhood ?? null })),
       // Every upcoming session members-only → the page says so up front.
       workMembersOnly: workEvents.length > 0 && workEvents.every(e => e.membersOnly),
       neighborhoodCount,
+      // Cover resolved here so the body (up to 50k) never leaves the loader.
+      interview: interview && {
+        slug: interview.slug, title: interview.title, excerpt: interview.excerpt,
+        cover: articleCover({ coverImage: interview.coverImage, body: interview.body }),
+        publishedAt: interview.publishedAt, authorId: interview.authorId,
+      },
+      stories: stories.map(s => ({
+        slug: s.slug, title: s.title, excerpt: s.excerpt,
+        cover: articleCover({ coverImage: s.coverImage, body: s.body }),
+      })),
     }
   },
   ['city-remote-work-hub'],
@@ -396,7 +507,7 @@ export const getCityRemoteWorkHub = unstable_cache(
 //
 // The relocation path (lib/relocation arranges it). Handbook articles, where
 // members live, where events are, the city's first-timer-friendly events and
-// its club count — all existing data, all public-safe: the neighbourhood
+// its club count — all existing data, all public-safe: the neighborhood
 // figures are counts, never names, and events are redacted per request by
 // the page like every other hub.
 
@@ -408,7 +519,7 @@ export const getCityMovingHub = unstable_cache(
   // city's calendar day.
   async (cityId: string, country: string | null, tz: string) => {
     const today = todayInTz(tz)
-    const [articles, memberRows, eventRows, { events }, clubs] = await Promise.all([
+    const [articles, memberRows, eventRows, { events }, clubs, stories] = await Promise.all([
       getCityHandbookIndex(cityId, country),
       // Activated members only (lib/memberCount) — the same figure the
       // Visiting page's "N Smileys nearby" uses.
@@ -424,13 +535,27 @@ export const getCityMovingHub = unstable_cache(
       }),
       getEvents({ limit: HUB_LIMIT, upcoming: true, cityId }),
       getClubs(cityId),
+      // The city's expat series (lib/relocation EXPAT_STORY_CATEGORY), in
+      // reading order — oldest first, "Start here" leads. Pinned to this city
+      // only. No author: the cards show none, and bylines are per request.
+      prisma.post.findMany({
+        where:   { kind: 'community', status: 'published', category: EXPAT_STORY_CATEGORY, cityId },
+        orderBy: { publishedAt: 'asc' },
+        select:  { slug: true, title: true, excerpt: true, coverImage: true, body: true },
+      }),
     ])
     return {
       articles,
+      // Cover resolved here so the body (up to 50k) never leaves the loader.
+      stories: stories.slice(0, EXPAT_STORY_LIMIT).map(s => ({
+        slug: s.slug, title: s.title, excerpt: s.excerpt,
+        cover: articleCover({ coverImage: s.coverImage, body: s.body }),
+      })),
+      storyTotal: stories.length,
       memberCounts: memberRows.flatMap(r => r.neighborhood ? [{ neighborhood: r.neighborhood, count: r._count._all }] : []),
       eventCounts:  eventRows.map(r => ({ neighborhood: r.neighborhood, count: r._count._all })),
       events: events
-        .filter(e => e.status !== 'cancelled' && e.isFirstTimerFriendly)
+        .filter(e => !isOffCalendar(e) && e.isFirstTimerFriendly)
         .slice(0, MOVING_EVENT_LIMIT),
       // From the published-only count above: getEvents' total also counts
       // cancelled events, which it keeps for the cancelled banner.
@@ -448,37 +573,81 @@ export const getCityMovingHub = unstable_cache(
 //
 // Erasmus, exchange and international students (lib/students holds the rules).
 // Existing data only: the Handbook index, the city's upcoming events, its
-// clubs and neighbourhoods, and the city's own Erasmus story when it has one.
+// clubs and neighborhoods, and the city's own Erasmus story when it has one.
 // Events are cached raw and redacted per request by the page, like every
 // other hub; the filter links carry counts and paths, never event fields.
 
 export const getCityStudentHub = unstable_cache(
-  async (cityId: string, citySlug: string, country: string | null) => {
-    const [articles, { events }, clubs, neighborhoodCount, story] = await Promise.all([
+  async (cityId: string, citySlug: string, country: string | null, timeZone: string) => {
+    const [articles, { events }, clubs, neighborhoodCount, stories] = await Promise.all([
       getCityHandbookIndex(cityId, country),
       getEvents({ limit: HUB_LIMIT, upcoming: true, cityId }),
       getClubs(cityId),
       prisma.neighborhood.count({ where: { cityId, active: true } }),
-      // The city's own student story — a community post pinned to this city,
-      // found by what it is about. None → the page leaves the link out.
-      prisma.post.findFirst({
-        where:   { kind: 'community', status: 'published', cityId, OR: [{ title: { contains: 'Erasmus', mode: 'insensitive' } }, { title: { contains: 'exchange student', mode: 'insensitive' } }] },
+      // The city's student stories — community posts in the 'Students'
+      // category pinned to this city (cityId, not the listing scope: another
+      // city's Erasmus piece is not this one's). A category, not a title
+      // match: "Erasmus" in a title found one story and missed the next.
+      // None → the page leaves the section out. No author: bylines are
+      // per-request projections and the cards don't show one.
+      prisma.post.findMany({
+        where:   { kind: 'community', status: 'published', category: STUDENT_STORY_CATEGORY, cityId },
         orderBy: { publishedAt: 'desc' },
-        select:  { slug: true, title: true, excerpt: true },
+        take:    STUDENT_STORY_LIMIT,
+        select:  { slug: true, title: true, excerpt: true, coverImage: true, body: true, publishedAt: true },
       }),
     ])
-    const firstEvents   = pickFirstEvents(events)
-    const regularEvents = pickRegularEvents(events, new Set(firstEvents.map(e => e.id)))
+    // getEvents' "upcoming" is by date, so an event that finished at 21:00
+    // stayed on the rows until midnight, its card saying "Event ended". Cut on
+    // the real end instead — accurate to the 60 s this loader is cached for.
+    const now      = Date.now()
+    const upcoming = events.filter(e => eventEndsAt(e, timeZone).getTime() > now)
+    // Two picks: a guest can RSVP to no members-only event, so theirs puts the
+    // open ones first (lib/students PickOptions). Chosen here, not per
+    // request — the page only chooses which pair to show.
+    const pick = (preferOpen: boolean) => {
+      const first = pickFirstEvents(upcoming, undefined, { preferOpen })
+      return { first, regular: pickRegularEvents(upcoming, new Set(first.map(e => e.id)), undefined, { preferOpen }) }
+    }
     return {
       articles,
-      firstEvents,
-      regularEvents,
-      filterLinks: eventFilterLinks(events, citySlug),
+      forMembers:  pick(false),
+      forGuests:   pick(true),
+      filterLinks: eventFilterLinks(upcoming, citySlug),
+      // Backs the FAQ's "most events are in English" — said only when true.
+      mostlyEnglish: mostlyEnglish(upcoming),
       clubCount:   clubs.length,
       neighborhoodCount,
-      story,
+      // Cover resolved here so the body (up to 50k) never leaves the loader.
+      stories: stories.map(s => ({
+        slug: s.slug, title: s.title, excerpt: s.excerpt, publishedAt: s.publishedAt,
+        cover: articleCover({ coverImage: s.coverImage, body: s.body }),
+      })),
     }
   },
   ['city-student-hub'],
   { revalidate: 60, tags: ['home'] },
+)
+
+// How many of this city's activated members joined as students — the
+// student hub's "200+ members joined as students" (lib/students
+// studentCountLabel rounds it down and hides a small one). An application
+// has no userId, so the member's latest approved application is found by
+// email. Only a number leaves this function. Six hours: it moves slowly.
+export const getCityStudentCount = unstable_cache(
+  async (cityId: string): Promise<number> => {
+    const rows = await prisma.$queryRaw<{ n: bigint }[]>`
+      WITH m AS (
+        SELECT DISTINCT ON (u."id") a."profession", a."reasonHere"
+        FROM "users" u
+        JOIN "member_applications" a ON lower(a."email") = lower(u."email") AND a."status" = 'approved'
+        WHERE u."status" = 'approved' AND u."password" IS NOT NULL AND u."cityId" = ${cityId}
+        ORDER BY u."id", a."createdAt" DESC
+      )
+      SELECT count(*) AS n FROM m
+      WHERE m."reasonHere" ~* ${STUDENT_REASON_SQL} OR m."profession" ~* ${STUDENT_PROFESSION_SQL}`
+    return Number(rows[0]?.n ?? 0)
+  },
+  ['city-student-count'],
+  { revalidate: 21600, tags: ['home'] },
 )

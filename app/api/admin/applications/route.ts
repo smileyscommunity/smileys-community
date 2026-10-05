@@ -8,6 +8,7 @@ import { loadCommunitySettings } from '@/lib/communitySettings'
 import { sendActivationEmail, sendApplicationRejectedEmail, sendRequestMoreInfoEmail, recordEmailFailure } from '@/lib/email'
 import { createNotification } from '@/lib/notify'
 import { writeAudit } from '@/lib/audit'
+import { trackServerForUser } from '@/lib/posthog-server'
 import { randomBytes, createHash } from 'crypto'
 import { maskEmail, maskPhone } from '@/lib/admin/maskContact'
 import { hashToken } from '@/lib/tokenHash'
@@ -73,7 +74,10 @@ export async function GET(req: NextRequest) {
         targetCity: { select: { name: true, slug: true } },
       },
     })
-    return NextResponse.json(isAdmin(session) ? applications : applications.map(forModerator))
+    // The confirm token is the applicant's proof of owning the address; staff
+    // see whether it was used (emailConfirmedAt), never the token itself.
+    const rows = applications.map(({ confirmToken: _t, ...a }) => a)
+    return NextResponse.json(isAdmin(session) ? rows : rows.map(forModerator))
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
@@ -118,6 +122,11 @@ export async function PATCH(req: NextRequest) {
         // to overwrite an admin's reasoning with null).
         data: { suggestion: suggestion || null, suggestedBy: session.id, ...noteUpdate(reviewNote) },
       })
+      // A moderator's recommendation is part of the decision trail — the
+      // admin who acts on it, and anyone reviewing later, should see it.
+      writeAudit(session.id, session.name, 'application.suggest', id, 'memberApplication',
+        { suggestion: suggestion || null, name: application.fullName, cityId: target.targetCityId },
+        `Suggested ${suggestion || 'no decision'} for ${application.fullName}`)
       return NextResponse.json(application)
     }
     // Anything else a moderator sends is the admin update below — a body with
@@ -170,7 +179,7 @@ export async function PATCH(req: NextRequest) {
     // global ones (cityId null). Nine members approved into Antalya and İzmir
     // were enrolled in a default-city club by a hand-picked assignment the
     // backstop above let through. Skipped clubs are logged, kept out of the
-    // stored list (registration enrols from it too) and named in the response
+    // stored list (registration enrolls from it too) and named in the response
     // and the approval audit row.
     let skippedClubs: SkippedClub[] = []
     if (clubsToAssign?.length) {
@@ -198,6 +207,15 @@ export async function PATCH(req: NextRequest) {
     })
 
     if (status === 'approved') {
+      // hours_to_decision is what the public "24–48 hours" copy should be held
+      // to; only ids and counts ride along, never the applicant's answers.
+      const trackApproved = (userId: string, founding: boolean) => {
+        void trackServerForUser(userId, 'application_approved', {
+          city_id: application.targetCityId,
+          hours_to_decision: Math.round((Date.now() - new Date(application.createdAt).getTime()) / 3_600_000),
+          founding_member: founding,
+        })
+      }
       // Auto-create account if not already exists. Awaited: this used to run
       // detached with console.error as its only handler, so a Resend outage
       // or a photo-promotion throw left the applicant with no activation link
@@ -221,11 +239,11 @@ export async function PATCH(req: NextRequest) {
             console.error('Founding-stage check failed (approving anyway):', e)
           }
           // Clubs, then an activation link — for a fresh account, and for a
-          // retry on one that never got its link. Enrolment is checked per
+          // retry on one that never got its link. Enrollment is checked per
           // club so a retry can't count a member into a club twice.
           const enrolAndActivate = async (user: { id: string; joinedAt: Date }) => {
             // Re-filtered by city: an approval that sends no assignedClubs
-            // enrols from the list stored earlier, which may predate the city
+            // enrolls from the list stored earlier, which may predate the city
             // filter above.
             const enrolClubs = application.assignedClubs?.length
               ? (await clubsForApprovedCity(application.assignedClubs, application.targetCityId)).keep
@@ -310,6 +328,9 @@ export async function PATCH(req: NextRequest) {
               throw e
             }
             await enrolAndActivate(user)
+            // Funnel: approval, once per account (a re-sent approval takes the
+            // existing-user branch below, so a retry never double-counts).
+            trackApproved(user.id, isFoundingCity)
           } else {
             // User already exists — fill in any missing profile fields from the application
             const updates: Record<string, unknown> = {}
@@ -332,6 +353,7 @@ export async function PATCH(req: NextRequest) {
                 where: { id: existing.id },
                 data: { status: 'approved', ...(isFoundingCity ? { foundingMember: true } : {}) },
               })
+              trackApproved(existing.id, isFoundingCity)
             }
             // Never activated: most often the account a first approval created
             // before its activation email failed. "Approve again to retry"
@@ -364,8 +386,12 @@ export async function PATCH(req: NextRequest) {
         // 'pending' is only enforced at login; the bump revokes the live session.
         await prisma.user.update({ where: { id: linkedUser.id }, data: { status: 'pending', tokenVersion: { increment: 1 } } })
       }
-      sendApplicationRejectedEmail(application.email, application.fullName, rejectionMessage)
-        .catch(err => recordEmailFailure({ helper: 'sendApplicationRejectedEmail', recipient: application.email, error: err, context: { applicationId: id } }))
+      // An application whose email was never confirmed may not be that
+      // person's at all (double opt-in): rejecting it sends them nothing.
+      if (application.emailConfirmedAt) {
+        sendApplicationRejectedEmail(application.email, application.fullName, rejectionMessage)
+          .catch(err => recordEmailFailure({ helper: 'sendApplicationRejectedEmail', recipient: application.email, error: err, context: { applicationId: id } }))
+      }
       // cityId passed rather than left to the lookup: the application's city
       // is already in hand, and moderators' city-scoped audit view reads it.
       writeAudit(session.id, session.name, 'application.reject', id, 'memberApplication',

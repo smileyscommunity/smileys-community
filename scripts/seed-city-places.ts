@@ -17,7 +17,7 @@
 //   CITY=bodrum APPLY=1 ... same command          # actually write
 //
 // Env knobs: CITY (default bodrum), APPLY (unset = dry run), PER_HOOD,
-// MIN_RATING, MIN_REVIEWS, ONLY_HOOD (one neighbourhood slug, for a trial run).
+// MIN_RATING, MIN_REVIEWS, ONLY_HOOD (one neighborhood slug, for a trial run).
 
 import { prisma } from '@/lib/prisma'
 import { BUSINESS_CATEGORY_SET, DIRECTORY_LIMITS } from '@/lib/directory-constants'
@@ -29,7 +29,7 @@ const PER_HOOD    = Number(process.env.PER_HOOD ?? 4)
 const MIN_RATING  = Number(process.env.MIN_RATING ?? 4.2)
 const MIN_REVIEWS = Number(process.env.MIN_REVIEWS ?? 40)
 const ONLY_HOOD   = process.env.ONLY_HOOD ?? null
-// Places bills per request. A 15-neighbourhood city × 4 intents is 60 calls
+// Places bills per request. A 15-neighborhood city × 4 intents is 60 calls
 // per run, so the radius is wide enough that one call per intent suffices.
 const RADIUS_M    = 1800
 
@@ -150,13 +150,13 @@ async function main() {
     select:  { name: true, lat: true, lng: true },
   })
   const located = hoods.filter(h => h.lat != null && h.lng != null)
-  if (!located.length) throw new Error(`No active neighbourhoods with coordinates in ${city.name}`)
+  if (!located.length) throw new Error(`No active neighborhoods with coordinates in ${city.name}`)
 
-  console.log(`${APPLY ? 'SEEDING' : 'DRY RUN'} — ${city.name}: ${located.length} neighbourhood(s), ` +
-              `${INTENTS.length} intents, keeping ≤${PER_HOOD}/neighbourhood ` +
+  console.log(`${APPLY ? 'SEEDING' : 'DRY RUN'} — ${city.name}: ${located.length} neighborhood(s), ` +
+              `${INTENTS.length} intents, keeping ≤${PER_HOOD}/neighborhood ` +
               `(rating ≥${MIN_RATING}, ≥${MIN_REVIEWS} reviews)`)
   if (hoods.length !== located.length) {
-    console.log(`  ⚠ skipping ${hoods.length - located.length} neighbourhood(s) without coordinates`)
+    console.log(`  ⚠ skipping ${hoods.length - located.length} neighborhood(s) without coordinates`)
   }
 
   // Every place id already in the directory, city-wide: a re-run must never
@@ -196,7 +196,7 @@ async function main() {
     }
 
     // Quality over quantity is the platform's rule, so take the best few per
-    // neighbourhood rather than everything that cleared the floor.
+    // neighborhood rather than everything that cleared the floor.
     candidates.sort((a, b) =>
       (b.p.rating ?? 0) - (a.p.rating ?? 0) ||
       (b.p.userRatingCount ?? 0) - (a.p.userRatingCount ?? 0))

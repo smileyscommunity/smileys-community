@@ -46,7 +46,6 @@ const COUNTRY_BASELINE: Record<string, number> = {
   'app/api/events/[id]/rsvp/route.ts': 6,
   'app/events/[id]/page.tsx': 1,
   'app/privacy/page.tsx': 1,
-  'app/why/page.tsx': 1,
   'components/DirectoryOwnerEdit.tsx': 1,
   'lib/countries.ts': 1,
   'lib/cup-data.ts': 1,

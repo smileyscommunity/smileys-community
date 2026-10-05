@@ -21,7 +21,7 @@ import type { CityMaturity } from '@/lib/cityMaturity'
 // cookie the server scopes events, clubs and the board by, grants no
 // permissions anywhere (authorization reads session.cityId, never this), and
 // "Back to <home>" always undoes it. For a guest there is no such state, so
-// picking a city is plain navigation and the button stays labelled "Cities".
+// picking a city is plain navigation and the button stays labeled "Cities".
 
 interface City { slug: string; name: string; country: string; status: string; maturity?: CityMaturity | null }
 

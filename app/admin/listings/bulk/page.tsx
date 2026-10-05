@@ -8,7 +8,7 @@ import { toast } from 'sonner'
 import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 
 // Bulk-add tool for seeding the marketplace. The user (admin) pastes 10-20 listings
-// in a labelled-block format, previews the parsed result, then creates them in one
+// in a labeled-block format, previews the parsed result, then creates them in one
 // transaction. Each batch shares a category + attribution user — keeps the UI simple
 // since 90% of seeding will be one batch of housing posts.
 

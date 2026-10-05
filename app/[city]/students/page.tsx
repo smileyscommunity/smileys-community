@@ -9,11 +9,15 @@ import { APP_URL } from '@/lib/env'
 import { shareCover } from '@/lib/shareCover'
 import { audiencesFor, matchesAudience } from '@/lib/guide'
 import { loadExperiences } from '@/lib/guideContent'
-import { studentGuides, orderStudentAudiences, buildFirstWeek, eventsHref } from '@/lib/students'
+import { studentGuides, orderStudentAudiences, buildFirstWeek, eventsHref, studentCountLabel, studentFaqs } from '@/lib/students'
 import EventCard from '@/components/EventCard'
 import JoinCityButton from '@/components/JoinCityButton'
 import PhotoHero, { HERO_SECONDARY } from '@/components/PhotoHero'
-import { getCityStudentHub } from '../data'
+import HostRosterCard from '@/components/HostRosterCard'
+import HandbookPicks from '@/components/HandbookPicks'
+import { cityQs as handbookQs } from '@/lib/cityPageParam'
+import { getCityHandbookPicks } from '@/lib/cityHandbookPicks'
+import { getCityStudentHub, getCityStudentCount, getCityHosts, hubPath } from '../data'
 
 // /[city]/students — for Erasmus, exchange and international students here
 // for a semester or a year. Like the remote-work and moving hubs it writes no
@@ -34,7 +38,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   if (!city || city.status !== CITY_STATUS.Live) return {}
   const title = `International students in ${city.name} — Erasmus, exchange & degree students | Smileys Community`
   const description = `Here for a semester or a year? Your first week in ${city.name}, the practical setup, first-timer-friendly events, regular activities and people beyond your campus.`
-  const image = shareCover('events', city, title)
+  const image = shareCover('students', city, title)
   const url = `${APP_URL}/${city.slug}/students`
   return {
     title, description,
@@ -51,15 +55,33 @@ export default async function CityStudentsPage({ params }: Params) {
   // A pre-launch city has no events or members to meet yet; its page says so.
   if (city.status !== CITY_STATUS.Live) redirect(`/${city.slug}`)
 
-  const [hub, experiences, session] = await Promise.all([
-    getCityStudentHub(city.id, city.slug, city.country ?? null),
+  const [hub, experiences, session, studentCount, handbookPicks] = await Promise.all([
+    getCityStudentHub(city.id, city.slug, city.country ?? null, city.timezone),
     loadExperiences(city.id),
     getSession(),
+    getCityStudentCount(city.id),
+    getCityHandbookPicks(city.id),
   ])
+  // Hosts are projected per viewer (a guest gets first names, no links), so
+  // they are read after the session, outside the hub's shared cache.
+  const { hosts, hostTotal } = await getCityHosts(city, session)
+  const studentsJoined = studentCountLabel(studentCount)
+  const faqs = studentFaqs({ cityName: city.name, mostlyEnglish: hub.mostlyEnglish })
+  // FAQPage JSON-LD from the same strings the list renders. '<' escaped so no
+  // answer can close the script tag (CLAUDE.md).
+  const faqJsonLd = JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: faqs.map(f => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+  }).replace(/</g, '\\u003c')
   // Guest redaction is per request, outside the shared cache (../events/page.tsx).
-  const project = async (events: typeof hub.firstEvents) =>
+  const picked  = session ? hub.forMembers : hub.forGuests
+  const project = async (events: typeof picked.first) =>
     session ? projectEventsForMember(events, session) : events.map(redactEventForGuest)
-  const [firstEvents, regularEvents] = await Promise.all([project(hub.firstEvents), project(hub.regularEvents)])
+  const [firstEvents, regularEvents] = await Promise.all([project(picked.first), project(picked.regular)])
+  // A guest can RSVP to none of these; say so once, above the rows, instead
+  // of leaving them to find out card by card.
+  const guestLocked = !session && [...picked.first, ...picked.regular].some(e => e.membersOnly)
 
   const guides    = studentGuides(hub.articles, city.id)
   const guide     = (key: string) => guides.find(g => g.key === key)?.article ?? null
@@ -100,15 +122,16 @@ export default async function CityStudentsPage({ params }: Params) {
           social life early — alongside members from all over the world and locals.
         </p>
         <div className="flex flex-col sm:flex-row gap-3">
-          <JoinCityButton slug={city.slug} name={city.name} from="students" />
+          <JoinCityButton slug={city.slug} name={city.name} from="students" guest={!session} />
           <Link href={firstEvents.length > 0 ? '#first-event' : eventsHref(city.slug)} className={HERO_SECONDARY}>
             {firstEvents.length > 0 ? 'See first-timer events' : 'See upcoming events'}
           </Link>
         </div>
-        <p className="mt-6 text-sm text-white/75 max-w-xl">
-          Not instead of your university&apos;s orientation or student network — alongside it, for the people and plans
-          beyond campus.
-        </p>
+        {studentsJoined && (
+          <p className="mt-6 text-sm font-semibold text-white">
+            <span aria-hidden="true">🎓 </span>{studentsJoined} members joined Smileys {city.name} as students.
+          </p>
+        )}
       </PhotoHero>
 
       {/* ── Your first week ──────────────────────────────────────────── */}
@@ -146,18 +169,18 @@ export default async function CityStudentsPage({ params }: Params) {
             {[
               {
                 key: 'before', emoji: '🧳', title: 'Before arrival',
-                body: 'Check how long you can stay, and ask your university’s international office what your programme needs for a residence permit. Applying to Smileys now means you’re in before you land — reviews take 24–48 hours.',
+                body: 'Check how long you can stay, and ask your university’s international office what your program needs for a residence permit — and whether it has an ESN (Erasmus Student Network) section.',
                 links: [
-                  ...(entry ? [{ href: `/handbook/${entry.slug}`, label: 'Entry rules and stay limits' }] : []),
-                  ...(residence ? [{ href: `/handbook/${residence.slug}`, label: 'How residence permits work' }] : []),
-                  ...(hub.story ? [{ href: `/posts/${hub.story.slug}`, label: 'Read: Erasmus in ' + city.name }] : []),
+                  ...(entry ? [{ href: `/handbook/${entry.slug}${handbookQs(city.slug)}`, label: 'Entry rules and stay limits' }] : []),
+                  ...(residence ? [{ href: `/handbook/${residence.slug}${handbookQs(city.slug)}`, label: 'How residence permits work' }] : []),
+                  ...(hub.stories.length > 0 ? [{ href: '#stories', label: 'Read: stories for students' }] : []),
                 ],
               },
               {
                 key: 'welcome', emoji: '👋', title: 'Welcome week',
                 body: 'Get in from the airport, get a SIM and a transport card, and go to one event on your own.',
                 links: [
-                  ...(airport ? [{ href: `/handbook/${airport.slug}`, label: 'From the airport' }] : []),
+                  ...(airport ? [{ href: `/handbook/${airport.slug}${handbookQs(city.slug)}`, label: 'From the airport' }] : []),
                   { href: '#first-week', label: 'Your first week, step by step' },
                 ],
               },
@@ -192,6 +215,46 @@ export default async function CityStudentsPage({ params }: Params) {
         </div>
       </section>
 
+      {/* ── Stories for students ─────────────────────────────────────── */}
+      {/* Community posts in the 'Students' category pinned to this city
+          (lib/students STUDENT_STORY_CATEGORY). Hidden until the city has one. */}
+      {hub.stories.length > 0 && (
+        <section id="stories" aria-labelledby="stories-title" className="py-12 sm:py-16 bg-white border-t border-gray-100 scroll-mt-20">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="mb-8">
+              <h2 id="stories-title" className="section-title">Worth reading before the semester</h2>
+              <p className="section-subtitle max-w-2xl">
+                Studying in {city.name}, from the campus side and the city side — what we wish someone had told us.
+              </p>
+            </div>
+            <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {hub.stories.map(story => (
+                <li key={story.slug}>
+                  <Link href={`/posts/${story.slug}`}
+                    className="group h-full flex flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm hover:border-amber-200 hover:shadow-md transition-all">
+                    {story.cover && (
+                      // Absolute image: an aspect-ratio box grows to fit its content, so a
+                      // portrait cover (the first Erasmus story's is 1000×1200) made its
+                      // card's picture nearly twice as tall as its neighbor's.
+                      <div className="relative aspect-[16/9] overflow-hidden bg-gray-100">
+                        <img src={story.cover} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+                      </div>
+                    )}
+                    <div className="p-5 flex flex-col flex-1">
+                      <h3 className="font-bold text-gray-900 leading-snug group-hover:text-amber-700 transition-colors">{story.title}</h3>
+                      {story.excerpt && <p className="mt-2 text-sm text-gray-600 leading-relaxed line-clamp-3 flex-1">{story.excerpt}</p>}
+                      <span className="mt-4 text-sm font-bold text-amber-700 group-hover:text-amber-800">
+                        Read the story <span aria-hidden="true">→</span>
+                      </span>
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      )}
+
       {/* ── Your first event ─────────────────────────────────────────── */}
       <section id="first-event" aria-labelledby="first-event-title" className="py-12 sm:py-16 bg-white border-t border-gray-100 scroll-mt-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -218,6 +281,13 @@ export default async function CityStudentsPage({ params }: Params) {
                 </li>
               ))}
             </ul>
+          )}
+
+          {guestLocked && (
+            <p className="mb-6 max-w-2xl rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 text-sm text-gray-700">
+              <span aria-hidden="true">🔒 </span>Events marked <strong>Members only</strong> open once you join — it&apos;s free,
+              and then you can RSVP to any of them.
+            </p>
           )}
 
           {firstEvents.length > 0 ? (
@@ -262,7 +332,7 @@ export default async function CityStudentsPage({ params }: Params) {
         <section id="explore" aria-labelledby="explore-title" className="py-12 sm:py-16 bg-white border-t border-gray-100 scroll-mt-20">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="mb-6">
-              <h2 id="explore-title" className="section-title">Explore {city.name}{budget ? ' on a budget' : ''}</h2>
+              <h2 id="explore-title" className="section-title">Explore {city.name}</h2>
               <p className="section-subtitle max-w-2xl">Experiences from the {city.name} Guide, by what you&apos;re in the mood for.</p>
             </div>
             <ul className="flex flex-wrap gap-2">
@@ -284,7 +354,7 @@ export default async function CityStudentsPage({ params }: Params) {
               )}
               {hub.neighborhoodCount > 0 && (
                 <Link href={`/neighborhoods${isDefault ? '' : `?city=${city.slug}`}`} className="text-amber-700 hover:text-amber-800">
-                  Find your neighbourhood <span aria-hidden="true">→</span>
+                  Find your neighborhood <span aria-hidden="true">→</span>
                 </Link>
               )}
             </div>
@@ -300,29 +370,52 @@ export default async function CityStudentsPage({ params }: Params) {
               <h2 id="practical-title" className="section-title">The practical side</h2>
               <p className="section-subtitle max-w-2xl">From the {city.name} Handbook.</p>
             </div>
+            <HandbookPicks citySlug={city.slug} picks={handbookPicks} className="mb-8" />
             <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {guides.map(g => (
                 <li key={g.key}>
-                  <Link href={`/handbook/${g.article.slug}`}
+                  <Link href={`/handbook/${g.article.slug}${handbookQs(city.slug)}`}
                     className="block h-full bg-white border border-gray-100 rounded-2xl p-4 hover:border-amber-200 hover:shadow-md transition-all group">
                     <p className="text-xs font-bold uppercase tracking-widest text-gray-500">{g.label}</p>
                     <p className="font-semibold text-gray-900 group-hover:text-amber-700 transition-colors leading-snug mt-1">{g.article.title}</p>
-                    {g.article.hasOfficialSources && <p className="text-xs text-gray-500 mt-1">Links official sources</p>}
                   </Link>
                 </li>
               ))}
             </ul>
             <p className="mt-6 max-w-3xl text-sm text-gray-600 leading-relaxed">
               Practical guidance, not legal advice. Residence permits and other paperwork depend on your nationality and
-              your programme, and the rules change — your university&apos;s international office and the official sources
+              your program, and the rules change — your university&apos;s international office and the official sources
               each guide links to are where to confirm your own case.
             </p>
           </div>
         </section>
       )}
 
+      {/* ── Who runs the events ──────────────────────────────────────── */}
+      {/* The city's hosts (lib/hostRoster via getCityHosts, projected per
+          viewer) — for someone coming alone, the people at the door. Three,
+          then a link to the rest. Hidden when the city has none yet. */}
+      {hosts.length > 0 && (
+        <section aria-labelledby="hosts-title" className="py-12 sm:py-16 bg-white border-t border-gray-100">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="mb-8">
+              <h2 id="hosts-title" className="section-title">Who you&apos;ll meet at the door</h2>
+              <p className="section-subtitle max-w-2xl">
+                Members run every event and club in {city.name}. These are some of the hosts — say hello, they&apos;ll introduce you.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {hosts.slice(0, 3).map((h, i) => <HostRosterCard key={h.id || `${h.name}-${i}`} host={h} signedIn={!!session} citySlug={city.slug} compact />)}
+            </div>
+            <Link href={hubPath(city.slug, 'hosts')} className="inline-block mt-6 text-sm font-bold text-amber-700 hover:text-amber-800">
+              {hostTotal > 3 ? `Meet all ${hostTotal} hosts` : 'How hosting works'} <span aria-hidden="true">→</span>
+            </Link>
+          </div>
+        </section>
+      )}
+
       {/* ── Before you join ──────────────────────────────────────────── */}
-      <section aria-labelledby="join-title" className="py-12 sm:py-16 bg-white border-t border-gray-100">
+      <section aria-labelledby="join-title" className="py-12 sm:py-16 bg-gray-50 border-t border-gray-100">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 id="join-title" className="section-title">Before you join</h2>
           <ul className="mt-6 space-y-3 text-sm text-gray-700 leading-relaxed">
@@ -331,6 +424,26 @@ export default async function CityStudentsPage({ params }: Params) {
             <li><span aria-hidden="true">🆓 </span>Joining is free. You only pay for events you choose, and the price is on every event before you RSVP.</li>
             <li><span aria-hidden="true">✍️ </span>A person reads every application, within 24–48 hours — it keeps events safe to walk into on your own. The form explains why it asks for each detail, and your phone number is never shown publicly. <Link href="/privacy" className="font-semibold text-amber-700 hover:underline">Privacy policy</Link>.</li>
           </ul>
+        </div>
+      </section>
+
+      {/* ── Questions ────────────────────────────────────────────────── */}
+      {/* lib/students studentFaqs — the same text feeds the JSON-LD. */}
+      <section aria-labelledby="faq-title" className="py-12 sm:py-16 bg-white border-t border-gray-100">
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: faqJsonLd }} />
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+          <h2 id="faq-title" className="section-title">Questions students ask</h2>
+          <div className="mt-6 divide-y divide-gray-200 border-y border-gray-200">
+            {faqs.map(f => (
+              <details key={f.q} className="group py-4">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold text-gray-900">
+                  {f.q}
+                  <span aria-hidden="true" className="text-amber-600 transition-transform group-open:rotate-45">+</span>
+                </summary>
+                <p className="mt-2 text-sm text-gray-600 leading-relaxed">{f.a}</p>
+              </details>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -344,10 +457,10 @@ export default async function CityStudentsPage({ params }: Params) {
             Make your semester in {city.name} more than lectures.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <JoinCityButton slug={city.slug} name={city.name} from="students" />
-            {budget
-              ? <Link href={guideQs('budget')} className="btn-secondary text-base px-8 py-4">Explore {city.name} on a budget</Link>
-              : <Link href={eventsHref(city.slug)} className="btn-secondary text-base px-8 py-4">See upcoming events</Link>}
+            <JoinCityButton slug={city.slug} name={city.name} from="students" guest={!session} />
+            <Link href={firstEvents.length > 0 ? '#first-event' : eventsHref(city.slug)} className="btn-secondary text-base px-8 py-4">
+              {firstEvents.length > 0 ? 'See first-timer events' : 'See upcoming events'}
+            </Link>
           </div>
         </div>
       </section>

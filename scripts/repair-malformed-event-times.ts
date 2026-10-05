@@ -1,4 +1,4 @@
-// Normalise event times that were stored in forms the reader couldn't parse.
+// Normalize event times that were stored in forms the reader couldn't parse.
 //
 // The host forms take time/endTime as free text and the create/update routes
 // stored it verbatim, so rows hold '22.00', '18', '24:00' (16 events in the

@@ -29,7 +29,7 @@ describe('social styles', () => {
 
 describe('profile editor', () => {
   const src = read('app/(member)/profile/page.tsx')
-  it('builds the neighbourhood picker from the home city, not the browsed one', () => {
+  it('builds the neighborhood picker from the home city, not the browsed one', () => {
     expect(src).toMatch(/useCityNeighborhoods\(home\?\.slug \?\? null\)/)
     expect(src).not.toMatch(/useCityNeighborhoods\(\)/)
     expect(src).not.toMatch(/useCurrentCity/)

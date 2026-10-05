@@ -36,7 +36,7 @@ describe('the scan is lifetime', () => {
       expect(sql.sql).not.toMatch(/direct_messages\s+WHERE "createdAt" >=/)
     }
   })
-  it('both queries report when the behaviour last happened, which is what replaces the window', async () => {
+  it('both queries report when the behavior last happened, which is what replaces the window', async () => {
     const { requestScanSql, dmScanSql } = await import('@/lib/connectionAbuse')
     expect(requestScanSql().sql).toContain('"lastAt"')
     expect(dmScanSql().sql).toContain('"lastAt"')

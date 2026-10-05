@@ -5,13 +5,13 @@ import { CITY_STATUS } from './cityStatus'
 import { CITY_MATURITY, type CityMaturity } from './cityMaturity'
 
 // The trip planner on /visiting: "I'm here from … to …" → the events during
-// that stay, narrowed by what the traveller cares about. Pure, so the rules
+// that stay, narrowed by what the traveler cares about. Pure, so the rules
 // that keep it honest are tested:
 //
 //   · a range that has already ended is refused, and one that started in the
 //     past is clamped to today — the planner never lists yesterday
 //   · an event that has already finished today is dropped, one in progress is
-//     labelled as such, so nothing past reads as upcoming
+//     labeled as such, so nothing past reads as upcoming
 //   · a filter is offered only when it would actually narrow the list: no
 //     "Free only" when everything is free, no language picker when no event
 //     states a language
@@ -124,12 +124,12 @@ export function tripEventWhen(e: EventClock, tz: string, today: string, now: Dat
   return { kind: 'later', label }
 }
 
-// ── Where a traveller can use Smileys today ────────────────────────────────
+// ── Where a traveler can use Smileys today ────────────────────────────────
 
 export type Availability = 'active' | 'founding' | 'coming_soon'
 
 /**
- * The traveller's question — "will there be people and events when I get
+ * The traveler's question — "will there be people and events when I get
  * there?" — answered from the same signals the city cards use: a live city
  * still in its seeding stage is Founding (few or no events yet), a live city
  * past it is Active, and anything not live is Coming soon.
@@ -138,3 +138,20 @@ export function cityAvailability(c: { status: string; stats?: { maturity?: CityM
   if (c.status !== CITY_STATUS.Live) return 'coming_soon'
   return c.stats?.maturity === CITY_MATURITY.Seeding ? 'founding' : 'active'
 }
+
+// ── Traveler stories ────────────────────────────────────────────────────────
+//
+// /visiting's "Read before your trip": community posts in this category pinned
+// to the city being visited, newest first — the visiting twin of the student,
+// expat and digital-nomad shelves. No global fallback: another city's "48
+// hours in Istanbul" is not this city's.
+export const TRAVELLER_STORY_CATEGORY = 'Travelers'
+/** What the shelf reads: Travelers, plus City Guide — neighborhood and
+ *  sight guides ("Kadıköy: what to do…", "Hadrian's Gate: the complete
+ *  visitor's guide") are written for exactly this reader (Nate, 2026-10-02:
+ *  show them here rather than re-file them). */
+// 'Travellers' = rows stored before the US-spelling rename (see
+// app/admin/posts/constants LEGACY_TRAVELERS) — still shown until moved.
+export const TRAVELLER_SHELF_CATEGORIES: string[] = [TRAVELLER_STORY_CATEGORY, 'City Guide', 'Travellers']
+/** How many the shelf lists — two rows of three. */
+export const TRAVELLER_STORY_LIMIT = 6

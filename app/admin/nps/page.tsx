@@ -112,7 +112,7 @@ export default function AdminNpsPage() {
       <LoadErrorBanner message={loadError} onRetry={() => setReloadTick(n => n + 1)} title="Couldn't load NPS" />
 
       {/* Current-quarter headline. NPS sits in a big tile with
-          colour-graded class; the trend pill renders a delta vs the
+          color-graded class; the trend pill renders a delta vs the
           previous quarter (when present). Empty state when nobody
           has responded yet — explains the cycle rather than just
           showing "0" which reads like "everyone hates us." */}
@@ -192,7 +192,7 @@ export default function AdminNpsPage() {
 
       {/* Trailing-4 quarter trend. Renders as a simple bar chart —
           one bar per quarter, height scaled to NPS magnitude with a
-          centre line at 0 (because NPS goes negative). Empty
+          center line at 0 (because NPS goes negative). Empty
           quarters render as a zero-height placeholder so the bar
           slot is still visible. Hover/tap (via title attr) shows
           the actual NPS + sample size. */}
@@ -202,7 +202,7 @@ export default function AdminNpsPage() {
         <TrendChart history={data?.history ?? []} />
       </div>
 
-      {/* Recent comments — anonymous. Bands as colour-coded pills so
+      {/* Recent comments — anonymous. Bands as color-coded pills so
           the reader spots "this is a detractor venting" vs "this is
           a promoter raving" at a glance. */}
       <div className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
@@ -264,7 +264,7 @@ function TrendChart({ history }: { history: NPSRollup[] }) {
         const direction = nps !== null && nps < 0 ? 'items-start' : 'items-end'
         return (
           <div key={h.period} className="flex-1 flex flex-col items-center gap-1.5 min-w-0">
-            {/* Two halves separated by a centre line so negative NPS
+            {/* Two halves separated by a center line so negative NPS
                 hangs below. 50% per half so a +/-100 fills its half
                 exactly. */}
             <div className="w-full flex-1 flex flex-col border-b border-zinc-800/60" title={`${h.period}: NPS ${nps ?? 'no responses'} · ${h.responses} response${h.responses === 1 ? '' : 's'}`}>

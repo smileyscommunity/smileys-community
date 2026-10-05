@@ -1,11 +1,12 @@
 import type { Event } from './data'
+import { Tier, eventTier, cancelCutoffHours } from './standingPolicy'
 
 // The rows of the event page's "Good to know" block (components/
 // EventGoodToKnow), kept pure so the no-invented-defaults rule is tested:
 // every row is backed by a column on the event, and a row whose column is
 // empty is not produced — no "Language: not specified", no assumed English.
 
-export type GoodToKnowFacts = Pick<Event, 'isFirstTimerFriendly' | 'language' | 'approvalRequired' | 'refundPolicy' | 'limitedSpots' | 'totalSpots' | 'status'>
+export type GoodToKnowFacts = Pick<Event, 'isFirstTimerFriendly' | 'language' | 'approvalRequired' | 'refundPolicy' | 'limitedSpots' | 'totalSpots' | 'status' | 'tierOverride' | 'cancelCutoffHours'>
 
 export function goodToKnowRows(event: GoodToKnowFacts): { key: string; icon: string; label: string; text: string }[] {
   const rows: { key: string; icon: string; label: string; text: string }[] = []
@@ -27,4 +28,18 @@ export function goodToKnowRows(event: GoodToKnowFacts): { key: string; icon: str
     rows.push({ key: 'refund', icon: '↩️', label: 'Refunds', text: refund })
   }
   return rows
+}
+
+/**
+ * The "If plans change" line, from the same rule the sweeps apply
+ * (lib/standingPolicy), so the page can never say a different number from the
+ * one that decides a late cancel. Hosts used to write their own ("cancel within
+ * 12 hours") in the description while the rule was 24.
+ */
+export function cancelLine(event: GoodToKnowFacts): string {
+  if (eventTier(event) === Tier.Open) {
+    return 'there is no cap on numbers, so cancelling never counts against you — a quick cancel on this page still helps the host plan.'
+  }
+  const h = cancelCutoffHours(event)
+  return `cancel on this page more than ${h} ${h === 1 ? 'hour' : 'hours'} before the start so someone on the waitlist can take your spot. Inside that window it counts like not coming.`
 }

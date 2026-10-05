@@ -77,7 +77,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
   // Nor the contact details: rewriting where the money goes is not a
   // moderation action, the owner is never told, and this route writes no
-  // audit row. Staff fix a title or a neighbourhood; a seller owns how they
+  // audit row. Staff fix a title or a neighborhood; a seller owns how they
   // are reached.
   if (isCityModerator && (contactChanged || contactEmailChanged)) {
     return NextResponse.json({ error: "A listing's contact details are the seller's — ask them to change it" }, { status: 403 })

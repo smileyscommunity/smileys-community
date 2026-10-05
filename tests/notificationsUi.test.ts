@@ -206,7 +206,7 @@ describe('timestamps follow the city clock', () => {
   })
 })
 
-// Source pins: these are behaviours of components, and the suite runs without a
+// Source pins: these are behaviors of components, and the suite runs without a
 // DOM. They'd each be a regression someone could reintroduce in one line.
 const src = (p: string) => readFileSync(join(process.cwd(), p), 'utf8')
 

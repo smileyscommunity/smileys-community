@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/standingRead', () => ({ redCardBlocksSeat: vi.fn(async () => false), standingLevelsFor: vi.fn(async () => new Map()), standingLevelFor: vi.fn(async () => 'good') }))
 vi.mock('@/lib/session', () => ({ getSession: vi.fn() }))
-vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn().mockResolvedValue(true) }))
+vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn().mockResolvedValue(true), claimOnce: vi.fn().mockResolvedValue(true), releaseClaim: vi.fn() }))
 vi.mock('@/lib/access',  () => ({ isAdmin: vi.fn(), isClubHost: vi.fn(), canManageEventOps: vi.fn().mockResolvedValue(true) }))
 vi.mock('@/lib/notify',  () => ({ createNotification: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('@/lib/email',   () => ({ sendEventApprovedEmail: vi.fn().mockResolvedValue(undefined), sendEventRejectedEmail: vi.fn().mockResolvedValue(undefined), recordEmailFailure: vi.fn() }))
@@ -22,7 +22,7 @@ vi.mock('@/lib/prisma', () => ({ prisma: {
   user:          { findUnique: vi.fn() },
   eventAttendee: { findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn(), create: vi.fn(), count: vi.fn() },
   waitlistEntry: { findUnique: vi.fn(), delete: vi.fn(), deleteMany: vi.fn(), upsert: vi.fn() },
-  payment:       { findMany: vi.fn(), findFirst: vi.fn(), update: vi.fn(), create: vi.fn(), updateMany: vi.fn() },
+  payment:       { findMany: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn(), create: vi.fn(), updateMany: vi.fn() },
   paymentLog:    { create: vi.fn(), createMany: vi.fn() },
 } }))
 
@@ -260,11 +260,15 @@ describe('participants PATCH markPaid', () => {
 
     it('flips an existing pending payment to paid and logs pending → paid', async () => {
       p.payment.findFirst.mockResolvedValue({ id: 'pay1', status: 'pending' })
-      p.payment.update.mockResolvedValue({ id: 'pay1', status: 'paid' })
+      // A compare-and-set through lib/paymentStatus (2026-09-27): only while still pending.
+      p.payment.updateMany.mockResolvedValue({ count: 1 })
+      p.payment.findUnique.mockResolvedValue({ id: 'pay1', status: 'paid' })
       const res = await PATCH(req({ userId: 'u1', action: 'markPaid' }), params)
       expect(res.status).toBe(200)
       expect(p.payment.findFirst.mock.calls[0][0].where).toEqual({ userId: 'u1', eventId: 'e1', status: { in: ['pending', 'paid'] } })
-      expect(p.payment.update).toHaveBeenCalledWith({ where: { id: 'pay1' }, data: { status: 'paid' } })
+      expect(p.payment.updateMany).toHaveBeenCalledWith({ where: { id: 'pay1', status: 'pending' }, data: { status: 'paid', paidAt: expect.any(Date) } })
+      // …and it is audited now, like a change from /admin/payments.
+      expect(writeAudit).toHaveBeenCalledWith('a1', 'Admin', 'payment.status', 'pay1', 'payment', expect.objectContaining({ from: 'pending', to: 'paid' }), expect.any(String))
       expect(p.paymentLog.create.mock.calls[0][0].data).toMatchObject({ paymentId: 'pay1', adminId: 'a1', fromStatus: 'pending', toStatus: 'paid' })
       expect(p.payment.create).not.toHaveBeenCalled()
     })
@@ -283,7 +287,7 @@ describe('participants PATCH markPaid', () => {
       const res = await PATCH(req({ userId: 'u1', action: 'markPaid' }), params)
       expect(res.status).toBe(200)
       expect(p.payment.create).toHaveBeenCalledWith({
-        data: { userId: 'u1', eventId: 'e1', amount: 300, currency: 'TRY', status: 'paid', method: 'manual' },
+        data: { userId: 'u1', eventId: 'e1', amount: 300, currency: 'TRY', status: 'paid', method: 'manual', paidAt: expect.any(Date) },
       })
       expect(p.paymentLog.create.mock.calls[0][0].data).toMatchObject({ paymentId: 'new1', fromStatus: null, toStatus: 'paid' })
     })

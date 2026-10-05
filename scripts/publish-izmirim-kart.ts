@@ -57,7 +57,7 @@ async function main() {
     data: {
       title:       'İzmirim Kart: The Only Ticket That Matters',
       slug:        SLUG,
-      excerpt:     "One contactless card covers İzmir's metro, tram, İZBAN commuter rail, ferries, ESHOT buses and the Balçova cable car — plus a 90-minute free transfer window that most newcomers never realise they are entitled to.",
+      excerpt:     "One contactless card covers İzmir's metro, tram, İZBAN commuter rail, ferries, ESHOT buses and the Balçova cable car — plus a 90-minute free transfer window that most newcomers never realize they are entitled to.",
       body:        BODY,
       status:      'published',
       category:    'Getting Around',

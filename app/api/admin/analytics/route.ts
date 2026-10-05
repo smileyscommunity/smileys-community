@@ -5,7 +5,9 @@ import { getSession } from '@/lib/session'
 import { canViewAnalytics } from '@/lib/access'
 import { getCached, setCached } from '@/lib/analyticsCache'
 import { todayInCity, resolveCityId } from '@/lib/city'
-import { COMMUNITY_MEMBER_WHERE, MEMBER_ROLE_FILTER } from '@/lib/memberCount'
+import { MEMBER_ROLE_FILTER } from '@/lib/memberCount'
+import { DEFAULT_CURRENCY } from '@/lib/data'
+import { roundMoney } from '@/lib/money'
 
 const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
 
@@ -29,7 +31,7 @@ export async function GET(req: NextRequest) {
 
     // ?city=<id> scopes every metric to one city; omitted = network-wide
     // (the historical view). Validated so a bad id can't render a page of
-    // zeros labelled as a real city.
+    // zeros labeled as a real city.
     const cityParam = req.nextUrl.searchParams.get('city')
     const city = cityParam
       ? await prisma.city.findUnique({ where: { id: cityParam }, select: { id: true, name: true, slug: true } })
@@ -61,7 +63,6 @@ export async function GET(req: NextRequest) {
     const today = await todayInCity(cityId ?? await resolveCityId(session))
     const day30 = new Date(now.getTime() - 30 * 86400000)
     const day60 = new Date(now.getTime() - 60 * 86400000)
-    const day90 = new Date(now.getTime() - 90 * 86400000)
     const periodStart = new Date(now.getFullYear(), now.getMonth() - (numMonths - 1), 1)
 
     // Month labels for selected period
@@ -78,7 +79,7 @@ export async function GET(req: NextRequest) {
     const [
       allUsers, allApps, allEvents, allAttendees, allPayments, allReports,
       topEventsRaw, topClubs,
-      activeAttendees, dormantMembers, repeatRsvpData,
+      activeAttendees, repeatRsvpData,
       memberNeighborhoods, eventNeighborhoods, attendedEventTags,
       revenueByClubRaw, refundsByHostRaw,
       hangoutsInPeriod, referencesInPeriod,
@@ -105,7 +106,7 @@ export async function GET(req: NextRequest) {
       }),
       prisma.payment.findMany({
         where: { ...viaEvent },
-        select: { status: true, amount: true, createdAt: true },
+        select: { status: true, amount: true, currency: true, createdAt: true, paidAt: true },
       }),
       prisma.report.groupBy({ by: ['status'], where: { ...reportedCity }, _count: true }),
       prisma.event.findMany({
@@ -129,22 +130,9 @@ export async function GET(req: NextRequest) {
         select: { userId: true },
         distinct: ['userId'],
       }),
-      // Dormant members: activated community members (every role but
-      // admin/partner — hosts were dropped before) with no event attendance in
-      // 90+ days. Activated, because someone who never set a password didn't go
-      // quiet, they never arrived — they're the admin stats "not activated" gap.
-      prisma.user.findMany({
-        where: {
-          ...COMMUNITY_MEMBER_WHERE,
-          joinedEvents: {
-            none: { joinedAt: { gte: day90 }, status: 'approved' },
-          },
-          ...userCity,
-        },
-        select: { id: true, name: true, joinedAt: true, interests: true, neighborhood: true },
-        orderBy: { joinedAt: 'asc' },
-        take: 20,
-      }),
+      // "Dormant" is Retention's (/api/admin/retention): one definition, one
+      // list. This tab's own 90-day version (capped at 20, so its count was
+      // too) sat on the same screen as Retention's 60-day one.
       // Repeat RSVP rate: users with more than 1 RSVP vs total unique attendees
       prisma.eventAttendee.groupBy({
         by: ['userId'],
@@ -172,7 +160,7 @@ export async function GET(req: NextRequest) {
       prisma.payment.findMany({
         where: { status: 'paid', ...viaEvent },
         select: {
-          amount: true,
+          amount: true, currency: true,
           event: { select: { clubId: true, club: { select: { name: true, emoji: true } } } },
         },
       }),
@@ -181,7 +169,7 @@ export async function GET(req: NextRequest) {
         where: { status: { in: ['paid', 'refunded'] }, ...viaEvent },
         select: {
           status: true,
-          amount: true,
+          amount: true, currency: true,
           event: {
             select: {
               hostId: true,
@@ -251,7 +239,7 @@ export async function GET(req: NextRequest) {
       // not activation: a ban can land on an account that never activated.
       // Roles per MEMBER_ROLE_FILTER (hosts count), like admin stats.
       prisma.user.count({ where: { status: 'approved', role: MEMBER_ROLE_FILTER, ...userCity } }),
-    ]) as [any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], number]
+    ]) as [any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], number]
 
     // ── Members ──────────────────────────────────────────────────────────────
     const approved = allUsers.filter((u: any) => u.status === 'approved')
@@ -319,16 +307,30 @@ export async function GET(req: NextRequest) {
     }
 
     // ── Revenue ───────────────────────────────────────────────────────────────
-    const paid     = allPayments.filter(p => p.status === 'paid')
-    const pending  = allPayments.filter(p => p.status === 'pending')
-    const refunded = allPayments.filter(p => p.status === 'refunded')
-    const revenueCollected = paid.reduce((s, p) => s + p.amount, 0)
-    const revenuePending   = pending.reduce((s, p) => s + p.amount, 0)
-    const revenueRefunded  = refunded.reduce((s, p) => s + p.amount, 0)
+    // One currency per report. Every figure below was a plain sum across
+    // currencies — lira and euros added into one number (the page could only
+    // print it bare, "mixed currencies"). The report now runs in the scope's
+    // main currency (most paid revenue) and names what it left out.
+    const curOf = (p: { currency: string | null }) => p.currency ?? DEFAULT_CURRENCY
+    const paidByCur = new Map<string, number>()
+    for (const p of allPayments) if (p.status === 'paid') paidByCur.set(curOf(p), (paidByCur.get(curOf(p)) ?? 0) + p.amount)
+    const revenueCurrency = [...paidByCur.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]
+      ?? (allPayments[0] ? curOf(allPayments[0]) : DEFAULT_CURRENCY)
+    const revenueOtherCurrencies = [...paidByCur.entries()]
+      .filter(([c]) => c !== revenueCurrency)
+      .map(([currency, collected]) => ({ currency, collected: roundMoney(collected) }))
+    const inRevCur = (p: { currency: string | null }) => curOf(p) === revenueCurrency
+    const paid     = allPayments.filter(p => p.status === 'paid'     && inRevCur(p))
+    const pending  = allPayments.filter(p => p.status === 'pending'  && inRevCur(p))
+    const refunded = allPayments.filter(p => p.status === 'refunded' && inRevCur(p))
+    const revenueCollected = roundMoney(paid.reduce((s, p) => s + p.amount, 0))
+    const revenuePending   = roundMoney(pending.reduce((s, p) => s + p.amount, 0))
+    const revenueRefunded  = roundMoney(refunded.reduce((s, p) => s + p.amount, 0))
 
     const revenueByMonth = emptyMonths()
     for (const p of paid) {
-      const d = new Date(p.createdAt)
+      // The month it was paid in (paidAt), falling back to the row's date.
+      const d = new Date(p.paidAt ?? p.createdAt)
       if (d < periodStart) continue
       const key = d.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' })
       if (key in revenueByMonth) revenueByMonth[key] += p.amount
@@ -343,7 +345,7 @@ export async function GET(req: NextRequest) {
     const clubRevMap: Record<string, { name: string; emoji: string; revenue: number; payments: number }> = {}
     for (const p of revenueByClubRaw) {
       const clubId = p.event.clubId
-      if (!clubId) continue
+      if (!clubId || !inRevCur(p)) continue
       if (!clubRevMap[clubId]) clubRevMap[clubId] = { name: p.event.club?.name ?? clubId, emoji: p.event.club?.emoji ?? '⬡', revenue: 0, payments: 0 }
       clubRevMap[clubId].revenue   += p.amount
       clubRevMap[clubId].payments  += 1
@@ -359,8 +361,10 @@ export async function GET(req: NextRequest) {
       const hostId = p.event.hostId
       if (!hostId) continue
       if (!hostRefundMap[hostId]) hostRefundMap[hostId] = { hostId, clubName: p.event.club?.name ?? '—', paid: 0, refunded: 0, refundedAmount: 0, paidAmount: 0 }
-      if (p.status === 'paid')     { hostRefundMap[hostId].paid++;     hostRefundMap[hostId].paidAmount     += p.amount }
-      if (p.status === 'refunded') { hostRefundMap[hostId].refunded++; hostRefundMap[hostId].refundedAmount += p.amount }
+      // Counts across every currency (a refund rate is a ratio of payments);
+      // amounts only in the report's currency.
+      if (p.status === 'paid')     { hostRefundMap[hostId].paid++;     if (inRevCur(p)) hostRefundMap[hostId].paidAmount     += p.amount }
+      if (p.status === 'refunded') { hostRefundMap[hostId].refunded++; if (inRevCur(p)) hostRefundMap[hostId].refundedAmount += p.amount }
     }
 
     // Enrich with host names
@@ -436,7 +440,6 @@ export async function GET(req: NextRequest) {
     // ── Engagement ────────────────────────────────────────────────────────────
     const activeMemberCount  = activeAttendees.length
     const activeMemberRate   = approved.length > 0 ? Math.round((activeMemberCount / approved.length) * 100) : 0
-    const dormantCount       = dormantMembers.length
     const totalUniqueRsvpers = repeatRsvpData.length
     const repeatRsvpers      = repeatRsvpData.filter(r => r._count.userId > 1).length
     const repeatRsvpRate     = totalUniqueRsvpers > 0 ? Math.round((repeatRsvpers / totalUniqueRsvpers) * 100) : 0
@@ -511,7 +514,7 @@ export async function GET(req: NextRequest) {
       JOIN users u ON u.id = r."userId"
       WHERE true ${sqlUserCity}`
 
-    // Fair conversion + a time-normalised cut. Members shown the block last week
+    // Fair conversion + a time-normalized cut. Members shown the block last week
     // haven't had the same chance to convert as ones shown in July, so `matured`
     // restricts to members whose first rec is ≥14 days old and asks whether they
     // RSVP'd inside their own 14-day window — the only rate comparable over time.
@@ -674,14 +677,9 @@ export async function GET(req: NextRequest) {
       engagement: {
         activeMemberCount,
         activeMemberRate,
-        dormantCount,
         repeatRsvpRate,
         totalUniqueRsvpers,
         repeatRsvpers,
-        dormantMembers: dormantMembers.map(u => ({
-          id: u.id, name: u.name, joinedAt: u.joinedAt,
-          interests: u.interests ?? [], neighborhood: u.neighborhood ?? null,
-        })),
       },
       applications: {
         total: allApps.length, approved: appApproved, rejected: appRejected,
@@ -698,7 +696,11 @@ export async function GET(req: NextRequest) {
       },
       revenue: {
         collected: revenueCollected, pending: revenuePending, refunded: revenueRefunded,
-        byMonth: Object.values(revenueByMonth),
+        byMonth: Object.values(revenueByMonth).map(roundMoney),
+        // The currency every revenue figure here is in, and paid revenue in
+        // any other currency the scope has (named on the page, not summed).
+        currency: revenueCurrency,
+        otherCurrencies: revenueOtherCurrencies,
       },
       reports: { pending: reportPending, actioned: reportActioned, dismissed: reportDismissed },
       topEvents: topEventsRaw.map(e => ({

@@ -41,7 +41,7 @@ function NewVisitingPageInner() {
   const viewerCity    = useCurrentCity()?.slug
   const [neighborhoods, setNeighborhoods] = useState<string[]>([])
   const [loadError,    setLoadError]    = useState('')
-  // The edited visit's neighbourhood, applied once that city's options have loaded.
+  // The edited visit's neighborhood, applied once that city's options have loaded.
   const pendingNeighborhood = useRef<string | null>(null)
   const [existingId,   setExistingId]   = useState<string | null>(null)
 
@@ -84,13 +84,23 @@ function NewVisitingPageInner() {
       .then((rows: PublicCity[]) => {
         const live = rows.filter(c => c.status === 'live')
         setCities(live)
-        // The city asked for, else the viewer's own — never Istanbul by
-        // default for a member reading Izmir's page.
-        const wanted = requestedCity ?? viewerCity
-        if (!editId && wanted && live.some(c => c.slug === wanted)) setDestination(wanted)
       })
       .catch(() => {})
   }, [])
+
+  // The city asked for, else the viewer's own — never Istanbul by default
+  // for a member reading Izmir's page. Its own effect because the viewer's
+  // city is fetched too: when the cities list won that race, this used to
+  // run once with no viewer city and leave the default in place. Primed
+  // once, so a late answer can't overwrite a pick the member already made.
+  const destinationPrimed = useRef(false)
+  useEffect(() => {
+    if (destinationPrimed.current || editId) return
+    const wanted = requestedCity ?? viewerCity
+    if (!wanted || !cities.some(c => c.slug === wanted)) return
+    setDestination(wanted)
+    destinationPrimed.current = true
+  }, [cities, editId, requestedCity, viewerCity])
 
   useEffect(() => {
     // Neighborhood options follow the destination; clear a stale pick when
@@ -123,7 +133,7 @@ function NewVisitingPageInner() {
         setName(v.name ?? ''); setFromCity(v.fromCity ?? ''); setStartsOn(v.startsOn ?? ''); setEndsOn(v.endsOn ?? '')
         setIntro(v.intro ?? ''); setContact(v.contact ?? ''); setTravelerType(v.travelerType ?? '')
         setLanguages((v.languages ?? []).join(', ')); setLookingFor(v.lookingFor ?? []); setVisibility(v.visibility ?? 'members')
-        // Neighbourhood options load per destination; applied once they have.
+        // Neighborhood options load per destination; applied once they have.
         pendingNeighborhood.current = v.neighborhood ?? ''
       })
       .catch(() => setLoadError("That visit isn't yours to edit, or it's already gone."))
@@ -340,7 +350,7 @@ function NewVisitingPageInner() {
             <div className="flex justify-between gap-3 mt-1">
               {/* Said at the field, not in a footer: this is where someone
                   types "staying at the X hotel in room 4". */}
-              <p className="text-xs text-gray-500">Don&apos;t include where you&apos;re staying — a neighbourhood is plenty.</p>
+              <p className="text-xs text-gray-500">Don&apos;t include where you&apos;re staying — a neighborhood is plenty.</p>
               <p className="text-xs text-gray-400 shrink-0">{intro.length}/1000</p>
             </div>
           </div>

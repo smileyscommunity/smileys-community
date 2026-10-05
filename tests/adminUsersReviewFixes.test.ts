@@ -161,7 +161,7 @@ describe('2. Quick Edit loads and saves what it shows', () => {
       h.results['user.findUnique'] = (args: any) => args.where.id ? target({ neighborhood: 'Legacy Place' }) : null
     })
 
-    it('saves the professional fields, normalised like the member profile route', async () => {
+    it('saves the professional fields, normalized like the member profile route', async () => {
       const res = await detailPATCH(jsonReq({ industry: ' Tech ', professionalRole: 'Founder', professionalStatus: 'hiring' }), params)
       expect(res.status).toBe(200)
       expect(all('user.update')[0].data).toMatchObject({ industry: 'Tech', professionalRole: 'Founder', professionalStatus: 'hiring' })

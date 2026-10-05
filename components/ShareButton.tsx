@@ -2,15 +2,18 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { toast } from 'sonner'
+import { track } from '@/lib/analytics'
 
 interface Props {
   title: string
   url: string
   variant?: 'default' | 'overlay'
   cacheKey?: string
+  // Set on event pages: names the event in the share_click funnel event.
+  eventId?: string
 }
 
-export default function ShareButton({ title, url, variant = 'default', cacheKey }: Props) {
+export default function ShareButton({ title, url, variant = 'default', cacheKey, eventId }: Props) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -26,7 +29,12 @@ export default function ShareButton({ title, url, variant = 'default', cacheKey 
   const encodedUrl  = encodeURIComponent(shareUrl)
   const encodedText = encodeURIComponent(`${title} — ${shareUrl}`)
 
+  // Same event name and `method` the SocialShare buttons use, so shares
+  // compare across surfaces; `context` says where it happened.
+  const trackShare = (method: string) => track('share_click', { method, context: eventId ? 'event' : 'share_button', event_id: eventId ?? null, url })
+
   async function copyLink() {
+    trackShare('copy')
     try {
       await navigator.clipboard.writeText(url)
       toast.success('Link copied!')
@@ -59,7 +67,7 @@ export default function ShareButton({ title, url, variant = 'default', cacheKey 
           <a
             href={`https://wa.me/?text=${encodedText}`}
             target="_blank" rel="noopener noreferrer"
-            onClick={() => setOpen(false)}
+            onClick={() => { trackShare('whatsapp'); setOpen(false) }}
             className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors"
           >
             <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="#25D366">
@@ -72,7 +80,7 @@ export default function ShareButton({ title, url, variant = 'default', cacheKey 
           <a
             href={`https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`}
             target="_blank" rel="noopener noreferrer"
-            onClick={() => setOpen(false)}
+            onClick={() => { trackShare('facebook'); setOpen(false) }}
             className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors"
           >
             <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="#1877F2">
@@ -85,7 +93,7 @@ export default function ShareButton({ title, url, variant = 'default', cacheKey 
           <a
             href={`https://twitter.com/intent/tweet?text=${encodedText}`}
             target="_blank" rel="noopener noreferrer"
-            onClick={() => setOpen(false)}
+            onClick={() => { trackShare('x'); setOpen(false) }}
             className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors"
           >
             <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="#000">

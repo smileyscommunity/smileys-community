@@ -104,7 +104,7 @@ export default function CupPredictionsPage() {
   const [bracket,  setBracket]  = useState<BracketResponse | null>(null)
   const [loading,  setLoading]  = useState(true)
   // Bracket draft — separate from the saved bracket so the user can
-  // edit + cancel without losing the current state. Initialised
+  // edit + cancel without losing the current state. Initialized
   // from server on first load and on save.
   // Bracket draft persisted to localStorage via usePersistedState. A
   // refresh mid-edit used to drop the picks; now it survives. Cleared
@@ -235,7 +235,7 @@ export default function CupPredictionsPage() {
       setDraftSF(bracket.bracket.semifinalists)
       draftPrimedRef.current = true
     }
-  }, [bracket])
+  }, [bracket, setDraftChampion, setDraftSF])
 
   // (Draft persisting moved into usePersistedState above.)
 
@@ -414,7 +414,7 @@ export default function CupPredictionsPage() {
           community-game / no-money-flow nature explicit in both
           languages so anyone landing on the page (BTK reviewer
           included) sees the framing before the prizes section.
-          Static text, no behaviour — pure framing. */}
+          Static text, no behavior — pure framing. */}
       <DisclaimerBanner />
       {/* Countdown strip — drives urgency. Pre-kickoff shows the
           time until brackets lock. Post-kickoff shows time to the
@@ -516,7 +516,7 @@ export default function CupPredictionsPage() {
           the Rules / FAQ / Watch parties / Prizes cards. */}
       <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-6 lg:items-start">
         {/* ── Main column ───────────────────────────────────── */}
-        <main className="space-y-4 min-w-0 lg:col-start-1 lg:row-start-1">
+        <div className="space-y-4 min-w-0 lg:col-start-1 lg:row-start-1">
           {!bracketLocked && !cupFinished && accessState === 'member' && (
             <BracketCard
               bracket={bracket?.bracket ?? null}
@@ -584,7 +584,7 @@ export default function CupPredictionsPage() {
               accessState={accessState}
             />
           )}
-        </main>
+        </div>
 
         {/* ── Right sidebar — context cards ──────────────────────
             Sticky on lg+ (sits within col 2, spans both rows so
@@ -1773,7 +1773,7 @@ function computeStandings(groupLetter: string, fixtures: Fixture[]): TeamStandin
 function GroupsCard({ fixtures }: { fixtures: Fixture[] | null }) {
   const [openLetter, setOpenLetter] = useState<string | null>(null)
 
-  const safeFixtures = fixtures ?? []
+  const safeFixtures = useMemo(() => fixtures ?? [], [fixtures])
   const totalPlayed  = useMemo(
     () => safeFixtures.filter(f => f.round === 'group' && f.homeScore !== null && f.awayScore !== null).length,
     [safeFixtures],
@@ -2251,7 +2251,7 @@ function MiniRankCard({ finished = false }: { finished?: boolean }) {
 
   const yourRank = data.yourRank
   // By identity, not rank: ties share a rank, so a tied player above you
-  // matched first and the card centred on them, hiding your row.
+  // matched first and the card centered on them, hiding your row.
   const idx = data.rows.findIndex(r => r.isYou)
   // In-slice: show ±2 around your row (5 rows). Outside: top 3 +
   // pinned-you below — the pinned strip uses the same amber accent

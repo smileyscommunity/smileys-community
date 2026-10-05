@@ -254,8 +254,8 @@ export default function StoriesPage() {
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
       <div>
-        <h1 className="text-2xl font-extrabold text-white">Member Stories</h1>
-        <p className="text-sm text-zinc-400 mt-1">Manage testimonials and event photos shown on the Why Smileys page.</p>
+        <h1 className="text-2xl font-extrabold text-white">Testimonials &amp; photos</h1>
+        <p className="text-sm text-zinc-400 mt-1">Member quotes and event photos shown on the Why Smileys page. Stories and Handbook articles are under Stories &amp; Handbook.</p>
       </div>
 
       {/* Stats */}

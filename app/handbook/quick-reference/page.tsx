@@ -6,6 +6,7 @@ import { resolveCityForPage, type CitySearch } from '@/lib/cityPageParam'
 import { DEFAULT_CITY_SLUG } from '@/lib/city'
 import { APP_URL } from '@/lib/env'
 import { loadQuickReference } from '@/lib/quickReference'
+import { shareCover } from '@/lib/shareCover'
 
 // /handbook/quick-reference — the apps, official sites and practical links
 // that used to fill the bottom of the Handbook index. There it was 64% of
@@ -21,10 +22,16 @@ type Props = { searchParams?: Promise<CitySearch> }
 
 export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
   const { city } = await resolveCityForPage(searchParams)
+  const title       = `Quick reference — ${city.name} Handbook`
+  const description = `Apps, official sites and practical links for day-to-day life in ${city.name}.`
+  const url         = `${APP_URL}/handbook/quick-reference`
+  const image       = shareCover('handbook', city, `${title} — Smileys Community`)
   return {
-    title:       `Quick reference — ${city.name} Handbook | Smileys Community`,
-    description: `Apps, official sites and practical links for day-to-day life in ${city.name}.`,
-    alternates:  { canonical: `${APP_URL}/handbook/quick-reference` },
+    title:       `${title} | Smileys Community`,
+    description,
+    alternates:  { canonical: url },
+    openGraph:   { title, description, url, siteName: 'Smileys Community', type: 'website', images: [image] },
+    twitter:     { card: image.twitterCard, title, description, images: [image.url] },
   }
 }
 
@@ -35,7 +42,7 @@ export default async function QuickReferencePage({ searchParams }: Props) {
   if (categories.length === 0) redirect('/handbook')
 
   return (
-    <main className="bg-white">
+    <div className="bg-white">
       <section>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-6"><div className="max-w-3xl">
           <Link href="/handbook" className="text-xs text-amber-600 font-semibold hover:underline">← The {city.name} Handbook</Link>
@@ -57,6 +64,6 @@ export default async function QuickReferencePage({ searchParams }: Props) {
           <QuickReference categories={categories} />
         </div>
       </section>
-    </main>
+    </div>
   )
 }

@@ -13,13 +13,16 @@ import { LIFE_STAGES, articlesForStage, movingTopics, pickNeighborhoods, include
 import EventCard from '@/components/EventCard'
 import JoinCityButton from '@/components/JoinCityButton'
 import PhotoHero, { HERO_SECONDARY } from '@/components/PhotoHero'
+import HandbookPicks from '@/components/HandbookPicks'
+import { cityQs as handbookQs } from '@/lib/cityPageParam'
+import { getCityHandbookPicks } from '@/lib/cityHandbookPicks'
 import { getCityMovingHub, isDefaultCitySlug } from '../data'
 
 // /[city]/moving — "Moving to <city>": the relocation path for someone
 // building a life here. Like the remote-work hub beside it, it writes no
 // advice of its own. The timeline and topic shelf are the city's published
 // Handbook articles arranged by lib/relocation (the same stage rules the
-// Handbook's /handbook/stage pages use); neighbourhoods, events and clubs are
+// Handbook's /handbook/stage pages use); neighborhoods, events and clubs are
 // the city's live data. Anything the city lacks is left out, not promised.
 //
 // Canonical to itself in every city — there is no global duplicate.
@@ -36,7 +39,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const city = await getPublicCity(slug)
   if (!city || city.status !== CITY_STATUS.Live) return {}
   const title = `Moving to ${city.name} — Smileys Community`
-  const description = `Relocating to ${city.name}? Residence permits, housing and neighbourhoods, banking, healthcare and transport from the Smileys Handbook — and a real community to meet once you arrive.`
+  const description = `Relocating to ${city.name}? Residence permits, housing and neighborhoods, banking, healthcare and transport from the Smileys Handbook — and a real community to meet once you arrive.`
   const image = shareCover('events', city, title)
   const url = `${APP_URL}/${city.slug}/moving`
   return {
@@ -54,10 +57,11 @@ export default async function CityMovingPage({ params }: Params) {
   // A pre-launch city has no community or Handbook of its own yet.
   if (city.status !== CITY_STATUS.Live) redirect(`/${city.slug}`)
 
-  const [hub, registry, session] = await Promise.all([
+  const [hub, registry, session, handbookPicks] = await Promise.all([
     getCityMovingHub(city.id, city.country ?? null, city.timezone),
     getNeighborhoodViews(city.id),
     getSession(),
+    getCityHandbookPicks(city.id),
   ])
   // Guest redaction per request, outside the shared cache (the hub rule).
   const events = session ? await projectEventsForMember(hub.events, session) : hub.events.map(redactEventForGuest)
@@ -78,6 +82,7 @@ export default async function CityMovingPage({ params }: Params) {
   const boardHref = isDefaultCitySlug(city.slug) ? '/board' : `/${city.slug}/board`
   const clubsHref = isDefaultCitySlug(city.slug) ? '/clubs' : `/${city.slug}/clubs`
   const eventsHref = `/${city.slug}/events`
+  const hostsHref  = isDefaultCitySlug(city.slug) ? '/hosts' : `/${city.slug}/hosts`
 
   return (
     <>
@@ -95,7 +100,7 @@ export default async function CityMovingPage({ params }: Params) {
           and build a real social life once you arrive.
         </p>
         <div className="flex flex-col sm:flex-row gap-3">
-          <JoinCityButton slug={city.slug} name={city.name} />
+          <JoinCityButton slug={city.slug} name={city.name} guest={!session} />
           <Link href={`/handbook${cityQs}`} className={HERO_SECONDARY}>Read the Handbook</Link>
         </div>
       </PhotoHero>
@@ -120,7 +125,7 @@ export default async function CityMovingPage({ params }: Params) {
                     <ul className="space-y-1.5 text-sm flex-1">
                       {articles.slice(0, ARTICLES_PER_STAGE).map(a => (
                         <li key={a.slug}>
-                          <Link href={`/handbook/${a.slug}`} className="font-semibold text-gray-900 hover:text-amber-700">{a.title}</Link>
+                          <Link href={`/handbook/${a.slug}${handbookQs(city.slug)}`} className="font-semibold text-gray-900 hover:text-amber-700">{a.title}</Link>
                         </li>
                       ))}
                     </ul>
@@ -141,7 +146,7 @@ export default async function CityMovingPage({ params }: Params) {
               <p className="text-sm text-gray-600 leading-relaxed mb-3">Paperwork done — now the part that makes a city home: people.</p>
               <ul className="space-y-1.5 text-sm flex-1">
                 <li><Link href="#build-your-life" className="font-semibold text-gray-900 hover:text-amber-700">Events, clubs and hosts</Link></li>
-                <li><Link href={`/neighborhoods${cityQs}`} className="font-semibold text-gray-900 hover:text-amber-700">Your neighbourhood&apos;s people</Link></li>
+                <li><Link href={`/neighborhoods${cityQs}`} className="font-semibold text-gray-900 hover:text-amber-700">Your neighborhood&apos;s people</Link></li>
                 <li><Link href={boardHref} className="font-semibold text-gray-900 hover:text-amber-700">The community board</Link></li>
               </ul>
             </li>
@@ -154,7 +159,7 @@ export default async function CityMovingPage({ params }: Params) {
                   {urgent.slice(0, 2).map((a, i) => (
                     <span key={a.slug}>
                       {i > 0 && ' · '}
-                      <Link href={`/handbook/${a.slug}`} className="font-semibold text-red-800 hover:underline">{a.title}</Link>
+                      <Link href={`/handbook/${a.slug}${handbookQs(city.slug)}`} className="font-semibold text-red-800 hover:underline">{a.title}</Link>
                     </span>
                   ))}
                 </p>
@@ -167,16 +172,60 @@ export default async function CityMovingPage({ params }: Params) {
         </div>
       </section>
 
+      {/* ── Read before you move ─────────────────────────────────────── */}
+      {/* The city's Expats series (lib/relocation EXPAT_STORY_CATEGORY), in
+          reading order. Hidden until the city has one. */}
+      {hub.stories.length > 0 && (
+        <section id="stories" aria-labelledby="stories-title" className="py-12 sm:py-16 bg-gray-50 border-t border-gray-100 scroll-mt-20">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="mb-8">
+              <h2 id="stories-title" className="section-title">Read before you move</h2>
+              <p className="section-subtitle max-w-2xl">
+                What living in {city.name} is actually like, before and after you arrive. Best read in order; each one links to the next.
+              </p>
+            </div>
+            <ol className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {hub.stories.map(story => (
+                <li key={story.slug}>
+                  <Link href={`/posts/${story.slug}`}
+                    className="group h-full flex flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm hover:border-amber-200 hover:shadow-md transition-all">
+                    {story.cover && (
+                      // Absolute image: an aspect-ratio box grows to fit a portrait cover.
+                      <div className="relative aspect-[16/9] overflow-hidden bg-gray-100">
+                        <img src={story.cover} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+                      </div>
+                    )}
+                    <div className="p-5 flex flex-col flex-1">
+                      <h3 className="font-bold text-gray-900 leading-snug group-hover:text-amber-700 transition-colors">{story.title}</h3>
+                      {story.excerpt && <p className="mt-2 text-sm text-gray-600 leading-relaxed line-clamp-3 flex-1">{story.excerpt}</p>}
+                      <span className="mt-4 text-sm font-bold text-amber-700 group-hover:text-amber-800">
+                        Read <span aria-hidden="true">→</span>
+                      </span>
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ol>
+            {hub.storyTotal > hub.stories.length && (
+              <p className="mt-6 text-sm text-gray-600">
+                And {hub.storyTotal - hub.stories.length} more — the last one here links on to the next.
+              </p>
+            )}
+          </div>
+        </section>
+      )}
+
       {/* ── Practical topics ─────────────────────────────────────────── */}
       {topics.length > 0 && (
-        <section aria-labelledby="topics-title" className="py-12 sm:py-16 bg-gray-50 border-t border-gray-100">
+        <section aria-labelledby="topics-title" className="py-12 sm:py-16 bg-white border-t border-gray-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="mb-8">
               <h2 id="topics-title" className="section-title">The practical side</h2>
               <p className="section-subtitle max-w-2xl">
-                Member-written guides from the {city.name} Handbook. Where a guide links official sources, those are the requirements; the rest is lived experience.
+                Guides from the {city.name} Handbook, written by the Smileys team. Where a guide links official sources, those are the requirements; the rest is lived experience.
               </p>
             </div>
+            <HandbookPicks citySlug={city.slug} picks={handbookPicks} className="mb-8" />
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {topics.map(t => {
                 const lead = t.articles[0]
@@ -202,16 +251,16 @@ export default async function CityMovingPage({ params }: Params) {
         </section>
       )}
 
-      {/* ── Find your neighbourhood ──────────────────────────────────── */}
+      {/* ── Find your neighborhood ──────────────────────────────────── */}
       {neighborhoods.length > 0 && (
-        <section aria-labelledby="hoods-title" className="py-12 sm:py-16 bg-white border-t border-gray-100">
+        <section aria-labelledby="hoods-title" className="py-12 sm:py-16 bg-gray-50 border-t border-gray-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="mb-8">
-              <h2 id="hoods-title" className="section-title">Find your neighbourhood</h2>
+              <h2 id="hoods-title" className="section-title">Find your neighborhood</h2>
               <p className="section-subtitle max-w-2xl">
                 {hub.memberCounts.length > 0
                   ? `Where Smileys members in ${city.name} live, and where things are happening.`
-                  : `Some of ${city.name}'s neighbourhoods to start with.`}
+                  : `Some of ${city.name}'s neighborhoods to start with.`}
               </p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -235,14 +284,14 @@ export default async function CityMovingPage({ params }: Params) {
               ))}
             </div>
             <Link href={`/neighborhoods${cityQs}`} className="inline-block mt-8 text-sm font-bold text-amber-700 hover:text-amber-800">
-              Explore all {city.name} neighbourhoods <span aria-hidden="true">→</span>
+              Explore all {city.name} neighborhoods <span aria-hidden="true">→</span>
             </Link>
           </div>
         </section>
       )}
 
       {/* ── Build your life here ─────────────────────────────────────── */}
-      <section id="build-your-life" aria-labelledby="build-title" className="py-12 sm:py-16 bg-gray-50 border-t border-gray-100 scroll-mt-20">
+      <section id="build-your-life" aria-labelledby="build-title" className="py-12 sm:py-16 bg-white border-t border-gray-100 scroll-mt-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="mb-8">
             <h2 id="build-title" className="section-title">Build your life here</h2>
@@ -289,7 +338,7 @@ export default async function CityMovingPage({ params }: Params) {
                 {hub.clubCount > 0 ? `${hub.clubCount} active club${hub.clubCount === 1 ? '' : 's'} — hiking, language, food, film and more.` : 'Interest groups that meet regularly.'}
               </p>
             </Link>
-            <Link href="/hosts" className="group bg-white border border-gray-100 rounded-2xl p-5 hover:border-amber-200 hover:shadow-md transition-all">
+            <Link href={hostsHref} className="group bg-white border border-gray-100 rounded-2xl p-5 hover:border-amber-200 hover:shadow-md transition-all">
               <div aria-hidden="true" className="text-2xl mb-2">🙋</div>
               <h3 className="font-bold text-gray-900 group-hover:text-amber-700">Meet the hosts</h3>
               <p className="text-sm text-gray-600 mt-1">The members who run events and clubs.</p>
@@ -350,18 +399,18 @@ export default async function CityMovingPage({ params }: Params) {
 
       {/* ── Final CTA ────────────────────────────────────────────────── */}
       <section className="py-14 sm:py-20 bg-gradient-to-b from-white to-amber-50 border-t border-gray-100">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 text-center">
           <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight text-gray-900 mb-4">
             Arrive knowing people.
           </h2>
-          <p className="text-lg text-gray-600 mb-8">
+          <p className="text-lg text-gray-600 mb-8 max-w-3xl mx-auto">
             Joining is free. You only pay for events you choose, and the price is shown before you RSVP.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center flex-wrap">
-            <JoinCityButton slug={city.slug} name={city.name} />
-            <Link href={`/handbook${cityQs}`} className="btn-secondary text-base px-6 py-4">Read the Handbook</Link>
-            <Link href={`/neighborhoods${cityQs}`} className="btn-secondary text-base px-6 py-4">Explore neighbourhoods</Link>
-            <Link href={eventsHref} className="btn-secondary text-base px-6 py-4">See upcoming events</Link>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center flex-wrap lg:flex-nowrap lg:whitespace-nowrap">
+            <JoinCityButton slug={city.slug} name={city.name} guest={!session} />
+            <Link href={`/handbook${cityQs}`} className="btn-secondary text-base px-5 py-4">Read the Handbook</Link>
+            <Link href={`/neighborhoods${cityQs}`} className="btn-secondary text-base px-5 py-4">Explore neighborhoods</Link>
+            <Link href={eventsHref} className="btn-secondary text-base px-5 py-4">See upcoming events</Link>
           </div>
         </div>
       </section>

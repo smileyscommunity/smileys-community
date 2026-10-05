@@ -19,7 +19,7 @@ export const INTERESTS = [
   { value: 'games',      label: 'Games / Trivia',        emoji: '🎲' },
   { value: 'outdoor',    label: 'Outdoor Activities',    emoji: '🚶' },
   // Added 2026-08-22: the interests backfill showed ~300 members whose
-  // free-text answers clustered creative (Film, Art, Photography, Theatre,
+  // free-text answers clustered creative (Film, Art, Photography, Theater,
   // Writing, Reading, Music…) with no canonical home. Maps to the
   // Creative/Cultural/Film/Music/Books event tags.
   { value: 'creative',   label: 'Arts & Creative',       emoji: '🎨' },

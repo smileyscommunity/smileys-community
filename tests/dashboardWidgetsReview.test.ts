@@ -95,7 +95,7 @@ describe('review reminder snooze', () => {
     expect(parseDismissedIds('{"a":1}')).toEqual([])
     expect(parseDismissedIds('["e1",2,"e2"]')).toEqual(['e1', 'e2'])
   })
-  it('"Maybe later" snoozes; ✕ dismisses the event and is labelled', () => {
+  it('"Maybe later" snoozes; ✕ dismisses the event and is labeled', () => {
     const src = read('components/ReviewReminder.tsx')
     expect(src).toMatch(/onClick=\{handleSnooze\}[\s\S]{0,200}Maybe later/)
     expect(src).toMatch(/onClick=\{handleDismiss\}[\s\S]{0,80}aria-label=\{`Don't ask again about \$\{next\.title\}`\}/)
@@ -155,7 +155,7 @@ describe('dashboard widget source guards', () => {
   })
   it('first-event block says "next" to members who already have an RSVP', () => {
     expect(read('app/api/first-event/route.ts')).toMatch(/returning: !!rsvp/)
-    expect(read('components/FirstEventBlock.tsx')).toMatch(/state\.returning \? '👋 Your next event' : '👋 Your first event'/)
+    expect(read('components/FirstEventBlock.tsx')).toMatch(/state\.returning \? 'Your next event' : 'Your first event'/)
   })
   it('testimonial prompt names the home city, not the viewed one', () => {
     const src = read('components/TestimonialPrompt.tsx')

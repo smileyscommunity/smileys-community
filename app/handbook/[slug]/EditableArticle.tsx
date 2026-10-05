@@ -1,10 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import dynamic from 'next/dynamic'
 import { confirmToast } from '@/lib/confirmToast'
+import ReviewChip from '@/components/ReviewChip'
+import { previewUrl } from '@/lib/data'
 
 // TipTap is heavy — lazy-load it so anonymous handbook readers never pay
 // for the editor bundle; it only downloads when a staff member edits.
@@ -27,24 +29,20 @@ const RichTextEditor = dynamic(() => import('@/components/RichTextEditor'), {
 // guest never downloads the unsanitized source of every article they read.
 interface Props {
   id:            string
+  slug:          string          // the compare link in the conflict notice
   title:         string
   excerpt:       string | null
   sanitizedBody: string   // server-sanitized HTML for the read view
   // The article's city; null = national/global. Drives the moderator gate.
   cityId:        string | null
-  // The raw stored value, round-tripped verbatim through the save PUT so an
-  // inline edit never silently rewrites a legacy category key.
-  category:      string
   // The canonical display label for that category (may differ from `category`
   // while legacy rows are still stored under their old keys).
   categoryLabel: string
   catCls:        string
-  // Resolved to a servable URL for rendering only. The PUT must round-trip
-  // the RAW stored value (coverImageRaw) — the resolved URL would fail the
-  // server's cover-path check and the save with it.
+  // Resolved to a servable URL for rendering only. The save PUT round-trips
+  // the RAW stored value from the admin row (`loaded`) — the resolved URL
+  // would fail the server's cover-path check and the save with it.
   coverImage:    string | null
-  coverImageRaw: string | null
-  status:        string
   // Already projected for the viewer on the server — render as-is.
   byline:        { name: string; color: string }
   // Already formatted server-side in the city's timezone ("Published 30
@@ -79,6 +77,10 @@ export default function EditableArticle(props: Props) {
   const [loadingEdit, setLoadingEdit] = useState(false)
   const [saving, setSaving]   = useState(false)
   const [reviewing, setReviewing] = useState(false)
+  // The read view after a save used to show the OLD text for a beat: edit
+  // mode closed at once and the server re-render arrived later. Closing it
+  // inside the refresh transition makes both land together.
+  const [refreshing, startRefresh] = useTransition()
 
   // Edit form state — only meaningful while editing; seeded from the admin
   // API row each time edit mode opens, so it always reflects the latest
@@ -86,6 +88,18 @@ export default function EditableArticle(props: Props) {
   const [title, setTitle]     = useState(props.title)
   const [excerpt, setExcerpt] = useState(props.excerpt ?? '')
   const [body, setBody]       = useState('')
+  // The rest of the row as loaded — the fields this editor doesn't show
+  // (cover, status, and the category key verbatim, so an inline edit never
+  // silently rewrites a legacy key) are round-tripped from HERE, not from the
+  // page props: the page render can be minutes behind (article cache), so
+  // props would put back a cover or status someone changed since. updatedAt
+  // is the version the PUT checks (409 if the article was saved elsewhere
+  // after edit mode opened).
+  const [loaded, setLoaded]   = useState<{ coverImage: string | null; status: string; category: string; updatedAt: string } | null>(null)
+  // Set when a save hit 409: the article was saved elsewhere after edit mode
+  // opened. The typed text stays; the row's version is re-read so a second,
+  // explicit "Save anyway" wins the version check instead of 409ing again.
+  const [conflict, setConflict] = useState(false)
 
   useEffect(() => {
     fetch('/app/api/auth/me')
@@ -116,6 +130,7 @@ export default function EditableArticle(props: Props) {
       setTitle(typeof d.title === 'string' ? d.title : props.title)
       setExcerpt(typeof d.excerpt === 'string' ? d.excerpt : (props.excerpt ?? ''))
       setBody(typeof d.body === 'string' ? d.body : '')
+      setLoaded({ coverImage: d.coverImage ?? null, status: d.status, category: d.category, updatedAt: d.updatedAt })
       setEditing(true)
     } catch {
       toast.error('Network error — could not load the article for editing')
@@ -126,6 +141,7 @@ export default function EditableArticle(props: Props) {
 
   async function save() {
     if (!title.trim() || !body.trim()) { toast.error('Title and body are required'); return }
+    if (!loaded) return
     setSaving(true)
     try {
       const res = await fetch(`/app/api/admin/posts/${props.id}`, {
@@ -138,19 +154,35 @@ export default function EditableArticle(props: Props) {
           title:      title.trim(),
           excerpt:    excerpt.trim(),
           body,
-          coverImage: props.coverImageRaw,
-          status:     props.status,
-          category:   props.category,
+          coverImage: loaded.coverImage,
+          status:     loaded.status,
+          category:   loaded.category,
+          expectedUpdatedAt: loaded.updatedAt,
         }),
       })
       if (!res.ok) {
         const d = await res.json().catch(() => ({}))
+        if (res.status === 409) {
+          // Saved elsewhere since edit mode opened. Every retry 409'd
+          // before, because the version we sent never moved; and both ways
+          // out threw the typed text away. Re-read the row's version (and
+          // the fields we round-trip), keep the text, and say so.
+          const fresh = await fetch(`/app/api/admin/posts/${props.id}`, { credentials: 'include' })
+            .then(r => (r.ok ? r.json() : null)).catch(() => null)
+          if (fresh) setLoaded({ coverImage: fresh.coverImage ?? null, status: fresh.status, category: fresh.category, updatedAt: fresh.updatedAt })
+          setConflict(true)
+          toast.error('Someone saved this article while you were editing. Your text is still here — review theirs, or save anyway to replace it.')
+          return
+        }
         toast.error(d.error ?? 'Save failed')
         return
       }
       toast.success('Article saved')
-      setEditing(false)
-      router.refresh()
+      startRefresh(() => {
+        router.refresh()
+        setConflict(false)
+        setEditing(false)
+      })
     } catch {
       toast.error('Network error — could not save')
     } finally {
@@ -190,16 +222,27 @@ export default function EditableArticle(props: Props) {
         <div className="flex items-center justify-between gap-3 mb-4 pb-4 border-b border-gray-100">
           <span className="text-xs font-bold text-amber-600 uppercase tracking-widest">Editing article</span>
           <div className="flex items-center gap-2">
-            <button onClick={() => setEditing(false)} disabled={saving}
+            <button onClick={() => { setEditing(false); setConflict(false) }} disabled={saving}
               className="px-3 py-1.5 text-sm font-semibold text-gray-500 hover:text-gray-700 disabled:opacity-50">
               Cancel
             </button>
-            <button onClick={save} disabled={saving}
-              className="px-4 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-bold">
-              {saving ? 'Saving…' : 'Save changes'}
+            <button onClick={save} disabled={saving || refreshing}
+              className={`px-4 py-1.5 rounded-lg disabled:opacity-50 text-white text-sm font-bold ${conflict ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-500 hover:bg-amber-600'}`}>
+              {saving || refreshing ? 'Saving…' : conflict ? 'Save anyway' : 'Save changes'}
             </button>
           </div>
         </div>
+
+        {conflict && (
+          <div className="mb-4 flex items-start gap-2 rounded-xl bg-red-50 border border-red-200 px-3 py-2.5 text-xs text-red-800">
+            <span aria-hidden="true">⚠️</span>
+            <span>
+              Someone saved this article after you opened it. Your text below is untouched.{' '}
+              <a href={`/app/handbook/${props.slug}`} target="_blank" rel="noopener noreferrer" className="font-bold underline">Open their version</a>
+              {' '}in a new tab to compare, then <span className="font-bold">Save anyway</span> replaces it with yours.
+            </span>
+          </div>
+        )}
 
         {!props.coverImage && (
           <div className="mb-4 flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2.5 text-xs text-amber-800">
@@ -246,7 +289,7 @@ export default function EditableArticle(props: Props) {
           below names the article, so the image carries no alt text of its own. */}
       {props.coverImage && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={props.coverImage} alt="" className="w-full h-56 sm:h-72 object-cover rounded-2xl mb-8" />
+        <img src={previewUrl(props.coverImage, 1200)} alt="" className="w-full h-56 sm:h-72 object-cover rounded-2xl mb-8" />
       )}
 
       <span className={`inline-block px-2 py-1 rounded-full text-[11px] font-bold ${props.catCls}`}>{props.categoryLabel}</span>
@@ -256,7 +299,7 @@ export default function EditableArticle(props: Props) {
 
       {/* Byline + freshness share one block above the rule. The review status
           is the Handbook's trust signal, so it sits on its own line at full
-          weight rather than being buried in the grey meta text — but it stays
+          weight rather than being buried in the gray meta text — but it stays
           inside the header group, because "who wrote this and when was it last
           checked" is one question, not two. */}
       <div className="mb-8 pb-8 border-b border-gray-100">
@@ -278,17 +321,7 @@ export default function EditableArticle(props: Props) {
         {/* An article nobody has reviewed says so plainly; it never borrows
             `updatedAt` to look fresher than it is. */}
         <div className="mt-4">
-          {props.reviewText === null ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1 text-[11px] font-bold text-gray-500">
-              <span aria-hidden="true">○</span> Not yet reviewed
-            </span>
-          ) : (
-            <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold ${
-              props.reviewStale ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
-            }`}>
-              <span aria-hidden="true">{props.reviewStale ? '⏳' : '✓'}</span> {props.reviewText}
-            </span>
-          )}
+          <ReviewChip text={props.reviewText} stale={props.reviewStale} showUnreviewed />
         </div>
       </div>
 
@@ -317,8 +350,8 @@ export default function EditableArticle(props: Props) {
       )}
 
       {/* `[&_span[style]_*]:text-[color:inherit]`: a child's own class beats a
-          colour inherited from a styled span, so bold inside a coloured
-          passage would lose the colour without it. (This note used to live
+          color inherited from a styled span, so bold inside a colored
+          passage would lose the color without it. (This note used to live
           inside the className string and shipped in every article's HTML.) */}
       <div
         className="prose prose-sm sm:prose-base max-w-none

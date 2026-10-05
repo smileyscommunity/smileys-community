@@ -8,7 +8,6 @@ import CitySelect, { useAdminCities } from '@/components/admin/CitySelect'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { DEFAULT_CURRENCY, formatMoney, currencySymbol } from '@/lib/data'
 import { formatDay } from '@/lib/cityTime'
-import { toast } from 'sonner'
 
 interface Analytics {
   period: string
@@ -17,10 +16,10 @@ interface Analytics {
   banRateScoped?: boolean
   months: string[]
   members:      { total: number; newLast30: number; newPrev30: number; growthRate: number; byMonth: number[] }
-  engagement:   { activeMemberCount: number; activeMemberRate: number; dormantCount: number; repeatRsvpRate: number; totalUniqueRsvpers: number; repeatRsvpers: number; dormantMembers: { id: string; name: string; joinedAt: string; interests: string[]; neighborhood: string | null }[] }
+  engagement:   { activeMemberCount: number; activeMemberRate: number; repeatRsvpRate: number; totalUniqueRsvpers: number; repeatRsvpers: number }
   applications: { total: number; approved: number; rejected: number; pending: number; approvalRate: number | null; byMonth: number[]; topInterests: { interest: string; count: number }[] }
   events:       { total: number; published: number; past: number; upcoming: number; avgFillRate: number; totalRsvps: number; byMonth: number[]; rsvpByMonth: number[] }
-  revenue:      { collected: number; pending: number; refunded: number; byMonth: number[] }
+  revenue:      { collected: number; pending: number; refunded: number; byMonth: number[]; currency?: string; otherCurrencies?: { currency: string; collected: number }[] }
   reports:      { pending: number; actioned: number; dismissed: number }
   topEvents:    { id: string; title: string; date: string; totalSpots: number; attending: number; fillRate: number }[]
   topClubs:     { id: string; name: string; emoji: string; members: number; events: number }[]
@@ -310,13 +309,12 @@ function AnalyticsInner() {
       .map(c => (c as { currency?: string }).currency)
       .filter((x): x is string => !!x),
   ))
-  const revCur: string | null = scopedCurrencies.length === 0 ? cur : scopedCurrencies.length === 1 ? scopedCurrencies[0] : null
+  // The server now reports revenue in one currency and says which; the
+  // guess from the scoped cities is only the fallback before data arrives.
+  const revCur: string | null = data?.revenue?.currency
+    ?? (scopedCurrencies.length === 0 ? cur : scopedCurrencies.length === 1 ? scopedCurrencies[0] : null)
   const revMoney    = (n: number) => revCur ? formatMoney(n, revCur) : n.toLocaleString('en-GB')
   const revCurLabel = revCur ? ` (${currencySymbol(revCur).trim()})` : ' (mixed currencies)'
-  const [reengageId,    setReengageId]    = useState<string | null>(null)
-  const [reengageMsgs,  setReengageMsgs]  = useState<Record<string, string>>({})
-  const [reengageLoad,  setReengageLoad]  = useState<string | null>(null)
-  const [showDormant,   setShowDormant]   = useState(false)
   const [retention,     setRetention]     = useState<RetentionData | null>(null)
   const [retentionTab,  setRetentionTab]  = useState<'never' | 'dormant'>('never')
 
@@ -641,7 +639,7 @@ function AnalyticsInner() {
 
           {/* ── "Your First Event" matcher ──────────────────────────────────
               Attribution funnel for the newcomer recommendation block. Headline
-              is the time-normalised rate: of members whose first rec is ≥14 days
+              is the time-normalized rate: of members whose first rec is ≥14 days
               old, how many RSVP'd within their own 14 days. Deliberately NO
               green/red verdict — there is no control group (every zero-RSVP
               member sees the block), so the honest comparison is the monthly
@@ -663,7 +661,7 @@ function AnalyticsInner() {
                   const top = stages[0].value || 1
                   return (
                     <>
-                      {/* Headline: time-normalised conversion, no verdict */}
+                      {/* Headline: time-normalized conversion, no verdict */}
                       <div className="flex items-baseline justify-between">
                         <span className="text-xs font-semibold text-zinc-300">RSVP’d within 14 days of first rec</span>
                         <div className="flex items-baseline gap-2">
@@ -806,107 +804,25 @@ function AnalyticsInner() {
                     color={data.engagement.activeMemberRate >= 50 ? '#34d399' : data.engagement.activeMemberRate >= 25 ? '#f59e0b' : '#ef4444'}
                   />
                 </div>
+                {/* Retention's numbers, one definition (last event 60+ days ago).
+                    This card had its own 90-day list and re-engage buttons,
+                    right above Retention's list doing the same thing. */}
                 <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5">
                   <div className="flex items-start justify-between">
                     <div>
                       <div className="text-xs text-zinc-500 font-medium mb-1">Dormant members</div>
-                      <div className={`text-2xl font-extrabold ${data.engagement.dormantCount > 0 ? 'text-amber-400' : 'text-green-400'}`}>
-                        {data.engagement.dormantCount}
+                      <div className={`text-2xl font-extrabold ${(retention?.stats.dormantCount ?? 0) > 0 ? 'text-amber-400' : 'text-green-400'}`}>
+                        {retention ? retention.stats.dormantCount : '…'}
                       </div>
-                      <div className="text-xs text-zinc-500 mt-1">No attendance in 90+ days</div>
+                      <div className="text-xs text-zinc-500 mt-1">Last event 60+ days ago</div>
                     </div>
-                    {data.engagement.dormantCount > 0 && (
-                      <button onClick={() => setShowDormant(v => !v)}
+                    {(retention?.stats.dormantCount ?? 0) > 0 && (
+                      <button onClick={() => { setRetentionTab('dormant'); document.getElementById('retention-drilldown')?.scrollIntoView({ behavior: 'smooth' }) }}
                         className="text-xs px-2.5 py-2 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 font-semibold transition-colors shrink-0">
-                        {showDormant ? 'Hide' : 'Re-engage ↓'}
+                        Re-engage ↓
                       </button>
                     )}
                   </div>
-                  {showDormant && data.engagement.dormantMembers.length > 0 && (
-                    <div className="mt-3 space-y-2 border-t border-zinc-800 pt-3">
-                      {data.engagement.dormantMembers.map(m => (
-                        <div key={m.id} className="space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <span className="text-xs font-semibold text-white">{m.name}</span>
-                              {m.neighborhood && <span className="text-xs text-zinc-500 ml-1.5">{m.neighborhood}</span>}
-                              {m.interests.length > 0 && (
-                                <div className="flex flex-wrap gap-1 mt-0.5">
-                                  {m.interests.slice(0, 3).map(i => (
-                                    <span key={i} className="text-[9px] px-1.5 py-0.5 bg-zinc-800 text-zinc-500 rounded-full capitalize">{i}</span>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                            <button
-                              onClick={async () => {
-                                // Failures toast (as RetentionRow surfaces them)
-                                // instead of the button quietly doing nothing.
-                                setReengageLoad(m.id)
-                                try {
-                                  const res = await fetch('/app/api/admin/users/reengage', {
-                                    method: 'POST', credentials: 'include',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ userId: m.id }),
-                                  })
-                                  const d = await res.json().catch(() => null)
-                                  if (!res.ok || typeof d?.message !== 'string') {
-                                    toast.error(d?.error ?? 'Could not draft')
-                                    return
-                                  }
-                                  setReengageMsgs(prev => ({ ...prev, [m.id]: d.message }))
-                                  setReengageId(m.id)
-                                } catch {
-                                  toast.error('Could not draft — check your connection')
-                                } finally {
-                                  setReengageLoad(null)
-                                }
-                              }}
-                              disabled={reengageLoad === m.id}
-                              className="text-xs px-2 py-1 rounded-lg bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 border border-violet-500/20 font-semibold transition-colors shrink-0 disabled:opacity-50"
-                            >
-                              {reengageLoad === m.id ? '⏳' : reengageMsgs[m.id] ? '✦ Redraft' : '✦ Draft'}
-                            </button>
-                          </div>
-                          {reengageId === m.id && reengageMsgs[m.id] && (
-                            <div className="space-y-1.5">
-                              <textarea
-                                value={reengageMsgs[m.id]}
-                                onChange={e => setReengageMsgs(prev => ({ ...prev, [m.id]: e.target.value }))}
-                                rows={3}
-                                className="w-full px-2.5 py-2 text-xs bg-zinc-800 border border-violet-500/30 rounded-lg text-white resize-none focus:outline-none focus:ring-1 focus:ring-violet-500/50"
-                              />
-                              <button
-                                onClick={async () => {
-                                  if (!reengageMsgs[m.id]?.trim()) return
-                                  try {
-                                    const res = await fetch(`/app/api/admin/users/${m.id}`, {
-                                      method: 'PATCH', credentials: 'include',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({ _reengage: reengageMsgs[m.id] }),
-                                    })
-                                    if (!res.ok) {
-                                      const d = await res.json().catch(() => ({}))
-                                      toast.error(d?.error ?? 'Could not send')
-                                      return
-                                    }
-                                    setReengageMsgs(prev => ({ ...prev, [m.id]: '' }))
-                                    setReengageId(null)
-                                    toast.success(`Notification sent to ${m.name}`)
-                                  } catch {
-                                    toast.error('Could not send — check your connection')
-                                  }
-                                }}
-                                className="w-full py-1.5 text-xs font-semibold bg-violet-500 hover:bg-violet-600 text-white rounded-lg transition-colors"
-                              >
-                                Send notification
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
                 <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5">
                   <div className="text-xs text-zinc-500 font-medium mb-1">Repeat RSVP rate</div>
@@ -924,7 +840,7 @@ function AnalyticsInner() {
           )}
 
           {/* ── Retention drill-down — never-attended + dormant lists ───── */}
-          <section>
+          <section id="retention-drilldown" className="scroll-mt-20">
             <div className="flex items-end justify-between mb-3">
               <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Who needs a nudge</h2>
               <span className="text-xs text-zinc-600">
@@ -1398,6 +1314,11 @@ function AnalyticsInner() {
               <StatCard label="Collected"  value={revMoney(data.revenue.collected)} subColor="text-green-400" sub="Paid transactions" />
               <StatCard label="Pending"    value={revMoney(data.revenue.pending)}   subColor="text-amber-400" sub="Awaiting payment" href="/admin/payments" />
               <StatCard label="Refunded"   value={revMoney(data.revenue.refunded)}  subColor="text-zinc-400"  sub="Total refunded" />
+              {(data.revenue.otherCurrencies?.length ?? 0) > 0 && (
+                <p className="col-span-full text-xs text-zinc-500">
+                  Figures here are in {currencySymbol(data.revenue.currency ?? cur).trim()} only. Also collected: {data.revenue.otherCurrencies!.map(o => formatMoney(o.collected, o.currency)).join(', ')}.
+                </p>
+              )}
             </div>
             <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5">
               <div className="text-xs font-semibold text-zinc-400 mb-3">Revenue collected — last {periodWindowLabel(period)}{revCurLabel}</div>

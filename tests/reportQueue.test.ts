@@ -98,7 +98,7 @@ describe('the page uses all of it', () => {
     expect(src).not.toContain('{new Date(r.createdAt).toLocaleDateString()}')
   })
 
-  it('colours a report that has waited, and only while it is outstanding', () => {
+  it('colors a report that has waited, and only while it is outstanding', () => {
     expect(src).toMatch(/r\.status !== 'pending' \? '' : waitedTooLong\(r\.createdAt\)/)
   })
 })

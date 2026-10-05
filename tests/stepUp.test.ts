@@ -40,7 +40,7 @@ describe('requireStepUp', () => {
 
   it('is a no-op for everyone while the policy is off (the shipped default)', async () => {
     // The state production actually runs in. Re-imports the module against a
-    // false flag so this pins the disabled behaviour rather than assuming it.
+    // false flag so this pins the disabled behavior rather than assuming it.
     vi.resetModules()
     vi.doMock('@/lib/totpPolicy', () => ({ ADMIN_2FA_REQUIRED: false }))
     const { requireStepUp: unenforced } = await import('@/lib/stepUp')

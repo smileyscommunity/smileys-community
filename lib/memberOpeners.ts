@@ -16,7 +16,7 @@ export function suggestedOpeners(ctx: ProfileSharedContext | null, firstName: st
   const out: string[] = []
   if (ctx.clubs.length > 0) out.push(`Hey ${firstName}! We're both in ${ctx.clubs[0].name} 👋`)
   if (ctx.events.length > 0) out.push(`Looks like we're both going to ${ctx.events[0].title} — see you there!`)
-  if (ctx.neighborhood) out.push(`I'm also around ${ctx.neighborhood}. Any favourite coffee spots?`)
+  if (ctx.neighborhood) out.push(`I'm also around ${ctx.neighborhood}. Any favorite coffee spots?`)
   if (ctx.interests.length > 0 && out.length < 3) out.push(`Saw you're into ${ctx.interests[0]} too — what got you started?`)
   return out.slice(0, 3)
 }

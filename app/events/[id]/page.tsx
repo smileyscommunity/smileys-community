@@ -2,10 +2,11 @@ import { notFound } from 'next/navigation'
 import { eventStartDate } from '@/lib/eventJsonLd'
 import { FEMALE_VARIANTS } from '@/lib/eventQuota'
 import { jsonLdHtml } from '@/lib/jsonLd'
+import { stripEmoji, priceLabel, offerAvailability, eventSeoTitle, eventSeoDescription } from '@/lib/eventSeo'
 import Link from 'next/link'
 import Image from 'next/image'
 import type { Metadata } from 'next'
-import { getEventById, redactEventForGuest, canSeeEvent, PUBLIC_EVENT_STATUSES } from '@/lib/db'
+import { getEventById, redactEventForGuest, guestEventDescription, canSeeEvent, PUBLIC_EVENT_STATUSES } from '@/lib/db'
 import { getCityConfig } from '@/lib/city'
 import { DEFAULT_TZ, todayInTz, fromWallClockInTz } from '@/lib/cityTime'
 import { eventPhase, eventEndsAt } from '@/lib/eventTime'
@@ -27,6 +28,7 @@ import EventPhotos from '@/components/EventPhotos'
 import SimilarEvents from '@/components/SimilarEvents'
 import ReportButton from '@/components/ReportButton'
 import ShareButton from '@/components/ShareButton'
+import EventPageTracker from '@/components/EventPageTracker'
 import SocialShare from '@/components/SocialShare'
 import EventSaveButton from '@/components/EventSaveButton'
 import EventInviteButton from '@/components/EventInviteButton'
@@ -73,9 +75,9 @@ function buildEventJsonLd(event: Event, eventUrl: string, tz: string, cityName: 
   return {
     '@context': 'https://schema.org',
     '@type':    'Event',
-    name:        event.title,
+    name:        stripEmoji(event.title) || event.title,
     description: event.description
-      ? event.description.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 500)
+      ? stripEmoji(event.description.replace(/<[^>]+>/g, ' ')).slice(0, 500)
       : `${event.emoji} ${event.title} in ${event.neighborhood}, ${cityName}`,
     // A "TBA" or legacy "19.30" start has no instant: date only, as
     // lib/eventJsonLd does for the list. toISOString() on NaN threw and took
@@ -96,12 +98,13 @@ function buildEventJsonLd(event: Event, eventUrl: string, tz: string, cityName: 
       ? { '@type': 'VirtualLocation', url: event.meetingUrl ?? eventUrl }
       : {
           '@type': 'Place',
-          // Without the address (a guest's copy) the place is the neighbourhood:
+          // Without the address (a guest's copy) the place is the neighborhood:
           // the venue name was "locked" on the page and printed here as a street.
           name:    event.address ? (event.location || event.neighborhood || cityName) : (event.neighborhood || cityName),
           address: {
             '@type':         'PostalAddress',
-            streetAddress:   event.address ?? '',
+            // Omitted for a guest (member-only): an empty string is a present-but-blank field.
+            ...(event.address ? { streetAddress: event.address } : {}),
             addressLocality: cityName,
             addressCountry:  countryCode,
           },
@@ -112,9 +115,7 @@ function buildEventJsonLd(event: Event, eventUrl: string, tz: string, cityName: 
       '@type':       'Offer',
       price:         String(event.price ?? 0),
       priceCurrency: event.currency ?? DEFAULT_CURRENCY,
-      availability:  isSoldOut(event)
-        ? 'https://schema.org/SoldOut'
-        : 'https://schema.org/InStock',
+      availability:  offerAvailability(event),
       url: eventUrl,
     },
     organizer: { '@type': 'Organization', name: 'Smileys Community', url: SITE_URL },
@@ -136,14 +137,17 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   // no date at all.
   const shareDate   = new Date(event.date + 'T00:00:00')
     .toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
-  const title       = `${event.title} · ${shareDate} — Smileys Community`
-  const when        = `📅 ${formatDate(event.date)} · ${formatTime(event.time)}${event.neighborhood ? ` · ${event.neighborhood}` : ''}`
-  const plainDesc   = event.description
-    ? event.description.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+  const price       = priceLabel(event.price, p => formatPrice(p, event.currency))
+  const title       = eventSeoTitle({ title: event.title, shareDate, neighborhood: event.neighborhood, price })
+  const when        = `${formatDate(event.date)} at ${formatTime(event.time)}`
+  // Metadata is the same for everyone, so it always carries the guest text.
+  const guestDesc   = guestEventDescription(event)
+  const plainDesc   = guestDesc
+    ? guestDesc.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
     // City-fetch only on the fallback path — described events (the vast
     // majority) never pay for it.
     : `Join us at Smileys Community ${event.cityId ? (await getCityConfig(event.cityId)).name : 'Istanbul'}`
-  const description = `${when} — ${plainDesc}`.slice(0, 155)
+  const description = eventSeoDescription({ when, price, neighborhood: event.neighborhood, body: plainDesc })
   const imageUrl    = absoluteImageUrl(event.coverImage, event.title)
   const pageUrl     = `${APP_URL}/events/${id}`
 
@@ -217,9 +221,11 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
     })
 
     const vibes = event.vibes ?? []
+    const publicDescription = guestEventDescription(event)
 
     return (
-      <div className="min-h-screen bg-warm pb-32">
+      <div className="min-h-screen bg-warm pb-32" data-cta="event-teaser">
+        <EventPageTracker eventId={id} citySlug={eventCity?.slug ?? null} audience="guest" membersOnly={!!event.membersOnly} />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
@@ -244,11 +250,12 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                 timeZone={eventTz}
                 endTime={event.endTime}
                 location={event.neighborhood ?? ''}
-                description={event.description ? event.description.replace(/<[^>]+>/g, '') : ''}
+                description={publicDescription.replace(/<[^>]+>/g, '')}
                 url={eventUrl}
                 compact
               />
               <ShareButton
+                eventId={id}
                 title={`${event.title} · ${formatDate(event.date)}`}
                 url={eventUrl}
                 cacheKey={event.coverImage ? event.coverImage.match(/\/(\d+)-/)?.[1]?.slice(-8) : undefined}
@@ -313,10 +320,10 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
             <EventGoodToKnow event={event} />
 
             {/* Description */}
-            {event.description && (
+            {publicDescription && (
               <div
                 className="prose prose-sm max-w-none text-gray-700 leading-relaxed"
-                dangerouslySetInnerHTML={{ __html: sanitize(event.description) }}
+                dangerouslySetInnerHTML={{ __html: sanitize(publicDescription) }}
               />
             )}
 
@@ -550,6 +557,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
 
   return (
     <div className="min-h-screen bg-warm pb-36 md:pb-28 lg:pb-10">
+      <EventPageTracker eventId={id} citySlug={eventCity?.slug ?? null} audience="member" membersOnly={!!event.membersOnly} />
       {/* Called off or moved: said at the top with the host's reason, not
           only in the button's label (lib/db keeps cancelled events in the
           feed so members see WHY — and the why was never rendered). */}
@@ -599,6 +607,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
               compact
             />
             <ShareButton
+                eventId={id}
               title={`${event.title} · ${formatDate(event.date)}`}
               url={`${APP_URL}/events/${event.id}`}
               cacheKey={event.coverImage ? event.coverImage.match(/\/(\d+)-/)?.[1]?.slice(-8) : undefined}
@@ -949,6 +958,17 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
             <h2 className="text-base font-bold text-gray-900 mb-3">About this event</h2>
             <div className="rich-content text-sm text-gray-600 leading-relaxed" dangerouslySetInnerHTML={{ __html: sanitize(event.description ?? '') }} />
 
+            {/* The flyer, whole — the cover is cropped to a banner, which cut
+                the date, place and price off a poster. Tap for full size. */}
+            {event.flyerImage && (
+              <a href={resolveImageUrl(event.flyerImage)} target="_blank" rel="noopener noreferrer" className="block mt-6 group">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={resolveImageUrl(event.flyerImage)} alt={`Flyer for ${event.title}`} loading="lazy"
+                  className="w-full max-w-md mx-auto rounded-2xl border border-gray-100 shadow-sm object-contain" />
+                <span className="block text-center text-xs text-gray-400 mt-2 group-hover:text-amber-600 transition-colors">Open the flyer full size ↗</span>
+              </a>
+            )}
+
             {canSeeLocation && mapsHref && (
               <div className="mt-6 space-y-3">
                 <div className="flex items-center justify-between">
@@ -1028,7 +1048,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
               {!isAdmin && !isHost && myAttendance?.status !== 'approved' ? (
                 <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-2xl">
                   <div className="flex -space-x-2">
-                    {/* Coloured blanks, never the photo file under a CSS blur: the
+                    {/* Colored blanks, never the photo file under a CSS blur: the
                         image URL was in the page for anyone who couldn't "see who". */}
                     {attendees.slice(0, 5).map(a => (
                       <div key={a.user.id} className="w-9 h-9 rounded-full border-2 border-white blur-sm" style={{ backgroundColor: a.user.color }} />
@@ -1214,7 +1234,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                 <div className="flex items-center gap-2.5 mb-3">
                   <div className="flex -space-x-2 shrink-0">
                     {attendees.slice(0, 4).map(a => {
-                      // Non-attendees get coloured blanks. The photos used to be
+                      // Non-attendees get colored blanks. The photos used to be
                       // real images blurred with CSS: the image URL and the alt
                       // text (the member's name) were in the page for anyone to read.
                       const hideWho = !isAdmin && !isHost && myAttendance?.status !== 'approved'

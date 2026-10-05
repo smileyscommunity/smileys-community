@@ -1,11 +1,14 @@
 import { canManageUsers, canViewUserList, canSuspendUsers, canActInCity } from '@/lib/access'
 import { snapshotUserHistory } from '@/lib/admin/userHistory'
 import { requireStepUp } from '@/lib/stepUp'
+import { anonymizeUser } from '@/lib/anonymizeUser'
+import { TOMBSTONE_EMAIL_SUFFIX } from '@/lib/applicationScrub'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { activeAttendeeWhere } from '@/lib/attendance'
 import { getSession } from '@/lib/session'
 import { createNotification } from '@/lib/notify'
+import { afterBan, UNBAN_CLEARS } from '@/lib/memberDiscipline'
 import { sendPremiumUpgradeEmail, recordEmailFailure } from '@/lib/email'
 import { isPremium } from '@/lib/membership'
 import { writeAudit } from '@/lib/audit'
@@ -15,6 +18,7 @@ import {formatName} from '@/lib/data'
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 import { todayInCity, resolveCityId } from '@/lib/city'
 import { setHomeCity } from '@/lib/cityMembership'
+import { bustHostRoster } from '@/lib/hostRoster'
 import { formatMoney } from '@/lib/data'
 import { rateLimit, claimOnce, releaseClaim } from '@/lib/rateLimit'
 import {
@@ -139,7 +143,7 @@ export async function GET(_: NextRequest, { params }: Params) {
     if (hostedEventIds.length > 0) {
       // Per-event rollup + weighted aggregate via the shared helper.
       // Same shape used on /admin/events row + /admin/clubs/[id]
-      // quality card so behaviour stays in lockstep.
+      // quality card so behavior stays in lockstep.
       const rollupMap = await computeEventSurveyRollup(hostedEventIds.map(e => e.id))
       const allRows   = Array.from(rollupMap.values())
       const agg       = aggregateRollup(allRows)
@@ -291,10 +295,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // Home city. Members move themselves in /settings, but staff can't (their
     // city IS their moderation scope — lib/cityMembership), so an admin has to
     // be able to do it for them. Admins only, and through the same helper, so
-    // the old city stays on their list and the neighbourhood is cleared.
+    // the old city stays on their list and the neighborhood is cleared.
     // The move itself runs LAST (below), after every other field has been
-    // validated: moving first and then rejecting the neighbourhood left the
-    // member moved, their neighbourhood cleared, and the save reported as a
+    // validated: moving first and then rejecting the neighborhood left the
+    // member moved, their neighborhood cleared, and the save reported as a
     // failure.
     const moveTo = 'homeCitySlug' in body ? String(body.homeCitySlug ?? '').trim() : null
     if (moveTo !== null) {
@@ -326,7 +330,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
     if ('neighborhood' in allowed) {
       // Against the city they will live in when this save finishes — moving
-      // a member and giving them a neighbourhood there is one save.
+      // a member and giving them a neighborhood there is one save.
       const cityForNeighborhood = moveTo
         ? (await prisma.city.findUnique({ where: { slug: moveTo }, select: { id: true } }))?.id ?? target.cityId
         : target.cityId
@@ -418,8 +422,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
     // The move, now that every other field has been accepted — moving first
     // and then rejecting one left the member moved and the save reported as
-    // a failure. setHomeCity clears the neighbourhood (it belongs to the old
-    // city's registry); a neighbourhood in this same save is written by the
+    // a failure. setHomeCity clears the neighborhood (it belongs to the old
+    // city's registry); a neighborhood in this same save is written by the
     // update below, which runs after this and was validated against the new
     // city.
     if (moveTo) {
@@ -450,6 +454,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (allowed.status === 'banned') {
       allowed.bannedAt = new Date()
     }
+    // An unban clears the ban's own fields and any appeal, whichever screen
+    // sent it (lib/memberDiscipline). Three unban buttons sent three
+    // payloads, and the ones that left appealStatus 'pending' made the
+    // appeal route drop the member's next appeal after a later ban.
+    const unbanning = target.status === 'banned' && allowed.status !== undefined && allowed.status !== 'banned'
+    if (unbanning) Object.assign(allowed, UNBAN_CLEARS)
 
     if (allowed.suspendedUntil) {
       allowed.suspendedAt = new Date()
@@ -484,6 +494,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           }),
         ]))[0]
       : await prisma.user.update({ where: { id }, data: allowed, select: USER_PATCH_SELECT })
+    // A ban, a suspension, hiding a member or moving their city changes
+    // every roster they are on; the cached one otherwise showed them for
+    // five more minutes.
+    if (['status', 'suspendedUntil', 'hiddenFromMembers', 'cityId', 'role'].some(k => k in allowed)) bustHostRoster()
 
     // Premium/VIP grant → celebrate it (in-app + email). Fires only on a
     // genuine upgrade FROM a non-paid tier INTO a paid one — so re-saving an
@@ -503,27 +517,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       }
     }
 
-    // Auto-add to blacklist on ban so they can't re-apply
-    if (allowed.status === 'banned' && before?.email) {
-      await prisma.blacklist.upsert({
-        where:  { email: before.email },
-        create: {
-          email:    before.email,
-          phone:    before.phone    ?? undefined,
-          name:     before.name     ?? undefined,
-          reason:   typeof allowed.banReason === 'string' && allowed.banReason ? allowed.banReason : 'banned',
-          bannedBy: session.name,
-        },
-        update: {},
-      }).catch(err => console.error('[user PATCH ban] blacklist upsert failed', { id, email: before.email, err: String(err) }))
-      // Kill any outstanding activation / reset links. Activation tokens are
-      // passwordResetToken rows with a 7-day window — left alive, a banned
-      // member could click the link still in their inbox and reactivate
-      // (the activate route now also checks status, but the token should
-      // not survive the ban either way).
-      await prisma.passwordResetToken.deleteMany({ where: { userId: id } })
-        .catch(err => console.error('[user PATCH ban] token cleanup failed', { id, err: String(err) }))
-    }
+    // A ban's blacklist row, token cleanup, club counts, notice and audit:
+    // lib/memberDiscipline.afterBan, in the status block below.
 
     // Unban → take away the blacklist row the ban put there. Activation and
     // registration both refuse a blacklisted email, so an unbanned member
@@ -590,31 +585,57 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       // Keep club memberCount in sync with bans: a banned member shouldn't
       // be counted, and unbanning restores the count. Membership rows are
       // preserved either way, so an unban brings the member back intact.
-      if (allowed.status === 'banned' || before?.status === 'banned') {
+      // Unbanning restores the club counts a ban took (membership rows are
+      // kept, so the member comes back intact). The ban side is in afterBan.
+      if (before?.status === 'banned' && allowed.status !== 'banned') {
         const approvedClubs = await prisma.clubMembership.findMany({
           where:  { userId: id, status: 'approved' },
           select: { clubId: true },
         })
         if (approvedClubs.length) {
-          const delta = allowed.status === 'banned' ? { decrement: 1 } : { increment: 1 }
           await prisma.$transaction(approvedClubs.map(m =>
-            prisma.club.update({ where: { id: m.clubId }, data: { memberCount: delta } })
+            prisma.club.update({ where: { id: m.clubId }, data: { memberCount: { increment: 1 } } })
           ))
         }
       }
       if (allowed.status === 'banned') {
         const reason = typeof allowed.banReason === 'string' && allowed.banReason ? allowed.banReason : 'violation of the community rules'
-        createNotification(id, 'rsvp', 'Your account has been suspended', `Your account was suspended: ${reason}. Contact us if you believe this is a mistake.`).catch(() => {})
-        writeAudit(session.id, session.name, 'user.ban', id, 'user',
-          { reason, name: before?.name },
-          `${before?.name ?? id} banned — ${reason}`,
-        )
+        await afterBan({ userId: id, before: { status: before?.status ?? null, email: before?.email ?? null, phone: before?.phone ?? null, name: before?.name ?? null }, reason, actor: { id: session.id, name: session.name } })
       } else {
         writeAudit(session.id, session.name, 'user.status_change', id, 'user',
           { from: before?.status, to: allowed.status, name: before?.name },
           `Status changed from ${before?.status ?? '?'} to ${allowed.status} for ${before?.name ?? id}`,
         )
       }
+    }
+
+    // The rest of a staff edit, audited too. Only role, a new suspension and
+    // status changes wrote a row; lifting a suspension, a Premium/VIP grant
+    // (which emails the member), an appeal decision and profile edits left
+    // no trace. Field names only for profile edits — the log is read by
+    // moderators, and phone numbers don't belong in it.
+    const who = before?.name ?? id
+    if ('suspendedUntil' in allowed && !allowed.suspendedUntil && before?.suspendedUntil) {
+      writeAudit(session.id, session.name, 'user.unsuspend', id, 'user', { name: before?.name }, `Suspension lifted for ${who}`)
+    }
+    if (allowed.membershipType !== undefined && allowed.membershipType !== before?.membershipType) {
+      writeAudit(session.id, session.name, 'user.membership_change', id, 'user',
+        { from: before?.membershipType ?? null, to: allowed.membershipType, name: before?.name },
+        `Membership ${before?.membershipType ?? 'standard'} → ${allowed.membershipType} for ${who}`)
+    }
+    if ('appealStatus' in allowed && !unbanning) {
+      writeAudit(session.id, session.name, 'user.appeal_decision', id, 'user',
+        { decision: allowed.appealStatus, name: before?.name }, `Appeal ${String(allowed.appealStatus)} for ${who}`)
+    }
+    const auditedAbove = new Set(['role', 'status', 'suspendedUntil', 'membershipType', 'appealStatus',
+      // stamps the handler sets itself, not fields the editor changed
+      'bannedAt', 'suspendedAt', 'suspendedBy', ...(allowed.status === 'banned' ? ['banReason'] : []),
+      // an unban's automatic clearing (UNBAN_CLEARS), not an editor's change
+      ...(unbanning ? Object.keys(UNBAN_CLEARS) : [])])
+    const edited = Object.keys(allowed).filter(k => !auditedAbove.has(k))
+    if (edited.length) {
+      writeAudit(session.id, session.name, 'user.update', id, 'user', { fields: edited, name: before?.name },
+        `Edited ${edited.join(', ')} for ${who}`)
     }
 
     return NextResponse.json(user)
@@ -630,159 +651,29 @@ export async function DELETE(_: NextRequest, { params }: Params) {
     if (!session || !canManageUsers(session)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
-    // Deleting a member cascades across payments, attendance and authored
-    // content. Irreversible, so it takes a 2FA-verified session.
+    // Irreversible, so it takes a 2FA-verified session.
     const stepUp = requireStepUp(session)
     if (stepUp) return stepUp
 
     const { id } = await params
     if (id === session.id) return NextResponse.json({ error: 'Cannot delete yourself' }, { status: 400 })
 
-    const target = await prisma.user.findUnique({ where: { id }, select: { name: true, email: true, cityId: true } })
-
-    // P1 fix: snapshot every payment row + write a per-payment
-    // "deletion" PaymentLog before the user.delete cascade vaporises
-    // them. Previously a single user-delete blew away all of that
-    // user's payment history with no financial trail at all — the
-    // PR 1 audit work on the admin payments page was undermined here
-    // because there was no per-payment record left to query.
-    //
-    // PaymentLog has no FK relation in the schema, so the rows
-    // survive the cascade and remain queryable by paymentId. The
-    // global audit row aggregates the financial impact so the
-    // user-removal event in the audit log self-documents.
-    const payments = await prisma.payment.findMany({
-      where:  { userId: id },
-      select: { id: true, amount: true, currency: true, status: true, eventId: true, createdAt: true },
+    const target = await prisma.user.findUnique({
+      where:  { id },
+      select: { id: true, name: true, email: true, phone: true, lastFingerprint: true, cityId: true, role: true, status: true },
     })
-
-    // Approved club memberships are about to be deleted in the cascade —
-    // decrement each club's memberCount in the same transaction so the
-    // cached counts don't drift high (root cause of recount problems).
-    const approvedClubs = await prisma.clubMembership.findMany({
-      where:  { userId: id, status: 'approved' },
-      select: { clubId: true },
-    })
-
-    // Post.authorId and Newsletter.sentById are required Restrict FKs, so
-    // the delete threw P2003 for exactly the accounts most likely to be
-    // removed — ex-staff who authored handbook posts or sent newsletters.
-    // Reassign authorship to the house admin account (oldest admin, the
-    // same account the auto-digest attributes to). Event.hostId is a bare
-    // string with no FK, so without the same reassignment a deleted host's
-    // events pointed at a nonexistent user forever.
-    const [authoredPosts, sentNewsletters, hostedEvents] = await Promise.all([
-      prisma.post.count({ where: { authorId: id } }),
-      prisma.newsletter.count({ where: { sentById: id } }),
-      prisma.event.count({ where: { hostId: id } }),
-    ])
-    let houseAdminId: string | null = null
-    if (authoredPosts > 0 || sentNewsletters > 0 || hostedEvents > 0) {
-      const houseAdmin = await prisma.user.findFirst({
-        where:   { role: 'admin', id: { not: id } },
-        orderBy: { joinedAt: 'asc' },
-        select:  { id: true },
-      })
-      if (!houseAdmin) {
-        return NextResponse.json(
-          { error: 'This account authored posts, newsletters or events and no other admin exists to inherit them.' },
-          { status: 400 },
-        )
-      }
-      houseAdminId = houseAdmin.id
+    if (!target) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    if (target.email.endsWith(TOMBSTONE_EMAIL_SUFFIX)) {
+      return NextResponse.json({ error: 'This account is already deleted.' }, { status: 400 })
     }
 
-    // Same drift problem for events: the eventAttendee.deleteMany below
-    // removes rows that back the cached Event.spotsLeft counter (it was
-    // decremented when the user joined), so upcoming events would keep
-    // phantom "going" counts forever (seen in prod: spotsLeft 6/8 with
-    // zero attendee rows). Snapshot the affected upcoming events now and
-    // recompute after the delete. Past events stay untouched — their
-    // spotsLeft is the historical attendance record.
-    const upcomingAttending = await prisma.eventAttendee.findMany({
-      where: {
-        userId: id,
-        status: 'approved',
-        event:  { status: 'published', date: { gte: await todayInCity(await resolveCityId(session)) } },
-      },
-      select: { eventId: true, event: { select: { totalSpots: true } } },
-    })
-
-    // PaymentLog inserts live inside the $transaction so they roll
-    // back together with the cascade if any step fails — admin
-    // retrying after a partial failure won't see ghost "deleted"
-    // log entries pointing at payments that are actually still
-    // present. Spread conditionally so the array stays empty when
-    // there are no payments to record.
-    // Reports, no-show cards and admin notes cascade with the row; keep them.
-    const retained = await snapshotUserHistory(id)
-    await prisma.$transaction([
-      ...(payments.length > 0 ? [
-        prisma.paymentLog.createMany({
-          data: payments.map(p => ({
-            paymentId:  p.id,
-            adminId:    session.id,
-            adminName:  session.name,
-            fromStatus: p.status,
-            toStatus:   'deleted',
-            note:       `Payment deleted as part of user removal (${p.amount} ${p.currency}, was ${p.status})`,
-          })),
-        }),
-      ] : []),
-      ...approvedClubs.map(m =>
-        prisma.club.update({ where: { id: m.clubId }, data: { memberCount: { decrement: 1 } } })
-      ),
-      prisma.eventAttendee.deleteMany({ where: { userId: id } }),
-      prisma.clubMembership.deleteMany({ where: { userId: id } }),
-      prisma.notification.deleteMany({ where: { userId: id } }),
-      prisma.notificationPreference.deleteMany({ where: { userId: id } }),
-      prisma.review.deleteMany({ where: { userId: id } }),
-      prisma.payment.deleteMany({ where: { userId: id } }),
-      prisma.eventMessage.deleteMany({ where: { userId: id } }),
-      prisma.report.deleteMany({ where: { OR: [{ reporterId: id }, { reportedId: id }] } }),
-      prisma.waitlistEntry.deleteMany({ where: { userId: id } }),
-      prisma.emailVerificationToken.deleteMany({ where: { userId: id } }),
-      prisma.passwordResetToken.deleteMany({ where: { userId: id } }),
-      ...(houseAdminId ? [
-        prisma.post.updateMany({ where: { authorId: id }, data: { authorId: houseAdminId } }),
-        prisma.newsletter.updateMany({ where: { sentById: id }, data: { sentById: houseAdminId } }),
-        prisma.event.updateMany({ where: { hostId: id }, data: { hostId: houseAdminId } }),
-      ] : []),
-      prisma.user.delete({ where: { id } }),
-    ])
-
-    // Re-derive spotsLeft for each upcoming event the user was approved
-    // on, now that their attendee rows are gone. recomputeSpotsLeft counts
-    // the remaining approved rows (host/co-hosts excluded), so this also
-    // clamps any pre-existing drift instead of blindly incrementing.
-    // Fail-soft: the user is already deleted, and the nightly
-    // sweep-event-spots reconciliation covers any recompute that dies here.
-    for (const a of upcomingAttending) {
-      await recomputeSpotsLeft(a.eventId, a.event.totalSpots).catch(e =>
-        console.error('[user.remove] spotsLeft recompute failed', { eventId: a.eventId, error: String(e) })
-      )
-    }
-
-    // Roll the payment impact into the user.remove audit entry so the
-    // audit log row is self-documenting (no need to cross-reference
-    // payment_logs to know what was lost).
-    const paymentSummary = payments.length === 0 ? null : {
-      count:       payments.length,
-      totalAmount: payments.reduce((s, p) => s + p.amount, 0),
-      byStatus:    payments.reduce<Record<string, number>>((acc, p) => {
-        acc[p.status] = (acc[p.status] ?? 0) + 1
-        return acc
-      }, {}),
-      ids:         payments.map(p => p.id),
-    }
-    // cityId from the snapshot: the user row is gone, so the audit lookup
-    // can't resolve their home city.
-    writeAudit(session.id, session.name, 'user.remove', id, 'user',
-      { name: target?.name, email: target?.email, cityId: target?.cityId ?? null, payments: paymentSummary, retained },
-      `User ${target?.name ?? id} (${target?.email ?? ''}) permanently removed${
-        paymentSummary ? ` — ${paymentSummary.count} payment${paymentSummary.count === 1 ? '' : 's'} destroyed (${formatMoney(paymentSummary.totalAmount, payments[0]?.currency)} across ${Object.entries(paymentSummary.byStatus).map(([s, n]) => `${n} ${s}`).join(', ')})` : ''
-      }`,
-    )
+    // Remove = the same anonymize-and-keep-the-row routine a member's own
+    // deletion runs (lib/anonymizeUser), not a hard delete. The row used to be
+    // destroyed: the person vanished from Users (no Deleted-tab entry), kept
+    // their application email/phone, and their events carried on under the
+    // house admin with attendees still signed up (2026-10-04). Payments are
+    // now retained as financial records instead of being destroyed.
+    await anonymizeUser(target, { id: session.id, name: session.name })
 
     return NextResponse.json({ ok: true })
   } catch (e) {

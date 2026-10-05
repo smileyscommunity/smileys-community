@@ -47,12 +47,12 @@ describe('whose story it is', () => {
   })
 
   it('a publish and a decline cannot both land', () => {
-    expect(put).toContain('where: { id, status: existing.status },')
+    expect(put).toContain('where: { id, status: existing.status, updatedAt: expectedUpdatedAt },')
     expect(put).toContain("e?.code === 'P2025'")
   })
 
   it('leaving takes the unpublished stories along', () => {
-    expect(src('app/api/auth/delete-account/route.ts')).toContain("await tx.post.deleteMany({ where: { authorId: id, status: { not: 'published' } } })")
+    expect(src('lib/anonymizeUser.ts')).toContain("await tx.post.deleteMany({ where: { authorId: id, status: { not: 'published' } } })")
   })
 })
 
@@ -202,7 +202,10 @@ describe('caches and the crawler', () => {
   })
 
   it('the sitemap lists live cities\' stories, newest first', () => {
-    expect(src('app/sitemap.ts')).toContain("where:   { status: 'published', OR: [{ cityId: null }, { cityId: { in: cityIds } }] },")
+    // 2026-09-27: stories and the Handbook are two reads (the Handbook uncapped); the stories one keeps the scope, order and cap.
+    const sm = src('app/sitemap.ts')
+    expect(sm).toContain("where:   { status: 'published', kind: { not: 'handbook' }, OR: [{ cityId: null }, { cityId: { in: cityIds } }] },")
+    expect(sm).toContain("orderBy: { publishedAt: 'desc' },\n        take:    200,")
   })
 
   it('the queue and the delete have a second factor for admins', () => {

@@ -150,6 +150,14 @@ export default function RSVPButton({ eventId, hostId, spotsLeft, soldOut = false
                   className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors disabled:opacity-50">
                   {loading ? 'Confirming…' : "Yes, I'll be there ✓"}
                 </button>
+                {/* The honest other answer. It is the ordinary cancel (paid-event
+                    confirmation and standing rules unchanged): free of penalty
+                    until the release point, a late cancel after it. */}
+                <button onClick={handleLeave} disabled={loading}
+                  className="w-full mt-2 py-2.5 rounded-xl border border-amber-300 bg-white hover:bg-amber-100 text-amber-800 text-sm font-semibold transition-colors disabled:opacity-50">
+                  Can&apos;t make it
+                </button>
+                <p className="text-[11px] text-amber-700 mt-1.5">Cancel more than {RECONFIRM_RELEASE_HOURS_BEFORE} hours before the start and nothing is recorded — the spot goes to someone waiting.</p>
               </div>
             )}
             <div className="flex items-center justify-center gap-2 w-full px-6 py-3 bg-green-50 border-2 border-green-200 text-green-700 font-semibold rounded-xl text-sm">
@@ -265,7 +273,7 @@ export default function RSVPButton({ eventId, hostId, spotsLeft, soldOut = false
                 <p className="text-sm text-gray-600 mb-1">
                   This event costs <strong>{formatPrice(price, currency)}</strong>. Cancelling now may forfeit your payment depending on the refund policy.
                 </p>
-                <p className="text-xs text-gray-400 mb-5">If you paid, contact the organiser to arrange a refund.</p>
+                <p className="text-xs text-gray-400 mb-5">If you paid, contact the organizer to arrange a refund.</p>
               </>
             ) : (
               <>

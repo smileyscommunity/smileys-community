@@ -33,7 +33,7 @@ vi.mock('@/lib/access', () => ({
   isClubHostFor:      h.isClubHostFor,
   hostCityIds:        h.hostCityIds,
 }))
-vi.mock('@/lib/notify',              () => ({ createNotification: vi.fn(async () => true), notifyNewEvent: vi.fn(async () => {}) }))
+vi.mock('@/lib/notify',              () => ({ createNotification: vi.fn(async () => true), notifyNewEvent: vi.fn(async () => {}) , notifyTripArrival: vi.fn(async () => {})}))
 vi.mock('@/lib/audit',               () => ({ writeAudit: h.writeAudit, getDiff: vi.fn(() => null) }))
 vi.mock('@/lib/email',               () => ({ sendEventCancelledEmail: vi.fn(), recordEmailFailure: vi.fn() }))
 vi.mock('@/lib/spotsLeft',           () => ({ recomputeSpotsLeft: vi.fn(async () => {}) }))

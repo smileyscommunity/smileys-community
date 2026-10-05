@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { MESSAGEABLE_USER } from '@/lib/attendeeAudience'
 import { todayInCity } from '@/lib/city'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
@@ -44,7 +45,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     const attendees = await prisma.eventAttendee.findMany({
       // Approved accounts only, as the broadcast route already does: a ban
       // keeps its seats, so banned and self-deleted members were emailed.
-      where: { eventId: id, status: 'approved', user: { status: 'approved' } },
+      where: { eventId: id, status: 'approved', user: MESSAGEABLE_USER },
       include: { user: { select: { id: true, name: true, email: true } } },
     })
 

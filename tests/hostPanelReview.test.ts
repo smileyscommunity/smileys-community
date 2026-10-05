@@ -288,7 +288,8 @@ describe('broadcast: `sent` is who was actually notified; 429 says why', () => {
     const res = await broadcast(req({ message: 'Doors at 7' }), params)
     expect(await res.json()).toEqual({ ok: true, sent: 1 })
     expect((createNotification as any).mock.calls.map((c: any[]) => c[0])).toEqual(['u1', 'u3'])
-    expect(p.eventAttendee.findMany.mock.calls[0][0].where.user).toEqual({ status: { notIn: ['banned', 'deleted'] } })
+    // One recipient rule for every attendee message (lib/attendeeAudience, 2026-09-27).
+    expect(p.eventAttendee.findMany.mock.calls[0][0].where.user).toEqual({ status: 'approved' })
   })
 
   it('429 carries a message the UI can show', async () => {

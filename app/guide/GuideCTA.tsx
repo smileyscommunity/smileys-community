@@ -3,12 +3,13 @@
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 
-// Client island so the parent /guide page can be ISR-cached
-// (revalidate = 300). The session check used to live in the server
-// component, which forced force-dynamic and re-ran two Prisma
-// groupBys on every request. Now the heavy data path is cached and
-// only the CTA branches per-viewer.
-export default function GuideCTA({ cityName }: { cityName: string }) {
+// Client island: branches on the viewer. (It was framed as what let the
+// page be statically cached; the page is dynamic regardless — see
+// app/guide/page.tsx — but the per-viewer branch belongs in a client island
+// either way, and the heavy reads are cached by unstable_cache independently.)
+// `applyHref` carries the city: /apply?city=izmir from İzmir's guide, not the
+// default city's form.
+export default function GuideCTA({ cityName, citySlug, applyHref }: { cityName: string; citySlug: string; applyHref: string }) {
   const { isLoggedIn, isLoading } = useAuth()
 
   // Reserve the vertical space during auth init so the page doesn't
@@ -20,7 +21,8 @@ export default function GuideCTA({ cityName }: { cityName: string }) {
 
   if (isLoggedIn) {
     return (
-      <Link href="/contact?topic=guide"
+      // The city rides along so the tip reaches the team tagged with it.
+      <Link href={`/contact?topic=guide&city=${encodeURIComponent(citySlug)}`}
         className="mt-10 block bg-gray-50 hover:bg-amber-50 border border-gray-100 hover:border-amber-200 rounded-2xl p-6 text-center transition-colors">
         <div className="text-2xl mb-2">💬</div>
         <p className="text-base font-bold text-gray-900 mb-1">Have a tip to share?</p>
@@ -38,7 +40,7 @@ export default function GuideCTA({ cityName }: { cityName: string }) {
       <p className="text-sm text-amber-50 max-w-md mx-auto mb-5 leading-relaxed">
         Smileys is a curated community of locals and expats hosting events across {cityName} every week. Apply to join — it&apos;s free.
       </p>
-      <Link href="/apply"
+      <Link href={applyHref}
         className="inline-block px-6 py-3 bg-white text-amber-600 font-bold rounded-xl hover:bg-amber-50 transition-colors text-sm">
         Apply to join →
       </Link>

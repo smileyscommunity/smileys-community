@@ -1,4 +1,5 @@
 import { canManageSettings } from '@/lib/access'
+import { MEMBER_LISTING_CATEGORY_IDS } from '@/lib/listingCategories'
 import { NextRequest, NextResponse } from 'next/server'
 import { readFileSync, writeFileSync, renameSync } from 'fs'
 import { join } from 'path'
@@ -90,12 +91,9 @@ const NOTIFICATION_KEYS = new Set([
 const PRICING_NUMERIC_KEYS = new Set(['monthlyPrice', 'yearlyPrice', 'trialDays'])
 const CURRENCIES = new Set(['₺', '$', '€', '£', '₾', 'лв'])
 
-// Mirrors LISTING_CATEGORIES on /admin/listings. If you add a category
-// there, add it here too — otherwise the admin can pick it in the UI
-// and the server will silently drop it on save.
-const LISTING_CATEGORIES = new Set([
-  'ROOMS', 'JOBS', 'SERVICES', 'BUY_SELL', 'FREE', 'RECO',
-])
+// The categories members can post in (lib/listingCategories) — the admin
+// page and the member create route read the same list.
+const LISTING_CATEGORIES = new Set(MEMBER_LISTING_CATEGORY_IDS)
 
 function str(v: unknown, max: number): string {
   return typeof v === 'string' ? v.slice(0, max) : ''
@@ -167,9 +165,8 @@ function normalizeListingSettings(input: unknown): Record<string, unknown> | nul
   if ('defaultExpiryDays' in src) {
     out.defaultExpiryDays = intInRange(src.defaultExpiryDays, 1, 365, 30)
   }
-  if ('requireApproval' in src) {
-    out.requireApproval = bool(src.requireApproval, false)
-  }
+  // requireApproval is gone: listings have no pending state or approval
+  // queue, so the switch was saved and honored by nothing.
   if ('maxActivePerMember' in src) {
     out.maxActivePerMember = intInRange(src.maxActivePerMember, 1, 100, 5)
   }
@@ -218,7 +215,7 @@ export async function POST(req: NextRequest) {
     // Instagram is stored as a handle ("@smileyscommunity") and rendered
     // through communityInstagramUrl, which accepts nothing else — a pasted
     // profile link was saved as-is and the site quietly showed no link at
-    // all. Normalise here; refuse what isn't a handle or a profile link
+    // all. Normalize here; refuse what isn't a handle or a profile link
     // rather than saving something that will never render.
     if (typeof patch.instagram === 'string' && patch.instagram.trim()) {
       const handle = normalizeInstagramHandle(patch.instagram)

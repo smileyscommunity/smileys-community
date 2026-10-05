@@ -63,7 +63,9 @@ function AppEventsPageInner() {
   const [loading,      setLoading]      = useState(true)
   const [loadingMore,  setLoadingMore]  = useState(false)
   const [hasMore,      setHasMore]      = useState(false)
-  const [offset,       setOffset]       = useState(0)
+  // A ref, not state: nothing renders it, and as state it made loadEvents a
+  // new function every page, which the fetch effect below would chase.
+  const offset = useRef(0)
   const [total,        setTotal]        = useState<number | null>(null)
   const [tab,          setTab]          = useState<Tab>(() =>
     searchParams.get('tab') === 'past' ? 'past' : 'upcoming'
@@ -131,9 +133,9 @@ function AppEventsPageInner() {
   // dropped if a reset supersedes it mid-flight.
   const loadSeq = useRef(0)
 
-  async function loadEvents(tab: Tab, reset = false) {
+  const loadEvents = useCallback(async (tab: Tab, reset = false) => {
     const seq = reset ? ++loadSeq.current : loadSeq.current
-    const currentOffset = reset ? 0 : offset
+    const currentOffset = reset ? 0 : offset.current
     const upcoming = tab === 'upcoming' ? '1' : '0'
     const url = `/app/api/events?upcoming=${upcoming}&limit=${PAGE_SIZE}&offset=${currentOffset}${pinnedCity ? `&city=${encodeURIComponent(pinnedCity)}` : ''}`
     // Fail soft: a dropped fetch on a flaky mobile connection would otherwise
@@ -151,13 +153,13 @@ function AppEventsPageInner() {
       if (typeof data.total === 'number') setTotal(data.total)
       setEvents(prev => reset ? evts : [...prev, ...evts])
       setHasMore(data.hasMore ?? false)
-      setOffset(currentOffset + evts.length)
+      offset.current = currentOffset + evts.length
       if (data.city) setViewCity(data.city)
       setLoadFailed(false)
     } catch {
       if (seq === loadSeq.current && reset) setLoadFailed(true)
     }
-  }
+  }, [pinnedCity])
 
   // One-shot mount fetches that don't depend on tab: hero copy from the
   // CMS + live hangouts. Batched in a single Promise.all so React can
@@ -203,7 +205,7 @@ function AppEventsPageInner() {
         setAttendance(map)
       }
     }).finally(() => setLoading(false))
-  }, [tab, isLoggedIn])
+  }, [tab, isLoggedIn, loadEvents])
 
   async function handleLoadMore() {
     setLoadingMore(true)
@@ -212,9 +214,9 @@ function AppEventsPageInner() {
   }
 
   const reload = useCallback(async () => {
-    setOffset(0)
+    offset.current = 0
     await loadEvents(tab, true)
-  }, [tab])
+  }, [tab, loadEvents])
 
   const { pullY, refreshing, progress } = usePullToRefresh(reload)
 
@@ -269,7 +271,7 @@ function AppEventsPageInner() {
     if (freeOnly)       result = result.filter(e => e.price === 0 || e.memberPrice === 0)
 
     return result
-  }, [events, timeFilter, selectedTags, goingOnly, firstTimerOnly, freeOnly, attendance])
+  }, [events, timeFilter, selectedTags, goingOnly, firstTimerOnly, freeOnly, attendance, tz])
 
   const filtered = useMemo(() => {
     return neighborhoodFilter
@@ -426,7 +428,7 @@ function AppEventsPageInner() {
             {(['upcoming', 'past'] as Tab[]).map(t => (
               <button
                 key={t}
-                onClick={() => { setTab(t); setTimeFilter('All'); setSelectedTags([]); setNeighborhoodFilter(''); setOffset(0); setGoingOnly(false); setFirstTimerOnly(false); setFreeOnly(false) }}
+                onClick={() => { setTab(t); setTimeFilter('All'); setSelectedTags([]); setNeighborhoodFilter(''); offset.current = 0; setGoingOnly(false); setFirstTimerOnly(false); setFreeOnly(false) }}
                 className={`px-4 py-2 text-sm font-semibold rounded-full transition-colors ${
                   tab === t
                     ? 'bg-amber-500 text-white shadow-sm'

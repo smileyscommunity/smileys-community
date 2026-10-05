@@ -7,7 +7,7 @@ type Window = Parameters<typeof EventTabs>[0]['window']
 
 // A live city with none yet gets an invitation, not a missing section
 // (§30: never look broken, communicate opportunity).
-export default function Events({ city, tabEvents, eventWindow, enter }: { city: PublicCity; tabEvents: Event[]; eventWindow: Window; enter: EnterLink }) {
+export default function Events({ city, tabEvents, eventWindow, enter, signedIn }: { city: PublicCity; tabEvents: Event[]; eventWindow: Window; enter: EnterLink; signedIn: boolean }) {
   if (tabEvents.length === 0) {
     return (
       <section className="py-12 sm:py-16 bg-gray-50">
@@ -18,7 +18,7 @@ export default function Events({ city, tabEvents, eventWindow, enter }: { city: 
               Be one of the first to help build Smileys {city.name} — the first dinners, walks and meetups start with the first members.
             </p>
             <div className="flex justify-center">
-              <JoinCityButton slug={city.slug} name={city.name} />
+              <JoinCityButton slug={city.slug} name={city.name} guest={!signedIn} />
             </div>
           </div>
         </div>

@@ -38,16 +38,16 @@ export function sanitize(html: string): string {
 }
 
 // Article bodies (community posts + handbook) come from RichTextEditor, whose
-// toolbar offers seven text colours — TipTap's Color extension stores them as
+// toolbar offers seven text colors — TipTap's Color extension stores them as
 // `<span style="color: …">`. sanitize() drops every style attribute, so those
-// colours silently vanished the moment an article was published: the toolbar
+// colors silently vanished the moment an article was published: the toolbar
 // promised something the page couldn't render.
 //
 // This variant permits `style` on `span` alone, and allowedStyles narrows it to
 // a single property with a value that must match a hex/rgb(a) literal — so the
 // vectors that keep `style` off the strict sanitizer are still unavailable:
 // no `position`/`display` for fake UI overlays, no `background-image: url()`
-// beacon, no attribute-selector exfiltration. Colour on its own can only
+// beacon, no attribute-selector exfiltration. Color on its own can only
 // recolour text. Articles are written by admins/moderators, so this trades no
 // member-content trust; keep member-authored HTML on sanitize().
 const COLOR_VALUE = [

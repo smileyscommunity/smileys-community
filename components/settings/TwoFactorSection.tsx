@@ -7,11 +7,11 @@ interface Props {
   /** Caller controls visibility — the parent renders this for staff, and for
    *  anyone already enrolled whatever their role is now. */
   show: boolean
-  /** Enrolment is admin/moderator-only server-side; turning it OFF is for
+  /** Enrollment is admin/moderator-only server-side; turning it OFF is for
    *  whoever has it on (a demoted member is still asked for a code at every
    *  sign-in, so they must be able to remove it). False for an enrolled
    *  member who has since been demoted: they keep Disable and new recovery
-   *  codes, but can't re-enrol. */
+   *  codes, but can't re-enroll. */
   canEnroll?: boolean
 }
 

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { readFileSync } from 'node:fs'
 
-// Scan-4 items 18–23 and 25. Behaviour where it can be exercised directly,
+// Scan-4 items 18–23 and 25. Behavior where it can be exercised directly,
 // source pins where the fix is wiring inside a route.
 
 const read = (p: string) => readFileSync(p, 'utf8')

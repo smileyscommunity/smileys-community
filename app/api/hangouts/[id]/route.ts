@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { canActInCity } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
+import { writeAudit } from '@/lib/audit'
 import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
 import { HANGOUT_ACTIVITIES } from '@/lib/hangoutActivities'
 import { MAX_HANGOUT_LEAD_DAYS } from '@/lib/hangoutTime'
@@ -116,6 +117,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   const updated = await prisma.hangout.update({ where: { id }, data })
+  // Staff editing someone else's hangout (from /admin/hangouts) is a staff
+  // action and gets an audit row like the rest; the owner editing their own
+  // doesn't.
+  if (hangout.userId !== session.id) {
+    writeAudit(session.id, session.name, 'hangout.staff_edit', id, 'hangout',
+      { fields: Object.keys(data), cityId: hangout.cityId }, `Edited hangout "${updated.title}" (${Object.keys(data).join(', ')})`)
+  }
 
   // "Show-up relevant" changes → tell everyone who joined, so nobody
   // arrives at the old time or place.
@@ -178,6 +186,16 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const wasActive = hangout.status === 'active'
 
   await prisma.hangout.update({ where: { id }, data: { status: 'cancelled' } })
+  // Taken down by staff, not cancelled by its creator: audited, and the
+  // creator told — only the people who joined heard about it before.
+  if (hangout.userId !== session.id) {
+    writeAudit(session.id, session.name, 'hangout.staff_remove', id, 'hangout',
+      { creator: hangout.user?.name, cityId: hangout.cityId }, `Took down hangout "${hangout.title}" by ${hangout.user?.name ?? 'a member'}`)
+    if (wasActive) {
+      createNotification(hangout.userId, 'hangout_message', 'Your hangout was taken down',
+        `A moderator cancelled "${hangout.title}". Reply to the team if you think this was a mistake.`, '/hangouts').catch(() => {})
+    }
+  }
 
   if (wasActive) {
     const cancelledBy = session.id === hangout.userId ? hangout.user.name : 'a moderator'

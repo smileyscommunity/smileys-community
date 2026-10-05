@@ -198,7 +198,7 @@ export default function ModeratorPage() {
             <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
               <div>
                 <div className="text-sm font-bold text-white">Recent messages</div>
-                <div className="text-xs text-zinc-500 mt-0.5">Monitor for spam or toxic behaviour</div>
+                <div className="text-xs text-zinc-500 mt-0.5">Monitor for spam or toxic behavior</div>
               </div>
               <Link href="/admin/moderation" className="text-xs text-zinc-500 hover:text-white transition-colors">
                 Full log →

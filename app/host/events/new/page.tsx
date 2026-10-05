@@ -53,9 +53,13 @@ function HostNewEventForm() {
   const [paymentMethod, setPaymentMethod] = useState<'venue' | 'buyonline'>('venue')
 
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
+  // /api/cities is public and carries no ids — trips are picked by slug.
+  const [liveCities, setLiveCities] = useState<{ slug: string; name: string; country: string; status: string }[]>([])
   const [form, setForm] = useState({
     title:       '',
     clubId:      '',
+    // A cross-city trip (lib/eventTrip): the live city this event visits.
+    tripToCityId: '',
     intent:      'social' as 'social' | 'professional',
     emoji:       '🎉',
     date:        '',
@@ -74,6 +78,7 @@ function HostNewEventForm() {
     description: '',
     coverImage:          '',
     coverImagePosition:  50,
+    flyerImage:          '',
   })
 
   // The event's city is the selected club's — the server files it there — not
@@ -81,11 +86,29 @@ function HostNewEventForm() {
   // geocoded inside Türkiye and offered Istanbul's neighborhoods. A global
   // club (city null) has none, and the server then uses resolveCityId — the
   // browsed city — so the fallback is the same. No club yet: browsed city.
-  const eventCity = clubs.find(c => c.id === form.clubId)?.city ?? city
+  // A club host can take the club to another live city (lib/eventTrip). The
+  // event then happens there, so neighborhoods, venue and map lookup follow
+  // the destination. Same-timezone only (the server enforces it), so the
+  // club city's clock and currency still apply.
+  const clubCity        = clubs.find(c => c.id === form.clubId)?.city ?? null
+  const tripOptions     = clubCity ? liveCities.filter(c => c.slug !== clubCity.slug) : []
+  const tripDestination = form.tripToCityId ? tripOptions.find(c => c.slug === form.tripToCityId) : undefined
+  const eventCity = clubCity && tripDestination
+    ? { ...clubCity, slug: tripDestination.slug, name: tripDestination.name, country: tripDestination.country }
+    : clubCity ?? city
   // "Today" is the event CITY's calendar day — a member abroad, or a city in
   // another zone, must not get a different Tuesday than the community means.
   const tz = eventCity?.timezone ?? DEFAULT_TZ
   const neighborhoods = useCityNeighborhoods(eventCity?.slug)
+
+  // Live cities, for the trip picker.
+  useEffect(() => {
+    fetch('/app/api/cities')
+      .then(r => r.ok ? r.json() : [])
+      .then((rows: { slug: string; name: string; country: string; status: string }[]) =>
+        setLiveCities(Array.isArray(rows) ? rows.filter(c => c.status === 'live') : []))
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     fetch('/app/api/host/clubs', { credentials: 'include' })
@@ -126,6 +149,7 @@ function HostNewEventForm() {
           description:  dup.description  ?? f.description,
           coverImage:   dup.coverImage   ?? f.coverImage,
           coverImagePosition: typeof dup.coverImagePosition === 'number' ? dup.coverImagePosition : f.coverImagePosition,
+          flyerImage:   dup.flyerImage   ?? f.flyerImage,
           intent:       dup.intent === 'professional' || dup.intent === 'social' ? dup.intent : f.intent,
         }))
         // A ticket link is what "Buy online" means (see paymentMethod above).
@@ -302,6 +326,7 @@ function HostNewEventForm() {
       const payload = {
         title:        form.title.trim(),
         clubId:       form.clubId || undefined,
+        tripToCityId: tripDestination?.slug ?? undefined,
         tagIds:       selectedTagIds,
         vibes:        [],
         // Event Goal — was collected by the form but never sent, so
@@ -318,6 +343,7 @@ function HostNewEventForm() {
         description:  form.description.trim(),
         coverImage:         form.coverImage,
         coverImagePosition: form.coverImagePosition,
+        flyerImage:         form.flyerImage || null,
         hostId,
         price:        parseInt(form.price) || 0,
         memberPrice:  form.memberPrice ? parseInt(form.memberPrice) : undefined,
@@ -410,6 +436,27 @@ function HostNewEventForm() {
             ))}
           </select>
         </div>
+
+        {/* Trip to another city (lib/eventTrip) — a day out for the club,
+            filed in the city it visits and still in this city's feed. */}
+        {clubCity && tripOptions.length > 0 && (
+          <div>
+            <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Trip to another city</label>
+            <select
+              value={form.tripToCityId}
+              onChange={e => setForm(f => ({ ...f, tripToCityId: e.target.value }))}
+              className={inputCls}
+            >
+              <option value="">Not a trip — it happens in {clubCity.name}</option>
+              {tripOptions.map(c => <option key={c.slug} value={c.slug}>🚆 {clubCity.name} → {c.name}</option>)}
+            </select>
+            {tripDestination && (
+              <p className="text-[11px] text-zinc-500 mt-1.5">
+                It shows on {tripDestination.name}&apos;s page and in {clubCity.name}&apos;s feed. Pick a venue and neighborhood in {tripDestination.name}.
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Intent */}
         <div>
@@ -530,7 +577,8 @@ function HostNewEventForm() {
           <VenuePicker
             value={form.location} onText={v => setForm(f => ({ ...f, location: v }))}
             venue={venue} onVenue={pickVenue}
-            cityParam={eventCity?.slug ? `city=${encodeURIComponent(eventCity.slug)}` : ''}
+            // A trip may meet in either city — the departure station included.
+            cityParam={(eventCity?.slug ? `city=${encodeURIComponent(eventCity.slug)}` : '') + (tripDestination && clubCity ? `&city=${encodeURIComponent(clubCity.slug)}` : '')}
             placeholder="e.g. Salon İKSV" required className={inputCls}
           />
         </div>
@@ -661,6 +709,15 @@ function HostNewEventForm() {
           folder="events"
           position={form.coverImagePosition}
           onPositionChange={pos => setForm(f => ({ ...f, coverImagePosition: pos }))}
+        />
+
+        {/* The flyer — shown whole on the event page; the cover above is
+            cropped to a banner everywhere, so a poster doesn't belong there. */}
+        <ImageUpload
+          value={form.flyerImage}
+          onChange={url => setForm(f => ({ ...f, flyerImage: url }))}
+          label="Flyer (optional) — shown uncropped on the event page"
+          folder="events"
         />
 
         {/* Description */}

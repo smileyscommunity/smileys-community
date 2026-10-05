@@ -353,9 +353,21 @@ export default function HangoutsPage() {
     }
   }
 
+  // Moving "From" past the current "Until" used to leave Until below its own
+  // min, and the browser's native validation then blocked the submit silently
+  // (iPhone Safari shows nothing): Post did nothing, no request, no toast.
+  // Keep Until a sensible 2h after From instead.
+  function handleStartChange(v: string) {
+    setStartsAt(v)
+    if (v && (!endsAt || endsAt <= v)) {
+      try { setEndsAt(toInputValue(new Date(fromWallClockInTz(v, tz).getTime() + 2 * 60 * 60_000), tz)) } catch { /* leave as is */ }
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!title.trim() || !location.trim()) { toast.error('Title and location are required'); return }
+    if (!startsAt || !endsAt || endsAt <= startsAt) { toast.error('"Until" must be after "From"'); return }
     setSubmitting(true)
     try {
       const res = await fetch('/app/api/hangouts', {
@@ -579,7 +591,7 @@ export default function HangoutsPage() {
         )}
 
         {showForm && (
-          <form onSubmit={handleSubmit} className="bg-white border border-gray-100 rounded-2xl p-5 space-y-4 shadow-sm">
+          <form onSubmit={handleSubmit} noValidate className="bg-white border border-gray-100 rounded-2xl p-5 space-y-4 shadow-sm">
             {/* Same notice as the moving-sale form: browsing a city you
                 haven't joined files the hangout back home, where it won't
                 show in the feed underneath. */}
@@ -658,7 +670,7 @@ export default function HangoutsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label className="block">
                 <span className="block text-sm font-semibold text-gray-700 mb-1.5">From</span>
-                <input type="datetime-local" value={startsAt} onChange={e => setStartsAt(e.target.value)} className="input w-full" />
+                <input type="datetime-local" value={startsAt} onChange={e => handleStartChange(e.target.value)} className="input w-full" />
               </label>
               <label className="block">
                 <span className="block text-sm font-semibold text-gray-700 mb-1.5">Until</span>
@@ -955,7 +967,7 @@ export default function HangoutsPage() {
             return true
           })
 
-          // "Near you" — float the viewer's own-neighbourhood hangouts to the
+          // "Near you" — float the viewer's own-neighborhood hangouts to the
           // top of whatever grouping renders below (stable sort keeps the
           // existing soonest-first order for everything else).
           if (user.neighborhood) {
@@ -1399,7 +1411,7 @@ function HangoutCard({ h, currentUser, onCancel, onMutated, neighborhoods }: {
       posthog.capture(data.joined ? 'hangout_joined' : 'hangout_left', { activity: h.activity ?? null })
       // Update locally — count + avatar strip + my-join flip
       // Optimistic add uses the real user — name + color + photo —
-      // so the avatar strip shows the right initials + brand colour
+      // so the avatar strip shows the right initials + brand color
       // immediately instead of an empty circle until the next reload.
       const me: JoinerSummary = {
         id:           currentUser.id,

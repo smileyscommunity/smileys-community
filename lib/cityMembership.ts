@@ -21,6 +21,7 @@
 import { prisma } from './prisma'
 import { CITY_STATUS } from './cityStatus'
 import { resolveCityId } from './city'
+import { bustHostRoster } from './hostRoster'
 
 export interface MemberCity {
   id:     string
@@ -202,6 +203,8 @@ export async function setHomeCity(
     // one that exists where they now live.
     prisma.user.update({ where: { id: userId }, data: { cityId: city.id, neighborhood: null } }),
   ])
+  // A host who moves city moves rosters.
+  bustHostRoster()
   return { ok: true, alreadyHome: false, city }
 }
 

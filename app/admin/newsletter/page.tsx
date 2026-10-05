@@ -7,6 +7,7 @@ import CitySelect, { useAdminCities } from '@/components/admin/CitySelect'
 import { confirmToast } from '@/lib/confirmToast'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { todayInTz, wallClockInTz, fromWallClockInTz, DEFAULT_TZ, safeTz } from '@/lib/cityTime'
+import { isOffCalendar } from '@/lib/eventJoinState'
 
 // One id per composed newsletter, sent with every attempt at it. The server
 // claims it before sending, so a retry after a timeout (or a second click
@@ -362,7 +363,7 @@ export default function NewsletterPage() {
       // through today+7 on the clock of the city being mailed.
       const today = todayInTz(tz)
       const end   = todayInTz(tz, 7)
-      const week  = all.filter(e => e.status !== 'cancelled' && e.date >= today && e.date <= end)
+      const week  = all.filter(e => !isOffCalendar(e) && e.date >= today && e.date <= end)
       if (week.length === 0) { toast('No events in the next 7 days'); return }
 
       const origin = window.location.origin

@@ -32,13 +32,27 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Too many drafts — try again in a while.' }, { status: 429 })
   }
 
+  // The member's real situation, read here rather than trusted from the page:
+  // the prompt said "hasn't attended in over 90 days" to everyone, but it
+  // drafts for the Never-attended list (no event yet) and a 60-day Dormant
+  // list too, so the message was false for most of the people it went to.
+  const lastSeat = await prisma.eventAttendee.findFirst({
+    where:   { userId, status: 'approved', attendance: { not: 'no_show' } },
+    orderBy: { event: { date: 'desc' } },
+    select:  { event: { select: { date: true } } },
+  })
+  const daysSince = (d: Date) => Math.max(0, Math.round((Date.now() - d.getTime()) / 86_400_000))
+  const situation = lastSeat
+    ? `whose last Smileys event was about ${daysSince(new Date(`${lastSeat.event.date}T12:00:00Z`))} days ago`
+    : `who joined about ${Math.max(1, Math.round(daysSince(user.joinedAt) / 7))} weeks ago and hasn't been to an event yet`
+
   const firstName   = firstNameOf(user.name) || 'there'
   const interests   = (user.interests ?? []).slice(0, 3).join(', ')
   const neighborhood = user.neighborhood ?? null
 
   // The member's own city, not Istanbul — this text goes to every city's
   // lapsed members (docs/admin-panel-audit-2026-09-05.md, finding 3).
-  const prompt = `You are writing a short, warm re-engagement message from the Smileys community team in ${user.city.name} to a member who hasn't attended an event in over 90 days.
+  const prompt = `You are writing a short, warm re-engagement message from the Smileys community team in ${user.city.name} to a member ${situation}.
 
 Write 2–3 sentences max. Be warm and personal — reference their interests if available. Don't be pushy or salesy. Suggest they check out upcoming events. No exclamation marks. No "Hey" or "Hi" salutation — the platform prepends that.
 

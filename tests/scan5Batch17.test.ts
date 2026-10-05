@@ -93,7 +93,7 @@ describe('64. moderators edit listings in their own city', () => {
   })
 })
 
-describe('66. moving sales GET honours ?city=', () => {
+describe('66. moving sales GET honors ?city=', () => {
   const where = () => p.movingSale.findMany.mock.calls[0][0].where
 
   it('a known slug scopes the list to that city', async () => {
@@ -173,7 +173,7 @@ describe('65. sign-in returns people where they were', () => {
     expect(login.match(/searchParams\.get\('return'\)/g)).toHaveLength(1)
   })
 
-  it('an in-app return is honoured, an off-site one is dropped', () => {
+  it('an in-app return is honored, an off-site one is dropped', () => {
     expect(resolve('return=/board/abc123')).toBe('/board/abc123')
     expect(resolve('return=/directory/submit')).toBe('/directory/submit')
     expect(resolve('return=https://evil.com')).toBeNull()

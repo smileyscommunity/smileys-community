@@ -32,6 +32,8 @@ export async function GET() {
   const events = await prisma.event.findMany({
     where: {
       status: 'published',
+      // Public endpoint: a members-only watch party's venue is for members.
+      membersOnly: false,
       date:   { gte: fromDate, lte: TOURNAMENT_END },
       vibes:  { hasSome: ['World Cup', 'World Cup 2026'] },
     },

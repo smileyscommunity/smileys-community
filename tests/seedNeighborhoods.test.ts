@@ -7,7 +7,7 @@ import { validateEntries, type Entry } from '@/scripts/seed-neighborhoods'
 // then needed four fix-up passes for blank vibe/area, wrong coordinates and
 // duplicate emoji.
 //
-// The judgement stays with a person; this validates the mechanical half before
+// The judgment stays with a person; this validates the mechanical half before
 // anything is written. It matters that it reports EVERY problem at once: fixing
 // a 40-row list one error per run is how someone gives up and edits the
 // database by hand.

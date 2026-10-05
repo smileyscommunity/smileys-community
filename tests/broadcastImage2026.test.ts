@@ -87,7 +87,7 @@ describe('the ways it could go out wrong', () => {
     expect(composer).toContain('e instanceof ImageUploadError ? e.message')
   })
 
-  it('the card shows the whole poster rather than a centre band of it', () => {
+  it('the card shows the whole poster rather than a center band of it', () => {
     const page = src('app/(member)/notifications/page.tsx')
     expect(page).toContain('object-contain')
     expect(page).not.toContain('max-h-64 object-cover')

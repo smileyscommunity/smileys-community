@@ -63,7 +63,7 @@ describe('GET /api/city/current?cityId=', () => {
     expect(describeCity).not.toHaveBeenCalled()
   })
 
-  it('without ?cityId the cookie-resolved behaviour is unchanged', async () => {
+  it('without ?cityId the cookie-resolved behavior is unchanged', async () => {
     const d = await (await get()).json()
     expect(d.slug).toBe('home')
     expect(h.city.findUnique).not.toHaveBeenCalled()

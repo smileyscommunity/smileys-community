@@ -66,7 +66,7 @@ function StatusBanner({ status, endsAt }: { status: string; endsAt: Date }) {
 
 // Link preview (WhatsApp/social). It runs for logged-out crawlers too — and
 // the page's login redirect lands after the head has streamed — so the
-// preview carries what and when, and the neighbourhood, but never the
+// preview carries what and when, and the neighborhood, but never the
 // free-text location ("my place, Moda Cad. 12/3"): that is for members.
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params

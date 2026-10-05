@@ -61,7 +61,7 @@ export default function HostDashboard() {
       .then(d => setEvents(Array.isArray(d) ? d : []))
       .catch((e: Error) => setLoadError(e?.message ?? 'Failed to load'))
       .finally(() => setLoading(false))
-  }, [reloadTick])
+  }, [reloadTick, canEvents])
 
   // The check-in prompt reads the door list (?scope=door) — events you host,
   // co-host or club-host — so a co-host is chased about the room they ran too.
@@ -69,7 +69,7 @@ export default function HostDashboard() {
     if (!canDoor) return
     fetch('/app/api/host/events?scope=door', { credentials: 'include' })
       .then(r => r.json()).then(d => setDoorEvents(Array.isArray(d) ? d : [])).catch(() => {})
-  }, [])
+  }, [canDoor])
 
   // Each event's day on its own city's clock — a host with rooms in two
   // cities gets each one's "today" right (lib/hostPanel eventTz).

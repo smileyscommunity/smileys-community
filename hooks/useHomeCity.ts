@@ -14,7 +14,7 @@ export interface HomeCity {
 //
 // useCurrentCity answers "which city are these feeds showing", which follows
 // the view-city cookie. The profile editor needs the other answer: the server
-// validates a saved neighbourhood against the member's own city, so a picker
+// validates a saved neighborhood against the member's own city, so a picker
 // built from the browsed city offered names that were then rejected (or, when
 // the stored name wasn't in the list, showed "Select…" over a real value).
 //

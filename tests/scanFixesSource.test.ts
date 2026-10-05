@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'fs'
 
 // Rules pinned against the source because they live in server components or
-// in one-line details of routes whose other behaviour is tested elsewhere.
+// in one-line details of routes whose other behavior is tested elsewhere.
 // Each maps to a finding from the 2026-09-10 bug scan.
 
 const read = (p: string) => readFileSync(p, 'utf-8')

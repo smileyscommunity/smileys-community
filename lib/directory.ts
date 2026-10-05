@@ -32,6 +32,8 @@ export type DirectoryBusiness = {
   instagram:       string | null
   logo:            string | null
   coverImage:      string | null
+  coverCredit:     string | null
+  coverCreditUrl:  string | null
   isExpatOwned:    boolean
   isExpatFriendly: boolean
   languages:       string | null
@@ -93,6 +95,7 @@ export async function queryDirectory(filters: DirectoryFilters & { cityId: strin
       id: true, name: true, category: true, description: true,
       neighborhood: true, address: true, phone: true,
       website: true, instagram: true, logo: true, coverImage: true,
+      coverCredit: true, coverCreditUrl: true,
       isExpatOwned: true, isExpatFriendly: true, languages: true,
       latitude: true, longitude: true,
       hours: true, memberDiscount: true, tags: true,

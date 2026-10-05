@@ -16,22 +16,16 @@ interface Tip {
 }
 
 // §25 — "Tips from Smileys": short member advice under each experience.
-// Client island (pages are ISR-cached); renders nothing while empty for
-// guests so the page doesn't grow an empty box.
-export default function TipsBlock({ slug }: { slug: string }) {
+// Client island for the composer and the like/delete controls; the list
+// itself arrives from the page (lib/guideTips), so a guest with nothing to
+// see gets nothing — the heading used to render, wait for a fetch, then
+// vanish on every guest view.
+export default function TipsBlock({ slug, applyHref, initialTips }: { slug: string; applyHref: string; initialTips: Tip[] }) {
   const { user, isLoggedIn } = useAuth()
-  const [tips,    setTips]    = useState<Tip[]>([])
-  const [loaded,  setLoaded]  = useState(false)
+  const [tips,    setTips]    = useState<Tip[]>(initialTips)
   const [draft,   setDraft]   = useState('')
   const [posting, setPosting] = useState(false)
   const [staff,   setStaff]   = useState(false)
-
-  useEffect(() => {
-    fetch(`/app/api/guide/${slug}/tips`, { credentials: 'include' })
-      .then(r => r.ok ? r.json() : { tips: [] })
-      .then(d => { setTips(d.tips ?? []); setLoaded(true) })
-      .catch(() => setLoaded(true))
-  }, [slug])
 
   useEffect(() => {
     if (isLoggedIn) setStaff(user.role === 'admin' || user.role === 'moderator')
@@ -73,7 +67,7 @@ export default function TipsBlock({ slug }: { slug: string }) {
   }
 
   // Nothing to show and nobody who could add — stay invisible.
-  if (loaded && tips.length === 0 && !isLoggedIn) return null
+  if (tips.length === 0 && !isLoggedIn) return null
 
   return (
     <section>
@@ -133,7 +127,7 @@ export default function TipsBlock({ slug }: { slug: string }) {
         </div>
       ) : tips.length > 0 && (
         <p className="text-xs text-gray-500">
-          Have a tip of your own? <Link href="/apply" className="text-amber-600 font-semibold hover:underline">Join Smileys</Link> to share it.
+          Have a tip of your own? <Link href={applyHref} className="text-amber-600 font-semibold hover:underline">Join Smileys</Link> to share it.
         </p>
       )}
     </section>

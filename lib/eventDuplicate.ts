@@ -16,17 +16,17 @@
 import type { Prisma, Event } from '@prisma/client'
 import { normalizeClock } from '@/lib/eventTime'
 
-/** Content the organiser chose — the point of duplicating. */
+/** Content the organizer chose — the point of duplicating. */
 export const DUPLICATE_COPIED_FIELDS = [
   'description', 'time', 'endTime', 'duration',
   'location', 'neighborhood', 'address', 'lat', 'lng', 'businessId',
-  'emoji', 'coverImage', 'coverImagePosition', 'vibes', 'intent', 'language', 'difficulty',
+  'emoji', 'coverImage', 'coverImagePosition', 'flyerImage', 'vibes', 'intent', 'language', 'difficulty',
   'price', 'memberPrice', 'currency', 'payTo', 'paymentContact', 'ticketUrl', 'refundPolicy',
   'totalSpots', 'limitedSpots', 'approvalRequired', 'isPremium', 'membersOnly', 'isFirstTimerFriendly',
   'minAge', 'maxAge', 'genderBalance', 'maleQuota', 'femaleQuota', 'turkishMaleQuota',
   'meetingUrl', 'whatsappUrl',
-  'clubId', 'hostId', 'cityId',
-  // Standing: the organiser's call on the tier and the cutoff.
+  'clubId', 'hostId', 'cityId', 'originCityId',
+  // Standing: the organizer's call on the tier and the cutoff.
   'tierOverride', 'cancelCutoffHours',
 ] as const satisfies readonly (keyof Event)[]
 
@@ -57,7 +57,7 @@ export function duplicateEventData(source: Source, today: string): Prisma.EventU
   return {
     ...(copied as Pick<Event, (typeof DUPLICATE_COPIED_FIELDS)[number]>),
     // A legacy '22.00' shouldn't be cloned into a fresh row; a start time that
-    // doesn't normalise ('TBA') is kept as the organiser wrote it.
+    // doesn't normalize ('TBA') is kept as the organizer wrote it.
     time:                 normalizeClock(source.time, 'start') ?? source.time,
     endTime:              source.endTime ? normalizeClock(source.endTime, 'end') : null,
     title:                `${source.title} (Copy)`,

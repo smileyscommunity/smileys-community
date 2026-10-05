@@ -3,7 +3,7 @@ import MemberProfileClient from './MemberProfileClient'
 
 // Member profiles are members-only, but the page HTML (including the <head>)
 // is rendered before the client's API fetch applies any gate. The head used
-// to carry the member's full name, bio, neighbourhood and photo to any
+// to carry the member's full name, bio, neighborhood and photo to any
 // logged-in viewer — including one they'd blocked, or who can only see a
 // connections-only member's first name. Nothing personal goes in it; the
 // profile's content comes from /api/members/[id], which applies the rules.

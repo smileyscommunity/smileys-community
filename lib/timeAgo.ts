@@ -14,7 +14,7 @@
  * you say where: a member reading in London saw a Saturday-evening
  * notification dated the Friday, because their phone was two hours behind the
  * city the community lives in. Left off, it stays on the device clock — the
- * behaviour every other call site still has.
+ * behavior every other call site still has.
  */
 export function timeAgo(iso: string | Date, opts: { cutoverDays?: number; timeZone?: string } = {}): string {
   const cutover = opts.cutoverDays ?? 7

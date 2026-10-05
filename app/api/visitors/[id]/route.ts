@@ -49,7 +49,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Name, intro, and dates are required' }, { status: 400 })
     }
     if (name.length > 80 || intro.length > 1000) return NextResponse.json({ error: 'Name or intro too long' }, { status: 400 })
-    // A visit doesn't move city: its neighbourhood, its locals and its card
+    // A visit doesn't move city: its neighborhood, its locals and its card
     // are that city's. Post a new one for another.
     if (typeof body.city === 'string' && body.city.trim() && body.city.trim() !== row.city.slug) {
       return NextResponse.json({ error: 'A visit can\'t move to another city — withdraw it and post a new one' }, { status: 400 })
@@ -83,7 +83,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const { count } = await prisma.visitorAnnouncement.updateMany({ where: { id, userId: session.id, status: 'active' }, data })
     if (count === 0) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     revalidateTag('visitor-announcements')
-    // A neighbourhood this visit hasn't pinged yet hears about it; one it
+    // A neighborhood this visit hasn't pinged yet hears about it; one it
     // already pinged doesn't hear twice (lib/visitorNotify).
     notifyLocalsOfVisit({
       id, userId: session.id, cityId: row.cityId, citySlug: row.city.slug, neighborhood: data.neighborhood,

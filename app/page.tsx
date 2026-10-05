@@ -8,7 +8,9 @@ import { getEvents, redactEventForGuest } from '@/lib/db'
 import { getSession } from '@/lib/session'
 import EventTabs from '@/components/EventTabs'
 import CityCard from '@/components/CityCard'
-import { resolveImageUrl, istanbulEventWindow } from '@/lib/data'
+import { resolveImageUrl, eventWindowFor } from '@/lib/data'
+import { DEFAULT_TZ } from '@/lib/cityTime'
+import { jsonLdHtml } from '@/lib/jsonLd'
 import { getPublicCities, CITY_STATUS, DEFAULT_CITY_SLUG } from '@/lib/cities'
 import { CITY_MATURITY } from '@/lib/cityMaturity'
 import { APP_URL } from '@/lib/env'
@@ -18,6 +20,9 @@ import { ACTIVATED_MEMBER_WHERE } from '@/lib/memberCount'
 import { absoluteOgImage } from '@/lib/og'
 import { isSoldOut } from '@/lib/soldOut'
 import { arrivalAccent } from '@/lib/arrival-accents'
+import { toEventCard } from '@/lib/eventCard'
+import { testimonialAuthorOk, TESTIMONIAL_SELECT, publicTestimonial } from '@/lib/testimonialQuery'
+import { isOffCalendar } from '@/lib/eventJoinState'
 
 // ── The global landing page ─────────────────────────────────────────────────
 // Smileys is not a website about Istanbul; Istanbul is the first Smileys city.
@@ -46,6 +51,14 @@ import { arrivalAccent } from '@/lib/arrival-accents'
 // (see visiting-hero-og.jpg for the same treatment).
 const HERO_FALLBACK    = '/app/images/hero-istanbul.jpg'
 const HERO_FALLBACK_OG = `${APP_URL}/images/hero-istanbul-og.jpg`
+// What the shipped photo shows. An admin-set hero carries its own alt
+// (/admin/content → Home); without one it is described as nothing rather
+// than as a dinner it may not be — "Smileys members together at a community
+// dinner" was the alt of every hero, including a four-skyline composite.
+const HERO_FALLBACK_ALT = 'Friends talking on a rooftop terrace above the Bosphorus at sunset'
+function heroAltFor(home: { heroImage?: string; heroAlt?: string }): string {
+  return home.heroAlt?.trim() || (home.heroImage ? '' : HERO_FALLBACK_ALT)
+}
 
 export async function generateMetadata(): Promise<Metadata> {
   const home    = loadContent().home ?? {}
@@ -54,12 +67,13 @@ export async function generateMetadata(): Promise<Metadata> {
   // An admin-set hero goes through the files route's resize; the bundled
   // fallback is pre-sized, so its dimensions are known.
   const adminHero = absoluteOgImage(home.heroImage)
+  const alt   = heroAltFor(home) || 'Smileys Community'
   const image = adminHero
-    ? { url: adminHero, alt: 'Smileys Community' }
-    : { url: HERO_FALLBACK_OG, width: 1200, height: 800, alt: 'Smileys Community' }
-  const title   = 'Smileys — your people, in every city you land in'
+    ? { url: adminHero, alt }
+    : { url: HERO_FALLBACK_OG, width: 1200, height: 800, alt }
+  const title   = 'Smileys — Expat & International Community, City by City'
   const description =
-    'Meet people, join clubs and discover experiences wherever your international life takes you. Smileys is a network of local communities, growing city by city.'
+    'Free-to-join community for expats, nomads, travelers, students and locals: real events, clubs and friends, city by city. Applications reviewed by hand in 24–48 hours.'
 
   return {
     title,
@@ -81,17 +95,28 @@ const getLandingData = unstable_cache(
     const liveCityRows = await prisma.city.findMany({
       where: { status: 'live' }, select: { id: true, name: true, timezone: true },
     })
+    const liveIds      = liveCityRows.map(c => c.id)
     const cityNameById = Object.fromEntries(liveCityRows.map(c => [c.id, c.name]))
     // Each card judges "started"/"deadline" on its own city's clock, not
     // Istanbul's — same query, one more column.
     const cityTzById   = Object.fromEntries(liveCityRows.map(c => [c.id, c.timezone]))
 
-    const [{ events: rawEvents }, testimonials, memberCount, stories] = await Promise.all([
-      // Wide enough for the tabs to filter across a month; the page is
-      // cached for 60s, so one fetch beats a request per tab. No cityId:
-      // the cross-city view getEvents was designed to serve.
-      getEvents({ limit: 24, upcoming: true }),
-      prisma.testimonial.findMany({ where: { active: true }, orderBy: [{ order: 'asc' }], take: 3 }),
+    const [{ events: crossCity }, perCity, testimonials, memberCount, stories] = await Promise.all([
+      // Live cities only (a coming-soon city's first event must not open the
+      // front page with no city name), and the whole upcoming list up to 60 so
+      // "All events" counts what the city cards count — it said 24 beside
+      // Istanbul's 37. Cards are small once projected (toEventCard).
+      getEvents({ limit: 60, upcoming: true, cityIds: liveIds }),
+      // Every live city's next few, so a founding city's first event lands
+      // here the day it is posted: ordered by date alone, Istanbul filled
+      // every slot a month ahead and İzmir's would never have shown.
+      Promise.all(liveIds.map(cityId => getEvents({ limit: 3, upcoming: true, cityId }).then(r => r.events))),
+      prisma.testimonial.findMany({
+        where:   { active: true, ...testimonialAuthorOk() },
+        orderBy: [{ order: 'asc' }],
+        take:    3,
+        select:  TESTIMONIAL_SELECT,
+      }).then(rows => rows.map(publicTestimonial)),
       // "N members and counting" — activated members only (lib/memberCount).
       prisma.user.count({ where: ACTIVATED_MEMBER_WHERE }),
       // Community write-ups — member and host stories, already public at
@@ -105,21 +130,29 @@ const getLandingData = unstable_cache(
       }),
     ])
 
+    const seen = new Set<string>()
+    const rawEvents = [...crossCity, ...perCity.flat()]
+      .filter(e => (seen.has(e.id) ? false : (seen.add(e.id), true)))
+      .sort((a, b) => Number(!!b.featured) - Number(!!a.featured) || a.date.localeCompare(b.date) || a.time.localeCompare(b.time))
+
     // This page redirects every session away (see HomePage), so the viewer
-    // is a guest BY CONSTRUCTION — redact inside the cache, unconditionally.
-    // Same projection as GET /api/events: no exact address/GPS, no chat or
-    // meeting links, no payment contact, no attendee identities.
-    const events = rawEvents.map(e => ({ ...redactEventForGuest(e), cityName: e.cityId ? cityNameById[e.cityId] : undefined, timeZone: e.cityId ? cityTzById[e.cityId] : undefined }))
-    return { events, testimonials, memberCount, stories }
+    // is a guest BY CONSTRUCTION — redact inside the cache, unconditionally,
+    // then cut each event to what a card renders (lib/eventCard): the whole
+    // object used to ship to the client list.
+    const events = rawEvents.map(e => toEventCard({ ...redactEventForGuest(e), cityName: e.cityId ? cityNameById[e.cityId] : undefined, timeZone: e.cityId ? cityTzById[e.cityId] : undefined }))
+    const anyMembersOnly = events.some(e => e.membersOnly)
+    return { events, testimonials, memberCount, stories, anyMembersOnly }
   },
-  ['global-landing-data'],
+  // v2: card-shaped events, filtered testimonials — a new key so no cached
+  // v1 value (whole events) is served after the deploy.
+  ['global-landing-data-v2'],
   { revalidate: 60, tags: ['home'] },
 )
 
 const WHY = [
-  { emoji: '👋', title: 'Meet people',      body: 'Discover people who share your interests, your stage of life and your sense of humour.' },
-  { emoji: '🎭', title: 'Join clubs',       body: 'Communities built around activities and passions — sailing, theatre, hiking, food, film, language.' },
-  { emoji: '📅', title: 'Discover events',  body: 'From dinners and nightlife to sailing, theatre, sports and workshops. Something on every week.' },
+  { emoji: '👋', title: 'Meet people',      body: 'Discover people who share your interests, your stage of life and your sense of humor.' },
+  { emoji: '🎭', title: 'Join clubs',       body: 'Communities built around activities and passions — sailing, theater, hiking, food, film, language.' },
+  { emoji: '📅', title: 'Discover events',  body: 'From dinners and nightlife to sailing, theater, sports and workshops, set up by members who host.' },
   { emoji: '📍', title: 'Explore your neighborhood', body: 'Find people and plans near where you actually live, not across town.' },
   { emoji: '✨', title: 'Discover experiences', body: 'Go beyond group chats and see the city together — the whole point is offline.' },
   { emoji: '🌍', title: 'Stay connected across cities', body: 'Your Smileys profile travels with you when you visit another Smileys city.' },
@@ -142,9 +175,9 @@ export default async function HomePage() {
   // leaving the hero blank.
   const home = loadContent().home ?? {}
   const heroImage = home.heroImage || HERO_FALLBACK
-  const heroAlt   = 'Smileys members together at a community dinner'
+  const heroAlt   = heroAltFor(home)
 
-  const [cities, { events, testimonials, memberCount, stories }] = await Promise.all([
+  const [cities, { events, testimonials, memberCount, stories, anyMembersOnly }] = await Promise.all([
     getPublicCities(),
     getLandingData(),
   ])
@@ -157,21 +190,34 @@ export default async function HomePage() {
   // which corrects itself as each city matures — no flag to remember to
   // flip. Falls back to raw status if no city qualifies, so the hero never
   // says "Live in 0 cities".
+  // Three groups, one vocabulary everywhere on the page (pill, grid, network
+  // list): LIVE = a community that carries itself; FOUNDING = open to join,
+  // its first members shaping it; COMING SOON = not open yet. The pill used
+  // to count founding cities as "on the way" and file them under a heading
+  // shared with cities you cannot join, while the list at the bottom called
+  // them live. If no city qualifies as live, the flagship alone stands in —
+  // not every status-live city, which said "Live in 6 cities" over five
+  // empty ones.
   const statusLive  = cities.filter(c => c.status === CITY_STATUS.Live)
   const mature      = statusLive.filter(c => c.stats?.maturity === CITY_MATURITY.SelfSustaining)
-  const liveCities  = mature.length > 0 ? mature : statusLive
-  const otherCities = cities.filter(c => !liveCities.includes(c))
+  const fallback    = statusLive.find(c => c.slug === DEFAULT_CITY_SLUG) ?? statusLive[0]
+  const liveCities  = mature.length > 0 ? mature : (fallback ? [fallback] : [])
+  const founding    = statusLive.filter(c => !liveCities.includes(c))
+  const comingSoon  = cities.filter(c => c.status !== CITY_STATUS.Live)
+  const otherCities = [...founding, ...comingSoon]
   const flagship    = liveCities[0] ?? null
 
   // Cancelled events break trust in a showcase slot; sold-out ones sink to the
   // bottom so joinable ones get the space. Order is preserved within each group,
   // and the tabs filter over the result.
-  const liveEvents = events.filter(e => e.status !== 'cancelled')
+  const liveEvents = events.filter(e => !isOffCalendar(e))
   const tabEvents = [
     ...liveEvents.filter(e => !isSoldOut(e)),
     ...liveEvents.filter(isSoldOut),
   ]
-  const eventWindow = istanbulEventWindow()
+  // The flagship's clock (each card still judges "started" on its own city's):
+  // the tabs were hard-wired to Istanbul's week whatever the network held.
+  const eventWindow = eventWindowFor(flagship?.timezone ?? DEFAULT_TZ)
 
   // Primary CTA names the flagship city when there is exactly one live city
   // ("Explore Istanbul"), and becomes "Find your city" once there are more.
@@ -183,11 +229,18 @@ export default async function HomePage() {
   // reading "Explore Istanbul" right under it, a visitor who leaves in three
   // seconds saw an Istanbul website. So the pill carries the rest of the
   // network and links down to it, which beats spending a third button on it.
-  const eyebrow = singleCity ? `Live in ${flagship.name}` : `Live in ${liveCities.length} cities`
-  const onTheWay = otherCities.length > 0 ? ` · ${otherCities.length} more on the way` : ''
+  // Plain words, no "founding" / "coming soon" jargon: what a visitor wants to
+  // know is that this one is open and that more are on the way.
+  const eyebrow = singleCity ? `${flagship.name} is open` : `Open in ${liveCities.length} cities`
+  const more = founding.length + comingSoon.length
+  const onTheWay = more > 0 ? ` · ${more} more ${more === 1 ? 'city' : 'cities'} starting` : ''
+
+  // The site's own WebSite node — the layout only declares the Organization.
+  const websiteLd = { '@context': 'https://schema.org', '@type': 'WebSite', name: 'Smileys Community', url: APP_URL, inLanguage: 'en' }
 
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdHtml(websiteLd) }} />
       {/* ── Hero ───────────────────────────────────────────────────────── */}
       <section className="relative bg-gradient-to-b from-amber-50 via-white to-white overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,rgba(251,191,36,0.15),transparent)]" />
@@ -211,22 +264,18 @@ export default async function HomePage() {
               )}
 
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight text-gray-900 leading-[1.08] mb-6">
-                {home.headline || 'Your people, in every city you land in.'}
+                {home.headline?.trim() || 'Your people, in every city you land in.'}
               </h1>
 
-              <p className="text-lg md:text-xl text-gray-600 max-w-2xl leading-relaxed mb-10">
-                {home.subtitle || 'Meet people, join local communities, and make real plans in the cities you call home.'}
+              <p className="text-lg md:text-xl text-gray-600 max-w-2xl leading-relaxed mb-4">
+                {home.subtitle?.trim() || 'Meet people, join local communities, and make real plans in the cities you call home.'}
+              </p>
+              {/* Who it is for and what happens there, in the hero itself: the
+                  headline names neither, and the CMS subtitle is about "people". */}
+              <p className="text-base font-semibold text-gray-800 max-w-2xl mb-8">
+                For expats, nomads, travelers, students and locals — dinners, hikes, sailing and language nights.
               </p>
 
-              <div className="lg:hidden relative aspect-[3/2] rounded-2xl overflow-hidden shadow-xl mb-10">
-                <Image
-                  src={resolveImageUrl(heroImage)}
-                  alt={heroAlt}
-                  fill priority fetchPriority="high"
-                  sizes="(max-width: 639px) calc(100vw - 32px), calc(100vw - 48px)"
-                  className="object-cover"
-                />
-              </div>
 
               <div className="flex flex-col sm:flex-row gap-4 mb-3">
                 {singleCity ? (
@@ -239,7 +288,7 @@ export default async function HomePage() {
                 ) : (
                   <Link href="#cities" className="btn-primary text-base px-8 py-4">Find your city</Link>
                 )}
-                <Link href="/apply" className="btn-secondary text-base px-8 py-4">Join Smileys</Link>
+                <Link href="/apply" data-join-hero className="btn-secondary text-base px-8 py-4">Join Smileys</Link>
               </div>
               {/* Third action, deliberately not a third button: the city grid
                   is worth reaching, not worth competing with Join. */}
@@ -253,6 +302,15 @@ export default async function HomePage() {
               <p className="text-sm font-medium text-gray-700">
                 Free to join · Applications reviewed by hand within 24–48 hours · Pay only for events you attend
               </p>
+              <div className="lg:hidden relative aspect-[3/2] rounded-2xl overflow-hidden shadow-xl mt-8">
+                <Image
+                  src={resolveImageUrl(heroImage)}
+                  alt={heroAlt}
+                  fill priority fetchPriority="high"
+                  sizes="(min-width: 1024px) 0px, (max-width: 639px) calc(100vw - 32px), calc(100vw - 48px)"
+                  className="object-cover"
+                />
+              </div>
             </div>
 
             <div className="hidden lg:block relative h-[500px] rounded-2xl overflow-hidden shadow-xl">
@@ -260,7 +318,7 @@ export default async function HomePage() {
                 src={resolveImageUrl(heroImage)}
                 alt={heroAlt}
                 fill priority fetchPriority="high"
-                sizes="(max-width: 1024px) 0px, (max-width: 1344px) calc(50vw - 64px), 576px"
+                sizes="(max-width: 1023px) 0px, (max-width: 1344px) calc(50vw - 64px), 576px"
                 className="object-cover"
               />
             </div>
@@ -281,23 +339,25 @@ export default async function HomePage() {
                   each card wears its own city name — multi-city truth by
                   construction, not by label. */}
               <h2 className="section-title">Happening this week</h2>
-              <p className="section-subtitle">Real plans, real people — walk into any of them.</p>
+              {/* Most of these are members-only: "walk into any of them" sat
+                  over a row of locked cards. */}
+              <p className="section-subtitle">{anyMembersOnly ? 'Real plans, real people — members walk into any of them.' : 'Real plans, real people — walk into any of them.'}</p>
             </div>
-            {/* A city filter joins these tabs once a second city is live. */}
-            <EventTabs events={tabEvents} window={eventWindow} />
+            {/* Each card names its city; a city filter is still to be built. */}
+            <EventTabs events={tabEvents} window={eventWindow} allHref={singleCity ? `/app/events?city=${flagship.slug}` : undefined} />
           </div>
         </section>
       )}
 
       {/* ── How are you coming? ─────────────────────────────────────────── */}
       {/* The arrival hubs side by side, so a visitor picks the page written
-          for them in one glance: the traveller's (/visiting), the remote
+          for them in one glance: the traveler's (/visiting), the remote
           worker's, the relocating expat's and the student's (per-city hubs). With one
           live city the links pin it and the heading names it; otherwise each
           resolves to the reader's city. Only paths — no counts — so nothing
           here can drift from what the hubs themselves show. Each card carries
           its hub's tint (lib/arrival-accents) so the four read as four
-          different doors, not one grey row. */}
+          different doors, not one gray row. */}
       <section aria-labelledby="arrival-title" className="py-14 sm:py-20 bg-white border-t border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="mb-8">
@@ -308,31 +368,34 @@ export default async function HomePage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
             {[
+              // Pinned to the flagship and direct: a bare /visiting follows the
+              // view-city cookie (one click on a city card set it, and "How are
+              // you coming to Istanbul?" then led to Ankara's page), and
+              // /remote-work?city= was a redirect to /<city>/remote-work.
               {
-                // The default city's Visiting page is the bare URL (its canonical).
                 hub:   'visiting' as const,
-                href:  singleCity && flagship.slug !== DEFAULT_CITY_SLUG ? `/visiting?city=${flagship.slug}` : '/visiting',
+                href:  singleCity ? `/visiting?city=${flagship.slug}` : '/visiting',
                 emoji: '🧳', title: 'Visiting',
                 body:  'In town for a few days or weeks. See who else is visiting, what is on during your stay, and locals happy to meet.',
                 cta:   'Plan your visit',
               },
               {
                 hub:   'remote-work' as const,
-                href:  singleCity ? `/remote-work?city=${flagship.slug}` : '/remote-work',
+                href:  singleCity ? `/${flagship.slug}/remote-work` : '/remote-work',
                 emoji: '💻', title: 'Working remotely',
-                body:  'Here for a while with a laptop. Your first 72 hours: SIM and internet, a neighbourhood, coworking sessions, and people.',
+                body:  'Here for a while with a laptop. Your first 72 hours: SIM and internet, a neighborhood, coworking sessions, and people.',
                 cta:   'Your first 72 hours',
               },
               {
                 hub:   'moving' as const,
-                href:  singleCity ? `/moving?city=${flagship.slug}` : '/moving',
+                href:  singleCity ? `/${flagship.slug}/moving` : '/moving',
                 emoji: '🏡', title: 'Moving here',
-                body:  'Building a life here. Residence permits, housing, banking, healthcare, neighbourhoods — and people who have already figured it out.',
+                body:  'Building a life here. Residence permits, housing, banking, healthcare, neighborhoods — and people who have already figured it out.',
                 cta:   'Start your move',
               },
               {
                 hub:   'students' as const,
-                href:  singleCity ? `/students?city=${flagship.slug}` : '/students',
+                href:  singleCity ? `/${flagship.slug}/students` : '/students',
                 emoji: '🎓', title: 'Studying here',
                 body:  'Meet people beyond your campus, discover the city, and make your semester more than lectures.',
                 cta:   'Your first week',
@@ -372,11 +435,21 @@ export default async function HomePage() {
             ))}
           </div>
 
-          {otherCities.length > 0 && (
+          {founding.length > 0 && (
             <div className="mt-12 pt-10 border-t border-gray-100">
-              <h3 className="text-sm font-bold uppercase tracking-widest text-gray-500 mb-6">On the way</h3>
+              <h3 className="text-sm font-bold uppercase tracking-widest text-gray-500 mb-2">Founding now</h3>
+              <p className="text-sm text-gray-600 mb-6">Open to join — the first members shape what each one becomes.</p>
               <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                {otherCities.map(c => <CityCard key={c.id} city={c} />)}
+                {founding.map(c => <CityCard key={c.id} city={c} headingLevel={4} />)}
+              </div>
+            </div>
+          )}
+
+          {comingSoon.length > 0 && (
+            <div className="mt-12 pt-10 border-t border-gray-100">
+              <h3 className="text-sm font-bold uppercase tracking-widest text-gray-500 mb-6">Coming soon</h3>
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                {comingSoon.map(c => <CityCard key={c.id} city={c} headingLevel={4} />)}
               </div>
             </div>
           )}
@@ -385,7 +458,7 @@ export default async function HomePage() {
               to. An invented launch date is a promise someone has to keep. */}
           <p className="mt-10 text-sm text-gray-500">
             More cities are coming. Somewhere you'd like to see Smileys?{' '}
-            <Link href="/contact" className="font-semibold text-amber-600 hover:underline">Tell us where.</Link>
+            <Link href="/contact?topic=city" className="font-semibold text-amber-700 hover:underline">Tell us where.</Link>
           </p>
         </div>
       </section>
@@ -402,7 +475,7 @@ export default async function HomePage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {WHY.map(w => (
               <div key={w.title} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
-                <div className="text-3xl mb-4">{w.emoji}</div>
+                <div aria-hidden="true" className="text-3xl mb-4">{w.emoji}</div>
                 <h3 className="font-bold text-gray-900 mb-2">{w.title}</h3>
                 <p className="text-sm text-gray-600 leading-relaxed">{w.body}</p>
               </div>
@@ -437,11 +510,12 @@ export default async function HomePage() {
               {
                 emoji: '🔑',
                 title: 'Everything opens up once you’re in',
-                body:  'Browse clubs, RSVP to events, join club walls, and use your city’s guide, handbook, and community boards.',
+                // The guide and handbook are public — this page links guests to them.
+                body:  'RSVP to events, join clubs and their walls, message other members and post on your city’s community board.',
               },
             ].map(w => (
               <div key={w.title} className="bg-gray-50 rounded-2xl border border-gray-100 shadow-sm p-6">
-                <div className="text-3xl mb-4">{w.emoji}</div>
+                <div aria-hidden="true" className="text-3xl mb-4">{w.emoji}</div>
                 <h3 className="font-bold text-gray-900 mb-2">{w.title}</h3>
                 <p className="text-sm text-gray-600 leading-relaxed">{w.body}</p>
               </div>
@@ -455,21 +529,26 @@ export default async function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
             <div>
-              <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight mb-4">Visiting another city?</h2>
+              {/* This page only ever renders for guests (members are redirected
+                  to the dashboard), so it speaks to someone who isn't in yet —
+                  it promised "your community travels with you" and "local
+                  members reach out" to a visitor with no account, in cities
+                  whose members can be counted on one hand. */}
+              <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight mb-4">Visiting a Smileys city?</h2>
               <p className="text-lg text-gray-300 leading-relaxed mb-6">
-                Your Smileys community travels with you. Tell us you're coming and you'll see local
-                members, events, clubs and places before you land — so you arrive with plans, not a map.
+                Members announce their trips before they land, see what&apos;s on during their stay and
+                join the city&apos;s events and clubs while they&apos;re there — one account, every Smileys city.
               </p>
-              <Link href="/visiting" className="btn-primary text-base px-8 py-4">I'm visiting</Link>
+              <Link href={singleCity ? `/visiting?city=${flagship.slug}` : '/visiting'} className="btn-primary text-base px-8 py-4">Plan a visit</Link>
             </div>
             <div className="rounded-2xl bg-white/5 border border-white/10 p-6 sm:p-8">
               <p className="text-sm uppercase tracking-widest text-amber-400 font-bold mb-4">How it works</p>
               <ol className="space-y-4 text-sm text-gray-300">
-                <li className="flex gap-3"><span className="font-bold text-white shrink-0">1.</span> Post your dates and where you're headed.</li>
-                <li className="flex gap-3"><span className="font-bold text-white shrink-0">2.</span> Local members see you're coming and reach out.</li>
-                <li className="flex gap-3"><span className="font-bold text-white shrink-0">3.</span> Join events and club nights while you're there.</li>
+                <li className="flex gap-3"><span className="font-bold text-white shrink-0">1.</span> Join Smileys — a short application, reviewed by hand.</li>
+                <li className="flex gap-3"><span className="font-bold text-white shrink-0">2.</span> Post your dates and the city you&apos;re heading to.</li>
+                <li className="flex gap-3"><span className="font-bold text-white shrink-0">3.</span> Members there can see you&apos;re coming; join their events and club nights while you&apos;re in town.</li>
               </ol>
-              <p className="text-xs text-gray-500 mt-6">
+              <p className="text-xs text-gray-400 mt-6">
                 Gets better with every city we launch — one account, every community.
               </p>
             </div>
@@ -488,9 +567,12 @@ export default async function HomePage() {
             </p>
           </div>
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {liveCities.map(c => (
-              <Link key={c.id} href="/guide" className="group card p-6 hover:-translate-y-1 transition-transform duration-300">
-                <div className="text-2xl mb-3">📖</div>
+            {/* Every live city has a guide of its own (founding ones too), and
+                each card opens that city's: they all linked to a bare /guide,
+                which shows whatever city the visitor's cookie names. */}
+            {[...liveCities, ...founding].map(c => (
+              <Link key={c.id} href={`/guide?city=${c.slug}`} className="group card p-6 hover:-translate-y-1 transition-transform duration-300">
+                <div aria-hidden="true" className="text-2xl mb-3">📖</div>
                 <h3 className="font-bold text-gray-900 mb-1 group-hover:text-amber-600 transition-colors">
                   The {c.name} guide
                 </h3>
@@ -499,8 +581,8 @@ export default async function HomePage() {
                 </p>
               </Link>
             ))}
-            <Link href="/handbook" className="group card p-6 hover:-translate-y-1 transition-transform duration-300">
-              <div className="text-2xl mb-3">🧭</div>
+            <Link href={singleCity ? `/handbook?city=${flagship.slug}` : '/handbook'} className="group card p-6 hover:-translate-y-1 transition-transform duration-300">
+              <div aria-hidden="true" className="text-2xl mb-3">🧭</div>
               <h3 className="font-bold text-gray-900 mb-1 group-hover:text-amber-600 transition-colors">The handbook</h3>
               <p className="text-sm text-gray-600">Residence permits, banking, healthcare and the rest of moving-country admin.</p>
             </Link>
@@ -514,7 +596,9 @@ export default async function HomePage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="mb-8">
               <h2 className="section-title">Life happens offline</h2>
-              <p className="section-subtitle">Real stories from real members.</p>
+              {/* The written pieces are the community's posts — guides and
+                  practical pieces as often as members' own stories. */}
+              <p className="section-subtitle">Stories, guides and words from the Smileys community.</p>
             </div>
 
             {/* Written pieces first — a member or host telling their own story
@@ -550,7 +634,7 @@ export default async function HomePage() {
                     )}
                     <div>
                       <p className="text-xs font-bold text-gray-900">{t.memberName}</p>
-                      {t.role && <p className="text-xs text-gray-400">{t.role}</p>}
+                      {t.role && <p className="text-xs text-gray-500">{t.role}</p>}
                     </div>
                   </div>
                 </div>
@@ -578,17 +662,21 @@ export default async function HomePage() {
           </p>
 
           {/* The network as it actually is — live cities marked, everything
-              else honestly labelled. */}
+              else honestly labeled. */}
           <div className="flex flex-wrap justify-center gap-x-8 gap-y-3 text-sm">
-            {cities.map(c => (
-              <span key={c.id} className="inline-flex items-center gap-2">
-                <span aria-hidden="true" className={`w-2 h-2 rounded-full ${c.status === CITY_STATUS.Live ? 'bg-emerald-500' : 'bg-gray-300'}`} />
-                <span className={c.status === CITY_STATUS.Live ? 'font-bold text-gray-900' : 'text-gray-500'}>{c.name}</span>
-                {c.status !== CITY_STATUS.Live && (
-                  <span className="text-xs text-gray-400 uppercase tracking-wide">soon</span>
-                )}
-              </span>
-            ))}
+            {/* Same three groups as the pill and the grid above. */}
+            {[...liveCities, ...founding, ...comingSoon].map(c => {
+              const stage = liveCities.includes(c) ? 'live' : founding.includes(c) ? 'founding' : 'soon'
+              return (
+                <span key={c.id} className="inline-flex items-center gap-2">
+                  <span aria-hidden="true" className={`w-2 h-2 rounded-full ${stage === 'live' ? 'bg-emerald-500' : stage === 'founding' ? 'bg-amber-400' : 'bg-gray-300'}`} />
+                  <span className={stage === 'soon' ? 'text-gray-500' : 'font-bold text-gray-900'}>{c.name}</span>
+                  {stage !== 'live' && (
+                    <span className="text-xs text-gray-500 uppercase tracking-wide">{stage === 'founding' ? 'founding' : 'soon'}</span>
+                  )}
+                </span>
+              )
+            })}
           </div>
           <p className="mt-6 text-sm text-gray-500">
             {/* Same rounded-down figure the footer's stat row shows — an exact

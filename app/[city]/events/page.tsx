@@ -8,6 +8,7 @@ import { CITY_STATUS } from '@/lib/cityStatus'
 import { APP_URL, SITE_URL } from '@/lib/env'
 import { jsonLdHtml } from '@/lib/jsonLd'
 import { eventListJsonLd } from '@/lib/eventJsonLd'
+import { EVENT_WINDOWS, WINDOW_LABEL } from '@/lib/eventWindows'
 import EventCard from '@/components/EventCard'
 import { shareCover } from '@/lib/shareCover'
 import JoinCityButton from '@/components/JoinCityButton'
@@ -82,6 +83,16 @@ export default async function CityEventsPage({ params }: Params) {
               ? `The first dinners, walks and meetups in ${city.name} start with the first members.`
               : `${total} upcoming event${total === 1 ? '' : 's'} — dinners, walks, language meetups and more, hosted by members.`}
           </p>
+          {events.length > 0 && (
+            <nav aria-label="Pick a day range" className="mt-6 flex flex-wrap gap-2">
+              {EVENT_WINDOWS.map(w => (
+                <Link key={w} href={`/${city.slug}/events/${w}`}
+                  className="px-4 py-2 rounded-full text-sm font-semibold border bg-white border-gray-200 text-gray-700 hover:border-amber-300">
+                  {WINDOW_LABEL[w][0].toUpperCase() + WINDOW_LABEL[w].slice(1)}
+                </Link>
+              ))}
+            </nav>
+          )}
         </div>
       </section>
 
@@ -94,7 +105,7 @@ export default async function CityEventsPage({ params }: Params) {
                 Be one of the first to help build Smileys {city.name}.
               </p>
               <div className="flex justify-center">
-                <JoinCityButton slug={city.slug} name={city.name} />
+                <JoinCityButton slug={city.slug} name={city.name} guest={!session} />
               </div>
             </div>
           ) : (
@@ -104,7 +115,7 @@ export default async function CityEventsPage({ params }: Params) {
             </div>
           )}
           <div className="mt-10 flex flex-col sm:flex-row gap-4 items-center justify-center">
-            <JoinCityButton slug={city.slug} name={city.name} />
+            <JoinCityButton slug={city.slug} name={city.name} guest={!session} />
             {/* The interactive calendar — filters, tabs, your RSVPs — via the
                 cookie-setting entry so it opens on THIS city. */}
             <a href={enter('events')} className="btn-secondary text-base px-8 py-4">

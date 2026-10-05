@@ -1,15 +1,18 @@
 import { prisma } from './prisma'
+import { tripLabel } from './eventTrip'
 import React from 'react'
 // React 18's runtime (vitest) has no cache(); Next's server runtime does.
 // Identity fallback keeps tests running — memoization is an optimization.
 const cache: <T extends (...a: never[]) => unknown>(fn: T) => T =
   (React as unknown as { cache?: typeof cache }).cache ?? ((fn) => fn)
 import type { Club, Event, VibeTag } from './data'
-import { nowInTz, todayInTz, DEFAULT_TZ } from './cityTime'
+import { todayInTz, DEFAULT_TZ, startedCutoff } from './cityTime'
 import { getCityTz, getCityConfig } from './city'
 import { isSoldOut } from '@/lib/soldOut'
 import { COUNTED_CLUB_MEMBERSHIP_WHERE } from './clubMemberCount'
 import { DEFAULT_CURRENCY, firstNameOf } from './data'
+import { blockedIdsFor, restrictedSetFor } from './memberPrivacy'
+import type { SessionUser } from './session'
 
 // ── Clubs ─────────────────────────────────────────────────────────────────
 
@@ -54,7 +57,7 @@ export async function getClubs(cityId: string): Promise<Club[]> {
       //     Bodrum's grid. Same reasoning as the two member counts above.
       //   - status: 'published' — without it a draft was shown publicly as
       //     "Next: …" (Istanbul's Book Club had three). Matches how every
-      //     other public event read filters; see the neighbourhood counts
+      //     other public event read filters; see the neighborhood counts
       //     on app/[city]/page.tsx.
       // For a city-scoped club the cityId filter is a no-op: events inherit
       // their city from the parent club at creation.
@@ -96,6 +99,10 @@ async function getClubBySlugUncached(slug: string): Promise<Club | undefined> {
 
 const eventInclude = {
   club: true,
+  // Names only, for the trip label (lib/eventTrip) — a trip departs from
+  // originCity and visits city.
+  city:       { select: { name: true } },
+  originCity: { select: { name: true } },
   _count: { select: { attendees: { where: { status: 'approved' as const } } } },
   tags: { include: { tag: { include: { group: true } } } },
   attendees: {
@@ -145,6 +152,7 @@ function mapEvent(e: any, spotsLeft?: number): Event {
     vibes,
     coverImage:         e.coverImage         ?? undefined,
     coverImagePosition: e.coverImagePosition ?? 50,
+    flyerImage:         e.flyerImage         ?? undefined,
     whatsappUrl:      e.whatsappUrl      ?? undefined,
     meetingUrl:       e.meetingUrl       ?? undefined,
     currency:         e.currency         ?? DEFAULT_CURRENCY,
@@ -164,7 +172,9 @@ function mapEvent(e: any, spotsLeft?: number): Event {
     hostNationality:  null,
     clubId:           e.clubId,
     cityId:           e.cityId,
+    originCityId:     e.originCityId ?? null,
     clubName:         e.club?.name ?? '',
+    trip:             e.originCity && e.city ? tripLabel(e.originCity.name, e.city.name) : null,
     attendeePreviews: e.attendees?.map((a: any) => a.user) ?? [],
     address:          e.address          ?? undefined,
     lat:              e.lat              ?? undefined,
@@ -206,7 +216,7 @@ async function enrichHosts(events: Event[]): Promise<Event[]> {
  * who's attending are the payoff of joining — withhold them until login.
  * Mirrors redactListingForGuest in lib/listingsPublic.ts.
  *
- * Keeps: title, date/time, neighbourhood, cover, price, and the "X going"
+ * Keeps: title, date/time, neighborhood, cover, price, and the "X going"
  * count (which EventCard derives from totalSpots − spotsLeft, not from the
  * previews). Strips: exact street address + GPS, chat/meeting links, and
  * attendee names/photos.
@@ -229,9 +239,26 @@ export async function canSeeEvent(
   return !!(await prisma.eventCoHost.findFirst({ where: { eventId: event.id, userId: viewer.id }, select: { id: true } }))
 }
 
+const ADMISSION_HIDDEN = {
+  maleQuota: null, femaleQuota: null, turkishMaleQuota: null, tierOverride: null, cancelCutoffHours: null,
+} as const
+
+/**
+ * What a logged-out visitor (and every crawler, link preview and calendar file
+ * built from the same text) reads as an event's description. The body is free
+ * text a host writes for the people coming: on a members-only event it is where
+ * a phone number, a building or a WhatsApp link goes, and it was printed into
+ * the page, the JSON-LD, the og:description and the calendar button.
+ */
+export function guestEventDescription(event: Pick<Event, 'description' | 'membersOnly' | 'title' | 'neighborhood'>): string {
+  if (!event.membersOnly) return event.description ?? ''
+  return `${event.title} is a members-only Smileys event${event.neighborhood ? ` in ${event.neighborhood}` : ''}. Apply to join the community to see the details.`
+}
+
 export function redactEventForGuest(event: Event): Event {
   return {
     ...event,
+    description:      guestEventDescription(event),
     // The host, like a listing's poster, is not public data: a first name to
     // say who's hosting, no photo file to fetch, no id to follow. The list
     // and the page both showed the full name (and a scraper had every host's
@@ -240,6 +267,15 @@ export function redactEventForGuest(event: Event): Event {
     hostPhoto:        null,
     hostNationality:  null,
     hostId:           '',
+    // `location` is free text: on a members-only event it is where a home
+    // dinner's host writes their building. The neighborhood says enough to
+    // decide; the venue is the payoff of joining, like the address.
+    location:         event.membersOnly ? (event.neighborhood || 'Shared with members') : event.location,
+    // The admission rules (gender and nationality quotas, the seat tier, the
+    // cancel cutoff) are the host's and the server's — the seat logic reads
+    // them from the database, never from this object. No public page shows
+    // them; the lists shipped them to every guest.
+    ...ADMISSION_HIDDEN,
     address:          undefined,
     lat:              null,
     lng:              null,
@@ -259,23 +295,56 @@ export function redactEventForGuest(event: Event): Event {
  * object, so one bulk fetch revealed what the single-event API withholds.
  * Attendee previews stay: members see who's going everywhere else too.
  */
-export async function projectEventsForMember<T extends Event>(events: T[], viewer: { id: string; role?: string | null }): Promise<T[]> {
+export async function projectEventsForMember<T extends Event>(events: T[], viewer: SessionUser): Promise<T[]> {
   // Admins and moderators see everything, as in GET /api/events/[id].
   if (events.length === 0 || viewer.role === 'admin' || viewer.role === 'moderator') return events
   const ids = events.map(e => e.id)
-  const [seats, cohosts] = await Promise.all([
+  // The people on the cards — host and attendee previews — pass the same
+  // privacy rules as the rest of the member pages: a blocked pair is not
+  // shown, and a connections-only member outside the viewer's connections
+  // is a first name with no photo (lib/memberPrivacy; the rule
+  // lib/authorProjection and the hosts roster apply). The list handed every
+  // member their full name and face, in the flight payload of a client list.
+  const people = [...new Set(events.flatMap(e => [e.hostId, ...(e.attendeePreviews ?? []).map(p => p.id)]))]
+    .filter(id => id && id !== viewer.id)
+  const [seats, cohosts, blocked, privateRows] = await Promise.all([
     prisma.eventAttendee.findMany({ where: { userId: viewer.id, eventId: { in: ids }, status: 'approved' }, select: { eventId: true } }),
     prisma.eventCoHost.findMany({ where: { userId: viewer.id, eventId: { in: ids } }, select: { eventId: true } }),
+    blockedIdsFor(viewer.id),
+    people.length
+      ? prisma.user.findMany({ where: { id: { in: people }, profileVisibility: 'connections' }, select: { id: true, profileVisibility: true } })
+      : Promise.resolve([] as { id: string; profileVisibility: string | null }[]),
   ])
+  const restricted = privateRows.length ? await restrictedSetFor(viewer, privateRows) : new Set<string>()
   const inside = new Set([...seats, ...cohosts].map(r => r.eventId))
-  return events.map(e => (e.hostId === viewer.id || inside.has(e.id)) ? e : {
-    ...e,
-    address:        undefined,
-    lat:            null,
-    lng:            null,
-    meetingUrl:     undefined,
-    whatsappUrl:    undefined,
-    paymentContact: undefined,
+  const cohostOf = new Set(cohosts.map(r => r.eventId))
+
+  return events.map(orig => {
+    const hostHidden = blocked.has(orig.hostId) || restricted.has(orig.hostId)
+    const e: T = {
+      ...orig,
+      ...(hostHidden ? { hostName: firstNameOf(orig.hostName) || orig.hostName, hostPhoto: null, hostNationality: null } : {}),
+      // No id to follow to a profile that 404s for the pair.
+      ...(blocked.has(orig.hostId) ? { hostId: '' } : {}),
+      ...(orig.attendeePreviews ? {
+        attendeePreviews: orig.attendeePreviews
+          .filter(p => !blocked.has(p.id))
+          .map(p => restricted.has(p.id) ? { ...p, name: firstNameOf(p.name) || 'Smileys member', profilePhoto: null } : p),
+      } : {}),
+    }
+    const hosting = orig.hostId === viewer.id || cohostOf.has(orig.id)
+    if (hosting) return e
+    if (inside.has(orig.id)) return { ...e, ...ADMISSION_HIDDEN }
+    return {
+      ...e,
+      ...ADMISSION_HIDDEN,
+      address:        undefined,
+      lat:            null,
+      lng:            null,
+      meetingUrl:     undefined,
+      whatsappUrl:    undefined,
+      paymentContact: undefined,
+    }
   })
 }
 
@@ -285,29 +354,37 @@ export async function getEvents(options?: {
   upcoming?: boolean
   // Filter to events in this city. Caller passes the viewer's cityId
   // for the default "show me my city's events" feed; pass undefined
-  // for the cross-city "show all" view a traveller would want.
+  // for the cross-city "show all" view a traveler would want.
   cityId?: string
+  // Several cities at once — the landing page's live cities. Without it the
+  // unscoped query listed every city's events, a coming-soon city's included.
+  cityIds?: string[]
 }): Promise<{ events: Event[]; total: number }> {
-  const { limit = 24, offset = 0, upcoming, cityId } = options ?? {}
+  const { limit = 24, offset = 0, upcoming, cityId, cityIds } = options ?? {}
   // "Today" and the started-cutoff are computed in the CITY's timezone:
   // when the feed is scoped to a city we use that city's zone, and the
-  // unscoped traveller view falls back to the default city's. Both live
+  // unscoped traveler view falls back to the default city's. Both live
   // cities share Europe/Istanbul today, so this is behavior-neutral —
   // but Athens's evening events must not be cut off on Istanbul's clock.
-  const tz = cityId ? await getCityTz(cityId) : DEFAULT_TZ
-  const { date: today, minutes: nowMins } = nowInTz(tz)
-  // Drop events whose start was > 5h ago — keeps in-progress events
-  // visible for a typical event's duration but removes finished ones.
-  // If subtracting 5h underflows past midnight, clamp to 00:00 (events
-  // that crossed midnight from a previous day are already excluded by
-  // the `date >= today` lower bound).
-  const cutoffMins  = Math.max(0, nowMins - 300)
-  const cutoffTime  = `${String(Math.floor(cutoffMins / 60)).padStart(2, '0')}:${String(cutoffMins % 60).padStart(2, '0')}`
+  // Banned or currently suspended members are not shown: their events drop
+  // out of the lists (the hosts roster already dropped them — the events it
+  // pointed at stayed, with RSVP open) and they leave the "going" previews.
+  // A small set (banned + suspended), so a notIn is cheap.
+  const [tz, unlistable] = await Promise.all([
+    cityId ? getCityTz(cityId) : Promise.resolve(DEFAULT_TZ),
+    prisma.user.findMany({ where: { OR: [{ status: 'banned' }, { suspendedUntil: { gt: new Date() } }] }, select: { id: true } }),
+  ])
+  const unlistableIds = unlistable.map(u => u.id)
+  // lib/cityTime startedCutoff: later days, plus today's events that started
+  // at most five hours ago — the same window the city's hero count uses.
+  const { today, cutoffTime } = startedCutoff(tz)
 
   // Include 'cancelled' so the EventCard banner is reachable — members
   // who heard about an event before it was killed need to see WHY it
   // disappeared from their feed, not silently lose it. The card itself
   // grays out, stamps "Cancelled" across the cover, and disables Join.
+  // 'postponed' likewise, stamped "Postponed": it used to vanish from the
+  // feed and club pages. Showcases drop both (lib/eventJoinState isOffCalendar).
   const baseWhere = upcoming === true
     ? {
         // Date.gt today catches future days. Same-day events show
@@ -317,7 +394,7 @@ export async function getEvents(options?: {
           { date: { gt: today } },
           { AND: [{ date: today }, { time: { gte: cutoffTime } }] },
         ],
-        status: { in: ['published', 'cancelled'] },
+        status: { in: ['published', 'cancelled', 'postponed'] },
       }
     : upcoming === false
     ? {
@@ -331,13 +408,24 @@ export async function getEvents(options?: {
           { date: { lt: today } },
           { AND: [{ date: today }, { time: { lt: cutoffTime } }] },
         ],
-        status: { in: ['published', 'archived', 'cancelled'] },
+        status: { in: ['published', 'archived', 'cancelled', 'postponed'] },
       }
     // No `upcoming` param → all time, but STILL restrict to publicly-visible
     // statuses. Previously this fell through to `{}` (no status/date filter),
     // so a hand-crafted GET /api/events leaked draft/pending/flagged events.
-    : { status: { in: ['published', 'archived', 'cancelled'] } }
-  const where = cityId ? { ...baseWhere, cityId } : baseWhere
+    : { status: { in: ['published', 'archived', 'cancelled', 'postponed'] } }
+  // A city's feed is its own events plus the trips that depart from it
+  // (lib/eventTrip): an Istanbul club's day out to Eskişehir is Eskişehir's
+  // event and still Istanbul's to join. AND-wrapped because baseWhere can
+  // carry its own OR (the past-events window).
+  const cityClause = cityId
+    ? { OR: [{ cityId }, { originCityId: cityId }] }
+    : cityIds ? { OR: [{ cityId: { in: cityIds } }, { originCityId: { in: cityIds } }] } : null
+  const where = {
+    ...baseWhere,
+    ...(cityClause ? { AND: [cityClause] } : {}),
+    ...(unlistableIds.length ? { hostId: { notIn: unlistableIds } } : {}),
+  }
 
   // event.findMany must complete first because enrichHosts needs
   // the host ids from the rows. But the count query is independent
@@ -367,7 +455,9 @@ export async function getEvents(options?: {
       : Promise.resolve([]),
   ])
   const waitByEvent = new Map(waitCounts.map(w => [w.eventId, w._count._all]))
+  const hideAttendee = new Set(unlistableIds)
   for (const e of events) {
+    if (hideAttendee.size && e.attendeePreviews) e.attendeePreviews = e.attendeePreviews.filter(p => !hideAttendee.has(p.id))
     const n = waitByEvent.get(e.id)
     if (n) e.waitlistCount = n
   }
@@ -399,7 +489,7 @@ export async function getEventsByClub(clubId: string): Promise<Event[]> {
   const rows = await prisma.event.findMany({
     where: {
       clubId,
-      status: { in: ['published', 'cancelled'] },
+      status: { in: ['published', 'cancelled', 'postponed'] },
       date: { gte: today },
     },
     include: eventInclude,

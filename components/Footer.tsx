@@ -12,9 +12,15 @@ interface FooterProps {
       default city for guests. Defaults defensively so the footer never renders
       a blank heading if a caller forgets it. */
   cityName?: string
-  /** Whether the viewed city has any neighbourhoods. A city grows into them —
+  /** Whether the viewed city has any neighborhoods. A city grows into them —
       linking to an empty page under a heading naming the city reads as broken. */
   hasNeighborhoods?: boolean
+  /** The city whose URL this is, if any. Its shopfront (/<slug>) closes with
+      its own city-aware join section, so the band would ask a second time. */
+  urlCitySlug?: string
+  /** '?city=<slug>' when the column's city isn't the one a bare link would
+      open (layout.tsx); appended to every city-column link. */
+  cityQs?: string
 }
 
 // Only reached if the layout passes nothing (it passes measured numbers when
@@ -22,13 +28,15 @@ interface FooterProps {
 // than a second set of figures to drift out of date.
 const DEFAULT_STATS: { value: string; label: string }[] = []
 
-export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods = true }: FooterProps) {
+export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods = true, urlCitySlug, cityQs = '' }: FooterProps) {
   const { isLoggedIn } = useAuth()
   const pathname = usePathname()
   const footerStats = stats?.slice(0, 3) ?? DEFAULT_STATS
   // The member pitch has no business closing the advertiser page — /advertise
   // ends with its own partner CTA band instead.
-  const showMemberCta = !isLoggedIn && !pathname?.startsWith('/advertise')
+  // Nor a city shopfront: it ends with "Ready to find your people?", whose
+  // apply link carries the city — this band's /apply does not.
+  const showMemberCta = !isLoggedIn && !pathname?.startsWith('/advertise') && !(urlCitySlug && pathname === `/${urlCitySlug}`)
   // Not under the admin or host panel, each of which fills the screen with
   // its own shell.
   if (pathname?.startsWith('/admin') || isHostPanelRoute(pathname)) return null
@@ -167,7 +175,7 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
             </div>
           </div>
 
-          {/* Split by SCOPE, not by flavour. Everything in the first column
+          {/* Split by SCOPE, not by flavor. Everything in the first column
               shows ONE city's content; everything in the second is the same
               wherever you are. Naming the column after the city is what lets
               "Guide" drop its qualifier — the heading already says which city,
@@ -182,7 +190,7 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
                 stack became a full screen of scrolling. At 375px each column
                 gets ~160px, so "Community Board" wraps to two snug lines — a
                 far smaller cost than twelve full-width rows. On desktop the
-                section is one ordinary column like its neighbours, so it
+                section is one ordinary column like its neighbors, so it
                 collapses back to a single stack. */}
             <ul className="grid grid-cols-2 gap-x-6 gap-y-2.5 lg:grid-cols-1 lg:gap-y-3">
               {[
@@ -203,12 +211,13 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
                 { href: '/posts',         label: 'Stories 📰'         },
                 { href: '/directory',     label: 'Directory 🏢'       },
                 { href: '/hosts',         label: 'Hosts 🎤'           },
-                { href: '/hangouts',      label: 'Hangouts ☕'        },
+                // Members-only and city-less in the URL: it follows the member.
+                { href: '/hangouts',      label: 'Hangouts ☕',       anyCity: true },
                 { href: '/board',         label: 'Community Board 💬' },
                 { href: '/marketplace',   label: 'Marketplace 🛍️'     },
               ].map(l => (
                 <li key={l.href}>
-                  <Link href={l.href} className="text-sm leading-snug text-gray-600 hover:text-amber-600 transition-colors">
+                  <Link href={'anyCity' in l ? l.href : `${l.href}${cityQs}`} className="text-sm leading-snug text-gray-600 hover:text-amber-600 transition-colors">
                     {l.label}
                   </Link>
                 </li>
@@ -257,6 +266,7 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
                   ? [
                       { href: '/dashboard',    label: 'My dashboard 🏡'    },
                       { href: '/invite',       label: 'Invite a friend 💌' },
+                      // Always for members (Nate, 2026-09-29), partners or not.
                       { href: '/perks',        label: 'Member Perks 🎁'    },
                       { href: '/get-involved', label: 'Get involved 🙌'    },
                     ]

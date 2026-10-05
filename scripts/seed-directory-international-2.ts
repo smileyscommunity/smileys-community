@@ -75,7 +75,7 @@ const ENTRIES: {
   {
     name: 'Sakhli',
     description:
-      'Georgian kitchen in Beyoğlu — khachapuri (the cheese-bread boat), khinkali dumplings, lobio, and Georgian wines. Cosy room; busy on weekends.',
+      'Georgian kitchen in Beyoğlu — khachapuri (the cheese-bread boat), khinkali dumplings, lobio, and Georgian wines. Cozy room; busy on weekends.',
     neighborhood: 'Beyoğlu',
     languages: 'English, Turkish, Georgian, Russian',
     isExpatFriendly: true,

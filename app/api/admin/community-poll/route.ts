@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
   const { question, options, cityId: rawCityId } = await req.json()
   // Which city the question is for. A poll with no city is asked of everyone
   // — deliberate, and the only way to ask one question community-wide — so an
-  // explicit null is honoured and anything else has to be a real public city.
+  // explicit null is honored and anything else has to be a real public city.
   let pollCityId: string | null = null
   if (rawCityId != null) {
     if (typeof rawCityId !== 'string') {

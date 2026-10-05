@@ -99,7 +99,7 @@ describe('partner self-service PATCH behaves the same', () => {
   })
 })
 
-describe('instagram handles normalise from the forms people paste', () => {
+describe('instagram handles normalize from the forms people paste', () => {
   it.each([
     'foo', '@foo', ' @foo ', 'foo/', 'instagram.com/foo', 'www.instagram.com/foo',
     'https://www.instagram.com/foo/', 'http://instagram.com/@foo', 'https://instagram.com/foo?igsh=abc123',

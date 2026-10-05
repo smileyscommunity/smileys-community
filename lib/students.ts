@@ -1,5 +1,6 @@
 import { pickArticle, ENTRY_RULES, type StageArticle } from './relocation'
 import { DEFAULT_CITY_SLUG } from './city'
+import { isOffCalendar } from '@/lib/eventJoinState'
 
 // The student hub (/[city]/students) — for Erasmus, exchange and international
 // students arriving for a semester or a year. Like the remote-work and moving
@@ -27,7 +28,9 @@ export const STUDENT_GUIDES = [
   { key: 'transport', label: 'Transport card and getting around',     category: 'Getting Around',       about: /kart|card|metro|transport|ferr/i },
   { key: 'airport',   label: 'From the airport into the city',        category: 'Getting Around',       about: /airport|arriv|havaliman/i },
   { key: 'money',     label: 'Money and bank accounts',               category: 'Money & Banking',      about: /bank|money/i },
-  { key: 'housing',   label: 'Renting a flat',                        category: 'Home & Housing',       about: /apartment|rent|hous|flat/i },
+  // Renting itself, not moving in: "Moving Into a Flat" (utilities, aidat)
+  // matched the old /apartment|rent|hous|flat/ and took the renting slot.
+  { key: 'housing',   label: 'Renting a flat',                        category: 'Home & Housing',       about: /\brent|landlord|lease|apartment.hunt/i },
   { key: 'safety',    label: 'Scams and staying safe',                category: 'Safety & Emergencies', about: /scam|safe/i },
   { key: 'emergency', label: 'Emergency numbers',                     category: 'Safety & Emergencies', about: /emergenc|\b112\b/i },
   { key: 'health',    label: 'How healthcare works',                  category: 'Healthcare',           about: /health|doctor|hospital/i },
@@ -93,14 +96,25 @@ export interface StudentEventLike {
   isRecurring?:          boolean
   isFirstTimerFriendly?: boolean
   status?:               string
+  membersOnly?:          boolean
+  title?:                string
+  clubName?:             string
 }
+
+/** The community-post category the hub's stories section reads
+ *  (app/admin/posts/constants). Pinned to this city only, like the remote-work
+ *  interview: "Erasmus in Istanbul" is not İzmir's, so no global fallback. */
+export const STUDENT_STORY_CATEGORY = 'Students'
+/** How many student stories the hub shows, newest first — two rows of three.
+ *  /posts has no category filter, so there is no "see all" to hand the rest to. */
+export const STUDENT_STORY_LIMIT = 6
 
 /** The tag the city's events use for language exchanges (an EventTag name —
  *  /events?tags= filters on the same names). */
 export const LANGUAGE_EXCHANGE_TAG = 'Language exchange'
 const NIGHTLIFE_TAG = 'Nightlife'
 
-const live = <E extends StudentEventLike>(events: E[]) => events.filter(e => e.status !== 'cancelled')
+const live = <E extends StudentEventLike>(events: E[]) => events.filter(e => !isOffCalendar(e))
 
 /** One per series: a weekly session appears once, as its next date. Input is
  *  soonest-first, so the first seen is the next one. */
@@ -119,37 +133,66 @@ export const STUDENT_FIRST_EVENT_LIMIT = 3
 /** How many regular activities the "find your rhythm" row shows. */
 export const STUDENT_REGULAR_LIMIT = 6
 
+/** Coworking sessions are the remote-work hub's, not a student's first night
+ *  out — by the event's title or its club's name. (Not lib/remoteWork's
+ *  WORK_CLUB_PATTERN: that also counts "newcomer" clubs, which suit students.) */
+const COWORKING = /cowork|co-work/i
+const isCoworking = (e: StudentEventLike) => COWORKING.test(e.title ?? '') || COWORKING.test(e.clubName ?? '')
+
+export interface PickOptions {
+  /** A guest can RSVP to none of the members-only events, so for them the
+   *  open ones go first; members-only events only fill what is left. */
+  preferOpen?: boolean
+}
+
+/**
+ * Up to `limit` of `candidates` (soonest first), each accepted by `accept`
+ * given what is already chosen. With preferOpen, events a guest can join are
+ * considered before members-only ones. The result is back in date order.
+ */
+function choose<E extends StudentEventLike>(
+  candidates: E[], limit: number, { preferOpen = false }: PickOptions,
+  accept: (e: E, chosen: E[]) => boolean = () => true,
+): E[] {
+  const order = preferOpen
+    ? [...candidates.filter(e => !e.membersOnly), ...candidates.filter(e => e.membersOnly)]
+    : candidates
+  const chosen: E[] = []
+  for (const e of order) {
+    if (chosen.length >= limit) break
+    if (accept(e, chosen)) chosen.push(e)
+  }
+  return chosen.sort((a, b) => candidates.indexOf(a) - candidates.indexOf(b))
+}
+
 /** The "your first event" row: first-timer-friendly events, soonest first,
- *  each weekly session once. */
-export function pickFirstEvents<E extends StudentEventLike>(events: E[], limit = STUDENT_FIRST_EVENT_LIMIT): E[] {
-  return oncePerSeries(live(events).filter(e => e.isFirstTimerFriendly)).slice(0, limit)
+ *  each weekly session once, no coworking. */
+export function pickFirstEvents<E extends StudentEventLike>(events: E[], limit = STUDENT_FIRST_EVENT_LIMIT, opts: PickOptions = {}): E[] {
+  return choose(oncePerSeries(live(events).filter(e => e.isFirstTimerFriendly && !isCoworking(e))), limit, opts)
 }
 
 /**
  * The "regular things to join" row: recurring activities (a series, or an
  * event marked recurring), each once as its next date, soonest first. At most
- * one of them may be nightlife, so the row reads as a week of things to do
- * rather than a week of bars. Events already in `exclude` (the first-event
- * row) are skipped so the two rows don't repeat each other.
+ * one of them may be nightlife and at most one may cost money, so the row
+ * reads as a week of things a student can afford to do rather than a week of
+ * bars and boat trips; coworking sessions are left to the remote-work hub.
+ * Events already in `exclude` (the first-event row) are skipped so the two
+ * rows don't repeat each other.
  */
-export function pickRegularEvents<E extends StudentEventLike>(events: E[], exclude: Set<string> = new Set(), limit = STUDENT_REGULAR_LIMIT): E[] {
+export function pickRegularEvents<E extends StudentEventLike>(events: E[], exclude: Set<string> = new Set(), limit = STUDENT_REGULAR_LIMIT, opts: PickOptions = {}): E[] {
+  // exclude after oncePerSeries: a series whose next date is in the first-event
+  // row must not come back here as its date after that.
   const recurring = oncePerSeries(live(events).filter(e => e.seriesId || e.isRecurring))
-  const out: E[] = []
-  let nightlife = 0
-  for (const e of recurring) {
-    if (out.length >= limit) break
-    if (exclude.has(e.id)) continue
-    const isNight = e.vibes.includes(NIGHTLIFE_TAG)
-    if (isNight && nightlife >= 1) continue
-    if (isNight) nightlife++
-    out.push(e)
-  }
-  return out
+    .filter(e => !exclude.has(e.id) && !isCoworking(e))
+  const isNight = (e: E) => e.vibes.includes(NIGHTLIFE_TAG)
+  return choose(recurring, limit, opts, (e, chosen) =>
+    !(isNight(e) && chosen.some(isNight)) && !(e.price > 0 && chosen.some(c => c.price > 0)))
 }
 
 /** A link into the city's event calendar with one of its existing filters
  *  (app/events/EventsClient: ?first=1, ?free=1, ?tags=). Offered only when at
- *  least one upcoming event matches, and labelled with how many. */
+ *  least one upcoming event matches, and labeled with how many. */
 export interface EventFilterLink { key: 'first' | 'free' | 'language' | 'regular'; label: string; emoji: string; href: string; count: number }
 
 export function eventsHref(citySlug: string, query = ''): string {
@@ -193,9 +236,12 @@ export interface FirstWeekInput {
   hasClubs:         boolean
 }
 
-const guideLink = (guides: StudentGuide<StageArticle>[], key: StudentGuideKey, label: string) => {
+// Article links keep the city (an article opened from /antalya/students without
+// ?city= showed Istanbul's breadcrumbs and related guides).
+const guideLink = (guides: StudentGuide<StageArticle>[], key: StudentGuideKey, label: string, citySlug: string) => {
   const g = guides.find(x => x.key === key)
-  return g ? [{ href: `/handbook/${g.article.slug}`, label }] : []
+  const qs = citySlug === DEFAULT_CITY_SLUG ? '' : `?city=${citySlug}`
+  return g ? [{ href: `/handbook/${g.article.slug}${qs}`, label }] : []
 }
 
 /**
@@ -215,16 +261,16 @@ export function buildFirstWeek(i: FirstWeekInput): FirstWeekStep[] {
       key: 'connect',
       title: 'Get connected',
       body: 'A working phone number first: maps, banking codes and every group chat depend on it.',
-      links: guideLink(i.guides, 'connect', 'SIM and mobile internet'),
+      links: guideLink(i.guides, 'connect', 'SIM and mobile internet', i.citySlug),
     },
     {
       key: 'city',
       title: 'Learn the city',
       body: 'Get a transport card, work out your commute, and save the emergency number before you need it.',
       links: [
-        ...guideLink(i.guides, 'transport', 'Transport card and getting around'),
-        ...guideLink(i.guides, 'emergency', 'Emergency numbers'),
-        ...guideLink(i.guides, 'safety', 'Scams and staying safe'),
+        ...guideLink(i.guides, 'transport', 'Transport card and getting around', i.citySlug),
+        ...guideLink(i.guides, 'emergency', 'Emergency numbers', i.citySlug),
+        ...guideLink(i.guides, 'safety', 'Scams and staying safe', i.citySlug),
       ],
     },
     {
@@ -252,9 +298,60 @@ export function buildFirstWeek(i: FirstWeekInput): FirstWeekStep[] {
       body: 'Something every week is how acquaintances become friends. Find a regular activity, and the part of the city that suits you.',
       links: [
         ...(i.hasRegular ? [{ href: '#regular', label: 'Regular activities' }] : []),
-        ...(i.hasNeighborhoods ? [{ href: `/neighborhoods${guideQs}`, label: 'Neighbourhoods' }] : []),
+        ...(i.hasNeighborhoods ? [{ href: `/neighborhoods${guideQs}`, label: 'Neighborhoods' }] : []),
         ...(!i.hasRegular && i.hasClubs ? [{ href: `/${i.citySlug}/clubs`, label: 'Clubs' }] : []),
       ],
     },
+  ]
+}
+
+// ── Social proof ─────────────────────────────────────────────────────────────
+//
+// "200+ members joined as students" — counted, never estimated: activated
+// members of this city whose approved application gave a student reason for
+// being here, or a student profession. "Education" is NOT a student reason:
+// it is as likely a teacher's answer. Both patterns are Postgres ~* regexes
+// (app/[city]/data.ts getCityStudentCount).
+export const STUDENT_REASON_SQL     = '^\\s*(study|studying|university|student)'
+export const STUDENT_PROFESSION_SQL = 'student|öğrenci|ogrenci'
+/** Below this the line is left out: "2 members joined as students" argues
+ *  against the page it sits on. */
+export const STUDENT_PROOF_MIN = 50
+
+/** The count as the page says it — rounded DOWN to a round number with a
+ *  "+", so it is never more than is true; null when too small to show. */
+export function studentCountLabel(n: number): string | null {
+  if (!Number.isFinite(n) || n < STUDENT_PROOF_MIN) return null
+  const step = n >= 1000 ? 100 : n >= 100 ? 50 : 10
+  return `${Math.floor(n / step) * step}+`
+}
+
+/** Whether "most events are in English" is true of these events (upcoming,
+ *  not cancelled). Language is free text, so it is trimmed and case-folded. */
+export function mostlyEnglish(events: { language?: string | null; status?: string }[]): boolean {
+  const live = events.filter(e => !isOffCalendar(e))
+  if (live.length === 0) return false
+  const english = live.filter(e => (e.language ?? '').trim().toLowerCase() === 'english').length
+  return english / live.length > 0.5
+}
+
+/** The page's questions and answers — plain text, so the same strings feed
+ *  the visible list and the FAQPage JSON-LD. Every answer is a fact the page
+ *  already states or the data shows; the English claim only when it holds. */
+export function studentFaqs(i: { cityName: string; mostlyEnglish: boolean }): { q: string; a: string }[] {
+  return [
+    { q: 'Can Erasmus and exchange students join Smileys?',
+      a: 'Yes. Erasmus, exchange and full-degree students are all welcome. You apply like anyone else, and no university details are asked.' },
+    { q: 'Is it free?',
+      a: 'Joining is free. You only pay for events you choose, and the price is on every event before you RSVP.' },
+    // Not "Turkish": the hub runs in every city (tests/countryHardcoding).
+    { q: 'Do I need to speak the local language?',
+      a: i.mostlyEnglish
+        ? `No. Every event shows the language it runs in, and most events in ${i.cityName} are in English.`
+        : 'No, but check the event: every event shows the language it runs in.' },
+    { q: 'Can I go to an event on my own?',
+      a: 'Yes — plenty of people do. Events marked first-timer friendly are the ones picked as easy to come to alone.' },
+    { q: 'Is this instead of my university’s Erasmus network?',
+      a: 'No. Smileys sits alongside your university’s international office and student networks such as ESN — it is for the people and plans beyond campus.' },
   ]
 }

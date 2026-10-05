@@ -4,7 +4,7 @@ import { getSession } from '@/lib/session'
 import { canActInCity } from '@/lib/access'
 import { rateLimit } from '@/lib/rateLimit'
 import { getExperienceAnyCity } from '@/lib/guideContent'
-import { authorProjector } from '@/lib/authorProjection'
+import { listGuideTips } from '@/lib/guideTips'
 
 type Params = { params: Promise<{ slug: string }> }
 
@@ -22,30 +22,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
   if (!owner) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const session = await getSession()
-  const tips = await prisma.guideTip.findMany({
-    // §48 (Members brief): deactivated/banned authors drop out of
-    // discovery surfaces — their tips hide rather than showing a ghost.
-    where:   { slug, cityId: owner.cityId, user: { status: 'approved' } },
-    orderBy: [{ likes: { _count: 'desc' } }, { createdAt: 'desc' }],
-    take:    30,
-    select: {
-      id: true, body: true, createdAt: true,
-      user:   { select: { id: true, name: true, color: true, profilePhoto: true, profileVisibility: true } },
-      _count: { select: { likes: true } },
-      ...(session ? { likes: { where: { userId: session.id }, select: { userId: true } } } : {}),
-    },
-  })
-
-  const project = await authorProjector(session, tips.map(t => t.user))
-  return NextResponse.json({
-    tips: tips.map(t => ({
-      id: t.id, body: t.body, createdAt: t.createdAt, user: project(t.user),
-      likeCount:  t._count.likes,
-      viewerLiked: session ? (t as { likes?: unknown[] }).likes!.length > 0 : false,
-      mine: session ? t.user.id === session.id : false,
-    })),
-    isMember: !!session,
-  })
+  // The page renders this same list into its first response (lib/guideTips).
+  return NextResponse.json({ tips: await listGuideTips(slug, owner.cityId, session), isMember: !!session })
 }
 
 export async function POST(req: NextRequest, { params }: Params) {

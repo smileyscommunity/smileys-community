@@ -1,5 +1,5 @@
 // One soft tint per way of arriving, so the "How are you coming?" strip on the
-// landing page scans at a glance instead of four identical grey cards. Keyed
+// landing page scans at a glance instead of four identical gray cards. Keyed
 // on the hub's path segment (/visiting, /remote-work, /moving, /students) —
 // the only stable identifier the cards have; they are an inline array on the
 // page, not rows.
@@ -9,7 +9,7 @@
 // border-, ring- or hover: variants — so `border-${hue}-200` would render no
 // border at all in production.
 //
-// Amber stays the Join button's colour: the remote-work card borrows the hue
+// Amber stays the Join button's color: the remote-work card borrows the hue
 // at tints (50/200/400) that never compete with the solid bg-amber-500 CTA.
 
 export type ArrivalAccent = {

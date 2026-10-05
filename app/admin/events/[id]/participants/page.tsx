@@ -521,7 +521,7 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
         <div className="flex justify-between text-xs text-zinc-500 mb-1">
           <span>Capacity</span>
           {/* FULL only for a limited event at its cap — spotsLeft is clamped
-              to 0 on unlimited events too, which labelled open events FULL. */}
+              to 0 on unlimited events too, which labeled open events FULL. */}
           <span>{goingCount} / {event.totalSpots}{full && <span className="ml-2 text-red-400 font-bold">FULL</span>}</span>
         </div>
         <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">

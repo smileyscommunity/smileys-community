@@ -121,7 +121,7 @@ async function notifyAllMembers(
     // Approved members with a live account: a banned member's row is kept,
     // and got a notification for every post. A suspended member is kept out
     // too — both wall types are on the suspended-skip list (lib/notify), and
-    // this path, writing rows itself, was the one place that didn't honour it.
+    // this path, writing rows itself, was the one place that didn't honor it.
     where: {
       clubId, status: 'approved', userId: { not: excludeUserId },
       user: {

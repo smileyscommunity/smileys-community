@@ -37,7 +37,7 @@ describe('resolvePostingCityId', () => {
     expect(prisma.user.findUnique).not.toHaveBeenCalled()
   })
 
-  it('honours a viewed city the member has actually joined', async () => {
+  it('honors a viewed city the member has actually joined', async () => {
     ;(resolveCityId as any).mockResolvedValue('c-izm')
     memberOf([IZMIR])
     expect(await resolvePostingCityId({ id: 'u1', cityId: 'c-ist' })).toBe('c-izm')

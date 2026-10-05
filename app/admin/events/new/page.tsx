@@ -35,6 +35,9 @@ export default function NewEventPage() {
     // Only sent (and only required) when the chosen club is global and so
     // has no city for the event to inherit — see isGlobalClub below.
     cityId: '',
+    // A cross-city trip (lib/eventTrip): the live city this event visits.
+    // Empty = an ordinary event in the club's own city.
+    tripToCityId: '',
     totalSpots: '20', price: '', memberPrice: '', payTo: 'free', paymentContact: '', ticketUrl: '',
     emoji: '🎉', status: 'published',
     isPremium: false, membersOnly: false, limitedSpots: true, isFirstTimerFriendly: false, isRecurring: false,
@@ -44,7 +47,7 @@ export default function NewEventPage() {
     maleQuota: '',
     femaleQuota: '',
     turkishMaleQuota: '',
-    coverImage: '', coverImagePosition: 50, meetingUrl: '', whatsappUrl: '',
+    coverImage: '', coverImagePosition: 50, flyerImage: '', meetingUrl: '', whatsappUrl: '',
     minAge: '', maxAge: '',
     language: 'English', refundPolicy: '', registrationDeadline: '',
     endTime: '', lat: '', lng: '',
@@ -109,7 +112,15 @@ export default function NewEventPage() {
   // viewer's — so a Bodrum event offers Bodrum areas. For a global club
   // that's whichever city was picked above. Falls back to the viewer's own
   // city until a club is chosen.
-  const selectedClubCity = selectedClub?.city?.slug
+  // A trip happens in the city it visits, so its neighborhoods, venue
+  // search and map lookup follow the destination, not the club.
+  const clubCityOption = selectedClub?.city ? cities.find(c => c.slug === selectedClub.city!.slug) : undefined
+  const tripOptions = clubCityOption
+    ? cities.filter(c => c.status === 'live' && c.id !== clubCityOption.id && (!clubCityOption.timezone || c.timezone === clubCityOption.timezone))
+    : []
+  const tripDestination = form.tripToCityId ? tripOptions.find(c => c.id === form.tripToCityId) : undefined
+  const selectedClubCity = tripDestination?.slug
+    ?? selectedClub?.city?.slug
     ?? (isGlobalClub ? cities.find(c => c.id === form.cityId)?.slug : undefined)
   const neighborhoods = useCityNeighborhoods(selectedClubCity)
   // Location lookup searches the same city's country (it used to search one
@@ -117,7 +128,10 @@ export default function NewEventPage() {
   const geocodeCityParam = selectedClubCity ? `&city=${encodeURIComponent(selectedClubCity)}` : ''
 
   // A global club's event is filed under the city picked for it.
-  const venueCityParam = selectedClubCity ? `city=${encodeURIComponent(selectedClubCity)}` : form.cityId ? `cityId=${encodeURIComponent(form.cityId)}` : ''
+  // A trip may meet in either city (the departure station is the usual spot),
+  // so its venue search covers both.
+  const venueCityParam = (selectedClubCity ? `city=${encodeURIComponent(selectedClubCity)}` : form.cityId ? `cityId=${encodeURIComponent(form.cityId)}` : '')
+    + (tripDestination && clubCityOption ? `&city=${encodeURIComponent(clubCityOption.slug)}` : '')
 
   // Picking a listing names the venue and fills what the form doesn't have yet.
   function pickVenue(v: PickedVenue | null) {
@@ -260,7 +274,7 @@ export default function NewEventPage() {
       // when you CLICK it — and it starts already selected, so an admin who
       // fills the form without touching payment posts price:'' and the server
       // answers 400 "price required" for an event that is free by default.
-      // Clearing a typed price returns to "Free" the same way. Normalise here
+      // Clearing a typed price returns to "Free" the same way. Normalize here
       // so the payload matches the choice however the form reached it.
       price:          form.payTo === 'free' ? '0' : form.price,
       ticketUrl:      form.payTo === 'buyonline' ? form.ticketUrl : '',
@@ -272,6 +286,7 @@ export default function NewEventPage() {
       maxAge:    form.maxAge    ? parseInt(form.maxAge)    : null,
       coverImage:         form.coverImage   || null,
       coverImagePosition: form.coverImagePosition,
+      flyerImage:         form.flyerImage   || null,
       meetingUrl:         form.meetingUrl   || null,
       whatsappUrl:  form.whatsappUrl  || null,
       address:      form.address      || null,
@@ -280,6 +295,7 @@ export default function NewEventPage() {
       registrationDeadline: form.registrationDeadline || null,
       clubId: form.clubId || null,
       hostId: form.hostId || null,
+      tripToCityId: tripDestination?.id ?? null,
       lat:  form.lat  ? parseFloat(form.lat)  : null,
       lng:  form.lng  ? parseFloat(form.lng)  : null,
       businessId: venue?.id ?? null,
@@ -388,6 +404,23 @@ export default function NewEventPage() {
                 </p>
               </div>
             )}
+            {/* A city club can take its members to another live city
+                (lib/eventTrip): the event is filed in the city it visits and
+                stays in the club city's feed with a trip badge. */}
+            {clubCityOption && tripOptions.length > 0 && (
+              <div>
+                <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Trip to another city</label>
+                <select value={form.tripToCityId} onChange={e => set('tripToCityId', e.target.value)} className={inputCls}>
+                  <option value="">Not a trip — it happens in {clubCityOption.name}</option>
+                  {tripOptions.map(c => <option key={c.id} value={c.id}>🚆 {clubCityOption.name} → {c.name}</option>)}
+                </select>
+                {tripDestination && (
+                  <p className="text-[11px] text-zinc-500 mt-1.5">
+                    Filed in {tripDestination.name} (its page, feed and first-event count) and shown in {clubCityOption.name}&apos;s feed too. Venue and neighborhood are in {tripDestination.name}.
+                  </p>
+                )}
+              </div>
+            )}
             <div className="relative">
               <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Host *</label>
               <input
@@ -443,6 +476,12 @@ export default function NewEventPage() {
             <div className="col-span-full">
               <ImageUpload value={form.coverImage} onChange={url => set('coverImage', url)} folder="events"
                 position={form.coverImagePosition} onPositionChange={pos => set('coverImagePosition', pos)} />
+              {/* The flyer — shown whole on the event page. The cover above is
+                  cropped to a banner everywhere, so a poster doesn't belong there. */}
+              <div className="mt-4">
+                <ImageUpload value={form.flyerImage} onChange={url => set('flyerImage', url)} folder="events"
+                  label="Flyer (optional) — shown uncropped on the event page" />
+              </div>
             </div>
           </div>
         </div>
@@ -735,7 +774,7 @@ export default function NewEventPage() {
               />
               <span className="text-xs text-zinc-500 basis-full sm:basis-auto">max males allowed</span>
             </div>
-            {/* Female cap — null/empty = uncapped (preserves old behaviour).
+            {/* Female cap — null/empty = uncapped (preserves old behavior).
                 Set this to also cap the female side so the event balances
                 instead of just protecting against male-dominance. */}
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">

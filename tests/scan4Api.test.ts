@@ -210,14 +210,14 @@ describe('3 host broadcast', () => {
     expect(rateLimit).not.toHaveBeenCalled()
   })
 
-  it('an unauthorised caller → 403 without consuming the rate-limit counter', async () => {
+  it('an unauthorized caller → 403 without consuming the rate-limit counter', async () => {
     ;(canManageEventOps as any).mockResolvedValue(false)
     const res = await broadcast(req({ message: 'Doors at 7' }), eventParams)
     expect(res.status).toBe(403)
     expect(rateLimit).not.toHaveBeenCalled()
   })
 
-  it('an authorised caller is rate-limited', async () => {
+  it('an authorized caller is rate-limited', async () => {
     ;(rateLimit as any).mockResolvedValue(false)
     const res = await broadcast(req({ message: 'Doors at 7' }), eventParams)
     expect(res.status).toBe(429)
@@ -231,7 +231,7 @@ describe('3 host broadcast', () => {
     expect(res.status).toBe(200)
     // Banned/deleted accounts are filtered too (host panel review): createNotification
     // skips them but reports them handled, so `sent` counted people nobody reached.
-    expect(p.eventAttendee.findMany.mock.calls[0][0].where).toEqual({ eventId: 'e1', status: 'approved', userId: { not: 'ch' }, user: { status: { notIn: ['banned', 'deleted'] } } })
+    expect(p.eventAttendee.findMany.mock.calls[0][0].where).toEqual({ eventId: 'e1', status: 'approved', userId: { not: 'ch' }, user: { status: 'approved' } })
     expect((await res.json()).sent).toBe(2)
     expect((createNotification as any).mock.calls.map((c: any) => c[0])).toEqual(['u1', 'u2'])
   })
@@ -386,7 +386,7 @@ describe('7 testimonial submit', () => {
   })
 })
 
-// ── 4. Type validation (behaviour where cheap, source pins for the rest) ────
+// ── 4. Type validation (behavior where cheap, source pins for the rest) ────
 describe('4 wrong-typed string fields → 400', () => {
   it('club resources: non-string title/url/emoji and an over-long emoji', async () => {
     asSession(istanbulMod)

@@ -112,7 +112,7 @@ describe('moving sales', () => {
     p.movingSale.findMany.mockResolvedValue([sale('ist', 'Europe/Istanbul'), sale('nyc', 'America/New_York')])
     const { sales } = await (await salesGET()).json()
     expect(sales.map((s: any) => [s.id, s.expired])).toEqual([['ist', true], ['nyc', false]])
-    // The timezone was only for the judgement; the page gets the same city shape as before.
+    // The timezone was only for the judgment; the page gets the same city shape as before.
     expect(sales[0].city).toEqual({ name: 'ist', slug: 'ist' })
   })
 

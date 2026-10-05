@@ -55,8 +55,8 @@ export interface GuestVisit {
 
 /**
  * What a logged-out reader is shown of a public card: a first name and the
- * month(s), never the exact dates or the neighbourhood. Paired with the
- * member's home neighbourhood from /neighborhoods, exact dates would say
+ * month(s), never the exact dates or the neighborhood. Paired with the
+ * member's home neighborhood from /neighborhoods, exact dates would say
  * whose home is empty when — the one thing this page must not publish.
  */
 export function guestView(a: { name: string; startsOn: string; endsOn: string }): GuestVisit {
@@ -81,4 +81,20 @@ export function visitorName(name: string): string {
 export function notifyText(v: unknown, max = 40): string {
   if (typeof v !== 'string') return ''
   return v.replace(/https?:\/\/\S+|www\.\S+/gi, '').replace(/\s+/g, ' ').trim().slice(0, max)
+}
+
+/**
+ * Whose visit cards may be listed: no account (legacy rows), or an approved,
+ * visible member who is not currently suspended. A suspension leaves status
+ * 'approved' and sets a date, so it needs its own arm — the three surfaces
+ * said "a banned, suspended or admin-hidden author's card goes with them"
+ * and only checked the first and last. Built per call: it reads the clock.
+ */
+export function visitAuthorOk() {
+  return {
+    OR: [
+      { userId: null },
+      { user: { status: 'approved', hiddenFromMembers: false, OR: [{ suspendedUntil: null }, { suspendedUntil: { lte: new Date() } }] } },
+    ],
+  }
 }

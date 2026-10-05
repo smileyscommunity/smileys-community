@@ -37,9 +37,8 @@ model User {
   notificationsSeenAt        DateTime?
   nudgesSent                 Int                     @default(0)
   lastNudgedAt               DateTime?
-  // Weekly first-RSVP nudge (separate from the login nudge above): when this
-  // member was last emailed a "your first event?" suggestion, so the cron never
-  // re-nudges someone within 30 days.
+  // RETIRED 2026-10-05: the weekly first-RSVP nudge was removed (holdout showed
+  // no effect). Column kept as historical record; nothing reads or writes it.
   firstRsvpNudgedAt          DateTime?
   // Approved into a city while it was still in the seeding maturity stage.
   // Stored, not derived: "founding member" is a historical fact that must
@@ -377,7 +376,8 @@ model City {
   consulUserId String?
   cityHosts    CityHost[]
   clubs        Club[]
-  events       Event[]
+  events       Event[] @relation("EventCity")
+  tripsFrom    Event[] @relation("EventOriginCity")
   applications MemberApplication[]
   users        User[]
   // City-scoping sweep (multi-city phase 1): every model with a location
@@ -671,6 +671,9 @@ model Event {
   featured             Boolean         @default(false)
   seriesId             String?
   coverImagePosition   Int             @default(50)
+  // The event's flyer, shown uncropped on the event page (the cover is
+  // cropped to a banner everywhere). Optional.
+  flyerImage           String?
   femaleQuota          Int?
   cityId               String
   surveyDispatchedAt   DateTime?
@@ -710,7 +713,14 @@ model Event {
   meetAgain            EventMeetAgain[]
   tags                EventTag[]
   recommendations      EventRecommendation[]
-  city                 City            @relation(fields: [cityId], references: [id])
+  city                 City            @relation("EventCity", fields: [cityId], references: [id])
+  // A cross-city trip (2026-10-01): the event belongs to the city it VISITS
+  // (cityId — its page, feed, timezone, currency, first-event count) and
+  // departs from this one, whose feed also lists it with a trip badge.
+  // Permissions (who may edit, host checks, the club rule) follow the
+  // departure city: lib/eventTrip scopeCityId. Null for every ordinary event.
+  originCityId         String?
+  originCity           City?           @relation("EventOriginCity", fields: [originCityId], references: [id], onDelete: SetNull)
   club                 Club?           @relation(fields: [clubId], references: [id])
   payments             Payment[]
   reviews              Review[]
@@ -720,6 +730,7 @@ model Event {
   @@index([status])
   @@index([hostId])
   @@index([cityId])
+  @@index([originCityId])
   @@index([cityId, status, date])
   @@index([seriesId])
   @@index([businessId])
@@ -1244,6 +1255,10 @@ model Payment {
   // Stamped by sweep-payment-reminders when the one-and-only "your spot
   // needs payment" nudge goes out — the stamp is what makes it one-and-only.
   reminderSentAt DateTime?
+  // When it became paid — revenue and the payments date filter read this,
+  // not createdAt (the RSVP). Set by lib/paymentStatus and /admin/payments;
+  // cleared when a paid payment goes back to pending.
+  paidAt         DateTime?
   event          Event    @relation(fields: [eventId], references: [id])
   user           User     @relation(fields: [userId], references: [id])
 
@@ -1253,6 +1268,7 @@ model Payment {
   @@index([createdAt])
   @@index([eventId, status])
   @@index([userId, eventId, status])
+  @@index([paidAt])
   @@map("payments")
 }
 
@@ -1304,6 +1320,13 @@ model MemberApplication {
   disposableEmail      Boolean   @default(false)
   timezone             String?
   timezoneMismatch     Boolean   @default(false)
+  // Double opt-in (2026-09-29): anyone could apply with someone else's email,
+  // lock that address out and have Smileys email them. An application still
+  // reaches review at once; until the link in its email is clicked it does
+  // not count against that email or phone, and a rejection sends nothing.
+  // Rows from before the change were backfilled as confirmed.
+  emailConfirmedAt     DateTime?
+  confirmToken         String?   @unique
   aboutCommunity       String?
   languages            String[]
   openToCoffee         Boolean   @default(false)
@@ -2210,6 +2233,12 @@ model Business {
   instagram       String?
   logo            String?
   coverImage      String?
+  // Credit for a cover that is someone else's photo — a Wikimedia Commons
+  // image under CC BY / BY-SA must name its author and licence wherever it is
+  // shown (components/PhotoCredit). Cleared whenever the cover changes, so a
+  // credit never outlives its photo.
+  coverCredit     String?
+  coverCreditUrl  String?
   isExpatOwned    Boolean          @default(false)
   isExpatFriendly Boolean          @default(false)
   languages       String?
@@ -2643,4 +2672,31 @@ model EventSave {
   @@unique([userId, eventId])
   @@index([userId, createdAt(sort: Desc)])
   @@map("event_saves")
+}
+
+// ── Handbook source watch (2026-10-01) ──────────────────────────────────────
+// One row per official source URL cited by a published Handbook article
+// (Post.officialSources). A weekly sweep (lib/handbookSources) fetches each,
+// normalises the page to its visible text and compares it with the last
+// check; a change stamps changedAt, which puts every article citing that URL
+// back in the /admin/posts review queue until someone reviews it. Keyed by
+// URL, not by article: one government page often backs several articles.
+model HandbookSource {
+  url         String    @id
+  // sha256 of the normalised text (HTML) or of the bytes (PDF and the like).
+  contentHash String?
+  // Normalised visible text from the last good fetch, capped — kept so the
+  // next change can say WHAT changed, not just that something did.
+  text        String?
+  lastStatus  Int?
+  lastError   String?
+  checkedAt   DateTime?
+  // When the content last differed from the previous good check. Null until
+  // a second check finds a difference (the first fetch is the baseline).
+  changedAt   DateTime?
+  // A few added/removed lines from that change, for the reviewer.
+  lastDiff    String?
+
+  @@index([changedAt])
+  @@map("handbook_sources")
 }

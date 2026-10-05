@@ -46,7 +46,7 @@ describe('club member counts', () => {
     // counted members — the mock above decides the rows, so pin the filter.
     // Approved and not banned (lib/clubMemberCount, scan6Batch19).
     expect((prisma.club.findMany as any).mock.calls[0][0].include.memberships.where)
-      .toEqual({ status: 'approved', user: { status: { not: 'banned' }, cityId: 'c-bodrum' } })
+      .toEqual({ status: 'approved', user: { status: { not: 'banned' }, password: { not: null }, cityId: 'c-bodrum' } })
   })
 
   it('leaves a city-scoped club unchanged — both counts agree', async () => {

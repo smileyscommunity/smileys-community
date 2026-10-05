@@ -8,6 +8,7 @@ import { writeAudit, getDiff } from '@/lib/audit'
 import { computeEventSurveyRollup, aggregateRollup } from '@/lib/survey'
 import { CLUB_CATEGORIES } from '@/lib/data'
 import { createNotification } from '@/lib/notify'
+import { bustHostRoster } from '@/lib/hostRoster'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -211,6 +212,8 @@ export async function PUT(req: NextRequest, { params }: Params) {
     }
 
     const club = await prisma.club.update({ where: { id }, data: allowed })
+    // Deactivating (or re-homing) a club takes its hosts off the roster.
+    if ('isActive' in allowed || 'cityId' in allowed) bustHostRoster()
 
     const diff = getDiff(before, allowed)
     if (diff) {

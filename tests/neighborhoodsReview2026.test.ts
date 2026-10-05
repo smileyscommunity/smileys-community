@@ -179,7 +179,7 @@ describe('a name is cut on the server, not at render', () => {
   it('the local-picks quote carries a first name into the payload', () => {
     // Caught by probing the LIVE page after the deploy: LocalFavorites
     // rendered firstNameOf(quoteBy), so the screen was right, but the full
-    // name travelled in the RSC flight payload — eight of them readable in
+    // name traveled in the RSC flight payload — eight of them readable in
     // view-source on a logged-out /neighborhoods.
     const index = read('app/neighborhoods/page.tsx')
     expect(index).toContain("quoteBy:      firstNameOf(b.reviews[0]?.author?.name ?? '') || null,")

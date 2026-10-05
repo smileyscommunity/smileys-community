@@ -11,6 +11,13 @@ Disallow: /app/admin/
 Allow: /app/api/og
 Allow: /app/api/files/posts/
 Allow: /app/api/files/general/
+# Event, club and directory covers are the images named in the Event JSON-LD and
+# og:image — public by design (the file route serves them to anyone), and a
+# crawler that can't fetch them ignores them for rich results. users/, hangouts/,
+# messages/ and applications/ stay under the Disallow below.
+Allow: /app/api/files/events/
+Allow: /app/api/files/clubs/
+Allow: /app/api/files/directory/
 Disallow: /app/api/
 Disallow: /app/host/
 Disallow: /app/login

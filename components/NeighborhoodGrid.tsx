@@ -53,7 +53,9 @@ function fmt(d: string) {
 // ── Featured card (large, gradient) ──────────────────────────────────────────
 function FeaturedCard({ n, cityQuery = '' }: { n: NeighborhoodItem; cityQuery?: string }) {
   const gradient = SIDE_GRADIENT[n.meta.side] ?? 'from-amber-500 to-orange-400'
-  const photo = neighborhoodImage(n.name)
+  // The photo map is Istanbul's, keyed by bare name: another city's Fatih
+  // must not get Istanbul's picture. cityQuery is '' only for the default city.
+  const photo = cityQuery ? null : neighborhoodImage(n.name)
   return (
     <Link href={`/neighborhoods/${n.slug}${cityQuery}`}
       className="group relative rounded-2xl overflow-hidden shadow-md hover:shadow-xl hover:-translate-y-1 transition-all">
@@ -135,7 +137,7 @@ function NeighborhoodCard({ n, cardBg, cardBorder, cityQuery = '' }: { n: Neighb
   const border = n.isYours ? 'border-amber-300 ring-1 ring-amber-200' : (cardBorder ?? 'border-gray-100 hover:border-gray-200')
   const bg     = cardBg ?? 'bg-white'
 
-  const photo = neighborhoodImage(n.name)
+  const photo = cityQuery ? null : neighborhoodImage(n.name)
 
   return (
     <Link href={`/neighborhoods/${n.slug}${cityQuery}`}
@@ -207,7 +209,7 @@ function NeighborhoodCard({ n, cardBg, cardBorder, cityQuery = '' }: { n: Neighb
 }
 
 // ── Main grid ─────────────────────────────────────────────────────────────────
-// Four neighbourhood slugs are shared between cities (Istanbul and Ankara
+// Four neighborhood slugs are shared between cities (Istanbul and Ankara
 // both have a Ulus), so a bare /neighborhoods/<slug> always resolved to the
 // default city's page: Ankara's grid linked to Istanbul's Ulus. Every card
 // carries the city it came from when that isn't the default one.
@@ -266,7 +268,7 @@ export default function NeighborhoodGrid({ groups, userNeighborhood, mapCenter, 
     return items
   })()
 
-  // A neighbourhood with no coordinates is left off the map rather than
+  // A neighborhood with no coordinates is left off the map rather than
   // plotted at 0,0 — one of those dragged fitBounds across the Atlantic.
   const mapPoints: MapPoint[] = allItems
     .filter(n => (n.memberCount > 0 || n.eventCount > 0) && n.meta.lat != null && n.meta.lon != null)
@@ -348,7 +350,7 @@ export default function NeighborhoodGrid({ groups, userNeighborhood, mapCenter, 
             </button>
           ))}
 
-          {/* Cards | Map. Map plots neighborhood centres only — see
+          {/* Cards | Map. Map plots neighborhood centers only — see
               NeighborhoodsMapView for why no member data reaches it. */}
           <div className="ml-auto inline-flex rounded-full border border-gray-200 bg-white p-0.5">
             {([
@@ -374,7 +376,7 @@ export default function NeighborhoodGrid({ groups, userNeighborhood, mapCenter, 
           <NeighborhoodsMapView points={mapPoints} center={mapCenter} cityQuery={cityQuery} />
           <p className="text-xs text-gray-400 mt-3">
             Showing {mapPoints.length} neighborhoods with members or upcoming events.
-            Markers are neighborhood centres — never a member&apos;s location.
+            Markers are neighborhood centers — never a member&apos;s location.
           </p>
         </div>
       ) : filtered !== null ? (
@@ -401,7 +403,7 @@ export default function NeighborhoodGrid({ groups, userNeighborhood, mapCenter, 
         <div>
           <div className="flex items-center gap-2 mb-4">
             <span className="text-xs font-bold text-gray-600 uppercase tracking-widest">
-              {sort === 'events' ? 'Events this week' : 'Most active right now'}
+              {sort === 'events' ? 'Events this week' : shortlist.some(n => n.eventCount > 0) ? 'Most active right now' : 'Where members live'}
             </span>
             <div className="flex-1 h-px bg-gray-100" />
           </div>

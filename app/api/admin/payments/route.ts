@@ -1,4 +1,6 @@
 import { canManagePayments } from '@/lib/access'
+import { paidAtFor } from '@/lib/paymentStatus'
+import { roundMoney } from '@/lib/money'
 import { requireStepUp } from '@/lib/stepUp'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
@@ -75,7 +77,10 @@ function paymentFilterWhere(
   const contains = { contains: q, mode: 'insensitive' as const }
   return {
     ...(ALLOWED_STATUSES.has(status) && { status }),
-    ...(Object.keys(createdAt).length > 0 && { createdAt }),
+    // Filtering paid payments by date means "paid in this range" — the bank
+    // reconciliation case — so it reads paidAt; any other status keeps the
+    // row's own date.
+    ...(Object.keys(createdAt).length > 0 && (status === 'paid' ? { paidAt: createdAt } : { createdAt })),
     ...(q && { OR: [
       { user:  { name:  contains } },
       { user:  { email: contains } },
@@ -150,8 +155,10 @@ export async function GET(req: NextRequest) {
     // by event" chart can show committed-but-unpaid alongside
     // paid. Computed server-side so the breakdown matches reality
     // regardless of row window.
+    // …and by currency: an event whose currency changed after payments came
+    // in had lira and euro rows summed and labeled with its current one.
     prisma.payment.groupBy({
-      by:    ['eventId', 'status'],
+      by:    ['eventId', 'status', 'currency'],
       _sum:  { amount: true },
       _count: { _all: true },
       where: { status: { in: ['paid', 'pending'] } },
@@ -170,25 +177,28 @@ export async function GET(req: NextRequest) {
     byEvent.reduce<Record<string, { eventId: string; title: string; emoji: string; currency: string; paidTotal: number; paidCount: number; pendingTotal: number; pendingCount: number }>>((acc, g) => {
       const meta = metaById.get(g.eventId)
       if (!meta) return acc
-      if (!acc[g.eventId]) acc[g.eventId] = {
-        eventId: g.eventId, title: meta.title, emoji: meta.emoji, currency: meta.currency ?? DEFAULT_CURRENCY,
+      // One row per event and currency — normally one per event.
+      const key = `${g.eventId}:${g.currency}`
+      if (!acc[key]) acc[key] = {
+        eventId: g.eventId, title: meta.title, emoji: meta.emoji, currency: g.currency ?? meta.currency ?? DEFAULT_CURRENCY,
         paidTotal: 0, paidCount: 0, pendingTotal: 0, pendingCount: 0,
       }
-      const row = acc[g.eventId]
+      const row = acc[key]
       const sum   = g._sum.amount ?? 0
       const count = g._count._all
       if (g.status === 'paid')    { row.paidTotal += sum;    row.paidCount += count }
       if (g.status === 'pending') { row.pendingTotal += sum; row.pendingCount += count }
       return acc
     }, {}),
-  ).sort((a, b) => b.paidTotal - a.paidTotal)
+  ).map(r => ({ ...r, paidTotal: roundMoney(r.paidTotal), pendingTotal: roundMoney(r.pendingTotal) }))
+   .sort((a, b) => b.paidTotal - a.paidTotal)
 
   return NextResponse.json({
     payments,
     stats: {
       total:        totalCount,
       paidByCurrency: paidByCurrency
-        .map(g => ({ currency: g.currency ?? DEFAULT_CURRENCY, amount: g._sum.amount ?? 0 }))
+        .map(g => ({ currency: g.currency ?? DEFAULT_CURRENCY, amount: roundMoney(g._sum.amount) }))
         .sort((a, b) => b.amount - a.amount),
       pendingCount,
       heldCount,
@@ -275,12 +285,23 @@ export async function PATCH(req: NextRequest) {
     )
   }
 
-  const updated = await prisma.payment.update({
-    where: { id },
+  // Conditional on the status read above (compare-and-set, as
+  // lib/paymentStatus does): two tabs or two admins refunding at once both
+  // passed the terminal check and both applied — two PaymentLogs, two audit
+  // rows, two refund emails. The second now writes nothing and gets a 409.
+  const applied = await prisma.payment.updateMany({
+    where: { id, status: current.status },
     data: {
       ...(status !== undefined && { status }),
+      ...(statusChanging ? paidAtFor(current.status, status) : {}),
       ...(notesChanged && { notes: nextNotes }),
     },
+  })
+  if (applied.count === 0) {
+    return NextResponse.json({ error: 'This payment changed in the meantime — reload and try again.' }, { status: 409 })
+  }
+  const updated = await prisma.payment.findUniqueOrThrow({
+    where: { id },
     include: {
       user:  { select: { name: true, email: true } },
       event: { select: { title: true, emoji: true } },

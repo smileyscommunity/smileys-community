@@ -45,6 +45,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Rate limit — wait a moment' }, { status: 429 })
   }
 
+  // No name and no referral code in what leaves for OpenAI: neither changes
+  // the assessment, and both identify the applicant (data minimisation).
   const prompt = `You are a community manager for Smileys, a curated social community in Istanbul for international and local residents who want genuine connection, shared experiences, and a sense of belonging. The community is application-based, English-first, and values people who are curious, kind, contribute to group energy, and attend events regularly.
 
 Review this membership application and respond with a JSON object in exactly this format:
@@ -66,7 +68,6 @@ Rules:
 - Be concise. Each strength/flag/question should be one short sentence.
 
 Application data:
-Name: ${app.fullName}
 Country: ${app.country ?? '—'}
 City: ${app.city ?? '—'}
 Profession: ${app.profession ?? '—'}
@@ -81,7 +82,7 @@ How they handle group conflict: ${app.groupBehavior ?? '—'}
 Previously removed from a community: ${app.removedFromCommunity ?? '—'}
 Past toxic behavior: ${app.toxicBehavior ?? '—'}
 Bio: ${app.bio ?? '—'}
-Referred by: ${app.referredBy ?? '—'}
+Referred by a member: ${app.referredBy ? 'yes' : 'no'}
 Has Instagram: ${app.instagram ? 'yes' : 'no'}
 Has LinkedIn: ${app.linkedin ? 'yes' : 'no'}`
 

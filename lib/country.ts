@@ -9,7 +9,7 @@
 
 // Intl.DisplayNames ships with Node and every browser we support. `fallback:
 // 'code'` means an unrecognised value comes back unchanged rather than throwing
-// — so a legacy row that never got normalised still renders something.
+// — so a legacy row that never got normalized still renders something.
 let display: Intl.DisplayNames | null = null
 
 // International dialling prefix for a phone-field placeholder. A placeholder
@@ -44,7 +44,7 @@ export function countryName(code: string | null | undefined): string {
 }
 
 /**
- * Normalise admin input to a storable code, or null if it isn't one.
+ * Normalize admin input to a storable code, or null if it isn't one.
  * Accepts 'tr' / 'TR ' and rejects 'Turkey' — the caller turns that into an
  * error message rather than silently storing a second spelling.
  */

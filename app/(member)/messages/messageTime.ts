@@ -5,7 +5,7 @@
 // Those two disagree every time a message lands near midnight — a 23:50
 // message stamped "Yesterday 23:50" sat under a separator that already said
 // Monday — and both answer for the wrong city the moment the reader is
-// travelling. Calendar days in the city's timezone are the one answer the
+// traveling. Calendar days in the city's timezone are the one answer the
 // separator and the stamp underneath it can share.
 import { DEFAULT_TZ, dayInTz, formatDay, safeTz } from '@/lib/cityTime'
 

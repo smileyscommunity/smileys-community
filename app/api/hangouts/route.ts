@@ -199,7 +199,7 @@ export async function POST(req: NextRequest) {
 
     // The member's own city, not the one they're browsing: an Istanbul member
     // looking at İzmir filed their hangout into İzmir and pinged İzmir's
-    // locals. resolvePostingCityId honours the browsed city only when they
+    // locals. resolvePostingCityId honors the browsed city only when they
     // belong to it. Neighborhood validation and the fan-out (created.cityId)
     // follow the same city, or a valid home neighborhood was silently dropped.
     const postingCityId = await resolvePostingCityId(session)

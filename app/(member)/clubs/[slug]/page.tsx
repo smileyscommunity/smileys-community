@@ -22,6 +22,7 @@ import ClubSpotlight from '@/components/ClubSpotlight'
 import ClubRulesEditor from '@/components/ClubRulesEditor'
 import ClubAboutEditor from '@/components/ClubAboutEditor'
 import ClubResources from '@/components/ClubResources'
+import { isOffCalendar } from '@/lib/eventJoinState'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,9 +50,15 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const imageUrl    = absoluteImageUrl(club.coverImage)
   const pageUrl     = `${APP_URL}/clubs/${slug}`
 
+  // A logged-out request gets the layout shell (the page itself is members-only),
+  // so a crawler sees no content — keep it out of the index rather than serve
+  // 135 near-identical empty pages. Link previews still read the tags below.
+  const session = await getSession()
+
   return {
     title,
     description,
+    ...(session ? {} : { robots: { index: false, follow: true } }),
     openGraph: {
       title,
       description,
@@ -109,7 +116,7 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
 
   // getEventsByClub keeps cancelled rows for the tab's banner; "next event" and the counts are the live ones.
 
-  const upcomingEvents = clubEvents.filter(e => e.status !== 'cancelled')
+  const upcomingEvents = clubEvents.filter(e => !isOffCalendar(e))
 
   // The club's city day — UTC put "Last event" and the next-event label on
   // the server's clock.

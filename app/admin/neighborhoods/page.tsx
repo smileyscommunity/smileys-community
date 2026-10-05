@@ -169,7 +169,7 @@ function AdminNeighborhoodsPageInner() {
   // /neighborhoods/<slug> page stops resolving — the page 404s and its wall
   // goes with it, because every lookup is scoped to active rows. What
   // survives is the name on things already tagged with it (events keep
-  // showing "Moda", members keep the neighbourhood on their profile). The
+  // showing "Moda", members keep the neighborhood on their profile). The
   // old copy promised "tagged content stays readable", which read as though
   // the page stayed up.
   async function deactivate(n: NeighborhoodEntry) {

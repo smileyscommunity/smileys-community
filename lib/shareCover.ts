@@ -10,7 +10,7 @@
 //   the kind's brand card                        only when a city has neither
 //
 // Istanbul's purpose-made covers ("Istanbul Handbook", "Istanbul Directory",
-// "Istanbul Board", "Istanbul Neighbourhoods", and Visiting's ferry photo) are its per-city files; where it has none it shares its
+// "Istanbul Board", "Istanbul Neighborhoods", and Visiting's ferry photo) are its per-city files; where it has none it shares its
 // hero photo like everyone else. Covers must stay under the ~300KB at which
 // WhatsApp silently drops an og:image (tests/shareCover.test.ts checks every
 // one); a hero photo goes through absoluteOgImage, which caps it at 1200px
@@ -23,7 +23,7 @@ import { join } from 'path'
 import { APP_URL } from './env'
 import { absoluteOgImage } from './og'
 
-export type ShareCoverKind = 'handbook' | 'directory' | 'marketplace' | 'board' | 'events' | 'clubs' | 'neighborhoods' | 'guide' | 'visiting'
+export type ShareCoverKind = 'handbook' | 'directory' | 'marketplace' | 'board' | 'events' | 'clubs' | 'hosts' | 'experiences' | 'neighborhoods' | 'guide' | 'visiting' | 'students'
 
 // The brand card per kind, with its dimensions. The events and clubs cards
 // are square by design (they double as the Instagram assets); the rest use
@@ -35,6 +35,8 @@ const BRAND_CARD: Record<ShareCoverKind, { url: string; width: number; height: n
   marketplace: { url: `${APP_URL}/api/og`,              width: 1200, height: 630 },
   board:       { url: `${APP_URL}/api/og`,              width: 1200, height: 630 },
   neighborhoods: { url: `${APP_URL}/api/og`,            width: 1200, height: 630 },
+  hosts:       { url: `${APP_URL}/api/og`,              width: 1200, height: 630 },
+  experiences: { url: `${APP_URL}/api/og`,              width: 1200, height: 630 },
   events:      { url: `${APP_URL}/images/events-og.jpg`, width: 1200, height: 1200 },
   clubs:       { url: `${APP_URL}/images/clubs-og.jpg`,  width: 1200, height: 1200 },
   // The guide's branded card, and the visiting page's share copy of the hero
@@ -42,6 +44,9 @@ const BRAND_CARD: Record<ShareCoverKind, { url: string; width: number; height: n
   // WhatsApp threshold; this copy is pre-resized).
   guide:       { url: `${APP_URL}/images/guide-og.jpg`,        width: 1200, height: 640 },
   visiting:    { url: `${APP_URL}/images/visiting-hero-og.jpg`, width: 1200, height: 800 },
+  // A city without its own students-cover-<slug>.jpg shares what the page
+  // shared before it had a kind of its own: the events card.
+  students:    { url: `${APP_URL}/images/events-og.jpg`, width: 1200, height: 1200 },
 }
 
 export interface ShareImage {

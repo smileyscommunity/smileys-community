@@ -22,7 +22,7 @@ import { redactBoardTextForGuest } from '@/lib/boardAccess'
 export async function GET(req: NextRequest) {
   const session = await getSession()
   // ?city=<slug>: the marketplace pins its city in the URL, and the listings
-  // grid beside this list already honours it — without this the sales under a
+  // grid beside this list already honors it — without this the sales under a
   // shared İzmir link were the viewer's cookie city. Unknown slug falls back
   // to the viewer's city, same as app/api/listings.
   const citySlug = new URL(req.url).searchParams.get('city')?.trim()
@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
       ...s,
       user: project(s.user),
       neighborhood: session ? s.neighborhood : null,
-      // Withholding the neighbourhood from guests is pointless if the note
+      // Withholding the neighborhood from guests is pointless if the note
       // says "Cihangir, Akarsu Sok 12, leaving the 14th" — which is exactly
       // what a sale note tends to say. Same redaction the board applies to
       // its own text for guests.

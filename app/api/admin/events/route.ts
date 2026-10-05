@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { bustCityPages } from '@/lib/cityPageCache'
 import { isTier } from '@/lib/standingPolicy'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { hostIdError } from '@/lib/eventHostCheck'
+import { tripError } from '@/lib/eventTrip'
 import { getSession } from '@/lib/session'
 import { isAdmin, isModerator, isClubHost, isClubHostFor, failClosedCityId, hostCityIds } from '@/lib/access'
-import { createNotification, notifyNewEvent } from '@/lib/notify'
+import { createNotification, notifyNewEvent, notifyTripArrival } from '@/lib/notify'
 import {splitLeadingEmoji, stripDupTrailingEmoji} from '@/lib/data'
 import { normalizePaymentContact } from '@/lib/safeUrl'
 import { computeEventSurveyRollup } from '@/lib/survey'
@@ -38,7 +40,7 @@ export async function GET(req: NextRequest) {
     const fromValid    = fromParam && /^\d{4}-\d{2}-\d{2}$/.test(fromParam) ? fromParam : undefined
     // Optional city filter, so the dashboard's upcoming-events panel can
     // follow the same city as the numbers above it. Unset means every city,
-    // which is the long-standing behaviour of this endpoint.
+    // which is the long-standing behavior of this endpoint.
     const cityParam    = req.nextUrl.searchParams.get('city')
     // Moderators fail closed to their own city, like every sibling admin
     // list (this route treated them as admins and let a Bodrum moderator
@@ -121,7 +123,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { title, date, time, location, neighborhood, clubId, hostId, description,
             totalSpots, price, memberPrice, payTo, paymentContact, ticketUrl, intent, emoji, isPremium, membersOnly, limitedSpots, isFirstTimerFriendly,
-            vibes, tagIds, tags, status, coverImage, coverImagePosition, meetingUrl, whatsappUrl, address,
+            vibes, tagIds, tags, status, coverImage, coverImagePosition, flyerImage, meetingUrl, whatsappUrl, address,
             minAge, maxAge, language, difficulty,
             refundPolicy, registrationDeadline, endTime, currency, approvalRequired,
             // Pre-existing gap: genderBalance + the three quotas were destructured
@@ -131,13 +133,16 @@ export async function POST(req: NextRequest) {
             // cityId is only read when the parent club is global (cityId
             // null) and so has no city to give the event — see below.
             cityId,
+            // A cross-city trip: the live city this event VISITS. The club's
+            // own city becomes its departure city (lib/eventTrip).
+            tripToCityId,
             isRecurring, seriesId, lat, lng, tierOverride, cancelCutoffHours, businessId } = body
 
     if (!title || !date || !time || !location || !clubId || !hostId) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
     // Free-text times were stored verbatim ('22.00', '18', '24:00') and then
-    // read as ending 23:59. Normalise or 400 (lib/eventTime eventTimeInput).
+    // read as ending 23:59. Normalize or 400 (lib/eventTime eventTimeInput).
     const startTime = eventTimeInput(time, 'start')
     if ('error' in startTime) return NextResponse.json({ error: startTime.error }, { status: 400 })
     const finishTime = eventTimeInput(endTime, 'end')
@@ -170,6 +175,7 @@ export async function POST(req: NextRequest) {
     const safeLocalFile = (v: unknown) => !v || /^\/app\/api\/files\/[a-zA-Z0-9\-]+\/[a-zA-Z0-9\-]+\.(jpg|jpeg|png|webp|gif)$/.test(String(v))
     const safeHttps     = (v: unknown) => !v || (typeof v === 'string' && v.startsWith('https://'))
     if (!safeLocalFile(coverImage))  return NextResponse.json({ error: 'Invalid cover image URL' }, { status: 400 })
+    if (!safeLocalFile(flyerImage))  return NextResponse.json({ error: 'Invalid flyer image URL' }, { status: 400 })
     if (!safeHttps(meetingUrl))      return NextResponse.json({ error: 'Meeting URL must start with https://' }, { status: 400 })
     if (!safeHttps(whatsappUrl))     return NextResponse.json({ error: 'WhatsApp URL must start with https://' }, { status: 400 })
     if (!safeHttps(ticketUrl))       return NextResponse.json({ error: 'Ticket URL must start with https://' }, { status: 400 })
@@ -328,7 +334,7 @@ export async function POST(req: NextRequest) {
       //     quietly put an Antalya event in Istanbul. Ask instead.
       //   - club hosts and city hosts come through /host/events/new, which
       //     has no city control by design ("hosts always create in their
-      //     own city"). Defaulting to theirs is the documented behaviour,
+      //     own city"). Defaulting to theirs is the documented behavior,
       //     and the cityHost grant check below still has the last word.
       const staff = admin || isModerator(session)
       if (!cityId && staff) {
@@ -344,6 +350,27 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: resolved.error }, { status: resolved.status })
       }
       eventCityId = resolved.cityId
+    }
+
+    // A trip files into the city it visits; the departure city is the club's.
+    // Every check from here to the venue lookup keeps reading eventCityId —
+    // the DEPARTURE city for a trip — because that is whose club, host and
+    // staff are running it (lib/eventTrip scopeCityId). placeCityId is where
+    // the event happens: its venue, currency and the row's cityId.
+    let originCityId: string | null = null
+    let placeCityId = eventCityId
+    if (tripToCityId) {
+      const [destination, clubCity, hostsThisClub] = await Promise.all([
+        // An id from the admin form, a slug from the host form (/api/cities
+        // is public and carries no ids).
+        prisma.city.findFirst({ where: { OR: [{ id: String(tripToCityId) }, { slug: String(tripToCityId) }] }, select: { id: true, status: true, timezone: true } }),
+        parentClub.cityId ? prisma.city.findUnique({ where: { id: parentClub.cityId }, select: { timezone: true } }) : null,
+        admin ? false : isClubHostFor(session.id, clubId),
+      ])
+      const tripErr = tripError({ admin, isClubHost: hostsThisClub, clubCityId: parentClub.cityId, clubCityTz: clubCity?.timezone ?? null, destination })
+      if (tripErr) return NextResponse.json({ error: tripErr }, { status: 400 })
+      originCityId = parentClub.cityId
+      placeCityId  = destination!.id
     }
 
     // The host sees the guest list with contact details: an approved,
@@ -396,11 +423,15 @@ export async function POST(req: NextRequest) {
     }
     const weekOut       = await todayInCity(eventCityId, 7)
     const tooFarOut     = isFree && date > weekOut && !admin
-    const needsReview   = !admin && (!isModerator(session) || modViaCityGrant)
+    // A trip from anyone but an admin goes to review — the DESTINATION's
+    // queue (it's filed there) — so a departure-city moderator can't publish
+    // straight onto another city's page.
+    const needsReview   = !admin && (!isModerator(session) || modViaCityGrant || !!originCityId)
     const eventStatus   = needsReview ? 'pending' : (tooFarOut ? 'pending' : (status ?? 'published'))
 
-    // The directory listing the organiser picked, in this event's city.
-    const venue = await venueIdInput(businessId, eventCityId)
+    // The directory listing the organizer picked, in this event's city.
+    // A trip may meet in either city — the departure station is the usual spot.
+    const venue = await venueIdInput(businessId, originCityId ? [placeCityId, originCityId] : placeCityId)
     if ('error' in venue) return NextResponse.json({ error: venue.error }, { status: 400 })
 
     const event = await prisma.event.create({
@@ -413,7 +444,8 @@ export async function POST(req: NextRequest) {
         neighborhood:         neighborhood?.trim() ?? '',
         address:              address?.trim() ?? '',
         clubId, hostId,
-        cityId:               eventCityId,
+        cityId:               placeCityId,
+        originCityId,
         description:          description?.trim() ?? '',
         totalSpots:           spots,
         spotsLeft:            spots,
@@ -443,6 +475,7 @@ export async function POST(req: NextRequest) {
         status:               eventStatus,
         coverImage:           coverImage           ?? null,
         coverImagePosition:   coverImagePosition   ?? 50,
+        flyerImage:           flyerImage || null,
         meetingUrl:           meetingUrl           ?? null,
         whatsappUrl:          whatsappUrl ?? null,
         minAge:               parsedMinAge as number | null,
@@ -459,7 +492,7 @@ export async function POST(req: NextRequest) {
         // Athens event is priced in euros by default, not lira. Reads the
         // resolved city rather than the club's, so a global club's event
         // is priced in the city it was filed under.
-        currency:             currency ?? (await getCityConfig(eventCityId)).currency,
+        currency:             currency ?? (await getCityConfig(placeCityId)).currency,
         approvalRequired:     approvalRequired ?? false,
         // Gender balance + quotas — null defaults so explicit-off doesn't
         // get coerced to 0. Cast numbers explicitly since the form ships
@@ -526,8 +559,11 @@ export async function POST(req: NextRequest) {
     // (fire-and-forget; batched + idempotency-guarded inside notifyNewEvent).
     if (eventStatus === 'published') {
       notifyNewEvent({ id: event.id, title: cleanTitle, clubId, hostId }).catch(() => {})
+      // A trip also tells the city it visits (lib/notify notifyTripArrival).
+      notifyTripArrival({ id: event.id, title: cleanTitle, date, cityId: placeCityId, originCityId, clubId, hostId }).catch(() => {})
     }
 
+    bustCityPages()
     return NextResponse.json(event)
   } catch (e) {
     console.error(e)

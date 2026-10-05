@@ -38,8 +38,8 @@ describe('nobody is shown who did not agree to be shown', () => {
     expect(read('components/ClubActivityTimeline.tsx')).toContain('{getInitials(firstNameOf(name))}')
   })
 
-  it('a neighbourhood opt-out is honoured wherever the neighbourhood prints', () => {
-    // The suggestion match has two branches and only the neighbourhood one
+  it('a neighborhood opt-out is honored wherever the neighborhood prints', () => {
+    // The suggestion match has two branches and only the neighborhood one
     // required the opt-in, so a member found through a shared club had their
     // district shown regardless.
     expect(src).toContain('neighborhood: m.neighborhoodVisible ? m.neighborhood : null')
@@ -69,7 +69,7 @@ describe('the numbers say what the page underneath them says', () => {
     // A separate count() over the unfiltered where meant sixteen people
     // holding a seat at a 12:00–17:00 event read "Upcoming 1" at 17:01,
     // directly above "No upcoming events".
-    expect(src).toContain('const upcomingCount = upcomingRaw.filter(a => eventEndsAt(a.event, tz).getTime() > Date.now()).length')
+    expect(src).toContain('const upcomingCount = upcomingRaw.filter(a => eventEndsAt(a.event, a.event.city?.timezone ?? tz).getTime() > Date.now()).length')
     expect(src).not.toContain('prisma.eventAttendee.count({ where: upcomingWhere })')
   })
 
@@ -77,7 +77,8 @@ describe('the numbers say what the page underneath them says', () => {
     // Pinned by value rather than by surrounding punctuation: the earlier
     // version matched exact indentation and broke on a reformat while the
     // property it named stayed true.
-    expect(src).toMatch(/const upcomingRaw = await prisma\.eventAttendee\.findMany\(\{[\s\S]{0,900}take: 60,/)
+    // Now fetched alongside the member count (one round trip, 2026-09-29).
+    expect(src).toMatch(/const \[cityMemberCount, upcomingRaw\] = await Promise\.all\(\[[\s\S]{0,1600}take: 60,/)
   })
 
   it('"events so far" counts events that actually happened', () => {
@@ -102,7 +103,7 @@ describe('the numbers say what the page underneath them says', () => {
 })
 
 describe('headings do not promise what the query cannot deliver', () => {
-  it('"from your clubs, interests and neighbourhood" needs a match, not just signals', () => {
+  it('"from your clubs, interests and neighborhood" needs a match, not just signals', () => {
     // Every card, not just the top one: the list is score-sorted, so keying
     // on [0] let one match label four cards, three of which the widened pool
     // now often fills with score-zero events.
@@ -133,7 +134,7 @@ describe('headings do not promise what the query cannot deliver', () => {
     expect(block).not.toContain('New events pop up across the city every week')
   })
 
-  it('a randomly rotated listing is not labelled "new"', () => {
+  it('a randomly rotated listing is not labeled "new"', () => {
     expect(src).not.toContain('New on Board')
     expect(src).toContain('From the Marketplace')
   })
@@ -182,7 +183,7 @@ describe('the same thing is not rendered twice on one page', () => {
 
   it('and the handbook card list belongs to the strip with room for it', () => {
     // Two articles were rendering as cards in both the left rail and the
-    // centre column at every breakpoint. One card list; the timeline's
+    // center column at every breakpoint. One card list; the timeline's
     // one-line mention maps the same rows but is not a second list.
     expect(src.match(/latestHandbook\.map\(post =>/g) ?? []).toHaveLength(1)
   })
@@ -211,7 +212,8 @@ describe('a visitor card carries one name everywhere', () => {
 describe('the city calendar, not the server clock', () => {
   it('"member since" and "joined today" are days in the city', () => {
     expect(src).toContain("{ month: 'long', year: 'numeric', timeZone: tz }")
-    expect(src).toContain('const joinedDay = dayInTz(new Date(m.joinedAt), tz)')
+    // "joined today" lived in the New this week rail box, which moved into
+    // the What's new feed (2026-10-02); the feed says how long ago instead.
   })
 
   it('and nothing on the page hand-rolls initials any more', () => {

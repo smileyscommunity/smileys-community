@@ -56,7 +56,7 @@ describe('rotateImage', () => {
     expect(recorded).toContainEqual(['rotate', Math.PI])
   })
 
-  it('draws the image centred on the rotation origin', async () => {
+  it('draws the image centered on the rotation origin', async () => {
     await rotateImage(jpeg(), 1)
     expect(recorded).toContainEqual(['translate', 450, 600])
     expect(recorded).toContainEqual(['drawImage', -600, -450, 1200, 900])

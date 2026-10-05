@@ -62,7 +62,7 @@ function nonEmptyString(v: unknown, field: string): string {
   return v.trim()
 }
 
-// Validates shape only — content judgement (fares omitted, facts sourced)
+// Validates shape only — content judgment (fares omitted, facts sourced)
 // stays with whoever wrote the JSON.
 function parseArticle(file: string): ArticleInput {
   let raw: unknown

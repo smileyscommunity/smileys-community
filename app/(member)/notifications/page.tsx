@@ -123,7 +123,7 @@ export default function NotificationsPage() {
     } finally {
       setLoadingOlder(false)
     }
-  }, [notifications, loadingOlder, router])
+  }, [notifications, loadingOlder, router, sync])
 
   useEffect(() => {
     load().finally(() => setLoading(false))
@@ -515,7 +515,7 @@ export default function NotificationsPage() {
                         // object-contain, not cover: a flyer or a poster is
                         // the likeliest attachment and it is usually
                         // portrait — cover cropped it to an unreadable
-                        // centre band while the email showed all of it.
+                        // center band while the email showed all of it.
                         src={`${n.imageUrl}?w=800`}
                         alt=""
                         loading="lazy"

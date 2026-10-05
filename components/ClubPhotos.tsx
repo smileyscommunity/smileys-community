@@ -24,13 +24,17 @@ interface Props {
   slug: string
   canUpload: boolean
   isMember: boolean
+  /** Can see the gallery: members, staff, and anyone on a PUBLIC club's page
+   *  (Nate, 2026-09-29). Defaults to isMember. */
+  canView?: boolean
   currentUserId?: string
   isAdmin?: boolean
   canPin?: boolean
   dark?: boolean
 }
 
-export default function ClubPhotos({ slug, canUpload, isMember, currentUserId, isAdmin, canPin, dark }: Props) {
+export default function ClubPhotos({ slug, canUpload, isMember, canView: canViewProp, currentUserId, isAdmin, canPin, dark }: Props) {
+  const canView = canViewProp ?? isMember
   const [photos, setPhotos]       = useState<Photo[]>([])
   const [loading, setLoading]     = useState(true)
   const [caption, setCaption]     = useState('')
@@ -39,20 +43,26 @@ export default function ClubPhotos({ slug, canUpload, isMember, currentUserId, i
   const [error, setError]         = useState('')
   const [loadError, setLoadError] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
+  // The server's answer wins: a public club in another city is still
+  // members-only to this viewer, and that's the lock, not a load failure.
+  const [forbidden, setForbidden] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   // A failed load (500, offline) used to fall through to "No photos yet. Be
   // the first to upload one!" — untrue, and an invitation to re-upload. Say
   // it failed and offer a retry instead.
   useEffect(() => {
-    if (!isMember) { setLoading(false); return }
+    if (!canView) { setLoading(false); return }
     setLoading(true); setLoadError(false)
     fetch(`/app/api/clubs/${slug}/photos`, { credentials: 'include' })
-      .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
+      .then(r => {
+        if (r.status === 403) { setForbidden(true); return [] }
+        return r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))
+      })
       .then(data => { if (Array.isArray(data)) setPhotos(data) })
       .catch(() => setLoadError(true))
       .finally(() => setLoading(false))
-  }, [slug, isMember, reloadKey])
+  }, [slug, canView, reloadKey])
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -111,9 +121,9 @@ export default function ClubPhotos({ slug, canUpload, isMember, currentUserId, i
     ? (dark ? 'bg-zinc-800 text-zinc-400 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed')
     : 'bg-amber-500 hover:bg-amber-600 text-white'
 
-  if (!isMember) return (
+  if (!canView || forbidden) return (
     <div className="text-center py-16">
-      <span className="text-4xl block mb-3">🔒</span>
+      <span aria-hidden="true" className="text-4xl block mb-3">🔒</span>
       <p className="font-semibold text-gray-900 mb-1">Members only</p>
       <p className="text-gray-600 text-sm">Join this club to see photos.</p>
     </div>

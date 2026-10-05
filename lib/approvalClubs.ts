@@ -5,7 +5,7 @@ export type ClubCityRow = { id: string; cityId: string | null }
 export type SkippedClub = {
   clubId: string
   // other_city: a city-scoped club outside the city the member is approved
-  // into. not_found: no such club (a stale id would only fail the enrolment).
+  // into. not_found: no such club (a stale id would only fail the enrollment).
   reason:      'other_city' | 'not_found'
   clubCityId?: string
 }

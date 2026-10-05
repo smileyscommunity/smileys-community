@@ -72,6 +72,17 @@ export function avatarUrl(url: string | null | undefined, size: 64 | 96 | 128 | 
   return `${resolved}?w=${size}`
 }
 
+// Resized variant for cover photos shown as cards or banners. The file route
+// serves our own uploads at `?w=800|1200` (fit inside, aspect kept, JPEG q75);
+// without it a card fetched the 100–300 KB original — about 1.7 MB of the
+// handbook index. Same fall-through as avatarUrl: external images, and URLs
+// that already carry a query, are returned untouched.
+export function previewUrl(url: string | null | undefined, width: 800 | 1200 = 800): string {
+  const resolved = resolveImageUrl(url)
+  if (!resolved || !SIZED_PATH.test(resolved) || resolved.includes('?')) return resolved
+  return `${resolved}?w=${width}`
+}
+
 export interface Club {
   id: string
   slug: string
@@ -113,6 +124,9 @@ export interface Club {
 
 export interface Event {
   id: string
+  // "🚆 Istanbul → Eskişehir" on a cross-city trip (lib/eventTrip), null on
+  // every ordinary event. Set by lib/db mapEvent from the two city names.
+  trip?: string | null
   title: string
   date: string
   time: string
@@ -130,6 +144,10 @@ export interface Event {
   // all need it). Surfaces that need the city's timezone resolve it from
   // this via getCityTz.
   cityId?: string
+  // The city a cross-city trip departs from (lib/eventTrip); null otherwise.
+  // Not sensitive — the trip label names it — and the edit forms need it to
+  // search venues in both cities.
+  originCityId?: string | null
   clubName: string
   description: string
   limitedSpots: boolean
@@ -170,6 +188,8 @@ export interface Event {
   address?: string
   coverImage?: string
   coverImagePosition?: number
+  // The flyer, shown uncropped on the event page.
+  flyerImage?: string
   meetingUrl?: string
   lat?: number | null
   lng?: number | null
@@ -282,6 +302,8 @@ const CURRENCY_SYMBOLS: Record<string, string> = {
   TRY: '\u20ba', USD: '$', EUR: '\u20ac', GBP: '\u00a3',
   GEL: '\u20be', BGN: '\u043b\u0432', CHF: 'CHF ', AED: 'AED ',
 }
+/** The currencies the site formats — e.g. for a picker. */
+export const KNOWN_CURRENCIES = Object.keys(CURRENCY_SYMBOLS)
 // The founding city's currency, and the last-resort fallback wherever a row
 // predates the currency column. Spelled once: every other 'TRY' in the code
 // was a guess about which city the reader is in. Sibling of DEFAULT_TZ.
@@ -414,13 +436,13 @@ export function firstNameOf(name: string | null | undefined): string {
   // worse than an initial. "Y. E." stays "Y." for the same reason.
   let first = 0
   while (first < rest.length - 2 && isInitial(rest[first])) first++
-  // Normalised, not raw. The stored name is only as tidy as whoever typed
+  // Normalized, not raw. The stored name is only as tidy as whoever typed
   // it, and the apply form — how nearly everyone joins — wrote it through
   // verbatim for a long time, so lowercase first names reached the DB. This
   // is the single choke point every greeting and notification passes
   // through, which makes it the one place that fixes them all at once
   // without rewriting a single row. formatName is conservative by design
-  // (see its comment), so this can only ever capitalise a leading letter.
+  // (see its comment), so this can only ever capitalize a leading letter.
   return [...kept, rest[first] ?? ''].filter(Boolean).map(n => formatName(n)).join(' ')
 }
 
@@ -499,8 +521,8 @@ export function whatsappUrl(phone: string | null | undefined, nationality?: stri
 }
 
 /**
- * Normalise a human name for consistent display: trim, collapse internal
- * whitespace, and capitalise the first letter of each word (sub-tokens
+ * Normalize a human name for consistent display: trim, collapse internal
+ * whitespace, and capitalize the first letter of each word (sub-tokens
  * split on hyphen / apostrophe handled too, so "al khazraji" →
  * "Al Khazraji" and "o'brien" → "O'Brien").
  *

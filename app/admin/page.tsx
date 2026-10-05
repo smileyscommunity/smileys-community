@@ -208,7 +208,7 @@ export default function AdminPage() {
       // currently reading.
       if (!background) setErrorMsg('Could not load dashboard. Try again?')
     }).finally(() => { if (!background) setLoading(false) })
-  }, [cityId])
+  }, [cityId, tz])
 
   useEffect(() => { load(false) }, [load])
 

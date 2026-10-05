@@ -44,7 +44,7 @@ export default function MessagesPage() {
       setTotalUnread(inbox.totalUnread)
       setStale(false)
     } catch { setStale(true) }
-  }, [])
+  }, [router])
 
   useEffect(() => {
     load().finally(() => setLoading(false))

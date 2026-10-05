@@ -11,7 +11,7 @@ import { NextRequest } from 'next/server'
 //   4. host emoji escaped in the weekly digest
 //   5. initials are letters, never half a surrogate pair
 //   6. a "TBA – 02:00" event ends the next morning
-//   7. /api/invite honours the referred member's privacy
+//   7. /api/invite honors the referred member's privacy
 //   8. every jwtVerify pinned to HS256
 
 const cookieStore = { get: vi.fn(), set: vi.fn(), delete: vi.fn() }
@@ -94,7 +94,7 @@ beforeEach(() => {
 // has no dated block — a red card says what clears it, not when it lifts. The
 // second covered sweepNoShows processing events in end-time order so the
 // SECOND absence got the red; decideIssuance sorts offences by occurredAt, so
-// the order they are processed in cannot decide a card's colour any more.
+// the order they are processed in cannot decide a card's color any more.
 describe('3. check-in is closed on cancelled and settled events', () => {
   const patch = (body: unknown) => checkinPatch(
     new NextRequest('http://localhost/api/events/e1/checkin', { method: 'PATCH', body: JSON.stringify(body) }),
@@ -226,7 +226,7 @@ describe('6. eventEndsAt with an unknown start', () => {
 // ── 7 ────────────────────────────────────────────────────────────────────────
 
 describe('7. /api/invite respects the referred members’ privacy', () => {
-  it('drops neighbourhood, and blanks the photo for connections-only strangers and hidden members', async () => {
+  it('drops neighborhood, blanks the photo for connections-only strangers, and leaves hidden/banned/suspended members out of the query', async () => {
     p.user.findUnique.mockResolvedValue({ referralCode: 'CODE', referralCount: 4, name: 'Me' })
     p.memberApplication.count.mockResolvedValue(0)
     p.memberApplication.findMany.mockResolvedValue([{ email: 'a' }, { email: 'b' }, { email: 'c' }, { email: 'd' }])
@@ -236,7 +236,6 @@ describe('7. /api/invite respects the referred members’ privacy', () => {
       u('open'),
       u('private', { profileVisibility: 'connections' }),
       u('friend',  { profileVisibility: 'connections' }),
-      u('hidden',  { hiddenFromMembers: true }),
     ])
     p.memberConnection.findMany.mockResolvedValue([{ requesterId: 'me', receiverId: 'friend' }])
 
@@ -245,9 +244,15 @@ describe('7. /api/invite respects the referred members’ privacy', () => {
     expect(byId.open.profilePhoto).toBe('/p/open.jpg')
     expect(byId.friend.profilePhoto).toBe('/p/friend.jpg')
     expect(byId.private.profilePhoto).toBeNull()
-    expect(byId.hidden.profilePhoto).toBeNull()
+    // Invite scan 2026-09-29: hidden, banned and suspended members are
+    // filtered in the query itself, and a locked profile isn't linked.
+    const where = p.user.findMany.mock.calls[0][0].where
+    expect(where.hiddenFromMembers).toBe(false)
+    expect(where.status).toBe('approved')
+    expect(byId.private.open).toBe(false)
+    expect(byId.open.open).toBe(true)
     for (const j of body.joined) {
-      expect(Object.keys(j).sort()).toEqual(['color', 'id', 'joinedAt', 'name', 'profilePhoto'])
+      expect(Object.keys(j).sort()).toEqual(['color', 'id', 'joinedAt', 'name', 'open', 'profilePhoto'])
     }
     expect(p.user.findMany.mock.calls[0][0].select.neighborhood).toBeUndefined()
   })

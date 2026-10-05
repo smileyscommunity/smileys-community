@@ -143,7 +143,7 @@ function RowActions({
         <svg className="w-4 h-4" fill={isFeatured ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
       </button>
       {/* Violet throughout, matching the stamp members see on the card, so
-          the admin recognises the state it produces. */}
+          the admin recognizes the state it produces. */}
       <button onClick={() => onToggleSoldOut(event)}
         title={event.soldOut ? 'Remove sold out' : 'Mark sold out'}
         aria-pressed={event.soldOut}
@@ -201,7 +201,7 @@ function AdminEventsPageInner() {
     '/app/api/admin/clubs',
     (v): v is Club[] => Array.isArray(v),
   )
-  const events = eventsData ?? []
+  const events = useMemo(() => eventsData ?? [], [eventsData])
   const clubs  = clubsData  ?? []
   const loading = eventsLoading || clubsLoading
   const error   = eventsError || clubsError
@@ -478,7 +478,7 @@ function AdminEventsPageInner() {
   }
 
   function toggleSelect(id: string) {
-    setSelected(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
+    setSelected(prev => { const s = new Set(prev); if (s.has(id)) s.delete(id); else s.add(id); return s })
   }
 
   // "Upcoming" = published-style events with a future date. Cancelled,

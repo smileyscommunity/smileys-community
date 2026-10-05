@@ -47,6 +47,8 @@ export const NAV_GROUPS: { label: string; items: AdminNavItem[] }[] = [
       // so in practice it means "a moderator who also hosts a club" — four of
       // them today — and the three APIs admit a club host. Not a leftover.
       { label: 'Events',       href: '/admin/events',       exact: false, roles: ['admin', 'host'],            icon: 'events'       },
+      // Cross-city trips: per-trip results (lib/tripReport). Admin-only.
+      { label: 'Trips',        href: '/admin/trips',        exact: false, roles: ['admin'],                    icon: 'events'       },
       { label: 'Participants', href: '/admin/participants',  exact: false, roles: ['admin', 'host'],            icon: 'participants' },
       { label: 'Check-In',     href: '/admin/checkin',       exact: false, roles: ['admin', 'host'],            icon: 'checkin'      },
       // The pre-settlement view: rooms still in their review day, the ratio
@@ -122,8 +124,12 @@ export const NAV_GROUPS: { label: string; items: AdminNavItem[] }[] = [
       // and vice versa — confusing. Split into focused routes now.
       { label: 'Announcements', href: '/admin/announcements', exact: false, roles: ['admin', 'moderator'],  icon: 'banners'    },
       { label: 'Polls',         href: '/admin/polls',         exact: false, roles: ['admin', 'moderator'],  icon: 'engagement' },
-      { label: 'Stories',       href: '/admin/stories',                     exact: false, roles: ['admin', 'moderator'],  icon: 'stories'       },
-      { label: 'Articles',      href: '/admin/posts',         exact: false, roles: ['admin', 'moderator'],  icon: 'articles'      },
+      // Named after what they hold, matching the public nav: /posts is
+      // "Stories" to members, and the Handbook lives in the same editor.
+      // "Stories" here used to be the testimonials + photos page, so the
+      // interviews and stories everyone was looking for sat under "Articles".
+      { label: 'Testimonials & photos', href: '/admin/stories', exact: false, roles: ['admin', 'moderator'],  icon: 'stories'       },
+      { label: 'Stories & Handbook',    href: '/admin/posts',   exact: false, roles: ['admin', 'moderator'],  icon: 'articles'      },
       { label: 'Neighborhoods', href: '/admin/neighborhoods', exact: false, roles: ['admin', 'moderator'],  icon: 'tags'          },
       // Two different things, both called 'guide': /admin/guide edits the
       // practical resources list, /admin/guide-entries edits the experiences
@@ -162,7 +168,8 @@ export const MODERATOR_BOTTOM_NAV = [
   { label: 'Events', href: '/admin/events',       icon: 'events',        exact: false },
   { label: 'Mod',    href: '/admin/moderation',   icon: 'moderation',    exact: false },
   { label: 'Notify', href: '/admin/notifications',icon: 'notifications', exact: false },
-  { label: 'Content',href: '/admin/stories',      icon: 'stories',       exact: false },
+  // The testimonials queue: member-submitted quotes land there for review.
+  { label: 'Quotes', href: '/admin/stories',      icon: 'stories',       exact: false },
 ]
 
 // Pages a moderator may open that no nav entry with a moderator role points

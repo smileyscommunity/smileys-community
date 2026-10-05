@@ -3,9 +3,10 @@ import { APP_URL } from '@/lib/env'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { resolveCityId, getCityConfig } from '@/lib/city'
+import { getCityConfig } from '@/lib/city'
+import { resolveCityForPage, type CitySearch } from '@/lib/cityPageParam'
 import { postCityScope } from '@/lib/postScope'
-import { avatarUrl } from '@/lib/data'
+import { avatarUrl, previewUrl } from '@/lib/data'
 import { articleCover } from '@/lib/articleCover'
 import { readingTime } from '@/lib/handbook-review'
 import { storyBylines } from '@/lib/storyByline'
@@ -87,6 +88,11 @@ const categoryColors: Record<string, string> = {
   'Events':       'bg-blue-100 text-blue-700',
   'City Guide':   'bg-green-100 text-green-700',
   'Tips':         'bg-pink-100 text-pink-700',
+  'Working from': 'bg-sky-100 text-sky-700',
+  'Students':     'bg-indigo-100 text-indigo-700',
+  'Expats':       'bg-teal-100 text-teal-700',
+  'Digital nomads': 'bg-cyan-100 text-cyan-700',
+  'Travelers':   'bg-orange-100 text-orange-700',
 }
 
 // In the city's own day — the server is UTC.
@@ -95,7 +101,7 @@ function formatDate(d: Date | string | null, timeZone: string) {
   return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone })
 }
 
-// The small colour-dot avatar from the article page's byline, listing-sized.
+// The small color-dot avatar from the article page's byline, listing-sized.
 function AuthorDot({ author, size = 'w-6 h-6' }: {
   author: { name: string; color: string; profilePhoto: string | null }
   size?: string
@@ -113,9 +119,13 @@ function AuthorDot({ author, size = 'w-6 h-6' }: {
   )
 }
 
-export default async function PostsPage() {
+export default async function PostsPage({ searchParams }: { searchParams?: Promise<CitySearch> }) {
   const session = await getSession()
-  const cityId  = await resolveCityId(session)
+  // ?city= first, like every other city-scoped list: a city page's "All
+  // stories" link used to land a cookie-less visitor in the default city's
+  // scope. The canonical stays /posts (the page's identity is the
+  // community's, see the metadata note above).
+  const { cityId } = await resolveCityForPage(searchParams)
   // Config first: the post scope needs the city's country. getCityConfig is
   // cached, so this costs nothing over the old parallel fetch.
   const city    = await getCityConfig(cityId)
@@ -141,7 +151,7 @@ export default async function PostsPage() {
   const featuredCover = featured ? articleCover({ coverImage: featured.coverImage, body: featured.body }) : null
 
   return (
-    <main className="min-h-screen bg-warm">
+    <div className="min-h-screen bg-warm">
       {/* Hero */}
       <section className="bg-white border-b border-gray-100">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-6">
@@ -181,7 +191,7 @@ export default async function PostsPage() {
                   {featuredCover ? (
                     <div className="relative h-64 sm:h-80 overflow-hidden bg-gray-100">
                       <img
-                        src={featuredCover}
+                        src={previewUrl(featuredCover, 1200)}
                         alt=""
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         decoding="async"
@@ -230,7 +240,7 @@ export default async function PostsPage() {
                         {cover ? (
                           <div className="relative h-40 overflow-hidden shrink-0 bg-gray-100">
                             <img
-                              src={cover}
+                              src={previewUrl(cover)}
                               alt=""
                               loading="lazy"
                               decoding="async"
@@ -273,6 +283,6 @@ export default async function PostsPage() {
           <ExploreMore current="stories" cityId={cityId} cityName={city.name} />
         </div>
       </div>
-    </main>
+    </div>
   )
 }

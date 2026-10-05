@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { track } from '@/lib/analytics'
 
 interface Props {
   eventId: string
@@ -18,10 +19,12 @@ export default function EventInviteButton({ eventId, eventTitle, userId }: Props
   async function handleInvite() {
     if (navigator.share) {
       try {
+        track('share_click', { method: 'native', context: 'event_invite', event_id: eventId })
         await navigator.share({ title: eventTitle, text: `Join me at this event!`, url: inviteUrl })
         return
       } catch {}
     }
+    track('share_click', { method: 'copy', context: 'event_invite', event_id: eventId })
     try {
       await navigator.clipboard.writeText(inviteUrl)
       setCopied(true)

@@ -64,7 +64,7 @@ export function mergeById<T extends { id: string }>(prev: T[], next: T[]): T[] {
 }
 
 // The one rule for "may this viewer see who this person is" — bio,
-// interests, clubs, full name, the neighbourhood they chose to list. A
+// interests, clubs, full name, the neighborhood they chose to list. A
 // public profile is public to every member (the same answer /members/[id]
 // gives); only a 'connections only' member is locked. Instagram, LinkedIn
 // and work details stay behind an accepted connection, and the API

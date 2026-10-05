@@ -77,7 +77,7 @@ export async function GET(req: NextRequest) {
     // Quality rollup. Pull every published/archived event id in
     // one go, batch through computeEventSurveyRollup, then
     // aggregate per-club via the same helper /admin/clubs/[id]
-    // uses so behaviour stays in lockstep.
+    // uses so behavior stays in lockstep.
     const events = clubIds.length === 0 ? [] : await prisma.event.findMany({
       where:  { clubId: { in: clubIds }, status: { in: ['published', 'archived'] } },
       select: { id: true, clubId: true },

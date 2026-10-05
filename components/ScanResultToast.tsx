@@ -1,7 +1,7 @@
 import type { ScanResult } from '@/lib/checkin'
 
 // Maps each scan-result type to a color, icon, and the user-facing
-// copy. Centralised here so the message wording can't drift between
+// copy. Centralized here so the message wording can't drift between
 // /admin/checkin and /host/checkin — used to be inline strings on both
 // pages and the host page's "X — already checked in" sat next to the
 // admin page's "X already checked in" because no shared source.

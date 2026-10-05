@@ -9,6 +9,7 @@ import { stalledLiveCities, stalledSeverity, describeStalled } from '@/lib/cityO
 import { loadPostponedEvents, planPostponed } from '@/lib/postponedEvents'
 import { countRoomsNeedingReview } from '@/lib/attendanceReview'
 import { COMMUNITY_MEMBER_WHERE, NOT_ACTIVATED_MEMBER_WHERE, MEMBER_ROLE_FILTER } from '@/lib/memberCount'
+import { roundMoney } from '@/lib/money'
 import { reportQueueWhere } from '@/lib/admin/reportScope'
 
 // The funnel follows one cohort: applications made in this many days. Recent
@@ -118,19 +119,21 @@ export async function GET(req: Request) {
     // Upcoming means on the calendar: published, from today on. Drafts,
     // pending, postponed and cancelled events used to count too.
     prisma.event.count({ where: { status: 'published', date: { gte: todayStr }, ...inCity } }),
-    // Members growth
-    prisma.user.count({ where: { status: 'approved', role: { not: 'admin' }, joinedAt: { gte: monthAgo }, ...inCity } }),
-    prisma.user.count({ where: { status: 'approved', role: { not: 'admin' }, joinedAt: { gte: prevMonth, lt: monthAgo }, ...inCity } }),
-    // RSVPs growth
-    prisma.eventAttendee.count({ where: { status: 'approved', joinedAt: { gte: monthAgo }, ...viaEvent } }),
-    prisma.eventAttendee.count({ where: { status: 'approved', joinedAt: { gte: prevMonth, lt: monthAgo }, ...viaEvent } }),
+    // Members growth — the headline's population (activated community
+    // members), so "+N this month" is N of the same people it counts.
+    prisma.user.count({ where: { ...COMMUNITY_MEMBER_WHERE, joinedAt: { gte: monthAgo }, ...inCity } }),
+    prisma.user.count({ where: { ...COMMUNITY_MEMBER_WHERE, joinedAt: { gte: prevMonth, lt: monthAgo }, ...inCity } }),
+    // RSVPs growth — without admins, like the headline RSVP count.
+    prisma.eventAttendee.count({ where: { status: 'approved', user: { role: { not: 'admin' } }, joinedAt: { gte: monthAgo }, ...viaEvent } }),
+    prisma.eventAttendee.count({ where: { status: 'approved', user: { role: { not: 'admin' } }, joinedAt: { gte: prevMonth, lt: monthAgo }, ...viaEvent } }),
     // Revenue, per currency — lira and euro don't add up to anything. Paid
     // is compared like for like: the last 30 days against the 30 before. The
     // trend used to set all-time revenue against one previous month, so it
     // read hugely positive forever. Pending is everything still owed,
     // whenever it was created.
-    prisma.payment.groupBy({ by: ['currency'], where: { status: 'paid', createdAt: { gte: monthAgo }, ...viaEvent }, _sum: { amount: true } }),
-    prisma.payment.groupBy({ by: ['currency'], where: { status: 'paid', createdAt: { gte: prevMonth, lt: monthAgo }, ...viaEvent }, _sum: { amount: true } }),
+    // By when it was PAID (paidAt), not when the row was written at RSVP.
+    prisma.payment.groupBy({ by: ['currency'], where: { status: 'paid', paidAt: { gte: monthAgo }, ...viaEvent }, _sum: { amount: true } }),
+    prisma.payment.groupBy({ by: ['currency'], where: { status: 'paid', paidAt: { gte: prevMonth, lt: monthAgo }, ...viaEvent }, _sum: { amount: true } }),
     prisma.payment.groupBy({ by: ['currency'], where: { status: 'pending', ...viaEvent }, _sum: { amount: true }, _count: { _all: true } }),
     // Hangouts pulse — active (in-flight) hangouts, today's posts, and
     // references created in the last 7 days. References-this-week is the
@@ -230,7 +233,7 @@ export async function GET(req: Request) {
 
   // One row per currency that has any paid or pending money, largest 30-day
   // take first. Amounts are never summed across currencies.
-  const sumFor = (arr: PayBucket[], c: string) => arr.find(p => p.currency === c)?._sum.amount ?? 0
+  const sumFor = (arr: PayBucket[], c: string) => roundMoney(arr.find(p => p.currency === c)?._sum.amount)
   const revenue = [...new Set([...nowArr, ...prevArr, ...pendingArr].map(p => p.currency))]
     .map(currency => {
       const collected = sumFor(nowArr, currency)

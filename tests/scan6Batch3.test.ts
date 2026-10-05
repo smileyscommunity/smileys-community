@@ -256,7 +256,7 @@ describe('d. scripts/relink-email-changed-applications planning', () => {
     expect(firstLastKey('cher')).toBeNull()
   })
 
-  it('relinks when normalised name AND phone match one live account with no application, across phone formats', () => {
+  it('relinks when normalized name AND phone match one live account with no application, across phone formats', () => {
     const { rows, counts } = planRelink({
       apps:  [app({ id: 'a1', fullName: '  jane DOE ', phone: '05551234567' })],
       users: [user({ id: 'u1', email: 'New@Y.com', phone: '+90 555 123 45 67' }), user({ id: 'u2', email: 'u2@x.com', phone: PHONE_B })],

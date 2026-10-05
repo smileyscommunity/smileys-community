@@ -46,19 +46,32 @@ export async function GET() {
   }
 
   const [pending, approvedApps, referredApps] = await Promise.all([
-    prisma.memberApplication.count({ where: { referredBy: user.referralCode!, status: 'pending' } }),
+    // Pending means waiting on the team — an application whose email link was
+    // never clicked isn't in review yet (double opt-in, 2026-09-29).
+    prisma.memberApplication.count({ where: { referredBy: user.referralCode!, status: 'pending', emailConfirmedAt: { not: null } } }),
     prisma.memberApplication.count({ where: countedReferralsWhere(user.referralCode!) }),
+    // Every counted referral, not the first 20: the list stopped there while
+    // the tally said 53. Applications move with a member's email change
+    // (api/auth/verify-email), so matching by email keeps finding them.
     prisma.memberApplication.findMany({
       where: countedReferralsWhere(user.referralCode!),
       select: { email: true },
-      take: 20,
+      take: 500,
     }),
   ])
 
+  // Only members who can be listed anywhere else: a banned, suspended or
+  // admin-hidden account isn't shown as someone you "brought in". They still
+  // count in the tally above (the referral happened), and the page says how
+  // many aren't listed.
   const joinedUsers = referredApps.length > 0
     ? await prisma.user.findMany({
-        where: { email: { in: referredApps.map(a => a.email) } },
-        select: { id: true, name: true, color: true, profilePhoto: true, joinedAt: true, profileVisibility: true, hiddenFromMembers: true },
+        where: {
+          email: { in: referredApps.map(a => a.email) },
+          status: 'approved', hiddenFromMembers: false,
+          OR: [{ suspendedUntil: null }, { suspendedUntil: { lte: new Date() } }],
+        },
+        select: { id: true, name: true, color: true, profilePhoto: true, joinedAt: true, profileVisibility: true },
         orderBy: { joinedAt: 'desc' },
       })
     : []
@@ -66,12 +79,14 @@ export async function GET() {
   // Inviting someone doesn't make you their connection. A 'connections
   // only' member (restrictedSetFor) or one hidden from members gets no
   // photo here, same as anywhere else a non-connection sees them; the name
-  // stays, since the referrer is the one who sent it. Neighbourhood is not
+  // stays, since the referrer is the one who sent it. Neighborhood is not
   // sent at all — where someone lives is not part of "your invite worked".
   const restricted = await restrictedSetFor(session, joinedUsers)
+  // `open`: whether their profile opens for this viewer. A connections-only
+  // member's profile is locked to a non-connection, so the page doesn't link it.
   const joined = joinedUsers.map(u => {
-    const hidden = u.hiddenFromMembers || restricted.has(u.id)
-    return { id: u.id, name: u.name, color: u.color, profilePhoto: hidden ? null : u.profilePhoto, joinedAt: u.joinedAt }
+    const locked = restricted.has(u.id)
+    return { id: u.id, name: u.name, color: u.color, profilePhoto: locked ? null : u.profilePhoto, joinedAt: u.joinedAt, open: !locked }
   })
 
   return NextResponse.json({

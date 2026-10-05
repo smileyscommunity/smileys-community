@@ -36,7 +36,12 @@ export default async function HeroStats({ name, cityId, groupLink, groupLabel, u
     // "N local members" — activated members only (lib/memberCount), minus the
     // same opt-outs NeighborhoodSections applies: a member who hid their
     // neighborhood, or an admin-hidden account, isn't counted as a local.
-    prisma.user.count({ where: { ...ACTIVATED_MEMBER_WHERE, neighborhood: name, cityId, neighborhoodVisible: true, hiddenFromMembers: false } }),
+    // For a guest, the same people the members strip shows them: no
+    // connections-only profiles (see NeighborhoodSections' totalLocals).
+    prisma.user.count({ where: {
+      ...ACTIVATED_MEMBER_WHERE, neighborhood: name, cityId, neighborhoodVisible: true, hiddenFromMembers: false,
+      ...(userId ? {} : { profileVisibility: { not: 'connections' } }),
+    } }),
     userId
       ? prisma.clubMembership.findFirst({
           where: { userId, role: 'host', status: 'approved' },

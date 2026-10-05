@@ -69,7 +69,7 @@ export function useRSVP(eventId: string, initialStatus?: 'joined' | 'pending' | 
       if (!res.ok) {
         // Yellow card: the server wants an explicit "I'll actually come"
         // before it writes the RSVP. Ask, and retry with the confirmation —
-        // the retry is what records the acknowledgement.
+        // the retry is what records the acknowledgment.
         if (data.code === 'yellow_ack_required' && !acknowledgeNoShow) {
           setAckRequest({ stealth })
           return

@@ -8,7 +8,7 @@ export interface MatchedEvent { id: string; title: string; emoji: string; date: 
 
 // §15 + §30 — nearby-event links with the guide_to_event outcome metric.
 // Client component purely for the click capture; the data arrives
-// server-rendered from the ISR page.
+// server-rendered by the experience page.
 export default function EventMatches({ events }: { events: MatchedEvent[] }) {
   if (events.length === 0) return null
   return (

@@ -22,7 +22,7 @@ export function pathCitySlug(pathname: string): string {
 /**
  * Every slug a URL offers as its city, best first.
  *
- * Two shapes carry a city now, and the footer has to honour both. A city
+ * Two shapes carry a city now, and the footer has to honor both. A city
  * shopfront puts it in the path (`/bodrum`); the pages that have no city of
  * their own put it in the query (`/neighborhoods?city=bodrum`,
  * `/visiting?city=izmir`). Reading only the path meant every one of those

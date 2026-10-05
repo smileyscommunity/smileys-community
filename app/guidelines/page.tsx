@@ -3,6 +3,7 @@ import { readFileSync } from 'fs'
 import { join } from 'path'
 
 export const metadata = {
+  alternates: { canonical: 'https://smileyscommunity.com/app/guidelines' },
   title: 'Community Rules — Smileys Community',
   description: 'The behavioral rules that keep Smileys safe, kind, and worth showing up for. Read these before joining a club or RSVP\'ing to an event.',
 }
@@ -43,7 +44,7 @@ export default function GuidelinesPage() {
   const communityRules = loadCommunityRules()
 
   return (
-    <main className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white">
       {/* Header */}
       <div className="bg-gray-50 border-b border-gray-100">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-14">
@@ -140,8 +141,8 @@ export default function GuidelinesPage() {
         <Section title="Posting in the Business Directory">
           <div className="space-y-3">
             <Rule icon="📍" title="Submit places you've actually been">
-              Add businesses you know — your favourite café, your physio, the friend's gallery.
-              Don't pad the directory with rumours or competitor listings you've never visited.
+              Add businesses you know — your favorite café, your physio, the friend's gallery.
+              Don't pad the directory with rumors or competitor listings you've never visited.
             </Rule>
             <Rule icon="⭐" title="Reviews are honest first-hand experience">
               One member, one review, with the rating that matches what you'd tell a friend.
@@ -172,7 +173,7 @@ export default function GuidelinesPage() {
           </p>
           <ul className="list-disc list-inside space-y-2 ml-2 mt-2">
             <li>
-              <strong className="text-gray-800">Bad behaviour in an event or chat</strong> —
+              <strong className="text-gray-800">Bad behavior in an event or chat</strong> —
               message a host or use the report link on the offending post / member.
             </li>
             <li>
@@ -250,6 +251,6 @@ export default function GuidelinesPage() {
           {' '}— we read every email.
         </div>
       </div>
-    </main>
+    </div>
   )
 }

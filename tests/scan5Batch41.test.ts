@@ -47,12 +47,14 @@ const h = vi.hoisted(() => {
 vi.mock('@/lib/prisma',             () => ({ prisma: h.prisma }))
 vi.mock('@/lib/session',            () => ({ getSession: h.getSession }))
 vi.mock('@/lib/rateLimit',          () => ({ rateLimit: vi.fn(async () => true), claimOnce: h.claimOnce, releaseClaim: h.releaseClaim }))
-vi.mock('@/lib/notify',             () => ({ createNotification: h.createNotification, notifyNewEvent: vi.fn(async () => {}), notifyNewArticle: vi.fn(async () => {}) }))
+vi.mock('@/lib/notify',             () => ({ createNotification: h.createNotification, notifyNewEvent: vi.fn(async () => {}), notifyTripArrival: vi.fn(async () => {}), notifyNewArticle: vi.fn(async () => {}) }))
 vi.mock('@/lib/email',              () => h.email)
 vi.mock('@/lib/city',               () => ({
   citiesByToday: h.citiesByToday, todayInCity: vi.fn(async () => '2026-09-14'), resolveCityId: vi.fn(async () => 'c-ist'),
   resolveTargetCityId: vi.fn(), getCityTz: vi.fn(async () => 'Europe/Istanbul'), DEFAULT_CITY_SLUG: 'istanbul',
 }))
+const { anonymizeUser } = vi.hoisted(() => ({ anonymizeUser: vi.fn(async (..._a: unknown[]) => {}) }))
+vi.mock('@/lib/anonymizeUser',      () => ({ anonymizeUser }))
 vi.mock('@/lib/cronHealth',         () => ({ recordCronRun: vi.fn() }))
 vi.mock('@/lib/spotsLeft',          () => ({ recomputeSpotsLeft: vi.fn(async () => {}), expectedSpotsLeft: vi.fn(async () => 0) }))
 vi.mock('@/lib/admin/userHistory',  () => ({ snapshotUserHistory: vi.fn(async () => ({})) }))
@@ -248,16 +250,12 @@ describe('b. deletes audit under the deleted row\'s city', () => {
   })
 
   it('user.remove', async () => {
-    p.user.findUnique.mockResolvedValueOnce({ name: 'Gone', email: 'g@x', cityId: 'c-izm' })
-    p.payment.findMany.mockResolvedValue([])
-    p.clubMembership.findMany.mockResolvedValue([])
-    p.post.count.mockResolvedValue(0)
-    p.newsletter.count.mockResolvedValue(0)
-    p.event.count.mockResolvedValue(0)
-    p.eventAttendee.findMany.mockResolvedValue([])
+    // Remove is the member's own anonymize routine now; the audit row (with the
+    // target's city) is written inside it — see thirdScanFixes for its shape.
+    p.user.findUnique.mockResolvedValueOnce({ id: 'u9', name: 'Gone', email: 'g@x', phone: null, lastFingerprint: null, cityId: 'c-izm' })
     const res = await userDELETE({} as any, params('u9'))
     expect(res.status).toBe(200)
-    expect(p.user.delete).toHaveBeenCalledWith({ where: { id: 'u9' } })
-    expect((await auditRow('user.remove')).cityId).toBe('c-izm')
+    expect(anonymizeUser).toHaveBeenCalledWith(expect.objectContaining({ id: 'u9', cityId: 'c-izm' }), expect.objectContaining({ id: expect.any(String) }))
+    expect(p.user.delete).not.toHaveBeenCalled()
   })
 })

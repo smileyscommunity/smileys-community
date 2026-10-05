@@ -15,7 +15,7 @@ interface DiscoveryMember {
 interface Discovery {
   mightMeet: DiscoveryMember[]
   clubMates: DiscoveryMember[]
-  neighbours: DiscoveryMember[]
+  neighbors: DiscoveryMember[]
   eventMates: DiscoveryMember[]
   newcomers: DiscoveryMember[]
   hosts: DiscoveryMember[]
@@ -93,7 +93,7 @@ export default function MemberDiscovery() {
 
   const onOpen = (id: string) => posthog.capture('member_viewed', { from: 'discovery', memberId: id })
   const nothingContextual =
-    d.mightMeet.length === 0 && d.clubMates.length === 0 && d.neighbours.length === 0 && d.eventMates.length === 0
+    d.mightMeet.length === 0 && d.clubMates.length === 0 && d.neighbors.length === 0 && d.eventMates.length === 0
 
   return (
     <div>
@@ -109,7 +109,7 @@ export default function MemberDiscovery() {
             // "your neighborhood", not "your part of Istanbul" — this rail
             // renders for every city.
             subtitle="People in and around your neighborhood."
-            members={d.neighbours}
+            members={d.neighbors}
             cta={{ href: '/neighborhoods', label: 'Explore neighborhoods →' }} onOpen={onOpen} />
         : (
           <div className="mb-8 bg-amber-50 border border-amber-100 rounded-2xl p-5 flex items-center justify-between gap-4 flex-wrap">

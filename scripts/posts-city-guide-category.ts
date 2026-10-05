@@ -2,7 +2,7 @@
 //
 // "Istanbul Guide" and "Antalya Guide" were the taxonomy naming two of seven
 // cities; the category is now one 'City Guide' and the public pages label the
-// city from the post's cityId. The write paths already normalise on save;
+// city from the post's cityId. The write paths already normalize on save;
 // this moves the rows that nobody has edited since.
 //
 // Idempotent: each update is guarded on the current value. Default is a dry

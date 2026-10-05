@@ -37,7 +37,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  // Defence-in-depth rate limit. Trusted admins don't normally
+  // Defense-in-depth rate limit. Trusted admins don't normally
   // exceed a handful of result entries per match window, but if an
   // admin account were compromised the leaderboard could be mass-
   // rewritten in seconds otherwise. Audit log already catches the

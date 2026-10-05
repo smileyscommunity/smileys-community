@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
     // so a malicious submission can't ship a javascript:/data: URL out
     // to every member who clicks "Website".
     // The city the form was opened for (?city= on the page), else the
-    // member's own; the neighbourhood must be one of that city's.
+    // member's own; the neighborhood must be one of that city's.
     const reqCitySlug = typeof body.city === 'string' ? body.city.trim() : ''
     const reqCity = reqCitySlug ? await prisma.city.findUnique({ where: { slug: reqCitySlug }, select: { id: true, status: true } }) : null
     const cityId = reqCity && reqCity.status === 'live' ? reqCity.id : await resolveCityId(session)

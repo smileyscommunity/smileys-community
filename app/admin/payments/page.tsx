@@ -68,12 +68,12 @@ interface PaymentsResponse {
 // One source of truth per status — `color` for pills + log entries,
 // `next` for the cycle (null = terminal — refunded + cancelled),
 // `action` for the button label. The previous three parallel maps
-// drifted: e.g. `failed` was in the colour map but missing from the
+// drifted: e.g. `failed` was in the color map but missing from the
 // filter chip list. Single object stops that.
 //
 // `cancelled` came in via the member-side RSVP cancel flow — it's a
 // real DB value but used to fall through to the neutral fallback
-// because the admin UI didn't know about it. Coloured neutral
+// because the admin UI didn't know about it. Colored neutral
 // zinc (distinct from failed's red — cancelled = no money flow,
 // no problem; failed = money flow attempted and broke).
 type StatusKey = 'paid' | 'pending' | 'refunded' | 'failed' | 'cancelled'
@@ -158,7 +158,7 @@ function AdminPaymentsPageInner() {
       Array.isArray((v as PaymentsResponse).payments) &&
       typeof (v as PaymentsResponse).stats === 'object',
   )
-  const payments = data?.payments ?? []
+  const payments = useMemo(() => data?.payments ?? [], [data])
   const stats    = data?.stats
   // A bad city timezone (admin-edited text) would throw in render.
   const tz       = safeTz(data?.tz ?? DEFAULT_TZ)
@@ -252,9 +252,8 @@ function AdminPaymentsPageInner() {
           setLogs(prev => ({ ...prev, [p.id]: Array.isArray(fresh) ? fresh : [] }))
         }
         if (refundEmail) {
-          refundEmail.sent
-            ? toast.success('Refund processed — confirmation email sent')
-            : toast.error('Refund processed, but email failed to send. Notify the member manually.')
+          if (refundEmail.sent) toast.success('Refund processed — confirmation email sent')
+          else toast.error('Refund processed, but email failed to send. Notify the member manually.')
         } else {
           toast.success(`Status → ${next}`)
         }
@@ -427,7 +426,7 @@ function AdminPaymentsPageInner() {
             {stats.byEvent.map(e => {
               const max = stats.byEvent[0].paidTotal || 1
               return (
-                <div key={e.eventId}>
+                <div key={`${e.eventId}:${e.currency}`}>
                   <div className="flex flex-wrap items-center justify-between mb-1 gap-2">
                     <span className="text-xs text-zinc-300 font-medium truncate max-w-[60%]">{e.emoji} {e.title}</span>
                     <div className="flex items-center gap-2 shrink-0">

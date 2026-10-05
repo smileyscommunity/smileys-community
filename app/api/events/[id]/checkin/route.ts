@@ -10,6 +10,7 @@ import { Attendance } from '@/lib/constants'
 import { eventStartsAt, eventEndsAt } from '@/lib/eventTime'
 import { attendanceSettlesAt, lateReplayAllowed } from '@/lib/standingPolicy'
 import { writeAudit } from '@/lib/audit'
+import { trackServerForUser } from '@/lib/posthog-server'
 import { getCityTz } from '@/lib/city'
 import { eventRunners } from '@/lib/noShowPolicy'
 import { isExemptFromNoShow } from '@/lib/attendanceCloseOut'
@@ -119,7 +120,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // worked for ever, at any event — which since standing v2 is a way to
     // clear your own no-show card without leaving the house. A host's own
     // tap on the list carries no token and is unaffected: they are already
-    // authorised for this event, and they can see who is in front of them.
+    // authorized for this event, and they can see who is in front of them.
     if (cardToken !== undefined && cardToken !== null) {
       // Judged at the moment of the tap, not of the request: a scan taken at
       // the door on a phone with no signal is replayed hours later
@@ -238,6 +239,17 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // event, and gets the morning-after list with its hosts (lib/standing
     // sendAttendanceReviews). A claim, so a busy door writes one row.
     if (checkedIn) await claimOnce(doorKey(eventId, session.id), 30 * 86_400_000).catch(() => {})
+    // Funnel: showing up is the outcome the product is for. One event per
+    // member per event (a toggled box or a replayed scan must not repeat it),
+    // flagged when it is their first ever, so first-attendance is a simple
+    // filter. A host-marked tap and a card scan both count; `via` tells them apart.
+    if (checkedIn && !lateReplay && await claimOnce(`track:checkin:${eventId}:${userId}`, 30 * 86_400_000).catch(() => false)) {
+      const earlier = await prisma.eventAttendee.count({ where: { userId, checkedIn: true, eventId: { not: eventId } } }).catch(() => 1)
+      void trackServerForUser(userId, 'event_checked_in', {
+        event_id: eventId, city_id: event.cityId, is_first: earlier === 0,
+        via: cardToken !== undefined && cardToken !== null ? 'card_scan' : 'host_tap',
+      })
+    }
     // Who marked whom, and when. Every other attendance write is audited —
     // excuse, close-out, waive, removal — and this one, the one that clears
     // a standing card and counts towards a host's own numbers, was not. A

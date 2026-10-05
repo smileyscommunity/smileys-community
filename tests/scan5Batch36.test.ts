@@ -189,9 +189,8 @@ describe('103 the email send path skips banned recipients', () => {
   })
 
   it('a member in good standing still gets it', async () => {
-    const { sendFirstEventNudgeEmail } = await import('@/lib/email')
-    await sendFirstEventNudgeEmail('u1', 'ok@example.test', 'Ok Member',
-      { id: 'e1', title: 'Walk', date: '2026-09-20', time: null, neighborhood: null, emoji: null, attendees: 0, isFirstTimerFriendly: false })
+    const { sendLoginNudgeEmail } = await import('@/lib/email')
+    await sendLoginNudgeEmail('ok@example.test', 'Ok Member', 'tok', 1)
     expect(h.resendSend).toHaveBeenCalledTimes(1)
   })
 

@@ -49,7 +49,7 @@ describe('what a guest reads', () => {
 })
 
 describe('one read gate', () => {
-  it('the neighbourhood pages list only live authors, no private club, no blocked pair', () => {
+  it('the neighborhood pages list only live authors, no private club, no blocked pair', () => {
     const s = src('app/neighborhoods/[slug]/NeighborhoodSections.tsx')
     const q = s.slice(s.indexOf('prisma.boardPost.findMany'), s.indexOf('prisma.boardPost.findMany') + 600)
     expect(q).toContain('user: LIVE_BOARD_AUTHOR')
@@ -64,7 +64,7 @@ describe('one read gate', () => {
     expect(hub.slice(0, hub.indexOf("['city-board-hub-posts']"))).not.toContain('prisma.listing')
   })
 
-  it('a private club\'s post names no neighbourhood', () => {
+  it('a private club\'s post names no neighborhood', () => {
     expect(src('app/api/board/route.ts')).toContain('const neighborhood = privateClub ? null : await safeNeighborhoodFor(cityId, body.neighborhood)')
   })
 })
