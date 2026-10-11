@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import { eventStartDate } from '@/lib/eventJsonLd'
 import { FEMALE_VARIANTS } from '@/lib/eventQuota'
 import { jsonLdHtml } from '@/lib/jsonLd'
-import { stripEmoji, priceLabel, offerAvailability, eventSeoTitle, eventSeoDescription } from '@/lib/eventSeo'
+import { stripEmoji, offerAvailability, eventSeoTitle, eventSeoDescription } from '@/lib/eventSeo'
 import Link from 'next/link'
 import Image from 'next/image'
 import type { Metadata } from 'next'
@@ -137,8 +137,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   // no date at all.
   const shareDate   = new Date(event.date + 'T00:00:00')
     .toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
-  const price       = priceLabel(event.price, p => formatPrice(p, event.currency))
-  const title       = eventSeoTitle({ title: event.title, shareDate, neighborhood: event.neighborhood, price })
+  const title       = eventSeoTitle({ title: event.title, shareDate, neighborhood: event.neighborhood })
   const when        = `${formatDate(event.date)} at ${formatTime(event.time)}`
   // Metadata is the same for everyone, so it always carries the guest text.
   const guestDesc   = guestEventDescription(event)
@@ -147,7 +146,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     // City-fetch only on the fallback path — described events (the vast
     // majority) never pay for it.
     : `Join us at Smileys Community ${event.cityId ? (await getCityConfig(event.cityId)).name : 'Istanbul'}`
-  const description = eventSeoDescription({ when, price, neighborhood: event.neighborhood, body: plainDesc })
+  const description = eventSeoDescription({ when, neighborhood: event.neighborhood, body: plainDesc })
   const imageUrl    = absoluteImageUrl(event.coverImage, event.title)
   const pageUrl     = `${APP_URL}/events/${id}`
 

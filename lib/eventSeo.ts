@@ -1,4 +1,6 @@
 // Search-facing text for a public event page. Pure, so the rules are testable.
+// The fee is deliberately absent from titles and descriptions (they feed link
+// previews / OG); it still appears in the page's structured-data offer.
 //
 // Titles and descriptions used to carry the host's emoji and open with a
 // calendar glyph, so a result read "📅 Friday, November 20 · 18:30 · Kadıköy —
@@ -27,13 +29,13 @@ export function offerAvailability(e: { soldOut?: boolean | null; limitedSpots?: 
   return 'https://schema.org/InStock'
 }
 
-export function eventSeoTitle(p: { title: string; shareDate: string; neighborhood?: string | null; price: string }): string {
+export function eventSeoTitle(p: { title: string; shareDate: string; neighborhood?: string | null }): string {
   const t = stripEmoji(p.title) || p.title
-  return `${t} · ${p.shareDate}${p.neighborhood ? `, ${p.neighborhood}` : ''} · ${p.price} — Smileys Community`
+  return `${t} · ${p.shareDate}${p.neighborhood ? `, ${p.neighborhood}` : ''} — Smileys Community`
 }
 
-export function eventSeoDescription(p: { when: string; price: string; neighborhood?: string | null; body: string }): string {
-  const lead = `${p.price} event${p.neighborhood ? ` in ${p.neighborhood}` : ''}, ${p.when}.`
+export function eventSeoDescription(p: { when: string; neighborhood?: string | null; body: string }): string {
+  const lead = `Event${p.neighborhood ? ` in ${p.neighborhood}` : ''}, ${p.when}.`
   const body = stripEmoji(p.body)
   return (body ? `${lead} ${body}` : lead).slice(0, 155)
 }
