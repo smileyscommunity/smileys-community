@@ -42,6 +42,9 @@ const categoryColors: Record<string, string> = {
   'Expats':       'bg-teal-100 text-teal-700',
   'Digital nomads': 'bg-cyan-100 text-cyan-700',
   'Travelers':   'bg-orange-100 text-orange-700',
+  'Arts & Culture':        'bg-fuchsia-100 text-fuchsia-700',
+  'Business & Networking': 'bg-slate-100 text-slate-700',
+  'Food & Drink':          'bg-rose-100 text-rose-700',
 }
 
 function timeAgo(iso: string): string {

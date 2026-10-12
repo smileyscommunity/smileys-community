@@ -32,7 +32,13 @@ export function isKind(s: unknown): s is Kind {
 // 'Travelers' is /visiting's shelf (lib/tripPlan TRAVELLER_STORY_CATEGORY),
 // pinned to the city the visitor is looking at; the shelf shows City Guide
 // posts too (TRAVELLER_SHELF_CATEGORIES).
-export const CATEGORIES = ['Community', 'Club Stories', 'Events', 'City Guide', 'Tips', 'Working from', 'Students', 'Expats', 'Digital nomads', 'Travelers'] as const
+// 'Arts & Culture' (Filmekimi, exhibitions, museums, cinema, cultural
+// festivals, concerts), 'Business & Networking' (conferences, startup events,
+// entrepreneurship, professional networking) and 'Food & Drink' (restaurant
+// guides, international cuisine, food festivals, culinary experiences) are
+// topic categories: unlike the hub categories above, no hub reads them, so a
+// post in one shows on /posts whether or not it has a cityId.
+export const CATEGORIES = ['Community', 'Club Stories', 'Events', 'City Guide', 'Tips', 'Working from', 'Students', 'Expats', 'Digital nomads', 'Travelers', 'Arts & Culture', 'Business & Networking', 'Food & Drink'] as const
 export type Category = (typeof CATEGORIES)[number]
 // The two retired names, accepted on write and folded into 'City Guide' so an
 // edit of an older row migrates it instead of resetting it to the default.
