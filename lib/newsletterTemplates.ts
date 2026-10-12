@@ -26,8 +26,8 @@ export const NEWSLETTER_TEMPLATES: NewsletterTemplate[] = [
     // email (retired 2026-10-05) recommended an event and moved nothing.
     // Send to the 7–60 day batch first, then switch the audience to 60d+.
     id: 'first-event-seat',
-    name: 'Never attended: "Can I save you a seat?"',
-    subject: 'Can I save you a seat?',
+    name: 'Never attended: "Quick question from Nate"',
+    subject: 'Quick question from Nate',
     segment: 'never_attended_new',
     bodyHtml: [
       p("It's Nate, the founder of Smileys. You've been a member for a little while, but we haven't met at an event yet, and I'd like to change that."),

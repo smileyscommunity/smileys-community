@@ -25,7 +25,7 @@ describe('newsletter templates', () => {
 
   it('the never-attended template starts with the warmer batch', () => {
     const t = NEWSLETTER_TEMPLATES.find(x => x.id === 'first-event-seat')!
-    expect(t.subject).toBe('Can I save you a seat?')
+    expect(t.subject).toBe('Quick question from Nate')
     expect(t.segment).toBe('never_attended_new')
   })
 
