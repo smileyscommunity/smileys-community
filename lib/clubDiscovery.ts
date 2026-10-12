@@ -6,10 +6,12 @@
 // consolidation of the 16 stored categories into 9 browseable filters.
 // Club.category in the DB is untouched; renames happen here only.
 // 'Exclusive' is a badge, not a browse group.
+// 'Food & Drinks' is the pre-2026-10-12 stored name (lib/data LEGACY_CLUB_CATEGORIES),
+// kept so a row or cached read from before the rename still files under Food.
 export const CLUB_FILTER_GROUPS: { value: string; label: string; emoji: string; categories: string[] }[] = [
   { value: 'social',       label: 'Social',            emoji: '🎉', categories: ['Social', 'Nightlife'] },
   { value: 'outdoors',     label: 'Sports & Outdoors', emoji: '🏃', categories: ['Sports', 'Outdoor'] },
-  { value: 'food',         label: 'Food & Drink',      emoji: '🍽️', categories: ['Food & Drinks'] },
+  { value: 'food',         label: 'Food & Drink',      emoji: '🍽️', categories: ['Food & Drink', 'Food & Drinks'] },
   { value: 'languages',    label: 'Languages',         emoji: '🗣️', categories: ['Language'] },
   { value: 'arts',         label: 'Arts & Culture',    emoji: '🎨', categories: ['Creative', 'Culture'] },
   { value: 'professional', label: 'Professional',      emoji: '💼', categories: ['Networking', 'Business', 'Professional', 'Technology'] },

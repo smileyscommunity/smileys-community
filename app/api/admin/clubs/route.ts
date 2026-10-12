@@ -2,7 +2,7 @@ import { canManageClubs, isAdminOrModerator, isAdmin, failClosedCityId } from '@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { CLUB_CATEGORIES } from '@/lib/data'
+import { CLUB_CATEGORIES, normalizeClubCategory } from '@/lib/data'
 import { slugify } from '@/lib/slug'
 import { resolveTargetCityId } from '@/lib/city'
 import { computeEventSurveyRollup, aggregateRollup } from '@/lib/survey'
@@ -125,8 +125,10 @@ export async function POST(req: NextRequest) {
     // categories into Social, which was confusing both for admins
     // (form said "required" but submitted blank still worked) and
     // for the audit trail. Validate explicitly here.
-    const cat = category?.trim()
-    if (!cat || !(CLUB_CATEGORIES as readonly string[]).includes(cat)) {
+    // normalizeClubCategory also accepts a legacy name ('Food & Drinks') and
+    // stores the current one.
+    const cat = normalizeClubCategory(category)
+    if (!cat) {
       return NextResponse.json({ error: `Category must be one of: ${CLUB_CATEGORIES.join(', ')}` }, { status: 400 })
     }
 

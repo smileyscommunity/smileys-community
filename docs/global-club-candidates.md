@@ -47,7 +47,7 @@ club, not an identity club — listed under judgement calls below.)*
 ## Clearly local (no action — listed for completeness)
 
 Everything venue- and activity-based stays city-scoped: all Sports (16),
-Outdoor (12), Food & Drinks (15), Nightlife (4), Wellness (9), Creative (11),
+Outdoor (12), Food & Drink (15), Nightlife (4), Wellness (9), Creative (11),
 Business (10), Social (18 incl. the per-city "Social İstanbul/İzmir/Bodrum"
 and "Coffee & Conversation" clubs), Volunteering (4), Newcomers per city (2),
 Coworking (252), International Students (50), Newcomers (15), Tech &

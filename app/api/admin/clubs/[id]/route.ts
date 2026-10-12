@@ -6,7 +6,7 @@ import { getSession } from '@/lib/session'
 import { requireStepUp } from '@/lib/stepUp'
 import { writeAudit, getDiff } from '@/lib/audit'
 import { computeEventSurveyRollup, aggregateRollup } from '@/lib/survey'
-import { CLUB_CATEGORIES } from '@/lib/data'
+import { CLUB_CATEGORIES, normalizeClubCategory } from '@/lib/data'
 import { createNotification } from '@/lib/notify'
 import { bustHostRoster } from '@/lib/hostRoster'
 
@@ -175,8 +175,10 @@ export async function PUT(req: NextRequest, { params }: Params) {
     // present so other-field-only PATCHes (like the toggleActive
     // single-field PUT) don't get rejected for missing category.
     if (typeof allowed.category === 'string') {
-      const cat = allowed.category.trim()
-      if (!(CLUB_CATEGORIES as readonly string[]).includes(cat)) {
+      // A legacy name ('Food & Drinks') is accepted and saved as the current one,
+      // so editing an older club migrates it instead of failing.
+      const cat = normalizeClubCategory(allowed.category)
+      if (!cat) {
         return NextResponse.json({ error: `Category must be one of: ${CLUB_CATEGORIES.join(', ')}` }, { status: 400 })
       }
       allowed.category = cat

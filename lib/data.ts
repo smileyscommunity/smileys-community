@@ -5,10 +5,28 @@
 import { todayInTz, DEFAULT_TZ } from './cityTime'
 
 export const CLUB_CATEGORIES = [
-  'Outdoor', 'Social', 'Food & Drinks', 'Nightlife', 'Networking', 'Business',
+  'Outdoor', 'Social', 'Food & Drink', 'Nightlife', 'Networking', 'Business',
   'Professional', 'Technology', 'Creative', 'Wellness', 'Sports',
   'Travel', 'Culture', 'Language', 'Exclusive', 'Volunteering',
 ] as const
+
+// 'Food & Drinks' was renamed 'Food & Drink' on 2026-10-12 to match the story
+// category and the /clubs filter label. Migration 20261012000001 renames the
+// stored rows; this alias covers the window before it runs (and any cached
+// read from before it) — a save of an old row is accepted and migrated, and
+// the discovery and recommendation lists still match the old value.
+export const LEGACY_CLUB_CATEGORIES: Record<string, (typeof CLUB_CATEGORIES)[number]> = {
+  'Food & Drinks': 'Food & Drink',
+}
+
+/** The stored value for a submitted club category: canonical when it is a
+ *  current or legacy name, otherwise null (reject). */
+export function normalizeClubCategory(s: unknown): (typeof CLUB_CATEGORIES)[number] | null {
+  if (typeof s !== 'string') return null
+  const t = s.trim()
+  if ((CLUB_CATEGORIES as readonly string[]).includes(t)) return t as (typeof CLUB_CATEGORIES)[number]
+  return LEGACY_CLUB_CATEGORIES[t] ?? null
+}
 
 
 // Structured tags for VisitorAnnouncement (the "I'm visiting Istanbul"
