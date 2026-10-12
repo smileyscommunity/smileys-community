@@ -476,6 +476,9 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
       ...buildSavePayload(false),
       applyToSeries: undefined,
       seriesId: sid, isRecurring: true,
+      // Copies stay in the source event's city. The POST only reads this for
+      // a global club (cityId null), which otherwise 400s "pick which city".
+      cityId: eventCityId || undefined,
       // Each copy gets its own date below; a deadline copied from the source
       // would predate most of the series.
       registrationDeadline: null,
