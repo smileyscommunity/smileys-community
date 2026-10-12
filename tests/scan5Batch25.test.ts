@@ -176,10 +176,25 @@ describe('87e. admin lists are fresh after edits and say when they are capped', 
     p.$queryRaw
       .mockResolvedValueOnce([{ id: 'u2', name: 'B', email: 'b@x.com' }])
       .mockResolvedValueOnce([{ total: 120 }])
+    // Admins also get the not-activated list (2026-10-13), counted the same way.
+    p.user.findMany.mockResolvedValueOnce([{ id: 'u3', name: 'C', phone: '+90 544 330 30 68', nudgesSent: 2 }])
     const res = await retentionGET(jsonReq({}, 'http://x/app/api/admin/retention'))
     const body = await res.json()
-    expect(body.stats).toEqual({ neverAttendedCount: 300, dormantCount: 120, listLimit: 50 })
+    expect(body.stats).toEqual({ neverAttendedCount: 300, dormantCount: 120, notActivatedCount: 300, listLimit: 50 })
     expect(p.user.findMany.mock.calls[0][0].take).toBe(50)
+    expect(p.user.findMany.mock.calls[1][0].take).toBe(50)
+    // The list says whether there is a number, never the number itself.
+    expect(body.notActivated).toEqual([{ id: 'u3', name: 'C', nudgesSent: 2, hasPhone: true }])
+  })
+  it('moderators get no not-activated list: its action needs a phone number they never see', async () => {
+    session.current = { ...admin, role: 'moderator' }
+    p.user.findMany.mockResolvedValueOnce([])
+    p.user.count.mockResolvedValue(0)
+    p.$queryRaw.mockResolvedValueOnce([]).mockResolvedValueOnce([{ total: 0 }])
+    const body = await (await retentionGET(jsonReq({}, 'http://x/app/api/admin/retention'))).json()
+    expect(body.notActivated).toBeUndefined()
+    expect(body.stats.notActivatedCount).toBeUndefined()
+    expect(p.user.findMany).toHaveBeenCalledTimes(1)
   })
   it('the retention page says "showing the first N of M"', () => {
     expect(read('app/admin/retention/page.tsx')).toMatch(/Showing the first \{shown\} of \{total\}/)

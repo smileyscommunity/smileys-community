@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { COMMUNITY_MEMBER_WHERE } from '@/lib/memberCount'
+import { COMMUNITY_MEMBER_WHERE, NOT_ACTIVATED_MEMBER_WHERE, MEMBER_ROLE_FILTER } from '@/lib/memberCount'
 import { getCityTz } from '@/lib/city'
 import { dayInTz, DEFAULT_TZ } from '@/lib/cityTime'
 import { emailFor } from '@/lib/admin/maskContact'
@@ -84,17 +84,57 @@ export async function GET(req: NextRequest) {
     ) d
   `
 
+  // Not activated: approved in the last 60 days (the window the login-nudge
+  // email covers) but never set a password, so they have never seen the site
+  // and nothing above can reach them. Admin-only: the action on this list is
+  // a WhatsApp message, and moderators never see a member's phone number
+  // (lib/admin/maskContact). The number itself is not returned either — only
+  // whether there is one; the link is built server-side on click
+  // (./whatsapp/route.ts).
+  let notActivated: {
+    id: string; name: string; color: string; neighborhood: string | null
+    joinedAt: Date; nudgesSent: number; whatsappNudgedAt: Date | null; hasPhone: boolean
+  }[] = []
+  let notActivatedCount = 0
+  if (isAdmin(session)) {
+    const notActivatedWhere = {
+      ...NOT_ACTIVATED_MEMBER_WHERE,
+      role: MEMBER_ROLE_FILTER,
+      joinedAt: { gte: day60ago },
+      ...(cityId ? { cityId } : {}),
+    }
+    const [rows, count] = await Promise.all([
+      prisma.user.findMany({
+        where: notActivatedWhere,
+        select: {
+          id: true, name: true, color: true, neighborhood: true, joinedAt: true,
+          nudgesSent: true, whatsappNudgedAt: true, phone: true,
+        },
+        // Not yet messaged first, newest approvals first within each group,
+        // so the queue reads top-down and a sent row sinks.
+        orderBy: [{ whatsappNudgedAt: { sort: 'asc', nulls: 'first' } }, { joinedAt: 'desc' }],
+        take: LIST_LIMIT,
+      }),
+      prisma.user.count({ where: notActivatedWhere }),
+    ])
+    notActivated = rows.map(({ phone, ...r }) => ({ ...r, hasPhone: !!phone?.replace(/\D/g, '') }))
+    notActivatedCount = count
+  }
+
   // Names + neighborhoods are the roster; the address is not (see lib/admin/maskContact).
   const mask = <T extends { email: string }>(rows: T[]) => rows.map(r => ({ ...r, email: emailFor(session, r.email) }))
   return NextResponse.json({
     neverAttended: mask(neverAttended),
     dormant:       mask(dormant),
+    // Absent (not empty) for moderators, so the page knows not to show the tab.
+    ...(isAdmin(session) ? { notActivated } : {}),
     // The counts were `rows.length` of a LIMIT 50 list, so a city with 300
     // dormant members showed "50" as if that were the total. Real totals now;
     // `listLimit` lets the page say "showing first 50 of 300".
     stats: {
       neverAttendedCount,
       dormantCount,
+      ...(isAdmin(session) ? { notActivatedCount } : {}),
       listLimit: LIST_LIMIT,
     },
   })

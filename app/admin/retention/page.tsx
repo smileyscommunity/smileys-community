@@ -13,15 +13,25 @@ interface Member {
   lastEventDate?: string; eventCount?: number
 }
 
+// Approved, never set a password. Admin-only (the API leaves it out for
+// moderators): the action is a WhatsApp message, and moderators never see
+// a member's phone number.
+interface NotActivatedMember {
+  id: string; name: string; color: string; neighborhood: string | null
+  joinedAt: string; nudgesSent: number; whatsappNudgedAt: string | null; hasPhone: boolean
+}
+
 interface RetentionData {
   neverAttended: Member[]
   dormant: Member[]
-  stats: { neverAttendedCount: number; dormantCount: number; listLimit?: number }
+  notActivated?: NotActivatedMember[]
+  stats: { neverAttendedCount: number; dormantCount: number; notActivatedCount?: number; listLimit?: number }
 }
 
 function timeAgo(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime()
   const d = Math.floor(diff / 86400000)
+  if (d < 1) return 'today'
   if (d < 30) return `${d}d ago`
   if (d < 365) return `${Math.floor(d / 30)}mo ago`
   return `${Math.floor(d / 365)}y ago`
@@ -150,7 +160,77 @@ function MemberRow({ m, sub, viewerRole }: { m: Member; sub: string; viewerRole:
   )
 }
 
-type Tab = 'never' | 'dormant'
+// One tap mints a fresh activation link server-side and opens WhatsApp with
+// the message filled in; the admin presses send in WhatsApp. The tab is
+// opened before the request so a phone browser treats it as a direct tap
+// (a window.open after an await is blocked as a popup on iOS).
+function NotActivatedRow({ m, viewerRole }: { m: NotActivatedMember; viewerRole: string | undefined }) {
+  const [busy,  setBusy]  = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [sentAt, setSentAt] = useState<string | null>(m.whatsappNudgedAt)
+
+  async function openWhatsApp() {
+    setError(null); setBusy(true)
+    const win = window.open('', '_blank')
+    try {
+      const res = await fetch('/app/api/admin/retention/whatsapp', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: m.id }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.url) {
+        win?.close()
+        setError(data?.error ?? 'Could not create the link')
+        return
+      }
+      if (win) win.location.href = data.url
+      else window.location.href = data.url
+      setSentAt(data.whatsappNudgedAt ?? new Date().toISOString())
+    } catch {
+      win?.close()
+      setError('Network error — try again')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const emails = `${m.nudgesSent} reminder email${m.nudgesSent === 1 ? '' : 's'}`
+  return (
+    <div className="px-5 py-4 hover:bg-zinc-800/30 transition-colors">
+      <div className="flex items-center gap-3">
+        <Avatar m={{ id: m.id, name: m.name, color: m.color, email: '', neighborhood: m.neighborhood }} />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Link href={memberHref(m.id, viewerRole)} className="text-sm font-semibold text-zinc-200 hover:text-amber-400 transition-colors">
+              {m.name}
+            </Link>
+            {m.neighborhood && <span className="text-xs text-zinc-500">{m.neighborhood}</span>}
+            {sentAt && (
+              <span className="text-[10px] font-bold text-green-400 bg-green-500/10 px-1.5 py-0.5 rounded">
+                WhatsApp&apos;d {timeAgo(sentAt)}
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-zinc-500 mt-0.5">
+            Approved {timeAgo(m.joinedAt)} · {emails}{m.hasPhone ? '' : ' · No phone on file'}
+          </p>
+          {error && <p className="text-xs text-red-400 mt-1">⚠ {error}</p>}
+        </div>
+        <button
+          onClick={openWhatsApp}
+          disabled={busy || !m.hasPhone}
+          className="shrink-0 text-xs font-semibold px-3 py-2 rounded-lg bg-green-600 hover:bg-green-500 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {busy ? '…' : sentAt ? 'Send again' : 'WhatsApp'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+type Tab = 'never' | 'dormant' | 'inactive'
 
 export default function RetentionPage() {
   const { user: me } = useAuth()
@@ -183,7 +263,7 @@ export default function RetentionPage() {
 
       {/* Stats */}
       {data && (
-        <div className="grid grid-cols-2 gap-4 mb-6">
+        <div className={`grid grid-cols-2 gap-4 mb-6 ${data.notActivated ? 'sm:grid-cols-3' : ''}`}>
           <div className={`rounded-2xl p-5 border cursor-pointer transition-colors ${tab === 'never' ? 'bg-amber-500/10 border-amber-500/30' : 'bg-zinc-900 border-zinc-800 hover:border-zinc-700'}`}
             onClick={() => setTab('never')}>
             <p className="text-xs text-zinc-500 font-medium mb-1">Never attended</p>
@@ -196,17 +276,26 @@ export default function RetentionPage() {
             <p className="text-3xl font-extrabold text-white">{data.stats.dormantCount}</p>
             <p className="text-xs text-zinc-500 mt-1">No events in 60+ days</p>
           </div>
+          {data.notActivated && (
+            <div className={`rounded-2xl p-5 border cursor-pointer transition-colors ${tab === 'inactive' ? 'bg-amber-500/10 border-amber-500/30' : 'bg-zinc-900 border-zinc-800 hover:border-zinc-700'}`}
+              onClick={() => setTab('inactive')}>
+              <p className="text-xs text-zinc-500 font-medium mb-1">Not activated</p>
+              <p className="text-3xl font-extrabold text-white">{data.stats.notActivatedCount ?? 0}</p>
+              <p className="text-xs text-zinc-500 mt-1">Approved, never set a password (60 days)</p>
+            </div>
+          )}
         </div>
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-zinc-800 mb-0">
+      <div className="flex gap-1 border-b border-zinc-800 mb-0 overflow-x-auto">
         {([
           { id: 'never',   label: `Never attended${data ? ` (${data.stats.neverAttendedCount})` : ''}` },
           { id: 'dormant', label: `Dormant${data ? ` (${data.stats.dormantCount})` : ''}` },
+          ...(data?.notActivated ? [{ id: 'inactive', label: `Not activated (${data.stats.notActivatedCount ?? 0})` }] : []),
         ] as { id: Tab; label: string }[]).map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors -mb-px ${
+            className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors -mb-px whitespace-nowrap ${
               tab === t.id ? 'border-amber-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'
             }`}>
             {t.label}
@@ -217,11 +306,18 @@ export default function RetentionPage() {
       {/* The lists are capped server-side while the counts are real totals —
           say so instead of letting 50 rows pass for the whole cohort. */}
       {data && !loading && (() => {
-        const shown = tab === 'never' ? data.neverAttended.length : data.dormant.length
-        const total = tab === 'never' ? data.stats.neverAttendedCount : data.stats.dormantCount
+        const shown = tab === 'never' ? data.neverAttended.length
+          : tab === 'dormant' ? data.dormant.length
+          : (data.notActivated?.length ?? 0)
+        const total = tab === 'never' ? data.stats.neverAttendedCount
+          : tab === 'dormant' ? data.stats.dormantCount
+          : (data.stats.notActivatedCount ?? 0)
+        const order = tab === 'never' ? 'most recently joined'
+          : tab === 'dormant' ? 'longest dormant'
+          : 'not yet messaged'
         return shown < total ? (
           <p className="text-xs text-zinc-500 px-1 py-2">
-            Showing the first {shown} of {total} — {tab === 'never' ? 'most recently joined' : 'longest dormant'} first.
+            Showing the first {shown} of {total} — {order} first.
           </p>
         ) : null
       })()}
@@ -232,6 +328,22 @@ export default function RetentionPage() {
           <div className="p-12 text-center text-zinc-500">Loading…</div>
         ) : !data ? (
           <div className="p-12 text-center text-zinc-500">{loadError ? 'Could not load — see above.' : 'Failed to load retention data.'}</div>
+        ) : tab === 'inactive' ? (
+          !data.notActivated || data.notActivated.length === 0 ? (
+            <div className="p-12 text-center text-zinc-500">
+              <p className="text-2xl mb-2">🎉</p>
+              <p>Everyone approved in the last 60 days has set up their account.</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-zinc-800/60">
+              <p className="px-5 py-3 text-xs text-zinc-500">
+                WhatsApp opens with the message ready; press send there. Each tap makes a fresh 7-day link and cancels the one in their last email.
+              </p>
+              {data.notActivated.map(m => (
+                <NotActivatedRow key={m.id} m={m} viewerRole={me?.role} />
+              ))}
+            </div>
+          )
         ) : tab === 'never' ? (
           data.neverAttended.length === 0 ? (
             <div className="p-12 text-center text-zinc-500">

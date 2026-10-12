@@ -37,6 +37,10 @@ model User {
   notificationsSeenAt        DateTime?
   nudgesSent                 Int                     @default(0)
   lastNudgedAt               DateTime?
+  // Last time an admin sent this never-activated member a fresh activation
+  // link on WhatsApp (admin Retention > Not activated). Read against
+  // `password` being set to tell whether the WhatsApp nudge lifts activation.
+  whatsappNudgedAt           DateTime?
   // RETIRED 2026-10-05: the weekly first-RSVP nudge was removed (holdout showed
   // no effect). Column kept as historical record; nothing reads or writes it.
   firstRsvpNudgedAt          DateTime?
