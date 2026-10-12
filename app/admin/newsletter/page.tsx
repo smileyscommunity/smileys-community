@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { SEGMENTS, SEGMENT_INFO, type Segment } from '@/lib/newsletterSegments'
+import { NEWSLETTER_TEMPLATES, type NewsletterTemplate } from '@/lib/newsletterTemplates'
 import { toast } from 'sonner'
 import RichTextEditor from '@/components/RichTextEditor'
 import CitySelect, { useAdminCities } from '@/components/admin/CitySelect'
@@ -307,6 +308,14 @@ export default function NewsletterPage() {
     setEditingId(null)
     composerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     toast.success('Template loaded — edit and send when ready')
+  }
+
+  // A ready-made newsletter (lib/newsletterTemplates) into the composer. Asks
+  // before replacing something already typed; sends nothing.
+  async function loadTemplate(t: NewsletterTemplate) {
+    const hasDraft = subject.trim() || bodyHtml.replace(/<[^>]*>/g, '').trim()
+    if (hasDraft && !(await confirmToast('Replace what\'s in the composer with this template?'))) return
+    handleDuplicate(t.subject, t.bodyHtml, t.segment)
   }
 
   async function cancelScheduled(id: string) {
@@ -641,6 +650,25 @@ export default function NewsletterPage() {
       </div>
 
       <div ref={composerRef} className="max-w-2xl space-y-5 mb-10">
+        {/* Templates — one tap fills subject, body and audience; nothing is sent. */}
+        {NEWSLETTER_TEMPLATES.length > 0 && (
+          <div>
+            <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-2">Start from a template</label>
+            <div className="flex flex-wrap gap-2">
+              {NEWSLETTER_TEMPLATES.map(t => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => loadTemplate(t)}
+                  className="text-left px-3 py-2 rounded-xl border border-zinc-700 bg-zinc-800 text-xs text-zinc-300 hover:border-amber-500 hover:text-amber-300 transition-colors"
+                >
+                  {t.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Segment picker */}
         <div>
           <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-2">Audience</label>
