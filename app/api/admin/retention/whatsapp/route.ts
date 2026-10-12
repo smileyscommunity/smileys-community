@@ -8,6 +8,8 @@ import { APP_URL } from '@/lib/env'
 import { firstNameOf } from '@/lib/data'
 import { issueActivationToken } from '@/lib/activation'
 import { NOT_ACTIVATED_MEMBER_WHERE } from '@/lib/memberCount'
+import { getCityTz } from '@/lib/city'
+import { DEFAULT_TZ } from '@/lib/cityTime'
 import { activationWhatsAppMessage, activationWhatsAppUrl } from '@/lib/activationWhatsApp'
 
 // One tap on Retention > Not activated: mint a fresh activation link for a
@@ -38,7 +40,7 @@ export async function POST(req: NextRequest) {
 
   const user = await prisma.user.findFirst({
     where: { id: userId, ...NOT_ACTIVATED_MEMBER_WHERE },
-    select: { id: true, name: true, phone: true, nationality: true, cityId: true },
+    select: { id: true, name: true, phone: true, nationality: true, cityId: true, joinedAt: true },
   })
   if (!user) {
     // Gone, not approved, or they activated since the list loaded.
@@ -55,10 +57,12 @@ export async function POST(req: NextRequest) {
   }
 
   const token   = await issueActivationToken(user.id)
-  const message = activationWhatsAppMessage(firstNameOf(user.name), `${APP_URL}/activate?token=${token}`)
+  const now     = new Date()
+  // "back in June" is read in the member's own city, like every other date.
+  const tz      = user.cityId ? await getCityTz(user.cityId) : DEFAULT_TZ
+  const message = activationWhatsAppMessage(firstNameOf(user.name), `${APP_URL}/activate?token=${token}`, user.joinedAt, now, tz)
   const url     = activationWhatsAppUrl(user.phone, user.nationality, message)!
 
-  const now = new Date()
   await prisma.user.update({ where: { id: user.id }, data: { whatsappNudgedAt: now } })
   writeAudit(session.id, session.name, 'user.activation_whatsapp', user.id, 'user',
     { name: user.name, cityId: user.cityId },

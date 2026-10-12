@@ -15,13 +15,14 @@ vi.mock('@/lib/session', () => ({ getSession: vi.fn(async () => session.current)
 vi.mock('@/lib/activation', () => act)
 vi.mock('@/lib/audit', () => audit)
 vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn(async () => limits.allow) }))
+vi.mock('@/lib/city', () => ({ getCityTz: vi.fn(async () => 'UTC') }))
 vi.mock('@/lib/env', () => ({ APP_URL: 'https://smileyscommunity.com/app', SITE_URL: 'https://smileyscommunity.com' }))
 
 import { POST } from '@/app/api/admin/retention/whatsapp/route'
 
 const admin = { id: 'a1', name: 'Adm', email: 'a@x', role: 'admin', cityId: 'c1' }
 const req = (body: unknown) => ({ json: async () => body }) as never
-const pending = { id: 'u1', name: 'Ayşe Yılmaz', phone: '+90 544 330 30 68', nationality: 'Turkey', cityId: 'c1' }
+const pending = { id: 'u1', name: 'Ayşe Yılmaz', phone: '+90 544 330 30 68', nationality: 'Turkey', cityId: 'c1', joinedAt: new Date(Date.now() - 5 * 86_400_000) }
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -39,11 +40,18 @@ describe('POST /api/admin/retention/whatsapp', () => {
     expect(parsed.origin + parsed.pathname).toBe('https://wa.me/905443303068')
     const text = parsed.searchParams.get('text')!
     expect(text).toContain('Hi Ayşe,')
+    expect(text).toContain('approved a little while ago')
     expect(text).toContain('https://smileyscommunity.com/app/activate?token=tok123')
     expect(act.issueActivationToken).toHaveBeenCalledWith('u1')
     expect(p.user.update).toHaveBeenCalledWith({ where: { id: 'u1' }, data: { whatsappNudgedAt: expect.any(Date) } })
     expect(typeof whatsappNudgedAt).toBe('string')
     expect(audit.writeAudit).toHaveBeenCalledWith('a1', 'Adm', 'user.activation_whatsapp', 'u1', 'user', expect.objectContaining({ cityId: 'c1' }), expect.any(String))
+  })
+
+  it('names the month for someone approved months ago', async () => {
+    p.user.findFirst.mockResolvedValue({ ...pending, joinedAt: new Date(Date.now() - 150 * 86_400_000) })
+    const { url } = await (await POST(req({ userId: 'u1' }))).json()
+    expect(new URL(url).searchParams.get('text')).toMatch(/You were approved back in [A-Z][a-z]+( \d{4})?,/)
   })
 
   it('only looks up approved members who never set a password', async () => {

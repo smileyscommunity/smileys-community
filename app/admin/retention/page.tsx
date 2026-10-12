@@ -281,7 +281,7 @@ export default function RetentionPage() {
               onClick={() => setTab('inactive')}>
               <p className="text-xs text-zinc-500 font-medium mb-1">Not activated</p>
               <p className="text-3xl font-extrabold text-white">{data.stats.notActivatedCount ?? 0}</p>
-              <p className="text-xs text-zinc-500 mt-1">Approved, never set a password (60 days)</p>
+              <p className="text-xs text-zinc-500 mt-1">Approved, never set a password</p>
             </div>
           )}
         </div>
@@ -332,7 +332,7 @@ export default function RetentionPage() {
           !data.notActivated || data.notActivated.length === 0 ? (
             <div className="p-12 text-center text-zinc-500">
               <p className="text-2xl mb-2">🎉</p>
-              <p>Everyone approved in the last 60 days has set up their account.</p>
+              <p>Everyone approved has set up their account.</p>
             </div>
           ) : (
             <div className="divide-y divide-zinc-800/60">

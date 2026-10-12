@@ -84,13 +84,16 @@ export async function GET(req: NextRequest) {
     ) d
   `
 
-  // Not activated: approved in the last 60 days (the window the login-nudge
-  // email covers) but never set a password, so they have never seen the site
-  // and nothing above can reach them. Admin-only: the action on this list is
-  // a WhatsApp message, and moderators never see a member's phone number
-  // (lib/admin/maskContact). The number itself is not returned either — only
-  // whether there is one; the link is built server-side on click
-  // (./whatsapp/route.ts).
+  // Not activated: approved but never set a password, so they have never seen
+  // the site and nothing above can reach them. No age cut-off: the login-nudge
+  // email stops at 60 days, so the older ones are the ones nobody chases any
+  // more (222 of them on 2026-10-13, back to May). Unmessaged first, newest
+  // approval first, so the likeliest activations lead.
+  //
+  // Admin-only: the action on this list is a WhatsApp message, and moderators
+  // never see a member's phone number (lib/admin/maskContact). The number
+  // itself is not returned either, only whether there is one; the link is
+  // built server-side on click (./whatsapp/route.ts).
   let notActivated: {
     id: string; name: string; color: string; neighborhood: string | null
     joinedAt: Date; nudgesSent: number; whatsappNudgedAt: Date | null; hasPhone: boolean
@@ -100,7 +103,6 @@ export async function GET(req: NextRequest) {
     const notActivatedWhere = {
       ...NOT_ACTIVATED_MEMBER_WHERE,
       role: MEMBER_ROLE_FILTER,
-      joinedAt: { gte: day60ago },
       ...(cityId ? { cityId } : {}),
     }
     const [rows, count] = await Promise.all([

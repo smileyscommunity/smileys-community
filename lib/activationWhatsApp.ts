@@ -8,11 +8,35 @@
 // Pure (no prisma, no env) so it can be unit-tested and reused by that API.
 
 import { whatsappUrl } from '@/lib/data'
+import { DEFAULT_TZ } from '@/lib/cityTime'
 
-export function activationWhatsAppMessage(firstName: string | null | undefined, activationLink: string): string {
+// Past this, "a little while ago" undersells it, so the message names the
+// month instead ("back in June"), with the year once it is a different one,
+// read in the member's city timezone so a late-evening approval on the last
+// of the month is not named after the next one.
+export const NAME_THE_MONTH_AFTER_DAYS = 60
+
+/** "a little while ago" for a recent approval, "back in June" (or "back in December 2025") for an older one. */
+export function approvedWhen(approvedAt: Date, now: Date = new Date(), timeZone: string = DEFAULT_TZ): string {
+  const days = (now.getTime() - approvedAt.getTime()) / 86_400_000
+  if (days <= NAME_THE_MONTH_AFTER_DAYS) return 'a little while ago'
+  const sameYear = approvedAt.getUTCFullYear() === now.getUTCFullYear()
+  const month = approvedAt.toLocaleDateString('en-GB', {
+    month: 'long', timeZone, ...(sameYear ? {} : { year: 'numeric' }),
+  })
+  return `back in ${month}`
+}
+
+export function activationWhatsAppMessage(
+  firstName: string | null | undefined,
+  activationLink: string,
+  approvedAt: Date,
+  now: Date = new Date(),
+  timeZone: string = DEFAULT_TZ,
+): string {
   const name = firstName?.trim() || 'there'
   return [
-    `Hi ${name}, it's Nate from Smileys 👋 You were approved a little while ago, but your account isn't set up yet. Here's a fresh link to set your password, valid for 7 days: ${activationLink}`,
+    `Hi ${name}, it's Nate from Smileys 👋 You were approved ${approvedWhen(approvedAt, now, timeZone)}, but your account isn't set up yet. Here's a fresh link to set your password, valid for 7 days: ${activationLink}`,
     'Any questions, just reply here. See you at a table soon!',
   ].join('\n\n')
 }
