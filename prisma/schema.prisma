@@ -41,6 +41,10 @@ model User {
   // link on WhatsApp (admin Retention > Not activated). Read against
   // `password` being set to tell whether the WhatsApp nudge lifts activation.
   whatsappNudgedAt           DateTime?
+  // When this never-activated member was sent the one-time "last call"
+  // activation email (lib/activationLastCall). Set before the send, so a
+  // member never gets it twice; cleared again only if the send failed.
+  activationLastCallAt       DateTime?
   // RETIRED 2026-10-05: the weekly first-RSVP nudge was removed (holdout showed
   // no effect). Column kept as historical record; nothing reads or writes it.
   firstRsvpNudgedAt          DateTime?

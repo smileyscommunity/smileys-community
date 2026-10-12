@@ -180,7 +180,7 @@ describe('87e. admin lists are fresh after edits and say when they are capped', 
     p.user.findMany.mockResolvedValueOnce([{ id: 'u3', name: 'C', phone: '+90 544 330 30 68', nudgesSent: 2 }])
     const res = await retentionGET(jsonReq({}, 'http://x/app/api/admin/retention'))
     const body = await res.json()
-    expect(body.stats).toEqual({ neverAttendedCount: 300, dormantCount: 120, notActivatedCount: 300, listLimit: 50 })
+    expect(body.stats).toEqual({ neverAttendedCount: 300, dormantCount: 120, notActivatedCount: 300, lastCall: { remaining: 300, afterDays: 60, batch: 30 }, listLimit: 50 })
     expect(p.user.findMany.mock.calls[0][0].take).toBe(50)
     expect(p.user.findMany.mock.calls[1][0].take).toBe(50)
     // The list says whether there is a number, never the number itself.
@@ -194,6 +194,7 @@ describe('87e. admin lists are fresh after edits and say when they are capped', 
     const body = await (await retentionGET(jsonReq({}, 'http://x/app/api/admin/retention'))).json()
     expect(body.notActivated).toBeUndefined()
     expect(body.stats.notActivatedCount).toBeUndefined()
+    expect(body.stats.lastCall).toBeUndefined()
     expect(p.user.findMany).toHaveBeenCalledTimes(1)
   })
   it('the retention page says "showing the first N of M"', () => {

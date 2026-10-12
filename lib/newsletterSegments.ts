@@ -31,7 +31,12 @@ export const SEGMENT_INFO: Record<Segment, { label: string; desc: string }> = {
   never_attended_old: { label: 'Never attended · joined 60d+',  desc: 'Set up their account, never been to an event, joined over 60 days ago' },
 }
 
-const BASE_WHERE = { emailMarketing: true, emailVerified: true, status: 'approved' } as const
+// Activated members only (password set). An approved member who never set a
+// password can't sign in, so every newsletter's "Browse upcoming events"
+// button landed them on a login they couldn't pass; on 2026-10-13 that was
+// 346 people in every send, the weekly digest included. They are reached
+// with their own activation link instead (Retention > Not activated).
+const BASE_WHERE = { emailMarketing: true, emailVerified: true, status: 'approved', password: { not: null } } as const
 
 // A where that matches no user: the safe answer for a segment we don't know.
 const NOBODY = { id: { in: [] as string[] } }

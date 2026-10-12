@@ -23,6 +23,12 @@ describe('newsletter audiences', () => {
     })
   })
 
+  it('every audience leaves out members who never activated: they cannot sign in', () => {
+    for (const seg of SEGMENTS) {
+      expect(recipientWhere(seg, undefined, NOW), seg).toMatchObject({ password: { not: null } })
+    }
+  })
+
   it('splits the never-attended cohort into two non-overlapping batches, with a week of grace', () => {
     const recent = recipientWhere('never_attended_new', undefined, NOW) as { joinedAt: { gte: Date; lt: Date } }
     const older  = recipientWhere('never_attended_old', undefined, NOW) as { joinedAt: { lt: Date } }

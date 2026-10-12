@@ -23,3 +23,17 @@ export function maskEmail(email: string): string {
   if (!domain) return '***'
   return `${local.slice(0, 1)}***@${domain}`
 }
+
+/**
+ * A new 7-day activation token that leaves the member's other live links
+ * working, unlike issueActivationToken. For bulk sends: the last-call email
+ * must not cancel a WhatsApp link an admin sent the same morning. Only
+ * expired tokens are cleared, as the weekly login nudge does.
+ */
+export async function addActivationToken(userId: string, now: Date = new Date()): Promise<string> {
+  await prisma.passwordResetToken.deleteMany({ where: { userId, expiresAt: { lt: now } } })
+  const token     = randomBytes(32).toString('hex')
+  const expiresAt = new Date(now.getTime() + ACTIVATION_TOKEN_DAYS * 24 * 60 * 60 * 1000)
+  await prisma.passwordResetToken.create({ data: { userId, token: hashToken(token), expiresAt } })
+  return token
+}

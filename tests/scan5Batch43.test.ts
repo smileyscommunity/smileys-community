@@ -164,8 +164,10 @@ describe('a) a refused email is recorded, and thrown only where the caller repor
     expect(helpers.length).toBeGreaterThan(35)
     for (const { name, body } of helpers) expect(body, name).toContain(`send('${name}',`)
     const throwing = helpers.filter(c => /throwOnError: true/.test(c.body)).map(c => c.name).sort()
+    // sendActivationLastCallEmail (2026-10-13): its route records the failure
+    // and puts the member back in the queue, like the login nudge's cron.
     expect(throwing).toEqual([
-      'sendBroadcastEmail', 'sendCityLaunchEmail', 'sendConfirmEmailChange', 'sendEventReminderEmail', 'sendFinishRegistrationEmail',
+      'sendActivationLastCallEmail', 'sendBroadcastEmail', 'sendCityLaunchEmail', 'sendConfirmEmailChange', 'sendEventReminderEmail', 'sendFinishRegistrationEmail',
       'sendLoginNudgeEmail', 'sendNewsletterEmail', 'sendNoShowEmail', 'sendRefundEmail',
     ])
     const account = helpers.filter(c => /policy: 'account'/.test(c.body)).map(c => c.name).sort()

@@ -746,6 +746,35 @@ export async function sendLoginNudgeEmail(email: string, name: string, token: st
   }, { throwOnError: true })
 }
 
+// The one-time "last call" for a member approved over 60 days ago who never
+// set a password (admin Retention > Not activated, lib/activationLastCall).
+// Deliberately not a third copy of the login nudge: the nudge's second email
+// already says "Last reminder", so this one is a short personal note from Nate
+// that names when they were approved and lets them go without a fuss.
+// `approvedWhen` is "back in June" (lib/activationWhatsApp approvedWhen).
+export async function sendActivationLastCallEmail(email: string, name: string, token: string, approvedWhen: string) {
+  const url       = `${APP_URL}/activate?token=${token}`
+  const firstName = firstNameOf(name)
+  const hi        = firstName ? `Hi ${esc(firstName)},` : 'Hi there,'
+  await send('sendActivationLastCallEmail', {
+    from: FROM, to: email,
+    subject: safeSubject(firstName ? `Should I keep your spot, ${firstName}?` : 'Should I keep your Smileys spot?'),
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#374151;font-size:15px;line-height:1.6">
+        <p style="margin:0 0 16px">${hi}</p>
+        <p style="margin:0 0 16px">It's Nate from Smileys. You were approved ${esc(approvedWhen)}, but your account was never set up, so you haven't seen any of our events or clubs yet.</p>
+        <p style="margin:0 0 20px">If you'd still like to join, here's a fresh link to set your password. It works for 7 days.</p>
+        <a href="${url}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:20px">
+          Set up my account →
+        </a>
+        <p style="margin:0 0 16px">If the timing's wrong or you've moved on, no hard feelings. Just ignore this and I won't email you about it again.</p>
+        <p style="margin:0">Nate</p>
+      </div>
+    `,
+    text: `${firstName ? `Hi ${firstName},` : 'Hi there,'}\n\nIt's Nate from Smileys. You were approved ${approvedWhen}, but your account was never set up, so you haven't seen any of our events or clubs yet.\n\nIf you'd still like to join, here's a fresh link to set your password. It works for 7 days:\n${url}\n\nIf the timing's wrong or you've moved on, no hard feelings. Just ignore this and I won't email you about it again.\n\nNate`,
+  }, { throwOnError: true })
+}
+
 export async function sendEventApprovedEmail(email: string, name: string, eventTitle: string, eventDate: string, eventNeighborhood: string, eventId: string) {
   const url = `${APP_URL}/events/${eventId}`
   await send('sendEventApprovedEmail', {

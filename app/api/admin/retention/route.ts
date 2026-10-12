@@ -6,6 +6,7 @@ import { emailFor } from '@/lib/admin/maskContact'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator, isAdmin, failClosedCityId } from '@/lib/access'
+import { lastCallWhere, LAST_CALL_AFTER_DAYS, LAST_CALL_BATCH } from '@/lib/activationLastCall'
 
 const LIST_LIMIT = 50
 
@@ -99,7 +100,11 @@ export async function GET(req: NextRequest) {
     joinedAt: Date; nudgesSent: number; whatsappNudgedAt: Date | null; hasPhone: boolean
   }[] = []
   let notActivatedCount = 0
+  // The one-time last-call email's queue (lib/activationLastCall). Not city
+  // scoped: the send button works through everyone, so the count must too.
+  let lastCallRemaining = 0
   if (isAdmin(session)) {
+    lastCallRemaining = await prisma.user.count({ where: lastCallWhere(now) })
     const notActivatedWhere = {
       ...NOT_ACTIVATED_MEMBER_WHERE,
       role: MEMBER_ROLE_FILTER,
@@ -136,7 +141,7 @@ export async function GET(req: NextRequest) {
     stats: {
       neverAttendedCount,
       dormantCount,
-      ...(isAdmin(session) ? { notActivatedCount } : {}),
+      ...(isAdmin(session) ? { notActivatedCount, lastCall: { remaining: lastCallRemaining, afterDays: LAST_CALL_AFTER_DAYS, batch: LAST_CALL_BATCH } } : {}),
       listLimit: LIST_LIMIT,
     },
   })

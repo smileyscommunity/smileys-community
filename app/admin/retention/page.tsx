@@ -6,6 +6,8 @@ import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import { loadFailure } from '@/lib/admin/useAdminLoad'
 import { useAuth } from '@/contexts/AuthContext'
 import { memberHref } from '@/lib/adminNav'
+import { toast } from 'sonner'
+import { confirmToast } from '@/lib/confirmToast'
 
 interface Member {
   id: string; name: string; email: string; color: string
@@ -25,7 +27,10 @@ interface RetentionData {
   neverAttended: Member[]
   dormant: Member[]
   notActivated?: NotActivatedMember[]
-  stats: { neverAttendedCount: number; dormantCount: number; notActivatedCount?: number; listLimit?: number }
+  stats: {
+    neverAttendedCount: number; dormantCount: number; notActivatedCount?: number; listLimit?: number
+    lastCall?: { remaining: number; afterDays: number; batch: number }
+  }
 }
 
 function timeAgo(dateStr: string) {
@@ -230,6 +235,59 @@ function NotActivatedRow({ m, viewerRole }: { m: NotActivatedMember; viewerRole:
   )
 }
 
+// The one-time last-call activation email for members approved over
+// `afterDays` ago (lib/activationLastCall). Each press sends the next batch;
+// the server never emails anyone twice. Hidden once the queue is empty.
+function LastCallPanel({ initial }: { initial: { remaining: number; afterDays: number; batch: number } }) {
+  const [remaining, setRemaining] = useState(initial.remaining)
+  const [sending,   setSending]   = useState(false)
+  const [sentTotal, setSentTotal] = useState(0)
+
+  if (remaining === 0 && sentTotal === 0) return null
+
+  async function sendBatch() {
+    const n = Math.min(initial.batch, remaining)
+    if (!(await confirmToast(`Email ${n} member${n === 1 ? '' : 's'} a final activation link? Nobody gets this email twice.`))) return
+    setSending(true)
+    try {
+      const res  = await fetch('/app/api/admin/retention/last-call', { method: 'POST', credentials: 'include' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { toast.error(data?.error ?? 'Could not send'); return }
+      setRemaining(data.remaining ?? 0)
+      setSentTotal(t => t + (data.sent ?? 0))
+      if (data.failed) toast.error(`${data.sent} sent, ${data.failed} failed — the failed ones stay in the queue`)
+      else toast.success(`Sent ${data.sent} last-call email${data.sent === 1 ? '' : 's'}`)
+    } catch {
+      toast.error('Network error — check the count before sending again')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <div className="px-5 py-4 bg-amber-500/5 border-b border-zinc-800">
+      <p className="text-sm font-semibold text-zinc-200">Last-call email</p>
+      <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
+        A short personal note from you with a fresh 7-day link, for members approved over {initial.afterDays} days ago, after the weekly reminders stopped. Each member gets it once.
+      </p>
+      <div className="flex items-center gap-3 mt-3">
+        {remaining > 0 ? (
+          <button
+            onClick={sendBatch}
+            disabled={sending}
+            className="text-xs font-semibold px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-black transition-colors disabled:opacity-50"
+          >
+            {sending ? 'Sending…' : `Send next ${Math.min(initial.batch, remaining)}`}
+          </button>
+        ) : null}
+        <span className="text-xs text-zinc-500">
+          {remaining > 0 ? `${remaining} still to send` : 'All sent'}{sentTotal > 0 ? ` · ${sentTotal} sent just now` : ''}
+        </span>
+      </div>
+    </div>
+  )
+}
+
 type Tab = 'never' | 'dormant' | 'inactive'
 
 export default function RetentionPage() {
@@ -336,6 +394,7 @@ export default function RetentionPage() {
             </div>
           ) : (
             <div className="divide-y divide-zinc-800/60">
+              {data.stats.lastCall && <LastCallPanel initial={data.stats.lastCall} />}
               <p className="px-5 py-3 text-xs text-zinc-500">
                 WhatsApp opens with the message ready; press send there. Each tap makes a fresh 7-day link and cancels the one in their last email.
               </p>
