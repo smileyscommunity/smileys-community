@@ -144,7 +144,7 @@ describe('newsletter counts follow the city picker', () => {
     p.user.count.mockResolvedValue(40)
     p.user.findMany.mockResolvedValue([{ name: 'Elif Kaya' }])
     const body = await (await get('?cityId=c-bod&scope=counts')).json()
-    expect(body.segmentCounts).toEqual({ all: 40, new: 40, active: 40, inactive: 40 })
+    expect(body.segmentCounts).toEqual({ all: 40, new: 40, active: 40, inactive: 40, never_attended_new: 40, never_attended_old: 40 })
     expect(body.sampleRecipients.all).toEqual(['Elif'])
     for (const [arg] of p.user.count.mock.calls) expect(arg.where.cityId).toBe('c-bod')
     for (const [arg] of p.user.findMany.mock.calls) expect(arg.where.cityId).toBe('c-bod')

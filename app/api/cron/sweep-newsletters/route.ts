@@ -5,21 +5,11 @@ import { sendNewsletterBatch, recordEmailFailure } from '@/lib/email'
 import { checkCronAuth } from '@/lib/cronAuth'
 import { recordCronRun } from '@/lib/cronHealth'
 import { buildWeeklyDigest } from '@/lib/newsletterDigest'
+import { recipientWhere } from '@/lib/newsletterSegments'
 
-type Segment = 'all' | 'new' | 'active' | 'inactive'
-
-const BASE_WHERE = { emailMarketing: true, emailVerified: true, status: 'approved' } as const
-
-function recipientWhere(segment: Segment) {
-  const now  = new Date()
-  const days = (n: number) => new Date(now.getTime() - n * 86_400_000)
-  switch (segment) {
-    case 'new':      return { ...BASE_WHERE, joinedAt:    { gte: days(60) } }
-    case 'active':   return { ...BASE_WHERE, joinedEvents: { some: { status: 'approved', joinedAt: { gte: days(90)  } } } }
-    case 'inactive': return { ...BASE_WHERE, joinedEvents: { none: { status: 'approved', joinedAt: { gte: days(180) } } } }
-    default:         return BASE_WHERE
-  }
-}
+// Audiences come from lib/newsletterSegments, shared with the admin page and
+// the send route. An unknown segment matches no one there, so a scheduled
+// issue can never fall back to mailing the whole list.
 
 export async function POST(req: NextRequest) {
   const denied = checkCronAuth(req)
@@ -86,7 +76,7 @@ async function runSweep() {
 
     try {
       const recipients = await prisma.user.findMany({
-        where:  recipientWhere(nl.segment as Segment),
+        where:  recipientWhere(nl.segment),
         select: { id: true, email: true, name: true },
       })
 

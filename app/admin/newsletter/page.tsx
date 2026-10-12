@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { SEGMENTS, SEGMENT_INFO, type Segment } from '@/lib/newsletterSegments'
 import { toast } from 'sonner'
 import RichTextEditor from '@/components/RichTextEditor'
 import CitySelect, { useAdminCities } from '@/components/admin/CitySelect'
@@ -19,7 +20,6 @@ function newRequestId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`
 }
 
-type Segment = 'all' | 'new' | 'active' | 'inactive'
 
 interface SentNewsletter {
   id: string
@@ -36,12 +36,10 @@ interface SentNewsletter {
   sentBy: { name: string }
 }
 
-const SEGMENT_LABELS: Record<Segment, string> = {
-  all:      'All opted-in',
-  new:      'New members (60d)',
-  active:   'Active members (90d)',
-  inactive: 'Inactive members (180d+)',
-}
+// Labels and descriptions live with the audience definitions
+// (lib/newsletterSegments), so the page can't offer one the server won't send.
+const SEGMENT_LABELS = Object.fromEntries(SEGMENTS.map(k => [k, SEGMENT_INFO[k].label])) as Record<Segment, string>
+const ZERO_COUNTS    = Object.fromEntries(SEGMENTS.map(k => [k, 0])) as Record<Segment, number>
 
 function timeAgo(iso: string): string {
   const ms = Date.now() - new Date(iso).getTime()
@@ -200,7 +198,7 @@ export default function NewsletterPage() {
   const [scheduleMode,     setScheduleMode]     = useState(false)
   const [scheduledFor,     setScheduledFor]     = useState('')
   const [sending,          setSending]          = useState(false)
-  const [segmentCounts,    setSegmentCounts]    = useState<Record<Segment, number>>({ all: 0, new: 0, active: 0, inactive: 0 })
+  const [segmentCounts,    setSegmentCounts]    = useState<Record<Segment, number>>(ZERO_COUNTS)
   const [sampleRecipients, setSampleRecipients] = useState<Partial<Record<Segment, string[]>>>({})
   const [requestId,        setRequestId]        = useState(newRequestId)
   const [history,          setHistory]          = useState<SentNewsletter[]>([])
@@ -268,7 +266,7 @@ export default function NewsletterPage() {
     fetch('/app/api/admin/newsletter', { credentials: 'include' })
       .then(r => r.json())
       .then(d => {
-        setSegmentCounts(d.segmentCounts ?? { all: 0, new: 0, active: 0, inactive: 0 })
+        setSegmentCounts(d.segmentCounts ?? ZERO_COUNTS)
         setHistory(d.newsletters ?? [])
         setSampleRecipients(d.sampleRecipients ?? {})
         setAutoWeekly(d.autoWeekly === true)
@@ -292,7 +290,7 @@ export default function NewsletterPage() {
       .then(r => r.ok ? r.json() : Promise.reject(new Error()))
       .then(d => {
         if (cancelled) return
-        setSegmentCounts(d.segmentCounts ?? { all: 0, new: 0, active: 0, inactive: 0 })
+        setSegmentCounts(d.segmentCounts ?? ZERO_COUNTS)
         setSampleRecipients(d.sampleRecipients ?? {})
       })
       .catch(() => { if (!cancelled) toast.error("Couldn't count that city's members") })
@@ -626,12 +624,7 @@ export default function NewsletterPage() {
     return rest > 0 ? `${names.join(', ')} and ${rest} others` : names.join(', ')
   }
 
-  const segments: { key: Segment; desc: string }[] = [
-    { key: 'all',      desc: 'Everyone who opted in' },
-    { key: 'new',      desc: 'Joined in the last 60 days' },
-    { key: 'active',   desc: 'Attended an event in the last 90 days' },
-    { key: 'inactive', desc: 'No event attendance in 180+ days' },
-  ]
+  const segments: { key: Segment; desc: string }[] = SEGMENTS.map(key => ({ key, desc: SEGMENT_INFO[key].desc }))
 
   // Min datetime for the scheduler — 5 minutes from now, on the picker's
   // clock (toISOString was UTC, three hours behind an Istanbul picker).

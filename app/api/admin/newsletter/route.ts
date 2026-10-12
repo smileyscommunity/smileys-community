@@ -12,10 +12,10 @@ import { claimOnce, releaseClaim } from '@/lib/rateLimit'
 import { resolveCityId, getCityTz } from '@/lib/city'
 import { fromWallClockInTz } from '@/lib/cityTime'
 
+import { SEGMENTS, isSegment, recipientWhere, type Segment } from '@/lib/newsletterSegments'
+
 export const dynamic = 'force-dynamic'
 
-type Segment = 'all' | 'new' | 'active' | 'inactive'
-const SEGMENTS: Segment[] = ['all', 'new', 'active', 'inactive']
 
 // Same shape the broadcast route takes: one id per composed newsletter,
 // sent with every attempt at it.
@@ -31,26 +31,6 @@ const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{
 function validTz(tz: unknown): tz is string {
   if (typeof tz !== 'string' || !tz || tz.length > 64) return false
   try { new Intl.DateTimeFormat('en-US', { timeZone: tz }); return true } catch { return false }
-}
-
-const BASE_WHERE = { emailMarketing: true, emailVerified: true, status: 'approved' } as const
-
-function recipientWhere(segment: Segment, cityId?: string) {
-  const now = new Date()
-  const days = (n: number) => new Date(now.getTime() - n * 86_400_000)
-  // A city id narrows any segment to that city's members — the only way to
-  // send "just Bodrum" until the auto weekly digest becomes per-city.
-  const city = cityId ? { cityId } : {}
-  switch (segment) {
-    case 'new':
-      return { ...BASE_WHERE, ...city, joinedAt: { gte: days(60) } }
-    case 'active':
-      return { ...BASE_WHERE, ...city, joinedEvents: { some: { status: 'approved', joinedAt: { gte: days(90) } } } }
-    case 'inactive':
-      return { ...BASE_WHERE, ...city, joinedEvents: { none: { status: 'approved', joinedAt: { gte: days(180) } } } }
-    default:
-      return { ...BASE_WHERE, ...city }
-  }
 }
 
 // GET /api/admin/newsletter — history + segment counts + sample recipients
@@ -149,8 +129,13 @@ export async function POST(req: NextRequest) {
   const body         = await req.json().catch(() => null)
   const subject      = typeof body?.subject  === 'string' ? body.subject.trim().slice(0, 200) : ''
   const bodyHtml     = typeof body?.bodyHtml === 'string' ? body.bodyHtml.trim() : ''
-  const segment: Segment = ['all', 'new', 'active', 'inactive'].includes(body?.segment)
-    ? body.segment : 'all'
+  // No segment means everyone opted in, as before; a segment we don't know is
+  // refused rather than read as "all" (it used to be), so a typo or a stale
+  // page can never widen a send to the whole list.
+  if (body?.segment !== undefined && !isSegment(body.segment)) {
+    return NextResponse.json({ error: 'Unknown audience — reload the page and pick one again.' }, { status: 400 })
+  }
+  const segment: Segment = isSegment(body?.segment) ? body.segment : 'all'
   // Optional city scope on a manual send. Validated so a typo can't silently
   // send to zero recipients under a "sent!" toast.
   const rawCityId = typeof body?.cityId === 'string' && body.cityId ? body.cityId : null
