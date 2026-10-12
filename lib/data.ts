@@ -8,6 +8,11 @@ export const CLUB_CATEGORIES = [
   'Outdoor', 'Social', 'Food & Drink', 'Nightlife', 'Networking', 'Business',
   'Professional', 'Technology', 'Creative', 'Wellness', 'Sports',
   'Travel', 'Culture', 'Language', 'Exclusive', 'Volunteering',
+  // Added 2026-10-12: the city-launch template (lib/clubTemplates) had been
+  // writing both — 'Live & Loud' and 'New in {city}' in every city
+  // outside Istanbul — without either being a category, so those clubs sat in
+  // no /clubs filter. lib/clubRecommendations scores 'Newcomers' on purpose.
+  'Music', 'Newcomers',
 ] as const
 
 // 'Food & Drinks' was renamed 'Food & Drink' on 2026-10-12 to match the story
@@ -21,6 +26,8 @@ export const LEGACY_CLUB_CATEGORIES: Record<string, (typeof CLUB_CATEGORIES)[num
   // 2026-10-12: never a real category, so the seven Eat Up clubs outside
   // Istanbul sat in no /clubs filter. Migration 20261012000002 moves them.
   'Food & Dining': 'Food & Drink',
+  // Also the template's, for Hiking Club and Run Club; migration 20261012000003.
+  'Outdoors': 'Outdoor',
 }
 
 /** The stored value for a submitted club category: canonical when it is a

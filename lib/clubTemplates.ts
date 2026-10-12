@@ -49,7 +49,7 @@ export const CLUB_TEMPLATES: ClubTemplate[] = [
     description: "Discover {city}'s best restaurants, hidden kitchens, and street food with people who love eating out.",
   },
   {
-    key: 'hiking', name: 'Hiking Club', category: 'Outdoors',
+    key: 'hiking', name: 'Hiking Club', category: 'Outdoor',
     emoji: '🥾', color: 'text-amber-600', bgColor: 'bg-amber-50',
     description: "Explore {city}'s trails, forests, and coastal paths — weekly hikes for every level.",
   },
@@ -89,7 +89,7 @@ export const CLUB_TEMPLATES: ClubTemplate[] = [
     description: "Gig buddies for {city}'s concerts, jazz nights, and open mics.",
   },
   {
-    key: 'run-club', name: 'Run Club', category: 'Outdoors',
+    key: 'run-club', name: 'Run Club', category: 'Outdoor',
     emoji: '🏃', color: 'text-blue-600', bgColor: 'bg-blue-50',
     description: 'Group runs for all paces — explore {city} on foot, together.',
   },

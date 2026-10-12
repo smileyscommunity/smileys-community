@@ -1,0 +1,16 @@
+-- Move clubs filed under 'Outdoors' to 'Outdoor', the real category. The
+-- city-launch template (lib/clubTemplates 'hiking', 'run-club') wrote
+-- 'Outdoors', so Hiking Club and Run Club in every city outside Istanbul sat in
+-- no /clubs filter. Data only. On 2026-10-12 this matched 14 clubs.
+--
+-- Rollback (no data lost). After this runs these clubs share 'Outdoor' with
+-- the Istanbul outdoor clubs, so the rollback names them by id:
+--   UPDATE "clubs" SET "category" = 'Outdoors' WHERE "id" IN (
+--     'cmstflbxi0019po6f1glnzzjt', 'cmstflbyf001hpo6f336zw673',
+--     'cmsuhbbec000jzq6f7khbhty1', 'cmsuhbbf6000rzq6fsed9g6kw',
+--     'cmtgb7bkj0003fe6fi64kx6g7', 'cmtgb7blz000bfe6f64mdu4te',
+--     'cmtl5qo820003cj6f0nvn3axi', 'cmtl5qo9o000bcj6fda6omenf',
+--     'cmtlyoeko00037s6f3xjnzexo', 'cmtlyoen1000b7s6fgt5458if',
+--     'cmtmzqzfr0003vy6fbq4ztkuh', 'cmtmzqzgs000bvy6f6fh055cr',
+--     'cmuptm8m900034a6fcfv0bdww', 'cmuptm8na000b4a6f8qeikzv4');
+UPDATE "clubs" SET "category" = 'Outdoor' WHERE "category" = 'Outdoors';
