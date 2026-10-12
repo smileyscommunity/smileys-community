@@ -1,0 +1,16 @@
+-- Move clubs filed under 'Food & Dining' to 'Food & Drink'. 'Food & Dining'
+-- was never one of CLUB_CATEGORIES: the city-launch template (lib/clubTemplates
+-- 'foodies') wrote it, so the Eat Up club in every city outside Istanbul sat in
+-- no /clubs filter and could not be saved from the admin form. Data only.
+--
+-- On 2026-10-12 this matched exactly 7 clubs: Eat Up Ankara, Antalya, Bodrum,
+-- Bursa, Eskişehir, Izmir and Tbilisi.
+--
+-- Rollback (no data lost). After this runs these clubs share 'Food & Drink'
+-- with the Istanbul food clubs, so the rollback names them by id:
+--   UPDATE "clubs" SET "category" = 'Food & Dining' WHERE "id" IN (
+--     'cmtlyoekg00027s6fu91eizzf', 'cmtgb7bkg0002fe6f03zh7fu8',
+--     'cmsuhbbe8000izq6f4tdjkn4o', 'cmtl5qo7t0002cj6fo48itqnc',
+--     'cmuptm8m500024a6f4que1qpn', 'cmstflbxe0018po6fl6wkrbic',
+--     'cmtmzqzfj0002vy6fd8pc4u6g');
+UPDATE "clubs" SET "category" = 'Food & Drink' WHERE "category" = 'Food & Dining';

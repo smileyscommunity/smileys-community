@@ -44,7 +44,7 @@ export const CLUB_TEMPLATES: ClubTemplate[] = [
     description: 'Practice languages and make friends over relaxed conversation nights across {city}. All levels welcome.',
   },
   {
-    key: 'foodies', name: 'Eat Up {city}', category: 'Food & Dining',
+    key: 'foodies', name: 'Eat Up {city}', category: 'Food & Drink',
     emoji: '🍽️', color: 'text-orange-600', bgColor: 'bg-orange-50',
     description: "Discover {city}'s best restaurants, hidden kitchens, and street food with people who love eating out.",
   },

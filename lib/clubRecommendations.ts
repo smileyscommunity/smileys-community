@@ -8,7 +8,7 @@ import type { Club } from './data'
 // Games) all file under Social in prod.
 const INTEREST_TO_CATEGORIES: Record<string, string[]> = {
   sailing:    ['Sports', 'Outdoor', 'Travel'],
-  dining:     ['Food & Drink', 'Food & Drinks'], // second: pre-rename name, see lib/data LEGACY_CLUB_CATEGORIES
+  dining:     ['Food & Drink', 'Food & Drinks', 'Food & Dining'], // the last two: pre-rename names, see lib/data LEGACY_CLUB_CATEGORIES
   social:     ['Social', 'Nightlife'],
   wellness:   ['Wellness'],
   networking: ['Business', 'Networking', 'Technology'],

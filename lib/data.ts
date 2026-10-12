@@ -17,6 +17,10 @@ export const CLUB_CATEGORIES = [
 // the discovery and recommendation lists still match the old value.
 export const LEGACY_CLUB_CATEGORIES: Record<string, (typeof CLUB_CATEGORIES)[number]> = {
   'Food & Drinks': 'Food & Drink',
+  // What the city-launch template (lib/clubTemplates 'foodies') stored before
+  // 2026-10-12: never a real category, so the seven Eat Up clubs outside
+  // Istanbul sat in no /clubs filter. Migration 20261012000002 moves them.
+  'Food & Dining': 'Food & Drink',
 }
 
 /** The stored value for a submitted club category: canonical when it is a
