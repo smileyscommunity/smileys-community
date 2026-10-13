@@ -84,12 +84,11 @@ describe('7: a cleared admin headline falls back to the default', () => {
 
 // Items 8–13 (2026-09-29).
 
-describe('8: readable text on the amber card (buttons untouched)', () => {
-  it('dark text on the accent card; gray labels darker; the card and button colors unchanged', () => {
-    expect(page).toContain("${w.accent ? 'text-amber-950' : 'text-amber-600'}")
-    expect(page).toContain("${w.accent ? 'text-amber-950' : 'text-gray-500'}")
-    expect(page).toContain("w.accent ? 'bg-amber-500 border-amber-500'")
-    expect(page).toContain("'bg-amber-500 text-white hover:bg-amber-600'")
+describe('8: equal cards, readable labels', () => {
+  it('all four ways are one card style (none promoted); labels stay readable', () => {
+    expect(page).not.toContain('w.accent ?')
+    expect(page).toContain('text-xs font-bold uppercase tracking-widest text-amber-600 mb-1')
+    expect(page).toContain('text-xs font-bold uppercase tracking-widest text-gray-500 mb-2')
     expect(page).not.toContain("'text-amber-50'")
   })
 })
@@ -103,13 +102,12 @@ describe('9–10: city links', () => {
 
 describe('11–13: glyphs, the statement, the stats band', () => {
   it('decorative glyphs hidden; the line is a statement, not a quote; blank stat rows skipped', () => {
-    expect(page).toContain('<span aria-hidden="true">✦</span> Get involved')
-    expect(page).toContain('<div aria-hidden="true" className="text-4xl mb-4">{w.emoji}</div>')
+    expect(page).toContain('<div aria-hidden="true" className="text-2xl mb-2">{w.emoji}</div>')
     expect(page).not.toContain('<blockquote')
     // Re-scan 2026-09-29: measured numbers, no admin rows (so no blank ones).
     expect(page).not.toContain('resolveStats')
     expect(page).toContain('eventsStat(s.events),')
-    expect(page).toContain('<dl className="grid grid-cols-1 md:grid-cols-3 gap-10 md:gap-8 text-center text-amber-950">')
+    expect(page).toContain('<dl className="grid grid-cols-1 sm:grid-cols-3 gap-4">')
     expect(page).not.toContain('member matching')
   })
 })

@@ -5,6 +5,8 @@ import { DEFAULT_CITY_SLUG } from '@/lib/city'
 import { getSession } from '@/lib/session'
 import { isClubHost, hostCityIds } from '@/lib/access'
 import HostPath from '@/components/HostPath'
+import PageViewTracker from '@/components/PageViewTracker'
+import { loadContent } from '@/lib/content'
 import { getCommunityStats, approx, eventsStat } from '@/lib/communityStats'
 import { resolveCityForPage, cityQs, type CitySearch } from '@/lib/cityPageParam'
 
@@ -30,7 +32,7 @@ export async function generateMetadata({ searchParams }: { searchParams?: Promis
 // (the directory is businesses), a WhatsApp group the platform creates (it
 // stores a link), and "a warm introduction to your clubs" for invited friends
 // (nothing does that).
-type Way = { key: 'host' | 'club' | 'invite' | 'story'; emoji: string; title: string; subtitle: string; body: string; perks: string[]; accent: boolean }
+type Way = { key: 'host' | 'club' | 'invite' | 'story'; emoji: string; title: string; subtitle: string; body: string; perks: string[] }
 const WAYS: Way[] = [
   {
     key: 'host',
@@ -45,7 +47,6 @@ const WAYS: Way[] = [
       'Your event in front of the members of your city',
       'The Host title on your profile and your city\'s Meet the Hosts page',
     ],
-    accent: true,
   },
   {
     key: 'club',
@@ -59,7 +60,6 @@ const WAYS: Way[] = [
       'Tools to organize recurring events and activities',
       'Listed on your city\'s Clubs page',
     ],
-    accent: false,
   },
   {
     key: 'invite',
@@ -71,7 +71,6 @@ const WAYS: Way[] = [
       'Your referral is noted during the application review',
       'Help shape what kind of community Smileys becomes',
     ],
-    accent: false,
   },
   {
     key: 'story',
@@ -84,12 +83,8 @@ const WAYS: Way[] = [
       'New stories appear on your city\'s page and the homepage',
       'We polish the formatting — the voice stays yours',
     ],
-    accent: false,
   },
 ]
-
-import { loadContent } from '@/lib/content'
-
 
 // Measured numbers only, like /about and /why (2026-09-29): the shared
 // editorial rows showed "1,000+ events since 2023" against 318 on the
@@ -130,93 +125,79 @@ export default async function GetInvolvedPage({ searchParams }: { searchParams?:
   const headline = gi.headline?.trim() || 'Help build the community you want to be part of'
   const subtitle = gi.subtitle?.trim() || 'Smileys is shaped by its members. The best events, the most active clubs, the warmest atmosphere — they all start with someone deciding to show up and contribute.'
   return (
-    <div>
+    <div className="min-h-screen bg-warm">
+      <PageViewTracker event="get_involved_page_view" />
 
-      {/* Hero */}
+      {/* Hero — same shape as /partner-with-us and /advertise. */}
       <section className="bg-white border-b border-gray-100">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-          <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase mb-8">
-            <span aria-hidden="true">✦</span> Get involved
-          </span>
-          <h1 className="text-5xl sm:text-6xl font-extrabold text-gray-900 tracking-tight leading-tight mb-6">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-14 sm:py-20 text-center">
+          <p className="text-xs font-bold uppercase tracking-widest text-amber-600 mb-4">Get involved</p>
+          <h1 className="text-3xl sm:text-5xl font-extrabold text-gray-900 tracking-tight leading-tight mb-5">
             {headline}
           </h1>
-          <p className="text-base text-gray-600 max-w-2xl leading-relaxed">
+          <p className="text-lg text-gray-600 leading-relaxed max-w-2xl mx-auto mb-8">
             {subtitle}
           </p>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3">
+            <a href="#host"
+              className="px-7 py-3.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm text-center transition-colors">
+              Host an event
+            </a>
+            <a href="#invite"
+              className="px-7 py-3.5 rounded-xl border border-gray-300 text-gray-800 font-semibold text-sm text-center hover:bg-gray-50 transition-colors">
+              Invite a friend
+            </a>
+          </div>
         </div>
       </section>
 
-      {/* Stats — dark text on the amber (white and amber-100 read at about
-          2:1), and a dl so screen readers pair each label with its number,
-          as on /about and /why. */}
-      <section className="bg-amber-500">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-10">
-          <dl className="grid grid-cols-1 md:grid-cols-3 gap-10 md:gap-8 text-center text-amber-950">
+      {/* Stats — a dl so screen readers pair each label with its number, as
+          on /about, /why and /advertise. */}
+      <section className="max-w-5xl mx-auto px-4 sm:px-6 pt-14">
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 sm:p-6">
+          <dl className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {STATS.map(st => (
-              <div key={st.label} className="flex flex-col-reverse gap-1">
-                <dt className="text-amber-950 text-sm font-medium uppercase tracking-wider">{st.label}</dt>
-                <dd className="text-5xl md:text-4xl font-extrabold">{st.value}</dd>
+              <div key={st.label} className="flex flex-col-reverse gap-1 rounded-xl bg-amber-50/60 p-4">
+                <dt className="text-xs font-bold uppercase tracking-wide text-amber-700">{st.label}</dt>
+                <dd className="text-3xl font-extrabold text-gray-900">{st.value}</dd>
               </div>
             ))}
           </dl>
         </div>
       </section>
 
-      {/* Ways to get involved */}
-      <section className="bg-gray-50 border-t border-gray-100">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-20 space-y-6">
-          {WAYS.map((w, i) => (
-            <div key={w.title} className={`rounded-3xl border overflow-hidden ${
-              w.accent ? 'bg-amber-500 border-amber-500' : 'bg-white border-gray-100 shadow-sm'
-            }`}>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-0">
-                {/* Left */}
-                <div className="p-8 lg:p-10">
-                  <div aria-hidden="true" className="text-4xl mb-4">{w.emoji}</div>
-                  <p className={`text-xs font-bold uppercase tracking-widest mb-2 ${w.accent ? 'text-amber-950' : 'text-amber-600'}`}>
-                    {w.subtitle}
+      {/* Ways to get involved — four equal cards, none promoted over another. */}
+      <section className="max-w-5xl mx-auto px-4 sm:px-6 py-14">
+        <h2 className="text-2xl font-extrabold text-gray-900 mb-2">Four ways to shape Smileys</h2>
+        <p className="text-gray-600 max-w-2xl mb-8">
+          Pick the one that fits how much time you have. Each starts with a single step.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {WAYS.map(w => (
+            <div key={w.title} id={w.key} className="bg-white rounded-2xl border border-gray-100 p-5 sm:p-6 flex flex-col scroll-mt-24">
+              <div aria-hidden="true" className="text-2xl mb-2">{w.emoji}</div>
+              <p className="text-xs font-bold uppercase tracking-widest text-amber-600 mb-1">{w.subtitle}</p>
+              <h3 className="text-xl font-extrabold text-gray-900 mb-2">{w.title}</h3>
+              <p className="text-sm text-gray-600 leading-relaxed mb-4">{w.body}</p>
+              <p className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">What you get</p>
+              <ul className="space-y-2 mb-5">
+                {w.perks.map(perk => (
+                  <li key={perk} className="flex items-start gap-2 text-sm text-gray-600">
+                    <span aria-hidden="true" className="mt-0.5 shrink-0 font-bold text-amber-500">✓</span>
+                    {perk}
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-auto">
+                <Link href={cta[w.key].href}
+                  className="block text-center px-5 py-3 rounded-xl bg-amber-500 text-white font-bold text-sm hover:bg-amber-600 transition-colors">
+                  {cta[w.key].label}
+                </Link>
+                {!session && (w.key === 'host' || w.key === 'club') && (
+                  <p className="text-xs mt-3 text-gray-500">
+                    Hosts and club founders are members first — apply, and once you&apos;re in, tell us what you&apos;d run.
                   </p>
-                  <h2 className={`text-3xl font-extrabold mb-4 text-gray-900`}>
-                    {w.title}
-                  </h2>
-                  <p className={`leading-relaxed mb-6 ${w.accent ? 'text-amber-950' : 'text-gray-600'}`}>
-                    {w.body}
-                  </p>
-                  <Link href={cta[w.key].href}
-                    className={`inline-flex items-center gap-2 px-6 py-3 rounded-2xl font-bold text-sm transition-colors ${
-                      w.accent
-                        ? 'bg-white text-amber-600 hover:bg-amber-50'
-                        : 'bg-amber-500 text-white hover:bg-amber-600'
-                    }`}>
-                    {cta[w.key].label}
-                    <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                    </svg>
-                  </Link>
-                  {!session && (w.key === 'host' || w.key === 'club') && (
-                    <p className={`text-xs mt-3 ${w.accent ? 'text-amber-950' : 'text-gray-500'}`}>
-                      Hosts and club founders are members first — apply, and once you&apos;re in, tell us what you&apos;d run.
-                    </p>
-                  )}
-                </div>
-
-                {/* Right — perks */}
-                <div className={`p-8 lg:p-10 flex flex-col justify-center ${
-                  w.accent ? 'bg-amber-600/30' : 'bg-gray-50 border-t lg:border-t-0 lg:border-l border-gray-100'
-                }`}>
-                  <p className={`text-xs font-bold uppercase tracking-widest mb-4 ${w.accent ? 'text-amber-950' : 'text-gray-500'}`}>
-                    What you get
-                  </p>
-                  <ul className="space-y-3">
-                    {w.perks.map(perk => (
-                      <li key={perk} className={`flex items-start gap-3 text-sm ${w.accent ? 'text-amber-950' : 'text-gray-600'}`}>
-                        <span aria-hidden="true" className={`mt-0.5 shrink-0 font-bold ${w.accent ? 'text-amber-950' : 'text-amber-500'}`}>✓</span>
-                        {perk}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                )}
               </div>
             </div>
           ))}
@@ -224,30 +205,56 @@ export default async function GetInvolvedPage({ searchParams }: { searchParams?:
       </section>
 
       {/* The path: Host, then City Lead (lib/hostTitles) */}
-      <section className="bg-white border-t border-gray-100">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+      <section className="bg-white border-y border-gray-100">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-14">
           <HostPath cityName={city.name} />
-          <p className="text-sm text-gray-500 mt-4">
+          <p className="text-sm text-gray-600 mt-4">
             Every host and lead is a member volunteering their time. See who holds the titles today on the{' '}
-            <Link href={`/hosts${cityQs(city.slug)}`} className="font-semibold text-amber-600 hover:underline">Meet the Hosts</Link> page.
+            <Link href={`/hosts${cityQs(city.slug)}`} className="font-semibold text-amber-700 underline">Meet the Hosts</Link> page.
           </p>
         </div>
       </section>
 
-      {/* Community quote */}
+      {/* Organizations: this page is for members, so signpost the two pages
+          that are for businesses and event organizers. */}
+      <section className="max-w-5xl mx-auto px-4 sm:px-6 py-14">
+        <h2 className="text-2xl font-extrabold text-gray-900 mb-2">For businesses and event organizers</h2>
+        <p className="text-gray-600 max-w-2xl mb-8">
+          Not a member, but you run an event or a business in the city? There are two separate routes.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 sm:p-6">
+            <div aria-hidden="true" className="text-2xl mb-2">🤝</div>
+            <h3 className="font-bold text-gray-900 mb-1">Partner with us</h3>
+            <p className="text-sm text-gray-600 leading-relaxed mb-4">
+              Editorial coverage, interviews and event collaborations for international audiences. Independent, and not for sale.
+            </p>
+            <Link href="/partner-with-us" className="text-sm font-semibold text-amber-700 underline">See how partnerships work</Link>
+          </div>
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 sm:p-6">
+            <div aria-hidden="true" className="text-2xl mb-2">📢</div>
+            <h3 className="font-bold text-gray-900 mb-1">Advertise with us</h3>
+            <p className="text-sm text-gray-600 leading-relaxed mb-4">
+              Paid placement: event sponsorship, newsletter features, club partnerships and branded events.
+            </p>
+            <Link href="/advertise" className="text-sm font-semibold text-amber-700 underline">See advertising options</Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Our own line, not a member's words: it was set as a quotation with
+          no speaker, which read as a testimonial nobody gave. */}
       <section className="bg-white border-t border-gray-100">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-          {/* Our own line, not a member's words: it was set as a quotation with
-              no speaker, which read as a testimonial nobody gave. */}
-          <div aria-hidden="true" className="text-5xl mb-6">😊</div>
-          <h2 className="text-2xl font-bold text-gray-900 leading-snug mb-4">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-14 text-center">
+          <div aria-hidden="true" className="text-4xl mb-4">😊</div>
+          <h2 className="text-2xl font-extrabold text-gray-900 leading-snug mb-3">
             The people who shape Smileys are the ones who show up.
           </h2>
-          <p className="text-gray-600 mb-10">
-            Every host, every club leader, every member who invites a friend — you're not just attending a community.
-            You're building one.
+          <p className="text-gray-600 mb-8">
+            Every host, every club leader, every member who invites a friend — you&apos;re not just attending a community.
+            You&apos;re building one.
           </p>
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center justify-center gap-3 flex-wrap">
             {/* A member is already in: they get the next thing to do. */}
             {session
               ? <Link href="/invite" className="btn-primary--lg">Invite a friend</Link>
