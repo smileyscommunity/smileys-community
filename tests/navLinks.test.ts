@@ -29,13 +29,13 @@ describe('Discover link visibility', () => {
     expect(hrefs(forMember)).toContain('/visiting')
   })
 
-  it('does not repeat /visiting for guests, who already have it in their primary bar', () => {
-    expect(hrefs(forGuest)).not.toContain('/visiting')
+  it('gives guests /visiting in Discover, since it is not in their primary bar', () => {
+    expect(hrefs(forGuest)).toContain('/visiting')
   })
 
-  it('keeps /members out of a member menu, since it is in their primary bar', () => {
+  it('keeps /members out of Discover for everyone, since it is in both primary bars', () => {
     expect(hrefs(forMember)).not.toContain('/members')
-    expect(hrefs(forGuest)).toContain('/members')
+    expect(hrefs(forGuest)).not.toContain('/members')
   })
 
   it('shows every audience something', () => {
@@ -69,10 +69,10 @@ describe('Discover ordering', () => {
   // the point, it should take a deliberate edit.
   it('guest order is deliberate and unchanged', () => {
     expect(DISCOVER_LINKS.filter(l => l.public).map(l => l.label)).toEqual([
-      'Members',
       'Experiences',
       'Directory',
       'Neighborhoods',
+      'Visiting',
       'Moving Here',
       'Working Remotely',
       'Studying Here',

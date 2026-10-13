@@ -73,13 +73,12 @@ const roleBadge: Record<string, string> = {
 // Discover, new cities drop into Cities, and the header never grows.
 //
 // Guests and members get different bars because they're doing different things.
-// A guest is deciding whether to join, so Visiting — the thing no other local
-// community offers — is worth a slot. A member is already in, and Members
-// (their connections, with a pending-request badge) earns it instead.
+// Guests and members share the same three slots. Members (connections, with a
+// pending-request badge for members) is third for both; Visiting lives in Discover.
 const guestPrimary = [
   { label: 'Events',   href: '/events'   },
   { label: 'Clubs',    href: '/clubs'    },
-  { label: 'Visiting', href: '/visiting' },
+  { label: 'Members',  href: '/members'  },
 ]
 
 const memberPrimary = [

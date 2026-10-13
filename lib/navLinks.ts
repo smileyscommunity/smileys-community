@@ -24,7 +24,6 @@ export interface NavLink {
 // own Community post); /cup page + data stay live for anyone linking in from
 // there or a bookmark, just no longer in nav.
 export const DISCOVER_LINKS: NavLink[] = [
-  { label: 'Members',         href: '/members',       emoji: '👋', public: true,  guestOnly: true },
   { label: 'Experiences',     href: '/experiences',   emoji: '✨', public: true  },
   { label: 'Directory',       href: '/directory',     emoji: '📍', public: true  },
   { label: 'Neighborhoods',   href: '/neighborhoods', emoji: '🏘️', public: true  },
@@ -35,12 +34,11 @@ export const DISCOVER_LINKS: NavLink[] = [
   // for a guest deciding whether to join and members inherited those
   // priorities wholesale.
   //
-  // Moving them changes nothing for guests: a guest's menu is the `public`
-  // items in their existing relative order, and neither of these is public.
-  // `public: false` is the mirror of `guestOnly` — a guest reaches Visiting
-  // from their primary bar instead, so nobody sees either link twice.
+  // Hangouts is members-only (`public: false`, the mirror of `guestOnly`).
+  // Visiting is public: guests reach it from here, next to the other arrival
+  // hubs, rather than from the top bar.
   { label: 'Hangouts',        href: '/hangouts',      emoji: '☕', public: false },
-  { label: 'Visiting',        href: '/visiting',      emoji: '👋', public: false },
+  { label: 'Visiting',        href: '/visiting',      emoji: '👋', public: true  },
   // The other two arrival hubs, straight after Visiting so a member sees the
   // three together — and after Hangouts/Visiting rather than above them: a
   // relocation guide is the least urgent thing here for someone who already
