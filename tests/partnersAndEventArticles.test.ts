@@ -49,3 +49,15 @@ describe('private member offer isolation', () => {
     expect(src.toLowerCase()).not.toMatch(/youngr.{0,40}giveaway|giveaway.{0,40}youngr/)
   })
 })
+
+describe('admin sponsors inbox', () => {
+  it('revenue excludes partnership leads without dropping NULL-source sponsor leads', () => {
+    const api = read('app/api/admin/sponsors/route.ts')
+    expect(api).toMatch(/OR: \[\{ source: null \}, \{ source: \{ not: 'partners' \} \}\]/)
+    expect(read('app/admin/sponsors/page.tsx')).toMatch(/l\.status === 'won' && l\.source !== 'partners'/)
+  })
+  it('the admin badge counts only still-new leads and only for admins', () => {
+    const r = read('app/api/admin/mod-stats/route.ts')
+    expect(r).toMatch(/isAdmin\(session\) \? await prisma\.sponsorLead\.count\(\{ where: \{ status: 'new' \} \}\) : 0/)
+  })
+})

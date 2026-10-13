@@ -75,6 +75,9 @@ export async function GET() {
     // Join requests to clubs with no host — nobody but staff can answer them.
     // Scoped like its queue (/admin/club-requests) so the pill matches the list.
     const hostlessClubRequests = await countHostlessClubRequests(session)
+    // Sponsor/partnership leads nobody has opened yet. Admin-only, like the
+    // page itself; the email to info@ is the only other alert.
+    const newSponsorLeads = isAdmin(session) ? await prisma.sponsorLead.count({ where: { status: 'new' } }) : 0
 
     return NextResponse.json({
       pendingApplications,
@@ -82,6 +85,7 @@ export async function GET() {
       standingDisputes,
       approvalQueueEvents,
       hostlessClubRequests,
+      newSponsorLeads,
       visitorsThisWeek,
       recentMessages,
       myEvents,

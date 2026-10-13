@@ -286,8 +286,9 @@ describe('94c moderation counts refresh policy', () => {
       // standingDisputes is newer than the other three and defaults to 0: a
       // response from a not-yet-updated deployment is still usable, and a
       // badge showing 0 beats a sidebar that renders none.
-      .toEqual({ pendingApplications: 2, pendingReports: 0, approvalQueueEvents: 1, standingDisputes: 0 })
+      .toEqual({ pendingApplications: 2, pendingReports: 0, approvalQueueEvents: 1, standingDisputes: 0, newSponsorLeads: 0 })
     expect(parseModCounts({ pendingApplications: 2, pendingReports: 0, approvalQueueEvents: 1, standingDisputes: 3 })?.standingDisputes).toBe(3)
+    expect(parseModCounts({ pendingApplications: 2, pendingReports: 0, approvalQueueEvents: 1, newSponsorLeads: 5 })?.newSponsorLeads).toBe(5)
     expect(parseModCounts({ error: 'Forbidden' })).toBeNull()
     expect(parseModCounts({ pendingApplications: -1, pendingReports: 0, approvalQueueEvents: 0 })).toBeNull()
     expect(parseModCounts(null)).toBeNull()

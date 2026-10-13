@@ -99,10 +99,11 @@ export const NAV_GROUPS: { label: string; items: AdminNavItem[] }[] = [
     label: 'Finance',
     items: [
       { label: 'Payments', href: '/admin/payments', exact: false, roles: ['admin'], icon: 'payments' },
-      // Sponsors = B2B leads from /advertise worked as a pipeline
-      // (new → … → won/lost). Lives under Finance because won deals
+      // Sponsors & partnerships = B2B leads from /advertise (paid) and
+      // /partner-with-us (organizer collaborations) worked as one pipeline
+      // (new → … → won/lost). Lives under Finance because won sponsor deals
       // carry the closed sponsorship revenue number.
-      { label: 'Sponsors', href: '/admin/sponsors', exact: false, roles: ['admin'], icon: 'partners' },
+      { label: 'Sponsors & partners', href: '/admin/sponsors', exact: false, roles: ['admin'], icon: 'partners' },
       // Smileys Pro waitlist — founding-member cohort for the upcoming
       // professional tier. Lives in Finance because it's the leading
       // indicator for the next paid revenue line.

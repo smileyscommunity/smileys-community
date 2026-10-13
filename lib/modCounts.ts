@@ -18,6 +18,8 @@ export interface ModCounts {
   approvalQueueEvents: number
   /** "I was there", waiting on a decision. */
   standingDisputes:    number
+  /** Sponsor + partnership leads still in status 'new' (admins only). */
+  newSponsorLeads:     number
 }
 
 // GET /api/admin/mod-stats → the badge counts, or null for a body that isn't
@@ -34,6 +36,7 @@ export function parseModCounts(body: unknown): ModCounts | null {
   return {
     pendingApplications: apps, pendingReports: reports, approvalQueueEvents: events,
     standingDisputes: n(b.standingDisputes) ?? 0,
+    newSponsorLeads:  n(b.newSponsorLeads) ?? 0,
   }
 }
 

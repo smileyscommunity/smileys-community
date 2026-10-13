@@ -23,7 +23,9 @@ export async function GET() {
     // Per currency: a lira deal and a euro deal don't add up to a number.
     prisma.sponsorLead.groupBy({
       by:     ['currency'],
-      where:  { status: 'won' },
+      // Partnership collaborations are mostly unpaid: revenue is sponsors only.
+      // (`not` alone would drop NULL sources, i.e. every /advertise lead.)
+      where:  { status: 'won', OR: [{ source: null }, { source: { not: 'partners' } }] },
       _sum:   { dealValue: true },
       _count: { _all: true },
     }),

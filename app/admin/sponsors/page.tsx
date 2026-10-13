@@ -55,6 +55,23 @@ const FORMAT_LABELS: Record<string, string> = {
   partner_other:      'Partnership · Not sure yet',
 }
 
+// Whole days from today (the admin's own calendar day) to a 'YYYY-MM-DD' event
+// date; negative = already happened.
+function daysUntil(isoDay: string): number {
+  const now = new Date()
+  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())
+  return Math.round((Date.parse(`${isoDay}T00:00:00Z`) - today) / 86_400_000)
+}
+
+function eventTiming(isoDay: string | null | undefined): { label: string; cls: string } | null {
+  if (!isoDay || Number.isNaN(Date.parse(isoDay))) return null
+  const d = daysUntil(isoDay)
+  if (d < 0)  return { label: 'Event passed', cls: 'border-zinc-600/40 bg-zinc-500/10 text-zinc-400' }
+  if (d === 0) return { label: 'Event today', cls: 'border-red-500/40 bg-red-500/10 text-red-300' }
+  if (d <= 14) return { label: `Event in ${d} day${d === 1 ? '' : 's'}`, cls: 'border-red-500/40 bg-red-500/10 text-red-300' }
+  return { label: `Event in ${d} days`, cls: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' }
+}
+
 const inputCls = 'bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-1.5 text-white text-sm focus:outline-none focus:border-amber-500'
 
 function fmtMoney(n: number, currency: string) {
@@ -73,6 +90,9 @@ export default function AdminSponsorsPage() {
   // Paid advertising leads (/advertise) vs event-organizer partnership
   // enquiries (/partner-with-us, source = 'partners') — same table, two inboxes.
   const [kind, setKind] = useState<'all' | 'sponsors' | 'partnerships'>('all')
+  // 'event' = partnership enquiries with the soonest upcoming event first, then
+  // undated, then past — an enquiry for next week shouldn't sit under spring ones.
+  const [sort, setSort] = useState<'newest' | 'event'>('newest')
   const [openId, setOpenId] = useState<string | null>(null)
   // Per-lead draft for value/notes so typing doesn't fire a PATCH per
   // keystroke — saved explicitly via the Save button.
@@ -80,8 +100,15 @@ export default function AdminSponsorsPage() {
 
   const leads = useMemo(() => {
     const all = (data?.leads ?? []).filter(l => kind === 'all' || (kind === 'partnerships') === (l.source === 'partners'))
-    return filter === 'all' ? all : all.filter(l => l.status === filter)
-  }, [data, filter, kind])
+    const byStatus = filter === 'all' ? all : all.filter(l => l.status === filter)
+    if (sort === 'newest') return byStatus
+    const rank = (l: SponsorLead) => {
+      if (!l.eventDate || Number.isNaN(Date.parse(l.eventDate))) return 1e9           // undated: after upcoming
+      const d = daysUntil(l.eventDate)
+      return d >= 0 ? d : 2e9 - d                                                      // upcoming asc, then past (most recent first)
+    }
+    return [...byStatus].sort((a, b) => rank(a) - rank(b))
+  }, [data, filter, kind, sort])
 
   const counts = useMemo(() => {
     const c: Record<string, number> = {}
@@ -149,7 +176,8 @@ export default function AdminSponsorsPage() {
   }
 
   function recalcSummary(all: SponsorLead[]) {
-    const won = all.filter(l => l.status === 'won')
+    // Sponsors only — partnership collaborations aren't revenue (same rule as the API).
+    const won = all.filter(l => l.status === 'won' && l.source !== 'partners')
     const byCur = new Map<string, { value: number; count: number }>()
     for (const l of won) {
       const row = byCur.get(l.currency) ?? { value: 0, count: 0 }
@@ -176,8 +204,8 @@ export default function AdminSponsorsPage() {
     <div className="p-4 md:p-6 max-w-5xl">
       <div className="flex items-end justify-between flex-wrap gap-4 mb-6">
         <div>
-          <h1 className="text-xl font-bold text-white">Sponsors</h1>
-          <p className="text-zinc-500 text-sm mt-1">Sponsor leads from the advertise page and partnership enquiries from the partner-with-us page — work them from inquiry to closed deal.</p>
+          <h1 className="text-xl font-bold text-white">Sponsors &amp; partnerships</h1>
+          <p className="text-zinc-500 text-sm mt-1">Paid sponsor leads from the advertise page and collaboration enquiries from the partner-with-us page — work them from inquiry to closed deal.</p>
         </div>
         <div className="text-right">
           {/* Won deals per currency — never one sum across lira and euros. */}
@@ -186,7 +214,7 @@ export default function AdminSponsorsPage() {
               ? data!.summary.won.map(w => fmtMoney(w.value, w.currency)).join(' + ')
               : fmtMoney(0, cur)}
           </div>
-          <div className="text-xs text-zinc-500">{data?.summary.wonCount ?? 0} won deal{(data?.summary.wonCount ?? 0) === 1 ? '' : 's'}</div>
+          <div className="text-xs text-zinc-500">{data?.summary.wonCount ?? 0} won sponsor deal{(data?.summary.wonCount ?? 0) === 1 ? '' : 's'} · partnerships not counted</div>
         </div>
       </div>
 
@@ -201,6 +229,14 @@ export default function AdminSponsorsPage() {
             {label} · {kindCounts[k]}
           </button>
         ))}
+      </div>
+
+      <div className="flex items-center gap-2 mb-3 text-xs text-zinc-500">
+        <label htmlFor="lead-sort">Sort</label>
+        <select id="lead-sort" value={sort} onChange={e => setSort(e.target.value as 'newest' | 'event')} className={`${inputCls} text-xs`}>
+          <option value="newest">Newest first</option>
+          <option value="event">Soonest event first</option>
+        </select>
       </div>
 
       <div className="flex gap-2 flex-wrap mb-5">
@@ -220,7 +256,11 @@ export default function AdminSponsorsPage() {
 
       {!loading && leads.length === 0 && (
         <div className="text-zinc-500 text-sm py-10 text-center border border-dashed border-zinc-800 rounded-2xl">
-          {filter === 'all' ? 'No sponsor leads yet. They arrive from the /advertise form.' : `No ${filter} leads.`}
+          {filter === 'all'
+            ? kind === 'partnerships' ? 'No partnership enquiries yet. They arrive from the /partner-with-us form.'
+              : kind === 'sponsors'   ? 'No sponsor leads yet. They arrive from the /advertise form.'
+              : 'No leads yet. They arrive from the /advertise and /partner-with-us forms.'
+            : `No ${filter} ${kind === 'partnerships' ? 'partnership enquiries' : kind === 'sponsors' ? 'sponsor leads' : 'leads'}.`}
         </div>
       )}
 
@@ -242,6 +282,9 @@ export default function AdminSponsorsPage() {
                       {lead.status}
                     </span>
                     <span className="text-xs text-zinc-500">{FORMAT_LABELS[lead.format] ?? lead.format}</span>
+                    {eventTiming(lead.eventDate) && (
+                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold border ${eventTiming(lead.eventDate)!.cls}`}>{eventTiming(lead.eventDate)!.label}</span>
+                    )}
                     {lead.source === 'partners' && (
                       <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold border border-sky-500/30 bg-sky-500/10 text-sky-300">Partnership</span>
                     )}
@@ -298,7 +341,7 @@ export default function AdminSponsorsPage() {
                       className="px-4 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-black text-sm font-semibold transition-colors">
                       Save
                     </button>
-                    <a href={`mailto:${lead.email}?subject=${encodeURIComponent(`Smileys Community — your ${FORMAT_LABELS[lead.format] ?? 'sponsorship'} inquiry`)}`}
+                    <a href={`mailto:${lead.email}?subject=${encodeURIComponent(lead.source === 'partners' && lead.eventName ? `Re: ${lead.eventName} — Smileys Community` : `Smileys Community — your ${FORMAT_LABELS[lead.format] ?? 'sponsorship'} inquiry`)}`}
                       className="px-4 py-1.5 rounded-xl border border-zinc-700 hover:bg-zinc-800 text-zinc-300 text-sm font-semibold transition-colors">
                       Reply
                     </a>
