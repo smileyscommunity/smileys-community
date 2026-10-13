@@ -46,8 +46,8 @@ describe('advertise page', () => {
     expect(api).not.toMatch(/< 5000\) \{\s*return/)
     expect(api).toContain("console.warn('[advertise] dropped: honeypot filled')")
   })
-  it('9: readable on amber, labeled form, hidden decoration', () => {
-    expect(page).toContain('<dl className="grid grid-cols-1 sm:grid-cols-4 gap-10 sm:gap-8 text-center text-amber-950">')
+  it('9: readable stats, labeled form, hidden decoration', () => {
+    expect(page).toContain('<dl className="grid grid-cols-2 sm:grid-cols-4 gap-4">')
     expect(page).not.toContain('text-amber-100')
     expect(page).not.toContain('text-gray-400')
     expect(form).toContain('<label htmlFor="ad-name"')

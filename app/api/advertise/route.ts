@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
     if (message.trim().length < 10) {
       return NextResponse.json({ error: 'Message is too short' }, { status: 400 })
     }
-    if (message.trim().length > 800) {
+    if (message.trim().length > 1500) {
       return NextResponse.json({ error: 'Message is too long' }, { status: 400 })
     }
     const safeFormat = FORMAT_LABELS[format] ? format : 'other'

@@ -65,7 +65,7 @@ export default function AdvertiseFormClient() {
 
   if (submitted) {
     return (
-      <div className="bg-gray-50 rounded-2xl p-10 text-center border border-gray-100">
+      <div className="bg-white rounded-2xl p-8 text-center border border-gray-100">
         <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-5 text-2xl">✓</div>
         <h3 className="text-xl font-extrabold text-gray-900 mb-2">Thanks for reaching out!</h3>
         <p className="text-gray-600 text-sm">
@@ -76,7 +76,7 @@ export default function AdvertiseFormClient() {
   }
 
   return (
-    <div className="bg-gray-50 rounded-2xl p-7 border border-gray-100">
+    <div className="bg-white rounded-2xl p-6 sm:p-7 border border-gray-100">
       {error && (
         <div role="alert" className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl mb-5">
           {error}
@@ -126,11 +126,11 @@ export default function AdvertiseFormClient() {
         <div>
           <label htmlFor="ad-message" className="block text-xs font-semibold text-gray-600 mb-1.5">
             Tell us about your goals
-            <span className="text-gray-500 font-normal ml-1">({form.message.length}/800)</span>
+            <span className="text-gray-500 font-normal ml-1">({form.message.length}/1500)</span>
           </label>
           <textarea
             id="ad-message"
-            value={form.message} onChange={e => set('message', e.target.value.slice(0, 800))}
+            value={form.message} onChange={e => set('message', e.target.value.slice(0, 1500))}
             placeholder="What are you trying to promote? Who are you trying to reach? Any specific events or timing in mind?"
             rows={5} required className={`${inputCls} resize-none`}
           />

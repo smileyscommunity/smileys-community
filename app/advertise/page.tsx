@@ -21,7 +21,7 @@ const ogImage = `${APP_URL}/api/og?${new URLSearchParams({
 export const metadata = {
   alternates: { canonical: `${APP_URL}/advertise` },
   title: 'Advertise with Smileys — Reach Istanbul\'s Most Engaged Internationals',
-  description: 'Partner with Smileys to reach a curated community of expats and global professionals actively building their life in Istanbul.',
+  description: 'Advertise with Smileys to reach a curated community of expats and global professionals actively building their life in Istanbul.',
   openGraph: {
     title: 'Advertise with Smileys Community',
     description: 'Reach vetted, active English-speaking internationals living in Istanbul through Smileys events, newsletter, and clubs.',
@@ -44,13 +44,13 @@ const WHY = [
   },
   {
     icon: '💳',
-    title: 'High spending power',
-    body: "Our members are relocating professionals, entrepreneurs, and globally mobile creatives. They're actively discovering the city — and actively spending on it.",
+    title: 'People who go out',
+    body: "Our members are relocating professionals, entrepreneurs, and globally mobile creatives. They join to discover the city in person — the restaurants, venues and activities where your brand can be part of the evening.",
   },
   {
     icon: '🤝',
     title: 'Trusted context',
-    body: "Recommendations that come through Smileys carry community trust. Our members engage with our content, not just scroll past it.",
+    body: "Recommendations that come through Smileys carry community trust, so we keep paid and editorial apart: sponsored placements are always labelled, and our editorial coverage is independent and not for sale.",
   },
   {
     icon: '📍',
@@ -150,42 +150,43 @@ export default async function AdvertisePage() {
   ]
   const why = WHY.map(w => ({ ...w, body: w.body.replace('{ISTANBUL_SHARE}', `${istanbulShare}%`) }))
   return (
-    <div>
+    <div className="min-h-screen bg-warm">
 
-      {/* Hero */}
+      {/* Hero — same shape as /partner-with-us so the two read as a pair. */}
       <section className="bg-white border-b border-gray-100">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-          <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase mb-6">
-            <span aria-hidden="true">✦</span> Partner with Smileys
-          </span>
-          <h1 className="text-5xl sm:text-6xl font-extrabold text-gray-900 tracking-tight leading-tight mb-6">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-14 sm:py-20 text-center">
+          <p className="text-xs font-bold uppercase tracking-widest text-amber-600 mb-4">Advertise with Smileys</p>
+          <h1 className="text-3xl sm:text-5xl font-extrabold text-gray-900 tracking-tight leading-tight mb-5">
             {adv.headline?.trim() || "Reach Istanbul's most engaged internationals"}
           </h1>
-          <p className="text-base text-gray-600 max-w-2xl leading-relaxed">
+          <p className="text-lg text-gray-600 leading-relaxed max-w-2xl mx-auto mb-8">
             {adv.subtitle?.trim() || "Smileys is a curated community of expats and global professionals actively building their life in Istanbul. Advertise where trust is already built in."}
           </p>
-          <div className="mt-10 flex items-center gap-4 flex-wrap">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3">
             <a href="#formats"
-              className="px-8 py-4 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm transition-colors shadow-sm">
+              className="px-7 py-3.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm text-center transition-colors">
               See advertising options
             </a>
             <a href="#contact"
-              className="px-8 py-4 rounded-2xl border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold text-sm transition-colors">
+              className="px-7 py-3.5 rounded-xl border border-gray-300 text-gray-800 font-semibold text-sm text-center hover:bg-gray-50 transition-colors">
               Get in touch
             </a>
           </div>
+          <p className="mt-6 text-sm text-gray-600 max-w-2xl mx-auto">
+            Promoting an event and after editorial coverage rather than paid placement? That is a separate,
+            independent track — see <Link href="/partner-with-us" className="text-amber-700 font-medium underline">Partner with us</Link>.
+          </p>
         </div>
       </section>
 
       {/* Stats */}
-      <section className="bg-amber-500">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-10">
-          {/* Dark text on the amber, and a dl so each label reads with its number. */}
-          <dl className="grid grid-cols-1 sm:grid-cols-4 gap-10 sm:gap-8 text-center text-amber-950">
+      <section className="max-w-5xl mx-auto px-4 sm:px-6 pt-14">
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 sm:p-6">
+          <dl className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {STATS.map(st => (
-              <div key={st.label} className="flex flex-col-reverse gap-1">
-                <dt className="text-amber-950 text-sm font-medium uppercase tracking-wider">{st.label}</dt>
-                <dd className="text-5xl sm:text-4xl font-extrabold">{st.value}</dd>
+              <div key={st.label} className="flex flex-col-reverse gap-1 rounded-xl bg-amber-50/60 p-4">
+                <dt className="text-xs font-bold uppercase tracking-wide text-amber-700">{st.label}</dt>
+                <dd className="text-3xl font-extrabold text-gray-900">{st.value}</dd>
               </div>
             ))}
           </dl>
@@ -193,36 +194,31 @@ export default async function AdvertisePage() {
       </section>
 
       {/* Why advertise */}
-      <section className="bg-gray-50 border-t border-gray-100">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-          <div className="mb-14">
-            <h2 className="text-3xl font-extrabold text-gray-900 mb-3">Why advertise with Smileys?</h2>
-            <p className="text-gray-600 max-w-xl">
-              Quantity is easy. Quality is rare. Our community is small by design — and that's the point.
-            </p>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            {why.map(w => (
-              <div key={w.title} className="bg-white rounded-2xl p-7 border border-gray-100 shadow-sm">
-                <div aria-hidden="true" className="text-2xl mb-4">{w.icon}</div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">{w.title}</h3>
-                <p className="text-gray-600 text-sm leading-relaxed">{w.body}</p>
-              </div>
-            ))}
-          </div>
+      <section className="max-w-5xl mx-auto px-4 sm:px-6 py-14">
+        <h2 className="text-2xl font-extrabold text-gray-900 mb-2">Why advertise with Smileys?</h2>
+        <p className="text-gray-600 max-w-2xl mb-8">
+          Quantity is easy. Quality is rare. Our community is small by design — and that&apos;s the point.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {why.map(w => (
+            <div key={w.title} className="bg-white rounded-2xl border border-gray-100 p-5">
+              <div aria-hidden="true" className="text-2xl mb-2">{w.icon}</div>
+              <h3 className="font-bold text-gray-900 mb-1">{w.title}</h3>
+              <p className="text-sm text-gray-600 leading-relaxed">{w.body}</p>
+            </div>
+          ))}
         </div>
       </section>
 
       {/* Audience */}
-      <section className="bg-white border-t border-gray-100">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-14 items-center">
+      <section className="bg-white border-y border-gray-100">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-14">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
             <div>
-              <h2 className="text-3xl font-extrabold text-gray-900 mb-6">Our audience at a glance</h2>
+              <h2 className="text-2xl font-extrabold text-gray-900 mb-6">Our audience at a glance</h2>
               <div className="space-y-4">
                 {[
                   { label: 'Languages',  value: `English-first, ${nationalities} nationalities` },
-                  { label: 'Age range',  value: 'Primarily 25–55'                            },
                   { label: 'Profile',    value: 'Professionals, entrepreneurs, creatives'     },
                   { label: 'Location',   value: `${istanbulShare}% Istanbul-based`             },
                   // A media buyer will do the math on any per-member average
@@ -251,7 +247,7 @@ export default async function AdvertisePage() {
               </div>
               <p className="text-sm text-gray-600 leading-relaxed">
                 Our members are actively exploring Istanbul — restaurants, fitness studios,
-                co-working spaces, real estate. They're your most receptive audience.
+                co-working spaces, real estate. They&apos;re your most receptive audience.
               </p>
             </div>
           </div>
@@ -261,106 +257,77 @@ export default async function AdvertisePage() {
       {/* Proof — no partner logos yet (partners table is empty), so the
           strongest available evidence is the rooms themselves: real event
           photos, member-consent-sensitive, swap via public/images/advertise. */}
-      <section className="bg-white border-t border-gray-100">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-          <div className="mb-10">
-            <h2 className="text-3xl font-extrabold text-gray-900 mb-3">The rooms your brand joins</h2>
-            <p className="text-gray-600 max-w-xl">
-              No stock photos — these are our events. Full rooms, real attention, people who showed up
-              to be there.
-            </p>
-          </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {[1, 2, 3, 4].map(n => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img key={n} src={`/app/images/advertise/event-${n}.jpg`}
-                alt="A Smileys community event"
-                loading="lazy"
-                className="aspect-[3/4] w-full object-cover rounded-2xl border border-gray-100 shadow-sm" />
-            ))}
-          </div>
+      <section className="max-w-5xl mx-auto px-4 sm:px-6 py-14">
+        <h2 className="text-2xl font-extrabold text-gray-900 mb-2">The rooms your brand joins</h2>
+        <p className="text-gray-600 max-w-2xl mb-8">
+          No stock photos — these are our events. Full rooms, real attention, people who showed up
+          to be there.
+        </p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map(n => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img key={n} src={`/app/images/advertise/event-${n}.jpg`}
+              alt="A Smileys community event"
+              loading="lazy"
+              className="aspect-[3/4] w-full object-cover rounded-2xl border border-gray-100" />
+          ))}
         </div>
       </section>
 
       {/* Formats */}
-      <section id="formats" className="bg-gray-50 border-t border-gray-100">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-          <div className="mb-14">
-            <h2 className="text-3xl font-extrabold text-gray-900 mb-3">Advertising formats</h2>
-            <p className="text-gray-600 max-w-xl">
-              Each format is designed to feel native to the community — not intrusive. No banner blindness, no ignored ads.
-            </p>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+      <section id="formats" className="bg-white border-y border-gray-100">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-14">
+          <h2 className="text-2xl font-extrabold text-gray-900 mb-2">Advertising formats</h2>
+          <p className="text-gray-600 max-w-2xl mb-8">
+            Each format is designed to feel native to the community — not intrusive. No banner blindness, no ignored ads.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {FORMATS.map(f => (
-              <div key={f.title} className={`rounded-2xl p-7 border ${
-                f.highlight
-                  ? 'bg-amber-500 border-amber-500'
-                  : 'bg-white border-gray-100 shadow-sm'
+              <div key={f.title} className={`rounded-2xl border p-5 flex flex-col ${
+                f.highlight ? 'bg-amber-50 border-amber-200' : 'bg-warm border-gray-100'
               }`}>
                 {/* No popularity badge: nothing has been sold yet. */}
-                <div className="flex items-start justify-between mb-4">
-                  <div aria-hidden="true" className="text-2xl">{f.icon}</div>
-                </div>
-                <h3 className={`text-lg font-bold mb-4 ${f.highlight ? 'text-white' : 'text-gray-900'}`}>
-                  {f.title}
-                </h3>
-                <ul className="space-y-2">
+                <div aria-hidden="true" className="text-2xl mb-2">{f.icon}</div>
+                <h3 className="font-bold text-gray-900 mb-3">{f.title}</h3>
+                <ul className="space-y-2 mb-4">
                   {f.features.map(feat => (
-                    <li key={feat} className={`flex items-start gap-2 text-sm ${f.highlight ? 'text-amber-50' : 'text-gray-600'}`}>
-                      <span aria-hidden="true" className={`mt-0.5 shrink-0 ${f.highlight ? 'text-white' : 'text-amber-500'}`}>✓</span>
+                    <li key={feat} className="flex items-start gap-2 text-sm text-gray-600">
+                      <span aria-hidden="true" className="mt-0.5 shrink-0 text-amber-500">✓</span>
                       {feat}
                     </li>
                   ))}
                 </ul>
-                <div className={`mt-5 text-sm font-bold ${f.highlight ? 'text-white' : 'text-gray-900'}`}>
+                <div className="mt-auto text-sm font-bold text-gray-900">
                   {PRICES[f.key] ?? 'Custom pricing'}
                 </div>
                 <a href="#contact"
-                  className={`mt-3 block text-center py-2.5 rounded-xl text-sm font-semibold transition-colors ${
-                    f.highlight
-                      ? 'bg-white text-amber-600 hover:bg-amber-50'
-                      : 'border border-gray-200 text-gray-700 hover:bg-gray-50'
-                  }`}>
+                  className="mt-3 block text-center py-2.5 rounded-xl border border-gray-300 bg-white text-gray-800 text-sm font-semibold hover:bg-gray-50 transition-colors">
                   Inquire
                 </a>
               </div>
             ))}
           </div>
-          <p className="text-sm text-gray-500 mt-8">
-            Pricing is tailored to your goals and format. Get in touch and we'll put together a proposal.
+          <p className="text-sm text-gray-600 mt-6">
+            Pricing is tailored to your goals and format. Get in touch and we&apos;ll put together a proposal.
           </p>
         </div>
       </section>
 
-      {/* Contact form */}
-      <section id="contact" className="bg-white border-t border-gray-100">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-          <div className="mb-10">
-            <h2 className="text-3xl font-extrabold text-gray-900 mb-3">Get in touch</h2>
-            <p className="text-gray-600">
-              Tell us about your brand and what you're looking to achieve.
-              We read every inquiry and reply by email.
-            </p>
-          </div>
-          <AdvertiseFormClient />
-        </div>
-      </section>
-
-      {/* Partner-focused close — the global footer's member CTA band is
-          suppressed on this page (see components/Footer.tsx): an advertiser
-          page must not end by pitching membership. */}
-      <section className="bg-amber-500">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
-          {/* Dark text on the amber; the button keeps its own colors. */}
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-amber-950 mb-4">
-            Let&rsquo;s build something for your brand.
-          </h2>
-          <p className="text-amber-950 mb-10 text-lg">
-            Tell us what you&rsquo;re trying to reach — we&rsquo;ll design the format around it.
-          </p>
-          <a href="#contact" className="btn-white inline-block">Get in touch</a>
-        </div>
+      {/* Contact form — the page ends here, like /partner-with-us. The global
+          footer's member CTA band is suppressed on this page (see
+          components/Footer.tsx): an advertiser page must not end by pitching
+          membership. */}
+      <section id="contact" className="max-w-2xl mx-auto px-4 sm:px-6 py-14">
+        <h2 className="text-2xl font-extrabold text-gray-900 mb-2">Get in touch</h2>
+        <p className="text-gray-600 mb-6">
+          Tell us about your brand and what you&apos;re looking to achieve.
+          We read every inquiry and reply by email.
+        </p>
+        <AdvertiseFormClient />
+        <p className="text-sm text-gray-600 mt-6 text-center">
+          Promoting an event and want editorial coverage? See <Link href="/partner-with-us" className="text-amber-700 font-medium underline">Partner with us</Link>.
+          Want to attend events as a member? <Link href="/apply" className="text-amber-700 font-medium underline">Apply to join</Link>.
+        </p>
       </section>
 
     </div>

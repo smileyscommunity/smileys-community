@@ -114,7 +114,9 @@ export default async function PartnersPage() {
           <p className="text-gray-600 max-w-2xl mb-8">
             Channels and deliverables are agreed individually, to fit your event. We can&apos;t promise ticket sales,
             attendance, positive coverage or a particular reach — what we offer is honest, useful information in front
-            of people who are likely to care.
+            of people who are likely to care. Editorial coverage and interviews are independent and are not for sale; paid
+            placement, sponsorship and branded events are a separate offer on{' '}
+            <Link href="/advertise" className="text-amber-700 font-medium underline">Advertise with us</Link>.
           </p>
           <ol className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 list-none p-0">
             {WAYS.map((w, i) => (
