@@ -6,10 +6,10 @@ vi.mock('@/lib/rateLimit', () => ({ rateLimit: async () => true, getIp: () => '1
 vi.mock('@/lib/turnstile', () => ({ verifyTurnstile: async () => true }))
 vi.mock('resend', () => ({ Resend: class { emails = { send: async () => { throw new Error('mail down') } } } }))
 
-import { POST } from '@/app/api/partners/enquiry/route'
+import { POST } from '@/app/api/partner-with-us/enquiry/route'
 
 const good = { name: 'Ada', organization: 'Gig Co', email: 'ada@gigco.com', eventName: 'Gig', eventWebsite: 'https://gig.example.com', collaboration: 'coverage', message: 'We run a concert in November.', _t: 1 }
-const call = (b: unknown) => POST(new Request('http://x/api/partners/enquiry', { method: 'POST', body: JSON.stringify(b) }) as never)
+const call = (b: unknown) => POST(new Request('http://x/api/partner-with-us/enquiry', { method: 'POST', body: JSON.stringify(b) }) as never)
 
 beforeEach(() => { create.mockReset(); create.mockResolvedValue({ id: 'lead1' }); process.env.RESEND_API_KEY = 'x' })
 

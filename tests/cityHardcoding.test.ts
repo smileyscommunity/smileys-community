@@ -62,8 +62,8 @@ const BASELINE: Record<string, number> = {
   'app/admin/spotlight/page.tsx': 2,
   'app/admin/stories/page.tsx': 1,
   'app/advertise/page.tsx': 12,
-  // /partners is Istanbul-only by brief (2026-10-14): organizers pitch the Istanbul community.
-  'app/partners/page.tsx': 5,
+  // /partner-with-us is Istanbul-only by brief (2026-10-14): organizers pitch the Istanbul community.
+  'app/partner-with-us/page.tsx': 5,
   'app/api/admin/applications/screen/route.ts': 3,
   'app/api/admin/applications/welcome/route.ts': 2,
   'app/api/admin/geocode/route.ts': 1,

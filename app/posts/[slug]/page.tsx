@@ -425,7 +425,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
         {eventDetails && (
           <p className="mt-6 text-sm text-gray-600">
             Organizing an event in {city.name}?{' '}
-            <Link href="/partners" className="text-amber-700 font-medium underline">Partner with Smileys</Link>.
+            <Link href="/partner-with-us" className="text-amber-700 font-medium underline">Partner with Smileys</Link>.
           </p>
         )}
 

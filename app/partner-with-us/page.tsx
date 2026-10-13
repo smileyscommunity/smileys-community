@@ -18,11 +18,11 @@ const DESCRIPTION = 'Connect with expats, international students, digital nomads
 export const metadata = {
   title: "Partner with Smileys — Bring your event to Istanbul's international community",
   description: DESCRIPTION,
-  alternates: { canonical: `${APP_URL}/partners` },
+  alternates: { canonical: `${APP_URL}/partner-with-us` },
   openGraph: {
     title: "Bring your event to Istanbul's international community",
     description: DESCRIPTION,
-    url: `${APP_URL}/partners`,
+    url: `${APP_URL}/partner-with-us`,
     images: [{ url: ogImage, width: 1200, height: 630, alt: 'Partner with Smileys Community' }],
   },
   twitter: { card: 'summary_large_image', title: 'Partner with Smileys Community', description: DESCRIPTION, images: [ogImage] },

@@ -31,7 +31,7 @@ export default function PartnersEnquiryForm({ options }: { options: readonly Opt
     if (!ready || loading) return
     setError(''); setLoading(true)
     try {
-      const res = await fetch('/app/api/partners/enquiry', {
+      const res = await fetch('/app/api/partner-with-us/enquiry', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, _hp: honeypot, _t: loadedAt.current, _cf: turnstileToken }),

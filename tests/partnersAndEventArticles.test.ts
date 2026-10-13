@@ -45,7 +45,7 @@ describe('private member offer isolation', () => {
     expect(read('components/TicketLink.tsx')).toMatch(/\{ article_slug: slug, ticket_host: host \}/)
   })
   it('the partnerships page never mentions a Youngr giveaway or discount code', () => {
-    const src = read('app/partners/page.tsx') + read('lib/partners.ts')
+    const src = read('app/partner-with-us/page.tsx') + read('lib/partners.ts')
     expect(src.toLowerCase()).not.toMatch(/youngr.{0,40}giveaway|giveaway.{0,40}youngr/)
   })
 })
