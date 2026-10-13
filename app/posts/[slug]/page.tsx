@@ -337,7 +337,10 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
           <img
             src={previewUrl(post.coverImage, 1200)}
             alt=""
-            className="w-full h-full object-cover"
+            // Biased upward: a tall poster or portrait cropped to this banner
+            // keeps the top third, where faces are, instead of the centre
+            // (Olivier Giraud's poster showed his shirt, 2026-10-14).
+            className="w-full h-full object-cover object-[center_30%]"
           />
         </div>
       )}
