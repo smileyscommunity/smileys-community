@@ -9,6 +9,8 @@ import { requireStepUp } from '@/lib/stepUp'
 import { writeAudit } from '@/lib/audit'
 import { notifyNewArticle, createNotification } from '@/lib/notify'
 import { parseHandbookFields } from '@/lib/handbook-review'
+import { validateEventDetailsInput } from '@/lib/postEventDetails'
+import { Prisma } from '@prisma/client'
 import { isKind, normalizeCommunityCategory, normalizeHandbookCategory, TITLE_MAX, EXCERPT_MAX, BODY_MAX } from '@/app/admin/posts/constants'
 
 // Match POST. External cover URLs would leak visitor IPs on render.
@@ -60,6 +62,18 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   // inline editor sends none and must leave them alone).
   const handbook = postKind === 'handbook' ? parseHandbookFields(payload) : { ok: true as const, data: {} }
   if (!handbook.ok) return NextResponse.json({ error: handbook.error }, { status: 400 })
+  // Event facts for the article's "Event details" card — community stories
+  // only, and only when the editor sent the key (the inline editor doesn't).
+  const eventInput = postKind === 'community' ? validateEventDetailsInput(payload.eventDetails) : { ok: true as const, data: undefined }
+  if (!eventInput.ok) return NextResponse.json({ error: `Event details: ${eventInput.error}` }, { status: 400 })
+  if (eventInput.data) {
+    // Public card must never carry the restricted member offer.
+    const offer = await prisma.postMemberOffer.findUnique({ where: { postId: id }, select: { url: true, code: true } })
+    const blob = JSON.stringify(eventInput.data)
+    for (const secret of [offer?.url, offer?.code]) {
+      if (secret && blob.includes(secret)) return NextResponse.json({ error: 'Event details contain this article\'s private member offer — remove it from the public card' }, { status: 400 })
+    }
+  }
   const cleanTitle   = String(title   ?? '').trim()
   const cleanExcerpt = excerpt ? String(excerpt).trim() : ''
   const cleanBody    = String(body    ?? '').trim()
@@ -161,6 +175,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         ? (wasPublished ? existing.publishedAt : new Date())
         : null,
       ...handbook.data,
+      ...(eventInput.data !== undefined ? { eventDetails: eventInput.data === null ? Prisma.DbNull : (eventInput.data as unknown as Prisma.InputJsonValue) } : {}),
     },
   }).catch((e: { code?: string }) => { if (e?.code === 'P2025') return null; throw e })
   if (!post) {

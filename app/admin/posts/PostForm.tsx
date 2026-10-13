@@ -28,6 +28,8 @@ interface PostFormProps {
     reviewIntervalDays?: number | null
     tags?: string[]
     officialSources?: unknown
+    // Structured facts for an event article's "Event details" card (Json).
+    eventDetails?: unknown
     lastReviewedAt?: string | null
     // The row's version as loaded. Sent back on save so the server can refuse
     // (409) if someone else saved the article since this form opened.
@@ -36,6 +38,17 @@ interface PostFormProps {
 }
 
 type SourceRow = { label: string; url: string }
+
+// The "Event details" card's fields, as form strings. Only public facts —
+// the card is on the public article.
+const EVENT_FIELDS = ['eventDate', 'startTime', 'venue', 'district', 'language', 'subtitles', 'ticketUrl', 'transport', 'benefit'] as const
+type EventForm = Record<(typeof EVENT_FIELDS)[number], string> & { timeConfirmed: boolean }
+
+function seedEvent(raw: unknown): EventForm {
+  const r = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : {}
+  const f = Object.fromEntries(EVENT_FIELDS.map(k => [k, typeof r[k] === 'string' ? r[k] as string : ''])) as Record<(typeof EVENT_FIELDS)[number], string>
+  return { ...f, timeConfirmed: r.timeConfirmed === true }
+}
 
 const TAGS_MAX       = 10
 const TAG_LEN_MAX    = 40
@@ -109,6 +122,7 @@ export default function PostForm({ initial = {} }: PostFormProps) {
   const [reviewDays,  setReviewDays]  = useState(initial.reviewIntervalDays != null ? String(initial.reviewIntervalDays) : '')
   const [tagsText,    setTagsText]    = useState((initial.tags ?? []).join(', '))
   const [sources,     setSources]     = useState<SourceRow[]>(() => seedSources(initial.officialSources))
+  const [event,       setEvent]       = useState<EventForm>(() => seedEvent(initial.eventDetails))
   const [saving,      setSaving]      = useState(false)
   const [uploading,   setUploading]   = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -155,6 +169,13 @@ export default function PostForm({ initial = {} }: PostFormProps) {
         // sends it. Rows with only one of label/url are kept so the server
         // can reject them with a clear message rather than silently drop
         // half a source.
+        // Event card: community stories only. An all-empty form sends null,
+        // which removes the card.
+        ...(kind === 'community' ? {
+          eventDetails: EVENT_FIELDS.some(k => event[k].trim())
+            ? { ...Object.fromEntries(EVENT_FIELDS.map(k => [k, event[k].trim()])), timeConfirmed: event.timeConfirmed }
+            : null,
+        } : {}),
         ...(kind === 'handbook' ? {
           reviewIntervalDays: reviewDays.trim() === '' ? null : Number(reviewDays),
           tags:               parseTags(tagsText),
@@ -404,6 +425,39 @@ export default function PostForm({ initial = {} }: PostFormProps) {
           {/* Review & sources — Handbook only. "Last reviewed" is shown, never
               edited: the date only moves from the article page after a real
               check against the sources listed here. */}
+          {kind === 'community' && (
+            <details className="bg-zinc-800 border border-zinc-700 rounded-xl p-4" open={EVENT_FIELDS.some(k => event[k].trim())}>
+              <summary className="text-xs font-bold text-zinc-400 uppercase tracking-widest cursor-pointer">Event details (optional)</summary>
+              <p className="text-xs text-zinc-500 mt-3 mb-3">
+                Shows an &quot;Event details&quot; card on the public article. Fill in only what you have confirmed — blank rows are left out.
+                Public facts only: never paste a private discount link or code here.
+              </p>
+              <div className="space-y-2.5">
+                {([
+                  ['eventDate', 'Date', 'date'], ['startTime', 'Start time', 'time'], ['venue', 'Venue', 'text'], ['district', 'District', 'text'],
+                  ['language', 'Performance language', 'text'], ['subtitles', 'Subtitles', 'text'], ['ticketUrl', 'Official ticket link (https://…)', 'url'],
+                ] as const).map(([k, label, type]) => (
+                  <div key={k}>
+                    <label htmlFor={`ev-${k}`} className="block text-xs text-zinc-400 mb-1">{label}</label>
+                    <input id={`ev-${k}`} type={type} value={event[k]} onChange={e => setEvent(prev => ({ ...prev, [k]: e.target.value }))}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:border-amber-500" />
+                  </div>
+                ))}
+                <label className="flex items-center gap-2 text-xs text-zinc-400">
+                  <input type="checkbox" checked={event.timeConfirmed} onChange={e => setEvent(prev => ({ ...prev, timeConfirmed: e.target.checked }))} />
+                  Start time is confirmed by the organizer
+                </label>
+                {([['transport', 'Getting there (brief)'], ['benefit', 'Public Smileys benefit']] as const).map(([k, label]) => (
+                  <div key={k}>
+                    <label htmlFor={`ev-${k}`} className="block text-xs text-zinc-400 mb-1">{label}</label>
+                    <textarea id={`ev-${k}`} rows={2} value={event[k]} onChange={e => setEvent(prev => ({ ...prev, [k]: e.target.value }))}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:border-amber-500 resize-none" />
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+
           {kind === 'handbook' && (
             <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-4">
               <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-3">Review &amp; sources</p>

@@ -60,3 +60,36 @@ export function formatEventDay(d: string): string {
   // Date-only strings are calendar days; format in UTC so no zone shifts them.
   return new Date(`${d}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
 }
+
+const FIELD_NAMES: Record<keyof EventDetails, string> = {
+  eventDate: 'Event date', startTime: 'Start time', timeConfirmed: 'Time confirmed', venue: 'Venue', district: 'District',
+  language: 'Language', subtitles: 'Subtitles', ticketUrl: 'Ticket link', transport: 'Getting there', benefit: 'Smileys benefit',
+}
+
+export type EventDetailsInput =
+  | { ok: true; data: undefined }          // key not sent — leave the column alone
+  | { ok: true; data: EventDetails | null } // null = clear it
+  | { ok: false; error: string }
+
+// What the editor sends. `undefined` = untouched; null / an object with nothing
+// filled in = remove the card; otherwise every field that was FILLED must pass
+// parseEventDetails, so a bad ticket link or date is an error the editor sees,
+// not a field that silently vanishes on save.
+export function validateEventDetailsInput(raw: unknown): EventDetailsInput {
+  if (raw === undefined) return { ok: true, data: undefined }
+  if (raw === null) return { ok: true, data: null }
+  if (typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, error: 'Event details are malformed' }
+  const r = raw as Record<string, unknown>
+  const filled = (k: string) => typeof r[k] === 'string' && (r[k] as string).trim() !== ''
+  const supplied = (Object.keys(FIELD_NAMES) as (keyof EventDetails)[]).filter(k => k !== 'timeConfirmed' && filled(k))
+  if (supplied.length === 0) return { ok: true, data: null }
+  const parsed = parseEventDetails(r)
+  const bad = supplied.filter(k => !parsed || parsed[k] === undefined)
+  if (bad.length) {
+    const hint: Partial<Record<keyof EventDetails, string>> = {
+      eventDate: 'use a date like 2026-11-04', startTime: 'use 24-hour HH:MM', ticketUrl: 'must be a full https:// link under 500 characters',
+    }
+    return { ok: false, error: `${bad.map(k => `${FIELD_NAMES[k]} (${hint[k] ?? 'is not valid'})`).join(', ')}` }
+  }
+  return { ok: true, data: parsed }
+}

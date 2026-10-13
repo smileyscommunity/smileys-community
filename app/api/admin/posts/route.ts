@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { prisma } from '@/lib/prisma'
+import type { Prisma } from '@prisma/client'
 import { pickWriter } from '@/lib/postWriter'
 import { toCountryCode } from '@/lib/country'
 import { getSession } from '@/lib/session'
@@ -10,6 +11,7 @@ import { requireStepUp } from '@/lib/stepUp'
 import { writeAudit } from '@/lib/audit'
 import { notifyNewArticle } from '@/lib/notify'
 import { parseHandbookFields } from '@/lib/handbook-review'
+import { validateEventDetailsInput } from '@/lib/postEventDetails'
 import { isKind, normalizeCommunityCategory, normalizeHandbookCategory, TITLE_MAX, EXCERPT_MAX, BODY_MAX } from '@/app/admin/posts/constants'
 
 // Cover image must be a local upload path (the shape /api/upload
@@ -104,6 +106,9 @@ export async function POST(req: NextRequest) {
   const writer = await pickWriter(session, authorId)
   if (!writer.ok) return NextResponse.json({ error: writer.error }, { status: writer.status })
 
+  const eventInput = cleanKind === 'community' ? validateEventDetailsInput(payload.eventDetails) : { ok: true as const, data: undefined }
+  if (!eventInput.ok) return NextResponse.json({ error: `Event details: ${eventInput.error}` }, { status: 400 })
+
   const willPublish = status === 'published'
   // Publishing bells a whole city (or everyone). For an admin that is a
   // step-up operation like the broadcast route; a moderator's publish stays
@@ -127,6 +132,7 @@ export async function POST(req: NextRequest) {
       country:     postCountry,
       publishedAt: willPublish ? new Date() : null,
       ...handbook.data,
+      ...(eventInput.ok && eventInput.data ? { eventDetails: eventInput.data as unknown as Prisma.InputJsonValue } : {}),
     },
   })
 
