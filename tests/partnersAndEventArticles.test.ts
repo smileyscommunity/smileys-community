@@ -51,10 +51,10 @@ describe('private member offer isolation', () => {
 })
 
 describe('admin sponsors inbox', () => {
-  it('revenue excludes partnership leads without dropping NULL-source sponsor leads', () => {
+  it('revenue is computed server-side over sponsor leads only, archived deals included', () => {
     const api = read('app/api/admin/sponsors/route.ts')
+    expect(api).toMatch(/where: \{ status: 'won', \.\.\.kindWhere\('sponsors'\) \}/)
     expect(api).toMatch(/OR: \[\{ source: null \}, \{ source: \{ not: 'partners' \} \}\]/)
-    expect(read('app/admin/sponsors/page.tsx')).toMatch(/l\.status === 'won' && l\.source !== 'partners'/)
   })
   it('the admin badge counts only still-new leads and only for admins', () => {
     const r = read('app/api/admin/mod-stats/route.ts')

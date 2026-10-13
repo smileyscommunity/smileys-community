@@ -1,8 +1,9 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { useAdminLoad } from '@/lib/admin/useAdminLoad'
+import { confirmToast } from '@/lib/confirmToast'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { DEFAULT_CURRENCY, formatMoney, KNOWN_CURRENCIES } from '@/lib/data'
@@ -19,6 +20,9 @@ interface SponsorLead {
   currency: string
   adminNotes: string | null
   source?: string | null
+  archivedAt?: string | null
+  scrubbedAt?: string | null
+  otherFromSameEmail?: number
   eventName?: string | null
   eventDate?: string | null
   eventWebsite?: string | null
@@ -27,6 +31,8 @@ interface SponsorLead {
 
 interface SponsorsPayload {
   leads: SponsorLead[]
+  nextCursor: string | null
+  counts: { byStatus: Record<string, number>; byKind: { all: number; sponsors: number; partnerships: number } }
   summary: { won: { currency: string; value: number; count: number }[]; wonCount: number }
 }
 
@@ -80,50 +86,63 @@ function fmtMoney(n: number, currency: string) {
 
 export default function AdminSponsorsPage() {
   const cur = useCurrentCity()?.currency ?? DEFAULT_CURRENCY
-  const { data, loading, error, retry, setData } = useAdminLoad<SponsorsPayload>(
-    '/app/api/admin/sponsors',
+  const [filter, setFilter] = useState<string>('all')
+  // Paid sponsor leads (/advertise) vs event-organizer partnership enquiries
+  // (/partner-with-us, source = 'partners') — same table, two inboxes.
+  const [kind, setKind] = useState<'all' | 'sponsors' | 'partnerships'>('all')
+  const [archived, setArchived] = useState(false)
+  // 'event' = soonest upcoming event first, then undated, then past — applied to
+  // the leads loaded so far (paging is by newest).
+  const [sort, setSort] = useState<'newest' | 'event'>('newest')
+  const [search, setSearch] = useState('')
+  const [q, setQ] = useState('')
+  const [tick, setTick] = useState(0)
+  useEffect(() => { const t = setTimeout(() => setQ(search.trim()), 300); return () => clearTimeout(t) }, [search])
+
+  const query = new URLSearchParams({ kind, ...(filter !== 'all' ? { status: filter } : {}), ...(archived ? { archived: '1' } : {}), ...(q ? { q } : {}), _: String(tick) })
+  const { data, loading, error, retry } = useAdminLoad<SponsorsPayload>(
+    `/app/api/admin/sponsors?${query}`,
     (v): v is SponsorsPayload =>
       typeof v === 'object' && v !== null && Array.isArray((v as SponsorsPayload).leads),
   )
+  // Further pages (Load more). Cleared whenever the first page reloads.
+  const [older, setOlder] = useState<SponsorLead[]>([])
+  const [olderCursor, setOlderCursor] = useState<string | null | undefined>(undefined)
+  const [loadingMore, setLoadingMore] = useState(false)
+  useEffect(() => { setOlder([]); setOlderCursor(undefined) }, [kind, filter, archived, q, tick])
 
-  const [filter, setFilter] = useState<string>('all')
-  // Paid advertising leads (/advertise) vs event-organizer partnership
-  // enquiries (/partner-with-us, source = 'partners') — same table, two inboxes.
-  const [kind, setKind] = useState<'all' | 'sponsors' | 'partnerships'>('all')
-  // 'event' = partnership enquiries with the soonest upcoming event first, then
-  // undated, then past — an enquiry for next week shouldn't sit under spring ones.
-  const [sort, setSort] = useState<'newest' | 'event'>('newest')
+  const nextCursor = olderCursor === undefined ? data?.nextCursor ?? null : olderCursor
+  async function loadMore() {
+    if (!nextCursor || loadingMore) return
+    setLoadingMore(true)
+    try {
+      const res = await fetch(`/app/api/admin/sponsors?${query}&cursor=${encodeURIComponent(nextCursor)}`, { credentials: 'include' })
+      if (!res.ok) throw new Error(String(res.status))
+      const page = await res.json() as SponsorsPayload
+      setOlder(prev => [...prev, ...page.leads])
+      setOlderCursor(page.nextCursor)
+    } catch { toast.error('Could not load more leads') }
+    finally { setLoadingMore(false) }
+  }
+
   const [openId, setOpenId] = useState<string | null>(null)
   // Per-lead draft for value/notes so typing doesn't fire a PATCH per
   // keystroke — saved explicitly via the Save button.
   const [drafts, setDrafts] = useState<Record<string, { dealValue: string; currency: string; adminNotes: string }>>({})
 
   const leads = useMemo(() => {
-    const all = (data?.leads ?? []).filter(l => kind === 'all' || (kind === 'partnerships') === (l.source === 'partners'))
-    const byStatus = filter === 'all' ? all : all.filter(l => l.status === filter)
-    if (sort === 'newest') return byStatus
+    const all = [...(data?.leads ?? []), ...older]
+    if (sort === 'newest') return all
     const rank = (l: SponsorLead) => {
       if (!l.eventDate || Number.isNaN(Date.parse(l.eventDate))) return 1e9           // undated: after upcoming
       const d = daysUntil(l.eventDate)
       return d >= 0 ? d : 2e9 - d                                                      // upcoming asc, then past (most recent first)
     }
-    return [...byStatus].sort((a, b) => rank(a) - rank(b))
-  }, [data, filter, kind, sort])
+    return [...all].sort((a, b) => rank(a) - rank(b))
+  }, [data, older, sort])
 
-  const counts = useMemo(() => {
-    const c: Record<string, number> = {}
-    for (const l of data?.leads ?? []) {
-      if (kind !== 'all' && (kind === 'partnerships') !== (l.source === 'partners')) continue
-      c[l.status] = (c[l.status] ?? 0) + 1
-    }
-    return c
-  }, [data, kind])
-
-  const kindCounts = useMemo(() => {
-    const all = data?.leads ?? []
-    const p = all.filter(l => l.source === 'partners').length
-    return { all: all.length, sponsors: all.length - p, partnerships: p }
-  }, [data])
+  const counts = data?.counts.byStatus ?? {}
+  const kindCounts = data?.counts.byKind ?? { all: 0, sponsors: 0, partnerships: 0 }
 
   async function patch(id: string, body: Record<string, unknown>) {
     const res = await fetch('/app/api/admin/sponsors', {
@@ -141,12 +160,9 @@ export default function AdminSponsorsPage() {
 
   async function setStatus(lead: SponsorLead, status: string) {
     try {
-      const updated = await patch(lead.id, { status })
-      setData(prev => prev && {
-        ...prev,
-        leads: prev.leads.map(l => (l.id === lead.id ? updated : l)),
-        summary: recalcSummary(prev.leads.map(l => (l.id === lead.id ? updated : l))),
-      })
+      await patch(lead.id, { status })
+      // Counts, the filter and the revenue total are server-side: reload.
+      setTick(t => t + 1)
       toast.success(`${lead.company} → ${status}`)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Update failed')
@@ -162,12 +178,8 @@ export default function AdminSponsorsPage() {
       return
     }
     try {
-      const updated = await patch(lead.id, { dealValue: value, currency: draft.currency, adminNotes: draft.adminNotes })
-      setData(prev => prev && {
-        ...prev,
-        leads: prev.leads.map(l => (l.id === lead.id ? updated : l)),
-        summary: recalcSummary(prev.leads.map(l => (l.id === lead.id ? updated : l))),
-      })
+      await patch(lead.id, { dealValue: value, currency: draft.currency, adminNotes: draft.adminNotes })
+      setTick(t => t + 1)
       setDrafts(prev => { const next = { ...prev }; delete next[lead.id]; return next })
       toast.success('Saved')
     } catch (e) {
@@ -175,19 +187,22 @@ export default function AdminSponsorsPage() {
     }
   }
 
-  function recalcSummary(all: SponsorLead[]) {
-    // Sponsors only — partnership collaborations aren't revenue (same rule as the API).
-    const won = all.filter(l => l.status === 'won' && l.source !== 'partners')
-    const byCur = new Map<string, { value: number; count: number }>()
-    for (const l of won) {
-      const row = byCur.get(l.currency) ?? { value: 0, count: 0 }
-      row.value += l.dealValue ?? 0; row.count++
-      byCur.set(l.currency, row)
-    }
-    return {
-      won: [...byCur.entries()].map(([currency, r]) => ({ currency, value: Math.round(r.value * 100) / 100, count: r.count })).sort((a, b) => b.value - a.value),
-      wonCount: won.length,
-    }
+  async function setArchivedFlag(lead: SponsorLead, value: boolean) {
+    try {
+      await patch(lead.id, { archived: value })
+      setTick(t => t + 1)
+      toast.success(value ? `${lead.company} archived` : `${lead.company} restored`)
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Update failed') }
+  }
+
+  async function deleteLead(lead: SponsorLead) {
+    if (!(await confirmToast(`Permanently delete ${lead.company}? This can't be undone.`, { confirmLabel: 'Delete' }))) return
+    try {
+      const res = await fetch(`/app/api/admin/sponsors?id=${encodeURIComponent(lead.id)}`, { method: 'DELETE', credentials: 'include' })
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? `Delete failed (${res.status})`)
+      setTick(t => t + 1)
+      toast.success('Deleted')
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Delete failed') }
   }
 
   function draftFor(lead: SponsorLead) {
@@ -231,7 +246,13 @@ export default function AdminSponsorsPage() {
         ))}
       </div>
 
-      <div className="flex items-center gap-2 mb-3 text-xs text-zinc-500">
+      <div className="flex items-center gap-2 mb-3 flex-wrap text-xs text-zinc-500">
+        <input type="search" value={search} onChange={e => setSearch(e.target.value)} aria-label="Search leads"
+          placeholder="Search name, email, company, event, message…" className={`${inputCls} text-xs flex-1 min-w-[200px]`} />
+        <button onClick={() => setArchived(a => !a)} aria-pressed={archived}
+          className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-colors ${archived ? 'border-amber-500 bg-amber-500/10 text-amber-400' : 'border-zinc-800 text-zinc-500 hover:text-zinc-300'}`}>
+          {archived ? 'Showing archived' : 'Show archived'}
+        </button>
         <label htmlFor="lead-sort">Sort</label>
         <select id="lead-sort" value={sort} onChange={e => setSort(e.target.value as 'newest' | 'event')} className={`${inputCls} text-xs`}>
           <option value="newest">Newest first</option>
@@ -254,7 +275,13 @@ export default function AdminSponsorsPage() {
 
       {loading && <div className="text-zinc-500 text-sm py-10 text-center">Loading…</div>}
 
-      {!loading && leads.length === 0 && (
+      {!loading && leads.length === 0 && (q || archived) && (
+        <div className="text-zinc-500 text-sm py-10 text-center border border-dashed border-zinc-800 rounded-2xl">
+          {q ? `No ${archived ? 'archived ' : ''}leads match “${q}”.` : 'Nothing archived here.'}
+        </div>
+      )}
+
+      {!loading && leads.length === 0 && !q && !archived && (
         <div className="text-zinc-500 text-sm py-10 text-center border border-dashed border-zinc-800 rounded-2xl">
           {filter === 'all'
             ? kind === 'partnerships' ? 'No partnership enquiries yet. They arrive from the /partner-with-us form.'
@@ -284,6 +311,14 @@ export default function AdminSponsorsPage() {
                     <span className="text-xs text-zinc-500">{FORMAT_LABELS[lead.format] ?? lead.format}</span>
                     {eventTiming(lead.eventDate) && (
                       <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold border ${eventTiming(lead.eventDate)!.cls}`}>{eventTiming(lead.eventDate)!.label}</span>
+                    )}
+                    {(lead.otherFromSameEmail ?? 0) > 0 && (
+                      <span title="Other leads (any state) from the same email address" className="px-2 py-0.5 rounded-full text-[11px] font-semibold border border-amber-500/30 bg-amber-500/10 text-amber-300">
+                        +{lead.otherFromSameEmail} from this email
+                      </span>
+                    )}
+                    {lead.scrubbedAt && (
+                      <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold border border-zinc-600/40 bg-zinc-500/10 text-zinc-400">Contact removed</span>
                     )}
                     {lead.source === 'partners' && (
                       <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold border border-sky-500/30 bg-sky-500/10 text-sky-300">Partnership</span>
@@ -341,10 +376,20 @@ export default function AdminSponsorsPage() {
                       className="px-4 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-black text-sm font-semibold transition-colors">
                       Save
                     </button>
-                    <a href={`mailto:${lead.email}?subject=${encodeURIComponent(lead.source === 'partners' && lead.eventName ? `Re: ${lead.eventName} — Smileys Community` : `Smileys Community — your ${FORMAT_LABELS[lead.format] ?? 'sponsorship'} inquiry`)}`}
+                    <button onClick={() => setArchivedFlag(lead, !lead.archivedAt)}
+                      className="px-4 py-1.5 rounded-xl border border-zinc-700 hover:bg-zinc-800 text-zinc-300 text-sm font-semibold transition-colors">
+                      {lead.archivedAt ? 'Restore' : 'Archive'}
+                    </button>
+                    {lead.status !== 'won' && (
+                      <button onClick={() => deleteLead(lead)}
+                        className="px-4 py-1.5 rounded-xl border border-red-500/40 hover:bg-red-500/10 text-red-300 text-sm font-semibold transition-colors">
+                        Delete
+                      </button>
+                    )}
+                    {!lead.scrubbedAt && <a href={`mailto:${lead.email}?subject=${encodeURIComponent(lead.source === 'partners' && lead.eventName ? `Re: ${lead.eventName} — Smileys Community` : `Smileys Community — your ${FORMAT_LABELS[lead.format] ?? 'sponsorship'} inquiry`)}`}
                       className="px-4 py-1.5 rounded-xl border border-zinc-700 hover:bg-zinc-800 text-zinc-300 text-sm font-semibold transition-colors">
                       Reply
-                    </a>
+                    </a>}
                   </div>
                 </div>
               )}
@@ -352,6 +397,15 @@ export default function AdminSponsorsPage() {
           )
         })}
       </div>
+
+      {nextCursor && (
+        <div className="text-center mt-5">
+          <button onClick={loadMore} disabled={loadingMore}
+            className="px-5 py-2 rounded-xl border border-zinc-700 hover:bg-zinc-800 text-zinc-300 text-sm font-semibold disabled:opacity-50">
+            {loadingMore ? 'Loading…' : 'Load more'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }

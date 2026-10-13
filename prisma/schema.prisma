@@ -272,6 +272,11 @@ model SponsorLead {
   // /partners enquiries only (null on /advertise leads). eventDate is text
   // 'YYYY-MM-DD' like Event.date.
   source       String?
+  // Archived = out of the working list but kept (spam, finished, duplicate).
+  // Scrubbed = contact details removed by scripts/scrub-old-sponsor-leads.ts;
+  // the company, format, status and deal value stay for the revenue record.
+  archivedAt   DateTime?
+  scrubbedAt   DateTime?
   eventName    String?
   eventDate    String?
   eventWebsite String?
@@ -280,6 +285,7 @@ model SponsorLead {
 
   @@index([status])
   @@index([createdAt])
+  @@index([archivedAt])
   @@map("sponsor_leads")
 }
 
