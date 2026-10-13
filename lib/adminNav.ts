@@ -90,7 +90,7 @@ export const NAV_GROUPS: { label: string; items: AdminNavItem[] }[] = [
       { label: 'Moving Sales', href: '/admin/moving-sales', exact: false, roles: ['admin', 'moderator'],  icon: 'board'        },
       { label: 'Hangouts',     href: '/admin/hangouts',     exact: false, roles: ['admin', 'moderator'],  icon: 'hangouts'     },
       { label: 'Spotlight',    href: '/admin/spotlight',    exact: false, roles: ['admin', 'moderator'],  icon: 'spotlight'    },
-      { label: 'Partners',     href: '/admin/partners',     exact: false, roles: ['admin', 'moderator'],  icon: 'partners'     },
+      { label: 'Perk partners',href: '/admin/partners',     exact: false, roles: ['admin', 'moderator'],  icon: 'partners'     },
       { label: 'Directory',    href: '/admin/directory',    exact: false, roles: ['admin', 'moderator'],  icon: 'directory'    },
       { label: 'Tags',         href: '/admin/tags',         exact: false, roles: ['admin'],               icon: 'tags'         },
     ],
@@ -103,7 +103,7 @@ export const NAV_GROUPS: { label: string; items: AdminNavItem[] }[] = [
       // /partner-with-us (organizer collaborations) worked as one pipeline
       // (new → … → won/lost). Lives under Finance because won sponsor deals
       // carry the closed sponsorship revenue number.
-      { label: 'Sponsors & partners', href: '/admin/sponsors', exact: false, roles: ['admin'], icon: 'partners' },
+      { label: 'Sponsors & partnerships', href: '/admin/sponsors', exact: false, roles: ['admin'], icon: 'partners' },
       // Smileys Pro waitlist — founding-member cohort for the upcoming
       // professional tier. Lives in Finance because it's the leading
       // indicator for the next paid revenue line.

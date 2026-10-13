@@ -192,7 +192,7 @@ export default function AdminPartnersPage() {
     <div className="p-6 space-y-6 max-w-4xl">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-extrabold text-white">Partners</h1>
+          <h1 className="text-2xl font-extrabold text-white">Perk partners</h1>
           <p className="text-sm text-zinc-500 mt-0.5">Local businesses offering member discounts</p>
         </div>
         {cities.length > 1 && (
