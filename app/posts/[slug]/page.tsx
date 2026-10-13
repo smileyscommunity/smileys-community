@@ -22,6 +22,11 @@ import { normalizeCommunityCategory } from '@/app/admin/posts/constants'
 import ArticleInlineEditor from '@/components/ArticleInlineEditor'
 import SocialShare from '@/components/SocialShare'
 import ArticleViewBeacon from '@/components/ArticleViewBeacon'
+import EventArticleCard from '@/components/EventArticleCard'
+import MemberOffer from '@/components/MemberOffer'
+import PageViewTracker from '@/components/PageViewTracker'
+import { parseEventDetails } from '@/lib/postEventDetails'
+import { ACTIVATED_MEMBER_WHERE } from '@/lib/memberCount'
 
 // The author's privacy columns ride along so the byline can be projected for
 // this viewer (lib/storyByline); only the projected name/photo reach the
@@ -264,6 +269,15 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
   // the nature of the thing, not a bug to chase.
   const fresh    = preview ? null : await prisma.post.findUnique({ where: { id: post.id }, select: { views: true } })
   const views    = fresh?.views ?? 0
+  // Structured event facts (public only) → the details card. Re-parsed on
+  // every render, so a malformed row just means no card.
+  const eventDetails = preview ? null : parseEventDetails(post.eventDetails)
+  // Whether to OFFER a reveal button. Decided on the server for activated
+  // members only; the offer itself never enters this page — it is fetched
+  // from /api/posts/[slug]/offer, which re-checks membership.
+  const hasMemberOffer = !preview && !!session
+    && !!(await prisma.user.findFirst({ where: { id: session.id, ...ACTIVATED_MEMBER_WHERE }, select: { id: true } }))
+    && !!(await prisma.postMemberOffer.findFirst({ where: { postId: post.id, active: true }, select: { id: true } }))
   const category = normalizeCommunityCategory(post.category)
   // A city guide says which city — the category used to carry the name
   // ("Istanbul Guide"), which left the other cities without one.
@@ -376,12 +390,17 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
           <div>
             <p className="text-sm font-semibold text-gray-900">{byline.name}</p>
             <p className="text-xs text-gray-400">
-              {formatDate(post.publishedAt, city.timezone)}
+              {post.publishedAt ? `Published ${formatDate(post.publishedAt, city.timezone)}` : ''}
+              {post.publishedAt && post.updatedAt && formatDate(post.updatedAt, city.timezone) !== formatDate(post.publishedAt, city.timezone)
+                && ` · Updated ${formatDate(post.updatedAt, city.timezone)}`}
               {views > 0 && ` · 👁 ${views.toLocaleString('en-US')} view${views === 1 ? '' : 's'}`}
             </p>
           </div>
         </div>
         {!preview && <ArticleViewBeacon slug={post.slug} />}
+        {eventDetails && <PageViewTracker event="event_article_view" props={{ article_slug: post.slug, has_ticket_link: !!eventDetails.ticketUrl }} />}
+        {eventDetails && <EventArticleCard d={eventDetails} slug={post.slug} isMember={!!session} />}
+        {hasMemberOffer && <MemberOffer slug={post.slug} />}
 
         {/* Body */}
         {isHtmlBody(post.body)
@@ -401,6 +420,13 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
               cacheKey={new Date(post.updatedAt ?? post.publishedAt ?? Date.now()).getTime().toString(36)}
             />
           </div>
+        )}
+
+        {eventDetails && (
+          <p className="mt-6 text-sm text-gray-600">
+            Organizing an event in {city.name}?{' '}
+            <Link href="/partners" className="text-amber-700 font-medium underline">Partner with Smileys</Link>.
+          </p>
         )}
 
         {guide && (

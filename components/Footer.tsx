@@ -36,7 +36,7 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
   // ends with its own partner CTA band instead.
   // Nor a city shopfront: it ends with "Ready to find your people?", whose
   // apply link carries the city — this band's /apply does not.
-  const showMemberCta = !isLoggedIn && !pathname?.startsWith('/advertise') && !(urlCitySlug && pathname === `/${urlCitySlug}`)
+  const showMemberCta = !isLoggedIn && !pathname?.startsWith('/advertise') && !pathname?.startsWith('/partners') && !(urlCitySlug && pathname === `/${urlCitySlug}`)
   // Not under the admin or host panel, each of which fills the screen with
   // its own shell.
   if (pathname?.startsWith('/admin') || isHostPanelRoute(pathname)) return null
@@ -275,6 +275,7 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
                       { href: '/get-involved', label: 'Get involved 🙌'    },
                     ]
                 ),
+                { href: '/partners',     label: 'Partner with us 🤝'  },
                 { href: '/advertise',    label: 'Advertise with us 📢' },
               ].map(l => (
                 <li key={l.href}>

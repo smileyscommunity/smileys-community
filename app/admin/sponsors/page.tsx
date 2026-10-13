@@ -18,6 +18,10 @@ interface SponsorLead {
   dealValue: number | null
   currency: string
   adminNotes: string | null
+  source?: string | null
+  eventName?: string | null
+  eventDate?: string | null
+  eventWebsite?: string | null
   createdAt: string
 }
 
@@ -42,6 +46,13 @@ const FORMAT_LABELS: Record<string, string> = {
   club_partnership:  'Club Partnership',
   branded_event:     'Branded Event',
   other:             'Not sure yet',
+  partner_coverage:   'Partnership · Coverage & guides',
+  partner_interview:  'Partnership · Interview',
+  partner_discount:   'Partnership · Member discount',
+  partner_giveaway:   'Partnership · Ticket giveaway',
+  partner_attendance: 'Partnership · Hosted attendance',
+  partner_business:   'Partnership · Business event',
+  partner_other:      'Partnership · Not sure yet',
 }
 
 const inputCls = 'bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-1.5 text-white text-sm focus:outline-none focus:border-amber-500'
@@ -222,6 +233,15 @@ export default function AdminSponsorsPage() {
 
               {open && (
                 <div className="mt-4 pt-4 border-t border-zinc-800 space-y-4">
+                  {(lead.eventName || lead.eventWebsite) && (
+                    <p className="text-xs text-zinc-400 break-words">
+                      Event: <span className="text-zinc-200">{lead.eventName}</span>
+                      {lead.eventDate ? ` · ${lead.eventDate}` : ''}
+                      {lead.eventWebsite && /^https:\/\//i.test(lead.eventWebsite) && (
+                        <> · <a href={lead.eventWebsite} target="_blank" rel="noopener noreferrer" className="text-amber-400 underline">{lead.eventWebsite}</a></>
+                      )}
+                    </p>
+                  )}
                   <p className="text-sm text-zinc-300 whitespace-pre-wrap break-words">{lead.message}</p>
                   <div className="flex items-end gap-3 flex-wrap">
                     <div>

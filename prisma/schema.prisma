@@ -269,6 +269,12 @@ model SponsorLead {
   dealValue  Float?
   currency   String   @default("TRY")
   adminNotes String?
+  // /partners enquiries only (null on /advertise leads). eventDate is text
+  // 'YYYY-MM-DD' like Event.date.
+  source       String?
+  eventName    String?
+  eventDate    String?
+  eventWebsite String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @default(now()) @updatedAt
 
@@ -1850,6 +1856,12 @@ model Post {
   // Backfilled to 'TR' on the four Türkiye-wide handbook articles.
   country            String?
 
+  // Structured facts for an event article (lib/postEventDetails). PUBLIC
+  // fields only — a restricted offer lives in PostMemberOffer, never here:
+  // this column rides inside the cached post and the page payload.
+  eventDetails Json?
+  memberOffer  PostMemberOffer?
+
   author      User      @relation(fields: [authorId], references: [id])
   likes       PostLike[]
 
@@ -2707,4 +2719,25 @@ model HandbookSource {
 
   @@index([changedAt])
   @@map("handbook_sources")
+}
+
+
+// A restricted (private-channel) offer attached to an article, e.g. a partner
+// discount the organizer allowed only for members. Kept OUT of Post on
+// purpose: Post is cached, serialised into page props and selected whole by
+// many queries. This row is read only by /api/posts/[slug]/offer, after a
+// server-side membership check.
+model PostMemberOffer {
+  id        String   @id @default(cuid())
+  postId    String   @unique
+  label     String
+  url       String?
+  code      String?
+  note      String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@map("post_member_offers")
 }

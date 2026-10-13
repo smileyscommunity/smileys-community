@@ -62,7 +62,7 @@ export const PAGE_ROUTES = [
   '/host/review',
   '/hosts', '/invite', '/login', '/marketplace', '/members', '/members/[id]', '/messages', '/messages/[userId]', '/moving',
   '/moving-sales/[id]', '/my-events', '/neighborhoods', '/neighborhoods/[slug]', '/no-show', '/notifications',
-  '/notifications/settings', '/partner', '/partner/settings', '/pending', '/perks', '/posts', '/posts/[slug]', '/privacy',
+  '/notifications/settings', '/partner', '/partner/settings', '/partners', '/pending', '/perks', '/posts', '/posts/[slug]', '/privacy',
   '/pro', '/profile', '/profile-visitors', '/remote-work', '/students', '/reset-password', '/reviews', '/settings', '/share-story', '/standing', '/survey/nps',
   '/terms', '/unsubscribe', '/verify-email', '/visiting', '/visiting/new', '/why',
 ] as const
