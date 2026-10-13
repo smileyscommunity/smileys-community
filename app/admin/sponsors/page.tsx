@@ -70,20 +70,32 @@ export default function AdminSponsorsPage() {
   )
 
   const [filter, setFilter] = useState<string>('all')
+  // Paid advertising leads (/advertise) vs event-organizer partnership
+  // enquiries (/partner-with-us, source = 'partners') — same table, two inboxes.
+  const [kind, setKind] = useState<'all' | 'sponsors' | 'partnerships'>('all')
   const [openId, setOpenId] = useState<string | null>(null)
   // Per-lead draft for value/notes so typing doesn't fire a PATCH per
   // keystroke — saved explicitly via the Save button.
   const [drafts, setDrafts] = useState<Record<string, { dealValue: string; currency: string; adminNotes: string }>>({})
 
   const leads = useMemo(() => {
-    const all = data?.leads ?? []
+    const all = (data?.leads ?? []).filter(l => kind === 'all' || (kind === 'partnerships') === (l.source === 'partners'))
     return filter === 'all' ? all : all.filter(l => l.status === filter)
-  }, [data, filter])
+  }, [data, filter, kind])
 
   const counts = useMemo(() => {
     const c: Record<string, number> = {}
-    for (const l of data?.leads ?? []) c[l.status] = (c[l.status] ?? 0) + 1
+    for (const l of data?.leads ?? []) {
+      if (kind !== 'all' && (kind === 'partnerships') !== (l.source === 'partners')) continue
+      c[l.status] = (c[l.status] ?? 0) + 1
+    }
     return c
+  }, [data, kind])
+
+  const kindCounts = useMemo(() => {
+    const all = data?.leads ?? []
+    const p = all.filter(l => l.source === 'partners').length
+    return { all: all.length, sponsors: all.length - p, partnerships: p }
   }, [data])
 
   async function patch(id: string, body: Record<string, unknown>) {
@@ -165,7 +177,7 @@ export default function AdminSponsorsPage() {
       <div className="flex items-end justify-between flex-wrap gap-4 mb-6">
         <div>
           <h1 className="text-xl font-bold text-white">Sponsors</h1>
-          <p className="text-zinc-500 text-sm mt-1">B2B leads from the advertise page — work them from inquiry to closed deal.</p>
+          <p className="text-zinc-500 text-sm mt-1">Sponsor leads from the advertise page and partnership enquiries from the partner-with-us page — work them from inquiry to closed deal.</p>
         </div>
         <div className="text-right">
           {/* Won deals per currency — never one sum across lira and euros. */}
@@ -176,6 +188,19 @@ export default function AdminSponsorsPage() {
           </div>
           <div className="text-xs text-zinc-500">{data?.summary.wonCount ?? 0} won deal{(data?.summary.wonCount ?? 0) === 1 ? '' : 's'}</div>
         </div>
+      </div>
+
+      <div role="group" aria-label="Lead type" className="flex gap-2 flex-wrap mb-3">
+        {([['all', 'All leads'], ['sponsors', 'Sponsors'], ['partnerships', 'Partnerships']] as const).map(([k, label]) => (
+          <button key={k} onClick={() => setKind(k)} aria-pressed={kind === k}
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-colors ${
+              kind === k
+                ? 'border-amber-500 bg-amber-500/10 text-amber-400'
+                : 'border-zinc-800 text-zinc-500 hover:text-zinc-300'
+            }`}>
+            {label} · {kindCounts[k]}
+          </button>
+        ))}
       </div>
 
       <div className="flex gap-2 flex-wrap mb-5">
@@ -217,6 +242,9 @@ export default function AdminSponsorsPage() {
                       {lead.status}
                     </span>
                     <span className="text-xs text-zinc-500">{FORMAT_LABELS[lead.format] ?? lead.format}</span>
+                    {lead.source === 'partners' && (
+                      <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold border border-sky-500/30 bg-sky-500/10 text-sky-300">Partnership</span>
+                    )}
                     {lead.status === 'won' && lead.dealValue !== null && (
                       <span className="text-xs font-semibold text-green-400">{fmtMoney(lead.dealValue, lead.currency || cur)}</span>
                     )}
