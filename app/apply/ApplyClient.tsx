@@ -499,7 +499,7 @@ function ApplyForm({ initialCity }: { initialCity: InitialCity | null }) {
   if (submitted) {
     return (
       <div className="min-h-screen bg-warm flex items-center justify-center px-4">
-        <div className="bg-white rounded-2xl shadow-card p-10 max-w-md w-full text-center">
+        <div className="bg-white rounded-2xl border border-gray-100 p-10 max-w-md w-full text-center">
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-5">
             <svg className="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
@@ -538,7 +538,7 @@ function ApplyForm({ initialCity }: { initialCity: InitialCity | null }) {
 
         {/* Header */}
         <div className="mb-6">
-          <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">Application</span>
+          <p className="text-xs font-bold uppercase tracking-widest text-amber-600 mb-3">Application</p>
           <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight mb-1">Apply to join</h1>
           <p className="text-gray-600 text-sm">
             {cityLive
@@ -625,9 +625,9 @@ function ApplyForm({ initialCity }: { initialCity: InitialCity | null }) {
         {step === 0 && (
           <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4 mb-6 space-y-2">
             {(cityMature ? [
-              { icon: '🤝', text: 'Members who made their closest friends here' },
-              { icon: '🌍', text: `Expats who found their ${targetCityName} community` },
-              { icon: '💼', text: 'Founders who met their co-founders at events' },
+              { icon: '🤝', text: 'Members meeting people and building friendships at events' },
+              { icon: '🌍', text: `Expats finding their ${targetCityName} community` },
+              { icon: '💼', text: 'Professionals making useful connections along the way' },
             ] : [
               cityLive
                 ? { icon: '🌱', text: `Smileys ${targetCityName} is in its founding stage — the first members shape what it becomes.` }
@@ -662,7 +662,7 @@ function ApplyForm({ initialCity }: { initialCity: InitialCity | null }) {
           </div>
         )}
 
-        <div ref={stepCardRef} tabIndex={-1} aria-label={`Step ${step + 1}: ${STEPS[step]}`} className="bg-white rounded-2xl shadow-card p-6 space-y-4 outline-none">
+        <div ref={stepCardRef} tabIndex={-1} aria-label={`Step ${step + 1}: ${STEPS[step]}`} className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4 outline-none">
           <input type="text" name="website" value={honeypot} onChange={e => setHoneypot(e.target.value)}
             tabIndex={-1} autoComplete="off" aria-hidden="true" aria-label="Leave this field blank"
             style={{ position: 'absolute', left: '-9999px', opacity: 0, height: 0 }} />

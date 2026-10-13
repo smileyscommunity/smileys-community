@@ -500,7 +500,7 @@ export default async function HomePage() {
               {
                 emoji: '🆓',
                 title: 'Joining is free',
-                body:  'Apply in about five minutes. We review every application by hand within 24–48 hours — we look for vibe alignment, not credentials.',
+                body:  'Apply in about three minutes. We review every application by hand within 24–48 hours — we look for vibe alignment, not credentials.',
               },
               {
                 emoji: '🎟️',

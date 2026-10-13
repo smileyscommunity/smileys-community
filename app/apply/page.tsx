@@ -25,10 +25,10 @@ export async function generateMetadata(
   const ogImage = `${APP_URL}/api/og?${new URLSearchParams({
     title,
     eyebrow: cityName ? `Smileys ${cityName}` : 'Curated city communities',
-    cta:     '5-minute application',
+    cta:     '3-minute application',
   }).toString()}`
 
-  const description = `Apply to join Smileys${where} — a curated community for internationals and locals who meet through events and clubs. The application takes about 5 minutes.`
+  const description = `Apply to join Smileys${where} — a curated community for internationals and locals who meet through events and clubs. The application takes about 3 minutes.`
   const url = city ? `${APP_URL}/apply?city=${encodeURIComponent(city.slug)}` : `${APP_URL}/apply`
 
   return {

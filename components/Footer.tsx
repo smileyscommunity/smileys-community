@@ -32,11 +32,12 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
   const { isLoggedIn } = useAuth()
   const pathname = usePathname()
   const footerStats = stats?.slice(0, 3) ?? DEFAULT_STATS
-  // The member pitch has no business closing the advertiser page — /advertise
-  // ends with its own partner CTA band instead.
+  // The member pitch has no business closing the advertiser and partner pages,
+  // which end on their enquiry forms, nor the application itself — a "Apply to
+  // join" band under the apply form points at the page you're already on.
   // Nor a city shopfront: it ends with "Ready to find your people?", whose
   // apply link carries the city — this band's /apply does not.
-  const showMemberCta = !isLoggedIn && !pathname?.startsWith('/advertise') && !pathname?.startsWith('/partner-with-us') && !(urlCitySlug && pathname === `/${urlCitySlug}`)
+  const showMemberCta = !isLoggedIn && !pathname?.startsWith('/advertise') && !pathname?.startsWith('/partner-with-us') && !pathname?.startsWith('/apply') && !(urlCitySlug && pathname === `/${urlCitySlug}`)
   // Not under the admin or host panel, each of which fills the screen with
   // its own shell.
   if (pathname?.startsWith('/admin') || isHostPanelRoute(pathname)) return null
