@@ -31,13 +31,13 @@ export default function EventArticleCard({ d, slug, isMember }: { d: EventDetail
         </dl>
       )}
       {d.ticketUrl && (
-        <TicketLink href={d.ticketUrl} slug={slug} host={host}
+        <TicketLink href={d.ticketUrl} slug={slug} host={host} label={`Buy your ticket${host ? ` on ${host}` : ''} (opens in a new tab)`}
           className="mt-4 flex items-center justify-center gap-2 w-full sm:w-auto sm:inline-flex px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm transition-colors">
-          Official ticket page{host ? ` (${host})` : ''} ↗
+          Buy your ticket ↗
         </TicketLink>
       )}
       <p className="mt-4 text-xs text-gray-500">
-        Details come from the organizer and can change — check the official page before you go.
+        {d.ticketUrl && <>Tickets are sold by the organizer, not by Smileys. </>}Details come from the organizer and can change — check the official page before you go.
         {!isMember && <> Want to go with other Smileys members? <Link href="/apply" className="text-amber-700 font-medium underline">Apply to join</Link>.</>}
       </p>
     </aside>
