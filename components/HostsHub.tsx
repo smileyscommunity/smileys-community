@@ -19,24 +19,25 @@ export default function HostsHub({ city, hosts, signedIn }: {
 
   return (
     <>
-      <section className="bg-gradient-to-b from-amber-50 via-white to-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-8">
-          <Link href={`/${city.slug}`} className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-amber-700 hover:text-amber-800 mb-6">
+      {/* Hero: same shape as /partner-with-us (eyebrow, big heading, one calm paragraph). */}
+      <section className="bg-white border-b border-gray-100">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-14 sm:py-16 text-center">
+          <Link href={`/${city.slug}`} className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-amber-600 hover:text-amber-700 mb-4">
             <span aria-hidden="true">←</span> Smileys {city.name}
           </Link>
-          <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-gray-900 mb-3">
+          <h1 className="text-3xl sm:text-5xl font-extrabold text-gray-900 tracking-tight leading-tight mb-5">
             Meet the Hosts in <span className="text-amber-600">{city.name}</span>
           </h1>
-          <p className="text-lg text-gray-600 max-w-2xl">
+          <p className="text-lg text-gray-600 leading-relaxed max-w-2xl mx-auto">
             {rosterSummary(hosts.length, leads, city.name)}
           </p>
         </div>
       </section>
 
-      <section className="py-10 sm:py-14 bg-white border-t border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="py-14 bg-warm">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6">
           {hosts.length === 0 ? (
-            <div className="rounded-3xl border border-gray-100 bg-gray-50 p-8 sm:p-12 text-center">
+            <div className="rounded-2xl border border-gray-100 bg-white p-8 sm:p-12 text-center">
               <h2 className="section-title mb-2">No hosts here yet</h2>
               <p className="text-gray-600 mb-6 max-w-xl mx-auto">
                 Every city starts with one person who decides to host the first thing. In {city.name}, that could be you.
@@ -54,14 +55,14 @@ export default function HostsHub({ city, hosts, signedIn }: {
 
           <HostPath cityName={city.name} className="mt-12" />
 
-          <div className="mt-8 bg-gradient-to-br from-amber-500 to-orange-500 rounded-2xl p-8 text-center text-white">
-            <h2 className="text-2xl font-extrabold mb-2">Could you be a host?</h2>
-            <p className="text-amber-50 max-w-xl mx-auto mb-6">
+          <div className="mt-8 bg-white rounded-2xl border border-gray-100 p-6 sm:p-8 text-center">
+            <h2 className="text-xl font-extrabold text-gray-900 mb-2">Could you be a host?</h2>
+            <p className="text-sm text-gray-600 max-w-xl mx-auto mb-5">
               Hosts get support, visibility and the best seat in the house: watching people you
               brought together become friends. No experience needed — just care.
             </p>
             <Link href={involved}
-              className="inline-flex items-center gap-2 bg-white text-amber-600 font-bold px-8 py-3.5 rounded-xl hover:bg-amber-50 transition-colors">
+              className="inline-flex items-center gap-2 px-7 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm transition-colors">
               Become a host
               <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
