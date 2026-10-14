@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { DISCOVER_LINKS } from '@/lib/navLinks'
+import { DISCOVER_LINKS, ABOUT_LINKS } from '@/lib/navLinks'
 
 // Guests and members get different navigation, and the link catalog encodes
 // that with two flags rather than two lists:
@@ -111,3 +111,11 @@ describe('Discover ordering', () => {
   })
 })
 
+
+describe('About group', () => {
+  it('links the partner and advertiser pages from the navigation, not only the footer', () => {
+    const hs = ABOUT_LINKS.map(l => l.href)
+    expect(hs).toContain('/partner-with-us')
+    expect(hs).toContain('/advertise')
+  })
+})

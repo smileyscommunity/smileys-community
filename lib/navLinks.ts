@@ -64,4 +64,8 @@ export const DISCOVER_LINKS: NavLink[] = [
 export const ABOUT_LINKS = [
   { label: 'Why Smileys?', href: '/why',   emoji: '💡' },
   { label: 'About',        href: '/about', emoji: '😊' },
+  // For organizers and brands, not members: they reach the two pages from the
+  // same place as the other "about the organization" links.
+  { label: 'Partner with us', href: '/partner-with-us', emoji: '🤝' },
+  { label: 'Advertise',       href: '/advertise',       emoji: '📢' },
 ]

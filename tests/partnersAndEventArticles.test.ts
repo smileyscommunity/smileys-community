@@ -94,7 +94,8 @@ describe('partnership enquiry + export (step 1)', () => {
   it('only name, org, email, interest and message are required; event/venue/budget are optional', () => {
     const r = read('app/api/partner-with-us/enquiry/route.ts')
     expect(r).toMatch(/if \(!name \|\| !org \|\| !email \|\| !collab \|\| !message\)/)
-    expect(r).toMatch(/eventVenue: eventVenue \|\| null, budgetRange: budgetRange \|\| null/)
+    expect(r).toMatch(/eventVenue: eventVenue \|\| null, campaignSource/)
+    expect(r).not.toMatch(/budgetRange/) // coverage is not for sale: budget lives on /advertise
     expect(r).toMatch(/verifyTurnstile/)
     expect(r).toMatch(/rateLimit\(/)
   })
@@ -117,7 +118,8 @@ describe('partnership enquiry + export (step 1)', () => {
     expect(page).not.toMatch(/Full rooms|multiple events per week/)
   })
   it('the advertise form and API carry a sanitized ?src= tag like the partner form', () => {
-    expect(read('app/advertise/AdvertiseFormClient.tsx')).toMatch(/window\.location\.search/)
+    expect(read('components/enquiry/useEnquirySubmit.ts')).toMatch(/window\.location\.search/)
+    expect(read('app/advertise/AdvertiseFormClient.tsx')).toMatch(/useEnquirySubmit\(/)
     expect(read('app/api/advertise/route.ts')).toMatch(/\^\[a-z0-9_-\]\{1,40\}\$/)
     expect(read('app/api/advertise/route.ts')).toMatch(/campaignSource,/)
   })
@@ -202,5 +204,23 @@ describe('admin inbox labels every partnership interest', () => {
     const { COLLAB_TYPES } = await import('@/lib/partners')
     const admin = read('app/admin/sponsors/page.tsx')
     for (const c of COLLAB_TYPES) expect(admin, `missing label for partner_${c.value}`).toContain(`partner_${c.value}:`)
+  })
+})
+
+describe('the two enquiry forms fit their pages', () => {
+  it('the coverage form has no budget field; the advertise form has website, target date and budget', () => {
+    expect(read('app/partner-with-us/PartnersEnquiryForm.tsx')).not.toMatch(/budget/i)
+    const ad = read('app/advertise/AdvertiseFormClient.tsx')
+    for (const id of ['ad-website', 'ad-date', 'ad-budget']) expect(ad).toContain(`id="${id}"`)
+    const api = read('app/api/advertise/route.ts')
+    expect(api).toMatch(/budgetRange:\s+budget \|\| null/)
+    expect(api).toMatch(/isSafeHref\(siteUrl\)/)
+  })
+  it('both forms share one submit/anti-spam hook, so success means ok:true on both', () => {
+    for (const f of ['app/partner-with-us/PartnersEnquiryForm.tsx', 'app/advertise/AdvertiseFormClient.tsx']) expect(read(f)).toMatch(/useEnquirySubmit\(/)
+    const hook = read('components/enquiry/useEnquirySubmit.ts')
+    expect(hook).toMatch(/data\.ok !== true/)
+    expect(hook).toMatch(/_hp: honeypot/)
+    expect(hook).toMatch(/_cf: turnstileToken/)
   })
 })

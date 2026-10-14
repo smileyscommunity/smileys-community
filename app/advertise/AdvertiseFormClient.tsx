@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState } from 'react'
 import Turnstile from '@/components/Turnstile'
+import { useEnquirySubmit } from '@/components/enquiry/useEnquirySubmit'
 
 const inputCls = 'input'
 
@@ -15,57 +16,18 @@ const FORMATS = [
 
 export default function AdvertiseFormClient() {
   const [form, setForm] = useState({
-    name: '', email: '', company: '', format: '', message: '',
+    name: '', email: '', company: '', website: '', format: '', targetDate: '', budgetRange: '', message: '',
   })
-  const [loading,   setLoading]   = useState(false)
-  const [submitted, setSubmitted] = useState(false)
-  const [error,     setError]     = useState('')
-  const [honeypot,       setHoneypot]       = useState('')
-  const [turnstileToken, setTurnstileToken] = useState('')
-  // Bumped after a failed submit — Turnstile tokens are single-use, so retries need a fresh one
-  const [turnstileReset, setTurnstileReset] = useState(0)
-  const loadedAt = useRef(Date.now())
-  // Channel tag from the link (?src=newsletter-oct), read in the browser so the page stays
-  // cacheable. Only a short [a-z0-9_-] label is sent.
-  const src = useRef('')
-  useEffect(() => { try { src.current = new URLSearchParams(window.location.search).get('src') ?? '' } catch { /* optional */ } }, [])
+  const { loading, submitted, error, clearError, honeypot, setHoneypot, turnstileReset, onTurnstileVerify, onTurnstileExpire, submit } = useEnquirySubmit('/app/api/advertise')
 
   function set(k: keyof typeof form, v: string) {
     setForm(prev => ({ ...prev, [k]: v }))
-    if (error) setError('')
+    if (error) clearError()
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setError('')
-    setLoading(true)
-    try {
-      const res = await fetch('/app/api/advertise', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name:    form.name,
-          email:   form.email,
-          company: form.company,
-          format:  form.format,
-          message: form.message,
-          src: src.current,
-          _hp: honeypot,
-          _t:  loadedAt.current,
-          _cf: turnstileToken,
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setError(data.error ?? 'Something went wrong')
-        setTurnstileToken('')
-        setTurnstileReset(n => n + 1)
-        return
-      }
-      setSubmitted(true)
-    } finally {
-      setLoading(false)
-    }
+    await submit(form)
   }
 
   if (submitted) {
@@ -113,6 +75,12 @@ export default function AdvertiseFormClient() {
         </div>
 
         <div>
+          <label htmlFor="ad-website" className="block text-xs font-semibold text-gray-600 mb-1.5">Company website <span className="font-normal text-gray-500">(optional)</span></label>
+          <input id="ad-website" type="url" inputMode="url" autoComplete="url" placeholder="https://" maxLength={300}
+            value={form.website} onChange={e => set('website', e.target.value)} className={inputCls} />
+        </div>
+
+        <div>
           <p id="ad-format-label" className="block text-xs font-semibold text-gray-600 mb-2">Format of interest</p>
           <div role="group" aria-labelledby="ad-format-label" className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {FORMATS.map(f => (
@@ -125,6 +93,18 @@ export default function AdvertiseFormClient() {
                 {f.label}
               </button>
             ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="ad-date" className="block text-xs font-semibold text-gray-600 mb-1.5">Target start date <span className="font-normal text-gray-500">(optional)</span></label>
+            <input id="ad-date" type="date" value={form.targetDate} onChange={e => set('targetDate', e.target.value)} className={inputCls} />
+          </div>
+          <div>
+            <label htmlFor="ad-budget" className="block text-xs font-semibold text-gray-600 mb-1.5">Budget range <span className="font-normal text-gray-500">(optional)</span></label>
+            <input id="ad-budget" maxLength={80} placeholder="e.g. €500–1,000, or not sure yet"
+              value={form.budgetRange} onChange={e => set('budgetRange', e.target.value)} className={inputCls} />
           </div>
         </div>
 
@@ -141,7 +121,7 @@ export default function AdvertiseFormClient() {
           />
         </div>
 
-        <Turnstile onVerify={setTurnstileToken} onExpire={() => setTurnstileToken('')} resetSignal={turnstileReset} />
+        <Turnstile onVerify={onTurnstileVerify} onExpire={onTurnstileExpire} resetSignal={turnstileReset} />
 
         <button
           type="submit"
