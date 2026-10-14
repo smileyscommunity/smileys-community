@@ -89,3 +89,28 @@ describe('validateEventDetailsInput (admin editor)', () => {
     expect(read('app/api/admin/posts/[id]/route.ts')).toMatch(/private member offer/)
   })
 })
+
+describe('partnership enquiry + export (step 1)', () => {
+  it('only name, org, email, interest and message are required; event/venue/budget are optional', () => {
+    const r = read('app/api/partner-with-us/enquiry/route.ts')
+    expect(r).toMatch(/if \(!name \|\| !org \|\| !email \|\| !collab \|\| !message\)/)
+    expect(r).toMatch(/eventVenue: eventVenue \|\| null, budgetRange: budgetRange \|\| null/)
+    expect(r).toMatch(/verifyTurnstile/)
+    expect(r).toMatch(/rateLimit\(/)
+  })
+  it('the three requested offers are selectable interests', async () => {
+    const { COLLAB_LABELS } = await import('@/lib/partners')
+    expect(COLLAB_LABELS.promote_event).toBe('Promote an event')
+    expect(COLLAB_LABELS.monthly_partner).toBe('Become a monthly partner')
+    expect(COLLAB_LABELS.sponsor_experience).toBe('Sponsor a Smileys experience')
+  })
+  it('the CSV export is admin-only, no-store, and neutralises spreadsheet formulas', () => {
+    const r = read('app/api/admin/sponsors/export/route.ts')
+    expect(r).toMatch(/!isAdmin\(session\)\) return NextResponse\.json\(\{ error: 'Forbidden' \}, \{ status: 403 \}/)
+    expect(r).toMatch(/no-store/)
+    expect(r).toMatch(/\[=\+\\-@/)
+  })
+  it('the scrub script clears the new contact-adjacent columns', () => {
+    expect(read('scripts/scrub-old-sponsor-leads.ts')).toMatch(/eventVenue: null, budgetRange: null/)
+  })
+})

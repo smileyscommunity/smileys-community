@@ -3,7 +3,7 @@
 // keeps what the business record needs (company, format, status, deal value).
 //
 // What it scrubs: name → '[removed]', email → 'removed@invalid', message →
-// '[removed]', eventWebsite/adminNotes → null. Sets scrubbedAt, so a row is
+// '[removed]', eventWebsite/eventVenue/budgetRange/adminNotes → null. Sets scrubbedAt, so a row is
 // never processed twice and the admin shows "Contact removed".
 //
 // What it never touches: a lead updated within RETENTION_DAYS; any lead in
@@ -36,7 +36,7 @@ async function main() {
   // Guarded on the same condition, so a lead touched since the read is skipped.
   const res = await prisma.sponsorLead.updateMany({
     where: { ...where, id: { in: rows.map(r => r.id) } },
-    data: { name: '[removed]', email: 'removed@invalid', message: '[removed]', eventWebsite: null, adminNotes: null, scrubbedAt: new Date() },
+    data: { name: '[removed]', email: 'removed@invalid', message: '[removed]', eventWebsite: null, eventVenue: null, budgetRange: null, adminNotes: null, scrubbedAt: new Date() },
   })
   await writeAudit('system', 'retention script', 'sponsor_lead.scrub', 'batch', 'sponsor_lead', { count: res.count, retentionDays: days })
   console.log(`scrubbed ${res.count} lead(s)`)

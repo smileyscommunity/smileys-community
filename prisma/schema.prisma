@@ -280,6 +280,10 @@ model SponsorLead {
   eventName    String?
   eventDate    String?
   eventWebsite String?
+  // Optional extras from /partner-with-us: venue, and a budget the sender
+  // chose to state (free text, never a published price). Admin-only.
+  eventVenue   String?
+  budgetRange  String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @default(now()) @updatedAt
 

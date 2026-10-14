@@ -9,7 +9,7 @@ const inputCls = 'input'
 type Opt = { value: string; label: string }
 
 export default function PartnersEnquiryForm({ options }: { options: readonly Opt[] }) {
-  const [form, setForm] = useState({ name: '', organization: '', email: '', eventName: '', eventDate: '', eventWebsite: '', collaboration: '', message: '' })
+  const [form, setForm] = useState({ name: '', organization: '', email: '', eventName: '', eventDate: '', eventVenue: '', budgetRange: '', eventWebsite: '', collaboration: '', message: '' })
   const [loading, setLoading] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState('')
@@ -23,8 +23,7 @@ export default function PartnersEnquiryForm({ options }: { options: readonly Opt
     if (error) setError('')
   }
 
-  const ready = form.name.trim() && form.organization.trim() && form.email.trim() && form.eventName.trim()
-    && form.eventWebsite.trim() && form.collaboration && form.message.trim().length >= 10
+  const ready = form.name.trim() && form.organization.trim() && form.email.trim() && form.collaboration && form.message.trim().length >= 10
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -82,25 +81,35 @@ export default function PartnersEnquiryForm({ options }: { options: readonly Opt
           </div>
         </div>
         <div>
-          <label htmlFor="pe-email" className="block text-xs font-semibold text-gray-600 mb-1.5">Work email</label>
+          <label htmlFor="pe-email" className="block text-xs font-semibold text-gray-600 mb-1.5">Business email</label>
           <input id="pe-email" type="email" inputMode="email" autoComplete="email" value={form.email} onChange={e => set('email', e.target.value)} required className={inputCls} />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label htmlFor="pe-event" className="block text-xs font-semibold text-gray-600 mb-1.5">Event name</label>
-            <input id="pe-event" value={form.eventName} onChange={e => set('eventName', e.target.value)} required maxLength={160} className={inputCls} />
+            <label htmlFor="pe-event" className="block text-xs font-semibold text-gray-600 mb-1.5">Event name <span className="font-normal text-gray-500">(if applicable)</span></label>
+            <input id="pe-event" value={form.eventName} onChange={e => set('eventName', e.target.value)} maxLength={160} className={inputCls} />
           </div>
           <div>
             <label htmlFor="pe-date" className="block text-xs font-semibold text-gray-600 mb-1.5">Event date <span className="font-normal text-gray-500">(optional)</span></label>
             <input id="pe-date" type="date" value={form.eventDate} onChange={e => set('eventDate', e.target.value)} className={inputCls} />
           </div>
         </div>
-        <div>
-          <label htmlFor="pe-site" className="block text-xs font-semibold text-gray-600 mb-1.5">Event website</label>
-          <input id="pe-site" type="url" inputMode="url" placeholder="https://" value={form.eventWebsite} onChange={e => set('eventWebsite', e.target.value)} required maxLength={300} className={inputCls} />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="pe-venue" className="block text-xs font-semibold text-gray-600 mb-1.5">Venue <span className="font-normal text-gray-500">(if applicable)</span></label>
+            <input id="pe-venue" value={form.eventVenue} onChange={e => set('eventVenue', e.target.value)} maxLength={160} className={inputCls} />
+          </div>
+          <div>
+            <label htmlFor="pe-budget" className="block text-xs font-semibold text-gray-600 mb-1.5">Budget range <span className="font-normal text-gray-500">(optional)</span></label>
+            <input id="pe-budget" value={form.budgetRange} onChange={e => set('budgetRange', e.target.value)} maxLength={80} placeholder="e.g. €500–1,000, or not sure yet" className={inputCls} />
+          </div>
         </div>
         <div>
-          <label htmlFor="pe-collab" className="block text-xs font-semibold text-gray-600 mb-1.5">Type of collaboration</label>
+          <label htmlFor="pe-site" className="block text-xs font-semibold text-gray-600 mb-1.5">Website <span className="font-normal text-gray-500">(optional)</span></label>
+          <input id="pe-site" type="url" inputMode="url" placeholder="https://" value={form.eventWebsite} onChange={e => set('eventWebsite', e.target.value)} maxLength={300} className={inputCls} />
+        </div>
+        <div>
+          <label htmlFor="pe-collab" className="block text-xs font-semibold text-gray-600 mb-1.5">Partnership interest</label>
           <select id="pe-collab" value={form.collaboration} onChange={e => set('collaboration', e.target.value)} required className={inputCls}>
             <option value="">Choose one…</option>
             {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}

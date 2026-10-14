@@ -26,6 +26,8 @@ interface SponsorLead {
   eventName?: string | null
   eventDate?: string | null
   eventWebsite?: string | null
+  eventVenue?: string | null
+  budgetRange?: string | null
   createdAt: string
 }
 
@@ -223,6 +225,7 @@ export default function AdminSponsorsPage() {
           <p className="text-zinc-500 text-sm mt-1">Paid sponsor leads from the advertise page and collaboration enquiries from the partner-with-us page — work them from inquiry to closed deal.</p>
         </div>
         <div className="text-right">
+          <a href="/app/api/admin/sponsors/export" download className="inline-block mb-2 text-xs font-semibold text-amber-400 underline">Export all as CSV</a>
           {/* Won deals per currency — never one sum across lira and euros. */}
           <div className="text-2xl font-bold text-green-400">
             {(data?.summary.won?.length ?? 0) > 0
@@ -339,6 +342,13 @@ export default function AdminSponsorsPage() {
 
               {open && (
                 <div className="mt-4 pt-4 border-t border-zinc-800 space-y-4">
+                  {(lead.eventVenue || lead.budgetRange) && (
+                    <p className="text-xs text-zinc-400 mt-1">
+                      {lead.eventVenue && <>Venue: <span className="text-zinc-200">{lead.eventVenue}</span></>}
+                      {lead.eventVenue && lead.budgetRange && ' · '}
+                      {lead.budgetRange && <>Stated budget: <span className="text-zinc-200">{lead.budgetRange}</span></>}
+                    </p>
+                  )}
                   {(lead.eventName || lead.eventWebsite) && (
                     <p className="text-xs text-zinc-400 break-words">
                       Event: <span className="text-zinc-200">{lead.eventName}</span>
