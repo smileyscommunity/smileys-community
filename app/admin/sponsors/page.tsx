@@ -400,6 +400,15 @@ export default function AdminSponsorsPage() {
                       className="px-4 py-1.5 rounded-xl border border-zinc-700 hover:bg-zinc-800 text-zinc-300 text-sm font-semibold transition-colors">
                       Reply
                     </a>}
+                    <button onClick={async () => {
+                      const res = await fetch('/app/api/admin/partnerships', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ leadId: lead.id }) })
+                      const body = await res.json().catch(() => ({}))
+                      if (res.ok) toast.success('Partnership record created — see Partnerships')
+                      else toast.error(body.error ?? 'Could not create the record')
+                    }}
+                      className="px-4 py-1.5 rounded-xl border border-zinc-700 hover:bg-zinc-800 text-zinc-300 text-sm font-semibold transition-colors">
+                      Start partnership record
+                    </button>
                   </div>
                 </div>
               )}

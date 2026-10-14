@@ -2755,3 +2755,48 @@ model PostMemberOffer {
 
   @@map("post_member_offers")
 }
+
+// Admin-only partnership/sponsorship record (Admin → Partnerships). One row per
+// organizer relationship or campaign, from first research to closed. Nothing
+// here sends anything: stages are a manual record, never a trigger. Money is
+// kept apart on purpose: the fixed fee and the commission terms are what was
+// AGREED; what was actually received is recorded separately (campaign
+// reporting) and is never derived from either. Dates are text 'YYYY-MM-DD'.
+model Partnership {
+  id            String    @id @default(cuid())
+  organizer     String
+  contactName   String?
+  contactEmail  String?
+  website       String?
+  stage         String    @default("research")
+  type          String?
+  // Optional links back to what this is about; plain ids (no FK) so a deleted
+  // event or article never blocks or cascades into the deal record.
+  leadId        String?
+  eventId       String?
+  postId        String?
+  campaignName  String?
+  deliverables  String?
+  startDate     String?
+  endDate       String?
+  feeAmount     Float?
+  feeCurrency   String    @default("TRY")
+  commissionType     String?
+  commissionRate     Float?
+  commissionCurrency String?
+  commissionBasis    String?
+  reportingTerms     String?
+  paymentTerms       String?
+  paymentStatus      String @default("none")
+  followUpDate  String?
+  internalNotes String?
+  archivedAt    DateTime?
+  createdById   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @default(now()) @updatedAt
+
+  @@index([stage])
+  @@index([followUpDate])
+  @@index([archivedAt])
+  @@map("partnerships")
+}
