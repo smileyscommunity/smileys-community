@@ -122,6 +122,10 @@ const BODY_PROSE = [
   // TipTap wraps each list item's text in its own <p>; prose's paragraph
   // margins would otherwise space single-line bullets like paragraphs.
   '[&_li>p]:my-0',
+  // The paragraph straight after an image is its caption / photo credit
+  // (TipTap stores <img> bare, then the credit as the next <p>): small and
+  // muted, tucked under the photo instead of reading as body copy.
+  '[&_img+p]:text-sm [&_img+p]:text-gray-500 [&_img+p]:leading-snug [&_img+p]:mt-2 [&_img+p]:mb-8',
 ].join(' ')
 
 // Meta/OG description fallback. Bodies are HTML now, so a raw slice would ship
