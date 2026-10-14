@@ -114,7 +114,7 @@ const RESEARCH_SCHEMA = {
     found:              { type: 'boolean', description: 'true when this exact venue (same name, same neighborhood/address) was identified online' },
     is_business:        { type: 'boolean', description: 'false for parks, piers, stations, public buildings, walking routes' },
     permanently_closed: { type: 'boolean' },
-    category:           { type: ['string', 'null'], enum: [...BUSINESS_CATEGORIES, null], description: 'The single best fit among our categories (a sushi bar is Restaurant, a coffee shop Cafe, a pub or cocktail bar Bar). "Other" or null when none clearly fits, e.g. a park, theatre or cultural centre' },
+    category:           { type: ['string', 'null'], enum: [...BUSINESS_CATEGORIES, null], description: 'The single best fit among our categories (a sushi bar is Restaurant, a coffee shop Cafe, a pub or cocktail bar Bar). "Other" or null when none clearly fits, e.g. a park. Theatres, cultural centres, tours, workshops and arcades are Culture & Activities; coworking spaces are Coworking; hotels and hostels are Accommodation' },
     description:        { type: ['string', 'null'], description: 'The listing text, 180-320 characters, per the writing rules' },
     website:            { type: ['string', 'null'], description: "The venue's own website URL, or null. Not a social profile." },
     instagram:          { type: ['string', 'null'], description: 'Instagram handle or profile URL, or null' },

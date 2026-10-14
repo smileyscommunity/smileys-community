@@ -55,11 +55,14 @@ export function matchVenue(name: string, rows: VenueRow[]): VenueRow | null {
   return hits.sort((a, b) => rank(a) - rank(b))[0] ?? null
 }
 
-function inferCategory(name: string): string {
+export function inferCategory(name: string): string {
   const n = name.toLowerCase()
   if (/(coffee|cafe|café|kafe|roastary|roastery)/.test(n)) return 'Cafe'
   if (/(gastropub|pub|bar\b)/.test(n))                     return 'Bar'
   if (/(restaurant|kitchen|pizza|burger|lokanta|meyhane)/.test(n)) return 'Restaurant'
+  if (/(co-?working|workspace)/.test(n))                    return 'Coworking'
+  if (/(hotel|otel\b|hostel|guesthouse)/.test(n))           return 'Accommodation'
+  if (/(theatre|theater|tiyatro|sahne|cultural|kültür|kultur|concert|museum|müze|bowling)/.test(n)) return 'Culture & Activities'
   return 'Other'
 }
 

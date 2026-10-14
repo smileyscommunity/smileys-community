@@ -6,6 +6,7 @@ import { DEFAULT_CITY_SLUG } from '@/lib/city'
 import { APP_URL } from '@/lib/env'
 import AdvertiseFormClient from './AdvertiseFormClient'
 import { loadContent } from '@/lib/content'
+import { ADVERTISE_SECTORS } from '@/lib/directory-constants'
 
 export const revalidate = 3600
 
@@ -122,11 +123,8 @@ const OFFERS = [
   { icon: '🥂', title: 'Sponsor a Smileys experience', body: 'Support a language exchange, networking evening or another community activity members already enjoy.', formats: 'Event Sponsorship · Branded Event' },
 ]
 
-const SECTORS = [
-  'Restaurants & dining', 'Hotels & accommodation', 'Real estate & relocation',
-  'Language schools', 'Fitness & wellness', 'Fashion & lifestyle',
-  'Finance & legal services', 'Tech & startups', 'Travel & tours',
-]
+// Same list the directory's categories are checked against (lib/directory-constants).
+const SECTORS = ADVERTISE_SECTORS.map(s => s.label)
 
 export default async function AdvertisePage() {
   const c   = loadContent()
