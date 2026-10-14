@@ -67,5 +67,5 @@ export const ABOUT_LINKS = [
   // For organizers and brands, not members: they reach the two pages from the
   // same place as the other "about the organization" links.
   { label: 'Partner with us', href: '/partner-with-us', emoji: '🤝' },
-  { label: 'Advertise',       href: '/advertise',       emoji: '📢' },
+  { label: 'Advertise with us', href: '/advertise',      emoji: '📢' },
 ]
