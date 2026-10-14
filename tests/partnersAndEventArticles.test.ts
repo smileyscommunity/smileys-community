@@ -179,3 +179,11 @@ describe('restricted member offer stays out of every public surface', () => {
     expect(read('scripts/check-private-offer-leaks.ts')).toMatch(/eventDetails/)
   })
 })
+
+describe('admin inbox labels every partnership interest', () => {
+  it('each /partner-with-us interest has a readable label in Admin → Sponsors', async () => {
+    const { COLLAB_TYPES } = await import('@/lib/partners')
+    const admin = read('app/admin/sponsors/page.tsx')
+    for (const c of COLLAB_TYPES) expect(admin, `missing label for partner_${c.value}`).toContain(`partner_${c.value}:`)
+  })
+})
