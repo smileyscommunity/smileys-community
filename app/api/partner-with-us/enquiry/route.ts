@@ -43,7 +43,6 @@ export async function POST(req: NextRequest) {
   const eventWebsite = oneLine(body.eventWebsite, 300)
   const eventDate = oneLine(body.eventDate, 10)
   const eventVenue = oneLine(body.eventVenue, 160)
-  const budgetRange = oneLine(body.budgetRange, 80)
   const srcRaw = oneLine(body.src, 40).toLowerCase()
   const campaignSource = /^[a-z0-9_-]{1,40}$/.test(srcRaw) ? srcRaw : null
   const collab = typeof body.collaboration === 'string' && COLLAB_LABELS[body.collaboration] ? body.collaboration : ''
@@ -71,7 +70,7 @@ export async function POST(req: NextRequest) {
         name, email, company: org, message,
         format: `partner_${collab}`, source: PARTNER_LEAD_SOURCE,
         eventName: eventName || null, eventWebsite: eventWebsite || null, eventDate: eventDate || null,
-        eventVenue: eventVenue || null, budgetRange: budgetRange || null, campaignSource,
+        eventVenue: eventVenue || null, campaignSource,
       },
       select: { id: true },
     })
@@ -91,7 +90,7 @@ export async function POST(req: NextRequest) {
         subject: `[Partnership]${fast ? ' ⚠ check: sent within 5 seconds' : ''} ${eventName || org} — ${COLLAB_LABELS[collab]}`,
         html: `<div style="font-family:system-ui,sans-serif;max-width:600px">
           <p><strong>${esc(org)}</strong> — ${esc(name)} &lt;${esc(email)}&gt;</p>
-          <p>${eventName ? `Event: ${esc(eventName)}${eventDate ? ` · ${esc(eventDate)}` : ''}${eventVenue ? ` · ${esc(eventVenue)}` : ''}<br>` : ''}${eventWebsite ? `Website: ${esc(eventWebsite)}<br>` : ''}${budgetRange ? `Budget (stated): ${esc(budgetRange)}<br>` : ''}Collaboration: ${esc(COLLAB_LABELS[collab])}</p>
+          <p>${eventName ? `Event: ${esc(eventName)}${eventDate ? ` · ${esc(eventDate)}` : ''}${eventVenue ? ` · ${esc(eventVenue)}` : ''}<br>` : ''}${eventWebsite ? `Website: ${esc(eventWebsite)}<br>` : ''}Collaboration: ${esc(COLLAB_LABELS[collab])}</p>
           <p style="white-space:pre-wrap">${esc(message)}</p>
           <p style="color:#6b7280;font-size:13px">Track it in Admin → Sponsors.</p></div>`,
       })

@@ -3,6 +3,7 @@ import { Resend } from 'resend'
 import { prisma } from '@/lib/prisma'
 import { rateLimit, getIp } from '@/lib/rateLimit'
 import { verifyTurnstile } from '@/lib/turnstile'
+import { isSafeHref } from '@/lib/safeUrl'
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const disposableDomains: string[] = require('disposable-email-domains')
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { name, email, company, format, message, src, _hp, _t, _cf } = await req.json()
+    const { name, email, company, format, message, website, targetDate, budgetRange, src, _hp, _t, _cf } = await req.json()
 
     // Honeypot — only a bot fills a field no person can see. The one silent
     // drop, and it's logged.
@@ -80,6 +81,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Message is too long' }, { status: 400 })
     }
     const safeFormat = FORMAT_LABELS[format] ? format : 'other'
+    // Optional brand details. A bad optional value is refused with a reason rather than silently dropped.
+    const oneLine = (v: unknown, max: number) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, max) : '')
+    const siteUrl = oneLine(website, 300)
+    if (siteUrl && (!/^https:\/\//i.test(siteUrl) || !isSafeHref(siteUrl))) {
+      return NextResponse.json({ error: 'Company website must be a full link starting with https://' }, { status: 400 })
+    }
+    const startDate = oneLine(targetDate, 10)
+    if (startDate && (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || Number.isNaN(Date.parse(startDate)))) {
+      return NextResponse.json({ error: 'Target start date is not valid.' }, { status: 400 })
+    }
+    const budget = oneLine(budgetRange, 80)
     const srcTag = typeof src === 'string' ? src.trim().toLowerCase() : ''
     const campaignSource = /^[a-z0-9_-]{1,40}$/.test(srcTag) ? srcTag : null
 
@@ -90,6 +102,10 @@ export async function POST(req: NextRequest) {
         company: company.trim(),
         format:  safeFormat,
         message: message.trim(),
+        // Advertise leads reuse the shared columns: website → eventWebsite, target date → eventDate.
+        eventWebsite: siteUrl || null,
+        eventDate:    startDate || null,
+        budgetRange:  budget || null,
         campaignSource,
       },
     })
@@ -123,6 +139,9 @@ export async function POST(req: NextRequest) {
                 <td style="padding:10px 14px;font-size:13px;font-weight:600;color:#6b7280">Format</td>
                 <td style="padding:10px 14px;font-size:14px;color:#111827">${FORMAT_LABELS[safeFormat]}</td>
               </tr>
+              ${siteUrl ? `<tr><td style="padding:10px 14px;font-size:13px;font-weight:600;color:#6b7280">Website</td><td style="padding:10px 14px;font-size:14px;color:#111827">${esc(siteUrl)}</td></tr>` : ''}
+              ${startDate ? `<tr style="background:#f9fafb"><td style="padding:10px 14px;font-size:13px;font-weight:600;color:#6b7280">Target start</td><td style="padding:10px 14px;font-size:14px;color:#111827">${esc(startDate)}</td></tr>` : ''}
+              ${budget ? `<tr><td style="padding:10px 14px;font-size:13px;font-weight:600;color:#6b7280">Budget (stated)</td><td style="padding:10px 14px;font-size:14px;color:#111827">${esc(budget)}</td></tr>` : ''}
             </table>
             <p style="font-size:14px;color:#374151;white-space:pre-wrap">${esc(message.trim())}</p>
             <p style="font-size:13px;color:#6b7280;margin-top:24px">

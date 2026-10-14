@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState } from 'react'
 import Turnstile from '@/components/Turnstile'
+import { useEnquirySubmit } from '@/components/enquiry/useEnquirySubmit'
 import { track } from '@/lib/analytics'
 
 const inputCls = 'input'
@@ -9,22 +10,12 @@ const inputCls = 'input'
 type Opt = { value: string; label: string }
 
 export default function PartnersEnquiryForm({ options }: { options: readonly Opt[] }) {
-  const [form, setForm] = useState({ name: '', organization: '', email: '', eventName: '', eventDate: '', eventVenue: '', budgetRange: '', eventWebsite: '', collaboration: '', message: '' })
-  const [loading, setLoading] = useState(false)
-  const [submitted, setSubmitted] = useState(false)
-  const [error, setError] = useState('')
-  const [honeypot, setHoneypot] = useState('')
-  const [turnstileToken, setTurnstileToken] = useState('')
-  const [turnstileReset, setTurnstileReset] = useState(0)
-  const loadedAt = useRef(Date.now())
-  // Channel tag from the link (?src=newsletter-oct). Read once in the browser so the
-  // page itself stays cacheable; only a short [a-z0-9_-] label is ever sent.
-  const src = useRef('')
-  useEffect(() => { try { src.current = new URLSearchParams(window.location.search).get('src') ?? '' } catch { /* optional */ } }, [])
+  const [form, setForm] = useState({ name: '', organization: '', email: '', eventName: '', eventDate: '', eventVenue: '', eventWebsite: '', collaboration: '', message: '' })
+  const { loading, submitted, error, clearError, honeypot, setHoneypot, turnstileReset, onTurnstileVerify, onTurnstileExpire, submit: send } = useEnquirySubmit('/app/api/partner-with-us/enquiry')
 
   function set(k: keyof typeof form, v: string) {
     setForm(p => ({ ...p, [k]: v }))
-    if (error) setError('')
+    if (error) clearError()
   }
 
   const ready = form.name.trim() && form.organization.trim() && form.email.trim() && form.collaboration && form.message.trim().length >= 10
@@ -32,28 +23,7 @@ export default function PartnersEnquiryForm({ options }: { options: readonly Opt
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     if (!ready || loading) return
-    setError(''); setLoading(true)
-    try {
-      const res = await fetch('/app/api/partner-with-us/enquiry', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, src: src.current, _hp: honeypot, _t: loadedAt.current, _cf: turnstileToken }),
-      })
-      const data = await res.json().catch(() => ({}))
-      // Success only when the server says it stored the enquiry.
-      if (!res.ok || data.ok !== true) {
-        setError(data.error ?? 'Something went wrong. Please try again, or email us directly.')
-        setTurnstileToken(''); setTurnstileReset(n => n + 1)
-        return
-      }
-      track('partner_enquiry_submitted', { collaboration: form.collaboration })
-      setSubmitted(true)
-    } catch {
-      setError('We could not reach the server. Check your connection and try again.')
-      setTurnstileToken(''); setTurnstileReset(n => n + 1)
-    } finally {
-      setLoading(false)
-    }
+    if (await send(form)) track('partner_enquiry_submitted', { collaboration: form.collaboration })
   }
 
   if (submitted) {
@@ -98,15 +68,9 @@ export default function PartnersEnquiryForm({ options }: { options: readonly Opt
             <input id="pe-date" type="date" value={form.eventDate} onChange={e => set('eventDate', e.target.value)} className={inputCls} />
           </div>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="pe-venue" className="block text-xs font-semibold text-gray-600 mb-1.5">Venue <span className="font-normal text-gray-500">(if applicable)</span></label>
-            <input id="pe-venue" value={form.eventVenue} onChange={e => set('eventVenue', e.target.value)} maxLength={160} className={inputCls} />
-          </div>
-          <div>
-            <label htmlFor="pe-budget" className="block text-xs font-semibold text-gray-600 mb-1.5">Budget range <span className="font-normal text-gray-500">(optional)</span></label>
-            <input id="pe-budget" value={form.budgetRange} onChange={e => set('budgetRange', e.target.value)} maxLength={80} placeholder="e.g. €500–1,000, or not sure yet" className={inputCls} />
-          </div>
+        <div>
+          <label htmlFor="pe-venue" className="block text-xs font-semibold text-gray-600 mb-1.5">Venue <span className="font-normal text-gray-500">(if applicable)</span></label>
+          <input id="pe-venue" value={form.eventVenue} onChange={e => set('eventVenue', e.target.value)} maxLength={160} className={inputCls} />
         </div>
         <div>
           <label htmlFor="pe-site" className="block text-xs font-semibold text-gray-600 mb-1.5">Website <span className="font-normal text-gray-500">(optional)</span></label>
@@ -127,7 +91,7 @@ export default function PartnersEnquiryForm({ options }: { options: readonly Opt
             placeholder="What is the event, who is it for, and what would you like to explore with us?" className={`${inputCls} resize-none text-base sm:text-sm`} />
         </div>
 
-        <Turnstile onVerify={setTurnstileToken} onExpire={() => setTurnstileToken('')} resetSignal={turnstileReset} />
+        <Turnstile onVerify={onTurnstileVerify} onExpire={onTurnstileExpire} resetSignal={turnstileReset} />
 
         <button type="submit" disabled={loading || !ready}
           className="w-full py-3.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm transition-colors disabled:opacity-50">

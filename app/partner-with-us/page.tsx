@@ -13,7 +13,7 @@ const ogImage = `${APP_URL}/api/og?${new URLSearchParams({
   eyebrow: 'Partner with Smileys',
   cta: 'Discuss a partnership',
 }).toString()}`
-const DESCRIPTION = 'Connect with expats, international students, digital nomads, and globally minded locals through English-language editorial coverage, community recommendations, and event collaborations.'
+const DESCRIPTION = 'Connect with expats, international students, digital nomads, travelers, and globally minded locals through English-language editorial coverage, community recommendations, and event collaborations.'
 
 export const metadata = {
   title: "Partner with Smileys — Bring your event to Istanbul's international community",

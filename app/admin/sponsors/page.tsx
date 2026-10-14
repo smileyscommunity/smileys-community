@@ -352,10 +352,11 @@ export default function AdminSponsorsPage() {
                       {lead.budgetRange && <>Stated budget: <span className="text-zinc-200">{lead.budgetRange}</span></>}
                     </p>
                   )}
-                  {(lead.eventName || lead.eventWebsite) && (
+                  {(lead.eventName || lead.eventWebsite || lead.eventDate) && (
                     <p className="text-xs text-zinc-400 break-words">
-                      Event: <span className="text-zinc-200">{lead.eventName}</span>
-                      {lead.eventDate ? ` · ${lead.eventDate}` : ''}
+                      {lead.eventName
+                        ? <>Event: <span className="text-zinc-200">{lead.eventName}</span>{lead.eventDate ? ` · ${lead.eventDate}` : ''}</>
+                        : <>{lead.eventDate ? <>Target start: <span className="text-zinc-200">{lead.eventDate}</span></> : 'Website'}</>}
                       {lead.eventWebsite && /^https:\/\//i.test(lead.eventWebsite) && (
                         <> · <a href={lead.eventWebsite} target="_blank" rel="noopener noreferrer" className="text-amber-400 underline">{lead.eventWebsite}</a></>
                       )}

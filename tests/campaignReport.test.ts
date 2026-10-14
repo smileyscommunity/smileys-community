@@ -99,7 +99,7 @@ describe('source tag and privacy', () => {
   })
   it('the page stays cacheable: the tag is read in the browser, not via searchParams', () => {
     expect(read('app/partner-with-us/page.tsx')).not.toMatch(/searchParams/)
-    expect(read('app/partner-with-us/PartnersEnquiryForm.tsx')).toMatch(/window\.location\.search/)
+    expect(read('components/enquiry/useEnquirySubmit.ts')).toMatch(/window\.location\.search/)
   })
   it('analytics never receive the ticket URL, a code or a tag-less full link', () => {
     expect(read('components/TicketLink.tsx')).toMatch(/\{ article_slug: slug, ticket_host: host \}/)
