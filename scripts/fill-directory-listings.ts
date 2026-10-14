@@ -13,7 +13,8 @@
 //     parseHours, text through DIRECTORY_LIMITS — the admin form's validators
 //   - hours are stored only when the researcher says it is confident; a wrong
 //     closing time sends a member to a locked door
-//   - the cover is the verified website's og:image, ≥600px wide, run through
+//   - the cover is the verified website's og:image (or, when the site gives
+//     none, the photo of the latest Smileys event held at the venue), ≥600px wide, run through
 //     the same sharp pipeline as /api/upload (rotate, ≤1200px, q82, EXIF
 //     stripped) into UPLOAD_DIR/directory
 //
@@ -54,7 +55,9 @@ import { join } from 'path'
 import { prisma } from '@/lib/prisma'
 import { uploadRoot } from '@/lib/uploadRoot'
 import { writeAudit, SCRIPT_ACTOR } from '@/lib/audit'
+import { eventCoverFor, type EventCover } from '@/lib/venueEventCover'
 import { DAY_KEYS } from '@/lib/businessHours'
+import { BUSINESS_CATEGORIES } from '@/lib/directory-constants'
 import {
   buildFillPatch, cleanSources, coverDimensionsOk, coverLooksLikePhoto, ogImageFrom, isPlaceholderDescription, siteMentionsPlace, visibleTextLength, websiteLandingOk, MIN_READABLE_TEXT,
   type FillableRow, type FillPatch, type VenueResearch,
@@ -111,6 +114,7 @@ const RESEARCH_SCHEMA = {
     found:              { type: 'boolean', description: 'true when this exact venue (same name, same neighborhood/address) was identified online' },
     is_business:        { type: 'boolean', description: 'false for parks, piers, stations, public buildings, walking routes' },
     permanently_closed: { type: 'boolean' },
+    category:           { type: ['string', 'null'], enum: [...BUSINESS_CATEGORIES, null], description: 'The single best fit among our categories (a sushi bar is Restaurant, a coffee shop Cafe, a pub or cocktail bar Bar). "Other" or null when none clearly fits, e.g. a park, theatre or cultural centre' },
     description:        { type: ['string', 'null'], description: 'The listing text, 180-320 characters, per the writing rules' },
     website:            { type: ['string', 'null'], description: "The venue's own website URL, or null. Not a social profile." },
     instagram:          { type: ['string', 'null'], description: 'Instagram handle or profile URL, or null' },
@@ -123,7 +127,7 @@ const RESEARCH_SCHEMA = {
     sources:            { type: 'array', items: { type: 'string' }, description: 'URLs the facts came from' },
     notes:              { type: 'string', description: 'Anything a human editor should know (ambiguity, conflicting hours, rename, relocation)' },
   },
-  required: ['found', 'is_business', 'permanently_closed', 'description', 'website', 'instagram', 'phone',
+  required: ['found', 'is_business', 'permanently_closed', 'category', 'description', 'website', 'instagram', 'phone',
              'address', 'hours', 'hours_confident', 'languages', 'tags', 'sources', 'notes'],
 }
 
@@ -136,6 +140,8 @@ These are venues the community uses and likes. Be generous and truthful: state f
 Every sentence is about the place itself. Never write about the listing, the research or the sources: no "the address on file", "listed on the company site", "the store listing is maintained by", "no website was found".
 
 Website and Instagram: only this venue's own, or its chain's when the chain runs this branch. A same-named business in another city or country is a different venue — never return its site or handle.
+
+Category: choose the single best fit from the allowed list based on what the venue mainly is. Anywhere that serves meals is Restaurant (including takeaway-led and ethnic restaurants), coffee and tea shops are Cafe, pubs and cocktail bars are Bar, retail is Shop, gyms and studios are Fitness, salons and spas are Beauty, clinics are Health, schools and language centres are Education, other businesses selling a service are Services. Use Other only when it genuinely is none of these (a park, theatre, museum, cultural centre, event space).
 
 Tags: up to 5, lowercase, each a thing a member could filter on — what the place is or offers ("specialty coffee", "rooftop", "live music", "vegan options", "board games"). Never a place name, neighborhood, street, landmark or "near X"; never an opinion ("cozy", "authentic", "casual", "trendy").
 
@@ -336,6 +342,7 @@ async function main() {
 
       // Cover from the venue's own site, only when the row has none.
       let cover: CoverCandidate | undefined
+      let eventCover: EventCover | null = null
       if (!NO_COVER && !row.coverImage) {
         if (siteHtml) {
           const c = await coverFromSite(siteHtml, siteUrl)
@@ -343,6 +350,13 @@ async function main() {
           else skipped.coverImage = c.why ?? 'no cover'
         } else {
           skipped.coverImage = 'no verified website to take an og:image from'
+        }
+        // No usable photo on the venue's own site: fall back to the photo of
+        // the latest Smileys event held there (already published by us).
+        if (!cover) {
+          eventCover = await eventCoverFor(row)
+          if (eventCover) delete skipped.coverImage
+          else skipped.coverImage = `${skipped.coverImage ?? 'no cover'}; no Smileys event photo for this venue either`
         }
       }
 
@@ -353,16 +367,18 @@ async function main() {
         console.log(`   ${k} → ${shown}`)
       }
       if (cover) console.log(`   coverImage → og:image ${cover.width}x${cover.height} ${cover.url}`)
+      if (eventCover) console.log(`   coverImage → photo of "${eventCover.title}" (${eventCover.date}), held at this venue`)
       const skips = Object.entries(skipped).filter(([k]) => !(k in patch))
       if (skips.length) console.log(`   skipped: ${skips.map(([k, why]) => `${k}: ${why}`).join('; ')}`)
 
-      const fields = [...Object.keys(patch), ...(cover ? ['coverImage'] : [])]
+      const fields = [...Object.keys(patch), ...(cover || eventCover ? ['coverImage'] : [])]
       if (!fields.length) { console.log('   nothing to fill'); unchanged++; continue }
 
       if (!WRITE) { console.log(`   would write ${fields.length} field(s)`); written++; continue }
 
       const data: Record<string, unknown> = { ...patch }
       if (cover) data.coverImage = await saveCover(cover)
+      else if (eventCover) data.coverImage = eventCover.url
       await prisma.business.update({ where: { id: row.id }, data })
       await writeAudit(SCRIPT_ACTOR.id, SCRIPT_ACTOR.name, 'directory.fill', row.id, 'business', {
         name: row.name, fields, sources: (r.sources ?? []).slice(0, 5), cityId: row.cityId,

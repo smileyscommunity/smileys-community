@@ -10,7 +10,7 @@
 // has to answer over HTTPS before it is stored — the script checks that and
 // passes the verdict in as `websiteOk`.
 
-import { DIRECTORY_LIMITS, normalizeInstagramHandle, normalizeTags } from './directory-constants'
+import { DIRECTORY_LIMITS, BUSINESS_CATEGORY_SET, normalizeInstagramHandle, normalizeTags } from './directory-constants'
 import { parseHours, DAY_KEYS, type BusinessHours } from './businessHours'
 import { isSafeHref } from './safeUrl'
 import { dialCode } from './country'
@@ -29,6 +29,8 @@ export interface VenueResearch {
   hours_confident: boolean
   languages: string | null
   tags: string[]
+  /** One of BUSINESS_CATEGORIES, or null when the venue doesn't clearly fit one. */
+  category?: string | null
   sources: string[]
   notes: string
 }
@@ -36,6 +38,8 @@ export interface VenueResearch {
 /** The columns the fill can touch, as read from the row. */
 export interface FillableRow {
   name: string
+  /** Optional so callers that don't fill it (tests, older scripts) keep working. */
+  category?: string
   description: string
   website: string | null
   instagram: string | null
@@ -62,6 +66,7 @@ export interface FillOptions {
 }
 
 export interface FillPatch {
+  category?: string
   description?: string
   website?: string
   instagram?: string
@@ -218,6 +223,15 @@ export function buildFillPatch(row: FillableRow, r: VenueResearch, opts: FillOpt
 
   if (!r.found) {
     return { patch, skipped: { all: 'venue not found online' } }
+  }
+
+  // category — "Other" is the default every import and member submission
+  // starts with, so it counts as empty; a category someone chose is kept.
+  if (row.category !== undefined && may('category', row.category === 'Other')) {
+    const c = r.category
+    if (c && c !== 'Other' && BUSINESS_CATEGORY_SET.has(c)) { if (c !== row.category) patch.category = c }
+    else if (c && c !== 'Other') skipped.category = `not one of our categories (${c})`
+    else skipped.category = 'researcher found no clearer category than Other'
   }
 
   // description

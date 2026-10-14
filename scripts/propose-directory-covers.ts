@@ -19,17 +19,9 @@
 //     npx tsx --env-file=.env scripts/propose-directory-covers.ts --write'  # apply
 
 import { prisma } from '@/lib/prisma'
+import { normVenue } from '@/lib/venueEventCover'
 
-// Same venue entered under different names → canonical name. Mirrors
-// scripts/import-event-venues.ts.
-const ALIAS: Record<string, string> = {
-  'Buka': 'Buka Yeldeğirmeni',
-  'Blak Coffee Yeldeğirmeni':  'BLAK Coffee Co. Yeldeğirmeni',
-  'Blak Yeldeğirmeni':         'BLAK Coffee Co. Yeldeğirmeni',
-  'Black Coffee Yeldeğirmeni': 'BLAK Coffee Co. Yeldeğirmeni',
-}
-
-const norm = (s: string) => (ALIAS[s.replace(/\s+/g, ' ').trim()] ?? s.replace(/\s+/g, ' ').trim()).toLowerCase()
+const norm = normVenue
 // City + normalized venue name — the map key that keeps matching per-city.
 const key = (cityId: string, name: string) => `${cityId}\0${norm(name)}`
 

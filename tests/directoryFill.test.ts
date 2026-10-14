@@ -311,3 +311,30 @@ describe('cover from the venue site', () => {
     expect(coverDimensionsOk(undefined, 300)).toBe(false)
   })
 })
+
+describe('category', () => {
+  it('"Other" is the default every import starts with, so research replaces it', () => {
+    const { patch } = buildFillPatch(row({ category: 'Other' }), research({ category: 'Restaurant' }), { websiteOk: true })
+    expect(patch.category).toBe('Restaurant')
+  })
+
+  it('keeps a category someone chose, without --overwrite', () => {
+    const { patch, skipped } = buildFillPatch(row({ category: 'Bar' }), research({ category: 'Restaurant' }), { websiteOk: true })
+    expect(patch.category).toBeUndefined()
+    expect(skipped.category).toMatch(/--overwrite/)
+  })
+
+  it('only accepts one of our categories, and leaves Other alone when nothing fits', () => {
+    expect(buildFillPatch(row({ category: 'Other' }), research({ category: 'Nightclub' }), { websiteOk: true }).patch.category).toBeUndefined()
+    const park = buildFillPatch(row({ category: 'Other' }), research({ category: 'Other' }), { websiteOk: true })
+    expect(park.patch.category).toBeUndefined()
+    expect(park.skipped.category).toMatch(/no clearer/)
+    expect(buildFillPatch(row({ category: 'Other' }), research({ category: null }), { websiteOk: true }).patch.category).toBeUndefined()
+  })
+
+  it('rows that do not carry a category are not touched (older callers)', () => {
+    const { patch, skipped } = buildFillPatch(row(), research({ category: 'Cafe' }), { websiteOk: true })
+    expect(patch.category).toBeUndefined()
+    expect(skipped.category).toBeUndefined()
+  })
+})

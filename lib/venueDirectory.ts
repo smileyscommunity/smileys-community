@@ -100,10 +100,9 @@ export async function ensurePendingVenueBusiness(opts: {
         address:       opts.address?.trim() || null,
         latitude:      opts.latitude ?? null,
         longitude:     opts.longitude ?? null,
-        // The site's own signal for "Smileys meets here" (the 🤝 chip and the
-        // directory's filter) — the stub exists because an event was held
-        // here. Never "Smileys venue": that term is not used (Nate, 2026-09-28).
-        tags:          ['We meet here'],
+        // No "We meet here" tag by default (Nate, 2026-10-15): an event held
+        // here is not a reason to badge the venue. Staff add the tag by hand.
+        tags:          [],
         isApproved:    false,  // pending — hidden from the public directory
         isActive:      true,
         submittedById: opts.submittedById ?? null,

@@ -10,7 +10,7 @@
 // rows. Venues with >= AUTO_APPROVE_MIN events are trusted and publish
 // directly; single-event venues are imported as PENDING (isApproved:false)
 // so an admin can vet them in the directory approval queue before they go
-// live. Entries are tagged 'We meet here' and get a purely factual
+// live. Entries get no 'We meet here' tag by default (staff add it by hand) and get a purely factual
 // description ("has hosted N Smileys event(s) since <month year>") — no
 // invented copy, so these rows don't repeat the seeded-placeholder problem
 // that cleanup-seed-directory.ts had to purge.
@@ -166,7 +166,7 @@ async function main() {
           isExpatFriendly: true,
           isApproved, isActive: true,
           submittedById: admin?.id ?? null,
-          tags: ['We meet here'],
+          tags: [],
         },
       })
       if (isApproved) approved++

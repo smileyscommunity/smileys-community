@@ -65,6 +65,7 @@ export async function GET(req: NextRequest) {
   })
   const items = rows.map(b => {
     const missing = [
+      b.category === 'Other'              && 'category',
       !b.coverImage                       && 'cover',
       isPlaceholderDescription(b.description) && 'description',
       !b.website                          && 'website',
