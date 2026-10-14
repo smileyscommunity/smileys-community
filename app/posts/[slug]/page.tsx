@@ -26,6 +26,7 @@ import EventArticleCard from '@/components/EventArticleCard'
 import MemberOffer from '@/components/MemberOffer'
 import PageViewTracker from '@/components/PageViewTracker'
 import { parseEventDetails } from '@/lib/postEventDetails'
+import { getDisclosure } from '@/lib/postDisclosure'
 import { ACTIVATED_MEMBER_WHERE } from '@/lib/memberCount'
 
 // The author's privacy columns ride along so the byline can be projected for
@@ -277,6 +278,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
   // Structured event facts (public only) → the details card. Re-parsed on
   // every render, so a malformed row just means no card.
   const eventDetails = preview ? null : parseEventDetails(post.eventDetails)
+  const disclosure = getDisclosure(post.disclosure)
   // Whether to OFFER a reveal button. Decided on the server for activated
   // members only; the offer itself never enters this page — it is fetched
   // from /api/posts/[slug]/offer, which re-checks membership.
@@ -402,6 +404,11 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
             </p>
           </div>
         </div>
+        {disclosure && (
+          <p role="note" className="-mt-6 mb-8 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <strong className="font-semibold">{disclosure.label}.</strong> {disclosure.text}
+          </p>
+        )}
         {!preview && <ArticleViewBeacon slug={post.slug} />}
         {eventDetails && <PageViewTracker event="event_article_view" props={{ article_slug: post.slug, has_ticket_link: !!eventDetails.ticketUrl }} />}
         {eventDetails && <EventArticleCard d={eventDetails} slug={post.slug} isMember={!!session} />}

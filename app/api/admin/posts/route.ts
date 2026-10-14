@@ -12,6 +12,7 @@ import { writeAudit } from '@/lib/audit'
 import { notifyNewArticle } from '@/lib/notify'
 import { parseHandbookFields } from '@/lib/handbook-review'
 import { validateEventDetailsInput } from '@/lib/postEventDetails'
+import { validateDisclosureInput } from '@/lib/postDisclosure'
 import { isKind, normalizeCommunityCategory, normalizeHandbookCategory, TITLE_MAX, EXCERPT_MAX, BODY_MAX } from '@/app/admin/posts/constants'
 
 // Cover image must be a local upload path (the shape /api/upload
@@ -108,6 +109,8 @@ export async function POST(req: NextRequest) {
 
   const eventInput = cleanKind === 'community' ? validateEventDetailsInput(payload.eventDetails) : { ok: true as const, data: undefined }
   if (!eventInput.ok) return NextResponse.json({ error: `Event details: ${eventInput.error}` }, { status: 400 })
+  const disclosureInput = cleanKind === 'community' ? validateDisclosureInput(payload.disclosure) : { ok: true as const, data: undefined }
+  if (!disclosureInput.ok) return NextResponse.json({ error: disclosureInput.error }, { status: 400 })
 
   const willPublish = status === 'published'
   // Publishing bells a whole city (or everyone). For an admin that is a
@@ -132,6 +135,7 @@ export async function POST(req: NextRequest) {
       country:     postCountry,
       publishedAt: willPublish ? new Date() : null,
       ...handbook.data,
+      ...(disclosureInput.ok && disclosureInput.data ? { disclosure: disclosureInput.data } : {}),
       ...(eventInput.ok && eventInput.data ? { eventDetails: eventInput.data as unknown as Prisma.InputJsonValue } : {}),
     },
   })

@@ -26,6 +26,8 @@ interface SponsorLead {
   eventName?: string | null
   eventDate?: string | null
   eventWebsite?: string | null
+  eventVenue?: string | null
+  budgetRange?: string | null
   createdAt: string
 }
 
@@ -223,6 +225,7 @@ export default function AdminSponsorsPage() {
           <p className="text-zinc-500 text-sm mt-1">Paid sponsor leads from the advertise page and collaboration enquiries from the partner-with-us page — work them from inquiry to closed deal.</p>
         </div>
         <div className="text-right">
+          <a href="/app/api/admin/sponsors/export" download className="inline-block mb-2 text-xs font-semibold text-amber-400 underline">Export all as CSV</a>
           {/* Won deals per currency — never one sum across lira and euros. */}
           <div className="text-2xl font-bold text-green-400">
             {(data?.summary.won?.length ?? 0) > 0
@@ -339,6 +342,13 @@ export default function AdminSponsorsPage() {
 
               {open && (
                 <div className="mt-4 pt-4 border-t border-zinc-800 space-y-4">
+                  {(lead.eventVenue || lead.budgetRange) && (
+                    <p className="text-xs text-zinc-400 mt-1">
+                      {lead.eventVenue && <>Venue: <span className="text-zinc-200">{lead.eventVenue}</span></>}
+                      {lead.eventVenue && lead.budgetRange && ' · '}
+                      {lead.budgetRange && <>Stated budget: <span className="text-zinc-200">{lead.budgetRange}</span></>}
+                    </p>
+                  )}
                   {(lead.eventName || lead.eventWebsite) && (
                     <p className="text-xs text-zinc-400 break-words">
                       Event: <span className="text-zinc-200">{lead.eventName}</span>
@@ -390,6 +400,15 @@ export default function AdminSponsorsPage() {
                       className="px-4 py-1.5 rounded-xl border border-zinc-700 hover:bg-zinc-800 text-zinc-300 text-sm font-semibold transition-colors">
                       Reply
                     </a>}
+                    <button onClick={async () => {
+                      const res = await fetch('/app/api/admin/partnerships', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ leadId: lead.id }) })
+                      const body = await res.json().catch(() => ({}))
+                      if (res.ok) toast.success('Partnership record created — see Partnerships')
+                      else toast.error(body.error ?? 'Could not create the record')
+                    }}
+                      className="px-4 py-1.5 rounded-xl border border-zinc-700 hover:bg-zinc-800 text-zinc-300 text-sm font-semibold transition-colors">
+                      Start partnership record
+                    </button>
                   </div>
                 </div>
               )}

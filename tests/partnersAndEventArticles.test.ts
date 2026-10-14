@@ -89,3 +89,93 @@ describe('validateEventDetailsInput (admin editor)', () => {
     expect(read('app/api/admin/posts/[id]/route.ts')).toMatch(/private member offer/)
   })
 })
+
+describe('partnership enquiry + export (step 1)', () => {
+  it('only name, org, email, interest and message are required; event/venue/budget are optional', () => {
+    const r = read('app/api/partner-with-us/enquiry/route.ts')
+    expect(r).toMatch(/if \(!name \|\| !org \|\| !email \|\| !collab \|\| !message\)/)
+    expect(r).toMatch(/eventVenue: eventVenue \|\| null, budgetRange: budgetRange \|\| null/)
+    expect(r).toMatch(/verifyTurnstile/)
+    expect(r).toMatch(/rateLimit\(/)
+  })
+  it('the three requested offers are selectable interests', async () => {
+    const { COLLAB_LABELS } = await import('@/lib/partners')
+    expect(COLLAB_LABELS.promote_event).toBe('Promote an event')
+    expect(COLLAB_LABELS.monthly_partner).toBe('Become a monthly partner')
+    expect(COLLAB_LABELS.sponsor_experience).toBe('Sponsor a Smileys experience')
+  })
+  it('the CSV export is admin-only, no-store, and neutralises spreadsheet formulas', () => {
+    const r = read('app/api/admin/sponsors/export/route.ts')
+    expect(r).toMatch(/!isAdmin\(session\)\) return NextResponse\.json\(\{ error: 'Forbidden' \}, \{ status: 403 \}/)
+    expect(r).toMatch(/no-store/)
+    expect(r).toMatch(/\[=\+\\-@/)
+  })
+  it('the scrub script clears the new contact-adjacent columns', () => {
+    expect(read('scripts/scrub-old-sponsor-leads.ts')).toMatch(/eventVenue: null, budgetRange: null/)
+  })
+})
+
+import { validateDisclosureInput, getDisclosure, DISCLOSURES } from '@/lib/postDisclosure'
+import { execSync } from 'child_process'
+
+describe('article paid-relationship disclosure (step 2)', () => {
+  it('undefined leaves the column alone; null or empty clears; unknown values are refused', () => {
+    expect(validateDisclosureInput(undefined)).toEqual({ ok: true, data: undefined })
+    expect(validateDisclosureInput(null)).toEqual({ ok: true, data: null })
+    expect(validateDisclosureInput('')).toEqual({ ok: true, data: null })
+    expect(validateDisclosureInput('sponsored')).toEqual({ ok: true, data: 'sponsored' })
+    expect(validateDisclosureInput('affiliate')).toEqual({ ok: true, data: 'affiliate' })
+    expect(validateDisclosureInput('partner').ok).toBe(false)
+    expect(validateDisclosureInput(7).ok).toBe(false)
+  })
+  it('only known values render a label; anything else shows nothing', () => {
+    expect(getDisclosure('sponsored')?.label).toBe('Sponsored content')
+    expect(getDisclosure('bogus')).toBeNull()
+    expect(getDisclosure(null)).toBeNull()
+    for (const d of DISCLOSURES) expect(d.text.length).toBeGreaterThan(20)
+  })
+  it('the public article renders the label from the stored column, not from content', () => {
+    const page = read('app/posts/[slug]/page.tsx')
+    expect(page).toMatch(/getDisclosure\(post\.disclosure\)/)
+    expect(page).toMatch(/\{disclosure && \(/)
+  })
+  it('only the staff editor routes can set it; member submissions cannot', () => {
+    expect(read('app/api/admin/posts/route.ts')).toMatch(/validateDisclosureInput\(payload\.disclosure\)/)
+    expect(read('app/api/admin/posts/[id]/route.ts')).toMatch(/validateDisclosureInput\(payload\.disclosure\)/)
+    expect(read('app/api/posts/submit/route.ts')).not.toMatch(/disclosure/)
+    expect(read('app/api/posts/mine/[id]/route.ts')).not.toMatch(/disclosure/)
+  })
+})
+
+describe('restricted member offer stays out of every public surface', () => {
+  it('only the guarded offer route, the article page (existence check), staff admin and scripts touch the offer table', () => {
+    const files = execSync(`grep -rlE "postMemberOffer|memberOffer" app lib components`, { encoding: 'utf8' }).split('\n').filter(Boolean).sort()
+    expect(files).toEqual([
+      'app/api/admin/posts/[id]/route.ts',
+      'app/api/posts/[slug]/offer/route.ts',
+      'app/posts/[slug]/page.tsx',
+    ])
+  })
+  it('the article page only checks that an offer exists (select id), and members get it from a no-store route', () => {
+    const page = read('app/posts/[slug]/page.tsx')
+    expect(page).toMatch(/postMemberOffer\.findFirst\(\{ where: \{ postId: post\.id, active: true \}, select: \{ id: true \} \}\)/)
+    expect(read('app/api/posts/[slug]/offer/route.ts')).toMatch(/no-store/)
+  })
+  it('metadata, sitemap, OG image and view beacon never mention the offer', () => {
+    for (const f of ['app/sitemap.ts', 'app/api/og/route.tsx', 'app/api/posts/[slug]/view/route.ts']) {
+      let src = ''
+      try { src = read(f) } catch { continue }
+      expect(src).not.toMatch(/memberOffer|postMemberOffer/i)
+    }
+    const page = read('app/posts/[slug]/page.tsx')
+    const meta = page.slice(page.indexOf('generateMetadata'), page.indexOf('export default'))
+    expect(meta).not.toMatch(/offer/i)
+  })
+  it('analytics events carry no URL or code', () => {
+    const track = read('components/MemberOffer.tsx') + read('components/TicketLink.tsx')
+    expect(track).not.toMatch(/track\([^)]*(url|code|href)/i)
+  })
+  it('the leak check script covers the body, excerpt, cover and event card of every post', () => {
+    expect(read('scripts/check-private-offer-leaks.ts')).toMatch(/eventDetails/)
+  })
+})

@@ -10,6 +10,7 @@ import { writeAudit } from '@/lib/audit'
 import { notifyNewArticle, createNotification } from '@/lib/notify'
 import { parseHandbookFields } from '@/lib/handbook-review'
 import { validateEventDetailsInput } from '@/lib/postEventDetails'
+import { validateDisclosureInput } from '@/lib/postDisclosure'
 import { Prisma } from '@prisma/client'
 import { isKind, normalizeCommunityCategory, normalizeHandbookCategory, TITLE_MAX, EXCERPT_MAX, BODY_MAX } from '@/app/admin/posts/constants'
 
@@ -66,6 +67,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   // only, and only when the editor sent the key (the inline editor doesn't).
   const eventInput = postKind === 'community' ? validateEventDetailsInput(payload.eventDetails) : { ok: true as const, data: undefined }
   if (!eventInput.ok) return NextResponse.json({ error: `Event details: ${eventInput.error}` }, { status: 400 })
+  const disclosureInput = postKind === 'community' ? validateDisclosureInput(payload.disclosure) : { ok: true as const, data: undefined }
+  if (!disclosureInput.ok) return NextResponse.json({ error: disclosureInput.error }, { status: 400 })
   if (eventInput.data) {
     // Public card must never carry the restricted member offer.
     const offer = await prisma.postMemberOffer.findUnique({ where: { postId: id }, select: { url: true, code: true } })
@@ -175,6 +178,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         ? (wasPublished ? existing.publishedAt : new Date())
         : null,
       ...handbook.data,
+      ...(disclosureInput.data !== undefined ? { disclosure: disclosureInput.data } : {}),
       ...(eventInput.data !== undefined ? { eventDetails: eventInput.data === null ? Prisma.DbNull : (eventInput.data as unknown as Prisma.InputJsonValue) } : {}),
     },
   }).catch((e: { code?: string }) => { if (e?.code === 'P2025') return null; throw e })

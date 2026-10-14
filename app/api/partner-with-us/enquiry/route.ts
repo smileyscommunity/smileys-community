@@ -42,16 +42,20 @@ export async function POST(req: NextRequest) {
   const eventName = oneLine(body.eventName, 160)
   const eventWebsite = oneLine(body.eventWebsite, 300)
   const eventDate = oneLine(body.eventDate, 10)
+  const eventVenue = oneLine(body.eventVenue, 160)
+  const budgetRange = oneLine(body.budgetRange, 80)
+  const srcRaw = oneLine(body.src, 40).toLowerCase()
+  const campaignSource = /^[a-z0-9_-]{1,40}$/.test(srcRaw) ? srcRaw : null
   const collab = typeof body.collaboration === 'string' && COLLAB_LABELS[body.collaboration] ? body.collaboration : ''
   const message = typeof body.message === 'string' ? body.message.trim() : ''
 
-  if (!name || !org || !email || !eventName || !eventWebsite || !collab || !message) {
+  if (!name || !org || !email || !collab || !message) {
     return NextResponse.json({ error: 'Please fill in every required field.' }, { status: 400 })
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return NextResponse.json({ error: 'Please enter a valid email address.' }, { status: 400 })
   const domain = email.split('@')[1]
   if (disposableDomains.includes(domain)) return NextResponse.json({ error: 'Please use a permanent work email address.' }, { status: 400 })
-  if (!/^https:\/\//i.test(eventWebsite) || !isSafeHref(eventWebsite)) {
+  if (eventWebsite && (!/^https:\/\//i.test(eventWebsite) || !isSafeHref(eventWebsite))) {
     return NextResponse.json({ error: 'Event website must be a full link starting with https://' }, { status: 400 })
   }
   if (eventDate && (!/^\d{4}-\d{2}-\d{2}$/.test(eventDate) || Number.isNaN(Date.parse(eventDate)))) {
@@ -66,7 +70,8 @@ export async function POST(req: NextRequest) {
       data: {
         name, email, company: org, message,
         format: `partner_${collab}`, source: PARTNER_LEAD_SOURCE,
-        eventName, eventWebsite, eventDate: eventDate || null,
+        eventName: eventName || null, eventWebsite: eventWebsite || null, eventDate: eventDate || null,
+        eventVenue: eventVenue || null, budgetRange: budgetRange || null, campaignSource,
       },
       select: { id: true },
     })
@@ -83,10 +88,10 @@ export async function POST(req: NextRequest) {
         from: `Smileys Partners <${PARTNER_CONTACT_EMAIL}>`,
         to: PARTNER_CONTACT_EMAIL,
         replyTo: email,
-        subject: `[Partnership]${fast ? ' ⚠ check: sent within 5 seconds' : ''} ${eventName} — ${COLLAB_LABELS[collab]}`,
+        subject: `[Partnership]${fast ? ' ⚠ check: sent within 5 seconds' : ''} ${eventName || org} — ${COLLAB_LABELS[collab]}`,
         html: `<div style="font-family:system-ui,sans-serif;max-width:600px">
           <p><strong>${esc(org)}</strong> — ${esc(name)} &lt;${esc(email)}&gt;</p>
-          <p>Event: ${esc(eventName)}${eventDate ? ` · ${esc(eventDate)}` : ''}<br>Website: ${esc(eventWebsite)}<br>Collaboration: ${esc(COLLAB_LABELS[collab])}</p>
+          <p>${eventName ? `Event: ${esc(eventName)}${eventDate ? ` · ${esc(eventDate)}` : ''}${eventVenue ? ` · ${esc(eventVenue)}` : ''}<br>` : ''}${eventWebsite ? `Website: ${esc(eventWebsite)}<br>` : ''}${budgetRange ? `Budget (stated): ${esc(budgetRange)}<br>` : ''}Collaboration: ${esc(COLLAB_LABELS[collab])}</p>
           <p style="white-space:pre-wrap">${esc(message)}</p>
           <p style="color:#6b7280;font-size:13px">Track it in Admin → Sponsors.</p></div>`,
       })

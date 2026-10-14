@@ -280,6 +280,13 @@ model SponsorLead {
   eventName    String?
   eventDate    String?
   eventWebsite String?
+  // Optional extras from /partner-with-us: venue, and a budget the sender
+  // chose to state (free text, never a published price). Admin-only.
+  eventVenue   String?
+  budgetRange  String?
+  // Channel tag from the link that brought the sender here (?src=newsletter-oct).
+  // A short [a-z0-9_-] label only; never a person, URL or code.
+  campaignSource String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @default(now()) @updatedAt
 
@@ -1866,6 +1873,10 @@ model Post {
   // fields only — a restricted offer lives in PostMemberOffer, never here:
   // this column rides inside the cached post and the page payload.
   eventDetails Json?
+
+  // Paid-relationship label shown on the public article (lib/postDisclosure):
+  // 'sponsored' | 'affiliate' | null. Null = no relationship to disclose.
+  disclosure String?
   memberOffer  PostMemberOffer?
 
   author      User      @relation(fields: [authorId], references: [id])
@@ -2746,4 +2757,76 @@ model PostMemberOffer {
   post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@map("post_member_offers")
+}
+
+// Admin-only partnership/sponsorship record (Admin → Partnerships). One row per
+// organizer relationship or campaign, from first research to closed. Nothing
+// here sends anything: stages are a manual record, never a trigger. Money is
+// kept apart on purpose: the fixed fee and the commission terms are what was
+// AGREED; what was actually received is recorded separately (campaign
+// reporting) and is never derived from either. Dates are text 'YYYY-MM-DD'.
+model Partnership {
+  id            String    @id @default(cuid())
+  organizer     String
+  contactName   String?
+  contactEmail  String?
+  website       String?
+  stage         String    @default("research")
+  type          String?
+  // Optional links back to what this is about; plain ids (no FK) so a deleted
+  // event or article never blocks or cascades into the deal record.
+  leadId        String?
+  eventId       String?
+  postId        String?
+  campaignName  String?
+  // The ?src= tag used in this partnership's links, so enquiries can be counted.
+  sourceTag     String?
+  deliverables  String?
+  startDate     String?
+  endDate       String?
+  feeAmount     Float?
+  feeCurrency   String    @default("TRY")
+  commissionType     String?
+  commissionRate     Float?
+  commissionCurrency String?
+  commissionBasis    String?
+  reportingTerms     String?
+  paymentTerms       String?
+  paymentStatus      String @default("none")
+  followUpDate  String?
+  internalNotes String?
+  archivedAt    DateTime?
+  createdById   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @default(now()) @updatedAt
+
+  @@index([stage])
+  @@index([followUpDate])
+  @@index([archivedAt])
+  @@map("partnerships")
+}
+
+// Manual ledger behind the campaign report (Admin → Partnerships → Results).
+// One row = one figure somebody reported, with WHO reported it (source) and
+// WHEN (reportedAt). Counts and money live in separate kinds on purpose: a
+// click or RSVP is never a ticket sale, and a fee, a commission, an expense
+// and a payment received are four different things that are never netted into
+// a "profit" here. Append-only in spirit: a correction is a new row or a delete.
+model CampaignReportEntry {
+  id            String   @id @default(cuid())
+  partnershipId String
+  kind          String
+  quantity      Int?
+  amount        Float?
+  currency      String?
+  source        String
+  reportedAt    String
+  periodStart   String?
+  periodEnd     String?
+  note          String?
+  createdById   String?
+  createdAt     DateTime @default(now())
+
+  @@index([partnershipId, kind])
+  @@map("campaign_report_entries")
 }

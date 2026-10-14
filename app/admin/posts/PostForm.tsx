@@ -1,5 +1,6 @@
 'use client'
 
+import { DISCLOSURES } from '@/lib/postDisclosure'
 import { useState, useRef, useEffect } from 'react'
 import CitySelect, { useAdminCities } from '@/components/admin/CitySelect'
 import { countryName } from '@/lib/country'
@@ -30,6 +31,8 @@ interface PostFormProps {
     officialSources?: unknown
     // Structured facts for an event article's "Event details" card (Json).
     eventDetails?: unknown
+    // 'sponsored' | 'affiliate' | null — public paid-relationship label.
+    disclosure?: string | null
     lastReviewedAt?: string | null
     // The row's version as loaded. Sent back on save so the server can refuse
     // (409) if someone else saved the article since this form opened.
@@ -123,6 +126,7 @@ export default function PostForm({ initial = {} }: PostFormProps) {
   const [tagsText,    setTagsText]    = useState((initial.tags ?? []).join(', '))
   const [sources,     setSources]     = useState<SourceRow[]>(() => seedSources(initial.officialSources))
   const [event,       setEvent]       = useState<EventForm>(() => seedEvent(initial.eventDetails))
+  const [disclosure,  setDisclosure]  = useState<string>(initial.disclosure ?? '')
   const [saving,      setSaving]      = useState(false)
   const [uploading,   setUploading]   = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -172,6 +176,7 @@ export default function PostForm({ initial = {} }: PostFormProps) {
         // Event card: community stories only. An all-empty form sends null,
         // which removes the card.
         ...(kind === 'community' ? {
+          disclosure: disclosure || null,
           eventDetails: EVENT_FIELDS.some(k => event[k].trim())
             ? { ...Object.fromEntries(EVENT_FIELDS.map(k => [k, event[k].trim()])), timeConfirmed: event.timeConfirmed }
             : null,
@@ -425,6 +430,17 @@ export default function PostForm({ initial = {} }: PostFormProps) {
           {/* Review & sources — Handbook only. "Last reviewed" is shown, never
               edited: the date only moves from the article page after a real
               check against the sources listed here. */}
+          {kind === 'community' && (
+            <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-4">
+              <label htmlFor="post-disclosure" className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Paid relationship (optional)</label>
+              <p className="text-xs text-zinc-500 mt-2 mb-2">Shows a public label under the byline. Choose one whenever the article was paid for or contains affiliate links.</p>
+              <select id="post-disclosure" value={disclosure} onChange={e => setDisclosure(e.target.value)}
+                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100">
+                <option value="">None</option>
+                {DISCLOSURES.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
+              </select>
+            </div>
+          )}
           {kind === 'community' && (
             <details className="bg-zinc-800 border border-zinc-700 rounded-xl p-4" open={EVENT_FIELDS.some(k => event[k].trim())}>
               <summary className="text-xs font-bold text-zinc-400 uppercase tracking-widest cursor-pointer">Event details (optional)</summary>
