@@ -38,7 +38,11 @@ export function isKind(s: unknown): s is Kind {
 // guides, international cuisine, food festivals, culinary experiences) are
 // topic categories: unlike the hub categories above, no hub reads them, so a
 // post in one shows on /posts whether or not it has a cityId.
-export const CATEGORIES = ['Community', 'Club Stories', 'Events', 'City Guide', 'Tips', 'Working from', 'Students', 'Expats', 'Digital nomads', 'Travelers', 'Arts & Culture', 'Business & Networking', 'Food & Drink'] as const
+// 'Current Affairs' (2026-10-14) is the same kind of topic category: news and
+// developments that matter to people living in or visiting the city (rules,
+// transport, economy, public life) — no hub reads it, so it shows on /posts
+// with or without a cityId.
+export const CATEGORIES = ['Community', 'Club Stories', 'Events', 'City Guide', 'Tips', 'Working from', 'Students', 'Expats', 'Digital nomads', 'Travelers', 'Arts & Culture', 'Business & Networking', 'Food & Drink', 'Current Affairs'] as const
 export type Category = (typeof CATEGORIES)[number]
 // The two retired names, accepted on write and folded into 'City Guide' so an
 // edit of an older row migrates it instead of resetting it to the default.

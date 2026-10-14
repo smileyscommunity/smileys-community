@@ -70,6 +70,7 @@ const categoryColors: Record<string, string> = {
   'Arts & Culture':        'bg-fuchsia-100 text-fuchsia-700',
   'Business & Networking': 'bg-slate-100 text-slate-700',
   'Food & Drink':          'bg-rose-100 text-rose-700',
+  'Current Affairs':       'bg-yellow-100 text-yellow-800',
 }
 
 // In the city's own day: the server is UTC, so a story published at 01:00 in
