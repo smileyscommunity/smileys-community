@@ -1870,6 +1870,10 @@ model Post {
   // fields only — a restricted offer lives in PostMemberOffer, never here:
   // this column rides inside the cached post and the page payload.
   eventDetails Json?
+
+  // Paid-relationship label shown on the public article (lib/postDisclosure):
+  // 'sponsored' | 'affiliate' | null. Null = no relationship to disclose.
+  disclosure String?
   memberOffer  PostMemberOffer?
 
   author      User      @relation(fields: [authorId], references: [id])
