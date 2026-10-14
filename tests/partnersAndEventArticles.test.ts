@@ -105,6 +105,12 @@ describe('partnership enquiry + export (step 1)', () => {
     expect(page).not.toMatch(/Three ways to work with us|Promote an event|monthly partner/i)
     expect(page).toMatch(/separate offer on/)
   })
+  it('the three offers are the headline on /advertise and map onto the existing formats', () => {
+    const page = read('app/advertise/page.tsx')
+    for (const t of ['Promote an event', 'Become a monthly partner', 'Sponsor a Smileys experience', 'Three ways to work with us']) expect(page).toContain(t)
+    for (const f of ['Event Sponsorship', 'Newsletter Feature', 'Club Partnership', 'Branded Event']) expect(page).toContain(f)
+    expect(page).not.toMatch(/\$\{[^}]*price/i)
+  })
   it('the advertise page dates its figures and drops the unmeasured claims', () => {
     const page = read('app/advertise/page.tsx')
     expect(page).toMatch(/measured from our own records on \{asOf\}/)

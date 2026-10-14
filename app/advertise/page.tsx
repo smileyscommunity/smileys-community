@@ -114,6 +114,14 @@ const FORMATS = [
   },
 ]
 
+// The three ways in, in plain words. Each points at the concrete formats below
+// (same four the form and admin inbox already use), so there is one vocabulary.
+const OFFERS = [
+  { icon: '📣', title: 'Promote an event', body: 'Sponsored content, app visibility and agreed social promotion for an event your audience should know about.', formats: 'Event Sponsorship · Newsletter Feature' },
+  { icon: '🔁', title: 'Become a monthly partner', body: 'Recurring campaigns for relevant events or services, planned together month by month.', formats: 'Club Partnership' },
+  { icon: '🥂', title: 'Sponsor a Smileys experience', body: 'Support a language exchange, networking evening or another community activity members already enjoy.', formats: 'Event Sponsorship · Branded Event' },
+]
+
 const SECTORS = [
   'Restaurants & dining', 'Hotels & accommodation', 'Real estate & relocation',
   'Language schools', 'Fitness & wellness', 'Fashion & lifestyle',
@@ -272,6 +280,27 @@ export default async function AdvertisePage() {
               className="aspect-[3/4] w-full object-cover rounded-2xl border border-gray-100" />
           ))}
         </div>
+      </section>
+
+      {/* Three ways to work with us — the headline offers; formats below are the detail. */}
+      <section id="offers" className="max-w-5xl mx-auto px-4 sm:px-6 py-14">
+        <h2 className="text-2xl font-extrabold text-gray-900 mb-2">Three ways to work with us</h2>
+        <p className="text-gray-600 max-w-2xl mb-8">
+          Scope and terms are agreed individually after a conversation. Sponsored content is always labelled as such.
+        </p>
+        <ul className="grid grid-cols-1 md:grid-cols-3 gap-4 list-none p-0">
+          {OFFERS.map(o => (
+            <li key={o.title} className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col">
+              <div aria-hidden="true" className="text-2xl mb-2">{o.icon}</div>
+              <h3 className="font-bold text-gray-900 mb-1">{o.title}</h3>
+              <p className="text-sm text-gray-600 leading-relaxed mb-3">{o.body}</p>
+              <p className="mt-auto text-xs text-gray-500">Formats: {o.formats}</p>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-6">
+          <a href="#contact" className="inline-block px-7 py-3.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm text-center transition-colors">Discuss a partnership</a>
+        </p>
       </section>
 
       {/* Formats */}
