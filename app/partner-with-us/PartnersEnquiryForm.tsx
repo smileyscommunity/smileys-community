@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Turnstile from '@/components/Turnstile'
 import { track } from '@/lib/analytics'
 
@@ -17,6 +17,10 @@ export default function PartnersEnquiryForm({ options }: { options: readonly Opt
   const [turnstileToken, setTurnstileToken] = useState('')
   const [turnstileReset, setTurnstileReset] = useState(0)
   const loadedAt = useRef(Date.now())
+  // Channel tag from the link (?src=newsletter-oct). Read once in the browser so the
+  // page itself stays cacheable; only a short [a-z0-9_-] label is ever sent.
+  const src = useRef('')
+  useEffect(() => { try { src.current = new URLSearchParams(window.location.search).get('src') ?? '' } catch { /* optional */ } }, [])
 
   function set(k: keyof typeof form, v: string) {
     setForm(p => ({ ...p, [k]: v }))
@@ -33,7 +37,7 @@ export default function PartnersEnquiryForm({ options }: { options: readonly Opt
       const res = await fetch('/app/api/partner-with-us/enquiry', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, _hp: honeypot, _t: loadedAt.current, _cf: turnstileToken }),
+        body: JSON.stringify({ ...form, src: src.current, _hp: honeypot, _t: loadedAt.current, _cf: turnstileToken }),
       })
       const data = await res.json().catch(() => ({}))
       // Success only when the server says it stored the enquiry.

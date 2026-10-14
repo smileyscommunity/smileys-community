@@ -44,6 +44,8 @@ export async function POST(req: NextRequest) {
   const eventDate = oneLine(body.eventDate, 10)
   const eventVenue = oneLine(body.eventVenue, 160)
   const budgetRange = oneLine(body.budgetRange, 80)
+  const srcRaw = oneLine(body.src, 40).toLowerCase()
+  const campaignSource = /^[a-z0-9_-]{1,40}$/.test(srcRaw) ? srcRaw : null
   const collab = typeof body.collaboration === 'string' && COLLAB_LABELS[body.collaboration] ? body.collaboration : ''
   const message = typeof body.message === 'string' ? body.message.trim() : ''
 
@@ -69,7 +71,7 @@ export async function POST(req: NextRequest) {
         name, email, company: org, message,
         format: `partner_${collab}`, source: PARTNER_LEAD_SOURCE,
         eventName: eventName || null, eventWebsite: eventWebsite || null, eventDate: eventDate || null,
-        eventVenue: eventVenue || null, budgetRange: budgetRange || null,
+        eventVenue: eventVenue || null, budgetRange: budgetRange || null, campaignSource,
       },
       select: { id: true },
     })

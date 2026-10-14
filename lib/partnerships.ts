@@ -51,8 +51,10 @@ export type PartnershipInput = { ok: true; data: Data } | { ok: false; error: st
 const TEXT_MAX: Record<string, number> = {
   organizer: 160, contactName: 120, contactEmail: 200, website: 300, campaignName: 160,
   deliverables: 2000, commissionBasis: 1000, reportingTerms: 1000, paymentTerms: 1000, internalNotes: 4000,
-  eventId: 40, postId: 40, leadId: 40,
+  eventId: 40, postId: 40, leadId: 40, sourceTag: 40,
 }
+/** A channel tag: lowercase letters, digits, - and _ only. */
+export const SOURCE_TAG_RE = /^[a-z0-9_-]{1,40}$/
 const isDay = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v))
 
 /**
@@ -83,6 +85,7 @@ export function validatePartnershipInput(raw: unknown, partial: boolean): Partne
   }
   if (!partial && !out.organizer) return { ok: false, error: 'Organizer is required.' }
 
+  if (typeof out.sourceTag === 'string' && !SOURCE_TAG_RE.test(out.sourceTag)) return { ok: false, error: 'Source tag may only use lowercase letters, numbers, - and _.' }
   if (typeof out.contactEmail === 'string' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(out.contactEmail)) return { ok: false, error: 'Contact email is not valid.' }
   if (typeof out.website === 'string' && (!/^https:\/\//i.test(out.website) || !isSafeHref(out.website))) return { ok: false, error: 'Website must be a full link starting with https://' }
 

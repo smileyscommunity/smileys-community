@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { toast } from 'sonner'
 import { useAdminLoad } from '@/lib/admin/useAdminLoad'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
@@ -19,6 +20,7 @@ interface Partnership {
   eventId: string | null
   postId: string | null
   campaignName: string | null
+  sourceTag: string | null
   deliverables: string | null
   startDate: string | null
   endDate: string | null
@@ -44,7 +46,7 @@ const TYPE_LABEL = Object.fromEntries(PARTNERSHIP_TYPES.map(s => [s.value, s.lab
 const PAY_LABEL = Object.fromEntries(PAYMENT_STATUSES.map(s => [s.value, s.label]))
 
 // Form state is all strings; '' means "empty" and is sent as null.
-const FIELDS = ['organizer', 'contactName', 'contactEmail', 'website', 'stage', 'type', 'campaignName', 'eventId', 'postId', 'deliverables', 'startDate', 'endDate',
+const FIELDS = ['organizer', 'contactName', 'contactEmail', 'website', 'stage', 'type', 'campaignName', 'sourceTag', 'eventId', 'postId', 'deliverables', 'startDate', 'endDate',
   'feeAmount', 'feeCurrency', 'commissionType', 'commissionRate', 'commissionCurrency', 'commissionBasis', 'reportingTerms', 'paymentTerms',
   'paymentStatus', 'followUpDate', 'internalNotes'] as const
 type Form = Record<(typeof FIELDS)[number], string>
@@ -106,7 +108,7 @@ function Editor({ initial, onSaved, onCancel }: { initial: Partnership | null; o
       <fieldset className="space-y-3"><legend className="text-xs font-bold uppercase tracking-widest text-zinc-500 mb-2">Pipeline</legend>
         <div className={grid}>{sel('stage', 'Stage', STAGES)}{sel('type', 'Partnership type', PARTNERSHIP_TYPES, 'Not set')}</div>
         <div className={grid}>{txt('followUpDate', 'Follow-up date', { type: 'date' })}{txt('campaignName', 'Event or campaign', { maxLength: 160 })}</div>
-        <div className={grid}>{txt('eventId', 'Linked event id (optional)', { maxLength: 40 })}{txt('postId', 'Linked article id (optional)', { maxLength: 40 })}</div>
+        <div className={grid}>{txt('sourceTag', 'Source tag for links (e.g. newsletter-oct)', { maxLength: 40 })}{txt('eventId', 'Linked event id (optional)', { maxLength: 40 })}{txt('postId', 'Linked article id (optional)', { maxLength: 40 })}</div>
       </fieldset>
       <fieldset className="space-y-3"><legend className="text-xs font-bold uppercase tracking-widest text-zinc-500 mb-2">Agreement</legend>
         {area('deliverables', 'Agreed deliverables')}
@@ -180,6 +182,7 @@ export default function AdminPartnershipsPage() {
           <p className="text-zinc-500 text-sm mt-1">Organizer relationships from first research to active partner. This is a record only: nothing here sends email or contacts anyone.</p>
         </div>
         <div className="flex items-center gap-3">
+          <Link href="/admin/partnerships/reports" className="text-xs font-semibold text-amber-400 underline">Campaign results</Link>
           <a href="/app/api/admin/partnerships/export" download className="text-xs font-semibold text-amber-400 underline">Export CSV</a>
           <button onClick={() => setEditing('new')} className="px-4 py-2 rounded-xl bg-amber-500 text-black text-sm font-bold">Add partnership</button>
         </div>

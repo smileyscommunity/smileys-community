@@ -69,7 +69,13 @@ describe('admin-only access and no outreach', () => {
   it('no public page or API reads partnership records', () => {
     const { execSync } = require('child_process') as typeof import('child_process')
     const files = execSync(`grep -rlE "prisma\\.partnership\\b" app lib components`, { encoding: 'utf8' }).split('\n').filter(Boolean).sort()
-    expect(files).toEqual(['app/api/admin/partnerships/export/route.ts', 'app/api/admin/partnerships/route.ts'])
+    // Admin-only routes only: the partnership CRUD/export and the admin campaign-report routes.
+    expect(files).toEqual([
+      'app/api/admin/partnership-reports/export/route.ts',
+      'app/api/admin/partnership-reports/route.ts',
+      'app/api/admin/partnerships/export/route.ts',
+      'app/api/admin/partnerships/route.ts',
+    ])
   })
   it('the admin actions are audited', () => {
     const src = read('app/api/admin/partnerships/route.ts') + read('app/api/admin/partnerships/export/route.ts')

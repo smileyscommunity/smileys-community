@@ -284,6 +284,9 @@ model SponsorLead {
   // chose to state (free text, never a published price). Admin-only.
   eventVenue   String?
   budgetRange  String?
+  // Channel tag from the link that brought the sender here (?src=newsletter-oct).
+  // A short [a-z0-9_-] label only; never a person, URL or code.
+  campaignSource String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @default(now()) @updatedAt
 
@@ -2776,6 +2779,8 @@ model Partnership {
   eventId       String?
   postId        String?
   campaignName  String?
+  // The ?src= tag used in this partnership's links, so enquiries can be counted.
+  sourceTag     String?
   deliverables  String?
   startDate     String?
   endDate       String?
@@ -2799,4 +2804,29 @@ model Partnership {
   @@index([followUpDate])
   @@index([archivedAt])
   @@map("partnerships")
+}
+
+// Manual ledger behind the campaign report (Admin → Partnerships → Results).
+// One row = one figure somebody reported, with WHO reported it (source) and
+// WHEN (reportedAt). Counts and money live in separate kinds on purpose: a
+// click or RSVP is never a ticket sale, and a fee, a commission, an expense
+// and a payment received are four different things that are never netted into
+// a "profit" here. Append-only in spirit: a correction is a new row or a delete.
+model CampaignReportEntry {
+  id            String   @id @default(cuid())
+  partnershipId String
+  kind          String
+  quantity      Int?
+  amount        Float?
+  currency      String?
+  source        String
+  reportedAt    String
+  periodStart   String?
+  periodEnd     String?
+  note          String?
+  createdById   String?
+  createdAt     DateTime @default(now())
+
+  @@index([partnershipId, kind])
+  @@map("campaign_report_entries")
 }
