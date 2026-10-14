@@ -125,7 +125,7 @@ const BODY_PROSE = [
   // The paragraph straight after an image is its caption / photo credit
   // (TipTap stores <img> bare, then the credit as the next <p>): small and
   // muted, tucked under the photo instead of reading as body copy.
-  '[&_img+p]:text-sm [&_img+p]:text-gray-500 [&_img+p]:leading-snug [&_img+p]:mt-2 [&_img+p]:mb-8',
+  '[&_img+p]:text-xs [&_img+p]:text-gray-500 [&_img+p]:leading-snug [&_img+p]:mt-2 [&_img+p]:mb-8',
 ].join(' ')
 
 // Meta/OG description fallback. Bodies are HTML now, so a raw slice would ship
