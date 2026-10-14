@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { name, email, company, format, message, _hp, _t, _cf } = await req.json()
+    const { name, email, company, format, message, src, _hp, _t, _cf } = await req.json()
 
     // Honeypot — only a bot fills a field no person can see. The one silent
     // drop, and it's logged.
@@ -80,6 +80,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Message is too long' }, { status: 400 })
     }
     const safeFormat = FORMAT_LABELS[format] ? format : 'other'
+    const srcTag = typeof src === 'string' ? src.trim().toLowerCase() : ''
+    const campaignSource = /^[a-z0-9_-]{1,40}$/.test(srcTag) ? srcTag : null
 
     const lead = await prisma.sponsorLead.create({
       data: {
@@ -88,6 +90,7 @@ export async function POST(req: NextRequest) {
         company: company.trim(),
         format:  safeFormat,
         message: message.trim(),
+        campaignSource,
       },
     })
 

@@ -36,12 +36,6 @@ const AUDIENCE = [
   { icon: '🤝', title: 'Globally minded locals', body: 'Local members who enjoy international company and events that work for a mixed-language crowd.' },
 ]
 
-const OFFERS = [
-  { icon: '📣', title: 'Promote an event', body: 'Sponsored content, visibility in the Smileys app and agreed social promotion for an event your audience should know about.' },
-  { icon: '🔁', title: 'Become a monthly partner', body: 'Recurring campaigns for relevant events or services, planned together month by month.' },
-  { icon: '🥂', title: 'Sponsor a Smileys experience', body: 'Support a language exchange, networking evening or another community activity members already enjoy.' },
-]
-
 const WAYS = [
   { icon: '📰', title: 'English-language event coverage and practical guides', body: 'An article that explains your event for newcomers: what it is, where, how to get there, and how to book.' },
   { icon: '🎤', title: 'Artist or organizer interviews', body: 'A conversation with the people behind the event, written for an international audience.' },
@@ -78,20 +72,6 @@ export default async function PartnersPage() {
             </PartnerCtaLink>
           </div>
         </div>
-      </section>
-
-      <section className="max-w-5xl mx-auto px-4 sm:px-6 pt-14">
-        <h2 className="text-2xl font-extrabold text-gray-900 mb-2">Three ways to work with us</h2>
-        <p className="text-gray-600 max-w-2xl mb-8">Scope and terms are agreed individually after a conversation. Sponsored content is always labeled as such.</p>
-        <ul className="grid grid-cols-1 md:grid-cols-3 gap-4 list-none p-0">
-          {OFFERS.map(o => (
-            <li key={o.title} className="bg-white rounded-2xl border border-gray-100 p-5">
-              <div className="text-2xl mb-2" aria-hidden="true">{o.icon}</div>
-              <h3 className="font-bold text-gray-900 mb-1">{o.title}</h3>
-              <p className="text-sm text-gray-600 leading-relaxed">{o.body}</p>
-            </li>
-          ))}
-        </ul>
       </section>
 
       <section className="max-w-5xl mx-auto px-4 sm:px-6 py-14">

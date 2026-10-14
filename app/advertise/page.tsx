@@ -148,6 +148,7 @@ export default async function AdvertisePage() {
     { value: approx(s.clubs),   label: 'Active clubs' },
     { value: nationalities,     label: 'Nationalities' },
   ]
+  const asOf = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
   const why = WHY.map(w => ({ ...w, body: w.body.replace('{ISTANBUL_SHARE}', `${istanbulShare}%`) }))
   return (
     <div className="min-h-screen bg-warm">
@@ -182,6 +183,7 @@ export default async function AdvertisePage() {
       {/* Stats */}
       <section className="max-w-5xl mx-auto px-4 sm:px-6 pt-14">
         <div className="bg-white rounded-2xl border border-gray-100 p-5 sm:p-6">
+          <p className="text-xs text-gray-500 mb-4">Rounded figures, measured from our own records on {asOf}.</p>
           <dl className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {STATS.map(st => (
               <div key={st.label} className="flex flex-col-reverse gap-1 rounded-xl bg-amber-50/60 p-4">
@@ -221,10 +223,9 @@ export default async function AdvertisePage() {
                   { label: 'Languages',  value: `English-first, ${nationalities} nationalities` },
                   { label: 'Profile',    value: 'Professionals, entrepreneurs, creatives'     },
                   { label: 'Location',   value: `${istanbulShare}% Istanbul-based`             },
-                  // A media buyer will do the math on any per-member average
-                  // (1,600 members × 3/week would dwarf our event volume) —
-                  // claim only what the most active cohort actually does.
-                  { label: 'Engagement', value: 'Our most active members attend multiple events per week' },
+                  // No per-member activity claim: nothing measured backs one
+                  // (a media buyer would do the math), so say why members join.
+                  { label: 'Engagement', value: 'Members join to meet people in person, at events, clubs and hangouts' },
                   { label: 'Hosts',      value: `${hosts} club hosts running events and activities` },
                   { label: 'Membership', value: 'Application-only, personally reviewed'       },
                 ].map(r => (
@@ -260,8 +261,7 @@ export default async function AdvertisePage() {
       <section className="max-w-5xl mx-auto px-4 sm:px-6 py-14">
         <h2 className="text-2xl font-extrabold text-gray-900 mb-2">The rooms your brand joins</h2>
         <p className="text-gray-600 max-w-2xl mb-8">
-          No stock photos — these are our events. Full rooms, real attention, people who showed up
-          to be there.
+          Photos from our events: the kind of rooms your brand would be part of, from small tables to our biggest nights.
         </p>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map(n => (
