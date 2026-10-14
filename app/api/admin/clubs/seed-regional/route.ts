@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
       await writeAudit(
         session.id, session.name, 'clubs.seed-regional', undefined, 'club',
         { netNew: result.netNew, includeTurkey: result.includeTurkey },
-        `Seeded ${result.netNew} regional-club memberships from nationality${result.includeTurkey ? ' (incl. Turkey)' : ''}`,
+        `Seeded ${result.netNew} regional-club memberships from nationality${result.includeTurkey ? ' (incl. Türkiye)' : ''}`,
       )
     }
     return NextResponse.json(result)

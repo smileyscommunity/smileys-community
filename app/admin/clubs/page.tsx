@@ -353,7 +353,7 @@ export default function AdminClubsPage() {
       if (netNew === 0) { toast.success('All matching members are already in their regional clubs ✓'); return }
 
       const ok = await confirmToast(
-        `Add ${netNew} membership${netNew === 1 ? '' : 's'} across the regional culture clubs, matched by nationality? (Turkey excluded; no notifications sent.)`,
+        `Add ${netNew} membership${netNew === 1 ? '' : 's'} across the regional culture clubs, matched by nationality? (Türkiye excluded; no notifications sent.)`,
         { confirmLabel: 'Seed clubs' },
       )
       if (!ok) return
