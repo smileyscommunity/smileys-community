@@ -13,6 +13,7 @@ import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import { downscaleImage } from '@/lib/image-resize'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { phonePlaceholder, dialCode } from '@/lib/country'
+import { confirmToast } from '@/lib/confirmToast'
 
 // Small reusable upload widget used inline next to the Logo and Cover
 // image URL inputs on both the admin edit drawer and the admin create
@@ -117,7 +118,7 @@ function UploadButton({
   )
 }
 
-type View = 'approved' | 'pending' | 'rejected' | 'claims' | 'reports'
+type View = 'approved' | 'pending' | 'rejected' | 'claims' | 'reports' | 'fill'
 
 const EMPTY_CREATE = {
   name: '', category: '', description: '',
@@ -1144,6 +1145,105 @@ function ReportsList() {
 // how the list knows there may be another.
 const DIRECTORY_PAGE = 100
 
+// ── Needs details ───────────────────────────────────────────────────────────
+// Approved listings still missing a cover or other facts. "Preview" runs
+// scripts/fill-directory-listings.ts as a dry run and shows what it found;
+// "Fill" runs it for real (empty fields only, website checked, cover from the
+// venue's own site). The route starts the script and this polls its log.
+type FillItem = { id: string; name: string; category: string; neighborhood: string | null; city: string; approvedAt: string; missing: string[] }
+
+function FillQueue() {
+  const { data, loading, error, retry } = useAdminLoad<{ items: FillItem[] }>(
+    '/app/api/admin/directory/fill',
+    (v): v is { items: FillItem[] } => !!v && Array.isArray((v as { items?: unknown }).items),
+  )
+  const [running, setRunning] = useState<{ id: string; write: boolean } | null>(null)
+  const [logs, setLogs]       = useState<Record<string, { log: string; done: boolean; ok: boolean; write: boolean }>>({})
+
+  async function run(item: FillItem, write: boolean) {
+    if (running) return
+    if (write && !(await confirmToast(`Fill ${item.name} now? Only empty fields are filled, and the cover comes from the venue's own website.`))) return
+    setRunning({ id: item.id, write })
+    setLogs(l => ({ ...l, [item.id]: { log: 'Starting…', done: false, ok: false, write } }))
+    try {
+      const res = await fetch('/app/api/admin/directory/fill', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: item.id, write }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok || !d.job) { toast.error(d?.error ?? 'Could not start'); setLogs(l => { const { [item.id]: _, ...rest } = l; return rest }); return }
+      // Research + a cover download take a minute or two; poll until it exits.
+      for (let i = 0; i < 200; i++) {
+        await new Promise(r => setTimeout(r, 3000))
+        const r = await fetch(`/app/api/admin/directory/fill?job=${d.job}`, { credentials: 'include' })
+        const j = await r.json().catch(() => ({}))
+        if (!r.ok) { toast.error(j?.error ?? 'Lost the run — check the listing before running again'); return }
+        setLogs(l => ({ ...l, [item.id]: { log: j.log + (j.error ? `\n${j.error}` : ''), done: j.done, ok: j.ok, write } }))
+        if (j.done) {
+          if (j.ok) { toast.success(write ? `Filled ${item.name}` : 'Preview ready — nothing was written'); if (write) retry() }
+          else toast.error('The run failed — see the log')
+          return
+        }
+      }
+      toast.error('Still running after 10 minutes — check the listing before running again')
+    } catch {
+      toast.error('Network error — check the listing before running again')
+    } finally {
+      setRunning(null)
+    }
+  }
+
+  if (error) return <LoadErrorBanner message={error} onRetry={retry} />
+  if (loading) return <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="bg-zinc-900 rounded-xl h-16 animate-pulse" />)}</div>
+  const items = data?.items ?? []
+  if (items.length === 0) return (
+    <div className="text-center py-14 text-zinc-500">
+      <div className="text-3xl mb-2">🎉</div>
+      <p className="text-sm">Every approved listing has its cover and details.</p>
+    </div>
+  )
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-zinc-500 px-1 pb-1 leading-relaxed">
+        Approved listings missing a cover or details, most recently approved first. The script researches the venue on the web and fills only what is empty. Preview first to see what it would store.
+      </p>
+      {items.map(b => {
+        const l = logs[b.id]
+        const busy = running?.id === b.id
+        return (
+          <div key={b.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-white truncate">{b.name}</p>
+                <p className="text-xs text-zinc-500 mt-0.5">{b.category}{b.neighborhood ? ` · ${b.neighborhood}` : ''} · {b.city}</p>
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {b.missing.map(m => <span key={m} className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">no {m}</span>)}
+                </div>
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <button onClick={() => run(b, false)} disabled={!!running}
+                  className="text-xs font-semibold px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition-colors disabled:opacity-40">
+                  {busy && !running?.write ? 'Running…' : 'Preview'}
+                </button>
+                <button onClick={() => run(b, true)} disabled={!!running}
+                  className="text-xs font-semibold px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-black transition-colors disabled:opacity-40">
+                  {busy && running?.write ? 'Filling…' : 'Fill'}
+                </button>
+              </div>
+            </div>
+            {l && (
+              <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap break-words text-[11px] leading-relaxed text-zinc-400 bg-black/30 rounded-lg p-3">
+                {l.log}{l.done ? (l.ok ? (l.write ? '\n\n✓ Finished.' : '\n\n✓ Preview only — nothing was written.') : '\n\n✗ Failed.') : ''}
+              </pre>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function AdminDirectoryPage() {
   const searchParams = useSearchParams()
   const router       = useRouter()
@@ -1159,11 +1259,12 @@ export default function AdminDirectoryPage() {
   const raw          = searchParams.get('status')
   // Tab order is Approved → Pending → Rejected, so the first tab is also
   // the default landing view when no ?status= param is present.
-  const view: View   = raw === 'pending' || raw === 'rejected' || raw === 'claims' || raw === 'reports' ? raw : 'approved'
+  const view: View   = raw === 'pending' || raw === 'rejected' || raw === 'claims' || raw === 'reports' || raw === 'fill' ? raw : 'approved'
 
   const isClaims  = view === 'claims'
   const isReports = view === 'reports'
-  const isAux     = isClaims || isReports
+  const isFill    = view === 'fill'
+  const isAux     = isClaims || isReports || isFill
   // City and search go to the server, which pages the list (newest first,
   // DIRECTORY_PAGE rows at a time). Both used to filter the newest 200 rows
   // client-side, so anything older couldn't be found or reached at all.
@@ -1270,16 +1371,16 @@ export default function AdminDirectoryPage() {
           (ownership claims) and uses its own list component. */}
       <div className="flex flex-wrap items-center gap-2 mb-5">
         <div className="flex flex-wrap gap-1 bg-zinc-900 p-1 rounded-xl w-full sm:w-fit">
-          {(['approved', 'pending', 'rejected', 'claims', 'reports'] as const).map(v => (
+          {(['approved', 'pending', 'rejected', 'claims', 'reports', 'fill'] as const).map(v => (
             <button key={v} onClick={() => setView(v)}
               className={`text-xs font-semibold px-4 py-1.5 rounded-lg capitalize transition-colors ${
                 view === v ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'
               }`}>
-              {v}
+              {v === 'fill' ? 'Needs details' : v}
             </button>
           ))}
         </div>
-        {listCities.length > 1 && !isClaims && view !== 'reports' && (
+        {listCities.length > 1 && !isClaims && view !== 'reports' && !isFill && (
           <select value={cityFilter} onChange={e => setCityFilter(e.target.value)}
             className="text-xs px-3 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 focus:outline-none focus:ring-2 focus:ring-amber-500">
             <option value="">All cities</option>
@@ -1294,7 +1395,9 @@ export default function AdminDirectoryPage() {
           className="w-full mb-4 text-xs px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500" />
       )}
 
-      {isClaims ? (
+      {isFill ? (
+        <FillQueue />
+      ) : isClaims ? (
         <ClaimsList />
       ) : isReports ? (
         <ReportsList />
