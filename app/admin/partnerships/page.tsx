@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { useAdminLoad } from '@/lib/admin/useAdminLoad'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
-import { formatMoney, KNOWN_CURRENCIES } from '@/lib/data'
+import { formatMoney, KNOWN_CURRENCIES, DEFAULT_CURRENCY } from '@/lib/data'
 import { STAGES, PARTNERSHIP_TYPES, COMMISSION_TYPES, PAYMENT_STATUSES } from '@/lib/partnerships'
 
 interface Partnership {
@@ -48,7 +48,7 @@ const FIELDS = ['organizer', 'contactName', 'contactEmail', 'website', 'stage', 
   'feeAmount', 'feeCurrency', 'commissionType', 'commissionRate', 'commissionCurrency', 'commissionBasis', 'reportingTerms', 'paymentTerms',
   'paymentStatus', 'followUpDate', 'internalNotes'] as const
 type Form = Record<(typeof FIELDS)[number], string>
-const blank = (): Form => ({ ...Object.fromEntries(FIELDS.map(f => [f, ''])), stage: 'research', feeCurrency: 'TRY', paymentStatus: 'none' }) as Form
+const blank = (): Form => ({ ...Object.fromEntries(FIELDS.map(f => [f, ''])), stage: 'research', feeCurrency: DEFAULT_CURRENCY, paymentStatus: 'none' }) as Form
 const fromRow = (p: Partnership): Form => Object.fromEntries(FIELDS.map(f => [f, p[f] == null ? '' : String(p[f])])) as Form
 const toBody = (f: Form) => Object.fromEntries(FIELDS.map(k => {
   if (k === 'feeAmount' || k === 'commissionRate') return [k, f[k].trim() === '' ? null : Number(f[k])]
