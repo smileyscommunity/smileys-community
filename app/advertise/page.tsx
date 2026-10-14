@@ -114,6 +114,14 @@ const FORMATS = [
   },
 ]
 
+// The three ways in, in plain words. Each points at the concrete formats below
+// (same four the form and admin inbox already use), so there is one vocabulary.
+const OFFERS = [
+  { icon: '📣', title: 'Promote an event', body: 'Sponsored content, app visibility and agreed social promotion for an event your audience should know about.', formats: 'Event Sponsorship · Newsletter Feature' },
+  { icon: '🔁', title: 'Become a monthly partner', body: 'Recurring campaigns for relevant events or services, planned together month by month.', formats: 'Club Partnership' },
+  { icon: '🥂', title: 'Sponsor a Smileys experience', body: 'Support a language exchange, networking evening or another community activity members already enjoy.', formats: 'Event Sponsorship · Branded Event' },
+]
+
 const SECTORS = [
   'Restaurants & dining', 'Hotels & accommodation', 'Real estate & relocation',
   'Language schools', 'Fitness & wellness', 'Fashion & lifestyle',
@@ -148,6 +156,7 @@ export default async function AdvertisePage() {
     { value: approx(s.clubs),   label: 'Active clubs' },
     { value: nationalities,     label: 'Nationalities' },
   ]
+  const asOf = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
   const why = WHY.map(w => ({ ...w, body: w.body.replace('{ISTANBUL_SHARE}', `${istanbulShare}%`) }))
   return (
     <div className="min-h-screen bg-warm">
@@ -182,6 +191,7 @@ export default async function AdvertisePage() {
       {/* Stats */}
       <section className="max-w-5xl mx-auto px-4 sm:px-6 pt-14">
         <div className="bg-white rounded-2xl border border-gray-100 p-5 sm:p-6">
+          <p className="text-xs text-gray-500 mb-4">Rounded figures, measured from our own records on {asOf}.</p>
           <dl className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {STATS.map(st => (
               <div key={st.label} className="flex flex-col-reverse gap-1 rounded-xl bg-amber-50/60 p-4">
@@ -221,10 +231,9 @@ export default async function AdvertisePage() {
                   { label: 'Languages',  value: `English-first, ${nationalities} nationalities` },
                   { label: 'Profile',    value: 'Professionals, entrepreneurs, creatives'     },
                   { label: 'Location',   value: `${istanbulShare}% Istanbul-based`             },
-                  // A media buyer will do the math on any per-member average
-                  // (1,600 members × 3/week would dwarf our event volume) —
-                  // claim only what the most active cohort actually does.
-                  { label: 'Engagement', value: 'Our most active members attend multiple events per week' },
+                  // No per-member activity claim: nothing measured backs one
+                  // (a media buyer would do the math), so say why members join.
+                  { label: 'Engagement', value: 'Members join to meet people in person, at events, clubs and hangouts' },
                   { label: 'Hosts',      value: `${hosts} club hosts running events and activities` },
                   { label: 'Membership', value: 'Application-only, personally reviewed'       },
                 ].map(r => (
@@ -260,8 +269,7 @@ export default async function AdvertisePage() {
       <section className="max-w-5xl mx-auto px-4 sm:px-6 py-14">
         <h2 className="text-2xl font-extrabold text-gray-900 mb-2">The rooms your brand joins</h2>
         <p className="text-gray-600 max-w-2xl mb-8">
-          No stock photos — these are our events. Full rooms, real attention, people who showed up
-          to be there.
+          Photos from our events: the kind of rooms your brand would be part of, from small tables to our biggest nights.
         </p>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map(n => (
@@ -272,6 +280,27 @@ export default async function AdvertisePage() {
               className="aspect-[3/4] w-full object-cover rounded-2xl border border-gray-100" />
           ))}
         </div>
+      </section>
+
+      {/* Three ways to work with us — the headline offers; formats below are the detail. */}
+      <section id="offers" className="max-w-5xl mx-auto px-4 sm:px-6 py-14">
+        <h2 className="text-2xl font-extrabold text-gray-900 mb-2">Three ways to work with us</h2>
+        <p className="text-gray-600 max-w-2xl mb-8">
+          Scope and terms are agreed individually after a conversation. Sponsored content is always labelled as such.
+        </p>
+        <ul className="grid grid-cols-1 md:grid-cols-3 gap-4 list-none p-0">
+          {OFFERS.map(o => (
+            <li key={o.title} className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col">
+              <div aria-hidden="true" className="text-2xl mb-2">{o.icon}</div>
+              <h3 className="font-bold text-gray-900 mb-1">{o.title}</h3>
+              <p className="text-sm text-gray-600 leading-relaxed mb-3">{o.body}</p>
+              <p className="mt-auto text-xs text-gray-500">Formats: {o.formats}</p>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-6">
+          <a href="#contact" className="inline-block px-7 py-3.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm text-center transition-colors">Discuss a partnership</a>
+        </p>
       </section>
 
       {/* Formats */}

@@ -11,9 +11,6 @@ import { isArticleImageSrc } from './sanitize'
 export const PARTNER_CONTACT_EMAIL = process.env.EMAIL_FROM_ADDRESS ?? 'info@smileyscommunity.com'
 
 export const COLLAB_TYPES = [
-  { value: 'promote_event',      label: 'Promote an event' },
-  { value: 'monthly_partner',    label: 'Become a monthly partner' },
-  { value: 'sponsor_experience', label: 'Sponsor a Smileys experience' },
   { value: 'coverage',   label: 'English-language coverage & guides' },
   { value: 'interview',  label: 'Artist or organizer interview' },
   { value: 'discount',   label: 'Member discount or group offer' },

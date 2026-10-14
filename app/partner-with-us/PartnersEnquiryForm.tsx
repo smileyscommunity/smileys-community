@@ -114,7 +114,7 @@ export default function PartnersEnquiryForm({ options }: { options: readonly Opt
         </div>
         <div>
           <label htmlFor="pe-collab" className="block text-xs font-semibold text-gray-600 mb-1.5">Partnership interest</label>
-          <select id="pe-collab" value={form.collaboration} onChange={e => set('collaboration', e.target.value)} required className={inputCls}>
+          <select id="pe-collab" value={form.collaboration} onChange={e => set('collaboration', e.target.value)} required className={`${inputCls} text-base sm:text-sm`}>
             <option value="">Choose one…</option>
             {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
@@ -124,7 +124,7 @@ export default function PartnersEnquiryForm({ options }: { options: readonly Opt
             Message <span className="font-normal text-gray-500">({form.message.length}/1500)</span>
           </label>
           <textarea id="pe-msg" rows={5} value={form.message} onChange={e => set('message', e.target.value.slice(0, 1500))} required
-            placeholder="What is the event, who is it for, and what would you like to explore with us?" className={`${inputCls} resize-none`} />
+            placeholder="What is the event, who is it for, and what would you like to explore with us?" className={`${inputCls} resize-none text-base sm:text-sm`} />
         </div>
 
         <Turnstile onVerify={setTurnstileToken} onExpire={() => setTurnstileToken('')} resetSignal={turnstileReset} />

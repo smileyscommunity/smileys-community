@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Turnstile from '@/components/Turnstile'
 
 const inputCls = 'input'
@@ -25,6 +25,10 @@ export default function AdvertiseFormClient() {
   // Bumped after a failed submit — Turnstile tokens are single-use, so retries need a fresh one
   const [turnstileReset, setTurnstileReset] = useState(0)
   const loadedAt = useRef(Date.now())
+  // Channel tag from the link (?src=newsletter-oct), read in the browser so the page stays
+  // cacheable. Only a short [a-z0-9_-] label is sent.
+  const src = useRef('')
+  useEffect(() => { try { src.current = new URLSearchParams(window.location.search).get('src') ?? '' } catch { /* optional */ } }, [])
 
   function set(k: keyof typeof form, v: string) {
     setForm(prev => ({ ...prev, [k]: v }))
@@ -45,6 +49,7 @@ export default function AdvertiseFormClient() {
           company: form.company,
           format:  form.format,
           message: form.message,
+          src: src.current,
           _hp: honeypot,
           _t:  loadedAt.current,
           _cf: turnstileToken,

@@ -98,11 +98,28 @@ describe('partnership enquiry + export (step 1)', () => {
     expect(r).toMatch(/verifyTurnstile/)
     expect(r).toMatch(/rateLimit\(/)
   })
-  it('the three requested offers are selectable interests', async () => {
+  it('the coverage page offers no paid products: those live on /advertise', async () => {
     const { COLLAB_LABELS } = await import('@/lib/partners')
-    expect(COLLAB_LABELS.promote_event).toBe('Promote an event')
-    expect(COLLAB_LABELS.monthly_partner).toBe('Become a monthly partner')
-    expect(COLLAB_LABELS.sponsor_experience).toBe('Sponsor a Smileys experience')
+    for (const paid of ['promote_event', 'monthly_partner', 'sponsor_experience']) expect(COLLAB_LABELS[paid]).toBeUndefined()
+    const page = read('app/partner-with-us/page.tsx')
+    expect(page).not.toMatch(/Three ways to work with us|Promote an event|monthly partner/i)
+    expect(page).toMatch(/separate offer on/)
+  })
+  it('the three offers are the headline on /advertise and map onto the existing formats', () => {
+    const page = read('app/advertise/page.tsx')
+    for (const t of ['Promote an event', 'Become a monthly partner', 'Sponsor a Smileys experience', 'Three ways to work with us']) expect(page).toContain(t)
+    for (const f of ['Event Sponsorship', 'Newsletter Feature', 'Club Partnership', 'Branded Event']) expect(page).toContain(f)
+    expect(page).not.toMatch(/\$\{[^}]*price/i)
+  })
+  it('the advertise page dates its figures and drops the unmeasured claims', () => {
+    const page = read('app/advertise/page.tsx')
+    expect(page).toMatch(/measured from our own records on \{asOf\}/)
+    expect(page).not.toMatch(/Full rooms|multiple events per week/)
+  })
+  it('the advertise form and API carry a sanitized ?src= tag like the partner form', () => {
+    expect(read('app/advertise/AdvertiseFormClient.tsx')).toMatch(/window\.location\.search/)
+    expect(read('app/api/advertise/route.ts')).toMatch(/\^\[a-z0-9_-\]\{1,40\}\$/)
+    expect(read('app/api/advertise/route.ts')).toMatch(/campaignSource,/)
   })
   it('the CSV export is admin-only, no-store, and neutralises spreadsheet formulas', () => {
     const r = read('app/api/admin/sponsors/export/route.ts')
@@ -177,5 +194,13 @@ describe('restricted member offer stays out of every public surface', () => {
   })
   it('the leak check script covers the body, excerpt, cover and event card of every post', () => {
     expect(read('scripts/check-private-offer-leaks.ts')).toMatch(/eventDetails/)
+  })
+})
+
+describe('admin inbox labels every partnership interest', () => {
+  it('each /partner-with-us interest has a readable label in Admin → Sponsors', async () => {
+    const { COLLAB_TYPES } = await import('@/lib/partners')
+    const admin = read('app/admin/sponsors/page.tsx')
+    for (const c of COLLAB_TYPES) expect(admin, `missing label for partner_${c.value}`).toContain(`partner_${c.value}:`)
   })
 })
