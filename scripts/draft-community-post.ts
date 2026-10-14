@@ -10,12 +10,15 @@
 //
 // The JSON file: { title, slug, excerpt, bodyHtml, citySlug (null = every city),
 //   category? (a community category from app/admin/posts/constants; default
-//   'Community' — 'Students' puts it on the city's student hub) }
+//   'Community' — 'Students' puts it on the city's student hub),
+//   coverImage? (an /app/api/files/posts/… upload path — the same rule the
+//   admin API enforces; omit it to add the cover in the panel) }
 // Idempotent: skips if the slug already exists.
 import { readFileSync } from 'fs'
 import { prisma } from '@/lib/prisma'
 import { writeAudit } from '@/lib/audit'
 import { isCategory, normalizeCommunityCategory } from '@/app/admin/posts/constants'
+import { isUploadedImageUrl } from '@/lib/uploadedImageUrl'
 
 const DRY_RUN = process.env.DRY_RUN === '1'
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
@@ -47,6 +50,13 @@ async function main() {
   // as 'Community' and never reach the hub it was written for.
   if ('category' in b && !isCategory(b.category)) fail(`"category" is not a community category: ${b.category}`)
   const category = 'category' in b ? normalizeCommunityCategory(b.category) : 'Community'
+  // Our own posts/ uploads only, like the admin API's COVER_PATH_RE: an
+  // external cover would make every reader's browser fetch a third party.
+  let coverImage: string | null = null
+  if ('coverImage' in b && b.coverImage !== null) {
+    coverImage = nonEmptyString(b.coverImage, 'coverImage')
+    if (!isUploadedImageUrl(coverImage, ['posts'])) fail('"coverImage" must be an /app/api/files/posts/… upload path')
+  }
 
   const existing = await prisma.post.findUnique({ where: { slug }, select: { id: true, status: true } })
   if (existing) { console.log(`✓ already exists (${existing.status}) — nothing to do`); return }
@@ -63,13 +73,14 @@ async function main() {
     scope  = `${city.name} only`
   }
 
-  console.log(`→ draft "${title}" [${category}] as ${author.name}, scope: ${scope}, /posts/${slug}, body ${bodyHtml.length} chars`)
+  console.log(`→ draft "${title}" [${category}] as ${author.name}, scope: ${scope}, /posts/${slug}, body ${bodyHtml.length} chars, cover ${coverImage ?? 'none'}`)
   if (DRY_RUN) { console.log('  DRY RUN — nothing written'); return }
 
   const post = await prisma.post.create({
     data: {
       title, slug, excerpt,
       body:     bodyHtml,
+      coverImage,
       status:   'draft',
       kind:     'community',
       category,
@@ -81,7 +92,7 @@ async function main() {
     { title: post.title, status: post.status, category: post.category, slug: post.slug, source: 'script' },
     `Drafted article "${post.title}" (${post.category})`,
   )
-  console.log(`✓ drafted ${post.slug} (${post.id}) — add a cover and publish it from the admin panel`)
+  console.log(`✓ drafted ${post.slug} (${post.id}) — ${coverImage ? 'review' : 'add a cover'} and publish it from the admin panel`)
 }
 
 main()
