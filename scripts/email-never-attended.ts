@@ -25,19 +25,18 @@ import { prisma } from '../lib/prisma'
 import { sendBroadcastEmail } from '../lib/email'
 import { recipientWhere } from '../lib/newsletterSegments'
 import { writeAudit, SCRIPT_ACTOR } from '../lib/audit'
+import { RETENTION_EMAIL } from '../lib/retentionEmail'
 
 const DRY_RUN = process.env.DRY_RUN !== '0'
 const TEST_TO = process.env.TEST_TO?.trim().toLowerCase() || null
 const COHORT  = process.env.COHORT ?? 'new'
 const BATCH   = Math.max(1, Number(process.env.BATCH ?? 50))
-const ACTION  = 'retention.never_attended_email'
+const ACTION  = RETENTION_EMAIL.never_attended.action
 
-const SUBJECT = process.env.SUBJECT ?? 'Ready for your first Smileys event?'
-const MESSAGE = process.env.MESSAGE ?? [
-  `You joined Smileys Community but haven't been to an event yet. That's completely fine, and a lot of people are in the same spot.`,
-  `Pick anything that sounds fun, from a language exchange to a coffee meetup, and RSVP in a couple of taps. Events are the best way to meet people here.`,
-  `Take a look at what's coming up and choose one that suits you.`,
-].join('\n\n')
+// Same copy and audit action as the Retention page's First-event email button,
+// so the two never double-send.
+const SUBJECT = process.env.SUBJECT ?? RETENTION_EMAIL.never_attended.subject
+const MESSAGE = process.env.MESSAGE ?? RETENTION_EMAIL.never_attended.message
 
 async function main() {
   if (!['new', 'old', 'both'].includes(COHORT)) throw new Error(`COHORT must be new, old or both (got "${COHORT}")`)

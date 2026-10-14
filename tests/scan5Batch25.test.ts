@@ -28,6 +28,9 @@ vi.mock('@/lib/prisma', () => ({ prisma: p }))
 vi.mock('@/lib/session', () => ({ getSession: vi.fn(async () => session.current) }))
 vi.mock('@/lib/audit', () => ({ writeAudit: vi.fn(async () => {}) }))
 vi.mock('@/lib/analyticsCache', () => cache)
+// The re-engagement queues have their own tests (retentionEmail.test.ts); here they
+// would consume this file's ordered findMany/$queryRaw mocks.
+vi.mock('@/lib/retentionEmail', () => ({ retentionRemaining: vi.fn(async () => 7), RETENTION_EMAIL_BATCH: 30 }))
 vi.mock('@/lib/neighborhoodsDb', () => hoods)
 vi.mock('@/lib/notify', () => ({ createNotification: vi.fn(async () => {}), notifyNewEvent: vi.fn(async () => {}) , notifyTripArrival: vi.fn(async () => {})}))
 vi.mock('@/lib/venueDirectory', () => ({ ensurePendingVenueBusiness: vi.fn(async () => {}) }))
@@ -180,7 +183,7 @@ describe('87e. admin lists are fresh after edits and say when they are capped', 
     p.user.findMany.mockResolvedValueOnce([{ id: 'u3', name: 'C', phone: '+90 544 330 30 68', nudgesSent: 2 }])
     const res = await retentionGET(jsonReq({}, 'http://x/app/api/admin/retention'))
     const body = await res.json()
-    expect(body.stats).toEqual({ neverAttendedCount: 300, dormantCount: 120, notActivatedCount: 300, lastCall: { remaining: 300, afterDays: 60, batch: 30 }, listLimit: 50 })
+    expect(body.stats).toEqual({ neverAttendedCount: 300, dormantCount: 120, notActivatedCount: 300, lastCall: { remaining: 300, afterDays: 60, batch: 30 }, neverAttendedEmail: { remaining: 7, batch: 30 }, dormantEmail: { remaining: 7, batch: 30 }, listLimit: 50 })
     expect(p.user.findMany.mock.calls[0][0].take).toBe(50)
     expect(p.user.findMany.mock.calls[1][0].take).toBe(50)
     // The list says whether there is a number, never the number itself.

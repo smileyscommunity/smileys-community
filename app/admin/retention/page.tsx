@@ -30,6 +30,8 @@ interface RetentionData {
   stats: {
     neverAttendedCount: number; dormantCount: number; notActivatedCount?: number; listLimit?: number
     lastCall?: { remaining: number; afterDays: number; batch: number }
+    neverAttendedEmail?: { remaining: number; batch: number }
+    dormantEmail?: { remaining: number; batch: number }
   }
 }
 
@@ -288,6 +290,64 @@ function LastCallPanel({ initial }: { initial: { remaining: number; afterDays: n
   )
 }
 
+// The one-time re-engagement email for the Never attended and Dormant tabs
+// (lib/retentionEmail). Each press sends the next batch; the server never
+// emails anyone twice. Hidden once the queue is empty.
+function ReengageEmailPanel({ kind, title, blurb, initial }: {
+  kind: 'never_attended' | 'dormant'; title: string; blurb: string
+  initial: { remaining: number; batch: number }
+}) {
+  const [remaining, setRemaining] = useState(initial.remaining)
+  const [sending,   setSending]   = useState(false)
+  const [sentTotal, setSentTotal] = useState(0)
+
+  if (remaining === 0 && sentTotal === 0) return null
+
+  async function sendBatch() {
+    const n = Math.min(initial.batch, remaining)
+    if (!(await confirmToast(`Email ${n} member${n === 1 ? '' : 's'}? Nobody gets this email twice.`))) return
+    setSending(true)
+    try {
+      const res  = await fetch('/app/api/admin/retention/email', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { toast.error(data?.error ?? 'Could not send'); return }
+      setRemaining(data.remaining ?? 0)
+      setSentTotal(t => t + (data.sent ?? 0))
+      if (data.failed) toast.error(`${data.sent} sent, ${data.failed} failed — the failed ones stay in the queue`)
+      else toast.success(`Sent ${data.sent} email${data.sent === 1 ? '' : 's'}`)
+    } catch {
+      toast.error('Network error — check the count before sending again')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <div className="px-5 py-4 bg-amber-500/5 border-b border-zinc-800">
+      <p className="text-sm font-semibold text-zinc-200">{title}</p>
+      <p className="text-xs text-zinc-400 mt-1 leading-relaxed">{blurb}</p>
+      <div className="flex items-center gap-3 mt-3">
+        {remaining > 0 ? (
+          <button
+            onClick={sendBatch}
+            disabled={sending}
+            className="text-xs font-semibold px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-black transition-colors disabled:opacity-50"
+          >
+            {sending ? 'Sending…' : `Send next ${Math.min(initial.batch, remaining)}`}
+          </button>
+        ) : null}
+        <span className="text-xs text-zinc-500">
+          {remaining > 0 ? `${remaining} still to send` : 'All sent'}{sentTotal > 0 ? ` · ${sentTotal} sent just now` : ''}
+        </span>
+      </div>
+    </div>
+  )
+}
+
 type Tab = 'never' | 'dormant' | 'inactive'
 
 export default function RetentionPage() {
@@ -411,6 +471,11 @@ export default function RetentionPage() {
             </div>
           ) : (
             <div className="divide-y divide-zinc-800/60">
+              {data.stats.neverAttendedEmail && (
+                <ReengageEmailPanel kind="never_attended" initial={data.stats.neverAttendedEmail}
+                  title="First-event email"
+                  blurb="A short nudge to members who set up their account but have never been to an event, newest joiners first. Only people opted in to email are included, and each member gets it once." />
+              )}
               {data.neverAttended.map(m => (
                 <MemberRow
                   key={m.id}
@@ -429,6 +494,11 @@ export default function RetentionPage() {
             </div>
           ) : (
             <div className="divide-y divide-zinc-800/60">
+              {data.stats.dormantEmail && (
+                <ReengageEmailPanel kind="dormant" initial={data.stats.dormantEmail}
+                  title="Come-back email"
+                  blurb="A short note to members whose last event was over 60 days ago, most recently lapsed first. Only people opted in to email are included, and each member gets it once." />
+              )}
               {data.dormant.map(m => (
                 <MemberRow
                   key={m.id}

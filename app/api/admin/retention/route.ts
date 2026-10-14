@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator, isAdmin, failClosedCityId } from '@/lib/access'
 import { lastCallWhere, LAST_CALL_AFTER_DAYS, LAST_CALL_BATCH } from '@/lib/activationLastCall'
+import { retentionRemaining, RETENTION_EMAIL_BATCH } from '@/lib/retentionEmail'
 
 const LIST_LIMIT = 50
 
@@ -103,8 +104,15 @@ export async function GET(req: NextRequest) {
   // The one-time last-call email's queue (lib/activationLastCall). Not city
   // scoped: the send button works through everyone, so the count must too.
   let lastCallRemaining = 0
+  // The re-engagement emails' queues (lib/retentionEmail): also not city scoped.
+  let neverAttendedEmailRemaining = 0
+  let dormantEmailRemaining = 0
   if (isAdmin(session)) {
-    lastCallRemaining = await prisma.user.count({ where: lastCallWhere(now) })
+    ;[lastCallRemaining, neverAttendedEmailRemaining, dormantEmailRemaining] = await Promise.all([
+      prisma.user.count({ where: lastCallWhere(now) }),
+      retentionRemaining('never_attended', now),
+      retentionRemaining('dormant', now),
+    ])
     const notActivatedWhere = {
       ...NOT_ACTIVATED_MEMBER_WHERE,
       role: MEMBER_ROLE_FILTER,
@@ -141,7 +149,10 @@ export async function GET(req: NextRequest) {
     stats: {
       neverAttendedCount,
       dormantCount,
-      ...(isAdmin(session) ? { notActivatedCount, lastCall: { remaining: lastCallRemaining, afterDays: LAST_CALL_AFTER_DAYS, batch: LAST_CALL_BATCH } } : {}),
+      ...(isAdmin(session) ? { notActivatedCount, lastCall: { remaining: lastCallRemaining, afterDays: LAST_CALL_AFTER_DAYS, batch: LAST_CALL_BATCH },
+        neverAttendedEmail: { remaining: neverAttendedEmailRemaining, batch: RETENTION_EMAIL_BATCH },
+        dormantEmail:       { remaining: dormantEmailRemaining,       batch: RETENTION_EMAIL_BATCH },
+      } : {}),
       listLimit: LIST_LIMIT,
     },
   })
