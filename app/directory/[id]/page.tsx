@@ -174,7 +174,9 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
       ? 'CafeOrCoffeeShop'
       : business.category === 'Bar'
         ? 'BarOrPub'
-        : 'LocalBusiness'
+        : business.category === 'Accommodation'
+          ? 'LodgingBusiness'
+          : 'LocalBusiness'
 
   const meta = business.neighborhood ? getNeighborhoodMeta(business.neighborhood) : null
   // ?w=1200: see absoluteImageUrl comment above. Crawlers ingesting

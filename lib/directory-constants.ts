@@ -12,8 +12,27 @@ export const BUSINESS_CATEGORIES = [
   'Beauty',
   'Health',
   'Education',
+  'Coworking',
+  'Accommodation',
+  'Culture & Activities',
   'Other',
 ] as const
+
+// The industries /advertise says fit our members, each pointed at the directory
+// categories where such a business would be listed. One list for both, so a
+// sector can never be advertised that has no home in the directory (it did:
+// hotels, coworking, theatres and tours had none).
+export const ADVERTISE_SECTORS: ReadonlyArray<{ label: string; categories: ReadonlyArray<(typeof BUSINESS_CATEGORIES)[number]> }> = [
+  { label: 'Restaurants & dining',      categories: ['Restaurant', 'Cafe', 'Bar'] },
+  { label: 'Hotels & accommodation',    categories: ['Accommodation'] },
+  { label: 'Real estate & relocation',  categories: ['Services'] },
+  { label: 'Language schools',          categories: ['Education'] },
+  { label: 'Fitness & wellness',        categories: ['Fitness', 'Beauty', 'Health'] },
+  { label: 'Fashion & lifestyle',       categories: ['Shop'] },
+  { label: 'Finance & legal services',  categories: ['Services'] },
+  { label: 'Tech & startups',           categories: ['Coworking'] },
+  { label: 'Travel & tours',            categories: ['Culture & Activities'] },
+]
 
 
 export const BUSINESS_CATEGORY_SET: ReadonlySet<string> = new Set(BUSINESS_CATEGORIES)
