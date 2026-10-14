@@ -38,7 +38,7 @@ function PartnerCard({ p }: { p: Partner }) {
   const insta = instagramUser(p.instagram)
 
   return (
-    <div className="bg-white rounded-2xl shadow-card overflow-hidden flex flex-col">
+    <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden flex flex-col">
       {/* Cover — decorative; the name is in the card below. */}
       <div className="relative h-32 bg-gradient-to-br from-amber-100 to-amber-50">
         {cover ? (
@@ -128,54 +128,54 @@ export default function PerksPage() {
 
   return (
     <div className="min-h-screen bg-warm pb-24 md:pb-0">
-      {/* Header */}
+      {/* Hero: same shape as /partner-with-us (eyebrow, big heading, one calm paragraph). */}
       <div className="bg-white border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-10 pb-0">
-          <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">Member Perks</span>
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-14 sm:py-16 text-center">
+          <p className="text-xs font-bold uppercase tracking-widest text-amber-600 mb-4">Member Perks</p>
           {/* The city these perks are in — they follow the city you're viewing. */}
-          <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">
+          <h1 className="text-3xl sm:text-5xl font-extrabold text-gray-900 tracking-tight leading-tight mb-5">
             Local Perks{city?.name ? ` in ${city.name}` : ''}
           </h1>
           {/* How to claim: the member card's live pass (app/(member)/card),
               which a business can tell from a screenshot. "Show your
               profile" asked them to trust one. */}
-          <p className="text-base text-gray-600 mt-1 mb-5">
+          <p className="text-lg text-gray-600 leading-relaxed max-w-2xl mx-auto">
             Discounts at local businesses for members. To claim one, open your{' '}
             <Link href="/card" className="font-semibold text-amber-700 hover:underline">member card</Link>{' '}
             and show the live pass at the till.
           </p>
+        </div>
+      </div>
 
-          <div className="flex gap-3 mb-0">
-            <div className="relative flex-1 max-w-sm">
-              <svg aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              <label htmlFor="perks-search" className="sr-only">Search perks</label>
-              <input
-                id="perks-search"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search by name, area or category…"
-                className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
-              />
-            </div>
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
+        <div className="flex flex-col gap-4 mb-8">
+          <div className="relative w-full max-w-sm">
+            <svg aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <label htmlFor="perks-search" className="sr-only">Search perks</label>
+            <input
+              id="perks-search"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search by name, area or category…"
+              className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
+            />
           </div>
 
-          {/* Category filter */}
-          <div role="group" aria-label="Filter by category" className="flex flex-wrap gap-1 mt-4 pb-0">
+          {/* Category filter: pills, like the other filters on the partner pages. */}
+          <div role="group" aria-label="Filter by category" className="flex flex-wrap gap-2">
             {categories.map(c => (
               <button key={c} onClick={() => setCategory(c)} aria-pressed={category === c}
-                className={`px-4 py-2.5 text-sm font-semibold border-b-2 whitespace-nowrap transition-colors ${
-                  category === c ? 'border-amber-500 text-amber-700' : 'border-transparent text-gray-600 hover:text-gray-800'
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-colors ${
+                  category === c ? 'border-amber-500 bg-amber-500/10 text-amber-700' : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-white'
                 }`}>
                 {c}
               </button>
             ))}
           </div>
         </div>
-      </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {[...Array(6)].map((_, i) => (
@@ -196,11 +196,17 @@ export default function PerksPage() {
           </div>
         )}
 
+        {/* Suggest a place: the contact form's partnership topic, carrying the city. */}
         {!loading && (
-          <p className="text-sm text-gray-600 text-center mt-8">
-            Know a place that would offer members a perk?{' '}
-            <Link href={suggestHref} className="font-semibold text-amber-700 hover:underline">Tell us about it</Link>
-          </p>
+          <section className="mt-10 bg-white rounded-2xl border border-gray-100 p-6 sm:p-7 text-center">
+            <h2 className="text-xl font-extrabold text-gray-900 mb-2">Would you like to share a perk?</h2>
+            <p className="text-sm text-gray-600 max-w-md mx-auto mb-5">
+              Know a place that would offer Smileys members a discount? Tell us about it. We add a place only when it agrees to a real perk for members.
+            </p>
+            <Link href={suggestHref} className="inline-block px-7 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm transition-colors">
+              Share a perk
+            </Link>
+          </section>
         )}
       </div>
     </div>
