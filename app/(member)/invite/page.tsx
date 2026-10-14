@@ -129,23 +129,23 @@ export default function InvitePage() {
 
   return (
     <div className="min-h-screen bg-warm pb-24 md:pb-8">
-      {/* Hero */}
+      {/* Hero: same shape as /partner-with-us (eyebrow, big heading, one calm paragraph). */}
       <div className="bg-white border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-6">
-          <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">Referrals</span>
-          <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900 mb-2">Invite Friends</h1>
-          <p className="text-base text-gray-600 max-w-md">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-14 sm:py-16 text-center">
+          <p className="text-xs font-bold uppercase tracking-widest text-amber-600 mb-4">Invite friends</p>
+          <h1 className="text-3xl sm:text-5xl font-extrabold text-gray-900 tracking-tight leading-tight mb-5">Bring a friend to Smileys.</h1>
+          <p className="text-lg text-gray-600 leading-relaxed max-w-2xl mx-auto">
             Know someone who&apos;d love Smileys? Share your personal invite link. Your referrals help us keep the community quality high.
           </p>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
-      <div className="max-w-lg space-y-5">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-10">
+      <div className="space-y-5">
         {/* A failed load used to leave an empty link that still "copied",
             a WhatsApp message with no link, and a QR spinner forever. */}
         {failed || !stats ? (
-          <div role="alert" className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 text-center">
+          <div role="alert" className="bg-white rounded-2xl border border-gray-100 p-6 text-center">
             <p className="font-bold text-gray-900 mb-1">We couldn&apos;t load your invite link</p>
             <p className="text-sm text-gray-600 mb-4">Check your connection and try again.</p>
             <button onClick={loadStats} className="btn-primary text-sm">Try again</button>
@@ -154,19 +154,19 @@ export default function InvitePage() {
         <>
         {/* Stats */}
         <div className="grid grid-cols-2 gap-4">
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 sm:p-6">
             <p className="text-3xl font-extrabold text-amber-600">{stats.approved}</p>
             <p className="text-xs text-gray-600 mt-1 font-medium">Friends joined</p>
           </div>
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 sm:p-6">
             <p className="text-3xl font-extrabold text-gray-700">{stats.pending}</p>
             <p className="text-xs text-gray-600 mt-1 font-medium">Applications in review</p>
           </div>
         </div>
 
         {/* Invite link card */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-          <label htmlFor="invite-city" className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Inviting a friend to</label>
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 sm:p-6">
+          <label htmlFor="invite-city" className="block text-xs font-semibold text-gray-600 mb-1.5">Inviting a friend to</label>
           <select id="invite-city" value={inviteSlug} onChange={e => setInviteSlug(e.target.value)} className="input mb-4">
             {!inviteSlug && <option value="">Choose a city…</option>}
             {cities.map(c => (
@@ -176,7 +176,7 @@ export default function InvitePage() {
             ))}
           </select>
 
-          <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Your invite link</p>
+          <h2 className="text-lg font-extrabold text-gray-900 mb-3">Your invite link</h2>
           <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 mb-4">
             <span className="flex-1 text-sm text-gray-700 font-mono truncate">{inviteUrl || 'Choose a city to get your link'}</span>
             <button
@@ -219,10 +219,10 @@ export default function InvitePage() {
 
         {/* QR code */}
         {inviteUrl && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-            <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-4">QR code</p>
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 sm:p-6">
+            <h2 className="text-lg font-extrabold text-gray-900 mb-4">QR code</h2>
             <div className="flex flex-col items-start gap-3">
-              <div role="img" aria-label={`QR code for your invite link to ${inviteCity?.name ?? 'Smileys'}`} className="p-3 bg-white rounded-xl border border-gray-100 shadow-sm">
+              <div role="img" aria-label={`QR code for your invite link to ${inviteCity?.name ?? 'Smileys'}`} className="p-3 bg-white rounded-xl border border-gray-100">
                 <QRCode value={inviteUrl} size={180} />
               </div>
               <p className="text-xs text-gray-500">
@@ -234,8 +234,8 @@ export default function InvitePage() {
 
         {/* Who you invited */}
         {stats.approved > 0 && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-            <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-4">People you brought in</p>
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 sm:p-6">
+            <h2 className="text-lg font-extrabold text-gray-900 mb-4">People you brought in</h2>
             <ul className="space-y-3">
               {joined.map(m => {
                 const photo = resolveImageUrl(m.profilePhoto)
@@ -270,8 +270,8 @@ export default function InvitePage() {
         )}
 
         {/* How it works */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-          <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-4">How it works</p>
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 sm:p-6">
+          <h2 className="text-lg font-extrabold text-gray-900 mb-4">How it works</h2>
           <ol className="space-y-3">
             {[
               { step: '1', text: 'Share your unique link with friends', icon: '🔗' },
