@@ -32,6 +32,7 @@ const AUDIENCE = [
   { icon: '🌍', title: 'Expats and international professionals', body: 'People building a life in Istanbul who look for things to do in English and rely on a trusted voice to tell them what is worth their evening.' },
   { icon: '🎓', title: 'International students', body: 'Exchange and degree students who are new to the city, often looking for culture, music and nights out they can join without a language barrier.' },
   { icon: '💻', title: 'Digital nomads and remote workers', body: 'Longer-stay visitors who want to meet people and see the city beyond the tourist trail.' },
+  { icon: '✈️', title: 'Travelers', body: 'Visitors in Istanbul for a few days or weeks who would rather spend an evening with locals and other international members than on their own.' },
   { icon: '🤝', title: 'Globally minded locals', body: 'Local members who enjoy international company and events that work for a mixed-language crowd.' },
 ]
 
