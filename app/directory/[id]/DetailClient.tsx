@@ -166,9 +166,23 @@ export function FooterActions({
   const [message,     setMessage]     = useState('')
   const [busy,        setBusy]        = useState(false)
 
-  // Both actions require a signed-in account (anon spam-flags would
-  // be noisy); guests see nothing here.
-  if (!currentUserId) return null
+  // Both actions need a signed-in account (anon spam-flags would be noisy), so
+  // a guest gets no report button. They do get the claim link: the people who
+  // own a business are the ones least likely to be signed in, and without it
+  // they could not tell a claim exists. It goes to sign-in and comes back here.
+  if (!currentUserId) {
+    if (business.hasClaimedOwner) return null
+    return (
+      <div className="mt-6 flex justify-center">
+        <a
+          href={`/login?return=/directory/${business.id}`}
+          className="text-xs font-semibold text-gray-500 hover:text-amber-700 hover:underline"
+        >
+          Is this your business? Sign in to claim it
+        </a>
+      </div>
+    )
+  }
 
   // Claim submits right here — previously this linked to /directory
   // and left the user hunting the grid for the card's claim chip.
