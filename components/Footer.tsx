@@ -276,7 +276,7 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
                       { href: '/get-involved', label: 'Get involved 🙌'    },
                     ]
                 ),
-                { href: '/partner-with-us',    label: 'Partnerships & Advertising 🤝'  },
+                { href: '/partner-with-us',    label: 'Partner with us 🤝'  },
                 { href: '/advertise',    label: 'Advertise with us 📢' },
               ].map(l => (
                 <li key={l.href}>
