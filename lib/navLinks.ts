@@ -27,6 +27,10 @@ export const DISCOVER_LINKS: NavLink[] = [
   { label: 'Experiences',     href: '/experiences',   emoji: '✨', public: true  },
   { label: 'Directory',       href: '/directory',     emoji: '📍', public: true  },
   { label: 'Neighborhoods',   href: '/neighborhoods', emoji: '🏘️', public: true  },
+  // The people behind the events, with the places: for someone deciding whether
+  // to join, who runs things is a trust signal, not reference material, so it
+  // sits above the arrival hubs and the Handbook.
+  { label: 'Hosts',           href: '/hosts',         emoji: '🎤', public: true  },
   // The two members-only entries, placed together and ABOVE the reference
   // block. They are the most time-sensitive things in this menu — a coffee
   // happening this week, someone landing in your city on Thursday — and they
@@ -53,7 +57,6 @@ export const DISCOVER_LINKS: NavLink[] = [
   { label: 'Studying Here',          href: '/students', emoji: '🎓', public: true },
   { label: 'City Guide',      href: '/guide',         emoji: '🗺️', public: true  },
   { label: 'Handbook',        href: '/handbook',      emoji: '📖', public: true  },
-  { label: 'Hosts',           href: '/hosts',         emoji: '🎤', public: true  },
   { label: 'Stories',         href: '/posts',         emoji: '📰', public: true  },
   { label: 'Community Board', href: '/board',         emoji: '💬', public: true  },
   { label: 'Marketplace',     href: '/marketplace',   emoji: '🛍️', public: true  },
