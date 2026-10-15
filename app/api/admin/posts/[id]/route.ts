@@ -179,6 +179,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         : null,
       ...handbook.data,
       ...(disclosureInput.data !== undefined ? { disclosure: disclosureInput.data } : {}),
+      // Only the full editor sends it (the inline one doesn't), community only.
+      ...(postKind === 'community' && typeof payload.commentsOff === 'boolean' ? { commentsOff: payload.commentsOff } : {}),
       ...(eventInput.data !== undefined ? { eventDetails: eventInput.data === null ? Prisma.DbNull : (eventInput.data as unknown as Prisma.InputJsonValue) } : {}),
     },
   }).catch((e: { code?: string }) => { if (e?.code === 'P2025') return null; throw e })

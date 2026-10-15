@@ -136,6 +136,7 @@ export async function POST(req: NextRequest) {
       publishedAt: willPublish ? new Date() : null,
       ...handbook.data,
       ...(disclosureInput.ok && disclosureInput.data ? { disclosure: disclosureInput.data } : {}),
+      ...(cleanKind === 'community' && payload.commentsOff === true ? { commentsOff: true } : {}),
       ...(eventInput.ok && eventInput.data ? { eventDetails: eventInput.data as unknown as Prisma.InputJsonValue } : {}),
     },
   })

@@ -33,6 +33,7 @@ interface PostFormProps {
     eventDetails?: unknown
     // 'sponsored' | 'affiliate' | null — public paid-relationship label.
     disclosure?: string | null
+    commentsOff?: boolean
     lastReviewedAt?: string | null
     // The row's version as loaded. Sent back on save so the server can refuse
     // (409) if someone else saved the article since this form opened.
@@ -127,6 +128,7 @@ export default function PostForm({ initial = {} }: PostFormProps) {
   const [sources,     setSources]     = useState<SourceRow[]>(() => seedSources(initial.officialSources))
   const [event,       setEvent]       = useState<EventForm>(() => seedEvent(initial.eventDetails))
   const [disclosure,  setDisclosure]  = useState<string>(initial.disclosure ?? '')
+  const [commentsOff, setCommentsOff] = useState<boolean>(initial.commentsOff ?? false)
   const [saving,      setSaving]      = useState(false)
   const [uploading,   setUploading]   = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -177,6 +179,7 @@ export default function PostForm({ initial = {} }: PostFormProps) {
         // which removes the card.
         ...(kind === 'community' ? {
           disclosure: disclosure || null,
+          commentsOff,
           eventDetails: EVENT_FIELDS.some(k => event[k].trim())
             ? { ...Object.fromEntries(EVENT_FIELDS.map(k => [k, event[k].trim()])), timeConfirmed: event.timeConfirmed }
             : null,
@@ -439,6 +442,15 @@ export default function PostForm({ initial = {} }: PostFormProps) {
                 <option value="">None</option>
                 {DISCLOSURES.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
               </select>
+            </div>
+          )}
+          {kind === 'community' && (
+            <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-4">
+              <label className="flex items-center gap-2 text-sm text-zinc-200">
+                <input type="checkbox" checked={commentsOff} onChange={e => setCommentsOff(e.target.checked)} />
+                Turn comments off for this story
+              </label>
+              <p className="text-xs text-zinc-500 mt-2">Hides the comments section. Existing comments are kept and reappear if you turn it back on.</p>
             </div>
           )}
           {kind === 'community' && (

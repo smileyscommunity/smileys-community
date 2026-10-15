@@ -1880,6 +1880,9 @@ model Post {
   // Paid-relationship label shown on the public article (lib/postDisclosure):
   // 'sponsored' | 'affiliate' | null. Null = no relationship to disclose.
   disclosure String?
+  // Staff switch: no comments section on this story (existing ones are kept
+  // but hidden). Stories only.
+  commentsOff Boolean @default(false)
   memberOffer  PostMemberOffer?
 
   author      User      @relation(fields: [authorId], references: [id])

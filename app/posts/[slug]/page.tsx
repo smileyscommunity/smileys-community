@@ -278,7 +278,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
   const fresh    = preview ? null : await prisma.post.findUnique({ where: { id: post.id }, select: { views: true } })
   const views    = fresh?.views ?? 0
   // Per-viewer, so read outside the cached post (same as views above).
-  const commentCount = preview ? 0 : await prisma.postComment.count({ where: { postId: post.id, removedAt: null, user: { status: 'approved', hiddenFromMembers: false } } })
+  const commentCount = preview || post.commentsOff ? 0 : await prisma.postComment.count({ where: { postId: post.id, removedAt: null, user: { status: 'approved', hiddenFromMembers: false } } })
   const likeCount = preview ? 0 : await prisma.postLike.count({ where: { postId: post.id } })
   const likedByMe = !preview && session
     ? (await prisma.postLike.findUnique({
@@ -453,7 +453,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
           </div>
         )}
 
-        {!preview && <StoryComments slug={post.slug} initialCount={commentCount} isLoggedIn={session !== null} />}
+        {!preview && !post.commentsOff && <StoryComments slug={post.slug} initialCount={commentCount} isLoggedIn={session !== null} />}
 
         {eventDetails && (
           <p className="mt-6 text-sm text-gray-600">

@@ -18,12 +18,41 @@ type Params = { params: Promise<{ slug: string }> }
 
 const MAX_LEN = 1000
 
+async function notifyEarlierCommenters(
+  post: { id: string; slug: string; title: string; authorId: string },
+  session: { id: string; name: string },
+  body: string,
+) {
+  const link = `/posts/${post.slug}#comments`
+  const earlier = await prisma.postComment.findMany({
+    where:    { postId: post.id, removedAt: null, userId: { notIn: [session.id, post.authorId] }, user: { status: 'approved', hiddenFromMembers: false } },
+    distinct: ['userId'],
+    orderBy:  { createdAt: 'desc' },
+    take:     30,
+    select:   { userId: true },
+  })
+  for (const { userId } of earlier) {
+    if (await isBlockedEitherWay(session.id, userId)) continue
+    // One unread notice per story: a busy thread is one bell entry, not a
+    // push for every comment.
+    const unread = await prisma.notification.findFirst({ where: { userId, type: 'story_comment_reply', link, isRead: false }, select: { id: true } })
+    if (unread) continue
+    await createNotification(
+      userId,
+      'story_comment_reply',
+      `💬 ${firstNameOf(session.name)} also commented`,
+      `"${post.title.slice(0, 80)}" — ${body.slice(0, 100)}`,
+      link,
+    ).catch(() => {})
+  }
+}
+
 async function publishedStory(slug: string) {
   const post = await prisma.post.findUnique({
     where:  { slug },
-    select: { id: true, slug: true, title: true, kind: true, status: true, authorId: true, cityId: true },
+    select: { id: true, slug: true, title: true, kind: true, status: true, authorId: true, cityId: true, commentsOff: true },
   })
-  return post && post.kind === 'community' && post.status === 'published' ? post : null
+  return post && post.kind === 'community' && post.status === 'published' && !post.commentsOff ? post : null
 }
 
 export async function GET(_req: NextRequest, { params }: Params) {
@@ -79,6 +108,9 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'One link per comment, please' }, { status: 400 })
   }
 
+  // Everyone already in the conversation hears about the new comment, once per
+  // story until they read it: earlier commenters other than the commenter and
+  // the story's author (who has their own notice below).
   const created = await prisma.postComment.create({
     data:   { postId: post.id, userId: session.id, body },
     select: { id: true, body: true, createdAt: true, user: { select: { id: true, name: true, color: true, profilePhoto: true } } },
@@ -93,6 +125,8 @@ export async function POST(req: NextRequest, { params }: Params) {
       `/posts/${post.slug}#comments`,
     ).catch(() => {})
   }
+
+  notifyEarlierCommenters(post, session, body).catch(() => {})
 
   return NextResponse.json({ comment: { ...created, canRemove: true } }, { status: 201 })
 }

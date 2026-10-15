@@ -25,11 +25,25 @@ describe('story comments', () => {
   })
   it('the story page shows the section outside preview, guests get the count only', () => {
     const page = src('app/posts/[slug]/page.tsx')
-    expect(page).toContain('{!preview && <StoryComments')
+    expect(page).toContain('{!preview && !post.commentsOff && <StoryComments')
     expect(src('components/StoryComments.tsx')).toContain('Sign in to')
   })
   it('the migration is additive', () => {
     const m = src('prisma/migrations/20261015000005_story_comments/migration.sql')
     expect(m).not.toMatch(/DROP |UPDATE "|DELETE FROM/)
+  })
+
+  it('staff can turn comments off per story: form, API, page and comments route', () => {
+    expect(src('app/admin/posts/PostForm.tsx')).toContain('Turn comments off for this story')
+    expect(src('app/api/admin/posts/[id]/route.ts')).toContain("typeof payload.commentsOff === 'boolean'")
+    expect(src('app/posts/[slug]/page.tsx')).toContain('!post.commentsOff && <StoryComments')
+    expect(src('app/api/posts/[slug]/comments/route.ts')).toContain('!post.commentsOff ? post : null')
+    expect(src('prisma/migrations/20261015000006_post_comments_off/migration.sql')).toContain('DEFAULT false')
+  })
+  it('earlier commenters are notified once per story until they read it', () => {
+    const r = src('app/api/posts/[slug]/comments/route.ts')
+    expect(r).toContain("type: 'story_comment_reply', link, isRead: false")
+    expect(r).toContain('userId: { notIn: [session.id, post.authorId] }')
+    expect(src('lib/notify.ts')).toContain("story_comment_reply:  'wallReplies'")
   })
 })
