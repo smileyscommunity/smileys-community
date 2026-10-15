@@ -179,6 +179,7 @@ model User {
   neighborhoodPosts          NeighborhoodPost[]
   postLikes                  PostLike[]
   postComments               PostComment[]
+  postCommentLikes           PostCommentLike[]
   newslettersSent            Newsletter[]            @relation("NewslettersSent")
   notifPrefs                 NotificationPreference?
   notifications              Notification[]
@@ -1908,12 +1909,28 @@ model PostComment {
   body      String
   createdAt DateTime  @default(now())
   removedAt DateTime?
+  // Set when the author edits it; shown as "edited".
+  editedAt  DateTime?
   post      Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  likes     PostCommentLike[]
 
   @@index([postId, createdAt])
   @@index([userId])
   @@map("post_comments")
+}
+
+// One like per member per comment (composite key makes a double-tap harmless).
+model PostCommentLike {
+  commentId String
+  userId    String
+  createdAt DateTime    @default(now())
+  comment   PostComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([commentId, userId])
+  @@index([commentId])
+  @@map("post_comment_likes")
 }
 
 // Article likes (handbook + community posts). Deliberately a plain

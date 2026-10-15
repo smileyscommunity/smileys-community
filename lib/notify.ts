@@ -67,6 +67,7 @@ const PREF_KEY: Record<string, 'newEvents' | 'reminders' | 'eventUpdates' | 'joi
   // A member's comment under your story rides the same switch.
   story_comment:        'wallReplies',
   story_comment_reply:  'wallReplies',
+  story_comment_mention: 'wallReplies',
   board_interest:       'wallReplies',
   club_mention:         null,
   neighborhood_mention: null,

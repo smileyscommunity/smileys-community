@@ -5,7 +5,8 @@ import { rateLimit } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
 import { firstNameOf } from '@/lib/data'
 import { authorProjector } from '@/lib/authorProjection'
-import { canManagePosts, canActOnCityContent } from '@/lib/access'
+import { canModerateComments, cleanCommentBody } from '@/lib/storyComments'
+import { extractMentions, mentionCandidatesSql, mentionMatches, dropBlocked, MAX_RECIPIENTS } from '@/lib/mentions'
 import { blockedPairIds, SHOWN_REPLY } from '@/lib/boardAccess'
 import { isBlockedEitherWay } from '@/lib/memberPrivacy'
 
@@ -16,16 +17,36 @@ import { isBlockedEitherWay } from '@/lib/memberPrivacy'
 
 type Params = { params: Promise<{ slug: string }> }
 
-const MAX_LEN = 1000
+// @FirstName mentions, the same composer token and matching as the clubs and
+// neighborhood walls (lib/mentions): whole first names, the commenter's own
+// city, capped, never across a block. Returns who was pinged.
+async function notifyCommentMentions(
+  post: { slug: string; title: string },
+  session: { id: string; name: string; cityId?: string },
+  body: string,
+): Promise<Set<string>> {
+  const words = extractMentions(body)
+  if (!words.length) return new Set()
+  const candidates = await prisma.$queryRaw<{ id: string; name: string }[]>(
+    mentionCandidatesSql({ words, authorId: session.id, cityId: session.cityId ?? null }),
+  )
+  const matched    = candidates.filter(u => words.some(w => mentionMatches(u.name, w)))
+  const recipients = (await dropBlocked(session.id, matched)).slice(0, MAX_RECIPIENTS)
+  await Promise.allSettled(recipients.map(u =>
+    createNotification(u.id, 'story_comment_mention', `${firstNameOf(session.name)} mentioned you`,
+      `"${post.title.slice(0, 80)}" — ${body.slice(0, 100)}`, `/posts/${post.slug}#comments`)))
+  return new Set(recipients.map(u => u.id))
+}
 
 async function notifyEarlierCommenters(
   post: { id: string; slug: string; title: string; authorId: string },
   session: { id: string; name: string },
   body: string,
+  skip: Set<string>,
 ) {
   const link = `/posts/${post.slug}#comments`
   const earlier = await prisma.postComment.findMany({
-    where:    { postId: post.id, removedAt: null, userId: { notIn: [session.id, post.authorId] }, user: { status: 'approved', hiddenFromMembers: false } },
+    where:    { postId: post.id, removedAt: null, userId: { notIn: [session.id, post.authorId, ...skip] }, user: { status: 'approved', hiddenFromMembers: false } },
     distinct: ['userId'],
     orderBy:  { createdAt: 'desc' },
     take:     30,
@@ -70,15 +91,19 @@ export async function GET(_req: NextRequest, { params }: Params) {
     orderBy: { createdAt: 'desc' },
     take:    200,
     select: {
-      id: true, body: true, createdAt: true,
+      id: true, body: true, createdAt: true, editedAt: true,
       user: { select: { id: true, name: true, color: true, profilePhoto: true, profileVisibility: true } },
+      _count: { select: { likes: true } },
+      likes: { where: { userId: session.id }, select: { userId: true } },
     },
   })).reverse()
   const project = await authorProjector(session, rows.map(r => r.user))
-  const staff = canManagePosts(session) && canActOnCityContent(session, post.cityId)
+  const staff = canModerateComments(session, post.cityId)
   return NextResponse.json({
     comments: rows.map(r => ({
-      id: r.id, body: r.body, createdAt: r.createdAt,
+      id: r.id, body: r.body, createdAt: r.createdAt, editedAt: r.editedAt,
+      likeCount: r._count.likes, liked: r.likes.length > 0,
+      isMine: r.user.id === session.id,
       user: project(r.user),
       // Its author, the story's author, or staff who can act on the story.
       canRemove: r.user.id === session.id || post.authorId === session.id || staff,
@@ -100,13 +125,10 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Cannot interact with this member' }, { status: 403 })
   }
 
-  const raw  = await req.json().catch(() => ({}))
-  const body = typeof raw?.body === 'string' ? raw.body.trim().slice(0, MAX_LEN) : ''
-  if (!body) return NextResponse.json({ error: 'Comment cannot be empty' }, { status: 400 })
-  // Same one-link cap as board replies: comments are the link-spam surface.
-  if ((body.match(/\b(?:https?:\/\/|www\.)\S+/gi) ?? []).length > 1) {
-    return NextResponse.json({ error: 'One link per comment, please' }, { status: 400 })
-  }
+  const raw   = await req.json().catch(() => ({}))
+  const clean = cleanCommentBody(raw?.body)
+  if (!clean.ok) return NextResponse.json({ error: clean.error }, { status: 400 })
+  const body = clean.body
 
   // Everyone already in the conversation hears about the new comment, once per
   // story until they read it: earlier commenters other than the commenter and
@@ -116,7 +138,11 @@ export async function POST(req: NextRequest, { params }: Params) {
     select: { id: true, body: true, createdAt: true, user: { select: { id: true, name: true, color: true, profilePhoto: true } } },
   })
 
-  if (post.authorId !== session.id) {
+  // @mentions first: a mentioned member gets the mention notice, not also the
+  // author / earlier-commenter one below.
+  const mentioned = await notifyCommentMentions(post, session, body).catch(() => new Set<string>())
+
+  if (post.authorId !== session.id && !mentioned.has(post.authorId)) {
     createNotification(
       post.authorId,
       'story_comment',
@@ -126,7 +152,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     ).catch(() => {})
   }
 
-  notifyEarlierCommenters(post, session, body).catch(() => {})
+  notifyEarlierCommenters(post, session, body, mentioned).catch(() => {})
 
-  return NextResponse.json({ comment: { ...created, canRemove: true } }, { status: 201 })
+  return NextResponse.json({ comment: { ...created, editedAt: null, likeCount: 0, liked: false, isMine: true, canRemove: true } }, { status: 201 })
 }

@@ -43,7 +43,29 @@ describe('story comments', () => {
   it('earlier commenters are notified once per story until they read it', () => {
     const r = src('app/api/posts/[slug]/comments/route.ts')
     expect(r).toContain("type: 'story_comment_reply', link, isRead: false")
-    expect(r).toContain('userId: { notIn: [session.id, post.authorId] }')
+    expect(r).toContain('userId: { notIn: [session.id, post.authorId, ...skip] }')
     expect(src('lib/notify.ts')).toContain("story_comment_reply:  'wallReplies'")
+  })
+
+  it('moderators can delete on global stories; edit is author-only; likes are members-only', () => {
+    expect(src('lib/storyComments.ts')).toContain('postCityId == null || canActOnCityContent(session, postCityId)')
+    const d = src('app/api/posts/[slug]/comments/[commentId]/route.ts')
+    expect(d).toContain('canModerateComments(session, c.post.cityId)')
+    expect(d).toContain("if (c.userId !== session.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })")
+    expect(src('app/api/posts/[slug]/comments/[commentId]/like/route.ts')).toContain("if (!session) return NextResponse.json({ error: 'Not logged in' }, { status: 401 })")
+  })
+  it('mentions reuse the wall matching and skip the generic notices for the mentioned', () => {
+    const r = src('app/api/posts/[slug]/comments/route.ts')
+    expect(r).toContain('mentionCandidatesSql')
+    expect(r).toContain('!mentioned.has(post.authorId)')
+    expect(r).toContain('...skip')
+    expect(src('lib/notify.ts')).toContain("story_comment_mention: 'wallReplies'")
+  })
+  it('a bell link scrolls to the section once comments load', () => {
+    expect(src('components/StoryComments.tsx')).toContain("window.location.hash === '#comments'")
+  })
+  it('the edit/likes migration is additive', () => {
+    const m = src('prisma/migrations/20261016000001_comment_edit_likes/migration.sql')
+    expect(m).not.toMatch(/DROP |UPDATE "|DELETE FROM/)
   })
 })

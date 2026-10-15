@@ -47,7 +47,7 @@ export const FILTER_TYPES: Record<Filter, string[]> = {
     'availability_pulse', 'pulse_wave',
     // Community board: a new listing and the replies/interest it draws are
     // member-to-member, the same as a club wall post.
-    'listing_new', 'board_interest', 'board_reply', 'story_comment', 'story_comment_reply',
+    'listing_new', 'board_interest', 'board_reply', 'story_comment', 'story_comment_reply', 'story_comment_mention',
     // Someone announcing a visit is an invitation to meet, not admin business.
     'visitor_announced', 'visitor_tip',
   ],
@@ -164,6 +164,7 @@ export const TYPE_ICON: Record<string, string> = {
   board_reply:         '💬',
   story_comment:       '💬',
   story_comment_reply: '💬',
+  story_comment_mention: '💬',
   story_submission:    '📝',
   story_published:     '📰',
   story_declined:      '📝',
