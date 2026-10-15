@@ -186,6 +186,7 @@ export async function anonymizeUser(user: AnonymizeTarget, actor?: { id: string;
     // Post-2025 surfaces the original scrub list predates — same policy:
     // the containing surface stays readable, the user's words go.
     await tx.boardReply.updateMany({ where: { userId: id }, data: { body: DELETED_BODY } })
+    await tx.postComment.updateMany({ where: { userId: id }, data: { body: DELETED_BODY } })
     // The neighborhood too: it was the member's home, published by default.
     await tx.boardPost.updateMany({ where: { userId: id }, data: { title: 'Deleted post', body: DELETED_BODY, neighborhood: null, status: 'removed', pinned: false } })
     await tx.hangout.updateMany({ where: { userId: id }, data: { title: 'Deleted hangout', description: null, location: 'Removed', photo: null, status: 'cancelled' } })

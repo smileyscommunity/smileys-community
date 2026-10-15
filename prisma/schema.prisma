@@ -178,6 +178,7 @@ model User {
   neighborhoodPostReplies    NeighborhoodPostReply[]
   neighborhoodPosts          NeighborhoodPost[]
   postLikes                  PostLike[]
+  postComments               PostComment[]
   newslettersSent            Newsletter[]            @relation("NewslettersSent")
   notifPrefs                 NotificationPreference?
   notifications              Notification[]
@@ -317,6 +318,8 @@ model Report {
   boardPostId        String?
   // A reported reply on a board post (boardPostId carries its post too).
   boardReplyId       String?
+  // A reported comment under a story.
+  postCommentId      String?
   neighborhoodPostId String?
   // Set on reports auto-filed from a post-event survey (reason
   // 'post_event_survey') so dismissing the report can clear the survey's
@@ -1881,6 +1884,7 @@ model Post {
 
   author      User      @relation(fields: [authorId], references: [id])
   likes       PostLike[]
+  comments    PostComment[]
 
   @@index([status, publishedAt])
   @@index([kind, status, publishedAt])
@@ -1888,6 +1892,25 @@ model Post {
   // The handbook read paths all filter on this pair (lib/postScope.ts).
   @@index([cityId, country])
   @@map("posts")
+}
+
+// Member comments under a story (community posts). Flat on purpose: a story is
+// read, not threaded, so there is no parent. Soft-removed (removedAt) by the
+// commenter, the story's author or staff, so a reported comment stays
+// readable to moderation. Members only to read and write; guests see a count.
+model PostComment {
+  id        String    @id @default(cuid())
+  postId    String
+  userId    String
+  body      String
+  createdAt DateTime  @default(now())
+  removedAt DateTime?
+  post      Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([postId, createdAt])
+  @@index([userId])
+  @@map("post_comments")
 }
 
 // Article likes (handbook + community posts). Deliberately a plain

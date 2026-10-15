@@ -49,6 +49,13 @@ export async function GET() {
       : []
     const boardReplyMap = new Map(boardReplies.map(r => [r.id, { id: r.id, body: r.body, removed: !!r.removedAt }]))
 
+    // A reported story comment: its text, the story it is under, whether it is down.
+    const commentIds = [...new Set(reports.flatMap(r => r.postCommentId ? [r.postCommentId] : []))]
+    const comments = commentIds.length
+      ? await prisma.postComment.findMany({ where: { id: { in: commentIds } }, select: { id: true, body: true, removedAt: true, post: { select: { slug: true, title: true } } } })
+      : []
+    const commentMap = new Map(comments.map(c => [c.id, { id: c.id, body: c.body, removed: !!c.removedAt, slug: c.post.slug, title: c.post.title }]))
+
     // Same gap, same fix, for Marketplace listing reports (Report.listingId,
     // created by /api/listings/[id]/report) — previously invisible in this
     // queue despite the reuse-the-Report-model comment on that route saying
@@ -93,6 +100,7 @@ export async function GET() {
       event:            r.eventId            ? (eventMap.get(r.eventId)                      ?? null) : null,
       boardPost:        r.boardPostId        ? (boardPostMap.get(r.boardPostId)              ?? null) : null,
       boardReply:       r.boardReplyId       ? (boardReplyMap.get(r.boardReplyId)            ?? null) : null,
+      postComment:      r.postCommentId      ? (commentMap.get(r.postCommentId)              ?? null) : null,
       listing:          r.listingId          ? (listingMap.get(r.listingId)                  ?? null) : null,
       neighborhoodPost: r.neighborhoodPostId ? (neighborhoodPostMap.get(r.neighborhoodPostId) ?? null) : null,
     }))

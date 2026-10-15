@@ -35,6 +35,7 @@ interface Report {
   event?: { id: string; title: string } | null
   boardPost?: { id: string; title: string; body: string; status: string } | null
   boardReply?: { id: string; body: string; removed: boolean } | null
+  postComment?: { id: string; body: string; removed: boolean; slug: string; title: string } | null
   listing?: { id: string; title: string; category: string; status: string } | null
   neighborhoodPost?: { id: string; content: string; neighborhood: string; slug: string } | null
 }
@@ -285,7 +286,8 @@ function ModerationPageInner() {
 
   // A reported board post or reply still up: staff can take it down with
   // the review (the checkbox) or on its own ("Remove").
-  const boardContentLive = !!selected?.boardPost && (selected.boardReply ? !selected.boardReply.removed : selected.boardPost.status === 'active')
+  const boardContentLive = (!!selected?.boardPost && (selected.boardReply ? !selected.boardReply.removed : selected.boardPost.status === 'active'))
+    || (!!selected?.postComment && !selected.postComment.removed)
 
   async function handleAction(action: 'dismiss' | 'warn' | 'ban' | 'remove') {
     if (!selected) return
@@ -310,6 +312,7 @@ function ModerationPageInner() {
         setReports(prev => prev.map(r => r.id === selected.id
           ? { ...r, status: newStatus, reviewNote: note,
               reported: action === 'ban' ? { ...r.reported, status: 'banned' } : r.reported,
+              ...(tookDown && r.postComment ? { postComment: { ...r.postComment, removed: true } } : {}),
               ...(tookDown && r.boardPost ? r.boardReply
                 ? { boardReply: { ...r.boardReply, removed: true } }
                 : { boardPost: { ...r.boardPost, status: 'removed' } } : {}) }
@@ -661,6 +664,13 @@ function ModerationPageInner() {
                       <p className="text-xs text-zinc-400 mb-1 line-clamp-2">
                         💬 Reply: &ldquo;{r.boardReply.body.slice(0, 120)}&rdquo;
                         {r.boardReply.removed && <span className="text-zinc-500"> (already removed)</span>}
+                      </p>
+                    )}
+                    {r.postComment && (
+                      <p className="text-xs text-zinc-400 mb-1 line-clamp-2">
+                        <Link href={`/posts/${r.postComment.slug}#comments`} target="_blank" rel="noopener noreferrer" className="text-amber-500 hover:underline">📰 {r.postComment.title}</Link>
+                        {' '}💬 Comment: &ldquo;{r.postComment.body.slice(0, 120)}&rdquo;
+                        {r.postComment.removed && <span className="text-zinc-500"> (already removed)</span>}
                       </p>
                     )}
                     {r.listing && (
@@ -1080,16 +1090,18 @@ function ModerationPageInner() {
 
             {boardContentLive && (
               <div className="mb-4 bg-zinc-800/60 border border-zinc-700 rounded-xl p-3">
-                {selected.boardReply
+                {selected.postComment
+                  ? <p className="text-sm text-zinc-300 mb-2">&ldquo;{selected.postComment.body}&rdquo;</p>
+                  : selected.boardReply
                   ? <p className="text-sm text-zinc-300 mb-2">&ldquo;{selected.boardReply.body}&rdquo;</p>
                   : <p className="text-sm text-zinc-300 mb-2"><span className="font-semibold">{selected.boardPost!.title}</span>{selected.boardPost!.body && <> — {selected.boardPost!.body.slice(0, 200)}</>}</p>}
                 <label className="flex items-center gap-2 text-xs text-zinc-400">
                   <input type="checkbox" checked={removeContent} onChange={e => setRemoveContent(e.target.checked)} />
-                  Also remove this {selected.boardReply ? 'reply' : 'post'} when warning or banning
+                  Also remove this {selected.postComment ? 'comment' : selected.boardReply ? 'reply' : 'post'} when warning or banning
                 </label>
                 <button onClick={() => handleAction('remove')} disabled={saving}
                   className="mt-2 w-full py-2 text-sm font-semibold bg-zinc-700 hover:bg-zinc-600 text-white rounded-xl transition-colors disabled:opacity-50">
-                  Remove {selected.boardReply ? 'reply' : 'post'} only
+                  Remove {selected.postComment ? 'comment' : selected.boardReply ? 'reply' : 'post'} only
                 </button>
               </div>
             )}

@@ -64,6 +64,8 @@ const PREF_KEY: Record<string, 'newEvents' | 'reminders' | 'eventUpdates' | 'joi
   // Replies on the community board ride the same switch — they were in no
   // pref at all, so they could be neither muted nor held for quiet hours.
   board_reply:          'wallReplies',
+  // A member's comment under your story rides the same switch.
+  story_comment:        'wallReplies',
   board_interest:       'wallReplies',
   club_mention:         null,
   neighborhood_mention: null,

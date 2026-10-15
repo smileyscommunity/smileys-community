@@ -75,8 +75,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // a warning or ban. Staff had no way to: the review actions never touched
     // the content, and the board showed staff only "Report".
     const takeDown = action === 'remove' || ((action === 'warn' || action === 'ban') && removeContent === true)
-    if (takeDown && !boardPost) {
-      return NextResponse.json({ error: 'Only board posts and replies can be removed from here' }, { status: 400 })
+    if (takeDown && !boardPost && !report.postCommentId) {
+      return NextResponse.json({ error: 'Only board posts, replies and story comments can be removed from here' }, { status: 400 })
     }
     if (!reported && action !== 'dismiss' && action !== 'remove') {
       return NextResponse.json({ error: 'That member no longer exists — dismiss the report instead' }, { status: 404 })
@@ -128,6 +128,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         'Your report has been reviewed',
         'Thank you for helping keep Smileys safe. Your report was reviewed and dismissed — no action was needed.',
         undefined,
+      )
+    }
+
+    if (takeDown && report.postCommentId) {
+      await prisma.postComment.updateMany({ where: { id: report.postCommentId, removedAt: null }, data: { removedAt: new Date() } })
+      writeAudit(session.id, session.name, 'post.comment_remove', report.postCommentId, 'post_comment',
+        { reportId: id, userId: report.reportedId, note: reviewNote },
+        `Removed a reported story comment by ${reported?.name ?? report.reportedId}`,
       )
     }
 
