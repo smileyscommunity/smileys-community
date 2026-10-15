@@ -255,6 +255,8 @@ export async function PATCH(req: NextRequest) {
       // First AND last name are mandatory: the profile form merges them into
       // one field, so a single word means the last name was cleared.
       if (!name.includes(' ')) return NextResponse.json({ error: 'Last name is required' }, { status: 400 })
+      // A last name with no letters ('.', '-', an emoji) is a cleared one in disguise.
+      if (!/\p{L}/u.test(name.slice(name.indexOf(' ') + 1))) return NextResponse.json({ error: 'Last name is required' }, { status: 400 })
       data.name = name
     }
 
