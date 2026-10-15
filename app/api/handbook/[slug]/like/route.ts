@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
 
-// Toggle a like on a handbook article. Same shape as the club /
+// Toggle a like on a handbook or story article (the path predates stories). Same shape as the club /
 // neighborhood like routes: POST toggles, and the response carries
 // the fresh count so the client doesn't need a follow-up GET.
 //
@@ -26,13 +26,13 @@ export async function POST(_req: NextRequest, { params }: Params) {
   const { slug } = await params
 
   // Resolve by slug (the public identifier) and require the article to
-  // actually be a published handbook piece — otherwise a caller could
-  // like a draft, or any other Post row, by guessing a slug.
+  // actually be a published handbook or community article — otherwise a
+  // caller could like a draft, or any other Post row, by guessing a slug.
   const post = await prisma.post.findUnique({
     where:  { slug },
     select: { id: true, kind: true, status: true },
   })
-  if (!post || post.kind !== 'handbook' || post.status !== 'published') {
+  if (!post || (post.kind !== 'handbook' && post.kind !== 'community') || post.status !== 'published') {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 

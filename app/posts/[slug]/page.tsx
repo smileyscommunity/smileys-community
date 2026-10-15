@@ -21,6 +21,7 @@ import { storyBylines } from '@/lib/storyByline'
 import { normalizeCommunityCategory } from '@/app/admin/posts/constants'
 import ArticleInlineEditor from '@/components/ArticleInlineEditor'
 import SocialShare from '@/components/SocialShare'
+import ArticleLike from '@/components/ArticleLike'
 import ArticleViewBeacon from '@/components/ArticleViewBeacon'
 import EventArticleCard from '@/components/EventArticleCard'
 import MemberOffer from '@/components/MemberOffer'
@@ -275,6 +276,14 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
   // the nature of the thing, not a bug to chase.
   const fresh    = preview ? null : await prisma.post.findUnique({ where: { id: post.id }, select: { views: true } })
   const views    = fresh?.views ?? 0
+  // Per-viewer, so read outside the cached post (same as views above).
+  const likeCount = preview ? 0 : await prisma.postLike.count({ where: { postId: post.id } })
+  const likedByMe = !preview && session
+    ? (await prisma.postLike.findUnique({
+        where:  { postId_userId: { postId: post.id, userId: session.id } },
+        select: { postId: true },
+      })) !== null
+    : false
   // Structured event facts (public only) → the details card. Re-parsed on
   // every render, so a malformed row just means no card.
   const eventDetails = preview ? null : parseEventDetails(post.eventDetails)
@@ -426,6 +435,14 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
             above drops the ?v=. Drafts in staff preview have nothing to share. */}
         {!preview && (
           <div className="mt-10 pt-8 border-t border-gray-100">
+            <div className="mb-6">
+              <ArticleLike
+                slug={post.slug}
+                initialCount={likeCount}
+                initialLiked={likedByMe}
+                isLoggedIn={session !== null}
+              />
+            </div>
             <SocialShare
               title={`${post.title} — Smileys Community`}
               url={`${APP_URL}/posts/${post.slug}`}
