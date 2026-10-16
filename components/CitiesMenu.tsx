@@ -176,7 +176,7 @@ export default function CitiesMenu({
   const liveRowClass = (c: City) =>
     `w-full text-left flex items-center justify-between gap-2 px-4 py-2.5 text-sm rounded-xl transition-colors ${
       current?.slug === c.slug
-        ? 'bg-amber-50 text-amber-700 font-semibold'
+        ? 'bg-amber-100 text-amber-800 font-semibold'
         : 'text-gray-700 hover:bg-gray-50'
     }`
 
@@ -276,7 +276,9 @@ export default function CitiesMenu({
           aria-label={`Viewing ${current.name} — change city`}
           disabled={busy}
           className={`min-h-[44px] max-w-[110px] px-2 rounded-xl text-xs inline-flex items-center gap-1 disabled:opacity-50 ${
-            away ? 'bg-amber-50 text-amber-700 font-semibold' : 'text-gray-600 font-medium'
+            // Tinted at home too: bare text read as a label, not a control,
+            // and only an away city (amber) looked tappable.
+            away ? 'bg-amber-100 text-amber-800 font-semibold' : 'bg-gray-100 text-gray-700 font-medium'
           }`}
         >
           <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">

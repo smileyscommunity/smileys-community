@@ -23,4 +23,10 @@ describe('mobile header city pill', () => {
     expect(m).toContain("document.body.style.overflow = 'hidden'")
     expect(m).toContain('backdrop-blur')
   })
+
+  it('the current city is visibly shaded, at home or away', () => {
+    const m = src('components/CitiesMenu.tsx')
+    expect(m).toContain("'bg-amber-100 text-amber-800 font-semibold' : 'bg-gray-100 text-gray-700 font-medium'")
+    expect(m).toContain("? 'bg-amber-100 text-amber-800 font-semibold'\n        : 'text-gray-700 hover:bg-gray-50'")
+  })
 })
