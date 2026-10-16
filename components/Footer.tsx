@@ -231,7 +231,7 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
             <h3 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-4">Across Smileys</h3>
             <ul className="space-y-3">
               {[
-                { href: '/cities',   label: 'All cities 🌍'   },
+                { href: '/cities',   label: 'Cities 🌍'       },
                 { href: '/visiting', label: 'Visiting? 👋'    },
                 // Like /visiting, both land on the viewer's own city's hub
                 // (app/moving, app/remote-work, app/students resolve it), so they belong
