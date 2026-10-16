@@ -130,13 +130,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // about wherever you are.
   const footerCityId = urlCity?.id ?? contentCityId ?? sessionCityId
   const homeSlug       = cityRows.find(c => c.id === session?.cityId)?.slug
-  const viewingSlug    = cityRows.find(c => c.id === viewCityId)?.slug
   const footerCityName = cityRows.find(c => c.id === footerCityId)?.name ?? 'Istanbul'
   // The column's links are bare paths, and a bare path resolves to the
   // reader's city (sessionCityId: cookie, then account). When the column is
   // about some OTHER city — a guest on /eskisehir — they must carry it, or
   // "Handbook" under "In Eskişehir" opens Istanbul's.
   const footerCitySlug = cityRows.find(c => c.id === footerCityId)?.slug
+  // The city being looked at. A signed-out visitor with no cookie is looking at
+  // the page's city (Istanbul by default), and the menu should say so rather
+  // than claim they are looking at nothing. Members keep the cookie-only value:
+  // for them 'viewing' means 'moved off my home city'.
+  const viewingSlug    = cityRows.find(c => c.id === viewCityId)?.slug ?? (session ? undefined : footerCitySlug)
   const footerCityQs   = footerCityId !== sessionCityId && footerCitySlug ? `?city=${footerCitySlug}` : ''
   // Only Istanbul has neighborhoods today. Rather than link every city to a
   // page that would be empty, the entry appears when the city has rows.

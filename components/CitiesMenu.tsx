@@ -103,7 +103,9 @@ export default function CitiesMenu({
   // they never chose.
   // A guest who entered a city has the cookie too, and the menu should say so.
   const current  = live.find(c => c.slug === (viewingSlug || homeSlug))
-  const away     = !!current && current.slug !== homeSlug
+  // 'Away from home' needs a home: a guest has none, and the back-to-home row
+  // would only 401.
+  const away     = signedIn && !!current && current.slug !== homeSlug
 
   async function switchTo(slug: string | null) {
     if (busy) return
@@ -318,11 +320,11 @@ export default function CitiesMenu({
 
   // No city known (a guest who hasn't entered one): nothing to name, so no
   // picker — the same as the phone pill (whose drawer lists the cities).
-  // Desktop has no drawer, so a plain "All cities" link keeps a way in.
+  // Desktop has no drawer, so a plain "Cities" link keeps a way in.
   if (!current) {
     return (
       <Link href="/cities" className={`px-3 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100 transition-colors ${className}`}>
-        All cities
+        Cities
       </Link>
     )
   }

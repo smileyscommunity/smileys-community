@@ -33,7 +33,7 @@ describe('mobile header city pill', () => {
   it('desktop shows no city control until a city is known, same as the phone pill', () => {
     const m = src('components/CitiesMenu.tsx')
     expect(m).toContain('<Link href="/cities"')
-    expect(m).toContain('All cities\n')
+    expect(m).toContain('        Cities\n      </Link>')
     expect(m).not.toContain("current?.name ?? 'Cities'")
   })
 
@@ -41,5 +41,11 @@ describe('mobile header city pill', () => {
     const m = src('components/CitiesMenu.tsx')
     expect(m).toContain('current?.slug === c.slug && pathname === `/${c.slug}`')
     expect(m).toContain('if (pathname === `/${c.slug}`) e.preventDefault()')
+  })
+
+  it('a guest with no cookie is shown the page city (Istanbul by default), and has no away-from-home state', () => {
+    const l = src('app/layout.tsx')
+    expect(l).toContain('?.slug ?? (session ? undefined : footerCitySlug)')
+    expect(src('components/CitiesMenu.tsx')).toContain('const away     = signedIn && !!current && current.slug !== homeSlug')
   })
 })
