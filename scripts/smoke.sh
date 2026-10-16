@@ -98,6 +98,21 @@ if ! grep -qi "strict-transport-security" "$HDR"; then
 fi
 echo "  ✓ HSTS header present"
 
+# The homepage is the bare basePath URL /app, which pattern '/(.*)' and the
+# middleware matcher both missed (they compile to /app/…), so it shipped with
+# none of the security headers below while /app/login had them all. Check it
+# on its own — /app/login passing says nothing about /app.
+HOME_HDR=/tmp/smoke-home-headers.txt
+curl -sD "$HOME_HDR" "http://localhost:$PORT/app" -o /dev/null
+for h in content-security-policy strict-transport-security x-frame-options \
+         x-content-type-options referrer-policy permissions-policy; do
+  if ! grep -qi "^$h:" "$HOME_HDR"; then
+    echo "  ✗ homepage /app is missing $h — basePath-root matcher regression?"
+    exit 1
+  fi
+done
+echo "  ✓ homepage /app carries all six security headers"
+
 # /login must 200 — it's the entry point for unauthenticated users.
 STATUS=$(grep -E "^HTTP/" "$HDR" | tail -1 | awk '{print $2}')
 if [ "$STATUS" != "200" ]; then

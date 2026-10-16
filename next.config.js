@@ -147,7 +147,14 @@ const nextConfig = {
         headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }],
       })),
       {
-        source: '/(.*)',
+        // '/:path*{/}?', not '/(.*)'. With basePath '/app' Next prefixes the
+        // source, and '/app/(.*)' needs the slash after /app — so the bare
+        // homepage URL /app (the target of nginx's / → /app redirect) got
+        // none of these headers while every other page did. ':path*' makes
+        // the slash optional so /app itself matches; '{/}?' keeps trailing-
+        // slash URLs (skipTrailingSlashRedirect is on) covered as before.
+        // Pinned by tests/securityHeadersRoot.test.ts.
+        source: '/:path*{/}?',
         headers: [
           { key: 'X-Frame-Options',           value: 'DENY' },
           { key: 'X-Content-Type-Options',     value: 'nosniff' },

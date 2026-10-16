@@ -173,7 +173,13 @@ export function middleware(req: NextRequest) {
 export const config = {
   // Run on every request except static assets the framework serves directly.
   // Includes /api/* (for the origin/CSRF check above) and pages (for CSP).
+  //
+  // '/' is listed on its own because of basePath '/app': the pattern below
+  // compiles to '^/app/(...)' and so never matched the bare homepage URL /app,
+  // which then shipped with no CSP at all. '/' compiles to '^/app' and covers
+  // it. Pinned by tests/securityHeadersRoot.test.ts.
   matcher: [
+    '/',
     '/((?!_next/static|_next/image|favicon.ico|sw.js|manifest.json|icons/|fonts/).*)',
   ],
 }
