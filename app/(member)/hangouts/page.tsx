@@ -1492,6 +1492,30 @@ function HangoutCard({ h, currentUser, onCancel, onMutated, neighborhoods }: {
                 </span>
               )
             })()}
+            {canManage && (
+              // Two-state inline cancel — was a native confirm() in the
+              // parent. First tap flips confirmingCancel; second tap on
+              // "Yes, cancel" fires the DELETE. "Keep it" cleanly aborts.
+              confirmingCancel ? (
+                <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+                  <button onClick={() => { onCancel(h.id); setConfirmingCancel(false) }}
+                    className="text-xs font-bold text-red-600 hover:text-red-700">Yes, cancel</button>
+                  <span className="text-xs text-gray-300">/</span>
+                  <button onClick={() => setConfirmingCancel(false)}
+                    className="text-xs font-semibold text-gray-500 hover:text-gray-700">Keep it</button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 shrink-0 ml-auto">
+                  {/* Live too: "we moved tables" and "extending to 21:00" are the edits that matter. */}
+                  {!editing && (
+                    <button onClick={openEdit}
+                      className="text-xs text-gray-400 hover:text-gray-700">Edit</button>
+                  )}
+                  <button onClick={() => setConfirmingCancel(true)}
+                    className="text-xs text-gray-400 hover:text-gray-700">Cancel</button>
+                </div>
+              )
+            )}
           </div>
           <p className={`text-sm font-bold mt-0.5 flex items-center gap-1.5 ${status.live ? 'text-green-700' : 'text-amber-700'}`}>
             {status.live && (
@@ -1526,30 +1550,6 @@ function HangoutCard({ h, currentUser, onCancel, onMutated, neighborhoods }: {
             )}
           </p>
         </div>
-        {canManage && (
-          // Two-state inline cancel — was a native confirm() in the
-          // parent. First tap flips confirmingCancel; second tap on
-          // "Yes, cancel" fires the DELETE. "Keep it" cleanly aborts.
-          confirmingCancel ? (
-            <div className="flex items-center gap-1.5 shrink-0">
-              <button onClick={() => { onCancel(h.id); setConfirmingCancel(false) }}
-                className="text-xs font-bold text-red-600 hover:text-red-700">Yes, cancel</button>
-              <span className="text-xs text-gray-300">/</span>
-              <button onClick={() => setConfirmingCancel(false)}
-                className="text-xs font-semibold text-gray-500 hover:text-gray-700">Keep it</button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 shrink-0">
-              {/* Live too: "we moved tables" and "extending to 21:00" are the edits that matter. */}
-              {!editing && (
-                <button onClick={openEdit}
-                  className="text-xs text-gray-400 hover:text-gray-700">Edit</button>
-              )}
-              <button onClick={() => setConfirmingCancel(true)}
-                className="text-xs text-gray-400 hover:text-gray-700">Cancel</button>
-            </div>
-          )
-        )}
       </div>
 
       {/* Inline edit form (owner or staff). Mirrors the composer's field set +
