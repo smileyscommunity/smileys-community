@@ -40,7 +40,11 @@ export default function CitiesMenu({
   initial?: City[]
   // 'inline' renders the list flat, for the mobile menu panel — a dropdown
   // inside an already-open drawer is a second thing to tap for no reason.
-  variant?: 'dropdown' | 'inline'
+  // 'compact' is the phone header's pill: the current city's name (the
+  // desktop bar already shows it) that opens the same list as a sheet under
+  // the header. Renders nothing until a city is known — a guest with none has
+  // "Cities" in the drawer already, and the header has no room for a label.
+  variant?: 'dropdown' | 'inline' | 'compact'
   onNavigate?: () => void
   // Both from the layout, so they're server truth. homeSlug doubles as the
   // signed-in signal: useAuth() reports logged-out for a moment on first
@@ -252,6 +256,38 @@ export default function CitiesMenu({
   )
 
   if (variant === 'inline') return <div className={className}>{rows}</div>
+
+  if (variant === 'compact') {
+    if (!current) return null
+    return (
+      <div ref={ref} className={className}>
+        <button
+          onClick={() => setOpen(o => !o)}
+          aria-expanded={open}
+          aria-haspopup="true"
+          aria-label={`Viewing ${current.name} — change city`}
+          disabled={busy}
+          className={`min-h-[44px] max-w-[110px] px-2 rounded-xl text-xs inline-flex items-center gap-1 disabled:opacity-50 ${
+            away ? 'bg-amber-50 text-amber-700 font-semibold' : 'text-gray-600 font-medium'
+          }`}
+        >
+          <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          <span className="truncate">{current.name}</span>
+        </button>
+        {open && (
+          <div className="fixed left-3 right-3 top-[4.25rem] max-h-[calc(100dvh-5.5rem)] overflow-y-auto overscroll-contain bg-white rounded-2xl shadow-lg border border-gray-100 py-2 z-50">
+            {signedIn && (
+              <p className="px-4 pb-1 text-[11px] font-bold uppercase tracking-wider text-gray-400">Viewing</p>
+            )}
+            {rows}
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div ref={ref} className={`relative ${className}`}>

@@ -364,6 +364,10 @@ export default function Navbar({
 
           {/* Mobile right */}
           <div className="flex md:hidden items-center gap-0.5 z-10">
+            {/* Which city am I looking at? The desktop bar leads with it; on a
+                phone it was only inside the drawer (guests) or nowhere in the
+                header (members). Same list, one tap. */}
+            <CitiesMenu initial={cities} variant="compact" homeSlug={homeSlug} viewingSlug={viewingSlug} />
             {/* Same hydration hold as the desktop side — no guest flash. */}
             {isLoading ? (
               <div className="h-11 w-24" aria-hidden="true" />
