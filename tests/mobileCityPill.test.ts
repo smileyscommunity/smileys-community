@@ -43,11 +43,9 @@ describe('mobile header city pill', () => {
     expect(m).toContain('if (pathname === `/${c.slug}`) e.preventDefault()')
   })
 
-  it('a guest with no cookie is shown the page city (Istanbul by default), and can go back to the default', () => {
+  it('a guest with no cookie is shown the page city (Istanbul by default), and has no away-from-home state', () => {
     const l = src('app/layout.tsx')
     expect(l).toContain('?.slug ?? (session ? undefined : footerCitySlug)')
-    const m = src('components/CitiesMenu.tsx')
-    expect(m).toContain('const backSlug = homeSlug ?? defaultSlug')
-    expect(m).toContain('/app/api/city/enter?city=${backSlug}&to=city')
+    expect(src('components/CitiesMenu.tsx')).toContain('const away     = signedIn && !!current && current.slug !== homeSlug')
   })
 })

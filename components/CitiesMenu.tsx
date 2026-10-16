@@ -33,7 +33,6 @@ export default function CitiesMenu({
   initial = [],
   homeSlug,
   viewingSlug,
-  defaultSlug,
 }: {
   className?: string
   // Server-rendered city list from the layout. Without it the menu was absent
@@ -54,9 +53,6 @@ export default function CitiesMenu({
   // worse than one that never changed.
   homeSlug?: string
   viewingSlug?: string
-  // The city a guest returns to with "Back to…": a guest has no home, so the
-  // site's default stands in.
-  defaultSlug?: string
 }) {
   const [cities, setCities] = useState<City[]>(initial)
   const [open, setOpen]     = useState(false)
@@ -107,9 +103,9 @@ export default function CitiesMenu({
   // they never chose.
   // A guest who entered a city has the cookie too, and the menu should say so.
   const current  = live.find(c => c.slug === (viewingSlug || homeSlug))
-  // The city "back" returns to: a member's home, or a guest's default city.
-  const backSlug = homeSlug ?? defaultSlug
-  const away     = !!current && !!backSlug && current.slug !== backSlug
+  // 'Away from home' needs a home: a guest has none, and the back-to-home row
+  // would only 401.
+  const away     = signedIn && !!current && current.slug !== homeSlug
 
   async function switchTo(slug: string | null) {
     if (busy) return
@@ -232,25 +228,13 @@ export default function CitiesMenu({
 
       {away && (
         <div className="mt-1 pt-1 border-t border-gray-100">
-          {signedIn ? (
-            <button
-              onClick={() => switchTo(null)}
-              disabled={busy}
-              className="w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 rounded-xl transition-colors disabled:opacity-50"
-            >
-              ← Back to {live.find(c => c.slug === homeSlug)?.name ?? 'my city'}
-            </button>
-          ) : (
-            // A guest's cookie is reset the way it was set: through the entry
-            // route (the member DELETE would 401 them).
-            <a
-              href={`/app/api/city/enter?city=${backSlug}&to=city`}
-              onClick={() => { setOpen(false); onNavigate?.() }}
-              className="block w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 rounded-xl transition-colors"
-            >
-              ← Back to {live.find(c => c.slug === backSlug)?.name ?? 'my city'}
-            </a>
-          )}
+          <button
+            onClick={() => switchTo(null)}
+            disabled={busy}
+            className="w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 rounded-xl transition-colors disabled:opacity-50"
+          >
+            ← Back to {live.find(c => c.slug === homeSlug)?.name ?? 'my city'}
+          </button>
         </div>
       )}
 

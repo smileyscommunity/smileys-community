@@ -97,7 +97,6 @@ function useUnreadNotifications(isLoggedIn: boolean) {
 export default function BottomNav({
   cities = [],
   homeSlug,
-  defaultSlug,
   viewingSlug,
   hasPerks = false,
 }: {
@@ -105,7 +104,6 @@ export default function BottomNav({
   // its own and the two can't disagree about which cities exist.
   cities?: NavCity[]
   homeSlug?: string
-  defaultSlug?: string
   viewingSlug?: string
   hasPerks?: boolean
 } = {}) {
@@ -299,7 +297,6 @@ export default function BottomNav({
               initial={cities}
               variant="inline"
               homeSlug={homeSlug}
-              defaultSlug={defaultSlug}
               viewingSlug={viewingSlug}
               onNavigate={() => setSheetOpen(false)}
             />
