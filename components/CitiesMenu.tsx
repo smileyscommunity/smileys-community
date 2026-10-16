@@ -21,7 +21,7 @@ import type { CityMaturity } from '@/lib/cityMaturity'
 // cookie the server scopes events, clubs and the board by, grants no
 // permissions anywhere (authorization reads session.cityId, never this), and
 // "Back to <home>" always undoes it. For a guest there is no such state, so
-// picking a city is plain navigation and the button stays labeled "Cities".
+// picking a city is plain navigation, and with no city entered yet the control is not shown at all (desktop and phone alike).
 
 interface City { slug: string; name: string; country: string; status: string; maturity?: CityMaturity | null }
 
@@ -306,6 +306,10 @@ export default function CitiesMenu({
     )
   }
 
+  // No city known (a guest who hasn't entered one): nothing to name, so no
+  // control — the same as the phone pill. "All cities" stays in the footer.
+  if (!current) return null
+
   return (
     <div ref={ref} className={`relative ${className}`}>
       <button
@@ -323,7 +327,7 @@ export default function CitiesMenu({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
         )}
-        {current?.name ?? 'Cities'}
+        {current.name}
         <svg className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>

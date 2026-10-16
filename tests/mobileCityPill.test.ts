@@ -29,4 +29,10 @@ describe('mobile header city pill', () => {
     expect(m).toContain("'bg-amber-100 text-amber-800 font-semibold' : 'bg-gray-100 text-gray-700 font-medium'")
     expect(m).toContain("? 'bg-amber-100 text-amber-800 font-semibold'\n        : 'text-gray-700 hover:bg-gray-50'")
   })
+
+  it('desktop shows no city control until a city is known, same as the phone pill', () => {
+    const m = src('components/CitiesMenu.tsx')
+    expect(m).toContain('  if (!current) return null\n\n  return (\n    <div ref={ref} className={`relative ${className}`}>')
+    expect(m).not.toContain("current?.name ?? 'Cities'")
+  })
 })
