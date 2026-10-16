@@ -1507,7 +1507,7 @@ function HangoutCard({ h, currentUser, onCancel, onMutated, neighborhoods }: {
             <p className="text-xs text-gray-600 mt-2 whitespace-pre-wrap">{h.description}</p>
           )}
           <p className="text-[11px] text-gray-400 mt-2 flex items-center gap-1.5 flex-wrap">
-            <span>Posted by {isOwner ? 'you' : <>{h.user.name}{countryFlag(h.user.nationality) && <> {countryFlag(h.user.nationality)}</>}</>}</span>
+            <span>Posted by {isOwner ? 'you' : <>{h.user.name}{countryFlag(h.user.nationality) && <>{'\u00A0'}{countryFlag(h.user.nationality)}</>}</>}</span>
             {/* Trust badge — sourced from HangoutReference aggregates. Only
                 shows once a host has at least one good reference so it
                 doesn't make newcomers look unproven by absence. */}
