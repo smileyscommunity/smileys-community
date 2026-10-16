@@ -1,4 +1,4 @@
-// Draft: "The Many Lives of Türkiye" — Arts & Culture article (community post).
+// Draft: "The Many Lives of Türkiye" — Heritage & Traditions article (community post).
 //
 // Saved as a DRAFT only. Publishing (and the one-time "new article" bell) goes
 // through the normal admin publish path once Nate has reviewed it, so
@@ -8,8 +8,8 @@
 // İzmir, the Black Sea, Mardin and Istanbul, so it belongs on every Turkish
 // city's /posts and on no non-Turkish one (lib/postScope.ts).
 //
-// Category: the brief asked for "Culture"; 'Arts & Culture' is the closest
-// entry in app/admin/posts/constants.ts CATEGORIES.
+// Category: 'Heritage & Traditions', added for pieces like this one; the
+// brief's "Culture" would have collided with 'Arts & Culture'.
 //
 // Copy is the publishing brief's corrected text, wording unchanged. The
 // numbered references become small grey bracketed links straight to each
@@ -131,7 +131,7 @@ async function main() {
     if (DRY_RUN) { console.log('  DRY RUN — nothing written'); return }
     await prisma.post.updateMany({
       where: { id: existing.id, status: 'draft' },
-      data:  { title: TITLE, excerpt: EXCERPT, body: BODY, tags: TAGS },
+      data:  { title: TITLE, excerpt: EXCERPT, body: BODY, tags: TAGS, category: 'Heritage & Traditions' },
     })
     console.log('✓ draft updated'); return
   }
@@ -146,7 +146,7 @@ async function main() {
 
   console.log(`→ draft "${TITLE}"`)
   console.log(`  slug     /posts/${TURKIYE_SLUG}`)
-  console.log(`  category Arts & Culture · Türkiye-wide (country TR) · author ${author.name}`)
+  console.log(`  category Heritage & Traditions · Türkiye-wide (country TR) · author ${author.name}`)
   console.log(`  tags     ${TAGS.join(', ')}`)
   console.log(`  excerpt  ${EXCERPT.length} chars · body ${BODY.length} chars`)
   if (DRY_RUN) { console.log('\n  DRY RUN — nothing written'); return }
@@ -154,7 +154,7 @@ async function main() {
   const post = await prisma.post.create({
     data: {
       title: TITLE, slug: TURKIYE_SLUG, excerpt: EXCERPT, body: BODY, tags: TAGS,
-      status: 'draft', category: 'Arts & Culture', kind: 'community',
+      status: 'draft', category: 'Heritage & Traditions', kind: 'community',
       authorId: author.id, cityId: null, country: 'TR', coverImage: null,
     },
     select: { id: true },

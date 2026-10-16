@@ -42,7 +42,18 @@ export function isKind(s: unknown): s is Kind {
 // developments that matter to people living in or visiting the city (rules,
 // transport, economy, public life) — no hub reads it, so it shows on /posts
 // with or without a cityId.
-export const CATEGORIES = ['Community', 'Club Stories', 'Events', 'City Guide', 'Tips', 'Working from', 'Students', 'Expats', 'Digital nomads', 'Travelers', 'Arts & Culture', 'Business & Networking', 'Food & Drink', 'Current Affairs'] as const
+// 'Heritage & Traditions', 'Love & Relationships', 'Outdoors & Escapes' and
+// 'Sport & Wellbeing' (2026-10-16) are topic categories too, so no hub reads
+// them. Heritage & Traditions covers languages, communities, history and
+// customs; it is deliberately not named "Culture", because 'Arts & Culture'
+// is things to go and see and the handbook's Language & Culture is practical
+// etiquette. Love & Relationships means love, friendship and family abroad,
+// and is deliberately not "Dating": Smileys is a community, not a dating
+// app. Outdoors & Escapes covers sailing, hiking, islands and day trips
+// (Travelers is for visitors, City Guide is the city itself). Sport &
+// Wellbeing covers fitness and wellbeing as a way of life; how the health
+// system works stays in the handbook's Healthcare.
+export const CATEGORIES = ['Community', 'Club Stories', 'Events', 'City Guide', 'Tips', 'Working from', 'Students', 'Expats', 'Digital nomads', 'Travelers', 'Arts & Culture', 'Business & Networking', 'Food & Drink', 'Current Affairs', 'Heritage & Traditions', 'Love & Relationships', 'Outdoors & Escapes', 'Sport & Wellbeing'] as const
 export type Category = (typeof CATEGORIES)[number]
 // The two retired names, accepted on write and folded into 'City Guide' so an
 // edit of an older row migrates it instead of resetting it to the default.
