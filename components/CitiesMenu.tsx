@@ -58,6 +58,14 @@ export default function CitiesMenu({
   const [busy, setBusy]     = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
+  // The phone sheet dims the page; keep the page from scrolling under it.
+  useEffect(() => {
+    if (variant !== 'compact' || !open) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [variant, open])
+
   useEffect(() => {
     // Already server-rendered — don't spend a request re-fetching what we have.
     if (initial.length > 0) return
@@ -278,12 +286,19 @@ export default function CitiesMenu({
           <span className="truncate">{current.name}</span>
         </button>
         {open && (
+          // The header has backdrop-blur, which makes IT the containing block
+          // for these `fixed` elements: offsets below are from the header's
+          // top edge (4rem tall), not the viewport. Drop that class and both
+          // the sheet and the dimmer land in the wrong place.
+          <>
+          <div aria-hidden="true" onClick={() => setOpen(false)} className="fixed left-0 right-0 top-16 h-[100dvh] bg-black/25 z-40" />
           <div className="fixed left-3 right-3 top-[4.25rem] max-h-[calc(100dvh-5.5rem)] overflow-y-auto overscroll-contain bg-white rounded-2xl shadow-lg border border-gray-100 py-2 z-50">
             {signedIn && (
               <p className="px-4 pb-1 text-[11px] font-bold uppercase tracking-wider text-gray-400">Viewing</p>
             )}
             {rows}
           </div>
+          </>
         )}
       </div>
     )

@@ -16,4 +16,11 @@ describe('mobile header city pill', () => {
     expect(m).toContain('if (!current) return null')
     expect(m).toContain('{current.name}')
   })
+
+  it('the sheet dims the page, locks scroll, and documents its header dependency', () => {
+    const m = src('components/CitiesMenu.tsx')
+    expect(m).toContain('bg-black/25')
+    expect(m).toContain("document.body.style.overflow = 'hidden'")
+    expect(m).toContain('backdrop-blur')
+  })
 })
