@@ -18,7 +18,7 @@ import { loadContent } from '@/lib/content'
 import { resolveStats } from '@/lib/communityStats'
 import { getNavCities } from '@/lib/cities'
 import { CITY_STATUS } from '@/lib/cityStatus'
-import { getViewCityId, resolveCityId } from '@/lib/city'
+import { getViewCityId, resolveCityId, DEFAULT_CITY_SLUG } from '@/lib/city'
 import { cityCandidatesFromUrl, contentCitySlugPath } from '@/lib/pathCitySlug'
 import { cityIdForContent } from '@/lib/contentCity'
 import { getSession } from '@/lib/session'
@@ -236,11 +236,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           totpEnabled:   session.totpEnabled,
           joinedEvents:  [],
         } : null}>
-          <Navbar cities={navCities} homeSlug={homeSlug} viewingSlug={viewingSlug} hasPerks={hasPerks} cityQs={footerCityQs} />
+          <Navbar cities={navCities} homeSlug={homeSlug} viewingSlug={viewingSlug} defaultSlug={DEFAULT_CITY_SLUG} hasPerks={hasPerks} cityQs={footerCityQs} />
           <VerifyEmailBanner />
           <PendingApprovalBanner />
           <main className="flex-1">{children}</main>
-          <BottomNav cities={navCities} homeSlug={homeSlug} viewingSlug={viewingSlug} hasPerks={hasPerks} />
+          <BottomNav cities={navCities} homeSlug={homeSlug} viewingSlug={viewingSlug} defaultSlug={DEFAULT_CITY_SLUG} hasPerks={hasPerks} />
           <Footer stats={footerStats} cityName={footerCityName} hasNeighborhoods={hasNeighborhoods} urlCitySlug={urlCity?.slug} cityQs={footerCityQs} />
           <ClientOnlyComponents />
           <Toaster position="top-right" richColors closeButton />

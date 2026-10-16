@@ -124,12 +124,15 @@ export default function Navbar({
   cities = [],
   homeSlug,
   viewingSlug,
+  defaultSlug,
   cityQs = '',
   hasPerks = false,
 }: {
   cities?: NavCity[]
   homeSlug?: string
   viewingSlug?: string
+  /** The site's default city: what a guest's "Back to…" returns to. */
+  defaultSlug?: string
   /** '?city=<slug>' when the page is about a city other than the one a bare
       link would open (layout.tsx, same value as the footer's). */
   cityQs?: string
@@ -205,7 +208,7 @@ export default function Navbar({
                 the database, so a city an admin takes live appears with no
                 deploy, and it names the city you're currently in rather than
                 making you remember which one you picked. */}
-            <CitiesMenu initial={cities} homeSlug={homeSlug} viewingSlug={viewingSlug} />
+            <CitiesMenu initial={cities} homeSlug={homeSlug} viewingSlug={viewingSlug} defaultSlug={defaultSlug} />
 
             {(isLoggedIn ? memberPrimary : guestPrimary).map((link) => (
               <Link
@@ -367,7 +370,7 @@ export default function Navbar({
             {/* Which city am I looking at? The desktop bar leads with it; on a
                 phone it was only inside the drawer (guests) or nowhere in the
                 header (members). Same list, one tap. */}
-            <CitiesMenu initial={cities} variant="compact" homeSlug={homeSlug} viewingSlug={viewingSlug} />
+            <CitiesMenu initial={cities} variant="compact" homeSlug={homeSlug} viewingSlug={viewingSlug} defaultSlug={defaultSlug} />
             {/* Same hydration hold as the desktop side — no guest flash. */}
             {isLoading ? (
               <div className="h-11 w-24" aria-hidden="true" />
@@ -431,7 +434,7 @@ export default function Navbar({
                 <span aria-hidden="true">→</span>
               </Link>
               <p className="px-3 pt-4 pb-1 text-[11px] font-bold uppercase tracking-widest text-gray-400">Cities</p>
-              <div className="px-1"><CitiesMenu initial={cities} variant="inline" homeSlug={homeSlug} viewingSlug={viewingSlug} onNavigate={() => setMobileOpen(false)} /></div>
+              <div className="px-1"><CitiesMenu initial={cities} variant="inline" homeSlug={homeSlug} viewingSlug={viewingSlug} defaultSlug={defaultSlug} onNavigate={() => setMobileOpen(false)} /></div>
 
               {guestPrimary.map(link => (
                 <Link
