@@ -7,6 +7,7 @@ import { readFileSync } from 'fs'
 import { join } from 'path'
 import { getNeighborhoodViews, resolveNeighborhoodBySlug, type NeighborhoodView } from '@/lib/neighborhoodsDb'
 import { neighborhoodImage, nearestByDistance } from '@/lib/neighborhoods'
+import { parseGuideLongForm, guideFaqJsonLd } from '@/lib/neighborhoodGuide'
 import { getCityConfig, DEFAULT_CITY_SLUG } from '@/lib/city'
 import { resolveCityForPage, type CitySearch } from '@/lib/cityPageParam'
 import { countryName } from '@/lib/countries'
@@ -64,7 +65,12 @@ export async function generateMetadata(
   // char here is better spent on the "things to do" content Google needs
   // to match search intent. Hard-capped as a safety net for the longest
   // taglines even after dropping the brand sentence.
-  const rawDesc = guide?.tagline
+  // A hand-written seoDescription (lib/neighborhoodGuide) wins: it is written
+  // to the length budget, so it never needs the cut below.
+  const { seoDescription } = parseGuideLongForm(guide)
+  const rawDesc = seoDescription
+    ? seoDescription
+    : guide?.tagline
     ? `${guide.tagline}${topPlaces.length ? ` Try ${topPlaces.join(', ')}.` : ''}`
     // meta.vibe defaults to '' for a bulk-added neighborhood, which left
     // "…, Ankara. . Join Smileys…" in the indexed description. No promise of
@@ -299,7 +305,14 @@ export default async function NeighborhoodPage(
   const subtitle = [meta.vibe, meta.area ? (sideLabel[meta.area] ?? meta.area) : ''].filter(Boolean).join(' · ')
 
   const nearestForAbout = nearestNeighborhoods(meta, siblings, 2)
-  const aboutCopy = buildAboutCopy(meta, city.name, nearestForAbout.map(n => n.name), city.slug === DEFAULT_CITY_SLUG)
+  // Hand-written About paragraphs replace the template when the guide has
+  // them; the template stays the fallback for every other neighborhood.
+  const longForm = parseGuideLongForm(guide)
+  const aboutParagraphs = longForm.about.length > 0
+    ? longForm.about
+    : [buildAboutCopy(meta, city.name, nearestForAbout.map(n => n.name), city.slug === DEFAULT_CITY_SLUG)]
+  const aboutCopy = aboutParagraphs[0]
+  const faqJsonLd = guideFaqJsonLd(longForm.faq)
   // Same rule as the canonical above: the breadcrumb and the Place both have
   // to name THIS city's page.
   const cityQuery = city.slug === DEFAULT_CITY_SLUG ? '' : `?city=${city.slug}`
@@ -351,6 +364,14 @@ export default async function NeighborhoodPage(
           __html: jsonLdHtml(placeJsonLd),
         }}
       />
+      {faqJsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: jsonLdHtml(faqJsonLd),
+          }}
+        />
+      )}
       {/* ── Hero — renders immediately, no DB ── */}
       <section className="relative overflow-hidden">
         {/* The guide file is the place a photo belongs, but the card grid has
@@ -446,9 +467,11 @@ export default async function NeighborhoodPage(
             immediately (no DB). Real structured data only; see buildAboutCopy. */}
         <div>
           <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-3">About {name}</h2>
-          <p className="text-sm text-gray-700 leading-relaxed max-w-3xl">
-            {aboutCopy}
-          </p>
+          <div className="space-y-3 max-w-3xl">
+            {aboutParagraphs.map((p, i) => (
+              <p key={i} className="text-sm text-gray-700 leading-relaxed">{p}</p>
+            ))}
+          </div>
           {nearestForAbout.length > 0 && (
             <p className="text-sm text-gray-500 mt-2">
               Nearby: {nearestForAbout.map((n, i) => (
@@ -460,6 +483,39 @@ export default async function NeighborhoodPage(
             </p>
           )}
         </div>
+
+        {/* Long-form guide sections — immediate, no DB, so the depth that
+            makes the page worth ranking is in the first HTML a crawler sees.
+            Only guides that carry them (lib/neighborhoodGuide). */}
+        {longForm.sections.map(section => (
+          <section key={section.heading} className="max-w-3xl">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">{section.heading}</h2>
+            {section.body.length > 0 && (
+              <div className="space-y-3 mb-4">
+                {section.body.map((p, i) => (
+                  <p key={i} className="text-sm text-gray-700 leading-relaxed">{p}</p>
+                ))}
+              </div>
+            )}
+            {section.items.length > 0 && (
+              <dl className="space-y-4">
+                {section.items.map(item => (
+                  <div key={item.title}>
+                    <dt className="text-sm font-bold text-gray-900">{item.title}</dt>
+                    <dd className="text-sm text-gray-700 leading-relaxed mt-1">{item.body}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+            {section.steps.length > 0 && (
+              <ol className="space-y-2 list-decimal pl-5 marker:text-amber-600 marker:font-bold">
+                {section.steps.map((step, i) => (
+                  <li key={i} className="text-sm text-gray-700 leading-relaxed pl-1">{step}</li>
+                ))}
+              </ol>
+            )}
+          </section>
+        ))}
 
         {/* "Live here?" nudge — immediate, session-only */}
         {hasNoNeighborhood && (
@@ -514,6 +570,22 @@ export default async function NeighborhoodPage(
             sideLabel={sideLabel}
           />
         </Suspense>
+
+        {/* FAQ — the same strings the FAQPage JSON-LD above is built from,
+            so the visible answers and the structured data cannot disagree. */}
+        {longForm.faq.length > 0 && (
+          <section className="max-w-3xl">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">{name}: common questions</h2>
+            <div className="divide-y divide-gray-100 border border-gray-100 rounded-2xl bg-white shadow-sm">
+              {longForm.faq.map(f => (
+                <div key={f.q} className="px-5 py-4">
+                  <h3 className="text-sm font-bold text-gray-900">{f.q}</h3>
+                  <p className="text-sm text-gray-700 leading-relaxed mt-1">{f.a}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Share */}
         <SocialShare
