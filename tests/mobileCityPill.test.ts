@@ -13,7 +13,7 @@ describe('mobile header city pill', () => {
   it('the compact variant names the current city and renders nothing without one', () => {
     const m = src('components/CitiesMenu.tsx')
     expect(m).toContain("variant === 'compact'")
-    expect(m).toContain('if (!current) return null')
+    expect(m).toContain('if (!signedIn || !current) return null')
     expect(m).toContain('{current.name}')
   })
 
@@ -30,11 +30,13 @@ describe('mobile header city pill', () => {
     expect(m).toContain("? 'bg-amber-100 text-amber-800 font-semibold'\n        : 'text-gray-700 hover:bg-gray-50'")
   })
 
-  it('desktop shows no city control until a city is known, same as the phone pill', () => {
+  it('a signed-out visitor gets a plain Cities link to /cities, no named picker, no assumed default', () => {
     const m = src('components/CitiesMenu.tsx')
+    expect(m).toContain('if (!signedIn || !current) {')
     expect(m).toContain('<Link href="/cities"')
     expect(m).toContain('        Cities\n      </Link>')
     expect(m).not.toContain("current?.name ?? 'Cities'")
+    expect(m).toContain('if (!signedIn || !current) return null')
   })
 
   it('tapping the city you are already on closes the sheet instead of reloading', () => {
@@ -43,9 +45,10 @@ describe('mobile header city pill', () => {
     expect(m).toContain('if (pathname === `/${c.slug}`) e.preventDefault()')
   })
 
-  it('a guest with no cookie is shown the page city (Istanbul by default), and has no away-from-home state', () => {
-    const l = src('app/layout.tsx')
-    expect(l).toContain('?.slug ?? (session ? undefined : footerCitySlug)')
-    expect(src('components/CitiesMenu.tsx')).toContain('const away     = signedIn && !!current && current.slug !== homeSlug')
+  it('guests are not assumed to be viewing any city, and get no back-to-home row', () => {
+    expect(src('app/layout.tsx')).not.toContain('(session ? undefined : footerCitySlug)')
+    const m = src('components/CitiesMenu.tsx')
+    expect(m).toContain('const away     = signedIn && !!current && current.slug !== homeSlug')
+    expect(m).not.toContain('backSlug')
   })
 })

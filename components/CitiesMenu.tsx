@@ -278,7 +278,9 @@ export default function CitiesMenu({
   if (variant === 'inline') return <div className={className}>{rows}</div>
 
   if (variant === 'compact') {
-    if (!current) return null
+    // Members only: a signed-out visitor has no city of their own to name, and
+    // the phone drawer already lists the cities.
+    if (!signedIn || !current) return null
     return (
       <div ref={ref} className={className}>
         <button
@@ -318,10 +320,10 @@ export default function CitiesMenu({
     )
   }
 
-  // No city known (a guest who hasn't entered one): nothing to name, so no
-  // picker — the same as the phone pill (whose drawer lists the cities).
-  // Desktop has no drawer, so a plain "Cities" link keeps a way in.
-  if (!current) {
+  // A signed-out visitor has no city, and no default one is assumed for them:
+  // the bar just says "Cities" and opens the page that lists them all. Only a
+  // member gets the named picker.
+  if (!signedIn || !current) {
     return (
       <Link href="/cities" className={`px-3 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100 transition-colors ${className}`}>
         Cities
