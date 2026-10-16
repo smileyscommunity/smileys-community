@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { toast } from 'sonner'
 import { cityMenuLabel } from '@/lib/cityMenuLabel'
 import type { CityMaturity } from '@/lib/cityMaturity'
@@ -57,6 +58,7 @@ export default function CitiesMenu({
   const [open, setOpen]     = useState(false)
   const [busy, setBusy]     = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const pathname = usePathname()
 
   // The phone sheet dims the page; keep the page from scrolling under it.
   useEffect(() => {
@@ -186,7 +188,12 @@ export default function CitiesMenu({
         signedIn ? (
           <button
             key={c.slug}
-            onClick={() => switchTo(c.slug === homeSlug ? null : c.slug)}
+            onClick={() => {
+              // Already on this city's page: switching would only reload it,
+              // which reads as the tap doing nothing. Just close the sheet.
+              if (current?.slug === c.slug && pathname === `/${c.slug}`) { setOpen(false); onNavigate?.(); return }
+              void switchTo(c.slug === homeSlug ? null : c.slug)
+            }}
             disabled={busy}
             aria-current={current?.slug === c.slug ? 'true' : undefined}
             className={`${liveRowClass(c)} disabled:opacity-50`}
@@ -205,7 +212,10 @@ export default function CitiesMenu({
           <a
             key={c.slug}
             href={`/app/api/city/enter?city=${c.slug}&to=city`}
-            onClick={() => { setOpen(false); onNavigate?.() }}
+            onClick={e => {
+              setOpen(false); onNavigate?.()
+              if (pathname === `/${c.slug}`) e.preventDefault()   // already here: no reload
+            }}
             className={liveRowClass(c)}
           >
             <span className="font-semibold">{c.name}</span>
@@ -307,8 +317,15 @@ export default function CitiesMenu({
   }
 
   // No city known (a guest who hasn't entered one): nothing to name, so no
-  // control — the same as the phone pill. "All cities" stays in the footer.
-  if (!current) return null
+  // picker — the same as the phone pill (whose drawer lists the cities).
+  // Desktop has no drawer, so a plain "All cities" link keeps a way in.
+  if (!current) {
+    return (
+      <Link href="/cities" className={`px-3 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100 transition-colors ${className}`}>
+        All cities
+      </Link>
+    )
+  }
 
   return (
     <div ref={ref} className={`relative ${className}`}>

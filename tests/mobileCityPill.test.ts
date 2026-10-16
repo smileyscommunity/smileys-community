@@ -32,7 +32,14 @@ describe('mobile header city pill', () => {
 
   it('desktop shows no city control until a city is known, same as the phone pill', () => {
     const m = src('components/CitiesMenu.tsx')
-    expect(m).toContain('  if (!current) return null\n\n  return (\n    <div ref={ref} className={`relative ${className}`}>')
+    expect(m).toContain('<Link href="/cities"')
+    expect(m).toContain('All cities\n')
     expect(m).not.toContain("current?.name ?? 'Cities'")
+  })
+
+  it('tapping the city you are already on closes the sheet instead of reloading', () => {
+    const m = src('components/CitiesMenu.tsx')
+    expect(m).toContain('current?.slug === c.slug && pathname === `/${c.slug}`')
+    expect(m).toContain('if (pathname === `/${c.slug}`) e.preventDefault()')
   })
 })
