@@ -46,6 +46,10 @@ const categoryColors: Record<string, string> = {
   'Business & Networking': 'bg-slate-100 text-slate-700',
   'Food & Drink':          'bg-rose-100 text-rose-700',
   'Current Affairs':       'bg-yellow-100 text-yellow-800',
+  'Heritage & Traditions': 'bg-stone-100 text-stone-700',
+  'Love & Relationships':  'bg-red-100 text-red-700',
+  'Outdoors & Escapes':    'bg-emerald-100 text-emerald-700',
+  'Sport & Wellbeing':     'bg-lime-100 text-lime-800',
 }
 
 function timeAgo(iso: string): string {
