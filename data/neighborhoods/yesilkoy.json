@@ -1,5 +1,48 @@
 {
-  "tagline": "A historic seaside village near the airport — elegant old houses, a quiet marina, and a surprisingly calm seaside promenade far from the city's intensity.",
+  "tagline": "Istanbul's old San Stefano. Wooden mansions, a working lighthouse, a quiet marina, and the calmest seafront on the European side.",
+  "seoDescription": "Yeşilköy is Istanbul's old San Stefano: a seaside village of wooden mansions, four churches, a lighthouse and a quiet marina. How to spend a day there.",
+  "about": [
+    "Yeşilköy sits on the Marmara coast about 11 km west of the old city, in the Bakırköy district. For decades it meant one thing to most Istanbullu: the airport. Atatürk Airport stopped passenger flights in 2019, its runways became one of the biggest parks in the country, and the neighborhood next to it turned out to be one of the prettiest in Istanbul.",
+    "Before 1926 it was called San Stefano (Ayastefanos in Turkish). It was a fishing village that became a summer resort for the city's wealthy Levantine, Greek, Armenian and Ottoman families in the late 1800s, and a lot of that survives: tree-lined streets, Art Nouveau wooden houses with gardens, four churches within a few blocks of each other, and a seafront promenade where the loudest thing is usually the seagulls.",
+    "It's low-rise, leafy and well-off. You come here for a slow day, not a big night out."
+  ],
+  "sections": [
+    {
+      "heading": "A short history of Yeşilköy",
+      "items": [
+        { "title": "The name", "body": "Legend says a ship carrying the relics of Saint Stephen was forced ashore here by a storm in the 13th century. The relics rested in a local church until the sea calmed, and the village took his name. In 1926 it became Yeşilköy, \"Green Village\", a name usually credited to the novelist Halit Ziya Uşaklıgil, who lived here." },
+        { "title": "The treaty", "body": "In 1878 the Russian army halted its advance on Istanbul right here, and the Treaty of San Stefano that ended the Russo-Turkish War was signed in a mansion in the village. It was overturned months later at the Congress of Berlin, but the name stuck in history books across Europe." },
+        { "title": "The vanished monument", "body": "Russia built a huge memorial chapel on the hill for its fallen soldiers in the 1890s. It was blown up in 1914 and the demolition was filmed, footage widely counted as the first Turkish-made film. Both the monument and the film are gone." },
+        { "title": "The yacht club decision", "body": "In 1909 the Young Turks decided, at the San Stefano yacht club, to send Sultan Abdülhamid II into exile." },
+        { "title": "Wings", "body": "The Ottoman Empire's first airfield and flying school opened here in 1912. That airfield grew into Atatürk Airport." }
+      ]
+    },
+    {
+      "heading": "Getting to Yeşilköy",
+      "items": [
+        { "title": "Marmaray", "body": "Yeşilköy station is on the Marmaray line (Gebze to Halkalı). From the Asian side, board at Ayrılık Çeşmesi, a short walk or one metro stop from Kadıköy, and stay on: no transfers. From the European side, board at Sirkeci or Yenikapı." },
+        { "title": "By car or taxi", "body": "Take the coastal road (Sahil Yolu) from Bakırköy. Parking near the marina fills up on weekend afternoons." },
+        { "title": "Airports", "body": "Today's main airport (Istanbul Airport, IST) is far to the north. Don't confuse it with the old Atatürk Airport here, which no longer handles passenger flights." }
+      ]
+    },
+    {
+      "heading": "A half-day in Yeşilköy",
+      "steps": [
+        "Late morning: Marmaray to Yeşilköy, then coffee by the old ferry landing.",
+        "Midday: walk İstasyon Caddesi and the old streets, and find the churches and the ayazma.",
+        "Afternoon: the lighthouse, then along the promenade to the marina.",
+        "Sunset: fish and mezes near the marina.",
+        "Optional: swap the walk for the Aviation Museum, or add a lap of the National Garden. Florya is the next neighborhood west along the coast if you want to keep going."
+      ]
+    },
+    {
+      "heading": "Living in Yeşilköy",
+      "body": [
+        "Yeşilköy suits people who want quiet, green streets and the sea on their doorstep. It's popular with families and with anyone who wants space more than nightlife, and rents sit at the upper end for Istanbul.",
+        "The trade-off is distance. Most of the city's social life, and most Smileys events, happen in Kadıköy, Moda and Beyoğlu. The Marmaray makes that manageable, but you'll be commuting for your evenings out. If you're new to Istanbul and living out here, that's exactly why a community helps."
+      ]
+    }
+  ],
   "places": [
     {
       "category": "Coffee & Breakfast",
@@ -7,9 +50,14 @@
       "items": [
         {
           "name": "Yeşilköy İskelesi Cafés",
-          "description": "Cafés near the old ferry landing with sea views. A beautifully unhurried atmosphere for a morning coffee.",
+          "description": "Cafés near the old ferry landing with sea views, made for a long, unhurried morning coffee.",
           "address": "Yeşilköy İskelesi, Bakırköy",
           "badge": "Smileys Pick"
+        },
+        {
+          "name": "Old-school pastanes",
+          "description": "Yeşilköy has kept the kind of neighborhood patisseries that disappeared from central Istanbul. Pick one and have tea and a pastry like the locals do.",
+          "address": "Yeşilköy, Bakırköy"
         }
       ]
     },
@@ -19,9 +67,15 @@
       "items": [
         {
           "name": "Yeşilköy Balık Restoranları",
-          "description": "Fish restaurants near the marina with Marmara views. Very local crowd — no tourists. Excellent value.",
+          "description": "Fish restaurants just back from the marina with Marmara views and a mostly local crowd. Order what's in season and a few mezes, and take your time.",
           "address": "Yeşilköy Sahili, Bakırköy",
           "badge": "Hidden Gem"
+        },
+        {
+          "name": "Eleos Yeşilköy",
+          "description": "A Greek-tavern-style seafood restaurant a couple of streets from the marina, listed in the Michelin Guide.",
+          "address": "Yeşilbahçe Sokak No:9, Yeşilköy, Bakırköy",
+          "tip": "Book ahead on weekends."
         }
       ]
     },
@@ -30,18 +84,56 @@
       "emoji": "🗺️",
       "items": [
         {
-          "name": "Yeşilköy Tarihi Sahil Yürüyüşü",
-          "description": "A walk through the historic village streets with beautifully preserved 19th-century summer houses and along the seafront promenade.",
-          "address": "Yeşilköy, Bakırköy",
+          "name": "Walk the old village streets",
+          "description": "Start at the station and wander. The three townhouses on İstasyon Caddesi were built around 1900 by Guglielmo Semprini, the architect behind the Grand Hotel de Londres in Beyoğlu. Then head toward the sea past wooden mansions and walled gardens.",
+          "address": "İstasyon Caddesi, Yeşilköy, Bakırköy",
           "badge": "Smileys Pick"
+        },
+        {
+          "name": "The four churches and the ayazma",
+          "description": "Greek Orthodox, Armenian Apostolic and Roman Catholic churches, all dedicated to Saint Stephen, plus a Syriac church dedicated to Saint Ephrem. The Greek Orthodox ayazma is a sacred spring open to visitors and one of the few still in use in Istanbul.",
+          "address": "Yeşilköy, Bakırköy",
+          "tip": "Dress respectfully and check before going in during a service."
+        },
+        {
+          "name": "Yeşilköy Lighthouse",
+          "description": "Built by French troops during the Crimean War and one of Istanbul's three historic lighthouses still in use. The shore around it is the best photo spot in the neighborhood.",
+          "address": "Yeşilköy Feneri, Bakırköy"
+        },
+        {
+          "name": "Seafront promenade and marina",
+          "description": "The coastal path runs past the marina and the old ferry landing, with open Marmara views and benches every few metres. Sunset here is quieter than anywhere on the Bosphorus.",
+          "address": "Yeşilköy Sahili, Bakırköy",
+          "badge": "Smileys Pick"
+        },
+        {
+          "name": "Istanbul Aviation Museum",
+          "description": "Across from Yeşilköy station: an open-air field of jets, cargo planes, helicopters and radars, plus aircraft from the 1930s and exhibits going back to the Ottoman flying school.",
+          "address": "Havacılık Müzesi, Yeşilköy, Bakırköy",
+          "tip": "Closed on Mondays. Check current hours before you go."
+        },
+        {
+          "name": "Atatürk Airport National Garden",
+          "description": "The old runways are now a 1.2 million m² park with walking and cycling paths and sports fields. It opened in November 2025.",
+          "address": "Atatürk Havalimanı Millet Bahçesi, Bakırköy",
+          "tip": "Bring a bike or comfortable shoes. It's big."
         }
       ]
     }
   ],
   "tips": [
-    "Yeşilköy is on the Marmaray (Yeşilköy station) — easy access from the city centre.",
-    "One of Istanbul's least-visited historic villages. Almost no tourists.",
-    "Combine with Florya (just north) for a pleasant coastal half-day.",
-    "The old Greek and Armenian summer houses are well preserved — worth walking slowly."
+    "Yeşilköy is on the Marmaray, so it's one train from the Kadıköy side with no transfers.",
+    "Weekdays are almost empty. Weekends bring families to the promenade, but it never feels crowded.",
+    "The old Greek, Armenian and Levantine houses are best seen on foot. Leave the car.",
+    "Florya is the next stop west along the coast. Combine the two for a longer coastal day.",
+    "The Aviation Museum is closed on Mondays."
+  ],
+  "faq": [
+    { "q": "Is Yeşilköy worth visiting?", "a": "Yes, if you want a slower side of Istanbul. It has 19th-century wooden mansions, four historic churches, a working lighthouse, a seafront promenade and very few tourists. Half a day is enough to see it properly." },
+    { "q": "What does Yeşilköy mean?", "a": "\"Green Village\". Until 1926 the neighborhood was called San Stefano, after Saint Stephen." },
+    { "q": "How do I get to Yeşilköy from Kadıköy or Sultanahmet?", "a": "Take the Marmaray to Yeşilköy station. From Kadıköy, board at Ayrılık Çeşmesi; from the old city, board at Sirkeci. Both are direct, with no transfers." },
+    { "q": "Is Yeşilköy near the airport?", "a": "It's next to the former Atatürk Airport, which closed to passenger flights in 2019 and is now a large public park. Istanbul's current main airport (IST) is far to the north." },
+    { "q": "What is Yeşilköy famous for?", "a": "The 1878 Treaty of San Stefano, its Levantine wooden mansions, its lighthouse, its seafood restaurants by the marina, and being the birthplace of Turkish aviation." },
+    { "q": "Is Yeşilköy a good place to live?", "a": "It's one of Istanbul's calmest and greenest neighborhoods and popular with families. It's more expensive than average and a train ride from the city's main social areas." }
   ]
 }
